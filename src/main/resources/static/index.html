@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sieglings TCG</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <h1>SIEGLINGS TCG</h1>
+    <div class="header-info">
+        <span>Turn: <strong id="turnNumber">0</strong></span>
+        <span class="phase-badge" id="phaseBadge">DRAW</span>
+        <span>Active: <strong id="activeSideLabel">Player</strong></span>
+        <span>First: <strong id="firstPlayerLabel">Player</strong></span>
+        <span class="hidden" id="roomBadge"></span>
+        <button class="btn btn-primary" onclick="openLoadoutSelector()">New Game</button>
+    </div>
+</div>
+
+<!-- Main Game Area -->
+<div class="game-container">
+
+    <!-- Left Panel: Enemy Info -->
+    <div class="panel summary-panel" id="leftPanel">
+        <section class="summary-block summary-block-enemy">
+            <h3 id="enemyHeading">AI Opponent</h3>
+            <div class="health-display">Health: <span id="enemyHealth">100</span></div>
+            <div class="summary-meta-line">
+                Hand: <span id="enemyHandSize">0</span> | Deck: <span id="enemyDeckSize">0</span>
+            </div>
+            <div class="energy-display" id="enemyEnergy"></div>
+            <div id="enemyTrainer"></div>
+        </section>
+
+        <section class="summary-block summary-block-actions">
+            <h3>Actions</h3>
+            <div class="actions" id="actionButtons">
+                <button class="btn btn-primary" id="btnDraw" onclick="playerDraw()">Draw</button>
+                <button class="btn btn-fire" id="btnBattle" onclick="executeBattle()">Auto Battle</button>
+                <button class="btn btn-success" id="btnEndTurn" onclick="endTurn()">End Turn</button>
+            </div>
+        </section>
+
+        <section class="summary-block summary-block-player">
+            <h3 id="playerHeading">Player</h3>
+            <div class="health-display">Health: <span id="playerHealth">100</span></div>
+            <div class="summary-meta-line">
+                Deck: <span id="playerDeckSize">0</span>
+            </div>
+            <div class="energy-display" id="playerEnergy"></div>
+            <div id="playerTrainer"></div>
+        </section>
+    </div>
+
+    <!-- Center: Board -->
+    <div class="board-area" id="boardArea">
+        <div class="board-label">ENEMY SIDE</div>
+
+        <!-- Enemy Board: displayed with Front Row on top (closest to center) -->
+        <div class="board-grid" id="enemyGrid"></div>
+
+        <hr class="board-divider">
+
+        <!-- Player Board: displayed with Front Row on top (closest to center) -->
+        <div class="board-grid" id="playerGrid"></div>
+
+        <div class="board-label">YOUR SIDE</div>
+    </div>
+
+    <!-- Right Panel: Game Log -->
+    <div class="panel utility-panel" id="rightPanel">
+        <div class="mobile-info-tabs" id="mobileInfoTabs">
+            <button class="mobile-info-tab active" data-mobile-tab="battle" type="button" onclick="setMobileInfoTab('battle')">Battle</button>
+            <button class="mobile-info-tab" data-mobile-tab="selected" type="button" onclick="setMobileInfoTab('selected')">Card</button>
+            <button class="mobile-info-tab" data-mobile-tab="log" type="button" onclick="setMobileInfoTab('log')">Log</button>
+            <button class="mobile-info-tab" data-mobile-tab="key" type="button" onclick="setMobileInfoTab('key')">Key</button>
+        </div>
+
+        <section class="utility-section" data-mobile-tab="battle">
+            <h3>Battle Action</h3>
+            <div id="battleActionPanel" class="utility-copy">
+                Start battle to choose abilities for your Sieglings.
+            </div>
+        </section>
+
+        <section class="utility-section" data-mobile-tab="selected">
+            <h3>Selected Card</h3>
+            <div id="selectedCardInfo" class="utility-copy">
+                Click a card in your hand to select it.
+            </div>
+        </section>
+
+        <section class="utility-section" data-mobile-tab="log">
+            <h3>Game Log</h3>
+            <div class="game-log" id="gameLog"></div>
+        </section>
+
+        <section class="utility-section" data-mobile-tab="key">
+            <h3>Element Key</h3>
+            <div id="elementKeyPanel" class="utility-copy"></div>
+        </section>
+    </div>
+</div>
+
+<!-- Hand Area -->
+<div class="hand-area">
+    <h3 id="handHeading">Your Hand</h3>
+    <div class="hand-cards" id="playerHand"></div>
+</div>
+
+<!-- Card Tooltip -->
+<div class="card-tooltip" id="cardTooltip">
+    <div class="tt-name" id="ttName"></div>
+    <div class="tt-stats" id="ttStats"></div>
+    <div class="tt-ability" id="ttAbility"></div>
+</div>
+
+<!-- Game Over Overlay -->
+<div class="game-over-overlay" id="gameOverOverlay">
+    <div class="game-over-box">
+        <h2 id="gameOverTitle">GAME OVER</h2>
+        <p id="gameOverMsg"></p>
+        <button class="btn btn-primary" onclick="openLoadoutSelector()">Play Again</button>
+    </div>
+</div>
+
+<div class="loadout-overlay visible" id="loadoutOverlay">
+    <div class="loadout-box">
+        <h2>Choose Your Loadout</h2>
+        <p class="loadout-copy">Pick a preset deck or build your own custom list from the full six-element card pool, then choose a SiegeKnight.</p>
+        <div class="match-mode-tabs">
+            <button class="loadout-tab active" id="soloMatchTab" onclick="setMatchMode('solo')">Solo Vs AI</button>
+            <button class="loadout-tab" id="onlineMatchTab" onclick="setMatchMode('online')">Online Match</button>
+        </div>
+        <div id="onlineMatchPanel" class="hidden">
+            <div class="loadout-tabs">
+                <button class="loadout-tab active" id="hostRoomTab" onclick="setOnlineRoomMode('create')">Host Room</button>
+                <button class="loadout-tab" id="joinRoomTab" onclick="setOnlineRoomMode('join')">Join Room</button>
+            </div>
+            <div class="online-match-grid">
+                <label class="online-field">
+                    <span>Your Name</span>
+                    <input type="text" id="playerNameInput" maxlength="20" placeholder="Your name">
+                </label>
+                <label class="online-field" id="roomCodeField">
+                    <span>Room Code</span>
+                    <input type="text" id="roomCodeInput" maxlength="6" placeholder="ABC123">
+                </label>
+            </div>
+            <div id="onlineStatus" class="loadout-summary"></div>
+        </div>
+        <div class="loadout-tabs">
+            <button class="loadout-tab active" id="presetTab" onclick="switchLoadoutMode('preset')">Preset Decks</button>
+            <button class="loadout-tab" id="builderTab" onclick="switchLoadoutMode('builder')">Deck Builder</button>
+        </div>
+        <div id="presetLoadoutPanel">
+            <div>
+                <h3>Decks</h3>
+                <div id="deckOptions" class="loadout-options"></div>
+            </div>
+        </div>
+        <div id="builderLoadoutPanel" class="hidden">
+            <div class="builder-toolbar">
+                <div class="builder-filter-group" id="builderElementFilters"></div>
+                <div class="builder-filter-group" id="builderTypeFilters"></div>
+            </div>
+            <div class="builder-layout">
+                <div>
+                    <h3>Card Pool</h3>
+                    <div id="builderCatalog" class="builder-catalog"></div>
+                </div>
+                <div>
+                    <h3>Deck List</h3>
+                    <div id="builderDeckList" class="builder-deck-list"></div>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:16px;">
+            <h3>SiegeKnights</h3>
+            <div id="trainerOptions" class="loadout-options"></div>
+        </div>
+        <div id="loadoutSummary" class="loadout-summary"></div>
+        <div class="loadout-actions">
+            <button class="btn btn-primary" id="btnStartLoadout" onclick="startSelectedGame()">Start Match</button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/config.js"></script>
+<script src="/js/game.js"></script>
+</body>
+</html>
