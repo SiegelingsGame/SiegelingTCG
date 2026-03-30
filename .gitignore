@@ -1,0 +1,12 @@
+target/
+*.class
+*.log
+spring-boot*.err
+*.tmp
+*.swp
+
+.idea/
+.vscode/
+*.iml
+
+multiplayer-tunnel.log
