@@ -68,16 +68,18 @@ final class GeneratedSpellCatalog {
                     case 19, 20, 21, 22, 23, 24, 25, 26 -> Rarity.RARE;
                     default -> Rarity.LEGENDARY;
                 };
-                int cost = switch (rarity) {
+                int cost = 0;
+                int power = switch (rarity) {
                     case COMMON -> 1;
-                    case UNCOMMON -> 1;
+                    case UNCOMMON -> 2;
                     case RARE -> 3;
-                    case LEGENDARY -> 6;
+                    case EPIC -> 4;
+                    case LEGENDARY -> 5;
                 };
 
                 String id = "spell_" + element.name().toLowerCase(Locale.ROOT) + "_" + String.format(Locale.ROOT, "%02d", index);
                 String name = prefix + " " + suffix;
-                Ability ability = buildElementSpellAbility(element, index, cost, name);
+                Ability ability = buildElementSpellAbility(element, index, power, name);
                 SpellCard spell = new SpellCard(id, name, element, rarity, cost, ability);
                 if (index % 7 == 0 && element == Element.FIRE) {
                     spell.setRequiredReaction(Reaction.MIST);
