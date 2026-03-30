@@ -603,13 +603,16 @@ final class GeneratedCreatureCatalog {
     }
 
     private static int placementCost(Rarity rarity, int stage) {
-        if (rarity == Rarity.LEGENDARY) {
-            return 2;
+        if (stage > 0) {
+            // Evolution cards use tiered energy costs: 1 / 3 / 6
+            return switch (stage) {
+                case 1 -> 1;
+                case 2 -> 3;
+                default -> 6;
+            };
         }
-        if (rarity == Rarity.RARE && stage > 0) {
-            return 2;
-        }
-        if (rarity == Rarity.RARE || stage > 0) {
+        // Non-evolution: only rare and higher tier cards cost energy
+        if (rarity == Rarity.RARE || rarity == Rarity.LEGENDARY) {
             return 1;
         }
         return 0;

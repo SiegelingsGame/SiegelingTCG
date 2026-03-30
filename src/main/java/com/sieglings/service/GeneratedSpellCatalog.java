@@ -70,9 +70,9 @@ final class GeneratedSpellCatalog {
                 };
                 int cost = switch (rarity) {
                     case COMMON -> 1;
-                    case UNCOMMON -> 2;
+                    case UNCOMMON -> 1;
                     case RARE -> 3;
-                    case LEGENDARY -> 4;
+                    case LEGENDARY -> 6;
                 };
 
                 String id = "spell_" + element.name().toLowerCase(Locale.ROOT) + "_" + String.format(Locale.ROOT, "%02d", index);
