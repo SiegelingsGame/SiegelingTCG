@@ -175,7 +175,7 @@ public class BattleService {
     private List<Ability> buildBattleAbilities(CardInstance attacker) {
         List<Ability> abilities = new ArrayList<>();
         Element element = attacker.getElement();
-        int strikeDamage = baseBattleDamage(attacker) + attacker.getDamageBoost();
+        int baseDmg = baseBattleDamage(attacker) + attacker.getDamageBoost();
         String cardId = attacker.getCard().getId();
 
         if (attacker.getCard().getRarity() == Rarity.COMMON
@@ -183,13 +183,15 @@ public class BattleService {
             Ability commonFallback = buildCommonFallbackAbility(attacker);
             abilities.add(commonFallback);
         } else {
+            // Option 1: Light strike — 1 energy, scaled-down single-target damage
+            int lightDmg = Math.max(1, baseDmg - 1);
             Ability basicStrike = Ability.damage(
                     attacker.getName() + " Strike",
-                    "Deal " + strikeDamage + " damage to 1 enemy",
+                    "Deal " + lightDmg + " damage to 1 enemy",
                     TargetType.SINGLE_ENEMY,
                     null,
                     1,
-                    strikeDamage
+                    lightDmg
             );
             basicStrike.setRequiredElement(element);
             basicStrike.setRequiredEnergy(1);
@@ -197,16 +199,28 @@ public class BattleService {
         }
 
         if (attacker.getCard().getRarity() != Rarity.COMMON) {
+            // Option 2: Signature — 2-3 energy, medium damage
+            // Same damage as Option 1 ONLY if targeting is different (AOE/row vs single)
             Ability signature = buildSignatureAbility(attacker);
+            boolean signatureIsAoe = signature.getTargetType() == TargetType.ROW_ENEMIES
+                    || signature.getTargetType() == TargetType.ALL_ENEMIES;
+            int sigCost = signatureIsAoe ? 2 : 3;
+            if (!signatureIsAoe && "damage".equals(signature.getEffectType())) {
+                // Single-target signature should deal MORE than Option 1
+                int boosted = Math.max(signature.getEffectValue(), baseDmg + 1);
+                signature.setEffectValue(boosted);
+                signature.setDescription("Deal " + boosted + " damage to 1 enemy");
+            }
             signature.setRequiredElement(element);
-            signature.setRequiredEnergy(Math.max(2, attacker.getCard().getCostAmount()));
+            signature.setRequiredEnergy(sigCost);
             abilities.add(signature);
         }
 
         if (attacker.getCard().getRarity() == Rarity.RARE
                 || attacker.getCard().getRarity() == Rarity.EPIC
                 || attacker.getCard().getRarity() == Rarity.LEGENDARY) {
-            int finisherDamage = strikeDamage + (attacker.getCard().getRarity() == Rarity.LEGENDARY ? 2 : 1);
+            // Option 3: Finisher — high energy, high damage AOE
+            int finisherDamage = baseDmg + (attacker.getCard().getRarity() == Rarity.LEGENDARY ? 3 : 2);
             Ability finisher = Ability.damage(
                     attacker.getName() + " Burst",
                     "Deal " + finisherDamage + " damage to all enemies in Front Row",

@@ -100,6 +100,9 @@ final class GeneratedSpellCatalog {
                 String id = "spell_" + element.name().toLowerCase(Locale.ROOT) + "_" + String.format(Locale.ROOT, "%02d", index);
                 String name = prefix + " " + suffix;
                 Ability ability = buildElementSpellAbility(element, index, power, name);
+                if ("destroy".equals(ability.getEffectType())) {
+                    cost = Math.max(3, cost);
+                }
                 SpellCard spell = new SpellCard(id, name, element, rarity, cost, ability);
                 if (index % 7 == 0 && element == Element.FIRE) {
                     spell.setRequiredReaction(Reaction.MIST);
@@ -310,7 +313,8 @@ final class GeneratedSpellCatalog {
                 default -> new Ability(name, "All allies gain +3 Speed this turn", TargetType.ALL_ALLIES, null, 0, "speed_boost", 3, false);
             };
 
-            SpellCard spell = new SpellCard(id, name, Element.NEUTRAL, Rarity.LEGENDARY, 0, ability);
+            int quadCost = "destroy".equals(ability.getEffectType()) ? 3 : 0;
+            SpellCard spell = new SpellCard(id, name, Element.NEUTRAL, Rarity.LEGENDARY, quadCost, ability);
             configureComboSpell(spell, 4, signature);
             cards.add(spell);
         }
