@@ -15,6 +15,11 @@ let multiplayerSession = loadSavedMultiplayerSession();
 let roomPollHandle = null;
 let currentRoomStatus = null;
 let mobileInfoTab = 'battle';
+const cardImageCache = {}; /* tracks which card images exist: id -> true/false */
+
+function cardImagePath(cardId) {
+    return `images/cards/${encodeURIComponent(cardId)}.png`;
+}
 
 const ROW_NAMES = ['Back', 'Middle', 'Front'];
 const TARGET_TYPES = {
@@ -1067,13 +1072,21 @@ function renderHand() {
         html += `<span class="corner-orb bottom-right"></span>`;
         html += `</div>`;
 
-        /* ── upper art area with element + type/rarity badge ── */
+        /* ── upper art area: image if available, else element/rarity fallback ── */
+        const imgKnownMissing = cardImageCache[card.id] === false;
         html += `<div class="card-art-area">`;
+        if (!imgKnownMissing) {
+            html += `<img class="card-art-img" src="${cardImagePath(card.id)}" alt="${card.name}"
+                onerror="this.style.display='none'; this.nextElementSibling.style.display=''; cardImageCache['${card.id}']=false;"
+                onload="cardImageCache['${card.id}']=true;">`;
+        }
+        html += `<div class="card-art-fallback"${imgKnownMissing ? '' : ' style="display:none"'}>`;
         html += `<div class="card-element-label">${formatElementLabel(card.element)}</div>`;
         html += `<div class="card-rarity-badge">${card.rarity}</div>`;
         if (card.type === 'SIEGLING') {
             html += renderNotches(card.notches, { isBoard: false });
         }
+        html += `</div>`;
         html += `</div>`;
 
         /* ── bottom info panel ── */
