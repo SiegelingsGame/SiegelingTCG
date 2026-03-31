@@ -13,11 +13,14 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -27,6 +30,8 @@ import java.util.stream.Stream;
  */
 @Service
 public class CardDefinitionService {
+
+    private record Family(String rootId, List<SieglingCard> members) {}
 
     public record DeckOption(
             String id,
@@ -247,29 +252,194 @@ public class CardDefinitionService {
 
     private List<Card> buildDeck(Set<Element> elements) {
         List<Card> deck = new ArrayList<>();
-        for (Element element : elements) {
-            getSieglingsForElement(element).forEach(card -> deck.add(card.copy()));
-        }
 
-        boolean supportsMist = elements.contains(Element.FIRE) && elements.contains(Element.WATER);
-        for (SpellCard spell : createSpells()) {
-            if (!spellFitsDeck(spell, elements)) {
-                continue;
-            }
-            if (spell.getRequiredReaction() != null && !supportsMist) {
-                continue;
-            }
-            deck.add(spell.copy());
-        }
-
-        for (TrapCard trap : createTraps()) {
-            if (elements.contains(trap.getElement())) {
-                deck.add(trap.copy());
-                deck.add(trap.copy());
-            }
-        }
+        // Preset deck distribution: 20 Sieglings, 10 spells, 10 traps.
+        // - Max 3 copies (enforced elsewhere for custom decks; presets follow it here too)
+        // - If a Siegling from an evolution line is included, include the full evolution tree.
+        deck.addAll(selectPresetSieglings(elements, 20, 3).stream().map(SieglingCard::copy).toList());
+        deck.addAll(selectPresetSpells(elements, 10).stream().map(SpellCard::copy).toList());
+        deck.addAll(selectPresetTraps(elements, 10, 3).stream().map(TrapCard::copy).toList());
 
         return deck;
+    }
+
+    private List<SieglingCard> selectPresetSieglings(Set<Element> elements, int targetCount, int maxCopies) {
+        List<SieglingCard> pool = elements.stream()
+                .flatMap(element -> getSieglingsForElement(element).stream())
+                .map(SieglingCard::copy)
+                .toList();
+
+        Map<String, SieglingCard> byId = pool.stream()
+                .collect(Collectors.toMap(SieglingCard::getId, Function.identity(), (a, b) -> a));
+
+        // Build evolution families keyed by their root id.
+        Map<String, List<SieglingCard>> membersByRoot = new HashMap<>();
+        for (SieglingCard card : pool) {
+            String root = evolutionRootId(card, byId);
+            membersByRoot.computeIfAbsent(root, _k -> new ArrayList<>()).add(card);
+        }
+
+        List<Family> families = membersByRoot.entrySet().stream()
+                .map(entry -> new Family(entry.getKey(), entry.getValue().stream()
+                        .sorted(Comparator
+                                .comparing((SieglingCard c) -> evolutionDepth(c, byId))
+                                .thenComparing(SieglingCard::getName))
+                        .toList()))
+                .sorted(Comparator
+                        .comparingInt((Family f) -> f.members().size())
+                        .thenComparing(f -> byId.get(f.rootId()).getName().toLowerCase(Locale.ROOT)))
+                .toList();
+
+        // Pick whole families so we land exactly on targetCount.
+        List<Family> chosenFamilies = pickFamiliesExact(families, targetCount);
+        List<SieglingCard> chosen = new ArrayList<>();
+        for (Family family : chosenFamilies) {
+            chosen.addAll(family.members());
+        }
+
+        // If we landed under targetCount (shouldn't), fill with single-card families.
+        if (chosen.size() < targetCount) {
+            for (Family f : families) {
+                if (chosen.size() >= targetCount) break;
+                if (chosenFamilies.contains(f)) continue;
+                if (f.members().size() != 1) continue;
+                chosen.addAll(f.members());
+            }
+        }
+
+        // Add extra copies (favor roots / non-evolutions) up to maxCopies until we reach targetCount.
+        if (chosen.size() < targetCount) {
+            Map<String, Integer> counts = new HashMap<>();
+            for (SieglingCard c : chosen) counts.merge(c.getId(), 1, Integer::sum);
+
+            List<SieglingCard> copyPriority = chosen.stream()
+                    .sorted(Comparator
+                            .comparing((SieglingCard c) -> c.isEvolutionCard()) // false first
+                            .thenComparing(SieglingCard::getRarity)
+                            .thenComparing(SieglingCard::getName))
+                    .toList();
+
+            int cursor = 0;
+            while (chosen.size() < targetCount && !copyPriority.isEmpty()) {
+                SieglingCard pick = copyPriority.get(cursor % copyPriority.size());
+                cursor += 1;
+                int next = counts.getOrDefault(pick.getId(), 0) + 1;
+                if (next > maxCopies) continue;
+                counts.put(pick.getId(), next);
+                chosen.add(pick);
+            }
+        }
+
+        // Defensive trim (should be exact).
+        return chosen.size() <= targetCount ? chosen : chosen.subList(0, targetCount);
+    }
+
+    private List<SpellCard> selectPresetSpells(Set<Element> elements, int targetCount) {
+        boolean supportsMist = elements.contains(Element.FIRE) && elements.contains(Element.WATER);
+
+        List<SpellCard> candidates = createSpells().stream()
+                .filter(spell -> spellFitsDeck(spell, elements))
+                .filter(spell -> spell.getRequiredReaction() == null || supportsMist)
+                .map(SpellCard::copy)
+                .sorted(Comparator
+                        .comparingInt(SpellCard::getCostAmount)
+                        .thenComparing(SpellCard::getRarity)
+                        .thenComparing(SpellCard::getName))
+                .toList();
+
+        return candidates.size() <= targetCount ? candidates : candidates.subList(0, targetCount);
+    }
+
+    private List<TrapCard> selectPresetTraps(Set<Element> elements, int targetCount, int maxCopies) {
+        List<TrapCard> candidates = createTraps().stream()
+                .filter(trap -> elements.contains(trap.getElement()))
+                .map(TrapCard::copy)
+                .sorted(Comparator
+                        .comparing(TrapCard::getRarity)
+                        .thenComparing(TrapCard::getName))
+                .toList();
+
+        List<TrapCard> chosen = new ArrayList<>();
+        if (candidates.isEmpty()) return chosen;
+
+        Map<String, Integer> counts = new HashMap<>();
+        int cursor = 0;
+        while (chosen.size() < targetCount) {
+            TrapCard pick = candidates.get(cursor % candidates.size());
+            cursor += 1;
+            int next = counts.getOrDefault(pick.getId(), 0) + 1;
+            if (next > maxCopies) {
+                // If we can't add any more copies of any candidate, stop.
+                boolean anyAvailable = candidates.stream()
+                        .anyMatch(card -> counts.getOrDefault(card.getId(), 0) < maxCopies);
+                if (!anyAvailable) break;
+                continue;
+            }
+            counts.put(pick.getId(), next);
+            chosen.add(pick);
+        }
+        return chosen;
+    }
+
+    private List<Family> pickFamiliesExact(List<Family> families, int targetSize) {
+        // Small, deterministic backtracking: family sizes are typically 1-3, so this stays cheap.
+        List<Family> best = new ArrayList<>();
+        backtrackFamilies(families, 0, targetSize, new ArrayList<>(), best);
+        if (!best.isEmpty()) return best;
+
+        // Fallback: greedy smallest-first without exceeding target.
+        int sum = 0;
+        List<Family> greedy = new ArrayList<>();
+        for (Family f : families) {
+            if (sum + f.members().size() > targetSize) continue;
+            greedy.add(f);
+            sum += f.members().size();
+            if (sum == targetSize) break;
+        }
+        return greedy;
+    }
+
+    private void backtrackFamilies(List<Family> families, int idx, int remaining,
+                                   List<Family> current, List<Family> outExact) {
+        if (!outExact.isEmpty()) return;
+        if (remaining == 0) {
+            outExact.addAll(current);
+            return;
+        }
+        if (remaining < 0 || idx >= families.size()) return;
+
+        // Include.
+        Family f = families.get(idx);
+        current.add(f);
+        backtrackFamilies(families, idx + 1, remaining - f.members().size(), current, outExact);
+        current.remove(current.size() - 1);
+
+        // Exclude.
+        backtrackFamilies(families, idx + 1, remaining, current, outExact);
+    }
+
+    private String evolutionRootId(SieglingCard card, Map<String, SieglingCard> byId) {
+        String current = card.getId();
+        String from = card.getEvolvesFromId();
+        while (from != null && !from.isBlank()) {
+            SieglingCard prev = byId.get(from);
+            if (prev == null) break;
+            current = prev.getId();
+            from = prev.getEvolvesFromId();
+        }
+        return current;
+    }
+
+    private int evolutionDepth(SieglingCard card, Map<String, SieglingCard> byId) {
+        int depth = 0;
+        String from = card.getEvolvesFromId();
+        while (from != null && !from.isBlank()) {
+            SieglingCard prev = byId.get(from);
+            if (prev == null) break;
+            depth += 1;
+            from = prev.getEvolvesFromId();
+        }
+        return depth;
     }
 
     private List<SieglingCard> getSieglingsForElement(Element element) {
