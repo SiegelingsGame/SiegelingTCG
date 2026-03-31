@@ -139,7 +139,7 @@ public class PlacementService {
         return candidate.getNotches().stream().anyMatch(notch -> notch.direction() == neededDirection);
     }
 
-    private List<CardInstance> getFoundationSieglings(GameState state, boolean isPlayer) {
+    public List<CardInstance> getFoundationSieglings(GameState state, boolean isPlayer) {
         List<CardInstance> sieglings = state.getBoardSieglings(isPlayer);
         if (sieglings.size() <= 1) {
             return sieglings;

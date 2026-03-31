@@ -41,6 +41,11 @@ final class GeneratedSpellCatalog {
                 List.of("Bind", "Burst", "Flow", "Wake", "Surge")
         ));
         cards.addAll(createElementSpellSet(
+                Element.ICE,
+                List.of("Rime", "Frost", "Glacier", "Sleet", "Shard", "Aurora"),
+                List.of("Lance", "Ward", "Burst", "Prison", "Wake")
+        ));
+        cards.addAll(createElementSpellSet(
                 Element.SHADOW,
                 List.of("Shade", "Night", "Dusk", "Void", "Hex", "Umbra"),
                 List.of("Veil", "Strike", "Rend", "Shroud", "Pulse")
@@ -49,6 +54,21 @@ final class GeneratedSpellCatalog {
                 Element.ELECTRIC,
                 List.of("Volt", "Arc", "Static", "Storm", "Spark", "Thunder"),
                 List.of("Burst", "Lance", "Rush", "Surge", "Pulse")
+        ));
+        cards.addAll(createElementSpellSet(
+                Element.METAL,
+                List.of("Iron", "Steel", "Chrome", "Alloy", "Forge", "Anvil"),
+                List.of("Clad", "Crush", "Edge", "Plate", "Ram")
+        ));
+        cards.addAll(createElementSpellSet(
+                Element.UNDEAD,
+                List.of("Bone", "Grave", "Wight", "Crypt", "Soul", "Ghoul"),
+                List.of("Grasp", "Rot", "Rise", "Wail", "Blight")
+        ));
+        cards.addAll(createElementSpellSet(
+                Element.PSYCHIC,
+                List.of("Mind", "Dream", "Astral", "Trance", "Psyche", "Aura"),
+                List.of("Pulse", "Bend", "Wave", "Lash", "Veil")
         ));
         cards.addAll(createPairComboSpells());
         cards.addAll(createTripleComboSpells());
@@ -101,12 +121,12 @@ final class GeneratedSpellCatalog {
                 case 0 -> Ability.damage(name, "Deal " + (value + 1) + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value + 1);
                 case 1 -> Ability.damage(name, "Deal " + value + " damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, value);
                 case 2 -> Ability.damage(name, "Deal " + value + " direct damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, value);
-                case 3 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " Attack this turn", TargetType.ALL_ALLIES, null, 0, "atk_boost", Math.max(1, cost - 1), false);
+                case 3 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " attack damage this turn", TargetType.ALL_ALLIES, null, 0, "damage_boost", Math.max(1, cost - 1), false);
                 default -> new Ability(name, "Destroy 1 enemy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false);
             };
             case EARTH -> switch (mode) {
                 case 0 -> new Ability(name, "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false);
-                case 1 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " Defense this turn", TargetType.ALL_ALLIES, null, 0, "def_boost", Math.max(1, cost - 1), false);
+                case 1 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", Math.max(1, cost - 1), false);
                 case 2 -> Ability.damage(name, "Deal " + value + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value);
                 case 3 -> Ability.heal(name, "Heal 1 ally for " + (value + 1), TargetType.SINGLE_ALLY, null, 1, value + 1);
                 default -> new Ability(name, "Destroy 1 enemy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false);
@@ -125,11 +145,18 @@ final class GeneratedSpellCatalog {
                 case 3 -> new Ability(name, "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false);
                 default -> Ability.damage(name, "Deal " + value + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value);
             };
+            case ICE -> switch (mode) {
+                case 0 -> Ability.freeze(name, "Freeze 1 enemy for 1 turn", TargetType.SINGLE_ENEMY, null, 1);
+                case 1 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", Math.max(1, cost - 1), false);
+                case 2 -> Ability.damage(name, "Deal " + value + " damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, value);
+                case 3 -> new Ability(name, "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false);
+                default -> Ability.damage(name, "Deal " + value + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value);
+            };
             case SHADOW -> switch (mode) {
                 case 0 -> Ability.damage(name, "Deal " + value + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value);
                 case 1 -> Ability.damage(name, "Deal " + Math.max(2, cost) + " direct damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, Math.max(2, cost));
                 case 2 -> new Ability(name, "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false);
-                case 3 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " Attack this turn", TargetType.ALL_ALLIES, null, 0, "atk_boost", Math.max(1, cost - 1), false);
+                case 3 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " attack damage this turn", TargetType.ALL_ALLIES, null, 0, "damage_boost", Math.max(1, cost - 1), false);
                 default -> new Ability(name, "Destroy 1 enemy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false);
             };
             case ELECTRIC -> switch (mode) {
@@ -139,7 +166,28 @@ final class GeneratedSpellCatalog {
                 case 3 -> new Ability(name, "All allies gain +" + Math.max(1, cost) + " Speed this turn", TargetType.ALL_ALLIES, null, 0, "speed_boost", Math.max(1, cost), false);
                 default -> new Ability(name, "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false);
             };
-            case NEUTRAL -> Ability.damage(name, "Deal 3 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 3);
+            case METAL -> switch (mode) {
+                case 0 -> new Ability(name, "All allies gain +" + Math.max(1, cost) + " max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", Math.max(1, cost), false);
+                case 1 -> Ability.damage(name, "Deal " + (value + 1) + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value + 1);
+                case 2 -> Ability.heal(name, "Heal 1 ally for " + (value + 1), TargetType.SINGLE_ALLY, null, 1, value + 1);
+                case 3 -> Ability.damage(name, "Deal " + value + " damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, value);
+                default -> new Ability(name, "Destroy 1 enemy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false);
+            };
+            case UNDEAD -> switch (mode) {
+                case 0 -> Ability.damage(name, "Deal " + (value + 1) + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value + 1);
+                case 1 -> Ability.damage(name, "Deal " + Math.max(2, cost + 1) + " direct damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, Math.max(2, cost + 1));
+                case 2 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " attack damage this turn", TargetType.ALL_ALLIES, null, 0, "damage_boost", Math.max(1, cost - 1), false);
+                case 3 -> Ability.damage(name, "Deal " + value + " damage to all enemies in Back Row", TargetType.ROW_ENEMIES, Row.BACK, 0, value);
+                default -> new Ability(name, "Destroy 1 enemy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false);
+            };
+            case PSYCHIC -> switch (mode) {
+                case 0 -> new Ability(name, "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false);
+                case 1 -> Ability.damage(name, "Deal " + value + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value);
+                case 2 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " attack damage this turn", TargetType.ALL_ALLIES, null, 0, "damage_boost", Math.max(1, cost - 1), false);
+                case 3 -> Ability.freeze(name, "Freeze 1 enemy for 1 turn", TargetType.SINGLE_ENEMY, null, 1);
+                default -> Ability.damage(name, "Deal " + value + " damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, value);
+            };
+            default -> Ability.damage(name, "Deal 3 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 3);
         };
     }
 
@@ -167,7 +215,12 @@ final class GeneratedSpellCatalog {
                 new Element[] { Element.FIRE, Element.WATER },
                 new Element[] { Element.EARTH, Element.WIND },
                 new Element[] { Element.EARTH, Element.WATER },
-                new Element[] { Element.WIND, Element.WATER }
+                new Element[] { Element.WIND, Element.WATER },
+                new Element[] { Element.FIRE, Element.ICE },
+                new Element[] { Element.WATER, Element.ICE },
+                new Element[] { Element.SHADOW, Element.ICE },
+                new Element[] { Element.ELECTRIC, Element.ICE },
+                new Element[] { Element.WATER, Element.ELECTRIC }
         );
 
         int index = 1;
@@ -187,7 +240,7 @@ final class GeneratedSpellCatalog {
 
             SpellCard ward = new SpellCard("combo_pair_" + String.format(Locale.ROOT, "%02d", index++),
                     label + " Ward", Element.NEUTRAL, Rarity.UNCOMMON, 0,
-                    new Ability(label + " Ward", "All allies gain +2 Attack this turn", TargetType.ALL_ALLIES, null, 0, "atk_boost", 2, false));
+                    new Ability(label + " Ward", "All allies gain +2 attack damage this turn", TargetType.ALL_ALLIES, null, 0, "damage_boost", 2, false));
             configureComboSpell(ward, 2, pair);
             cards.add(ward);
         }
@@ -214,7 +267,7 @@ final class GeneratedSpellCatalog {
 
             SpellCard covenant = new SpellCard("combo_triple_" + String.format(Locale.ROOT, "%02d", index++),
                     label + " Covenant", Element.NEUTRAL, Rarity.RARE, 0,
-                    new Ability(label + " Covenant", "All allies gain +2 Defense this turn", TargetType.ALL_ALLIES, null, 0, "def_boost", 2, false));
+                    new Ability(label + " Covenant", "All allies gain +2 max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", 2, false));
             configureComboSpell(covenant, 3, triple);
             cards.add(covenant);
 
