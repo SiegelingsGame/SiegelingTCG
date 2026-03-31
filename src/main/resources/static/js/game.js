@@ -57,7 +57,8 @@ const API_BASE_URL = normalizeApiBaseUrl(
 );
 let activeApiBaseUrl = API_BASE_URL;
 const CARD_ART_BY_KEY = Object.freeze({
-    sundile: '/assets/cards/sundile.svg'
+    sundile: '/assets/cards/sundile.svg',
+    staticap: '/images/cards/Staticap.png'
 });
 const WELCOME_SLIDES = [
     {
@@ -156,6 +157,8 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;');
 }
 
+const _cardArtProbeCache = {}; /* id -> resolved URL or '' */
+
 function getCardArtUrl(card) {
     if (!card) {
         return '';
@@ -163,6 +166,7 @@ function getCardArtUrl(card) {
 
     const candidates = [
         card.artKey,
+        card.id,
         card.definitionId,
         card.cardId,
         card.baseId,
@@ -178,7 +182,34 @@ function getCardArtUrl(card) {
         }
     }
 
-    return '';
+    /* Auto-discover: check images/cards/{Name}.png by probing */
+    const probeName = card.name || card.id || '';
+    if (!probeName) return '';
+
+    if (_cardArtProbeCache[probeName] !== undefined) {
+        return _cardArtProbeCache[probeName];
+    }
+
+    /* Try common naming conventions: exact name, lowercase, id */
+    const probeVariants = [
+        `/images/cards/${probeName}.png`,
+        `/images/cards/${probeName.toLowerCase()}.png`,
+        card.id ? `/images/cards/${card.id}.png` : null
+    ].filter(Boolean);
+
+    /* Kick off async probes and cache results for next render */
+    for (const url of probeVariants) {
+        const img = new Image();
+        img.onload = () => { _cardArtProbeCache[probeName] = url; };
+        img.onerror = () => {
+            if (_cardArtProbeCache[probeName] === undefined) {
+                _cardArtProbeCache[probeName] = '';
+            }
+        };
+        img.src = url;
+    }
+
+    return ''; /* first render won't show it; next render will pick up cached URL */
 }
 
 function renderCardArt(card, variant, fallbackLabel = '') {
