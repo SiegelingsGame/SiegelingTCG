@@ -2,6 +2,7 @@ package com.sieglings.model;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
@@ -17,13 +18,19 @@ public class Player {
     private List<Card> discard = new ArrayList<>();
     private TrainerCard activeTrainer;
     private int health = STARTING_HEALTH;
+    private Long accountUserId;
+    private String loadoutLabel;
 
     private int fireEnergy;
     private int earthEnergy;
     private int windEnergy;
     private int waterEnergy;
+    private int iceEnergy;
     private int shadowEnergy;
     private int electricEnergy;
+    private int metalEnergy;
+    private int undeadEnergy;
+    private int psychicEnergy;
     private boolean mistActive;
 
     public Player() {}
@@ -56,7 +63,45 @@ public class Player {
         health = Math.min(STARTING_HEALTH, health + Math.max(0, amount));
     }
 
+    public void mulliganHand(int handSize) {
+        deck.addAll(hand);
+        hand.clear();
+        shuffleDeck();
+        for (int i = 0; i < handSize; i++) {
+            drawCard();
+        }
+    }
+
+    /**
+     * Shuffles the chosen hand cards into the deck, then draws the same number of replacements.
+     * Indices are 0-based positions in the current hand before any removal.
+     */
+    public void mulliganHandAtIndices(List<Integer> indices) {
+        if (indices == null || indices.isEmpty()) {
+            return;
+        }
+        int n = hand.size();
+        LinkedHashSet<Integer> unique = new LinkedHashSet<>(indices);
+        for (int i : unique) {
+            if (i < 0 || i >= n) {
+                throw new IllegalArgumentException("Invalid hand index for mulligan: " + i);
+            }
+        }
+        List<Integer> sortedDesc = new ArrayList<>(unique);
+        sortedDesc.sort(Collections.reverseOrder());
+        List<Card> returning = new ArrayList<>();
+        for (int idx : sortedDesc) {
+            returning.add(hand.remove(idx));
+        }
+        deck.addAll(returning);
+        shuffleDeck();
+        for (int j = 0; j < returning.size(); j++) {
+            drawCard();
+        }
+    }
+
     public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
     public boolean isHuman() { return isHuman; }
     public List<Card> getDeck() { return deck; }
     public void setDeck(List<Card> deck) { this.deck = deck; }
@@ -72,12 +117,24 @@ public class Player {
     public void setWindEnergy(int windEnergy) { this.windEnergy = windEnergy; }
     public int getWaterEnergy() { return waterEnergy; }
     public void setWaterEnergy(int waterEnergy) { this.waterEnergy = waterEnergy; }
+    public int getIceEnergy() { return iceEnergy; }
+    public void setIceEnergy(int iceEnergy) { this.iceEnergy = iceEnergy; }
     public int getShadowEnergy() { return shadowEnergy; }
     public void setShadowEnergy(int shadowEnergy) { this.shadowEnergy = shadowEnergy; }
     public int getElectricEnergy() { return electricEnergy; }
     public void setElectricEnergy(int electricEnergy) { this.electricEnergy = electricEnergy; }
+    public int getMetalEnergy() { return metalEnergy; }
+    public void setMetalEnergy(int metalEnergy) { this.metalEnergy = metalEnergy; }
+    public int getUndeadEnergy() { return undeadEnergy; }
+    public void setUndeadEnergy(int undeadEnergy) { this.undeadEnergy = undeadEnergy; }
+    public int getPsychicEnergy() { return psychicEnergy; }
+    public void setPsychicEnergy(int psychicEnergy) { this.psychicEnergy = psychicEnergy; }
     public boolean isMistActive() { return mistActive; }
     public void setMistActive(boolean mistActive) { this.mistActive = mistActive; }
     public int getHealth() { return health; }
     public void setHealth(int health) { this.health = health; }
+    public Long getAccountUserId() { return accountUserId; }
+    public void setAccountUserId(Long accountUserId) { this.accountUserId = accountUserId; }
+    public String getLoadoutLabel() { return loadoutLabel; }
+    public void setLoadoutLabel(String loadoutLabel) { this.loadoutLabel = loadoutLabel; }
 }

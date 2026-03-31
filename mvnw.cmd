@@ -24,4 +24,4 @@ goto runJava
 set JAVACMD=%JAVA_HOME%\bin\java
 
 :runJava
-"%JAVACMD%" -jar "%WRAPPER_JAR%" %*
+"%JAVACMD%" "-Dmaven.multiModuleProjectDirectory=%MAVEN_PROJECTBASEDIR:~0,-1%" -cp "%WRAPPER_JAR%" org.apache.maven.wrapper.MavenWrapperMain %*
