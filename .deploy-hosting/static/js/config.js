@@ -1,7 +1,7 @@
 window.SIEGLINGS_CONFIG = window.SIEGLINGS_CONFIG || {
-    // Temporary public backend used for Hosting deploys while Cloud Run
-    // cannot be updated from this shell.
-    apiBaseUrl: 'https://heavy-pigs-jam.loca.lt',
+    // Keep API calls same-origin so Firebase Hosting rewrites can reach
+    // the stable Cloud Run backend even when temporary tunnels expire.
+    apiBaseUrl: '',
     firebase: {
         apiKey: "AIzaSyBHbW7Rgy2Q3odloOwekA77FZW4V5CBays",
         authDomain: "siegelingstcgtesting.firebaseapp.com",

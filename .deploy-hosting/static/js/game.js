@@ -47,14 +47,18 @@ const ENERGY_ORDER = [
     ['water', 'Water'],
     ['ice', 'Ice'],
     ['shadow', 'Shadow'],
-    ['electric', 'Electric']
+    ['electric', 'Electric'],
+    ['metal', 'Metal'],
+    ['undead', 'Undead'],
+    ['psychic', 'Psychic']
 ];
 const API_BASE_URL = normalizeApiBaseUrl(
     window.SIEGLINGS_CONFIG?.apiBaseUrl || window.SIEGLINGS_API_BASE || ''
 );
 let activeApiBaseUrl = API_BASE_URL;
 const CARD_ART_BY_KEY = Object.freeze({
-    sundile: '/assets/cards/sundile.svg'
+    sundile: '/assets/cards/sundile.svg',
+    staticap: '/images/cards/Staticap.png'
 });
 const WELCOME_SLIDES = [
     {
@@ -153,6 +157,8 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;');
 }
 
+const _cardArtProbeCache = {}; /* id -> resolved URL or '' */
+
 function getCardArtUrl(card) {
     if (!card) {
         return '';
@@ -160,6 +166,7 @@ function getCardArtUrl(card) {
 
     const candidates = [
         card.artKey,
+        card.id,
         card.definitionId,
         card.cardId,
         card.baseId,
@@ -175,7 +182,34 @@ function getCardArtUrl(card) {
         }
     }
 
-    return '';
+    /* Auto-discover: check images/cards/{Name}.png by probing */
+    const probeName = card.name || card.id || '';
+    if (!probeName) return '';
+
+    if (_cardArtProbeCache[probeName] !== undefined) {
+        return _cardArtProbeCache[probeName];
+    }
+
+    /* Try common naming conventions: exact name, lowercase, id */
+    const probeVariants = [
+        `/images/cards/${probeName}.png`,
+        `/images/cards/${probeName.toLowerCase()}.png`,
+        card.id ? `/images/cards/${card.id}.png` : null
+    ].filter(Boolean);
+
+    /* Kick off async probes and cache results for next render */
+    for (const url of probeVariants) {
+        const img = new Image();
+        img.onload = () => { _cardArtProbeCache[probeName] = url; };
+        img.onerror = () => {
+            if (_cardArtProbeCache[probeName] === undefined) {
+                _cardArtProbeCache[probeName] = '';
+            }
+        };
+        img.src = url;
+    }
+
+    return ''; /* first render won't show it; next render will pick up cached URL */
 }
 
 function renderCardArt(card, variant, fallbackLabel = '') {
@@ -759,6 +793,65 @@ function isPlacementSelectionActive() {
     );
 }
 
+function getPlayerEnergyAmount(element) {
+    if (!gameState?.player || !element) {
+        return 0;
+    }
+    const energyKey = `${String(element).toLowerCase()}Energy`;
+    return Number(gameState.player[energyKey] || 0);
+}
+
+function canAffordCard(card) {
+    if (!card?.costElement || !card.costAmount) {
+        return true;
+    }
+    return getPlayerEnergyAmount(card.costElement) >= Number(card.costAmount);
+}
+
+function getEvolutionPlacements(card, board = gameState?.playerBoard || []) {
+    if (!card?.evolvesFromId) {
+        return [];
+    }
+
+    const placements = [];
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+            const cell = board?.[row]?.[col];
+            if (cell && cell.cardId === card.evolvesFromId) {
+                placements.push([row, col]);
+            }
+        }
+    }
+    return placements;
+}
+
+function getLegalPlacementsForCard(card, board = gameState?.playerBoard || []) {
+    if (gameState?.playerPlacementUsed || !card || card.type !== 'SIEGLING') {
+        return [];
+    }
+
+    const safeBoard = Array.isArray(board) && board.length ? board : [[], [], []];
+
+    if (card.evolvesFromId) {
+        return getEvolutionPlacements(card, safeBoard);
+    }
+
+    const placements = [];
+    const hasAnySiegling = safeBoard.some(row => row.some(cell => cell));
+
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+            if (safeBoard[row][col]) continue;
+
+            if (!hasAnySiegling || canCardLinkAt(card, row, col, safeBoard)) {
+                placements.push([row, col]);
+            }
+        }
+    }
+
+    return placements;
+}
+
 function getHandCardLockReason(card) {
     if (!gameState || !card) {
         return '';
@@ -775,11 +868,20 @@ function getHandCardLockReason(card) {
     if (isOpeningPlacementOnlyTurn() && card.type !== 'SIEGLING') {
         return 'Turn 1 starts with a Siegling placement.';
     }
+    if (gameState.currentPhase !== 'SETUP') {
+        return 'Cards can only be played during setup.';
+    }
+    if (!canAffordCard(card)) {
+        return `Need ${card.costAmount} ${formatElementLabel(card.costElement)} energy to play this.`;
+    }
     if (gameState.playerPlacementUsed && card.type === 'SIEGLING') {
         return 'You already played a Siegling this turn.';
     }
-    if (gameState.currentPhase !== 'SETUP') {
-        return 'Cards can only be played during setup.';
+    if (card.type === 'SIEGLING' && card.evolvesFromId && getEvolutionPlacements(card).length === 0) {
+        return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
+    }
+    if (card.type === 'SIEGLING' && getLegalPlacementsForCard(card).length === 0) {
+        return 'No legal placement available for this Siegling.';
     }
     return '';
 }
@@ -1596,7 +1698,7 @@ function getBuilderCardCostText(card) {
 
 function getBuilderCardSummaryText(card) {
     if (card.type === 'SIEGLING') {
-        return `${card.attack}/${card.defense}/${card.speed} | ${card.preferredRow || 'ANY'}${card.evolvesFromName ? ` | Evolves from ${card.evolvesFromName}` : ''}`;
+        return `HP ${card.health} | SPD ${card.speed} | ${card.preferredRow || 'ANY'}${card.evolvesFromName ? ` | Evolves from ${card.evolvesFromName}` : ''}`;
     }
     return card.ability?.description || 'No effect text';
 }
@@ -1643,7 +1745,7 @@ function renderBuilderPreviewCard(card) {
     html += renderCardArt(card, 'preview', fallbackArtLabel);
     html += `<div class="hand-card-body">`;
     if (card.type === 'SIEGLING') {
-        html += `<div class="card-detail card-stats-line">HP:${card.health} ATK:${card.attack} DEF:${card.defense} SPD:${card.speed}</div>`;
+        html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
     }
     if (card.ability?.description) {
         html += `<div class="card-detail">${card.ability.description}</div>`;
@@ -1906,6 +2008,9 @@ function getElementHex(element) {
         case 'ICE': return '#76e6ff';
         case 'SHADOW': return '#7832b4';
         case 'ELECTRIC': return '#ffe63c';
+        case 'METAL': return '#a0aab4';
+        case 'UNDEAD': return '#8c78a0';
+        case 'PSYCHIC': return '#c896ff';
         default: return '#95a5a6';
     }
 }
@@ -1918,7 +2023,10 @@ function getElementSigil(element, variant = 'soft') {
         WATER: `<svg viewBox="0 0 64 64" class="deck-sigil"><path d="M32 10 C38 20 46 27 46 38 C46 47 40 53 32 53 C24 53 18 47 18 38 C18 27 26 20 32 10 Z" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.15"/><path d="M20 37 C24 33 29 32 34 35 C38 38 42 38 46 34" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.2"/><circle cx="32" cy="38" r="5" fill="currentColor" opacity="0.14"/></svg>`,
         ICE: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M32 14 L32 50 M16.4 23 L47.6 41 M47.6 23 L16.4 41" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.2"/><polygon points="32,25 38.06,29.5 38.06,34.5 32,39 25.94,34.5 25.94,29.5" fill="currentColor" opacity="0.18"/></svg>`,
         SHADOW: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M38 16 C31 18 26 24 26 32 C26 40 31 46 38 48 C34 51 28 51 23 48 C17 44 14 38 14 31 C14 20 23 12 34 12 C35 13 37 14 38 16 Z" fill="currentColor" opacity="0.16"/><path d="M42 21 L44 26 L49 28 L44 30 L42 35 L40 30 L35 28 L40 26 Z" fill="currentColor" opacity="0.24"/></svg>`,
-        ELECTRIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><polygon points="32,10 49,20 49,44 32,54 15,44 15,20" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.14"/><path d="M36 16 L27 31 L35 31 L28 47 L40 31 L32 31 L39 16 Z" fill="currentColor" opacity="0.18"/><path d="M24 22 L30 18 M34 46 L40 42" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.18"/></svg>`
+        ELECTRIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><polygon points="32,10 49,20 49,44 32,54 15,44 15,20" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.14"/><path d="M36 16 L27 31 L35 31 L28 47 L40 31 L32 31 L39 16 Z" fill="currentColor" opacity="0.18"/><path d="M24 22 L30 18 M34 46 L40 42" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.18"/></svg>`,
+        METAL: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M32 14 L38 22 L46 22 L40 28 L42 36 L32 30 L22 36 L24 28 L18 22 L26 22 Z" fill="currentColor" opacity="0.16"/><circle cx="32" cy="32" r="7" fill="none" stroke="currentColor" stroke-width="2" opacity="0.22"/><circle cx="32" cy="32" r="3" fill="currentColor" opacity="0.24"/></svg>`,
+        UNDEAD: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M22 34 C22 22 28 14 32 14 C36 14 42 22 42 34 C42 38 40 40 38 40 L36 36 L34 40 L30 40 L28 36 L26 40 C24 40 22 38 22 34 Z" fill="currentColor" opacity="0.16"/><circle cx="27" cy="28" r="3.5" fill="currentColor" opacity="0.28"/><circle cx="37" cy="28" r="3.5" fill="currentColor" opacity="0.28"/></svg>`,
+        PSYCHIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M32 12 C40 12 46 18 46 26 C46 34 40 38 40 44 L24 44 C24 38 18 34 18 26 C18 18 24 12 32 12 Z" fill="currentColor" opacity="0.14"/><circle cx="32" cy="26" r="5" fill="currentColor" opacity="0.26"/><path d="M28 44 L28 50 M32 44 L32 52 M36 44 L36 50" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.22"/></svg>`
     };
 
     const faceSigils = {
@@ -1928,7 +2036,10 @@ function getElementSigil(element, variant = 'soft') {
         WATER: `<svg viewBox="0 0 64 64" class="deck-sigil"><path d="M32 10 C38 20 46 27 46 38 C46 47 40 53 32 53 C24 53 18 47 18 38 C18 27 26 20 32 10 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M20 37 C24 33 29 32 34 35 C38 38 42 38 46 34" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="32" cy="38" r="5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>`,
         ICE: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><path d="M32 14 L32 50 M16.4 23 L47.6 41 M47.6 23 L16.4 41" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><polygon points="32,25 38.06,29.5 38.06,34.5 32,39 25.94,34.5 25.94,29.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>`,
         SHADOW: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.9"/><path d="M38 16 C31 18 26 24 26 32 C26 40 31 46 38 48 C34 51 28 51 23 48 C17 44 14 38 14 31 C14 20 23 12 34 12 C35 13 37 14 38 16 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M42 21 L44 26 L49 28 L44 30 L42 35 L40 30 L35 28 L40 26 Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>`,
-        ELECTRIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><polygon points="32,10 49,20 49,44 32,54 15,44 15,20" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.95"/><path d="M36 16 L27 31 L35 31 L28 47 L40 31 L32 31 L39 16 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 22 L30 18 M34 46 L40 42" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`
+        ELECTRIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><polygon points="32,10 49,20 49,44 32,54 15,44 15,20" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.95"/><path d="M36 16 L27 31 L35 31 L28 47 L40 31 L32 31 L39 16 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 22 L30 18 M34 46 L40 42" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`,
+        METAL: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><path d="M32 14 L38 22 L46 22 L40 28 L42 36 L32 30 L22 36 L24 28 L18 22 L26 22 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="32" cy="32" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="32" cy="32" r="3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>`,
+        UNDEAD: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><path d="M22 34 C22 22 28 14 32 14 C36 14 42 22 42 34 C42 38 40 40 38 40 L36 36 L34 40 L30 40 L28 36 L26 40 C24 40 22 38 22 34 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="27" cy="28" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="37" cy="28" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>`,
+        PSYCHIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><path d="M32 12 C40 12 46 18 46 26 C46 34 40 38 40 44 L24 44 C24 38 18 34 18 26 C18 18 24 12 32 12 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="32" cy="26" r="5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M28 44 L28 50 M32 44 L32 52 M36 44 L36 50" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`
     };
 
     if (variant === 'card-face') {
@@ -2150,9 +2261,7 @@ function renderBoard(gridId, board, isPlayer) {
                 html += `<div class="bc-stats-box">`;
                 html += `<div class="hp-bar"><div class="hp-fill" style="width:${(cell.hp / cell.maxHp) * 100}%"></div></div>`;
                 html += `<div class="card-stats">`;
-                html += `<span class="stat stat-hp">${cell.hp}</span>`;
-                html += `<span class="stat stat-atk">${cell.atk}</span>`;
-                html += `<span class="stat stat-def">${cell.def}</span>`;
+                html += `<span class="stat stat-hp">${cell.hp}/${cell.maxHp}</span>`;
                 html += `<span class="stat stat-spd">${cell.spd}</span>`;
                 html += `</div>`;
                 html += `</div>`;
@@ -2666,52 +2775,42 @@ function renderHand() {
         const fallbackArtLabel = card.type === 'SIEGLING'
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
-
         html += `<div class="hand-card ${elemClass}${interactionClass}" ${onclick} ${onmouseenter}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
         html += `<div class="hand-card-shell">`;
         html += `<div class="hand-card-header">`;
-        html += `<div class="card-title">${card.name}</div>`;
-        html += `<div class="card-label">${card.type} / ${card.rarity}</div>`;
-        html += `<div class="card-type">${card.type} · ${card.rarity}</div>`;
+        html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
+        html += `<div class="card-label">${escapeHtml(card.type)} / ${escapeHtml(card.rarity)}</div>`;
         html += `</div>`;
         html += renderCardArt(card, 'hand', fallbackArtLabel);
         html += `<div class="hand-card-body">`;
-        html += `<div class="card-type">${card.type} · ${card.rarity}</div>`;
-
         if (card.type === 'SIEGLING') {
-            html += `<div class="card-detail card-stats-line">HP:${card.health} ATK:${card.attack} DEF:${card.defense} SPD:${card.speed}</div>`;
+            html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
         }
-
-        if (card.ability) {
-            html += `<div class="card-detail">${card.ability.description}</div>`;
+        if (card.ability?.description) {
+            html += `<div class="card-detail">${escapeHtml(card.ability.description)}</div>`;
         }
-
-        if (card.type === 'TRAP') {
-            html += `<div class="card-cost" style="color:${getElementCssVar(card.trapBucketElement)}">Trigger: Opponent has ${card.trapBucketAmount} ${card.trapBucketElement}</div>`;
+        if (card.type === 'TRAP' && card.trapBucketElement) {
+            html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
         } else if (card.costElement) {
-            html += `<div class="card-cost" style="color:${getElementCssVar(card.costElement)}">Play Cost: ${card.costAmount} ${card.costElement}</div>`;
-        }
-        if (card.requiredComboSize) {
-            const comboLabel = card.requiredComboSignature
-                ? card.requiredComboSignature.split('+').map(formatElementLabel).join(' + ')
-                : `${card.requiredComboSize}-element combo`;
-            html += `<div class="card-cost combo-cost">Combo: ${comboLabel}</div>`;
+            html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
+        } else if (card.requiredComboSize) {
+            html += `<div class="card-cost">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
         }
         if (card.requiredReaction) {
-            html += `<div class="card-cost" style="color:var(--accent)">Requires: ${card.requiredReaction}</div>`;
+            html += `<div class="card-cost">Requires: ${escapeHtml(card.requiredReaction)}</div>`;
         }
-        if (placementLocked) {
-            html += `<div class="card-cost interaction-lock-copy">Siegling play spent this turn</div>`;
-        } else if (openingLocked) {
-            html += `<div class="card-cost" style="color:var(--accent)">Turn 1: placements only</div>`;
+        if (card.evolvesFromName) {
+            html += `<div class="card-cost">Evolution: ${escapeHtml(card.evolvesFromName)}</div>`;
         }
-
-        html += `</div>`;
-        html += `</div>`;
-        html += `</div>`;
+        if (lockReason) {
+            html += `<div class="card-cost interaction-lock-copy">${escapeHtml(lockReason)}</div>`;
+        }
+        html += `</div>`; /* body */
+        html += `</div>`; /* shell */
+        html += `</div>`; /* card */
     }
 
     container.innerHTML = html;
@@ -2858,38 +2957,11 @@ function getSelectedLegalPlacements() {
     if (!selectedCard || selectedCard.type !== 'SIEGLING') {
         return gameState.legalPlacements || [];
     }
-
-    const board = gameState.playerBoard;
-    const placements = [];
-    if (selectedCard.evolvesFromId) {
-        for (let row = 0; row < 3; row++) {
-            for (let col = 0; col < 3; col++) {
-                const cell = board[row][col];
-                if (cell && cell.cardId === selectedCard.evolvesFromId) {
-                    placements.push([row, col]);
-                }
-            }
-        }
-        return placements;
-    }
-
-    const hasAnySiegling = board.some(row => row.some(cell => cell));
-
-    for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-            if (board[row][col]) continue;
-
-            if (!hasAnySiegling || canSelectedCardLinkAt(row, col, board)) {
-                placements.push([row, col]);
-            }
-        }
-    }
-
-    return placements;
+    return getLegalPlacementsForCard(selectedCard);
 }
 
-function canSelectedCardLinkAt(row, col, board) {
-    return selectedCard.notches.some(notch => {
+function canCardLinkAt(card, row, col, board) {
+    return (card.notches || []).some(notch => {
         const delta = directionDelta(notch.direction, true);
         const adjRow = row + delta.dy;
         const adjCol = col + delta.dx;
@@ -2901,6 +2973,10 @@ function canSelectedCardLinkAt(row, col, board) {
         const neighbor = board[adjRow][adjCol];
         return neighbor && hasOppositeNotch(neighbor.notches, notch.direction);
     });
+}
+
+function canSelectedCardLinkAt(row, col, board) {
+    return canCardLinkAt(selectedCard, row, col, board);
 }
 
 function selectCard(cardId) {
@@ -3003,7 +3079,7 @@ function updateSelectedInfo(card, msg) {
         html += `<strong>${card.name}</strong> (${card.type})<br>`;
         html += renderCardArt(card, 'selected');
         if (card.type === 'SIEGLING') {
-            html += `HP:${card.health} ATK:${card.attack} DEF:${card.defense} SPD:${card.speed}<br>`;
+            html += `HP:${card.health} SPD:${card.speed}<br>`;
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">Place this on top of ${card.evolvesFromName} to evolve it.</span>`
                 : gameState.playerPlacementUsed
@@ -3018,7 +3094,7 @@ function updateSelectedInfo(card, msg) {
         }
         if (card.type === 'TRAP') {
             html += `Trigger: Opponent must have ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} energy.<br>`;
-        } else if (card.costElement) {
+        } else if (card.costElement && card.costAmount > 0) {
             html += `Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}<br>`;
         }
     }
@@ -3036,8 +3112,6 @@ function showTooltipBoard(event, isPlayer, row, col) {
     document.getElementById('ttName').style.color = getElementCssVar(cell.element);
     document.getElementById('ttStats').innerHTML =
         `<span class="stat stat-hp">HP: ${cell.hp}/${cell.maxHp}</span>` +
-        `<span class="stat stat-atk">ATK: ${cell.atk}</span>` +
-        `<span class="stat stat-def">DEF: ${cell.def}</span>` +
         `<span class="stat stat-spd">SPD: ${cell.spd}</span>`;
     document.getElementById('ttAbility').textContent = cell.ability || '';
 
@@ -3057,8 +3131,6 @@ function showTooltipHand(event, cardId) {
     if (card.type === 'SIEGLING') {
         statsHtml =
             `<span class="stat stat-hp">HP: ${card.health}</span>` +
-            `<span class="stat stat-atk">ATK: ${card.attack}</span>` +
-            `<span class="stat stat-def">DEF: ${card.defense}</span>` +
             `<span class="stat stat-spd">SPD: ${card.speed}</span>`;
     }
     document.getElementById('ttStats').innerHTML = statsHtml;
@@ -3066,7 +3138,7 @@ function showTooltipHand(event, cardId) {
     let abilityText = card.ability ? card.ability.description : '';
     if (card.type === 'TRAP') {
         abilityText += ` [Trigger: Opponent has ${card.trapBucketAmount} ${card.trapBucketElement}]`;
-    } else if (card.costElement) {
+    } else if (card.costElement && card.costAmount > 0) {
         abilityText += ` [Play Cost: ${card.costAmount} ${card.costElement}]`;
     }
     if (card.evolvesFromName) {
@@ -3077,6 +3149,10 @@ function showTooltipHand(event, cardId) {
             ? card.requiredComboSignature.split('+').map(formatElementLabel).join(' + ')
             : `${card.requiredComboSize}-element combo`;
         abilityText += ` [Combo: ${comboLabel}]`;
+    }
+    const lockReason = getHandCardLockReason(card);
+    if (lockReason) {
+        abilityText += ` [Unavailable: ${lockReason}]`;
     }
     document.getElementById('ttAbility').textContent = abilityText;
 
@@ -3106,6 +3182,9 @@ function getElementCssVar(element) {
         case 'ICE': return 'var(--ice)';
         case 'SHADOW': return 'var(--shadow)';
         case 'ELECTRIC': return 'var(--electric)';
+        case 'METAL': return 'var(--metal)';
+        case 'UNDEAD': return 'var(--undead)';
+        case 'PSYCHIC': return 'var(--psychic)';
         default: return 'var(--neutral)';
     }
 }

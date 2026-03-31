@@ -1,0 +1,511 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+}
+
+h1 {
+    text-align: center;
+    padding: 12px;
+    background: linear-gradient(135deg, #16213e, #0f3460);
+    font-size: 1.4em;
+    letter-spacing: 2px;
+}
+
+.game-container {
+    display: grid;
+    grid-template-columns: 200px 1fr 220px;
+    gap: 8px;
+    padding: 8px;
+    max-width: 1200px;
+    margin: 0 auto;
+    min-height: calc(100vh - 52px);
+}
+
+/* Sidebar panels */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.panel {
+    background: #16213e;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #0f3460;
+}
+
+.panel h3 {
+    font-size: 0.85em;
+    color: #e94560;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Energy display */
+.energy-bar {
+    display: flex;
+    gap: 8px;
+    margin: 4px 0;
+}
+
+.energy-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.95em;
+    font-weight: bold;
+}
+
+.energy-fire { color: #ff6b35; }
+.energy-water { color: #4ecdc4; }
+
+.reaction-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #ff6b35, #4ecdc4);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+/* Board area */
+.board-area {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+}
+
+.board-label {
+    font-size: 0.75em;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: center;
+    margin: 2px 0;
+}
+
+.board-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 560px;
+}
+
+.board-cell {
+    background: #0f3460;
+    border: 2px solid #16213e;
+    border-radius: 6px;
+    min-height: 120px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.75em;
+    position: relative;
+    overflow: visible;
+}
+
+.board-cell:hover {
+    border-color: #e94560;
+}
+
+.board-cell.legal {
+    border-color: #4ecdc4;
+    background: rgba(78, 205, 196, 0.15);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(78, 205, 196, 0.3); }
+    50% { box-shadow: 0 0 8px 2px rgba(78, 205, 196, 0.3); }
+}
+
+.board-cell.occupied { cursor: default; }
+
+.card-on-board {
+    text-align: center;
+    width: 100%;
+}
+
+.card-on-board .card-name {
+    font-weight: bold;
+    font-size: 0.95em;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-on-board .card-stats {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    font-size: 0.85em;
+}
+
+.card-on-board .card-stats span {
+    padding: 1px 3px;
+    border-radius: 3px;
+}
+
+.stat-atk { color: #ff6b35; }
+.stat-def { color: #4ecdc4; }
+.stat-hp { color: #95e77e; }
+.stat-spd { color: #f7dc6f; }
+
+.card-element-fire { border-left: 3px solid #ff6b35; }
+.card-element-water { border-left: 3px solid #4ecdc4; }
+
+/* Full-cell notch indicators on board cells */
+.cell-notch {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    z-index: 5;
+    pointer-events: none;
+    border: 2px solid rgba(0, 0, 0, 0.4);
+}
+
+.cell-notch-fire {
+    background: #ff6b35;
+    box-shadow: 0 0 6px rgba(255, 107, 53, 0.7);
+}
+
+.cell-notch-water {
+    background: #4ecdc4;
+    box-shadow: 0 0 6px rgba(78, 205, 196, 0.7);
+}
+
+/* Position each notch on the cell edge */
+.cell-notch-top          { top: -7px;    left: 50%;  transform: translateX(-50%); }
+.cell-notch-top_right    { top: -5px;    right: -5px; }
+.cell-notch-right        { top: 50%;     right: -7px; transform: translateY(-50%); }
+.cell-notch-bottom_right { bottom: -5px; right: -5px; }
+.cell-notch-bottom       { bottom: -7px; left: 50%;  transform: translateX(-50%); }
+.cell-notch-bottom_left  { bottom: -5px; left: -5px; }
+.cell-notch-left         { top: 50%;     left: -7px;  transform: translateY(-50%); }
+.cell-notch-top_left     { top: -5px;    left: -5px; }
+
+/* Hand card notch grid (compact) */
+.notch-indicator {
+    display: grid;
+    grid-template-columns: repeat(3, 8px);
+    grid-template-rows: repeat(3, 8px);
+    gap: 1px;
+    margin-top: 2px;
+}
+
+.notch-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1a1a2e;
+}
+
+.notch-dot.active-fire { background: #ff6b35; }
+.notch-dot.active-water { background: #4ecdc4; }
+.notch-dot.center { background: #555; }
+
+/* Divider between boards */
+.board-divider {
+    width: 100%;
+    max-width: 520px;
+    border: none;
+    height: 2px;
+    background: linear-gradient(to right, transparent, #e94560, transparent);
+    margin: 4px 0;
+}
+
+/* Row labels */
+.row-labels {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    max-width: 520px;
+}
+
+.row-label {
+    font-size: 0.7em;
+    color: #666;
+    text-transform: uppercase;
+}
+
+/* Hand area */
+.hand-area {
+    margin-top: 8px;
+    width: 100%;
+    max-width: 700px;
+}
+
+.hand-area h3 {
+    font-size: 0.85em;
+    color: #e94560;
+    margin-bottom: 6px;
+    text-align: center;
+}
+
+.hand-cards {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 4px 0;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.hand-card {
+    background: #16213e;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    padding: 8px;
+    min-width: 110px;
+    max-width: 130px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.75em;
+    flex-shrink: 0;
+}
+
+.hand-card:hover {
+    transform: translateY(-4px);
+    border-color: #e94560;
+    box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
+}
+
+.hand-card.selected {
+    border-color: #4ecdc4;
+    box-shadow: 0 0 12px rgba(78, 205, 196, 0.5);
+    transform: translateY(-6px);
+}
+
+.hand-card .card-type-badge {
+    font-size: 0.7em;
+    padding: 1px 4px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    display: inline-block;
+    margin-bottom: 3px;
+}
+
+.badge-siegling { background: #533483; color: #fff; }
+.badge-spell { background: #e94560; color: #fff; }
+.badge-trainer { background: #0f3460; color: #fff; border: 1px solid #4ecdc4; }
+
+.hand-card .card-name {
+    font-weight: bold;
+    font-size: 1em;
+    margin-bottom: 3px;
+}
+
+.hand-card .card-detail {
+    font-size: 0.85em;
+    color: #aaa;
+    margin: 1px 0;
+}
+
+.element-fire { color: #ff6b35; }
+.element-water { color: #4ecdc4; }
+
+/* Action buttons */
+.actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    justify-content: center;
+}
+
+button {
+    background: linear-gradient(135deg, #e94560, #c23152);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(233, 69, 96, 0.4);
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+button.btn-secondary {
+    background: linear-gradient(135deg, #0f3460, #16213e);
+    border: 1px solid #4ecdc4;
+}
+
+/* Game log */
+.game-log {
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 0.75em;
+    line-height: 1.4;
+}
+
+.game-log p {
+    padding: 2px 0;
+    border-bottom: 1px solid #0f3460;
+}
+
+/* Phase indicator */
+.phase-indicator {
+    text-align: center;
+    padding: 6px;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #f7dc6f;
+}
+
+/* Trainer card display */
+.trainer-display {
+    font-size: 0.8em;
+}
+
+.trainer-display .card-name {
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+/* Deck chooser */
+.deck-chooser {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    gap: 20px;
+}
+
+.deck-chooser h2 {
+    font-size: 1.6em;
+}
+
+.deck-options {
+    display: flex;
+    gap: 20px;
+}
+
+.deck-option {
+    background: #16213e;
+    border: 3px solid #0f3460;
+    border-radius: 12px;
+    padding: 30px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.3s;
+    min-width: 180px;
+}
+
+.deck-option:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.deck-option.fire:hover { border-color: #ff6b35; }
+.deck-option.water:hover { border-color: #4ecdc4; }
+
+.deck-option .icon { font-size: 3em; margin-bottom: 10px; }
+.deck-option .label { font-size: 1.2em; font-weight: bold; }
+
+/* Status effects */
+.status-badge {
+    font-size: 0.7em;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: #5dade2;
+    color: #fff;
+    display: inline-block;
+}
+
+/* Tooltip */
+.tooltip {
+    display: none;
+    position: absolute;
+    background: #0a0a1a;
+    border: 1px solid #e94560;
+    border-radius: 8px;
+    padding: 10px;
+    z-index: 100;
+    font-size: 0.85em;
+    max-width: 250px;
+    pointer-events: none;
+    bottom: 105%;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.board-cell:hover .tooltip {
+    display: block;
+}
+
+/* Game over overlay */
+.game-over-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.game-over-box {
+    background: #16213e;
+    border: 3px solid #e94560;
+    border-radius: 16px;
+    padding: 40px;
+    text-align: center;
+}
+
+.game-over-box h2 {
+    font-size: 2em;
+    margin-bottom: 16px;
+}
+
+.game-over-box button {
+    margin-top: 16px;
+    font-size: 1.1em;
+    padding: 12px 24px;
+}
+
+/* Notch preview circles when hovering over legal placement */
+.notch-preview {
+    animation: notch-glow 0.8s infinite alternate;
+    opacity: 0.8;
+}
+
+@keyframes notch-glow {
+    from { opacity: 0.5; transform-origin: center; }
+    to { opacity: 1; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1a1a2e; }
+::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
