@@ -1,0 +1,13 @@
+README.md
+pom.xml
+mvnw
+mvnw.cmd
+project.toml
+progress.md
+target
+*.log
+*.err
+.mvn
+src/main/java
+src/main/resources/application.properties
+src/main/resources/templates

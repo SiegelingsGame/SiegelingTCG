@@ -119,8 +119,9 @@ public class AIService {
             state.getEnemy().getDiscard().add(card);
             state.log("AI casts " + spell.getName() + "!");
 
+            // Spend energy from pool (restores at next phase)
+            energyService.spendEnergy(state, false, spell.getCostElement(), spell.getCostAmount());
             state.removeDeadSieglings();
-            energyService.recalculateEnergy(state);
             break; // Cast 1 spell per turn max
         }
     }
@@ -147,8 +148,9 @@ public class AIService {
             state.getEnemy().getDiscard().add(card);
             state.log("AI springs trap " + trap.getName() + "!");
 
+            // Spend energy from pool (restores at next phase)
+            energyService.spendEnergy(state, false, trap.getCostElement(), trap.getCostAmount());
             state.removeDeadSieglings();
-            energyService.recalculateEnergy(state);
             break; // Spring 1 trap per turn max
         }
     }
