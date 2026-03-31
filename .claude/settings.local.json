@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(export JAVA_HOME=~/java/jdk-21.0.10+7/Contents/Home)",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
+      "Bash(./mvnw spring-boot:run -q)",
+      "Bash(curl -s \"http://localhost:8080/\")",
+      "Bash(curl -s \"http://localhost:8080/api/game/state\")",
+      "Bash(./mvnw compile:*)"
+    ]
+  }
+}
