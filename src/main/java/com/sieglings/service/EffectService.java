@@ -145,13 +145,14 @@ public class EffectService {
                     target.getStatusEffects().add(StatusEffect.SPEED_ZERO);
                     state.log(ability.getName() + " reduces " + target.getName() + "'s Speed to 0!");
                 }
-                case "atk_boost" -> {
-                    target.getStatusEffects().add(StatusEffect.ATK_BOOST);
-                    state.log(ability.getName() + " boosts " + target.getName() + "'s Attack!");
+                case "damage_boost" -> {
+                    target.addDamageBuff(Math.max(1, value));
+                    state.log(ability.getName() + " boosts " + target.getName() + "'s attack damage by " + Math.max(1, value) + "!");
                 }
-                case "def_boost" -> {
-                    target.getStatusEffects().add(StatusEffect.DEF_BOOST);
-                    state.log(ability.getName() + " boosts " + target.getName() + "'s Defense!");
+                case "health_boost" -> {
+                    target.addHealthBuff(Math.max(1, value));
+                    state.log(ability.getName() + " raises " + target.getName() + "'s max Health by " + Math.max(1, value)
+                            + " (HP: " + target.getCurrentHealth() + "/" + target.getEffectiveMaxHealth() + ")");
                 }
                 case "speed_boost" -> {
                     target.setCurrentSpeed(target.getCurrentSpeed() + value);
@@ -214,8 +215,8 @@ public class EffectService {
     /**
      * Adapted from the Roblox reference chart:
      * Water > Fire, Earth | Earth > Wind, Electric | Wind > Fire | Electric > Water.
-     * Shadow's current Roblox strengths target Psychic-only matchups, so Shadow remains neutral
-     * within the live TCG element set for now.
+     * Shadow's current Roblox strengths target Psychic-only matchups, and Ice does not yet use
+     * an elemental weakness relationship in the live TCG rule set, so both remain neutral here.
      */
     private boolean isWeakTo(com.sieglings.model.enums.Element attacker, com.sieglings.model.enums.Element defender) {
         return switch (attacker) {
@@ -225,7 +226,7 @@ public class EffectService {
                     || defender == com.sieglings.model.enums.Element.ELECTRIC;
             case WIND -> defender == com.sieglings.model.enums.Element.FIRE;
             case ELECTRIC -> defender == com.sieglings.model.enums.Element.WATER;
-            case FIRE, SHADOW, NEUTRAL -> false;
+            default -> false;
         };
     }
 

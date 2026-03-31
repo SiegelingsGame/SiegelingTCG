@@ -8,6 +8,7 @@ import com.sieglings.model.enums.Rarity;
  * A trainer card providing passive and/or active effects.
  */
 public class TrainerCard extends Card {
+    private String tier = "SiegeKnight";
     private Ability activeAbility;  // usable once per turn or once per game
     private boolean activeUsedThisTurn;
     private boolean activeUsedThisGame;
@@ -19,14 +20,20 @@ public class TrainerCard extends Card {
 
     public TrainerCard(String id, String name, Element element, Rarity rarity,
                        Ability passiveAbility, Ability activeAbility, boolean oncePerGame) {
+        this(id, name, element, rarity, "SiegeKnight", passiveAbility, activeAbility, oncePerGame);
+    }
+
+    public TrainerCard(String id, String name, Element element, Rarity rarity, String tier,
+                       Ability passiveAbility, Ability activeAbility, boolean oncePerGame) {
         super(id, name, CardType.TRAINER, element, rarity);
+        this.tier = tier;
         setAbility(passiveAbility);
         this.activeAbility = activeAbility;
         this.oncePerGame = oncePerGame;
     }
 
     public TrainerCard copy() {
-        return new TrainerCard(getId(), getName(), getElement(), getRarity(),
+        return new TrainerCard(getId(), getName(), getElement(), getRarity(), tier,
                 getAbility(), activeAbility, oncePerGame);
     }
 
@@ -45,6 +52,8 @@ public class TrainerCard extends Card {
         activeUsedThisTurn = false;
     }
 
+    public String getTier() { return tier; }
+    public void setTier(String tier) { this.tier = tier; }
     public Ability getActiveAbility() { return activeAbility; }
     public void setActiveAbility(Ability activeAbility) { this.activeAbility = activeAbility; }
     public boolean isActiveUsedThisTurn() { return activeUsedThisTurn; }

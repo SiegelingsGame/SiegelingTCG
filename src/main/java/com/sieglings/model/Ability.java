@@ -14,7 +14,7 @@ public class Ability {
     private TargetType targetType;
     private Row targetRow;          // null = any row
     private int targetCount;        // number of targets (0 = all matching)
-    private String effectType;      // damage, heal, freeze, speed_zero, atk_boost, def_boost, move
+    private String effectType;      // damage, heal, freeze, speed_zero, damage_boost, health_boost, move
     private int effectValue;
     private boolean passive;
 

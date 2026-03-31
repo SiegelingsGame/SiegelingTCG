@@ -17,8 +17,10 @@ import com.sieglings.model.enums.TargetType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.IntStream;
 
 /**
  * Core game orchestrator managing turns, phases, and win conditions.
@@ -26,7 +28,7 @@ import java.util.Random;
 @Service
 public class GameService {
 
-    public record StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards) {}
+    public record StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards, String loadoutLabel) {}
 
     private record ResolvedLoadout(
             List<Card> deck,
@@ -55,6 +57,9 @@ public class GameService {
     @Autowired
     private AIService aiService;
 
+    @Autowired
+    private MatchHistoryService matchHistoryService;
+
     private GameState currentGame;
     private final Random random = new Random();
 
@@ -68,7 +73,7 @@ public class GameService {
 
     public GameState newGame(String playerDeckId, String playerTrainerId, List<String> customDeckCards) {
         currentGame = createGame(
-                new StartOptions(playerDeckId, playerTrainerId, customDeckCards),
+                new StartOptions(playerDeckId, playerTrainerId, customDeckCards, null),
                 null,
                 "Player",
                 "AI Opponent",
@@ -221,6 +226,8 @@ public class GameService {
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
             state.log(sideName(state, isPlayerSide) + " casts " + spell.getName() + "!");
+            // Spend energy from pool instead of recalculating (pool restores at next phase)
+            energyService.spendEnergy(state, isPlayerSide, spell.getCostElement(), spell.getCostAmount());
         } else if (card instanceof TrapCard trap) {
             if (!energyService.canTriggerTrap(state, isPlayerSide, trap)) {
                 state.log("Opponent bucket does not meet the trigger for " + trap.getName() + "!");
@@ -231,13 +238,14 @@ public class GameService {
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
             state.log(sideName(state, isPlayerSide) + " springs trap " + trap.getName() + "!");
+            // Spend energy from pool instead of recalculating
+            energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount());
         } else {
             state.log("Spell or trap not found in hand!");
             return state;
         }
 
         state.removeDeadSieglings();
-        energyService.recalculateEnergy(state);
         checkWinCondition(state);
         return state;
     }
@@ -268,7 +276,7 @@ public class GameService {
         state.log(sideName(state, isPlayerSide) + " uses trainer ability: " + trainer.getActiveAbility().getName());
 
         state.removeDeadSieglings();
-        energyService.recalculateEnergy(state);
+        // Don't recalculate energy here - pool persists until next phase restore
         checkWinCondition(state);
         return state;
     }
@@ -375,6 +383,8 @@ public class GameService {
         enemy.setDeck(enemyLoadout.deck());
         player.setActiveTrainer(playerLoadout.trainer());
         enemy.setActiveTrainer(enemyLoadout.trainer());
+        player.setLoadoutLabel(playerLoadout.label());
+        enemy.setLoadoutLabel(enemyLoadout.label());
 
         player.shuffleDeck();
         enemy.shuffleDeck();
@@ -388,34 +398,43 @@ public class GameService {
         }
 
         boolean playerStarts = random.nextBoolean();
-        state.setCurrentPhase(Phase.DRAW);
+        state.setCurrentPhase(Phase.MULLIGAN);
         state.resetRoundOrder(playerStarts);
+        state.setMulliganPending(true, true);
+        state.setMulliganUsed(true, false);
+        state.setMulliganUsed(false, false);
         state.log("Game started!");
         state.log("Both players begin at 100 health.");
         state.log("Coin flip: " + sideName(state, playerStarts) + " goes first.");
         state.log(player.getName() + " deck: " + formatElements(playerLoadout.elements()) + " with " + playerLoadout.trainer().getName() + ".");
         state.log(enemy.getName() + " deck: " + formatElements(enemyLoadout.elements()) + " with " + enemyLoadout.trainer().getName() + ".");
+        state.log("Opening hand check: each player may mulligan once (replace any subset; draw as many as you return).");
         state.log("Turn order this round: " + (playerStarts
                 ? player.getName() + " -> " + enemy.getName() + " -> Battle"
                 : enemy.getName() + " -> " + player.getName() + " -> Battle") + ".");
 
-        energyService.recalculateEnergy(state);
-        beginActiveSetupTurn(state);
+        if (!enemyHumanControlled) {
+            resolveAutomatedOpeningMulligan(state, false);
+        }
+        tryCompleteOpeningMulligan(state);
         return state;
     }
 
     private ResolvedLoadout resolveLoadout(StartOptions options, String fallbackDeckId, String fallbackTrainerId) {
         StartOptions safeOptions = options == null
-                ? new StartOptions(fallbackDeckId, fallbackTrainerId, null)
+                ? new StartOptions(fallbackDeckId, fallbackTrainerId, null, null)
                 : options;
 
         boolean usingCustomDeck = safeOptions.customDeckCards() != null && !safeOptions.customDeckCards().isEmpty();
         String deckId = safeOptions.playerDeckId() == null ? fallbackDeckId : safeOptions.playerDeckId();
         String trainerId = safeOptions.playerTrainerId() == null ? fallbackTrainerId : safeOptions.playerTrainerId();
+        String preferredLabel = safeOptions.loadoutLabel() == null || safeOptions.loadoutLabel().isBlank()
+                ? null
+                : safeOptions.loadoutLabel().trim();
 
         if (usingCustomDeck) {
             List<Card> deck = cardDefs.buildCustomDeck(safeOptions.customDeckCards());
-            return new ResolvedLoadout(deck, cardDefs.getTrainerById(trainerId), inferElements(deck), "Custom", null, true);
+            return new ResolvedLoadout(deck, cardDefs.getTrainerById(trainerId), inferElements(deck), preferredLabel == null ? "Custom Loadout" : preferredLabel, null, true);
         }
 
         CardDefinitionService.DeckOption deckOption = cardDefs.getDeckOption(deckId)
@@ -424,7 +443,7 @@ public class GameService {
                 cardDefs.buildDeckById(deckOption.id()),
                 cardDefs.getTrainerById(trainerId),
                 deckOption.elements(),
-                deckOption.name(),
+                preferredLabel == null ? deckOption.name() : preferredLabel,
                 deckOption.id(),
                 false
         );
@@ -498,7 +517,9 @@ public class GameService {
 
     private void startBattlePhase(GameState state) {
         state.setCurrentPhase(Phase.BATTLE);
-        state.log("Both setup turns are complete. Entering battle phase.");
+        // Full energy restore at start of battle phase
+        energyService.recalculateEnergy(state);
+        state.log("Both setup turns are complete. Entering battle phase. Energy restored!");
         applyTrainerPassives(state, true);
         applyTrainerPassives(state, false);
         battleService.initializeBattle(state);
@@ -530,8 +551,8 @@ public class GameService {
                 continue;
             }
             switch (passive.getEffectType()) {
-                case "atk_boost" -> ci.getStatusEffects().add(StatusEffect.ATK_BOOST);
-                case "def_boost" -> ci.getStatusEffects().add(StatusEffect.DEF_BOOST);
+                case "damage_boost" -> ci.addDamageBuff(Math.max(1, passive.getEffectValue()));
+                case "health_boost" -> ci.addHealthBuff(Math.max(1, passive.getEffectValue()));
                 case "speed_boost" -> ci.setCurrentSpeed(ci.getCurrentSpeed() + passive.getEffectValue());
             }
         }
@@ -573,6 +594,69 @@ public class GameService {
             state.setWinner(state.getPlayer().getName());
             state.log(state.getEnemy().getName() + " has fallen! " + state.getPlayer().getName() + " wins!");
         }
+
+        if (state.isGameOver()) {
+            matchHistoryService.recordCompletedGame(state);
+        }
+    }
+
+    public GameState resolveOpeningMulligan(List<Integer> mulliganHandIndices) {
+        return resolveOpeningMulligan(currentGame, true, mulliganHandIndices);
+    }
+
+    public GameState resolveOpeningMulligan(GameState state, boolean isPlayerSide, List<Integer> mulliganHandIndices) {
+        if (state == null || state.isGameOver()) return state;
+        if (state.getCurrentPhase() != Phase.MULLIGAN) {
+            return state;
+        }
+        if (!state.isMulliganPending(isPlayerSide)) {
+            state.log(sideName(state, isPlayerSide) + " already locked their opening hand.");
+            return state;
+        }
+
+        Player actor = getSidePlayer(state, isPlayerSide);
+        List<Integer> plan = mulliganHandIndices == null ? List.of() : mulliganHandIndices;
+        if (plan.isEmpty()) {
+            state.log(sideName(state, isPlayerSide) + " keeps the opening hand.");
+        } else {
+            actor.mulliganHandAtIndices(plan);
+            state.setMulliganUsed(isPlayerSide, true);
+            state.log(sideName(state, isPlayerSide) + " mulligans " + plan.size() + " opening card(s).");
+        }
+        state.setMulliganPending(isPlayerSide, false);
+        tryCompleteOpeningMulligan(state);
+        return state;
+    }
+
+    private void resolveAutomatedOpeningMulligan(GameState state, boolean isPlayerSide) {
+        if (state == null || !state.isMulliganPending(isPlayerSide)) {
+            return;
+        }
+        Player actor = getSidePlayer(state, isPlayerSide);
+        List<Card> hand = actor.getHand();
+        long sieglingCount = hand.stream().filter(SieglingCard.class::isInstance).count();
+        if (sieglingCount >= 2) {
+            resolveOpeningMulligan(state, isPlayerSide, List.of());
+            return;
+        }
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < hand.size(); i++) {
+            if (!(hand.get(i) instanceof SieglingCard)) {
+                indices.add(i);
+            }
+        }
+        if (indices.isEmpty()) {
+            indices = IntStream.range(0, hand.size()).boxed().toList();
+        }
+        resolveOpeningMulligan(state, isPlayerSide, indices);
+    }
+
+    private void tryCompleteOpeningMulligan(GameState state) {
+        if (state == null || state.isMulliganPending(true) || state.isMulliganPending(false)) {
+            return;
+        }
+        state.log("Opening hands are locked in.");
+        beginActiveSetupTurn(state);
     }
 
     private Player getSidePlayer(GameState state, boolean isPlayerSide) {

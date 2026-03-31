@@ -26,15 +26,16 @@ public class MultiplayerService {
     @Autowired
     private GameService gameService;
 
-    public synchronized RoomSession createRoom(String playerName, GameService.StartOptions options) {
+    public synchronized RoomSession createRoom(String playerName, GameService.StartOptions options, Long accountUserId) {
         String roomId = generateRoomId();
         String token = generateToken();
         MultiplayerRoom room = new MultiplayerRoom(roomId, token, safeName(playerName, "Host"), options);
+        room.setHostUserId(accountUserId);
         rooms.put(roomId, room);
         return new RoomSession(roomId, token, true, false);
     }
 
-    public synchronized RoomSession joinRoom(String roomId, String playerName, GameService.StartOptions options) {
+    public synchronized RoomSession joinRoom(String roomId, String playerName, GameService.StartOptions options, Long accountUserId) {
         MultiplayerRoom room = requireRoom(roomId);
         if (room.isStarted()) {
             throw new IllegalArgumentException("That room has already started.");
@@ -46,6 +47,7 @@ public class MultiplayerService {
         String token = generateToken();
         room.setGuestToken(token);
         room.setGuestName(safeName(playerName, "Guest"));
+        room.setGuestUserId(accountUserId);
         room.setGuestOptions(options);
         GameState gameState = gameService.newMultiplayerGame(
                 room.getHostOptions(),
@@ -53,6 +55,12 @@ public class MultiplayerService {
                 room.getHostName(),
                 room.getGuestName()
         );
+        if (room.getHostUserId() != null) {
+            gameState.getPlayer().setAccountUserId(room.getHostUserId());
+        }
+        if (room.getGuestUserId() != null) {
+            gameState.getEnemy().setAccountUserId(room.getGuestUserId());
+        }
         room.setGameState(gameState);
         room.touch();
         return new RoomSession(roomId, token, false, true);
@@ -128,6 +136,12 @@ public class MultiplayerService {
         MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
         room.touch();
         return gameService.endTurn(room.getGameState(), room.isHostToken(token));
+    }
+
+    public synchronized GameState mulligan(String roomId, String token, List<Integer> mulliganHandIndices) {
+        MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
+        room.touch();
+        return gameService.resolveOpeningMulligan(room.getGameState(), room.isHostToken(token), mulliganHandIndices);
     }
 
     public List<int[]> getLegalPlacements(String roomId, String token) {
