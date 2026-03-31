@@ -152,7 +152,7 @@ public class BattleService {
         state.log(attacker.getName() + " uses " + ability.getName() + ".");
 
         if (enemyBoardEmpty && "damage".equals(ability.getEffectType())) {
-            int directDamage = Math.max(ability.getEffectValue(), attacker.getEffectiveAttack());
+            int directDamage = Math.max(1, ability.getEffectValue());
             var opposingPlayer = attacker.isOwner() ? state.getEnemy() : state.getPlayer();
             opposingPlayer.takeDirectDamage(directDamage);
             state.log(opposingPlayer.getName() + " takes " + directDamage + " direct damage!");
@@ -175,7 +175,7 @@ public class BattleService {
     private List<Ability> buildBattleAbilities(CardInstance attacker) {
         List<Ability> abilities = new ArrayList<>();
         Element element = attacker.getElement();
-        int attackValue = Math.max(1, attacker.getEffectiveAttack());
+        int strikeDamage = baseBattleDamage(attacker) + attacker.getDamageBoost();
         String cardId = attacker.getCard().getId();
 
         if (attacker.getCard().getRarity() == Rarity.COMMON
@@ -185,11 +185,11 @@ public class BattleService {
         } else {
             Ability basicStrike = Ability.damage(
                     attacker.getName() + " Strike",
-                    "Deal " + attackValue + " damage to 1 enemy",
+                    "Deal " + strikeDamage + " damage to 1 enemy",
                     TargetType.SINGLE_ENEMY,
                     null,
                     1,
-                    attackValue
+                    strikeDamage
             );
             basicStrike.setRequiredElement(element);
             basicStrike.setRequiredEnergy(1);
@@ -203,16 +203,18 @@ public class BattleService {
             abilities.add(signature);
         }
 
+<<<<<<< HEAD
         if (attacker.getCard().getRarity() == Rarity.RARE
                 || attacker.getCard().getRarity() == Rarity.EPIC
                 || attacker.getCard().getRarity() == Rarity.LEGENDARY) {
+            int finisherDamage = strikeDamage + (attacker.getCard().getRarity() == Rarity.LEGENDARY ? 2 : 1);
             Ability finisher = Ability.damage(
                     attacker.getName() + " Burst",
-                    "Deal " + (attackValue + 2) + " damage to all enemies in Front Row",
+                    "Deal " + finisherDamage + " damage to all enemies in Front Row",
                     TargetType.ROW_ENEMIES,
                     Row.FRONT,
                     0,
-                    attackValue + 2
+                    finisherDamage
             );
             finisher.setRequiredElement(element);
             int finisherCost = switch (attacker.getCard().getRarity()) {
@@ -244,7 +246,7 @@ public class BattleService {
             return move;
         }
 
-        int weakDamage = 1;
+        int weakDamage = 1 + attacker.getDamageBoost();
         Ability poke = Ability.damage(
                 attacker.getName() + " Poke",
                 "Deal " + weakDamage + " damage to 1 enemy",
@@ -260,19 +262,20 @@ public class BattleService {
     private Ability buildSignatureAbility(CardInstance attacker) {
         Ability printed = attacker.getCard().getAbility();
         if (printed == null) {
+            int slashDamage = baseBattleDamage(attacker) + attacker.getDamageBoost() + 1;
             Ability fallback = Ability.damage(
                     attacker.getName() + " Slash",
-                    "Deal " + (attacker.getEffectiveAttack() + 1) + " damage to 1 enemy",
+                    "Deal " + slashDamage + " damage to 1 enemy",
                     TargetType.SINGLE_ENEMY,
                     null,
                     1,
-                    attacker.getEffectiveAttack() + 1
+                    slashDamage
             );
             return fallback;
         }
 
         if (!printed.isPassive()) {
-            return printed.copy();
+            return applyAttackerDamageBonus(attacker, printed.copy());
         }
 
         Ability converted = new Ability(
@@ -287,6 +290,48 @@ public class BattleService {
         );
         converted.setRequiredReaction(printed.getRequiredReaction());
         return converted;
+    }
+
+    private Ability applyAttackerDamageBonus(CardInstance attacker, Ability ability) {
+        if (!"damage".equals(ability.getEffectType())) {
+            return ability;
+        }
+        int boostedDamage = Math.max(1, ability.getEffectValue() + attacker.getDamageBoost());
+        ability.setEffectValue(boostedDamage);
+        if (ability.getDescription() != null && ability.getDescription().startsWith("Deal ")) {
+            ability.setDescription(ability.getDescription().replaceFirst("Deal \\d+", "Deal " + boostedDamage));
+        }
+        return ability;
+    }
+
+    private int baseBattleDamage(CardInstance attacker) {
+        Ability printed = attacker.getCard().getAbility();
+        if (printed != null && "damage".equals(printed.getEffectType())) {
+            return switch (printed.getTargetType()) {
+                case ALL_ENEMIES -> Math.max(2, printed.getEffectValue() - 2);
+                case ROW_ENEMIES -> Math.max(2, printed.getEffectValue() - 1);
+                default -> Math.max(2, printed.getEffectValue());
+            };
+        }
+
+        int baseDamage = switch (attacker.getCard().getRarity()) {
+            case COMMON -> 2;
+            case UNCOMMON -> 3;
+            case RARE -> 4;
+            case LEGENDARY -> 5;
+        };
+
+        if (attacker.getCard().getPreferredRow() == Row.FRONT) {
+            baseDamage += 1;
+        } else if (attacker.getCard().getPreferredRow() == Row.BACK) {
+            baseDamage = Math.max(1, baseDamage - 1);
+        }
+
+        if (attacker.getCard().getSpeed() >= 7) {
+            baseDamage += 1;
+        }
+
+        return baseDamage;
     }
 
     private void finishBattle(GameState state) {
