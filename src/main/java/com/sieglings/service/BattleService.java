@@ -203,7 +203,6 @@ public class BattleService {
             abilities.add(signature);
         }
 
-<<<<<<< HEAD
         if (attacker.getCard().getRarity() == Rarity.RARE
                 || attacker.getCard().getRarity() == Rarity.EPIC
                 || attacker.getCard().getRarity() == Rarity.LEGENDARY) {
@@ -318,6 +317,7 @@ public class BattleService {
             case COMMON -> 2;
             case UNCOMMON -> 3;
             case RARE -> 4;
+            case EPIC -> 5;
             case LEGENDARY -> 5;
         };
 
