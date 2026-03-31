@@ -32,6 +32,57 @@ chmod +x mvnw
 
 Then open your browser to: **http://localhost:8080**
 
+## Firebase Hosting Deployment
+
+This project now supports a split deployment:
+
+- **Firebase Hosting** serves the static frontend from `src/main/resources/static`
+- **Cloud Run** serves the Spring Boot API
+
+Firebase Hosting alone cannot run the current app because gameplay still depends on the Java `/api/...` endpoints.
+
+### 1. Deploy the Java backend to Cloud Run
+
+From the project root:
+
+```powershell
+gcloud config set project YOUR_FIREBASE_PROJECT_ID
+gcloud run deploy sieglings-tcg-api --source . --region us-central1 --allow-unauthenticated --set-env-vars "APP_CORS_ALLOWED_ORIGIN_PATTERNS=https://YOUR_FIREBASE_PROJECT_ID.web.app,https://YOUR_FIREBASE_PROJECT_ID.firebaseapp.com"
+```
+
+After the deploy finishes, copy the Cloud Run service URL.
+
+### 2. Keep the frontend on same-origin `/api` calls
+
+`src/main/resources/static/js/config.js` can keep:
+
+```js
+window.SIEGLINGS_CONFIG = {
+    apiBaseUrl: ''
+};
+```
+
+That lets local Spring Boot use `http://localhost:8080/api/...` and lets Firebase Hosting proxy `/api/...` to Cloud Run.
+
+### 3. Connect the repo to Firebase Hosting
+
+Create a `.firebaserc` file from `.firebaserc.example` and replace `YOUR_FIREBASE_PROJECT_ID` with your real Firebase project ID.
+
+The repo already includes a `firebase.json` that points Hosting at `src/main/resources/static`, rewrites `/api/**` to the Cloud Run service `sieglings-tcg-api` in `us-central1`, and rewrites all other paths to `index.html`.
+
+If your Cloud Run service name or region is different, update `firebase.json` before deploying.
+
+### 4. Deploy the frontend
+
+```powershell
+firebase deploy --only hosting
+```
+
+After that, the site will be available at:
+
+- `https://YOUR_FIREBASE_PROJECT_ID.web.app`
+- `https://YOUR_FIREBASE_PROJECT_ID.firebaseapp.com`
+
 ## How to Play
 
 ### Turn Flow
@@ -112,6 +163,8 @@ Fire Marshal, Flame Tactician, Tide Caller, Frost Sage
 sieglings-tcg/
 ├── pom.xml
 ├── mvnw / mvnw.cmd              ← Maven Wrapper
+├── firebase.json                ← Firebase Hosting config
+├── project.toml                 ← Cloud Run Java runtime pin
 ├── src/main/java/com/sieglings/
 │   ├── SieglingsTcgApplication.java
 │   ├── model/
@@ -134,13 +187,15 @@ sieglings-tcg/
 │   │   ├── EffectService         ← Universal effect resolver
 │   │   └── AIService             ← Simple AI opponent
 │   └── controller/
-│       └── GameController        ← REST API + page serving
+│       └── GameController        ← REST API
 └── src/main/resources/
     ├── application.properties
-    ├── templates/game.html        ← Main game page (Thymeleaf)
     └── static/
+        ├── index.html             ← Shared frontend entrypoint
         ├── css/style.css          ← Game styling
-        └── js/game.js             ← Frontend interaction logic
+        └── js/
+            ├── config.js          ← Frontend runtime API target
+            └── game.js            ← Frontend interaction logic
 ```
 
 ## Architecture Notes

@@ -16,9 +16,9 @@ public class CardInstance {
     private String instanceId;
     private SieglingCard card;
     private int currentHealth;
-    private int currentAttack;
-    private int currentDefense;
     private int currentSpeed;
+    private int temporaryHealthBuff;
+    private int temporaryDamageBuff;
     private Set<StatusEffect> statusEffects = new HashSet<>();
     private int boardRow;
     private int boardCol;
@@ -31,8 +31,6 @@ public class CardInstance {
         this.instanceId = UUID.randomUUID().toString().substring(0, 8);
         this.card = card;
         this.currentHealth = card.getHealth();
-        this.currentAttack = card.getAttack();
-        this.currentDefense = card.getDefense();
         this.currentSpeed = card.getSpeed();
         this.boardRow = row;
         this.boardCol = col;
@@ -56,21 +54,29 @@ public class CardInstance {
         return currentSpeed;
     }
 
-    public int getEffectiveAttack() {
-        int atk = currentAttack;
-        if (statusEffects.contains(StatusEffect.ATK_BOOST)) atk += 1;
-        return atk;
+    public int getEffectiveMaxHealth() {
+        int maxHealth = card.getHealth() + temporaryHealthBuff;
+        if (temporaryHealthBuff == 0 && statusEffects.contains(StatusEffect.HEALTH_BOOST)) maxHealth += 1;
+        return maxHealth;
     }
 
-    public int getEffectiveDefense() {
-        int def = currentDefense;
-        if (statusEffects.contains(StatusEffect.DEF_BOOST)) def += 1;
-        return def;
+    public int getDamageBoost() {
+        int damageBoost = temporaryDamageBuff;
+        if (temporaryDamageBuff == 0 && statusEffects.contains(StatusEffect.DAMAGE_BOOST)) damageBoost += 1;
+        return damageBoost;
     }
 
-    public void takeDamage(int amount) {
-        int effectiveDmg = Math.max(0, amount - getEffectiveDefense());
-        currentHealth = Math.max(0, currentHealth - effectiveDmg);
+    public void addDamageBuff(int amount) {
+        if (amount <= 0) return;
+        temporaryDamageBuff += amount;
+        statusEffects.add(StatusEffect.DAMAGE_BOOST);
+    }
+
+    public void addHealthBuff(int amount) {
+        if (amount <= 0) return;
+        temporaryHealthBuff += amount;
+        currentHealth += amount;
+        statusEffects.add(StatusEffect.HEALTH_BOOST);
     }
 
     public void takeRawDamage(int amount) {
@@ -78,12 +84,15 @@ public class CardInstance {
     }
 
     public void healDamage(int amount) {
-        currentHealth = Math.min(card.getHealth(), currentHealth + amount);
+        currentHealth = Math.min(getEffectiveMaxHealth(), currentHealth + amount);
     }
 
     public void clearTemporaryEffects() {
-        statusEffects.remove(StatusEffect.DEF_BOOST);
-        statusEffects.remove(StatusEffect.ATK_BOOST);
+        temporaryDamageBuff = 0;
+        temporaryHealthBuff = 0;
+        statusEffects.remove(StatusEffect.HEALTH_BOOST);
+        statusEffects.remove(StatusEffect.DAMAGE_BOOST);
+        currentHealth = Math.min(currentHealth, card.getHealth());
     }
 
     // Getters and setters
@@ -91,12 +100,10 @@ public class CardInstance {
     public SieglingCard getCard() { return card; }
     public int getCurrentHealth() { return currentHealth; }
     public void setCurrentHealth(int currentHealth) { this.currentHealth = currentHealth; }
-    public int getCurrentAttack() { return currentAttack; }
-    public void setCurrentAttack(int currentAttack) { this.currentAttack = currentAttack; }
-    public int getCurrentDefense() { return currentDefense; }
-    public void setCurrentDefense(int currentDefense) { this.currentDefense = currentDefense; }
     public int getCurrentSpeed() { return currentSpeed; }
     public void setCurrentSpeed(int currentSpeed) { this.currentSpeed = currentSpeed; }
+    public int getTemporaryHealthBuff() { return temporaryHealthBuff; }
+    public int getTemporaryDamageBuff() { return temporaryDamageBuff; }
     public Set<StatusEffect> getStatusEffects() { return statusEffects; }
     public int getBoardRow() { return boardRow; }
     public void setBoardRow(int boardRow) { this.boardRow = boardRow; }

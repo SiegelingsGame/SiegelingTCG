@@ -30,6 +30,11 @@ public class GameState {
     private boolean playerGoesFirst = true;
     private int setupTurnsTakenThisRound = 0;
     private boolean enemyHumanControlled = false;
+    private boolean playerMulliganPending = false;
+    private boolean enemyMulliganPending = false;
+    private boolean playerMulliganUsed = false;
+    private boolean enemyMulliganUsed = false;
+    private boolean matchHistoryRecorded = false;
 
     private List<String> gameLog = new ArrayList<>();
 
@@ -155,6 +160,30 @@ public class GameState {
         setupTurnsTakenThisRound++;
     }
 
+    public boolean isMulliganPending(boolean isPlayer) {
+        return isPlayer ? playerMulliganPending : enemyMulliganPending;
+    }
+
+    public void setMulliganPending(boolean isPlayer, boolean pending) {
+        if (isPlayer) {
+            playerMulliganPending = pending;
+        } else {
+            enemyMulliganPending = pending;
+        }
+    }
+
+    public boolean hasUsedMulligan(boolean isPlayer) {
+        return isPlayer ? playerMulliganUsed : enemyMulliganUsed;
+    }
+
+    public void setMulliganUsed(boolean isPlayer, boolean used) {
+        if (isPlayer) {
+            playerMulliganUsed = used;
+        } else {
+            enemyMulliganUsed = used;
+        }
+    }
+
     // Getters and setters
     public Player getPlayer() { return player; }
     public void setPlayer(Player player) { this.player = player; }
@@ -191,4 +220,10 @@ public class GameState {
     public void setSetupTurnsTakenThisRound(int setupTurnsTakenThisRound) { this.setupTurnsTakenThisRound = setupTurnsTakenThisRound; }
     public boolean isEnemyHumanControlled() { return enemyHumanControlled; }
     public void setEnemyHumanControlled(boolean enemyHumanControlled) { this.enemyHumanControlled = enemyHumanControlled; }
+    public boolean isPlayerMulliganPending() { return playerMulliganPending; }
+    public boolean isEnemyMulliganPending() { return enemyMulliganPending; }
+    public boolean isPlayerMulliganUsed() { return playerMulliganUsed; }
+    public boolean isEnemyMulliganUsed() { return enemyMulliganUsed; }
+    public boolean isMatchHistoryRecorded() { return matchHistoryRecorded; }
+    public void setMatchHistoryRecorded(boolean matchHistoryRecorded) { this.matchHistoryRecorded = matchHistoryRecorded; }
 }

@@ -10,3 +10,6 @@ spring-boot*.err
 *.iml
 
 multiplayer-tunnel.log
+data/
+*.mv.db
+*.trace.db

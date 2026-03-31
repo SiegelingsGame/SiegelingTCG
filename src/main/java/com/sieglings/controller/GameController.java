@@ -10,8 +10,11 @@ import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
 import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
+import com.sieglings.model.enums.Phase;
+import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.service.EnergyService;
 import com.sieglings.service.GameService;
+import com.sieglings.service.AccountService;
 import com.sieglings.service.MultiplayerRoom;
 import com.sieglings.service.MultiplayerService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,8 +29,10 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 /**
  * REST controller for all game actions.
@@ -43,6 +48,9 @@ public class GameController {
 
     @Autowired
     private MultiplayerService multiplayerService;
+
+    @Autowired
+    private AccountService accountService;
 
     @GetMapping("/api/game/options")
     @ResponseBody
@@ -69,11 +77,13 @@ public class GameController {
     @PostMapping("/api/match/create")
     @ResponseBody
     public Map<String, Object> createMatch(@RequestBody(required = false) Map<String, Object> req,
+                                           @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                            HttpServletRequest request) {
         try {
             String playerName = req == null ? null : (String) req.get("playerName");
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
-            MultiplayerService.RoomSession session = multiplayerService.createRoom(playerName, options);
+            AccountUser user = accountService.findUser(authorizationHeader);
+            MultiplayerService.RoomSession session = multiplayerService.createRoom(playerName, options, user == null ? null : user.getId());
             return buildRoomMeta(multiplayerService.requireRoom(session.roomId()), session, request);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
@@ -83,12 +93,14 @@ public class GameController {
     @PostMapping("/api/match/join")
     @ResponseBody
     public Map<String, Object> joinMatch(@RequestBody Map<String, Object> req,
+                                         @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                          HttpServletRequest request) {
         try {
             String roomId = req == null ? null : (String) req.get("roomId");
             String playerName = req == null ? null : (String) req.get("playerName");
             GameService.StartOptions options = parseStartOptions(req, "deck_water_wind", "trainer06");
-            MultiplayerService.RoomSession session = multiplayerService.joinRoom(roomId, playerName, options);
+            AccountUser user = accountService.findUser(authorizationHeader);
+            MultiplayerService.RoomSession session = multiplayerService.joinRoom(roomId, playerName, options, user == null ? null : user.getId());
             MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
             Map<String, Object> resp = buildRoomMeta(room, session, request);
             if (room.isStarted()) {
@@ -124,13 +136,39 @@ public class GameController {
 
     @PostMapping("/api/game/new")
     @ResponseBody
-    public Map<String, Object> newGame(@RequestBody(required = false) Map<String, Object> req) {
+    public Map<String, Object> newGame(@RequestBody(required = false) Map<String, Object> req,
+                                       @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         try {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
-            gameService.newGame(options.playerDeckId(), options.playerTrainerId(), options.customDeckCards());
+            GameState state = gameService.newGame(options.playerDeckId(), options.playerTrainerId(), options.customDeckCards());
+            AccountUser user = accountService.findUser(authorizationHeader);
+            if (user != null) {
+                state.getPlayer().setAccountUserId(user.getId());
+            }
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
+        return buildStateResponse(gameService.getState(), true, null);
+    }
+
+    @PostMapping("/api/game/mulligan")
+    @ResponseBody
+    public Map<String, Object> mulligan(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
+                                        @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                        @RequestBody Map<String, Object> req) {
+        if (roomId != null && playerToken != null) {
+            try {
+                MultiplayerRoom room = multiplayerService.requireAuthorizedRoom(roomId, playerToken);
+                List<Integer> indices = parseMulliganIndices(req, room.getGameState(), room.isHostToken(playerToken));
+                GameState state = multiplayerService.mulligan(roomId, playerToken, indices);
+                return buildStateResponse(state, multiplayerService.viewerIsPlayer(roomId, playerToken), roomId);
+            } catch (IllegalArgumentException ex) {
+                return Map.of("error", ex.getMessage());
+            }
+        }
+
+        List<Integer> indices = parseMulliganIndices(req, gameService.getState(), true);
+        gameService.resolveOpeningMulligan(indices);
         return buildStateResponse(gameService.getState(), true, null);
     }
 
@@ -313,13 +351,22 @@ public class GameController {
 
         Player viewer = viewerIsPlayer ? gs.getPlayer() : gs.getEnemy();
         Player opponent = viewerIsPlayer ? gs.getEnemy() : gs.getPlayer();
+        boolean mulliganActive = gs.getCurrentPhase() == Phase.MULLIGAN;
+        boolean viewerPendingMulligan = gs.isMulliganPending(viewerIsPlayer);
+        boolean opponentPendingMulligan = gs.isMulliganPending(!viewerIsPlayer);
+        String activeSide = mulliganActive
+                ? (viewerPendingMulligan ? "PLAYER" : (opponentPendingMulligan ? "ENEMY" : "PLAYER"))
+                : (gs.isPlayerTurn() == viewerIsPlayer ? "PLAYER" : "ENEMY");
+        String activeSideLabel = mulliganActive
+                ? (viewerPendingMulligan ? "You" : (opponentPendingMulligan ? opponent.getName() : "Both players"))
+                : (gs.isPlayerTurn() == viewerIsPlayer ? "You" : opponent.getName());
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("turnNumber", gs.getTurnNumber());
         resp.put("currentPhase", gs.getCurrentPhase().name());
-        resp.put("activeSide", gs.isPlayerTurn() == viewerIsPlayer ? "PLAYER" : "ENEMY");
+        resp.put("activeSide", activeSide);
         resp.put("firstPlayer", gs.isPlayerGoesFirst() == viewerIsPlayer ? "PLAYER" : "ENEMY");
-        resp.put("activeSideLabel", gs.isPlayerTurn() == viewerIsPlayer ? "You" : opponent.getName());
+        resp.put("activeSideLabel", activeSideLabel);
         resp.put("firstPlayerLabel", gs.isPlayerGoesFirst() == viewerIsPlayer ? "You" : opponent.getName());
         resp.put("setupTurnsTakenThisRound", gs.getSetupTurnsTakenThisRound());
         resp.put("gameOver", gs.isGameOver());
@@ -336,6 +383,13 @@ public class GameController {
         resp.put("enemyBoard", serializeBoard(gs, !viewerIsPlayer));
         resp.put("legalPlacements", gameService.getLegalPlacements(gs, viewerIsPlayer));
         resp.put("playerPlacementUsed", gs.hasPlacedSieglingThisTurn(viewerIsPlayer));
+        resp.put("mulligan", Map.of(
+                "active", mulliganActive,
+                "youPending", viewerPendingMulligan,
+                "opponentPending", opponentPendingMulligan,
+                "youUsed", gs.hasUsedMulligan(viewerIsPlayer),
+                "opponentUsed", gs.hasUsedMulligan(!viewerIsPlayer)
+        ));
 
         CardInstance pendingAttacker = gameService.getPendingBattleAttacker(gs);
         if (pendingAttacker != null && pendingAttacker.isOwner() == viewerIsPlayer) {
@@ -417,6 +471,7 @@ public class GameController {
         info.put("earthEnergy", energy.earthTotal());
         info.put("windEnergy", energy.windTotal());
         info.put("waterEnergy", energy.waterTotal());
+        info.put("iceEnergy", energy.iceTotal());
         info.put("shadowEnergy", energy.shadowTotal());
         info.put("electricEnergy", energy.electricTotal());
         info.put("mistActive", energy.mistActive());
@@ -428,6 +483,8 @@ public class GameController {
         info.put("windExternal", energy.windExternal());
         info.put("waterInternal", energy.waterInternal());
         info.put("waterExternal", energy.waterExternal());
+        info.put("iceInternal", energy.iceInternal());
+        info.put("iceExternal", energy.iceExternal());
         info.put("shadowInternal", energy.shadowInternal());
         info.put("shadowExternal", energy.shadowExternal());
         info.put("electricInternal", energy.electricInternal());
@@ -485,8 +542,6 @@ public class GameController {
 
         if (card instanceof SieglingCard s) {
             m.put("health", s.getHealth());
-            m.put("attack", s.getAttack());
-            m.put("defense", s.getDefense());
             m.put("speed", s.getSpeed());
             m.put("preferredRow", s.getPreferredRow() == null ? null : s.getPreferredRow().name());
             m.put("notches", serializeNotches(s.getNotches()));
@@ -513,8 +568,12 @@ public class GameController {
     private Map<String, Object> serializeTrainer(TrainerCard trainer) {
         if (trainer == null) return null;
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", trainer.getId());
         m.put("name", trainer.getName());
         m.put("element", trainer.getElement().name());
+        m.put("tier", trainer.getTier());
+        m.put("rarity", trainer.getRarity().name());
+        m.put("oncePerGame", trainer.isOncePerGame());
 
         if (trainer.getAbility() != null) {
             m.put("passive", Map.of(
@@ -540,7 +599,9 @@ public class GameController {
         m.put("id", trainer.getId());
         m.put("name", trainer.getName());
         m.put("element", trainer.getElement().name());
+        m.put("tier", trainer.getTier());
         m.put("rarity", trainer.getRarity().name());
+        m.put("oncePerGame", trainer.isOncePerGame());
         if (trainer.getAbility() != null) {
             m.put("passive", trainer.getAbility().getDescription());
         }
@@ -567,9 +628,7 @@ public class GameController {
                 m.put("element", ci.getElement().name());
                 m.put("rarity", ci.getCard().getRarity().name());
                 m.put("hp", ci.getCurrentHealth());
-                m.put("maxHp", ci.getCard().getHealth());
-                m.put("atk", ci.getEffectiveAttack());
-                m.put("def", ci.getEffectiveDefense());
+                m.put("maxHp", ci.getEffectiveMaxHealth());
                 m.put("spd", ci.getEffectiveSpeed());
                 m.put("statuses", ci.getStatusEffects().stream().map(Enum::name).toList());
                 m.put("notches", serializeNotches(ci.getNotches()));
@@ -626,6 +685,7 @@ public class GameController {
     private GameService.StartOptions parseStartOptions(Map<String, Object> req, String fallbackDeckId, String fallbackTrainerId) {
         String deckId = req == null ? null : (String) req.get("deckId");
         String trainerId = req == null ? null : (String) req.get("trainerId");
+        String loadoutLabel = req == null ? null : (String) req.get("loadoutLabel");
         List<String> customDeckCards = null;
         if (req != null && req.get("customDeckCards") instanceof List<?> rawCards) {
             customDeckCards = rawCards.stream()
@@ -636,7 +696,47 @@ public class GameController {
         return new GameService.StartOptions(
                 deckId == null ? fallbackDeckId : deckId,
                 trainerId == null ? fallbackTrainerId : trainerId,
-                customDeckCards
+                customDeckCards,
+                loadoutLabel
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Integer> parseMulliganIndices(Map<String, Object> req, GameState state, boolean viewerIsPlayer) {
+        if (req == null || state == null) {
+            return List.of();
+        }
+        Player actor = viewerIsPlayer ? state.getPlayer() : state.getEnemy();
+        int handSize = actor.getHand().size();
+        Object raw = req.get("mulliganIndices");
+        if (raw instanceof List<?> list && !list.isEmpty()) {
+            List<Integer> parsed = new ArrayList<>();
+            for (Object o : list) {
+                if (o instanceof Number num) {
+                    parsed.add(num.intValue());
+                } else {
+                    throw new IllegalArgumentException("mulliganIndices must be a list of integers");
+                }
+            }
+            return normalizeMulliganIndices(parsed, handSize);
+        }
+        if (Boolean.TRUE.equals(req.get("takeMulligan"))) {
+            return IntStream.range(0, handSize).boxed().toList();
+        }
+        return List.of();
+    }
+
+    private List<Integer> normalizeMulliganIndices(List<Integer> raw, int handSize) {
+        if (handSize == 0 || raw.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<Integer> unique = new LinkedHashSet<>();
+        for (Integer i : raw) {
+            if (i == null || i < 0 || i >= handSize) {
+                throw new IllegalArgumentException("Invalid mulligan hand index: " + i);
+            }
+            unique.add(i);
+        }
+        return new ArrayList<>(unique);
     }
 }

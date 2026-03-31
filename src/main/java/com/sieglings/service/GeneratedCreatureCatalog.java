@@ -30,7 +30,9 @@ final class GeneratedCreatureCatalog {
     ) {}
 
     private static final List<CreatureSeed> CREATURE_SEEDS = List.of(
-            // Fire
+            // ========================
+            // FIRE (15) — matches Roblox
+            // ========================
             seed("firsky", "Firsky", Element.FIRE, Rarity.COMMON, "Mage", null, "coming soon"),
             seed("pylook", "Pylook", Element.FIRE, Rarity.COMMON, "Assassin", null, "pyleer"),
             seed("sundile", "Sundile", Element.FIRE, Rarity.COMMON, "Guardian", null, "raydile"),
@@ -47,30 +49,32 @@ final class GeneratedCreatureCatalog {
             seed("solgator", "Solgator", Element.FIRE, Rarity.RARE, "Guardian", "raydile", null),
             seed("pylord", "Pylord", Element.FIRE, Rarity.LEGENDARY, "Bruiser", null, null),
 
-            // Earth
-            seed("applehead", "Applehead", Element.EARTH, Rarity.COMMON, "Guardian", null, null),
+            // ========================
+            // EARTH (15) — synced with Roblox (sleaf→Common, added sleafwyrm/dracosleaf,
+            //   removed papapa/golor/sheenx which moved to Psychic/Undead)
+            // ========================
             seed("cacty", "Cacty", Element.EARTH, Rarity.COMMON, "Bruiser", null, "jackedty"),
-            seed("papapa", "Papapa", Element.EARTH, Rarity.COMMON, "Support", null, null),
-            seed("pylme", "Pylme", Element.EARTH, Rarity.COMMON, "Mage", null, "bonoblade"),
+            seed("applehead", "Applehead", Element.EARTH, Rarity.COMMON, "Guardian", null, null),
+            seed("sleaf", "Sleaf", Element.EARTH, Rarity.COMMON, "Assassin", null, "sleafwyrm"),
             seed("squirebud", "Squire Bud", Element.EARTH, Rarity.COMMON, "Assassin", null, "floraknight"),
-            seed("bonoblade", "Bonoblade", Element.EARTH, Rarity.UNCOMMON, "Assassin", "pylme", "guerilla"),
-            seed("floraknight", "Flora Knight", Element.EARTH, Rarity.UNCOMMON, "Mage", "squirebud", "generoot"),
+            seed("pylme", "Pylme", Element.EARTH, Rarity.COMMON, "Mage", null, "bonoblade"),
             seed("jackedty", "Jacked'ty", Element.EARTH, Rarity.UNCOMMON, "Bruiser", "cacty", "cactyjackedty"),
             seed("mossy", "Mossy", Element.EARTH, Rarity.UNCOMMON, "Bruiser", null, null),
+            seed("floraknight", "Flora Knight", Element.EARTH, Rarity.UNCOMMON, "Mage", "squirebud", "generoot"),
+            seed("bonoblade", "Bonoblade", Element.EARTH, Rarity.UNCOMMON, "Assassin", "pylme", "guerilla"),
             seed("generoot", "Generoot", Element.EARTH, Rarity.RARE, "Bruiser", "floraknight", null),
-            seed("golor", "Golor", Element.EARTH, Rarity.RARE, "Guardian", null, null),
             seed("guerilla", "Guerilla", Element.EARTH, Rarity.RARE, "Bruiser", "bonoblade", null),
-            seed("sleaf", "Sleaf", Element.EARTH, Rarity.RARE, "Assassin", null, null),
+            seed("sleafwyrm", "Sleafwyrm", Element.EARTH, Rarity.RARE, "Assassin", "sleaf", "dracosleaf"),
             seed("cactyjackedty", "CactyJackedty", Element.EARTH, Rarity.RARE, "Bruiser", "jackedty", null),
-            seed("sheenx", "Sheenx", Element.EARTH, Rarity.RARE, "Support", null, null),
+            seed("dracosleaf", "Dracosleaf", Element.EARTH, Rarity.RARE, "Bruiser", "sleafwyrm", null),
             seed("gymstone", "Gymstone", Element.EARTH, Rarity.LEGENDARY, "Guardian", null, null),
 
-            // Wind
-            seed("blanky", "Blanky", Element.WIND, Rarity.COMMON, "Assassin", null, null),
+            // ========================
+            // WIND (14) — synced with Roblox (removed blanky, ragguette→Psychic)
+            // ========================
             seed("breezee", "Breezee", Element.WIND, Rarity.COMMON, "Assassin", null, "gagglestand"),
-            seed("cloudpuff", "Cloudpuff", Element.WIND, Rarity.COMMON, "Guardian", null, "cloudwisp"),
             seed("pursula", "Pursula", Element.WIND, Rarity.COMMON, "Bruiser", null, "purseus"),
-            seed("ragguette", "Ragguette", Element.WIND, Rarity.COMMON, "Support", null, null),
+            seed("cloudpuff", "Cloudpuff", Element.WIND, Rarity.COMMON, "Guardian", null, "cloudwisp"),
             seed("cloudwisp", "Cloudwisp", Element.WIND, Rarity.UNCOMMON, "Bruiser", "cloudpuff", "cloudsprite"),
             seed("gagglestand", "Gagglestand", Element.WIND, Rarity.UNCOMMON, "Support", "breezee", "hurricrane"),
             seed("lofty", "Lofty", Element.WIND, Rarity.UNCOMMON, "Assassin", null, null),
@@ -83,56 +87,121 @@ final class GeneratedCreatureCatalog {
             seed("strikehawk", "Strikehawk", Element.WIND, Rarity.RARE, "Bruiser", "shellshock", null),
             seed("aerovane", "Aerovane", Element.WIND, Rarity.LEGENDARY, "Assassin", null, null),
 
-            // Water
-            seed("jawby", "Jawby", Element.WATER, Rarity.COMMON, "Guardian", null, "jawbite"),
-            seed("shellpack", "Shellpack", Element.WATER, Rarity.COMMON, "Support", null, "torqlander"),
-            seed("splashfin", "Splashfin", Element.WATER, Rarity.COMMON, "Mage", null, null),
+            // ========================
+            // WATER (14) — synced with Roblox (added ceeponee chain,
+            //   removed splashfin/tidepup/brinepup/leviathan)
+            // ========================
             seed("spoutyl", "Spoutyl", Element.WATER, Rarity.COMMON, "Assassin", null, "droxyl"),
-            seed("tidepup", "Tidepup", Element.WATER, Rarity.COMMON, "Bruiser", null, null),
-            seed("brinepup", "Brinepup", Element.WATER, Rarity.UNCOMMON, "Bruiser", null, null),
-            seed("clawkid", "Clawkid", Element.WATER, Rarity.UNCOMMON, "Guardian", null, "clawqueen"),
+            seed("shellpack", "Shellpack", Element.WATER, Rarity.COMMON, "Support", null, "torqlander"),
+            seed("jawby", "Jawby", Element.WATER, Rarity.COMMON, "Guardian", null, "jawbite"),
+            seed("ceeponee", "Ceeponee", Element.WATER, Rarity.COMMON, "Bruiser", null, "ceehorcee"),
             seed("droxyl", "Droxyl", Element.WATER, Rarity.UNCOMMON, "Assassin", "spoutyl", "hydroxyl"),
+            seed("clawkid", "Clawkid", Element.WATER, Rarity.UNCOMMON, "Guardian", null, "clawqueen"),
             seed("torqlander", "Torqlander", Element.WATER, Rarity.UNCOMMON, "Mage", "shellpack", "shellnaut"),
+            seed("ceehorcee", "Ceehorcee", Element.WATER, Rarity.UNCOMMON, "Assassin", "ceeponee", "ceesteed"),
             seed("hydroxyl", "Hydroxyl", Element.WATER, Rarity.RARE, "Assassin", "droxyl", null),
-            seed("jawbite", "Jawbite", Element.WATER, Rarity.RARE, "Support", null, null),
             seed("shellnaut", "Shellnaut", Element.WATER, Rarity.RARE, "Guardian", "torqlander", null),
+            seed("jawbite", "Jawbite", Element.WATER, Rarity.RARE, "Support", "jawby", null),
             seed("clawqueen", "Claw Queen", Element.WATER, Rarity.RARE, "Mage", "clawkid", null),
-            seed("leviathan", "Leviathan", Element.WATER, Rarity.RARE, "Bruiser", null, null),
+            seed("ceesteed", "Ceesteed", Element.WATER, Rarity.RARE, "Guardian", "ceehorcee", null),
             seed("conchious", "Conchious", Element.WATER, Rarity.LEGENDARY, "Mage", null, null),
 
-            // Shadow
-            seed("gloomrat", "Gloomrat", Element.SHADOW, Rarity.COMMON, "Assassin", null, null),
+            // ========================
+            // ICE (13) — synced with Roblox (complete replacement of old TCG-only roster)
+            // ========================
+            seed("fawny", "Fawny", Element.ICE, Rarity.COMMON, "Bruiser", null, "chilldoe"),
+            seed("frostfly", "Frostfly", Element.ICE, Rarity.COMMON, "Assassin", null, null),
+            seed("icewee", "Ice-Wee", Element.ICE, Rarity.COMMON, "Assassin", null, "icecuewee"),
+            seed("falcool", "Falcool", Element.ICE, Rarity.COMMON, "Support", null, "falcoat"),
+            seed("cozycub", "Cozycub", Element.ICE, Rarity.COMMON, "Mage", null, null),
+            seed("frosty", "Frosty", Element.ICE, Rarity.UNCOMMON, "Mage", null, null),
+            seed("chilldoe", "Chilldoe", Element.ICE, Rarity.UNCOMMON, "Bruiser", "fawny", "frostag"),
+            seed("icecuewee", "Ice-Cue-Wee", Element.ICE, Rarity.UNCOMMON, "Assassin", "icewee", null),
+            seed("falcoat", "Falcoat", Element.ICE, Rarity.UNCOMMON, "Assassin", "falcool", "peatbeak"),
+            seed("peatbeak", "Peatbeak", Element.ICE, Rarity.RARE, "Guardian", "falcoat", null),
+            seed("lumina", "Lumina", Element.ICE, Rarity.RARE, "Mage", null, null),
+            seed("frostag", "Frostag", Element.ICE, Rarity.RARE, "Assassin", "chilldoe", null),
+            seed("glaciemperor", "Glaciemperor", Element.ICE, Rarity.LEGENDARY, "Mage", null, null),
+
+            // ========================
+            // SHADOW (15) — echo line from Roblox + TCG originals for playability
+            // ========================
+            seed("echo", "Echo", Element.SHADOW, Rarity.COMMON, "Assassin", null, "echowing"),
             seed("duskmoth", "Duskmoth", Element.SHADOW, Rarity.COMMON, "Mage", null, null),
             seed("shadeblob", "Shadeblob", Element.SHADOW, Rarity.COMMON, "Guardian", null, null),
             seed("murkling", "Murkling", Element.SHADOW, Rarity.COMMON, "Bruiser", null, null),
             seed("whisperling", "Whisperling", Element.SHADOW, Rarity.COMMON, "Support", null, null),
-            seed("nightfang", "Nightfang", Element.SHADOW, Rarity.UNCOMMON, "Assassin", null, null),
+            seed("echowing", "Echowing", Element.SHADOW, Rarity.UNCOMMON, "Assassin", "echo", "echolustrious"),
             seed("hexweaver", "Hexweaver", Element.SHADOW, Rarity.UNCOMMON, "Mage", null, null),
             seed("grimshell", "Grimshell", Element.SHADOW, Rarity.UNCOMMON, "Guardian", null, null),
             seed("dreadpup", "Dreadpup", Element.SHADOW, Rarity.UNCOMMON, "Bruiser", null, null),
-            seed("shadowlurk", "Shadowlurk", Element.SHADOW, Rarity.RARE, "Assassin", null, null),
+            seed("echolustrious", "Echolustrious", Element.SHADOW, Rarity.RARE, "Assassin", "echowing", null),
             seed("phantomsteed", "Phantomsteed", Element.SHADOW, Rarity.RARE, "Support", null, null),
             seed("abysscrawler", "Abysscrawler", Element.SHADOW, Rarity.RARE, "Bruiser", null, null),
             seed("umbralwyrm", "Umbralwyrm", Element.SHADOW, Rarity.RARE, "Mage", null, null),
             seed("doomshield", "Doomshield", Element.SHADOW, Rarity.RARE, "Guardian", null, null),
             seed("voidmaw", "Voidmaw", Element.SHADOW, Rarity.LEGENDARY, "Mage", null, null),
 
-            // Electric (mapped from Roblox Lightning)
+            // ========================
+            // ELECTRIC (11) — synced with Roblox Lightning
+            //   (removed sparkpuff/arcfox/galvanite/ionwarden — not in Roblox)
+            // ========================
             seed("monkwatt", "Monkwatt", Element.ELECTRIC, Rarity.COMMON, "Mage", null, null),
             seed("newt", "Newt", Element.ELECTRIC, Rarity.COMMON, "Support", null, "newton"),
             seed("staticap", "Staticap", Element.ELECTRIC, Rarity.COMMON, "Bruiser", null, "joltram"),
             seed("blinky", "Blinky", Element.ELECTRIC, Rarity.COMMON, "Guardian", null, null),
-            seed("sparkpuff", "Sparkpuff", Element.ELECTRIC, Rarity.COMMON, "Support", null, null),
             seed("simicircuit", "Simicircuit", Element.ELECTRIC, Rarity.UNCOMMON, "Support", null, null),
             seed("joltram", "Joltram", Element.ELECTRIC, Rarity.UNCOMMON, "Bruiser", "staticap", "bleetsrike"),
-            seed("arcfox", "Arcfox", Element.ELECTRIC, Rarity.UNCOMMON, "Assassin", null, null),
-            seed("galvanite", "Galvanite", Element.ELECTRIC, Rarity.UNCOMMON, "Guardian", null, null),
             seed("kilokong", "Kilokong", Element.ELECTRIC, Rarity.RARE, "Bruiser", null, null),
             seed("newton", "New Ton", Element.ELECTRIC, Rarity.RARE, "Guardian", "newt", null),
             seed("bleetsrike", "Bleetsrike", Element.ELECTRIC, Rarity.RARE, "Bruiser", "joltram", null),
             seed("stormclaw", "Stormclaw", Element.ELECTRIC, Rarity.RARE, "Bruiser", null, null),
-            seed("ionwarden", "Ionwarden", Element.ELECTRIC, Rarity.RARE, "Support", null, null),
-            seed("thunderlord", "Thunderlord", Element.ELECTRIC, Rarity.LEGENDARY, "Mage", null, null)
+            seed("thunderlord", "Thunderlord", Element.ELECTRIC, Rarity.LEGENDARY, "Mage", null, null),
+
+            // ========================
+            // METAL (11) — mechanical constructs and armored beasts
+            // ========================
+            seed("coppkit", "Coppkit", Element.METAL, Rarity.COMMON, "Guardian", null, "brassguard"),
+            seed("tinpaw", "Tinpaw", Element.METAL, Rarity.COMMON, "Bruiser", null, "ironmaw"),
+            seed("gearling", "Gearling", Element.METAL, Rarity.COMMON, "Support", null, "clockwerk"),
+            seed("rivetpup", "Rivetpup", Element.METAL, Rarity.COMMON, "Assassin", null, null),
+            seed("brassguard", "Brassguard", Element.METAL, Rarity.UNCOMMON, "Guardian", "coppkit", "steelwarden"),
+            seed("ironmaw", "Ironmaw", Element.METAL, Rarity.UNCOMMON, "Bruiser", "tinpaw", "titanjaw"),
+            seed("clockwerk", "Clockwerk", Element.METAL, Rarity.UNCOMMON, "Support", "gearling", null),
+            seed("steelwarden", "Steelwarden", Element.METAL, Rarity.RARE, "Guardian", "brassguard", null),
+            seed("titanjaw", "Titanjaw", Element.METAL, Rarity.RARE, "Bruiser", "ironmaw", null),
+            seed("forgeclaw", "Forgeclaw", Element.METAL, Rarity.RARE, "Assassin", null, null),
+            seed("chromelord", "Chromelord", Element.METAL, Rarity.LEGENDARY, "Guardian", null, null),
+
+            // ========================
+            // UNDEAD (11) — restless spirits, revenants, and skeletal horrors
+            // ========================
+            seed("skully", "Skully", Element.UNDEAD, Rarity.COMMON, "Assassin", null, "bonereaver"),
+            seed("ghoulpup", "Ghoulpup", Element.UNDEAD, Rarity.COMMON, "Bruiser", null, "dreadmaw"),
+            seed("wispshade", "Wispshade", Element.UNDEAD, Rarity.COMMON, "Support", null, "banshee"),
+            seed("rattlebones", "Rattlebones", Element.UNDEAD, Rarity.COMMON, "Guardian", null, null),
+            seed("bonereaver", "Bonereaver", Element.UNDEAD, Rarity.UNCOMMON, "Assassin", "skully", "gravewalker"),
+            seed("dreadmaw", "Dreadmaw", Element.UNDEAD, Rarity.UNCOMMON, "Bruiser", "ghoulpup", "abominus"),
+            seed("banshee", "Banshee", Element.UNDEAD, Rarity.UNCOMMON, "Mage", "wispshade", null),
+            seed("gravewalker", "Gravewalker", Element.UNDEAD, Rarity.RARE, "Assassin", "bonereaver", null),
+            seed("abominus", "Abominus", Element.UNDEAD, Rarity.RARE, "Bruiser", "dreadmaw", null),
+            seed("wraithlord", "Wraithlord", Element.UNDEAD, Rarity.RARE, "Mage", null, null),
+            seed("lichking", "Lichking", Element.UNDEAD, Rarity.LEGENDARY, "Mage", null, null),
+
+            // ========================
+            // PSYCHIC (11) — mind-benders, illusionists, and astral entities
+            // ========================
+            seed("blanky", "Blanky", Element.PSYCHIC, Rarity.COMMON, "Support", null, "dreamweaver"),
+            seed("papapa", "Papapa", Element.PSYCHIC, Rarity.COMMON, "Mage", null, "psylon"),
+            seed("mindmite", "Mindmite", Element.PSYCHIC, Rarity.COMMON, "Assassin", null, "thoughtfang"),
+            seed("glimmer", "Glimmer", Element.PSYCHIC, Rarity.COMMON, "Guardian", null, null),
+            seed("dreamweaver", "Dreamweaver", Element.PSYCHIC, Rarity.UNCOMMON, "Support", "blanky", "miragequeen"),
+            seed("psylon", "Psylon", Element.PSYCHIC, Rarity.UNCOMMON, "Mage", "papapa", "omnipsych"),
+            seed("thoughtfang", "Thoughtfang", Element.PSYCHIC, Rarity.UNCOMMON, "Assassin", "mindmite", null),
+            seed("miragequeen", "Miragequeen", Element.PSYCHIC, Rarity.RARE, "Support", "dreamweaver", null),
+            seed("omnipsych", "Omnipsych", Element.PSYCHIC, Rarity.RARE, "Mage", "psylon", null),
+            seed("sheenx", "Sheenx", Element.PSYCHIC, Rarity.RARE, "Assassin", null, null),
+            seed("cosmicoracle", "Cosmic Oracle", Element.PSYCHIC, Rarity.LEGENDARY, "Mage", null, null)
     );
 
     private static final Map<String, CreatureSeed> CREATURE_BY_ID = CREATURE_SEEDS.stream()
@@ -190,8 +259,7 @@ final class GeneratedCreatureCatalog {
         int stage = evolutionStage(seed);
 
         int health = Math.max(10, baseHealth(role) + rarityTier * 2 + stage * 2 + elementHealthBias(seed.element()));
-        int attack = Math.max(1, baseAttack(role) + rarityTier + attackStageBonus(role, stage));
-        int defense = Math.max(0, baseDefense(role) + defenseRarityBonus(role, rarityTier) + stage);
+        int abilityDamage = Math.max(1, baseAttack(role) + rarityTier + attackStageBonus(role, stage));
         int speed = Math.max(1, baseSpeed(role) + speedRarityBonus(role, rarityTier) + elementSpeedBias(seed.element()));
 
         SieglingCard card = new SieglingCard(
@@ -200,13 +268,11 @@ final class GeneratedCreatureCatalog {
                 seed.element(),
                 seed.rarity(),
                 health,
-                attack,
-                defense,
                 speed,
                 buildNotches(seed),
                 preferredRow(role)
         );
-        card.setAbility(buildPrintedAbility(seed, attack, defense, stage));
+        card.setAbility(buildPrintedAbility(seed, abilityDamage, stage));
         int placementCost = placementCost(seed.rarity(), stage);
         if (placementCost > 0) {
             card.setCostElement(seed.element());
@@ -221,18 +287,18 @@ final class GeneratedCreatureCatalog {
         return card;
     }
 
-    private static Ability buildPrintedAbility(CreatureSeed seed, int attack, int defense, int stage) {
+    private static Ability buildPrintedAbility(CreatureSeed seed, int abilityDamage, int stage) {
         String role = normalizeRole(seed.role());
         int tierValue = Math.max(1, rarityTier(seed.rarity()) + stage + 1);
 
         return switch (role) {
             case "support" -> buildSupportAbility(seed, tierValue);
-            case "guardian" -> buildGuardianAbility(seed, attack);
-            case "mage" -> buildMageAbility(seed, attack);
-            case "assassin" -> buildAssassinAbility(seed, tierValue, attack);
+            case "guardian" -> buildGuardianAbility(seed, abilityDamage);
+            case "mage" -> buildMageAbility(seed, abilityDamage);
+            case "assassin" -> buildAssassinAbility(seed, tierValue, abilityDamage);
             default -> Ability.damage(seed.name() + " Charge",
-                    "Deal " + (attack + 1) + " damage to 1 enemy",
-                    TargetType.SINGLE_ENEMY, null, 1, attack + 1);
+                    "Deal " + (abilityDamage + 1) + " damage to 1 enemy",
+                    TargetType.SINGLE_ENEMY, null, 1, abilityDamage + 1);
         };
     }
 
@@ -240,8 +306,8 @@ final class GeneratedCreatureCatalog {
         return switch (seed.element()) {
             case FIRE -> Ability.passive(
                     seed.name() + " Hearth",
-                    "All " + elementLabel(seed.element()) + " allies gain +" + Math.max(1, tierValue / 2) + " Attack",
-                    "atk_boost",
+                    "All " + elementLabel(seed.element()) + " allies gain +" + Math.max(1, tierValue / 2) + " attack damage",
+                    "damage_boost",
                     Math.max(1, tierValue / 2)
             );
             case EARTH -> Ability.heal(
@@ -266,10 +332,16 @@ final class GeneratedCreatureCatalog {
                     0,
                     Math.max(2, tierValue)
             );
+            case ICE -> Ability.passive(
+                    seed.name() + " Winter Ward",
+                    "All " + elementLabel(seed.element()) + " allies gain +" + Math.max(1, tierValue / 2) + " max Health",
+                    "health_boost",
+                    Math.max(1, tierValue / 2)
+            );
             case SHADOW -> Ability.passive(
                     seed.name() + " Night Chorus",
-                    "All " + elementLabel(seed.element()) + " allies gain +" + Math.max(1, tierValue / 2) + " Attack",
-                    "atk_boost",
+                    "All " + elementLabel(seed.element()) + " allies gain +" + Math.max(1, tierValue / 2) + " attack damage",
+                    "damage_boost",
                     Math.max(1, tierValue / 2)
             );
             case ELECTRIC -> Ability.passive(
@@ -278,24 +350,24 @@ final class GeneratedCreatureCatalog {
                     "speed_boost",
                     Math.max(1, tierValue / 2)
             );
-            case NEUTRAL -> Ability.heal(seed.name() + " Rally", "Heal 1 ally for 2", TargetType.SINGLE_ALLY, null, 1, 2);
+            default -> Ability.heal(seed.name() + " Rally", "Heal 1 ally for 2", TargetType.SINGLE_ALLY, null, 1, 2);
         };
     }
 
-    private static Ability buildGuardianAbility(CreatureSeed seed, int attack) {
+    private static Ability buildGuardianAbility(CreatureSeed seed, int abilityDamage) {
         return switch (seed.element()) {
             case FIRE -> Ability.damage(
                     seed.name() + " Shield Bash",
-                    "Deal " + Math.max(2, attack) + " damage to 1 enemy",
+                    "Deal " + Math.max(2, abilityDamage) + " damage to 1 enemy",
                     TargetType.SINGLE_ENEMY,
                     Row.FRONT,
                     1,
-                    Math.max(2, attack)
+                    Math.max(2, abilityDamage)
             );
             case EARTH -> Ability.passive(
                     seed.name() + " Barkplate",
-                    "This Siegling gains +1 Defense",
-                    "def_boost",
+                    "This Siegling gains +1 max Health",
+                    "health_boost",
                     1
             );
             case WIND -> new Ability(
@@ -315,33 +387,40 @@ final class GeneratedCreatureCatalog {
                     null,
                     1
             );
+            case ICE -> Ability.freeze(
+                    seed.name() + " Rime Anchor",
+                    "Freeze 1 enemy for 1 turn",
+                    TargetType.SINGLE_ENEMY,
+                    null,
+                    1
+            );
             case SHADOW -> Ability.passive(
                     seed.name() + " Dusk Carapace",
-                    "This Siegling gains +1 Defense",
-                    "def_boost",
+                    "This Siegling gains +1 max Health",
+                    "health_boost",
                     1
             );
             case ELECTRIC -> Ability.damage(
                     seed.name() + " Shock Ram",
-                    "Deal " + Math.max(2, attack) + " damage to 1 enemy",
+                    "Deal " + Math.max(2, abilityDamage) + " damage to 1 enemy",
                     TargetType.SINGLE_ENEMY,
                     Row.FRONT,
                     1,
-                    Math.max(2, attack)
+                    Math.max(2, abilityDamage)
             );
-            case NEUTRAL -> Ability.passive(seed.name() + " Guard", "This Siegling gains +1 Defense", "def_boost", 1);
+            default -> Ability.passive(seed.name() + " Guard", "This Siegling gains +1 max Health", "health_boost", 1);
         };
     }
 
-    private static Ability buildMageAbility(CreatureSeed seed, int attack) {
+    private static Ability buildMageAbility(CreatureSeed seed, int abilityDamage) {
         return switch (seed.element()) {
             case FIRE -> Ability.damage(
                     seed.name() + " Flame Arc",
-                    "Deal " + (attack + 1) + " damage to all enemies in Front Row",
+                    "Deal " + (abilityDamage + 1) + " damage to all enemies in Front Row",
                     TargetType.ROW_ENEMIES,
                     Row.FRONT,
                     0,
-                    attack + 1
+                    abilityDamage + 1
             );
             case EARTH -> new Ability(
                     seed.name() + " Rootbind",
@@ -355,11 +434,11 @@ final class GeneratedCreatureCatalog {
             );
             case WIND -> Ability.damage(
                     seed.name() + " Skyrend",
-                    "Deal " + attack + " damage to all enemies in Back Row",
+                    "Deal " + abilityDamage + " damage to all enemies in Back Row",
                     TargetType.ROW_ENEMIES,
                     Row.BACK,
                     0,
-                    attack
+                    abilityDamage
             );
             case WATER -> Ability.freeze(
                     seed.name() + " Frostwake",
@@ -368,27 +447,44 @@ final class GeneratedCreatureCatalog {
                     null,
                     1
             );
-            case SHADOW -> Ability.damage(
-                    seed.name() + " Umbra Volley",
-                    "Deal " + attack + " damage to all enemies in Back Row",
-                    TargetType.ROW_ENEMIES,
-                    Row.BACK,
-                    0,
-                    attack
-            );
-            case ELECTRIC -> Ability.damage(
-                    seed.name() + " Chainflash",
-                    "Deal " + (attack + 1) + " damage to all enemies in Front Row",
+            case ICE -> Ability.damage(
+                    seed.name() + " Hailburst",
+                    "Deal " + valueForIceMage(abilityDamage) + " damage to all enemies in Front Row",
                     TargetType.ROW_ENEMIES,
                     Row.FRONT,
                     0,
-                    attack + 1
+                    valueForIceMage(abilityDamage)
             );
-            case NEUTRAL -> Ability.damage(seed.name() + " Bolt", "Deal 3 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 3);
+            case SHADOW -> Ability.damage(
+                    seed.name() + " Umbra Volley",
+                    "Deal " + abilityDamage + " damage to all enemies in Back Row",
+                    TargetType.ROW_ENEMIES,
+                    Row.BACK,
+                    0,
+                    abilityDamage
+            );
+            case ELECTRIC -> Ability.damage(
+                    seed.name() + " Chainflash",
+                    "Deal " + (abilityDamage + 1) + " damage to all enemies in Front Row",
+                    TargetType.ROW_ENEMIES,
+                    Row.FRONT,
+                    0,
+                    abilityDamage + 1
+            );
+            default -> Ability.damage(seed.name() + " Bolt", "Deal 3 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 3);
         };
     }
 
-    private static Ability buildAssassinAbility(CreatureSeed seed, int tierValue, int attack) {
+    private static Ability buildAssassinAbility(CreatureSeed seed, int tierValue, int abilityDamage) {
+        if (seed.element() == Element.ICE) {
+            return Ability.freeze(
+                    seed.name() + " Flashfreeze",
+                    "Freeze 1 enemy for 1 turn",
+                    TargetType.SINGLE_ENEMY,
+                    null,
+                    1
+            );
+        }
         if (seed.element() == Element.WIND) {
             return new Ability(
                     seed.name() + " Slipstream",
@@ -404,11 +500,11 @@ final class GeneratedCreatureCatalog {
         if (seed.element() == Element.WATER && tierValue >= 2) {
             return Ability.damage(
                     seed.name() + " Undertow Fang",
-                    "Deal " + (attack + 1) + " damage to 1 enemy",
+                    "Deal " + (abilityDamage + 1) + " damage to 1 enemy",
                     TargetType.SINGLE_ENEMY,
                     null,
                     1,
-                    attack + 1
+                    abilityDamage + 1
             );
         }
         if (seed.element() == Element.ELECTRIC) {
@@ -425,11 +521,11 @@ final class GeneratedCreatureCatalog {
         }
         return Ability.damage(
                 seed.name() + " Ambush",
-                "Deal " + Math.max(2, attack) + " damage to 1 enemy",
+                "Deal " + Math.max(2, abilityDamage) + " damage to 1 enemy",
                 TargetType.SINGLE_ENEMY,
                 null,
                 1,
-                Math.max(2, attack)
+                Math.max(2, abilityDamage)
         );
     }
 
@@ -469,9 +565,10 @@ final class GeneratedCreatureCatalog {
             case EARTH -> List.of(NotchDirection.BOTTOM, NotchDirection.LEFT, NotchDirection.RIGHT, NotchDirection.TOP_LEFT);
             case WIND -> List.of(NotchDirection.TOP_LEFT, NotchDirection.TOP_RIGHT, NotchDirection.RIGHT, NotchDirection.LEFT);
             case WATER -> List.of(NotchDirection.BOTTOM, NotchDirection.BOTTOM_LEFT, NotchDirection.BOTTOM_RIGHT, NotchDirection.LEFT);
+            case ICE -> List.of(NotchDirection.TOP, NotchDirection.TOP_LEFT, NotchDirection.LEFT, NotchDirection.BOTTOM);
             case SHADOW -> List.of(NotchDirection.TOP_LEFT, NotchDirection.LEFT, NotchDirection.BOTTOM_LEFT, NotchDirection.TOP);
             case ELECTRIC -> List.of(NotchDirection.TOP_RIGHT, NotchDirection.RIGHT, NotchDirection.BOTTOM_RIGHT, NotchDirection.TOP);
-            case NEUTRAL -> List.of(NotchDirection.TOP, NotchDirection.RIGHT, NotchDirection.BOTTOM, NotchDirection.LEFT);
+            default -> List.of(NotchDirection.TOP, NotchDirection.RIGHT, NotchDirection.BOTTOM, NotchDirection.LEFT);
         }) {
             if (!priority.contains(direction)) {
                 priority.add(direction);
@@ -541,17 +638,6 @@ final class GeneratedCreatureCatalog {
         };
     }
 
-    private static int baseDefense(String role) {
-        return switch (role) {
-            case "guardian" -> 4;
-            case "bruiser" -> 3;
-            case "support" -> 2;
-            case "mage" -> 1;
-            case "assassin" -> 1;
-            default -> 2;
-        };
-    }
-
     private static int baseSpeed(String role) {
         return switch (role) {
             case "assassin" -> 7;
@@ -567,6 +653,7 @@ final class GeneratedCreatureCatalog {
         return switch (element) {
             case EARTH -> 2;
             case WATER -> 1;
+            case ICE -> 1;
             case SHADOW -> 1;
             default -> 0;
         };
@@ -577,13 +664,6 @@ final class GeneratedCreatureCatalog {
             return 0;
         }
         return role.equals("mage") || role.equals("assassin") || role.equals("bruiser") ? stage : Math.max(0, stage - 1);
-    }
-
-    private static int defenseRarityBonus(String role, int rarityTier) {
-        if (role.equals("guardian")) {
-            return rarityTier;
-        }
-        return Math.max(0, rarityTier - 1);
     }
 
     private static int speedRarityBonus(String role, int rarityTier) {
@@ -600,6 +680,10 @@ final class GeneratedCreatureCatalog {
             case EARTH -> -1;
             default -> 0;
         };
+    }
+
+    private static int valueForIceMage(int attack) {
+        return Math.max(2, attack);
     }
 
     private static int placementCost(Rarity rarity, int stage) {
