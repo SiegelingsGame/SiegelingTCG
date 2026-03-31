@@ -490,7 +490,8 @@ public class CardDefinitionService {
             case COMMON -> 0;
             case UNCOMMON -> 1;
             case RARE -> 2;
-            case LEGENDARY -> 3;
+            case EPIC -> 3;
+            case LEGENDARY -> 4;
         };
     }
 }

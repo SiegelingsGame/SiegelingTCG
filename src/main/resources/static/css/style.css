@@ -576,18 +576,22 @@ body {
 .hand-card {
     min-width: 146px;
     max-width: 156px;
-    background: var(--surface-strong);
-    border: 2px solid #2a3a5a;
-    border-radius: 8px;
-    padding: 8px;
+    background: #b0b8c4;
+    border: 3px solid #6b7280;
+    border-radius: 12px;
+    padding: 6px;
     cursor: pointer;
     transition: all 0.15s;
     flex-shrink: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .hand-card.selected {
     border-color: var(--accent);
-    box-shadow: 0 0 12px rgba(226, 183, 20, 0.24);
+    box-shadow: 0 0 14px rgba(226, 183, 20, 0.35);
 }
 
 .hand-card.opening-locked {
@@ -599,37 +603,137 @@ body {
     transform: none;
 }
 
-.hand-card.fire { border-left: 4px solid var(--fire); }
-.hand-card.earth { border-left: 4px solid var(--earth); }
-.hand-card.wind { border-left: 4px solid var(--wind); }
-.hand-card.water { border-left: 4px solid var(--water); }
-.hand-card.shadow { border-left: 4px solid var(--shadow); }
-.hand-card.electric { border-left: 4px solid var(--electric); }
+/* ── element accent on inner frame ── */
+.hand-card.fire { --elem-color: var(--fire); }
+.hand-card.earth { --elem-color: var(--earth); }
+.hand-card.wind { --elem-color: var(--wind); }
+.hand-card.water { --elem-color: var(--water); }
+.hand-card.shadow { --elem-color: var(--shadow); }
+.hand-card.electric { --elem-color: var(--electric); }
 
-.card-title {
+/* ── corner notch orbs (matches template corners) ── */
+.card-corner-notches {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.corner-orb {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, rgba(255,255,255,0.7), var(--elem-color, #6bb8e0) 60%);
+    border: 1.5px solid rgba(0,0,0,0.2);
+    box-shadow: inset 0 1px 2px rgba(255,255,255,0.5), 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.corner-orb.top-left { top: 3px; left: 3px; }
+.corner-orb.top-right { top: 3px; right: 3px; }
+.corner-orb.bottom-left { bottom: 3px; left: 3px; }
+.corner-orb.bottom-right { bottom: 3px; right: 3px; }
+
+/* ── upper art area ── */
+.card-art-area {
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-strong) 100%);
+    border: 2px solid var(--elem-color, #3a5a8a);
+    border-radius: 6px;
+    margin: 10px 4px 4px;
+    padding: 10px 6px 6px;
+    min-height: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+/* ── card art image ── */
+.card-art-img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+    object-fit: cover;
+}
+
+.card-art-fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.card-element-label {
+    font-size: 0.72em;
     font-weight: bold;
-    font-size: 0.82em;
+    color: var(--elem-color, var(--text));
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+}
+
+.card-rarity-badge {
+    font-size: 0.55em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     margin-bottom: 4px;
 }
 
-.hand-card.fire .card-title { color: var(--fire); }
-.hand-card.earth .card-title { color: var(--earth); }
-.hand-card.wind .card-title { color: var(--wind); }
-.hand-card.water .card-title { color: var(--water); }
-.hand-card.shadow .card-title { color: var(--shadow); }
-.hand-card.electric .card-title { color: var(--electric); }
-
-.card-type {
-    font-size: 0.65em;
-    color: var(--text-dim);
-    text-transform: uppercase;
+/* ── bottom info panel ── */
+.card-info-panel {
+    background: linear-gradient(180deg, var(--surface) 0%, var(--surface-strong) 100%);
+    border: 2px solid var(--elem-color, #3a5a8a);
+    border-radius: 6px;
+    margin: 0 4px 10px;
+    padding: 5px 6px;
+    flex: 1;
 }
 
-.card-detail,
-.card-cost {
-    font-size: 0.68em;
-    margin-top: 4px;
+.card-stat-row {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 4px;
+}
+
+.card-stat-item {
+    font-size: 0.72em;
+    font-weight: bold;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 1px;
+}
+
+.stat-icon {
+    font-size: 0.85em;
+    margin-right: 1px;
+}
+
+/* ── ability area ── */
+.card-ability-area {
+    min-height: 18px;
+}
+
+.card-ability-text {
+    font-size: 0.62em;
+    color: var(--text);
+    line-height: 1.25;
+    margin-bottom: 2px;
+}
+
+.card-cost-text {
+    font-size: 0.58em;
     color: var(--text-dim);
+    margin-top: 2px;
+}
+
+.card-cost-text.combo-cost {
+    color: var(--accent);
 }
 
 .actions {
@@ -1303,29 +1407,47 @@ body {
     .hand-card {
         min-width: 0;
         max-width: none;
-        padding: 6px;
+        padding: 4px;
     }
 
-    .card-title {
-        font-size: 0.66em;
-        margin-bottom: 2px;
-        line-height: 1.1;
+    .corner-orb {
+        width: 12px;
+        height: 12px;
     }
 
-    .card-type,
-    .card-detail,
-    .card-cost {
-        font-size: 0.54em;
-        line-height: 1.15;
+    .card-art-area {
+        margin: 8px 3px 3px;
+        padding: 6px 4px 4px;
+        min-height: 40px;
     }
 
-    .card-detail,
-    .card-cost {
+    .card-element-label {
+        font-size: 0.6em;
+    }
+
+    .card-rarity-badge {
+        font-size: 0.48em;
+    }
+
+    .card-info-panel {
+        margin: 0 3px 8px;
+        padding: 4px;
+    }
+
+    .card-stat-item {
+        font-size: 0.6em;
+    }
+
+    .card-ability-text {
+        font-size: 0.52em;
         display: -webkit-box;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 2;
         overflow: hidden;
-        margin-top: 3px;
+    }
+
+    .card-cost-text {
+        font-size: 0.48em;
     }
 
     .loadout-box {
