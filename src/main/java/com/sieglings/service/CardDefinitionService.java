@@ -451,9 +451,9 @@ public class CardDefinitionService {
         // Preset deck distribution: 20 Sieglings, 10 spells, 10 traps.
         // - Max 3 copies (enforced elsewhere for custom decks; presets follow it here too)
         // - If a Siegling from an evolution line is included, include the full evolution tree.
-        deck.addAll(selectPresetSieglings(elements, 20, 3).stream().map(SieglingCard::copy).toList());
-        deck.addAll(selectPresetSpells(elements, 10).stream().map(SpellCard::copy).toList());
-        deck.addAll(selectPresetTraps(elements, 10, 3).stream().map(TrapCard::copy).toList());
+        deck.addAll(selectPresetSieglings(elementSet, 20, 3).stream().map(SieglingCard::copy).toList());
+        deck.addAll(selectPresetSpells(elementSet, 10).stream().map(SpellCard::copy).toList());
+        deck.addAll(selectPresetTraps(elementSet, 10, 3).stream().map(TrapCard::copy).toList());
 
         return deck;
     }
@@ -473,8 +473,6 @@ public class CardDefinitionService {
             String root = evolutionRootId(card, byId);
             membersByRoot.computeIfAbsent(root, _k -> new ArrayList<>()).add(card);
         }
-        return cards;
-    }
 
         List<Family> families = membersByRoot.entrySet().stream()
                 .map(entry -> new Family(entry.getKey(), entry.getValue().stream()
