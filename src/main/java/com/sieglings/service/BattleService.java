@@ -203,7 +203,9 @@ public class BattleService {
             abilities.add(signature);
         }
 
-        if (attacker.getCard().getRarity() == Rarity.RARE || attacker.getCard().getRarity() == Rarity.LEGENDARY) {
+        if (attacker.getCard().getRarity() == Rarity.RARE
+                || attacker.getCard().getRarity() == Rarity.EPIC
+                || attacker.getCard().getRarity() == Rarity.LEGENDARY) {
             Ability finisher = Ability.damage(
                     attacker.getName() + " Burst",
                     "Deal " + (attackValue + 2) + " damage to all enemies in Front Row",
@@ -213,7 +215,12 @@ public class BattleService {
                     attackValue + 2
             );
             finisher.setRequiredElement(element);
-            finisher.setRequiredEnergy(attacker.getCard().getRarity() == Rarity.LEGENDARY ? 4 : 3);
+            int finisherCost = switch (attacker.getCard().getRarity()) {
+                case LEGENDARY -> 5;
+                case EPIC -> 4;
+                default -> 3;
+            };
+            finisher.setRequiredEnergy(finisherCost);
             abilities.add(finisher);
         }
 

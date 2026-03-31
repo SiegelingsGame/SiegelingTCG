@@ -15,6 +15,11 @@ let multiplayerSession = loadSavedMultiplayerSession();
 let roomPollHandle = null;
 let currentRoomStatus = null;
 let mobileInfoTab = 'battle';
+const cardImageCache = {}; /* tracks which card images exist: id -> true/false */
+
+function cardImagePath(cardId) {
+    return `images/cards/${encodeURIComponent(cardId)}.png`;
+}
 
 const ROW_NAMES = ['Back', 'Middle', 'Front'];
 const TARGET_TYPES = {
@@ -1058,37 +1063,73 @@ function renderHand() {
         const onmouseenter = openingLocked ? '' : `onmouseenter="showTooltipHand(event, '${card.id}')" onmouseleave="hideTooltip()"`;
 
         html += `<div class="hand-card ${elemClass}${selClass}${interactionClass}" ${onclick} ${onmouseenter}>`;
-        html += `<div class="card-title">${card.name}</div>`;
-        html += `<div class="card-type">${card.type} · ${card.rarity}</div>`;
 
+        /* ── corner notch orbs (matching card template) ── */
+        html += `<div class="card-corner-notches">`;
+        html += `<span class="corner-orb top-left"></span>`;
+        html += `<span class="corner-orb top-right"></span>`;
+        html += `<span class="corner-orb bottom-left"></span>`;
+        html += `<span class="corner-orb bottom-right"></span>`;
+        html += `</div>`;
+
+        /* ── upper art area: image if available, else element/rarity fallback ── */
+        const imgKnownMissing = cardImageCache[card.id] === false;
+        html += `<div class="card-art-area">`;
+        if (!imgKnownMissing) {
+            html += `<img class="card-art-img" src="${cardImagePath(card.id)}" alt="${card.name}"
+                onerror="this.style.display='none'; this.nextElementSibling.style.display=''; cardImageCache['${card.id}']=false;"
+                onload="cardImageCache['${card.id}']=true;">`;
+        }
+        html += `<div class="card-art-fallback"${imgKnownMissing ? '' : ' style="display:none"'}>`;
+        html += `<div class="card-element-label">${formatElementLabel(card.element)}</div>`;
+        html += `<div class="card-rarity-badge">${card.rarity}</div>`;
         if (card.type === 'SIEGLING') {
             html += renderNotches(card.notches, { isBoard: false });
-            html += `<div class="card-detail">HP:${card.health} ATK:${card.attack} DEF:${card.defense} SPD:${card.speed}</div>`;
+        }
+        html += `</div>`;
+        html += `</div>`;
+
+        /* ── bottom info panel ── */
+        html += `<div class="card-info-panel">`;
+
+        if (card.type === 'SIEGLING') {
+            html += `<div class="card-stat-row">`;
+            html += `<span class="card-stat-item"><span class="stat-icon">&#10084;</span>${card.health}</span>`;
+            html += `<span class="card-stat-item"><span class="stat-icon">&#9876;</span>${card.attack}</span>`;
+            html += `<span class="card-stat-item"><span class="stat-icon">&#128737;</span>${card.defense}</span>`;
+            html += `<span class="card-stat-item"><span class="stat-icon">&#9889;</span>${card.speed}</span>`;
+            html += `</div>`;
         }
 
+        /* ── ability area ── */
+        html += `<div class="card-ability-area">`;
         if (card.ability) {
-            html += `<div class="card-detail">${card.ability.description}</div>`;
+            html += `<div class="card-ability-text">${card.ability.description}</div>`;
         }
-
         if (card.type === 'TRAP') {
-            html += `<div class="card-cost" style="color:${getElementCssVar(card.trapBucketElement)}">Trigger: Opponent has ${card.trapBucketAmount} ${card.trapBucketElement}</div>`;
-        } else if (card.costElement) {
-            html += `<div class="card-cost" style="color:${getElementCssVar(card.costElement)}">Play Cost: ${card.costAmount} ${card.costElement}</div>`;
+            html += `<div class="card-cost-text" style="color:${getElementCssVar(card.trapBucketElement)}">Trigger: Opponent has ${card.trapBucketAmount} ${card.trapBucketElement}</div>`;
+        } else if (card.costElement && card.costAmount > 0) {
+            html += `<div class="card-cost-text" style="color:${getElementCssVar(card.costElement)}">Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
         }
         if (card.requiredComboSize) {
             const comboLabel = card.requiredComboSignature
                 ? card.requiredComboSignature.split('+').map(formatElementLabel).join(' + ')
                 : `${card.requiredComboSize}-element combo`;
-            html += `<div class="card-cost combo-cost">Combo: ${comboLabel}</div>`;
+            html += `<div class="card-cost-text combo-cost">Combo: ${comboLabel}</div>`;
         }
         if (card.requiredReaction) {
-            html += `<div class="card-cost" style="color:var(--accent)">Requires: ${card.requiredReaction}</div>`;
+            html += `<div class="card-cost-text" style="color:var(--accent)">Requires: ${card.requiredReaction}</div>`;
+        }
+        if (card.evolvesFromName) {
+            html += `<div class="card-cost-text" style="color:var(--text-dim)">Evolves from ${card.evolvesFromName}</div>`;
         }
         if (openingLocked) {
-            html += `<div class="card-cost" style="color:var(--accent)">Turn 1: placements only</div>`;
+            html += `<div class="card-cost-text" style="color:var(--accent)">Turn 1: placements only</div>`;
         }
+        html += `</div>`; /* end ability area */
 
-        html += `</div>`;
+        html += `</div>`; /* end info panel */
+        html += `</div>`; /* end hand-card */
     }
 
     container.innerHTML = html;
@@ -1339,7 +1380,7 @@ function updateSelectedInfo(card, msg) {
         }
         if (card.type === 'TRAP') {
             html += `Trigger: Opponent must have ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} energy.<br>`;
-        } else if (card.costElement) {
+        } else if (card.costElement && card.costAmount > 0) {
             html += `Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}<br>`;
         }
     }
@@ -1387,7 +1428,7 @@ function showTooltipHand(event, cardId) {
     let abilityText = card.ability ? card.ability.description : '';
     if (card.type === 'TRAP') {
         abilityText += ` [Trigger: Opponent has ${card.trapBucketAmount} ${card.trapBucketElement}]`;
-    } else if (card.costElement) {
+    } else if (card.costElement && card.costAmount > 0) {
         abilityText += ` [Play Cost: ${card.costAmount} ${card.costElement}]`;
     }
     if (card.evolvesFromName) {

@@ -44,7 +44,7 @@ final class GeneratedCreatureCatalog {
             seed("cindergil", "Cindergil", Element.FIRE, Rarity.RARE, "Support", null, null),
             seed("hotdog", "Hotdog", Element.FIRE, Rarity.RARE, "Bruiser", null, null),
             seed("pyleer", "Pyleer", Element.FIRE, Rarity.RARE, "Mage", "pylook", null),
-            seed("solgator", "Solgator", Element.FIRE, Rarity.RARE, "Guardian", "raydile", null),
+            seed("solgator", "Solgator", Element.FIRE, Rarity.EPIC, "Guardian", "raydile", null),
             seed("pylord", "Pylord", Element.FIRE, Rarity.LEGENDARY, "Bruiser", null, null),
 
             // Earth
@@ -57,11 +57,11 @@ final class GeneratedCreatureCatalog {
             seed("floraknight", "Flora Knight", Element.EARTH, Rarity.UNCOMMON, "Mage", "squirebud", "generoot"),
             seed("jackedty", "Jacked'ty", Element.EARTH, Rarity.UNCOMMON, "Bruiser", "cacty", "cactyjackedty"),
             seed("mossy", "Mossy", Element.EARTH, Rarity.UNCOMMON, "Bruiser", null, null),
-            seed("generoot", "Generoot", Element.EARTH, Rarity.RARE, "Bruiser", "floraknight", null),
+            seed("generoot", "Generoot", Element.EARTH, Rarity.EPIC, "Bruiser", "floraknight", null),
             seed("golor", "Golor", Element.EARTH, Rarity.RARE, "Guardian", null, null),
-            seed("guerilla", "Guerilla", Element.EARTH, Rarity.RARE, "Bruiser", "bonoblade", null),
+            seed("guerilla", "Guerilla", Element.EARTH, Rarity.EPIC, "Bruiser", "bonoblade", null),
             seed("sleaf", "Sleaf", Element.EARTH, Rarity.RARE, "Assassin", null, null),
-            seed("cactyjackedty", "CactyJackedty", Element.EARTH, Rarity.RARE, "Bruiser", "jackedty", null),
+            seed("cactyjackedty", "CactyJackedty", Element.EARTH, Rarity.EPIC, "Bruiser", "jackedty", null),
             seed("sheenx", "Sheenx", Element.EARTH, Rarity.RARE, "Support", null, null),
             seed("gymstone", "Gymstone", Element.EARTH, Rarity.LEGENDARY, "Guardian", null, null),
 
@@ -75,9 +75,9 @@ final class GeneratedCreatureCatalog {
             seed("gagglestand", "Gagglestand", Element.WIND, Rarity.UNCOMMON, "Support", "breezee", "hurricrane"),
             seed("lofty", "Lofty", Element.WIND, Rarity.UNCOMMON, "Assassin", null, null),
             seed("purseus", "Purseus", Element.WIND, Rarity.UNCOMMON, "Mage", "pursula", "pursephone"),
-            seed("cloudsprite", "Cloudsprite", Element.WIND, Rarity.RARE, "Mage", "cloudwisp", null),
-            seed("hurricrane", "Hurricrane", Element.WIND, Rarity.RARE, "Mage", "gagglestand", null),
-            seed("pursephone", "Pursephone", Element.WIND, Rarity.RARE, "Assassin", "purseus", null),
+            seed("cloudsprite", "Cloudsprite", Element.WIND, Rarity.EPIC, "Mage", "cloudwisp", null),
+            seed("hurricrane", "Hurricrane", Element.WIND, Rarity.EPIC, "Mage", "gagglestand", null),
+            seed("pursephone", "Pursephone", Element.WIND, Rarity.EPIC, "Assassin", "purseus", null),
             seed("shellshock", "Shellshock", Element.WIND, Rarity.RARE, "Assassin", null, "strikehawk"),
             seed("skydon", "Skydon", Element.WIND, Rarity.RARE, "Support", null, null),
             seed("strikehawk", "Strikehawk", Element.WIND, Rarity.RARE, "Bruiser", "shellshock", null),
@@ -93,9 +93,9 @@ final class GeneratedCreatureCatalog {
             seed("clawkid", "Clawkid", Element.WATER, Rarity.UNCOMMON, "Guardian", null, "clawqueen"),
             seed("droxyl", "Droxyl", Element.WATER, Rarity.UNCOMMON, "Assassin", "spoutyl", "hydroxyl"),
             seed("torqlander", "Torqlander", Element.WATER, Rarity.UNCOMMON, "Mage", "shellpack", "shellnaut"),
-            seed("hydroxyl", "Hydroxyl", Element.WATER, Rarity.RARE, "Assassin", "droxyl", null),
+            seed("hydroxyl", "Hydroxyl", Element.WATER, Rarity.EPIC, "Assassin", "droxyl", null),
             seed("jawbite", "Jawbite", Element.WATER, Rarity.RARE, "Support", null, null),
-            seed("shellnaut", "Shellnaut", Element.WATER, Rarity.RARE, "Guardian", "torqlander", null),
+            seed("shellnaut", "Shellnaut", Element.WATER, Rarity.EPIC, "Guardian", "torqlander", null),
             seed("clawqueen", "Claw Queen", Element.WATER, Rarity.RARE, "Mage", "clawkid", null),
             seed("leviathan", "Leviathan", Element.WATER, Rarity.RARE, "Bruiser", null, null),
             seed("conchious", "Conchious", Element.WATER, Rarity.LEGENDARY, "Mage", null, null),
@@ -129,7 +129,7 @@ final class GeneratedCreatureCatalog {
             seed("galvanite", "Galvanite", Element.ELECTRIC, Rarity.UNCOMMON, "Guardian", null, null),
             seed("kilokong", "Kilokong", Element.ELECTRIC, Rarity.RARE, "Bruiser", null, null),
             seed("newton", "New Ton", Element.ELECTRIC, Rarity.RARE, "Guardian", "newt", null),
-            seed("bleetsrike", "Bleetsrike", Element.ELECTRIC, Rarity.RARE, "Bruiser", "joltram", null),
+            seed("bleetsrike", "Bleetsrike", Element.ELECTRIC, Rarity.EPIC, "Bruiser", "joltram", null),
             seed("stormclaw", "Stormclaw", Element.ELECTRIC, Rarity.RARE, "Bruiser", null, null),
             seed("ionwarden", "Ionwarden", Element.ELECTRIC, Rarity.RARE, "Support", null, null),
             seed("thunderlord", "Thunderlord", Element.ELECTRIC, Rarity.LEGENDARY, "Mage", null, null)
@@ -180,7 +180,8 @@ final class GeneratedCreatureCatalog {
             case COMMON -> 0;
             case UNCOMMON -> 1;
             case RARE -> 2;
-            case LEGENDARY -> 3;
+            case EPIC -> 3;
+            case LEGENDARY -> 4;
         };
     }
 
@@ -207,7 +208,7 @@ final class GeneratedCreatureCatalog {
                 preferredRow(role)
         );
         card.setAbility(buildPrintedAbility(seed, attack, defense, stage));
-        int placementCost = placementCost(seed.rarity(), stage);
+        int placementCost = placementCost(seed.rarity());
         if (placementCost > 0) {
             card.setCostElement(seed.element());
             card.setCostAmount(placementCost);
@@ -602,17 +603,13 @@ final class GeneratedCreatureCatalog {
         };
     }
 
-    private static int placementCost(Rarity rarity, int stage) {
-        if (rarity == Rarity.LEGENDARY) {
-            return 2;
-        }
-        if (rarity == Rarity.RARE && stage > 0) {
-            return 2;
-        }
-        if (rarity == Rarity.RARE || stage > 0) {
-            return 1;
-        }
-        return 0;
+    private static int placementCost(Rarity rarity) {
+        return switch (rarity) {
+            case COMMON, UNCOMMON -> 0;
+            case RARE -> 1;
+            case EPIC -> 3;
+            case LEGENDARY -> 5;
+        };
     }
 
     private static Row preferredRow(String role) {
