@@ -260,12 +260,20 @@ final class GeneratedCreatureCatalog {
 
     private static SieglingCard buildCard(CreatureSeed seed) {
         String role = normalizeRole(seed.role());
-        int rarityTier = rarityTier(seed.rarity());
         int stage = evolutionStage(seed);
 
-        int health = Math.max(10, baseHealth(role) + rarityTier * 2 + stage * 2 + elementHealthBias(seed.element()));
-        int abilityDamage = Math.max(1, baseAttack(role) + rarityTier + attackStageBonus(role, stage));
-        int speed = Math.max(1, baseSpeed(role) + speedRarityBonus(role, rarityTier) + elementSpeedBias(seed.element()));
+        int budget = pointBudget(seed.rarity());
+        // Evolution stages add bonus points
+        budget += stage * 3;
+
+        int[] split = classSplit(role, budget);
+        int hpPoints = split[0];
+        int spdPoints = split[1];
+        // split[2] = abilityDmg points (used by ability builder)
+
+        int health = 10 + hpPoints;
+        int speed = 1 + spdPoints;
+        int abilityDamage = Math.max(1, split[2]);
 
         SieglingCard card = new SieglingCard(
                 seed.id(),
@@ -278,7 +286,7 @@ final class GeneratedCreatureCatalog {
                 preferredRow(role)
         );
         card.setAbility(buildPrintedAbility(seed, abilityDamage, stage));
-        int placementCost = placementCost(seed.rarity(), stage);
+        int placementCost = placementCost(seed.rarity());
         if (placementCost > 0) {
             card.setCostElement(seed.element());
             card.setCostAmount(placementCost);
@@ -290,6 +298,59 @@ final class GeneratedCreatureCatalog {
             card.setEvolvesFromName(creatureName(evolvesFromId));
         }
         return card;
+    }
+
+    /** Point budget by rarity. */
+    private static int pointBudget(Rarity rarity) {
+        return switch (rarity) {
+            case COMMON -> 25;
+            case UNCOMMON -> 30;
+            case RARE -> 40;
+            case EPIC -> 45;
+            case LEGENDARY -> 55;
+        };
+    }
+
+    /**
+     * Split a point budget into [hpPoints, spdPoints, abilityDmgPoints] by class.
+     * Health is base-10 + hpPoints (so Common Guardian = 10+13 = 23 HP).
+     * Speed is base-1 + spdPoints.
+     */
+    private static int[] classSplit(String role, int budget) {
+        return switch (role) {
+            // Guardian: 50% HP, 15% Speed, 35% Ability
+            case "guardian" -> new int[] {
+                    (int) Math.round(budget * 0.50),
+                    (int) Math.round(budget * 0.15),
+                    (int) Math.round(budget * 0.35)
+            };
+            // Bruiser: 40% HP, 20% Speed, 40% Ability
+            case "bruiser" -> new int[] {
+                    (int) Math.round(budget * 0.40),
+                    (int) Math.round(budget * 0.20),
+                    (int) Math.round(budget * 0.40)
+            };
+            // Assassin: 25% HP, 40% Speed, 35% Ability
+            case "assassin" -> new int[] {
+                    (int) Math.round(budget * 0.25),
+                    (int) Math.round(budget * 0.40),
+                    (int) Math.round(budget * 0.35)
+            };
+            // Mage: 30% HP, 25% Speed, 45% Ability
+            case "mage" -> new int[] {
+                    (int) Math.round(budget * 0.30),
+                    (int) Math.round(budget * 0.25),
+                    (int) Math.round(budget * 0.45)
+            };
+            // Support: 40% HP, 30% Speed, 30% Ability
+            case "support" -> new int[] {
+                    (int) Math.round(budget * 0.40),
+                    (int) Math.round(budget * 0.30),
+                    (int) Math.round(budget * 0.30)
+            };
+            // Default: even split
+            default -> new int[] { budget / 3, budget / 3, budget / 3 };
+        };
     }
 
     private static Ability buildPrintedAbility(CreatureSeed seed, int abilityDamage, int stage) {
@@ -454,11 +515,11 @@ final class GeneratedCreatureCatalog {
             );
             case ICE -> Ability.damage(
                     seed.name() + " Hailburst",
-                    "Deal " + valueForIceMage(abilityDamage) + " damage to all enemies in Front Row",
+                    "Deal " + Math.max(2, abilityDamage) + " damage to all enemies in Front Row",
                     TargetType.ROW_ENEMIES,
                     Row.FRONT,
                     0,
-                    valueForIceMage(abilityDamage)
+                    Math.max(2, abilityDamage)
             );
             case SHADOW -> Ability.damage(
                     seed.name() + " Umbra Volley",
@@ -621,87 +682,13 @@ final class GeneratedCreatureCatalog {
         return element.name().charAt(0) + element.name().substring(1).toLowerCase(Locale.ROOT);
     }
 
-    private static int baseHealth(String role) {
-        return switch (role) {
-            case "guardian" -> 12;
-            case "support" -> 11;
-            case "bruiser" -> 11;
-            case "mage" -> 10;
-            case "assassin" -> 10;
-            default -> 10;
+    private static int placementCost(Rarity rarity) {
+        return switch (rarity) {
+            case COMMON, UNCOMMON -> 0;
+            case RARE -> 1;
+            case EPIC -> 3;
+            case LEGENDARY -> 5;
         };
-    }
-
-    private static int baseAttack(String role) {
-        return switch (role) {
-            case "mage" -> 5;
-            case "assassin" -> 4;
-            case "bruiser" -> 4;
-            case "guardian" -> 3;
-            case "support" -> 3;
-            default -> 3;
-        };
-    }
-
-    private static int baseSpeed(String role) {
-        return switch (role) {
-            case "assassin" -> 7;
-            case "support" -> 6;
-            case "mage" -> 5;
-            case "bruiser" -> 4;
-            case "guardian" -> 3;
-            default -> 4;
-        };
-    }
-
-    private static int elementHealthBias(Element element) {
-        return switch (element) {
-            case EARTH -> 2;
-            case WATER -> 1;
-            case ICE -> 1;
-            case SHADOW -> 1;
-            default -> 0;
-        };
-    }
-
-    private static int attackStageBonus(String role, int stage) {
-        if (stage == 0) {
-            return 0;
-        }
-        return role.equals("mage") || role.equals("assassin") || role.equals("bruiser") ? stage : Math.max(0, stage - 1);
-    }
-
-    private static int speedRarityBonus(String role, int rarityTier) {
-        if (role.equals("assassin") || role.equals("support")) {
-            return rarityTier;
-        }
-        return Math.min(2, rarityTier);
-    }
-
-    private static int elementSpeedBias(Element element) {
-        return switch (element) {
-            case WIND -> 1;
-            case ELECTRIC -> 1;
-            case EARTH -> -1;
-            default -> 0;
-        };
-    }
-
-    private static int valueForIceMage(int attack) {
-        return Math.max(2, attack);
-    }
-
-    private static int placementCost(Rarity rarity, int stage) {
-        if (rarity == Rarity.LEGENDARY) {
-            return 2;
-        }
-        if (rarity == Rarity.RARE && stage > 0) {
-            return 2;
-        }
-        if (rarity == Rarity.RARE || stage > 0) {
-            return 1;
-        }
-        return 0;
     }
 
     private static Row preferredRow(String role) {

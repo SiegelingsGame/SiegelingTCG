@@ -121,8 +121,8 @@ public class CardDefinitionService {
                 Element.WIND, 3,
                 Ability.damage("Crash Draft", "Deal 4 damage to 1 enemy if the opponent has 3 Wind energy", TargetType.SINGLE_ENEMY, null, 1, 4)));
         cards.add(new TrapCard("trap08", "Skyfall Snare", Element.WIND, Rarity.RARE,
-                Element.WATER, 2,
-                new Ability("Skyfall Snare", "Destroy 1 enemy if the opponent has 2 Water energy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false)));
+                Element.WATER, 3,
+                new Ability("Skyfall Snare", "Destroy 1 enemy if the opponent has 3 Water energy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false)));
         cards.add(new TrapCard("trap09", "Void Mirror", Element.SHADOW, Rarity.UNCOMMON,
                 Element.SHADOW, 3,
                 Ability.damage("Void Mirror", "Deal 4 damage to 1 enemy if the opponent has 3 Shadow energy", TargetType.SINGLE_ENEMY, null, 1, 4)));
@@ -147,8 +147,8 @@ public class CardDefinitionService {
                 Element.METAL, 3,
                 Ability.damage("Shrapnel Burst", "Deal 5 damage to 1 enemy if the opponent has 3 Metal energy", TargetType.SINGLE_ENEMY, null, 1, 5)));
         cards.add(new TrapCard("trap16", "Iron Maiden", Element.METAL, Rarity.RARE,
-                Element.FIRE, 2,
-                new Ability("Iron Maiden", "Destroy 1 enemy if the opponent has 2 Fire energy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false)));
+                Element.FIRE, 3,
+                new Ability("Iron Maiden", "Destroy 1 enemy if the opponent has 3 Fire energy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false)));
 
         // Undead traps
         cards.add(new TrapCard("trap17", "Tombstone Trigger", Element.UNDEAD, Rarity.UNCOMMON,

@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "siegelingstcgtesting",
     "public": "src/main/resources/static",
     "ignore": [
       "firebase.json",
