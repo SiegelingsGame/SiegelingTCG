@@ -209,3 +209,31 @@ At the time this handoff was written:
 - Firebase Hosting uses same-origin `/api` rewrites
 - Cloud Run service name: `sieglings-tcg-api`
 
+## Supplementary reference (from merged branch)
+
+Stack: Spring Boot 3.2.5, Java 21 (see `Dockerfile`). If Hosting deploy uses `.deploy-hosting/static/`, sync from source:
+
+```bash
+cp -r src/main/resources/static/* .deploy-hosting/static/
+```
+
+### Game systems (quick)
+
+- **Point budget:** Common 25 → Legendary 55; classes Assassin, Bruiser, Guardian, Mage, Support; evolution +3 budget per stage.
+- **Placement energy:** Common/Uncommon 0; Rare 1; Epic 3; Legendary 5. Spells 0 except destroy (min 3). Destroy traps min 3 opponent bucket.
+- **Battle abilities:** (1) 1 energy, light strike (base damage − 1), single target. (2) Signature 2–3 energy (AOE cheaper than single-target). (3) Finisher 3–5 by rarity, Rare+.
+- **Elements:** FIRE, EARTH, WIND, WATER, ICE, SHADOW, ELECTRIC, METAL, UNDEAD, PSYCHIC, POISON, LIGHT, NEUTRAL.
+
+### Unix-style build / deploy (alternative to PowerShell above)
+
+```bash
+./mvnw -q -DskipTests package
+./mvnw -q test
+gcloud run deploy sieglings-tcg-api \
+  --source . \
+  --region us-central1 \
+  --project siegelingstcgtesting \
+  --env-vars-file env.yaml
+firebase deploy --only hosting --project siegelingstcgtesting
+curl https://siegelingstcgtesting.web.app/api/game/options
+```
