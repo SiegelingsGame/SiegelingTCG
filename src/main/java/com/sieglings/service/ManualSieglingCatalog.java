@@ -16,26 +16,30 @@ import com.sieglings.model.enums.TargetType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 final class ManualSieglingCatalog {
 
     static final String RESOURCE_PATH = "cards/siegling-overrides.json";
+    private static final Path PROJECT_RESOURCE_PATH = Path.of("src", "main", "resources", "cards", "siegling-overrides.json");
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final List<ManualSieglingDefinition> LOADED_DEFINITIONS = loadDefinitions();
 
     private ManualSieglingCatalog() {}
 
     static List<SieglingCard> applyOverrides(Element element, List<SieglingCard> generatedCards) {
-        return applyOverrides(element, generatedCards, LOADED_DEFINITIONS);
+        return applyOverrides(element, generatedCards, loadDefinitions());
     }
 
     static List<SieglingCard> applyOverrides(Element element, List<SieglingCard> generatedCards,
@@ -248,15 +252,48 @@ final class ManualSieglingCatalog {
     }
 
     private static List<ManualSieglingDefinition> loadDefinitions() {
+        Path projectResourcePath = resolveProjectResourcePath();
+        if (Files.isRegularFile(projectResourcePath)) {
+            try (InputStream stream = Files.newInputStream(projectResourcePath)) {
+                return readDefinitions(stream);
+            } catch (IOException ex) {
+                throw new UncheckedIOException("Unable to load manual Siegling definitions from " + projectResourcePath, ex);
+            }
+        }
+
         try (InputStream stream = ManualSieglingCatalog.class.getClassLoader().getResourceAsStream(RESOURCE_PATH)) {
             if (stream == null) {
                 return List.of();
             }
-            OverrideFile file = OBJECT_MAPPER.readValue(stream, OverrideFile.class);
-            return file == null || file.cards() == null ? List.of() : List.copyOf(file.cards());
+            return readDefinitions(stream);
         } catch (IOException ex) {
             throw new UncheckedIOException("Unable to load manual Siegling definitions from " + RESOURCE_PATH, ex);
         }
+    }
+
+    static void validateDefinitions(List<ManualSieglingDefinition> definitions) {
+        List<ManualSieglingDefinition> safeDefinitions = definitions == null ? List.of() : List.copyOf(definitions);
+        Set<String> ids = new LinkedHashSet<>();
+        for (ManualSieglingDefinition definition : safeDefinitions) {
+            String id = normalizeId(definition.id());
+            requireField(id != null, "<unknown>", "id");
+            if (!ids.add(id)) {
+                throw new IllegalStateException("Duplicate manual Siegling definition id '" + id + "'.");
+            }
+        }
+
+        for (Element element : Element.values()) {
+            applyOverrides(element, GeneratedCreatureCatalog.createGeneratedForElement(element), safeDefinitions);
+        }
+    }
+
+    static Path resolveProjectResourcePath() {
+        return PROJECT_RESOURCE_PATH.toAbsolutePath().normalize();
+    }
+
+    private static List<ManualSieglingDefinition> readDefinitions(InputStream stream) throws IOException {
+        OverrideFile file = OBJECT_MAPPER.readValue(stream, OverrideFile.class);
+        return file == null || file.cards() == null ? List.of() : List.copyOf(file.cards());
     }
 
     private static void requireField(boolean valid, String id, String fieldName) {

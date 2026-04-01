@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sieglings Card Dashboard</title>
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=1">
+</head>
+<body>
+<div class="dashboard-shell">
+    <header class="dashboard-header panel">
+        <div class="header-copy">
+            <div class="eyebrow">Sieglings Creator Tool</div>
+            <h1>Card JSON Dashboard</h1>
+            <p>Load the current override data, edit cards in a structured form, and export or save JSON without hand-editing every target rule.</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary" id="reloadCurrentBtn" type="button">Reload Current Data</button>
+            <label class="btn btn-secondary file-btn" for="importFileInput">Import JSON File</label>
+            <input id="importFileInput" type="file" accept=".json,application/json">
+            <button class="btn btn-primary" id="saveProjectBtn" type="button">Save To Project File</button>
+            <button class="btn btn-secondary" id="downloadJsonBtn" type="button">Download JSON</button>
+            <button class="btn btn-secondary" id="copyJsonBtn" type="button">Copy JSON</button>
+            <a class="btn btn-ghost" href="/">Back To Game</a>
+        </div>
+    </header>
+
+    <section class="dashboard-status panel">
+        <div class="status-line">
+            <span class="status-pill" id="sourcePill">Loading...</span>
+            <span class="status-pill" id="dirtyPill">Saved</span>
+            <span class="status-pill" id="cardCountPill">0 cards</span>
+        </div>
+        <div class="status-file" id="filePathLabel"></div>
+        <div class="status-message" id="statusMessage">Loading the current override file...</div>
+    </section>
+
+    <main class="workspace-grid">
+        <aside class="panel browser-panel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">Browse</div>
+                    <h2>Cards</h2>
+                </div>
+                <div class="inline-actions">
+                    <button class="btn btn-secondary" id="newCardBtn" type="button">New</button>
+                    <button class="btn btn-secondary" id="duplicateCardBtn" type="button">Duplicate</button>
+                </div>
+            </div>
+            <div class="browser-filters">
+                <input id="cardSearchInput" type="search" placeholder="Search by name or id">
+                <select id="elementFilterSelect"></select>
+            </div>
+            <div class="card-list" id="cardList"></div>
+        </aside>
+
+        <section class="editor-column">
+            <div class="panel editor-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">Edit</div>
+                        <h2>Card Editor</h2>
+                    </div>
+                    <button class="btn btn-danger" id="deleteCardBtn" type="button">Delete Card</button>
+                </div>
+
+                <div class="empty-state" id="emptyEditorState">
+                    Select a card on the left or create a new one to start editing.
+                </div>
+
+                <div class="editor-content hidden" id="cardEditorContent">
+                    <section class="form-section">
+                        <h3>Identity</h3>
+                        <div class="form-grid">
+                            <label>
+                                <span>Card ID</span>
+                                <input id="cardIdInput" type="text" autocomplete="off">
+                            </label>
+                            <label>
+                                <span>Name</span>
+                                <input id="cardNameInput" type="text" autocomplete="off">
+                            </label>
+                            <label>
+                                <span>Element</span>
+                                <select id="cardElementSelect"></select>
+                            </label>
+                            <label>
+                                <span>Rarity</span>
+                                <select id="cardRaritySelect"></select>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="form-section">
+                        <h3>Stats And Setup</h3>
+                        <div class="form-grid">
+                            <label>
+                                <span>Health</span>
+                                <input id="cardHealthInput" type="number" min="1" step="1">
+                            </label>
+                            <label>
+                                <span>Speed</span>
+                                <input id="cardSpeedInput" type="number" min="0" step="1">
+                            </label>
+                            <label>
+                                <span>Preferred Row</span>
+                                <select id="cardPreferredRowSelect"></select>
+                            </label>
+                            <label>
+                                <span>Evolves From</span>
+                                <input id="cardEvolvesFromInput" type="text" list="cardIdOptions" autocomplete="off" placeholder="base card id">
+                            </label>
+                            <label>
+                                <span>Cost Element</span>
+                                <select id="cardCostElementSelect"></select>
+                            </label>
+                            <label>
+                                <span>Cost Amount</span>
+                                <input id="cardCostAmountInput" type="number" min="0" step="1">
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="form-section">
+                        <h3>Notches</h3>
+                        <p class="section-help">Toggle the notch directions around the card, then set the element for each active notch below.</p>
+                        <div class="notch-grid" id="notchGrid"></div>
+                        <div class="notch-list" id="activeNotchList"></div>
+                    </section>
+
+                    <section class="form-section">
+                        <div class="panel-heading sub-heading">
+                            <div>
+                                <div class="section-kicker">Abilities</div>
+                                <h3>Ability Editor</h3>
+                            </div>
+                            <div class="inline-actions">
+                                <button class="btn btn-secondary" id="addAbilityBtn" type="button">New Ability</button>
+                                <button class="btn btn-secondary" id="duplicateAbilityBtn" type="button">Duplicate</button>
+                                <button class="btn btn-secondary" id="deleteAbilityBtn" type="button">Delete</button>
+                            </div>
+                        </div>
+                        <div class="ability-tabs" id="abilityTabs"></div>
+                        <div class="ability-editor" id="abilityEditor">
+                            <div class="form-grid">
+                                <label>
+                                    <span>Ability Name</span>
+                                    <input id="abilityNameInput" type="text" autocomplete="off">
+                                </label>
+                                <label>
+                                    <span>Passive</span>
+                                    <select id="abilityPassiveSelect">
+                                        <option value="false">Activated</option>
+                                        <option value="true">Passive</option>
+                                    </select>
+                                </label>
+                                <label class="full-width">
+                                    <span>Description</span>
+                                    <textarea id="abilityDescriptionInput" rows="3"></textarea>
+                                </label>
+                                <label>
+                                    <span>Target Type</span>
+                                    <select id="abilityTargetTypeSelect"></select>
+                                </label>
+                                <label id="abilityTargetRowField">
+                                    <span>Target Row</span>
+                                    <select id="abilityTargetRowSelect"></select>
+                                </label>
+                                <label>
+                                    <span>Effect Type</span>
+                                    <select id="abilityEffectTypeSelect"></select>
+                                </label>
+                                <label>
+                                    <span>Effect Value</span>
+                                    <input id="abilityEffectValueInput" type="number" step="1">
+                                </label>
+                                <label>
+                                    <span>Required Element</span>
+                                    <select id="abilityRequiredElementSelect"></select>
+                                </label>
+                                <label>
+                                    <span>Required Energy</span>
+                                    <input id="abilityRequiredEnergyInput" type="number" min="0" step="1">
+                                </label>
+                                <label>
+                                    <span>Required Reaction</span>
+                                    <select id="abilityRequiredReactionSelect"></select>
+                                </label>
+                            </div>
+                            <div class="ability-helper" id="abilityTargetHelper"></div>
+                            <div class="ability-helper ability-effect-note" id="abilityEffectHelper"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <aside class="preview-column">
+            <div class="panel summary-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">Review</div>
+                        <h2>Live Summary</h2>
+                    </div>
+                </div>
+                <div id="cardSummary" class="card-summary"></div>
+            </div>
+
+            <div class="panel preview-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">Export</div>
+                        <h2>JSON Preview</h2>
+                    </div>
+                    <select id="jsonPreviewMode">
+                        <option value="card">Selected Card</option>
+                        <option value="all">Full File</option>
+                    </select>
+                </div>
+                <textarea id="jsonPreview" readonly spellcheck="false"></textarea>
+            </div>
+
+            <div class="panel validation-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">Checks</div>
+                        <h2>Validation</h2>
+                    </div>
+                </div>
+                <div id="validationList" class="validation-list"></div>
+            </div>
+        </aside>
+    </main>
+</div>
+
+<datalist id="cardIdOptions"></datalist>
+
+<script src="/js/config.js"></script>
+<script src="/js/card-dashboard.js?v=1"></script>
+</body>
+</html>
