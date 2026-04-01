@@ -11,11 +11,6 @@ import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.TargetType;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,88 +20,73 @@ import java.util.Map;
 public class CardOverrideEditorService {
 
     private final ObjectMapper objectMapper;
+    private final CardOverrideStorageService storageService;
+    private final CardEditorAuthService authService;
 
-    public CardOverrideEditorService(ObjectMapper objectMapper) {
+    public CardOverrideEditorService(ObjectMapper objectMapper,
+                                     CardOverrideStorageService storageService,
+                                     CardEditorAuthService authService) {
         this.objectMapper = objectMapper;
+        this.storageService = storageService;
+        this.authService = authService;
     }
 
-    public Map<String, Object> loadEditorState() {
-        Path projectPath = ManualSieglingCatalog.resolveProjectResourcePath();
+    public Map<String, Object> loadEditorState(String editorToken) {
+        CardOverrideStorageService.LoadSnapshot snapshot = storageService.loadSnapshot();
+        return buildEditorState(snapshot, authService.describe(editorToken));
+    }
+
+    public Map<String, Object> saveEditorState(JsonNode data, String editorToken) {
+        String updatedByEmail = null;
+        if (storageService.isFirestoreReady()) {
+            updatedByEmail = authService.requireEditor(editorToken).email();
+        }
+        CardOverrideStorageService.LoadSnapshot snapshot = storageService.saveSnapshot(data, updatedByEmail);
+        return buildEditorState(snapshot, authService.describe(editorToken));
+    }
+
+    public Map<String, Object> bootstrapEditor(String email, String password, String displayName) {
+        CardEditorAuthService.EditorAuthResponse response = authService.bootstrap(email, password, displayName);
+        return buildAuthResponse(response);
+    }
+
+    public Map<String, Object> loginEditor(String email, String password) {
+        CardEditorAuthService.EditorAuthResponse response = authService.login(email, password);
+        return buildAuthResponse(response);
+    }
+
+    public Map<String, Object> logoutEditor(String editorToken) {
+        authService.logout(editorToken);
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("data", readCurrentData());
-        response.put("filePath", projectPath.toString());
-        response.put("canSaveToProjectFile", canSaveToProjectFile(projectPath));
-        response.put("source", Files.isRegularFile(projectPath) ? "PROJECT_FILE" : "CLASSPATH_RESOURCE");
+        response.put("ok", true);
+        response.put("auth", authService.describe(null));
+        return response;
+    }
+
+    private Map<String, Object> buildEditorState(CardOverrideStorageService.LoadSnapshot snapshot,
+                                                 CardEditorAuthService.EditorAuthSnapshot authSnapshot) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("data", snapshot.data());
+        response.put("filePath", snapshot.filePath());
+        response.put("canSaveToProjectFile", snapshot.canWriteProjectFile());
+        response.put("source", snapshot.backend().name());
+        response.put("liveEditingEnabled", snapshot.backend() == CardOverrideStorageService.StorageBackend.FIRESTORE);
+        response.put("updatedBy", snapshot.updatedBy());
+        response.put("updatedAt", snapshot.updatedAt());
+        response.put("firestoreAvailable", storageService.isFirestoreReady());
+        response.put("firestoreError", storageService.getFirestoreInitializationError());
+        response.put("auth", authSnapshot);
         response.put("metadata", buildMetadata());
         return response;
     }
 
-    public Map<String, Object> saveEditorState(JsonNode data) {
-        Path projectPath = ManualSieglingCatalog.resolveProjectResourcePath();
-        if (!canSaveToProjectFile(projectPath)) {
-            throw new IllegalStateException("This runtime cannot write to the project resource file. Download the JSON instead.");
-        }
-
-        ManualSieglingCatalog.OverrideFile file = parseOverrideFile(data);
-        ManualSieglingCatalog.validateDefinitions(file.cards());
-
-        try {
-            Files.createDirectories(projectPath.getParent());
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(projectPath.toFile(), file);
-        } catch (IOException ex) {
-            throw new UncheckedIOException("Unable to save manual Siegling definitions to " + projectPath, ex);
-        }
-
+    private Map<String, Object> buildAuthResponse(CardEditorAuthService.EditorAuthResponse authResponse) {
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("saved", true);
-        response.put("filePath", projectPath.toString());
-        response.put("canSaveToProjectFile", true);
-        response.put("source", "PROJECT_FILE");
-        response.put("data", objectMapper.valueToTree(file));
-        response.put("metadata", buildMetadata());
+        response.put("token", authResponse.token());
+        response.put("auth", authResponse.auth());
+        response.put("firestoreAvailable", storageService.isFirestoreReady());
+        response.put("firestoreError", storageService.getFirestoreInitializationError());
         return response;
-    }
-
-    private JsonNode readCurrentData() {
-        Path projectPath = ManualSieglingCatalog.resolveProjectResourcePath();
-        try {
-            if (Files.isRegularFile(projectPath)) {
-                try (InputStream stream = Files.newInputStream(projectPath)) {
-                    return objectMapper.readTree(stream);
-                }
-            }
-            try (InputStream stream = getClass().getClassLoader().getResourceAsStream(ManualSieglingCatalog.RESOURCE_PATH)) {
-                if (stream == null) {
-                    var empty = objectMapper.createObjectNode();
-                    empty.putArray("cards");
-                    return empty;
-                }
-                return objectMapper.readTree(stream);
-            }
-        } catch (IOException ex) {
-            throw new UncheckedIOException("Unable to load manual Siegling definitions for the editor.", ex);
-        }
-    }
-
-    private ManualSieglingCatalog.OverrideFile parseOverrideFile(JsonNode data) {
-        try {
-            ManualSieglingCatalog.OverrideFile file = objectMapper.treeToValue(data, ManualSieglingCatalog.OverrideFile.class);
-            if (file == null) {
-                throw new IllegalArgumentException("The submitted JSON is empty.");
-            }
-            if (file.cards() == null) {
-                throw new IllegalArgumentException("The JSON must contain a top-level 'cards' array.");
-            }
-            return file;
-        } catch (IllegalArgumentException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("The submitted JSON does not match the Sieglings override format.", ex);
-        }
-    }
-
-    private boolean canSaveToProjectFile(Path projectPath) {
-        return projectPath.getParent() != null && Files.isDirectory(projectPath.getParent());
     }
 
     private Map<String, Object> buildMetadata() {

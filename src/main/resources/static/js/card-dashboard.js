@@ -1,4 +1,5 @@
 (function () {
+    const EDITOR_TOKEN_KEY = "sieglingsCardEditorToken";
     const NOTCH_LAYOUT = [
         "TOP_LEFT", "TOP", "TOP_RIGHT",
         "LEFT", "CENTER", "RIGHT",
@@ -8,6 +9,15 @@
     const DEFAULT_STATUS = {
         message: "Loading the current override file...",
         tone: "warning"
+    };
+
+    const DEFAULT_AUTH = {
+        available: false,
+        bootstrappable: false,
+        authenticated: false,
+        canEdit: false,
+        email: "",
+        displayName: ""
     };
 
     const state = {
@@ -23,6 +33,12 @@
         filePath: "",
         source: "Loading...",
         canSaveToProjectFile: false,
+        liveEditingEnabled: false,
+        firestoreAvailable: false,
+        firestoreError: "",
+        updatedBy: "",
+        updatedAt: "",
+        auth: { ...DEFAULT_AUTH },
         status: { ...DEFAULT_STATUS }
     };
 
@@ -50,6 +66,22 @@
             "cardSearchInput",
             "elementFilterSelect",
             "cardList",
+            "cardEditorPanel",
+            "authModePill",
+            "authStatePill",
+            "authSummaryText",
+            "bootstrapForm",
+            "bootstrapEmailInput",
+            "bootstrapDisplayNameInput",
+            "bootstrapPasswordInput",
+            "bootstrapSubmitBtn",
+            "loginForm",
+            "loginEmailInput",
+            "loginPasswordInput",
+            "loginSubmitBtn",
+            "authSessionPanel",
+            "authSessionText",
+            "logoutBtn",
             "sourcePill",
             "dirtyPill",
             "cardCountPill",
@@ -73,6 +105,7 @@
             "duplicateAbilityBtn",
             "deleteAbilityBtn",
             "abilityTabs",
+            "abilityEditor",
             "abilityNameInput",
             "abilityPassiveSelect",
             "abilityDescriptionInput",
@@ -102,6 +135,9 @@
         refs.saveProjectBtn.addEventListener("click", saveToProjectFile);
         refs.downloadJsonBtn.addEventListener("click", downloadJson);
         refs.copyJsonBtn.addEventListener("click", copyJson);
+        refs.bootstrapForm.addEventListener("submit", submitBootstrap);
+        refs.loginForm.addEventListener("submit", submitLogin);
+        refs.logoutBtn.addEventListener("click", logoutEditor);
         refs.newCardBtn.addEventListener("click", createCard);
         refs.duplicateCardBtn.addEventListener("click", duplicateCard);
         refs.deleteCardBtn.addEventListener("click", deleteCard);
@@ -235,17 +271,13 @@
             if (!payload || payload.error) {
                 throw new Error(payload?.error || "Unable to load the current override data.");
             }
-            state.metadata = payload.metadata || state.metadata;
-            state.filePath = payload.filePath || "";
-            state.source = payload.source || "PROJECT_FILE";
-            state.canSaveToProjectFile = Boolean(payload.canSaveToProjectFile);
+            applyServerPayload(payload);
             applyDataSet(payload.data, false);
-            setStatus("Loaded the current override file into the dashboard.", "success");
+            setStatus(buildLoadedMessage(), "success");
             renderAll();
         } catch (error) {
             setStatus(error.message || "Unable to load the current override file.", "error");
-            renderStatus();
-            renderValidation();
+            renderAll();
         }
     }
 
@@ -274,14 +306,14 @@
     async function saveToProjectFile() {
         const errors = state.validation.filter((issue) => issue.severity === "error");
         if (errors.length > 0) {
-            setStatus("Fix validation errors before saving to the project file.", "error");
+            setStatus(`Fix validation errors before you ${state.liveEditingEnabled ? "publish live changes" : "save to the project file"}.`, "error");
             renderStatus();
             renderValidation();
             return;
         }
 
-        if (!state.canSaveToProjectFile) {
-            setStatus("This runtime cannot write to the project file. Download the JSON instead.", "error");
+        if (!canSaveCurrentData()) {
+            setStatus(saveUnavailableMessage(), "error");
             renderStatus();
             return;
         }
@@ -295,17 +327,71 @@
             if (!payload || payload.error) {
                 throw new Error(payload?.error || "Unable to save the override file.");
             }
-            state.metadata = payload.metadata || state.metadata;
-            state.filePath = payload.filePath || state.filePath;
-            state.source = payload.source || "PROJECT_FILE";
-            state.canSaveToProjectFile = Boolean(payload.canSaveToProjectFile);
+            applyServerPayload(payload);
             applyDataSet(payload.data, false);
-            setStatus("Saved the override JSON back to the project file.", "success");
+            setStatus(state.liveEditingEnabled ? "Published the live card data to Firestore." : "Saved the override JSON back to the project file.", "success");
             renderAll();
         } catch (error) {
             setStatus(error.message || "Unable to save the override file.", "error");
-            renderStatus();
+            renderAll();
         }
+    }
+
+    async function submitBootstrap(event) {
+        event.preventDefault();
+        try {
+            const payload = await requestJson(apiUrl("/api/cards/editor/auth/bootstrap"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: refs.bootstrapEmailInput.value,
+                    displayName: refs.bootstrapDisplayNameInput.value,
+                    password: refs.bootstrapPasswordInput.value
+                })
+            });
+            applyAuthPayload(payload);
+            refs.bootstrapPasswordInput.value = "";
+            setStatus("Created the dashboard admin account and signed in.", "success");
+            await loadCurrentData();
+        } catch (error) {
+            setStatus(error.message || "Unable to create the dashboard admin account.", "error");
+            renderAll();
+        }
+    }
+
+    async function submitLogin(event) {
+        event.preventDefault();
+        try {
+            const payload = await requestJson(apiUrl("/api/cards/editor/auth/login"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: refs.loginEmailInput.value,
+                    password: refs.loginPasswordInput.value
+                })
+            });
+            applyAuthPayload(payload);
+            refs.loginPasswordInput.value = "";
+            setStatus("Signed in to the live card editor.", "success");
+            await loadCurrentData();
+        } catch (error) {
+            setStatus(error.message || "Unable to sign in to the live card editor.", "error");
+            renderAll();
+        }
+    }
+
+    async function logoutEditor() {
+        try {
+            await requestJson(apiUrl("/api/cards/editor/auth/logout"), { method: "POST" });
+        } catch (error) {
+            setStatus(error.message || "Unable to sign out of the live card editor.", "error");
+            renderAll();
+            return;
+        }
+        clearEditorToken();
+        state.auth = { ...DEFAULT_AUTH, available: state.firestoreAvailable };
+        setStatus("Signed out of the live card editor.", "success");
+        await loadCurrentData();
     }
 
     function downloadJson() {
@@ -579,6 +665,7 @@
 
     function renderAll() {
         state.validation = validateCards();
+        renderAuth();
         renderStatus();
         renderFilterOptions();
         renderCardList();
@@ -590,11 +677,49 @@
         renderCardIdOptions();
     }
 
+    function renderAuth() {
+        const liveMode = state.liveEditingEnabled || state.firestoreAvailable;
+        const auth = state.auth || DEFAULT_AUTH;
+
+        refs.bootstrapForm.classList.add("hidden");
+        refs.loginForm.classList.add("hidden");
+        refs.authSessionPanel.classList.add("hidden");
+
+        refs.authModePill.className = `status-pill ${liveMode ? "is-success" : "is-warning"}`;
+        refs.authModePill.textContent = liveMode ? "Live Firestore mode" : "Local file mode";
+
+        refs.authStatePill.className = `status-pill ${auth.authenticated ? "is-success" : "is-warning"}`;
+        refs.authStatePill.textContent = auth.authenticated ? `Signed in as ${auth.displayName || auth.email}` : "Not signed in";
+
+        if (!liveMode) {
+            refs.authSummaryText.textContent = state.firestoreError
+                ? `Live publishing is unavailable in this runtime. ${state.firestoreError}`
+                : "This runtime is using local JSON files, so publishing from other devices is not available here yet.";
+            return;
+        }
+
+        if (auth.authenticated) {
+            refs.authSummaryText.textContent = "This dashboard is connected to the live Firestore card store. Changes you publish here become the source for the live game.";
+            refs.authSessionText.textContent = `Signed in as ${auth.displayName || auth.email || "editor"}${state.updatedBy ? `. Last live publish: ${state.updatedBy}${state.updatedAt ? ` on ${formatTimestamp(state.updatedAt)}` : ""}.` : "."}`;
+            refs.authSessionPanel.classList.remove("hidden");
+            return;
+        }
+
+        if (auth.bootstrappable) {
+            refs.authSummaryText.textContent = "No live dashboard admin exists yet. Create the first admin account here to unlock publishing from any device.";
+            refs.bootstrapForm.classList.remove("hidden");
+            return;
+        }
+
+        refs.authSummaryText.textContent = "Live publishing is enabled. Sign in with your dashboard admin account to publish Firestore updates.";
+        refs.loginForm.classList.remove("hidden");
+    }
+
     function renderStatus() {
-        refs.sourcePill.textContent = state.source === "PROJECT_FILE" ? "Project file" : "Classpath copy";
+        refs.sourcePill.textContent = formatSourceLabel();
         refs.dirtyPill.textContent = state.dirty ? "Unsaved changes" : "Saved";
         refs.cardCountPill.textContent = `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`;
-        refs.filePathLabel.textContent = state.filePath ? `Editing: ${state.filePath}` : "No project file path available.";
+        refs.filePathLabel.textContent = buildStatusPathText();
         refs.statusMessage.textContent = state.status.message;
 
         refs.sourcePill.className = "status-pill";
@@ -629,13 +754,14 @@
         }
         refs.cardList.innerHTML = cards.map((card) => {
             const active = card.id === state.selectedCardId ? " active" : "";
+            const elementTheme = elementThemeClass(card.element);
             return `
-                <div class="card-row${active}" data-card-id="${escapeHtml(card.id)}">
+                <div class="card-row ${elementTheme}${active}" data-card-id="${escapeHtml(card.id)}">
                     <div class="card-row-title">
                         <strong>${escapeHtml(card.name || "Unnamed Card")}</strong>
                         <span class="summary-badge">${escapeHtml(formatEnumLabel(card.element))}</span>
                     </div>
-                    <div class="card-meta">${escapeHtml(formatEnumLabel(card.rarity))} | ${card.abilities.length} ability${card.abilities.length === 1 ? "" : "ies"} | HP ${card.health} | SPD ${card.speed}</div>
+                    <div class="card-meta">${escapeHtml(formatEnumLabel(card.rarity))} | ${card.abilities.length} ${card.abilities.length === 1 ? "ability" : "abilities"} | HP ${card.health} | SPD ${card.speed}</div>
                     <div class="card-id">${escapeHtml(card.id || "missing-id")}</div>
                 </div>
             `;
@@ -645,6 +771,8 @@
     function renderEditor() {
         const card = getSelectedCard();
         const ability = getSelectedAbility();
+
+        refs.cardEditorPanel.className = `panel editor-panel${card ? ` ${elementThemeClass(card.element)}` : ""}`;
 
         refs.emptyEditorState.classList.toggle("hidden", Boolean(card));
         refs.cardEditorContent.classList.toggle("hidden", !card);
@@ -820,12 +948,13 @@
         const hasCard = Boolean(getSelectedCard());
         const hasAbility = Boolean(getSelectedAbility());
         const hasErrors = state.validation.some((issue) => issue.severity === "error");
+        refs.saveProjectBtn.textContent = state.liveEditingEnabled ? "Publish Live Changes" : "Save To Project File";
         refs.duplicateCardBtn.disabled = !hasCard;
         refs.deleteCardBtn.disabled = !hasCard;
         refs.addAbilityBtn.disabled = !hasCard;
         refs.duplicateAbilityBtn.disabled = !hasAbility;
         refs.deleteAbilityBtn.disabled = !hasAbility || getSelectedCard()?.abilities.length <= 1;
-        refs.saveProjectBtn.disabled = !state.canSaveToProjectFile || hasErrors || !state.dirty;
+        refs.saveProjectBtn.disabled = !canSaveCurrentData() || hasErrors || !state.dirty;
     }
 
     function renderCardIdOptions() {
@@ -1122,18 +1251,141 @@
         return candidate;
     }
 
+    function elementThemeClass(element) {
+        const token = String(element || "NEUTRAL").trim().toLowerCase();
+        return `el-${token || "neutral"}`;
+    }
+
+    function applyServerPayload(payload) {
+        state.metadata = payload.metadata || state.metadata;
+        state.filePath = payload.filePath || "";
+        state.source = payload.source || "PROJECT_FILE";
+        state.canSaveToProjectFile = Boolean(payload.canSaveToProjectFile);
+        state.liveEditingEnabled = Boolean(payload.liveEditingEnabled);
+        state.firestoreAvailable = Boolean(payload.firestoreAvailable);
+        state.firestoreError = payload.firestoreError || "";
+        state.updatedBy = payload.updatedBy || "";
+        state.updatedAt = payload.updatedAt || "";
+        state.auth = {
+            ...DEFAULT_AUTH,
+            ...(payload.auth || {}),
+            available: Boolean(payload.auth?.available || payload.firestoreAvailable)
+        };
+    }
+
+    function applyAuthPayload(payload) {
+        if (payload?.token) {
+            saveEditorToken(payload.token);
+        }
+        state.firestoreAvailable = Boolean(payload?.firestoreAvailable || state.firestoreAvailable);
+        state.firestoreError = payload?.firestoreError || state.firestoreError;
+        state.auth = {
+            ...DEFAULT_AUTH,
+            ...(payload?.auth || {}),
+            available: Boolean(payload?.auth?.available || payload?.firestoreAvailable)
+        };
+    }
+
+    function canSaveCurrentData() {
+        return state.liveEditingEnabled ? Boolean(state.auth?.canEdit) : state.canSaveToProjectFile;
+    }
+
+    function saveUnavailableMessage() {
+        if (state.liveEditingEnabled) {
+            return state.auth?.authenticated
+                ? "Your account cannot publish live changes right now."
+                : "Sign in to publish live card data from this dashboard.";
+        }
+        return "This runtime cannot write to the project file. Download the JSON instead.";
+    }
+
+    function buildLoadedMessage() {
+        return state.liveEditingEnabled
+            ? "Loaded the live Firestore card data into the dashboard."
+            : "Loaded the current override file into the dashboard.";
+    }
+
+    function buildStatusPathText() {
+        if (!state.filePath) {
+            return state.liveEditingEnabled ? "No Firestore document path is available." : "No project file path available.";
+        }
+        const updatedSuffix = state.updatedBy
+            ? ` Last update: ${state.updatedBy}${state.updatedAt ? ` on ${formatTimestamp(state.updatedAt)}` : ""}.`
+            : "";
+        const prefix = state.liveEditingEnabled ? "Live source" : "Editing";
+        return `${prefix}: ${state.filePath}${updatedSuffix}`;
+    }
+
+    function formatSourceLabel() {
+        switch (state.source) {
+            case "FIRESTORE":
+                return "Live Firestore";
+            case "PROJECT_FILE":
+                return "Project file";
+            case "CLASSPATH_RESOURCE":
+                return "Bundled fallback";
+            default:
+                return "Loading...";
+        }
+    }
+
     function apiUrl(path) {
         const base = String(window.SIEGLINGS_CONFIG?.apiBaseUrl || "").replace(/\/$/, "");
         return base ? `${base}${path}` : path;
     }
 
     async function requestJson(url, options) {
-        const response = await fetch(url, options);
+        const requestOptions = buildRequestOptions(options);
+        const response = await fetch(url, requestOptions);
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
             throw new Error(data?.error || `Request failed with status ${response.status}.`);
         }
         return data;
+    }
+
+    function buildRequestOptions(options) {
+        const headers = new Headers(options?.headers || {});
+        const editorToken = getEditorToken();
+        if (editorToken) {
+            headers.set("X-Card-Editor-Token", editorToken);
+        }
+        return { ...options, headers };
+    }
+
+    function saveEditorToken(token) {
+        try {
+            window.localStorage.setItem(EDITOR_TOKEN_KEY, token);
+        } catch (error) {
+            // Ignore storage failures and continue with the in-memory session.
+        }
+    }
+
+    function getEditorToken() {
+        try {
+            return window.localStorage.getItem(EDITOR_TOKEN_KEY) || "";
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function clearEditorToken() {
+        try {
+            window.localStorage.removeItem(EDITOR_TOKEN_KEY);
+        } catch (error) {
+            // Ignore storage failures and continue.
+        }
+    }
+
+    function formatTimestamp(value) {
+        if (!value) {
+            return "";
+        }
+        const timestamp = new Date(value);
+        if (Number.isNaN(timestamp.getTime())) {
+            return value;
+        }
+        return timestamp.toLocaleString();
     }
 
     function setStatus(message, tone) {
