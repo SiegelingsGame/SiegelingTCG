@@ -19,11 +19,11 @@
     "preferredRow" : "BACK",
     "abilities" : [ {
       "name" : "Draco Strike",
-      "description" : "Deal 5 damage to 1 enemy",
+      "description" : "Deal 4 damage to 1 enemy",
       "targetType" : "SINGLE_ENEMY",
       "targetCount" : 1,
       "effectType" : "damage",
-      "effectValue" : 5,
+      "effectValue" : 4,
       "passive" : false,
       "requiredElement" : "FIRE",
       "requiredEnergy" : 1
@@ -35,36 +35,30 @@
     "rarity" : "RARE",
     "health" : 16,
     "speed" : 9,
-    "notches" : [ {
-      "direction" : "BOTTOM_RIGHT",
-      "element" : "FIRE"
-    }, {
+    "notches" : [{
       "direction" : "TOP",
       "element" : "FIRE"
     }, {
       "direction" : "BOTTOM",
       "element" : "FIRE"
     }, {
-      "direction" : "BOTTOM_LEFT",
+      "direction" : "RIGHT",
       "element" : "FIRE"
     }, {
       "direction" : "LEFT",
       "element" : "FIRE"
-    }, {
-      "direction" : "TOP_LEFT",
-      "element" : "FIRE"
-    } ],
+    }],
     "preferredRow" : "MIDDLE",
     "evolvesFromId" : "draco",
     "costElement" : "FIRE",
     "costAmount" : 2,
     "abilities" : [ {
       "name" : "Dracoil Strike",
-      "description" : "Deal 7 damage to 1 enemy",
+      "description" : "Deal 5 damage to 1 enemy",
       "targetType" : "SINGLE_ENEMY",
       "targetCount" : 1,
       "effectType" : "damage",
-      "effectValue" : 7,
+      "effectValue" : 5,
       "passive" : false,
       "requiredElement" : "FIRE",
       "requiredEnergy" : 1
@@ -77,60 +71,57 @@
       "effectValue" : 7,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 2
+      "requiredEnergy" : 3
     }, {
       "name" : "Dracoil Burst",
-      "description" : "Deal 8 damage to all enemies in Front Row",
+      "description" : "Deal 5 damage to all enemies in Front Row",
       "targetType" : "ROW_ENEMIES",
       "targetRow" : "FRONT",
       "targetCount" : 0,
       "effectType" : "damage",
-      "effectValue" : 8,
+      "effectValue" : 5,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 3
+      "requiredEnergy" : 5
     } ]
   }, {
     "id" : "emberfin",
     "name" : "Emberfin",
     "element" : "FIRE",
     "rarity" : "UNCOMMON",
-    "health" : 12,
-    "speed" : 8,
+    "health" : 10,
+    "speed" : 2,
     "notches" : [ {
       "direction" : "BOTTOM",
-      "element" : "FIRE"
-    }, {
-      "direction" : "BOTTOM_LEFT",
       "element" : "FIRE"
     }, {
       "direction" : "LEFT",
       "element" : "FIRE"
     }, {
-      "direction" : "TOP_LEFT",
+      "direction" : "RIGHT",
       "element" : "FIRE"
     } ],
     "preferredRow" : "MIDDLE",
     "abilities" : [ {
       "name" : "Emberfin Strike",
-      "description" : "Deal 5 damage to 1 enemy",
+      "description" : "Deal 1 damage to 1 enemy",
       "targetType" : "SINGLE_ENEMY",
       "targetCount" : 1,
       "effectType" : "damage",
-      "effectValue" : 5,
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 0
+    }, {
+      "name" : "Emberfin Ambush",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
       "passive" : false,
       "requiredElement" : "FIRE",
       "requiredEnergy" : 1
-    }, {
-      "name" : "Emberfin Ambush",
-      "description" : "Deal 5 damage to 1 enemy",
-      "targetType" : "SINGLE_ENEMY",
-      "targetCount" : 1,
-      "effectType" : "damage",
-      "effectValue" : 5,
-      "passive" : false,
-      "requiredElement" : "FIRE",
-      "requiredEnergy" : 2
     } ]
   }, {
     "id" : "cindergil",
@@ -138,7 +129,7 @@
     "element" : "FIRE",
     "rarity" : "RARE",
     "health" : 17,
-    "speed" : 8,
+    "speed" : 5,
     "notches" : [ {
       "direction" : "LEFT",
       "element" : "FIRE"
@@ -147,9 +138,6 @@
       "element" : "FIRE"
     }, {
       "direction" : "BOTTOM_LEFT",
-      "element" : "FIRE"
-    }, {
-      "direction" : "TOP_RIGHT",
       "element" : "FIRE"
     }, {
       "direction" : "BOTTOM",
@@ -164,14 +152,14 @@
     "costAmount" : 2,
     "abilities" : [ {
       "name" : "Cindergil Strike",
-      "description" : "Deal 4 damage to 1 enemy",
+      "description" : "Deal 2 damage to 1 enemy",
       "targetType" : "SINGLE_ENEMY",
       "targetCount" : 1,
       "effectType" : "damage",
-      "effectValue" : 4,
+      "effectValue" : 0,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 1
+      "requiredEnergy" : 0
     }, {
       "name" : "Cindergil Hearth",
       "description" : "All Fire allies gain +2 attack damage",
@@ -181,36 +169,33 @@
       "effectValue" : 2,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 2
+      "requiredEnergy" : 3
     }, {
       "name" : "Cindergil Burst",
-      "description" : "Deal 5 damage to all enemies in Front Row",
+      "description" : "Deal 5 damage to all enemies in Middle Row",
       "targetType" : "ROW_ENEMIES",
-      "targetRow" : "FRONT",
+      "targetRow" : "MIDDLE",
       "targetCount" : 0,
       "effectType" : "damage",
       "effectValue" : 5,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 3
+      "requiredEnergy" : 5
     } ]
   }, {
     "id" : "pylook",
     "name" : "Pylook",
     "element" : "FIRE",
     "rarity" : "COMMON",
-    "health" : 10,
-    "speed" : 7,
+    "health" : 5,
+    "speed" : 8,
     "notches" : [ {
-      "direction" : "RIGHT",
+      "direction" : "TOP",
       "element" : "FIRE"
     }, {
-      "direction" : "TOP_RIGHT",
+      "direction" : "BOTTOM",
       "element" : "FIRE"
-    }, {
-      "direction" : "BOTTOM_RIGHT",
-      "element" : "FIRE"
-    } ],
+    }],
     "preferredRow" : "MIDDLE",
     "abilities" : [ {
       "name" : "Pylook Drift",
@@ -221,6 +206,16 @@
       "effectValue" : 0,
       "passive" : false,
       "requiredEnergy" : 0
+    }, {
+      "name" : "Pylook Aura",
+      "description" : "Increase attack damage of all Fire allies by 1",
+      "targetType" : "ALL_ALLIES",
+      "targetCount" : 1,
+      "effectType" : "damage_boost",
+      "effectValue" : 1,
+      "passive" : true,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 0
     } ]
   }, {
     "id" : "pyleer",
@@ -229,10 +224,7 @@
     "rarity" : "RARE",
     "health" : 16,
     "speed" : 7,
-    "notches" : [ {
-      "direction" : "LEFT",
-      "element" : "FIRE"
-    }, {
+    "notches" : [{
       "direction" : "TOP_LEFT",
       "element" : "FIRE"
     }, {
@@ -241,67 +233,50 @@
     }, {
       "direction" : "TOP_RIGHT",
       "element" : "FIRE"
-    }, {
-      "direction" : "RIGHT",
-      "element" : "FIRE"
-    }, {
+    },{
       "direction" : "BOTTOM",
       "element" : "FIRE"
     } ],
-    "preferredRow" : "BACK",
+    "preferredRow" : "MIDDLE",
     "evolvesFromId" : "pylook",
     "costElement" : "FIRE",
     "costAmount" : 2,
-    "abilities" : [ {
-      "name" : "Pyleer Strike",
-      "description" : "Deal 8 damage to 1 enemy",
-      "targetType" : "SINGLE_ENEMY",
-      "targetCount" : 1,
-      "effectType" : "damage",
-      "effectValue" : 8,
-      "passive" : false,
-      "requiredElement" : "FIRE",
-      "requiredEnergy" : 1
-    }, {
+    "abilities" : [{
       "name" : "Pyleer Flame Arc",
-      "description" : "Deal 9 damage to all enemies in Front Row",
+      "description" : "Deal 7 damage to all enemies in Front Row",
       "targetType" : "ROW_ENEMIES",
       "targetRow" : "FRONT",
       "targetCount" : 0,
       "effectType" : "damage",
-      "effectValue" : 9,
-      "passive" : false,
-      "requiredElement" : "FIRE",
-      "requiredEnergy" : 2
-    }, {
-      "name" : "Pyleer Burst",
-      "description" : "Deal 9 damage to all enemies in Front Row",
-      "targetType" : "ROW_ENEMIES",
-      "targetRow" : "FRONT",
-      "targetCount" : 0,
-      "effectType" : "damage",
-      "effectValue" : 9,
+      "effectValue" : 7,
       "passive" : false,
       "requiredElement" : "FIRE",
       "requiredEnergy" : 3
+    }, {
+      "name" : "Pyleer Burst",
+      "description" : "Deal 9 damage to all enemies",
+      "targetType" : "ALL_ALLIES",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 5
     } ]
   }, {
     "id" : "sundile",
     "name" : "Sundile",
     "element" : "FIRE",
     "rarity" : "COMMON",
-    "health" : 12,
-    "speed" : 3,
+    "health" : 14,
+    "speed" : 6,
     "notches" : [ {
-      "direction" : "RIGHT",
+      "direction" : "TOP",
       "element" : "FIRE"
     }, {
       "direction" : "BOTTOM",
       "element" : "FIRE"
-    }, {
-      "direction" : "TOP_RIGHT",
-      "element" : "FIRE"
-    } ],
+    }],
     "preferredRow" : "FRONT",
     "abilities" : [ {
       "name" : "Sundile Strike",
@@ -312,35 +287,42 @@
       "effectValue" : 3,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 1
+      "requiredEnergy" : 0
+    }, {
+      "name" : "Sundile Pose",
+      "description" : "Increase attack damage of all Fire allies by 1",
+      "targetType" : "ALL_ALLIES",
+      "targetCount" : 0,
+      "effectType" : "damage_boost",
+      "effectValue" : 1,
+      "passive" : true,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 0
     } ]
   }, {
     "id" : "raydile",
     "name" : "Raydile",
     "element" : "FIRE",
     "rarity" : "UNCOMMON",
-    "health" : 16,
-    "speed" : 4,
+    "health" : 20,
+    "speed" : 7,
     "notches" : [ {
       "direction" : "TOP",
-      "element" : "FIRE"
-    }, {
-      "direction" : "LEFT",
-      "element" : "FIRE"
-    }, {
-      "direction" : "RIGHT",
       "element" : "FIRE"
     }, {
       "direction" : "BOTTOM",
       "element" : "FIRE"
     }, {
-      "direction" : "TOP_RIGHT",
+      "direction" : "RIGHT",
       "element" : "FIRE"
-    } ],
+    }, {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    }],
     "preferredRow" : "FRONT",
     "evolvesFromId" : "sundile",
     "costElement" : "FIRE",
-    "costAmount" : 1,
+    "costAmount" : 2,
     "abilities" : [ {
       "name" : "Raydile Strike",
       "description" : "Deal 4 damage to 1 enemy",
@@ -350,7 +332,7 @@
       "effectValue" : 4,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 1
+      "requiredEnergy" : 0
     }, {
       "name" : "Raydile Shield Bash",
       "description" : "Deal 4 damage to 1 enemy",
@@ -362,13 +344,23 @@
       "passive" : false,
       "requiredElement" : "FIRE",
       "requiredEnergy" : 2
+    }, {
+      "name" : "Raydile Pose",
+      "description" : "Increase attack damage of all Fire allies by 1",
+      "targetType" : "ALL_ALLIES",
+      "targetCount" : 0,
+      "effectType" : "damage_boost",
+      "effectValue" : 1,
+      "passive" : true,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 0
     } ]
   }, {
     "id" : "solgator",
     "name" : "Solgator",
     "element" : "FIRE",
     "rarity" : "EPIC",
-    "health" : 22,
+    "health" : 23,
     "speed" : 5,
     "notches" : [ {
       "direction" : "BOTTOM_RIGHT",
@@ -377,51 +369,50 @@
       "direction" : "BOTTOM_LEFT",
       "element" : "FIRE"
     }, {
-      "direction" : "TOP_LEFT",
-      "element" : "FIRE"
-    }, {
-      "direction" : "TOP",
-      "element" : "FIRE"
-    }, {
       "direction" : "LEFT",
       "element" : "FIRE"
     }, {
       "direction" : "RIGHT",
       "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP",
+      "element" : "FIRE"
     } ],
     "preferredRow" : "FRONT",
     "evolvesFromId" : "raydile",
     "costElement" : "FIRE",
-    "costAmount" : 1,
+    "costAmount" : 3,
     "abilities" : [ {
+      "name" : "Solgator Pose",
+      "description" : "Increase attack damage of all Fire allies by 2",
+      "targetType" : "ALL_ALLIES",
+      "targetCount" : 0,
+      "effectType" : "damage_boost",
+      "effectValue" : 2,
+      "passive" : true,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 0
+    }, {
       "name" : "Solgator Strike",
-      "description" : "Deal 7 damage to 1 enemy",
+      "description" : "Deal 5 damage to 1 enemy",
       "targetType" : "SINGLE_ENEMY",
       "targetCount" : 1,
       "effectType" : "damage",
-      "effectValue" : 7,
+      "effectValue" : 5,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 1
-    }, {
-      "name" : "Solgator Shield Bash",
-      "description" : "Deal 7 damage to 1 enemy",
-      "targetType" : "SINGLE_ENEMY",
-      "targetRow" : "FRONT",
-      "targetCount" : 1,
-      "effectType" : "damage",
-      "effectValue" : 7,
-      "passive" : false,
-      "requiredElement" : "FIRE",
-      "requiredEnergy" : 2
-    }, {
+      "requiredEnergy" : 0
+    },{
       "name" : "Solgator Burst",
-      "description" : "Deal 8 damage to all enemies in Front Row",
+      "description" : "Deal 6 damage to all enemies in Front Row",
       "targetType" : "ROW_ENEMIES",
       "targetRow" : "FRONT",
       "targetCount" : 0,
       "effectType" : "damage",
-      "effectValue" : 8,
+      "effectValue" : 6,
       "passive" : false,
       "requiredElement" : "FIRE",
       "requiredEnergy" : 4
@@ -477,24 +468,24 @@
     "preferredRow" : "FRONT",
     "abilities" : [ {
       "name" : "Emberpup Strike",
-      "description" : "Deal 6 damage to 1 enemy",
+      "description" : "increase speed of all Fire allies by 1",
+      "targetType" : "SELF",
+      "targetCount" : 0,
+      "effectType" : "CONNECTED_ALLIES_SPEED_BOOST",
+      "effectValue" : 6,
+      "passive" : true,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 0
+    }, {
+      "name" : "Emberpup Charge",
+      "description" : "Deal 3 damage to 1 enemy",
       "targetType" : "SINGLE_ENEMY",
       "targetCount" : 1,
       "effectType" : "damage",
-      "effectValue" : 6,
+      "effectValue" : 3,
       "passive" : false,
       "requiredElement" : "FIRE",
       "requiredEnergy" : 1
-    }, {
-      "name" : "Emberpup Charge",
-      "description" : "Deal 6 damage to 1 enemy",
-      "targetType" : "SINGLE_ENEMY",
-      "targetCount" : 1,
-      "effectType" : "damage",
-      "effectValue" : 6,
-      "passive" : false,
-      "requiredElement" : "FIRE",
-      "requiredEnergy" : 2
     } ]
   }, {
     "id" : "firsky",
@@ -504,13 +495,13 @@
     "health" : 10,
     "speed" : 5,
     "notches" : [ {
+      "direction" : "TOP",
+      "element" : "FIRE"
+    }, {
       "direction" : "TOP_RIGHT",
       "element" : "FIRE"
     }, {
-      "direction" : "RIGHT",
-      "element" : "FIRE"
-    }, {
-      "direction" : "BOTTOM",
+      "direction" : "TOP_LEFT",
       "element" : "FIRE"
     } ],
     "preferredRow" : "BACK",
@@ -531,25 +522,29 @@
     "element" : "FIRE",
     "rarity" : "RARE",
     "health" : 15,
-    "speed" : 6,
+    "speed" : 11,
     "notches" : [ {
-      "direction" : "TOP_LEFT",
+      "direction" : "BOTTOM_LEFT",
       "element" : "FIRE"
     }, {
-      "direction" : "TOP",
+      "direction" : "BOTTOM_RIGHT",
       "element" : "FIRE"
     }, {
-      "direction" : "BOTTOM",
+      "direction" : "LEFT",
       "element" : "FIRE"
     }, {
       "direction" : "RIGHT",
       "element" : "FIRE"
     }, {
-      "direction" : "LEFT",
+      "direction" : "TOP_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_RIGHT",
       "element" : "FIRE"
     } ],
     "preferredRow" : "FRONT",
     "costElement" : "FIRE",
+    "evolvesFromId" : "emberpup",
     "costAmount" : 1,
     "abilities" : [ {
       "name" : "Hotdog Strike",
@@ -560,29 +555,18 @@
       "effectValue" : 7,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 1
+      "requiredEnergy" : 2
     }, {
       "name" : "Hotdog Charge",
-      "description" : "Deal 7 damage to 1 enemy",
-      "targetType" : "SINGLE_ENEMY",
-      "targetCount" : 1,
+      "description" : "Deal 4 damage to All Enemies in Back Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetCount" : 0,
       "effectType" : "damage",
-      "effectValue" : 7,
+      "effectValue" : 4,
       "passive" : false,
       "requiredElement" : "FIRE",
       "requiredEnergy" : 2
-    }, {
-      "name" : "Hotdog Burst",
-      "description" : "Deal 8 damage to all enemies in Front Row",
-      "targetType" : "ROW_ENEMIES",
-      "targetRow" : "FRONT",
-      "targetCount" : 0,
-      "effectType" : "damage",
-      "effectValue" : 8,
-      "passive" : false,
-      "requiredElement" : "FIRE",
-      "requiredEnergy" : 3
-    } ]
+    }]
   }, {
     "id" : "hotty",
     "name" : "Hotty",
@@ -617,7 +601,7 @@
     }, {
       "name" : "Hotty Hearth",
       "description" : "All Fire allies gain +1 attack damage",
-      "targetType" : "SINGLE_ALLY",
+      "targetType" : "ALL_ALLIES",
       "targetCount" : 0,
       "effectType" : "damage_boost",
       "effectValue" : 1,
@@ -636,9 +620,15 @@
       "direction" : "BOTTOM_LEFT",
       "element" : "FIRE"
     }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "FIRE"
+    },{
       "direction" : "TOP_LEFT",
       "element" : "FIRE"
-    }, {
+    },{
+      "direction" : "TOP_RIGHT",
+      "element" : "FIRE"
+    },{
       "direction" : "TOP",
       "element" : "FIRE"
     }, {
@@ -651,16 +641,17 @@
       "direction" : "LEFT",
       "element" : "FIRE"
     } ],
-    "preferredRow" : "FRONT",
+    "preferredRow" : "MIDDLE",
     "costElement" : "FIRE",
-    "costAmount" : 2,
+    "costAmount" : 4,
     "abilities" : [ {
       "name" : "Pylord Strike",
-      "description" : "Deal 9 damage to 1 enemy",
-      "targetType" : "SINGLE_ENEMY",
-      "targetCount" : 1,
+      "description" : "Deal 5 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
       "effectType" : "damage",
-      "effectValue" : 9,
+      "effectValue" : 5,
       "passive" : false,
       "requiredElement" : "FIRE",
       "requiredEnergy" : 1
@@ -673,18 +664,18 @@
       "effectValue" : 9,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 2
+      "requiredEnergy" : 3
     }, {
       "name" : "Pylord Burst",
-      "description" : "Deal 11 damage to all enemies in Front Row",
-      "targetType" : "ROW_ENEMIES",
+      "description" : "Deal 10 damage to all enemies",
+      "targetType" : "ALL_ENEMIES",
       "targetRow" : "FRONT",
       "targetCount" : 0,
       "effectType" : "damage",
-      "effectValue" : 11,
+      "effectValue" : 10,
       "passive" : false,
       "requiredElement" : "FIRE",
-      "requiredEnergy" : 5
+      "requiredEnergy" : 7
     } ]
   }, {
     "id" : "cacty",
