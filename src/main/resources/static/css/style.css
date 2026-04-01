@@ -1875,9 +1875,10 @@ body.placement-active .board-cell.legal {
     display: flex;
     justify-content: flex-end;
     position: sticky;
-    bottom: 0;
-    padding-top: 12px;
-    background: linear-gradient(180deg, rgba(19, 32, 58, 0), rgba(19, 32, 58, 0.96) 42%);
+    bottom: -20px;
+    z-index: 10;
+    padding: 18px 0 20px;
+    background: linear-gradient(180deg, rgba(19, 32, 58, 0) 0%, rgba(19, 32, 58, 1) 30%);
 }
 
 .loadout-box.invite-focused {
@@ -3064,10 +3065,15 @@ body.placement-active .board-cell.legal {
 
     .loadout-actions {
         justify-content: stretch;
+        bottom: -14px;
+        padding: 20px 0 14px;
     }
 
     .loadout-actions .btn {
         width: 100%;
+        padding: 14px 20px;
+        font-size: 1.1em;
+        font-weight: 700;
     }
 
     .card-tooltip {
