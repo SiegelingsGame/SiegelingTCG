@@ -19,7 +19,20 @@
 
     <properties>
         <java.version>21</java.version>
+        <google-cloud-firestore-bom.version>3.33.4</google-cloud-firestore-bom.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.google.cloud</groupId>
+                <artifactId>google-cloud-firestore-bom</artifactId>
+                <version>${google-cloud-firestore-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -38,6 +51,10 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-firestore</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -13,10 +13,6 @@ import com.sieglings.model.enums.Reaction;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.TargetType;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -168,7 +164,7 @@ final class ManualSieglingCatalog {
             ability.setTargetCount(definition.targetCount());
         }
         if (definition.effectType() != null) {
-            ability.setEffectType(definition.effectType());
+            ability.setEffectType(normalizeEffectKey(definition.effectType()));
         }
         if (definition.effectValue() != null) {
             ability.setEffectValue(definition.effectValue());
@@ -252,23 +248,7 @@ final class ManualSieglingCatalog {
     }
 
     private static List<ManualSieglingDefinition> loadDefinitions() {
-        Path projectResourcePath = resolveProjectResourcePath();
-        if (Files.isRegularFile(projectResourcePath)) {
-            try (InputStream stream = Files.newInputStream(projectResourcePath)) {
-                return readDefinitions(stream);
-            } catch (IOException ex) {
-                throw new UncheckedIOException("Unable to load manual Siegling definitions from " + projectResourcePath, ex);
-            }
-        }
-
-        try (InputStream stream = ManualSieglingCatalog.class.getClassLoader().getResourceAsStream(RESOURCE_PATH)) {
-            if (stream == null) {
-                return List.of();
-            }
-            return readDefinitions(stream);
-        } catch (IOException ex) {
-            throw new UncheckedIOException("Unable to load manual Siegling definitions from " + RESOURCE_PATH, ex);
-        }
+        return CardOverrideStorageService.loadDefinitionsForGame(OBJECT_MAPPER);
     }
 
     static void validateDefinitions(List<ManualSieglingDefinition> definitions) {
@@ -291,11 +271,6 @@ final class ManualSieglingCatalog {
         return PROJECT_RESOURCE_PATH.toAbsolutePath().normalize();
     }
 
-    private static List<ManualSieglingDefinition> readDefinitions(InputStream stream) throws IOException {
-        OverrideFile file = OBJECT_MAPPER.readValue(stream, OverrideFile.class);
-        return file == null || file.cards() == null ? List.of() : List.copyOf(file.cards());
-    }
-
     private static void requireField(boolean valid, String id, String fieldName) {
         if (!valid) {
             throw new IllegalStateException("Manual Siegling definition '" + id + "' is missing required field '" + fieldName + "'.");
@@ -315,6 +290,14 @@ final class ManualSieglingCatalog {
             return null;
         }
         String normalized = raw.trim();
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private static String normalizeEffectKey(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
         return normalized.isBlank() ? null : normalized;
     }
 

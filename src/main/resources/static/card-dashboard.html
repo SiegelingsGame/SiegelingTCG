@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sieglings Card Dashboard</title>
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=1">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=3">
 </head>
 <body>
 <div class="dashboard-shell">
@@ -18,12 +18,60 @@
             <button class="btn btn-secondary" id="reloadCurrentBtn" type="button">Reload Current Data</button>
             <label class="btn btn-secondary file-btn" for="importFileInput">Import JSON File</label>
             <input id="importFileInput" type="file" accept=".json,application/json">
-            <button class="btn btn-primary" id="saveProjectBtn" type="button">Save To Project File</button>
+            <button class="btn btn-primary" id="saveProjectBtn" type="button">Save Changes</button>
             <button class="btn btn-secondary" id="downloadJsonBtn" type="button">Download JSON</button>
             <button class="btn btn-secondary" id="copyJsonBtn" type="button">Copy JSON</button>
             <a class="btn btn-ghost" href="/">Back To Game</a>
         </div>
     </header>
+
+    <section class="dashboard-auth panel">
+        <div class="panel-heading auth-heading">
+            <div>
+                <div class="section-kicker">Access</div>
+                <h2>Live Publishing</h2>
+            </div>
+            <div class="status-line auth-pills">
+                <span class="status-pill" id="authModePill">Checking editor mode...</span>
+                <span class="status-pill" id="authStatePill">Not signed in</span>
+            </div>
+        </div>
+
+        <div class="auth-copy" id="authSummaryText">Checking whether live publishing is available in this runtime...</div>
+
+        <form class="auth-form hidden" id="bootstrapForm">
+            <label>
+                <span>Admin Email</span>
+                <input id="bootstrapEmailInput" type="email" autocomplete="email">
+            </label>
+            <label>
+                <span>Display Name</span>
+                <input id="bootstrapDisplayNameInput" type="text" autocomplete="name">
+            </label>
+            <label>
+                <span>Password</span>
+                <input id="bootstrapPasswordInput" type="password" autocomplete="new-password">
+            </label>
+            <button class="btn btn-primary" id="bootstrapSubmitBtn" type="submit">Create Admin And Sign In</button>
+        </form>
+
+        <form class="auth-form hidden" id="loginForm">
+            <label>
+                <span>Admin Email</span>
+                <input id="loginEmailInput" type="email" autocomplete="email">
+            </label>
+            <label>
+                <span>Password</span>
+                <input id="loginPasswordInput" type="password" autocomplete="current-password">
+            </label>
+            <button class="btn btn-primary" id="loginSubmitBtn" type="submit">Sign In To Publish</button>
+        </form>
+
+        <div class="auth-session hidden" id="authSessionPanel">
+            <div class="auth-session-copy" id="authSessionText"></div>
+            <button class="btn btn-secondary" id="logoutBtn" type="button">Sign Out</button>
+        </div>
+    </section>
 
     <section class="dashboard-status panel">
         <div class="status-line">
@@ -55,7 +103,7 @@
         </aside>
 
         <section class="editor-column">
-            <div class="panel editor-panel">
+            <div class="panel editor-panel" id="cardEditorPanel">
                 <div class="panel-heading">
                     <div>
                         <div class="section-kicker">Edit</div>
@@ -236,6 +284,6 @@
 <datalist id="cardIdOptions"></datalist>
 
 <script src="/js/config.js"></script>
-<script src="/js/card-dashboard.js?v=1"></script>
+<script src="/js/card-dashboard.js?v=3"></script>
 </body>
 </html>
