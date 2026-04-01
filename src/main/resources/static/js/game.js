@@ -57,8 +57,11 @@ const API_BASE_URL = normalizeApiBaseUrl(
 );
 let activeApiBaseUrl = API_BASE_URL;
 const CARD_ART_BY_KEY = Object.freeze({
-    sundile: '/assets/cards/sundile.svg',
-    staticap: '/images/cards/Staticap.png'
+    sundile: { url: '/assets/cards/sundile.svg' },
+    staticap: {
+        url: '/images/cards/Staticap.png',
+        crop: 'illustration'
+    }
 });
 const WELCOME_SLIDES = [
     {
@@ -157,11 +160,38 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;');
 }
 
-const _cardArtProbeCache = {}; /* id -> resolved URL or '' */
+const _cardArtProbeCache = {}; /* id -> resolved meta or '' */
+let pendingCardArtRender = false;
 
-function getCardArtUrl(card) {
+function buildCardArtMeta(entry) {
+    if (!entry) {
+        return null;
+    }
+    if (typeof entry === 'string') {
+        return { url: entry, crop: 'default' };
+    }
+    return {
+        url: entry.url || '',
+        crop: entry.crop || 'default'
+    };
+}
+
+function queueCardArtRerender() {
+    if (pendingCardArtRender) {
+        return;
+    }
+    pendingCardArtRender = true;
+    requestAnimationFrame(() => {
+        pendingCardArtRender = false;
+        if (typeof render === 'function') {
+            render();
+        }
+    });
+}
+
+function getCardArtMeta(card) {
     if (!card) {
-        return '';
+        return null;
     }
 
     const candidates = [
@@ -178,13 +208,13 @@ function getCardArtUrl(card) {
     for (const candidate of candidates) {
         const key = normalizeCardArtKey(candidate);
         if (key && CARD_ART_BY_KEY[key]) {
-            return CARD_ART_BY_KEY[key];
+            return buildCardArtMeta(CARD_ART_BY_KEY[key]);
         }
     }
 
     /* Auto-discover: check images/cards/{Name}.png by probing */
     const probeName = card.name || card.id || '';
-    if (!probeName) return '';
+    if (!probeName) return null;
 
     if (_cardArtProbeCache[probeName] !== undefined) {
         return _cardArtProbeCache[probeName];
@@ -200,27 +230,67 @@ function getCardArtUrl(card) {
     /* Kick off async probes and cache results for next render */
     for (const url of probeVariants) {
         const img = new Image();
-        img.onload = () => { _cardArtProbeCache[probeName] = url; };
+        img.onload = () => {
+            _cardArtProbeCache[probeName] = { url, crop: 'default' };
+            queueCardArtRerender();
+        };
         img.onerror = () => {
             if (_cardArtProbeCache[probeName] === undefined) {
-                _cardArtProbeCache[probeName] = '';
+                _cardArtProbeCache[probeName] = null;
             }
         };
         img.src = url;
     }
 
-    return ''; /* first render won't show it; next render will pick up cached URL */
+    return null; /* first render won't show it; next render will pick up cached URL */
 }
 
 function renderCardArt(card, variant, fallbackLabel = '') {
-    const artUrl = getCardArtUrl(card);
-    if (artUrl) {
-        return `<div class="card-art card-art-${variant}"><img src="${artUrl}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"></div>`;
+    const artMeta = getCardArtMeta(card);
+    if (artMeta?.url) {
+        const cropClass = artMeta.crop && artMeta.crop !== 'default'
+            ? ` card-art-crop-${artMeta.crop}`
+            : '';
+        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${artMeta.url}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"></div>`;
     }
     if (!fallbackLabel) {
         return '';
     }
     return `<div class="card-art card-art-${variant} card-art-fallback"><span>${fallbackLabel}</span></div>`;
+}
+
+function formatStatValue(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+}
+
+function getCardSummaryStatLine(card) {
+    const segments = [];
+    const health = formatStatValue(card?.health);
+    const speed = formatStatValue(card?.speed);
+    if (health !== null) {
+        segments.push(`HP:${health}`);
+    }
+    if (speed !== null) {
+        segments.push(`SPD:${speed}`);
+    }
+    return segments.join(' ');
+}
+
+function renderBoardStatBadges(cell) {
+    const badges = [];
+    const hp = formatStatValue(cell?.hp);
+    const maxHp = formatStatValue(cell?.maxHp);
+    const speed = formatStatValue(cell?.spd);
+
+    if (hp !== null && maxHp !== null) {
+        badges.push(`<span class="stat stat-hp">${hp}/${maxHp}</span>`);
+    }
+    if (speed !== null) {
+        badges.push(`<span class="stat stat-spd">${speed}</span>`);
+    }
+
+    return badges.join('');
 }
 
 function apiUrl(path, baseUrl = activeApiBaseUrl) {
@@ -843,7 +913,9 @@ function getLegalPlacementsForCard(card, board = gameState?.playerBoard || []) {
         for (let col = 0; col < 3; col++) {
             if (safeBoard[row][col]) continue;
 
-            if (!hasAnySiegling || canCardLinkAt(card, row, col, safeBoard)) {
+            if (!hasAnySiegling
+                || canCardLinkAt(card, row, col, safeBoard)
+                || canCardUseExternalSocket(card, row, col, true)) {
                 placements.push([row, col]);
             }
         }
@@ -1698,9 +1770,10 @@ function getBuilderCardCostText(card) {
 
 function getBuilderCardSummaryText(card) {
     if (card.type === 'SIEGLING') {
-        return `HP ${card.health} | SPD ${card.speed} | ${card.preferredRow || 'ANY'}${card.evolvesFromName ? ` | Evolves from ${card.evolvesFromName}` : ''}`;
+        const statLine = getCardSummaryStatLine(card).replaceAll(':', ' ');
+        return `${statLine || 'Siegling'} | ${card.preferredRow || 'ANY'}${card.evolvesFromName ? ` | Evolves from ${card.evolvesFromName}` : ''}`;
     }
-    return card.ability?.description || 'No effect text';
+    return getCardAbilitiesSummaryText(card);
 }
 
 function resolveBuilderPreviewCard(filteredCards, chosenCards) {
@@ -1742,14 +1815,15 @@ function renderBuilderPreviewCard(card) {
     html += `<div class="card-title">${card.name}</div>`;
     html += `<div class="card-label">${card.type} / ${card.rarity}</div>`;
     html += `</div>`;
-    html += renderCardArt(card, 'preview', fallbackArtLabel);
-    html += `<div class="hand-card-body">`;
-    if (card.type === 'SIEGLING') {
-        html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
-    }
-    if (card.ability?.description) {
-        html += `<div class="card-detail">${card.ability.description}</div>`;
-    }
+        html += renderCardArt(card, 'preview', fallbackArtLabel);
+        html += `<div class="hand-card-body">`;
+        if (card.type === 'SIEGLING') {
+            const statLine = getCardSummaryStatLine(card);
+            if (statLine) {
+                html += `<div class="card-detail card-stats-line">${statLine}</div>`;
+            }
+        }
+        html += renderCardAbilityDetails(card);
     if (card.type === 'TRAP' && card.trapBucketElement) {
         html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
     } else if (card.costElement) {
@@ -1868,6 +1942,50 @@ async function castSpell(cardId, targetRow, targetCol) {
 
 function isActionCard(card) {
     return card && (card.type === 'SPELL' || card.type === 'TRAP');
+}
+
+function getCardAbilities(card) {
+    if (Array.isArray(card?.abilities) && card.abilities.length > 0) {
+        return card.abilities;
+    }
+    if (card?.ability) {
+        return [card.ability];
+    }
+    return [];
+}
+
+function getPrimaryAbility(card) {
+    return getCardAbilities(card)[0] || null;
+}
+
+function formatAbilityCostLabel(ability) {
+    if (!ability) return '';
+    const energy = Number(ability.requiredEnergy || 0);
+    if (energy <= 0) return '';
+    return `${energy} ${formatElementLabel(ability.requiredElement || 'NEUTRAL')}`;
+}
+
+function formatAbilitySummaryText(ability) {
+    if (!ability) return '';
+    const base = ability.name && ability.description
+        ? `${ability.name}: ${ability.description}`
+        : (ability.description || ability.name || 'No effect text');
+    const cost = formatAbilityCostLabel(ability);
+    return cost ? `${base} [Cost: ${cost}]` : base;
+}
+
+function getCardAbilitiesSummaryText(card) {
+    const abilities = getCardAbilities(card);
+    if (!abilities.length) {
+        return 'No effect text';
+    }
+    return abilities.map(formatAbilitySummaryText).join(' | ');
+}
+
+function renderCardAbilityDetails(card) {
+    return getCardAbilities(card).map(ability =>
+        `<div class="card-detail">${escapeHtml(formatAbilitySummaryText(ability))}</div>`
+    ).join('');
 }
 
 function getAbilityTargetSide(ability) {
@@ -2250,6 +2368,11 @@ function renderBoard(gridId, board, isPlayer) {
 
             if (cell) {
                 const elemClass = cell.element.toLowerCase();
+                const hp = formatStatValue(cell.hp);
+                const maxHp = formatStatValue(cell.maxHp);
+                const hpPercent = hp !== null && maxHp !== null && maxHp > 0
+                    ? Math.max(0, Math.min(100, (hp / maxHp) * 100))
+                    : 0;
                 html += `<div class="board-card ${elemClass}">`;
                 html += renderBoardNotches(cell.notches, { board, row: r, col: c, isPlayer, legalPlacements });
                 html += renderCardArt(cell, 'board');
@@ -2259,11 +2382,11 @@ function renderBoard(gridId, board, isPlayer) {
                     html += `<div class="status-icons">${cell.statuses.join(' ')}</div>`;
                 }
                 html += `<div class="bc-stats-box">`;
-                html += `<div class="hp-bar"><div class="hp-fill" style="width:${(cell.hp / cell.maxHp) * 100}%"></div></div>`;
-                html += `<div class="card-stats">`;
-                html += `<span class="stat stat-hp">${cell.hp}/${cell.maxHp}</span>`;
-                html += `<span class="stat stat-spd">${cell.spd}</span>`;
-                html += `</div>`;
+                html += `<div class="hp-bar"><div class="hp-fill" style="width:${hpPercent}%"></div></div>`;
+                const statBadges = renderBoardStatBadges(cell);
+                if (statBadges) {
+                    html += `<div class="card-stats">${statBadges}</div>`;
+                }
                 html += `</div>`;
                 html += `</div>`;
                 if (isLegal) {
@@ -2787,11 +2910,12 @@ function renderHand() {
         html += renderCardArt(card, 'hand', fallbackArtLabel);
         html += `<div class="hand-card-body">`;
         if (card.type === 'SIEGLING') {
-            html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
+            const statLine = getCardSummaryStatLine(card);
+            if (statLine) {
+                html += `<div class="card-detail card-stats-line">${statLine}</div>`;
+            }
         }
-        if (card.ability?.description) {
-            html += `<div class="card-detail">${escapeHtml(card.ability.description)}</div>`;
-        }
+        html += renderCardAbilityDetails(card);
         if (card.type === 'TRAP' && card.trapBucketElement) {
             html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
         } else if (card.costElement) {
@@ -2865,7 +2989,7 @@ function renderMulliganOverlay() {
         <div class="mulligan-card ${card.element.toLowerCase()}${selected}"${interactive}${click}>
             <div class="mulligan-card-name">${escapeHtml(card.name)}</div>
             <div class="mulligan-card-type">${escapeHtml(formatElementLabel(card.element))} ${escapeHtml(card.type)}</div>
-            <div class="mulligan-card-text">${escapeHtml(card.ability?.description || getBuilderCardSummaryText(card))}</div>
+            <div class="mulligan-card-text">${escapeHtml(getPrimaryAbility(card)?.description || getBuilderCardSummaryText(card))}</div>
         </div>`;
     }).join('');
 }
@@ -2975,6 +3099,30 @@ function canCardLinkAt(card, row, col, board) {
     });
 }
 
+function getExternalSocketDirectionsForCell(row, col, isPlayer) {
+    const directions = [];
+    if (col === 0) {
+        directions.push('LEFT');
+    }
+    if (col === 2) {
+        directions.push('RIGHT');
+    }
+    if (row === 0) {
+        directions.push(isPlayer ? 'BOTTOM' : 'TOP');
+    }
+    return directions;
+}
+
+function canCardUseExternalSocket(card, row, col, isPlayer) {
+    const socketDirections = getExternalSocketDirectionsForCell(row, col, isPlayer);
+    if (socketDirections.length === 0) {
+        return false;
+    }
+    return socketDirections.some(direction =>
+        (card.notches || []).some(notch => notch.direction === direction)
+    );
+}
+
 function canSelectedCardLinkAt(row, col, board) {
     return canCardLinkAt(selectedCard, row, col, board);
 }
@@ -3079,15 +3227,19 @@ function updateSelectedInfo(card, msg) {
         html += `<strong>${card.name}</strong> (${card.type})<br>`;
         html += renderCardArt(card, 'selected');
         if (card.type === 'SIEGLING') {
-            html += `HP:${card.health} SPD:${card.speed}<br>`;
+            const statLine = getCardSummaryStatLine(card);
+            if (statLine) {
+                html += `${statLine}<br>`;
+            }
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">Place this on top of ${card.evolvesFromName} to evolve it.</span>`
                 : gameState.playerPlacementUsed
                 ? '<span style="color:var(--accent)">You already placed your Siegling for this turn.</span>'
-                : '<span style="color:var(--accent)">Highlighted bubbles show where this card can expand next.</span>';
+                : '<span style="color:var(--accent)">Highlighted cells show where this card can expand next, either by linking to a creature or anchoring to an open edge socket.</span>';
         }
-        if (card.ability) {
-            html += `<em>${card.ability.description}</em><br>`;
+        const abilityDetails = getCardAbilities(card);
+        if (abilityDetails.length > 0) {
+            html += abilityDetails.map(ability => `<em>${escapeHtml(formatAbilitySummaryText(ability))}</em>`).join('<br>') + '<br>';
         }
         if (card.evolvesFromName) {
             html += `Evolves from ${card.evolvesFromName}<br>`;
@@ -3110,10 +3262,21 @@ function showTooltipBoard(event, isPlayer, row, col) {
     const tt = document.getElementById('cardTooltip');
     document.getElementById('ttName').textContent = `${cell.name} (${cell.element})`;
     document.getElementById('ttName').style.color = getElementCssVar(cell.element);
-    document.getElementById('ttStats').innerHTML =
-        `<span class="stat stat-hp">HP: ${cell.hp}/${cell.maxHp}</span>` +
-        `<span class="stat stat-spd">SPD: ${cell.spd}</span>`;
-    document.getElementById('ttAbility').textContent = cell.ability || '';
+    const hp = formatStatValue(cell.hp);
+    const maxHp = formatStatValue(cell.maxHp);
+    const speed = formatStatValue(cell.spd);
+    let statsHtml = '';
+    if (hp !== null && maxHp !== null) {
+        statsHtml += `<span class="stat stat-hp">HP: ${hp}/${maxHp}</span>`;
+    }
+    if (speed !== null) {
+        statsHtml += `<span class="stat stat-spd">SPD: ${speed}</span>`;
+    }
+    document.getElementById('ttStats').innerHTML = statsHtml;
+    const boardAbilityText = Array.isArray(cell.abilities) && cell.abilities.length
+        ? cell.abilities.map(formatAbilitySummaryText).join(' | ')
+        : (cell.ability || '');
+    document.getElementById('ttAbility').textContent = boardAbilityText;
 
     positionTooltip(event, tt);
     tt.classList.add('visible');
@@ -3129,13 +3292,18 @@ function showTooltipHand(event, cardId) {
 
     let statsHtml = '';
     if (card.type === 'SIEGLING') {
-        statsHtml =
-            `<span class="stat stat-hp">HP: ${card.health}</span>` +
-            `<span class="stat stat-spd">SPD: ${card.speed}</span>`;
+        const health = formatStatValue(card.health);
+        const speed = formatStatValue(card.speed);
+        if (health !== null) {
+            statsHtml += `<span class="stat stat-hp">HP: ${health}</span>`;
+        }
+        if (speed !== null) {
+            statsHtml += `<span class="stat stat-spd">SPD: ${speed}</span>`;
+        }
     }
     document.getElementById('ttStats').innerHTML = statsHtml;
 
-    let abilityText = card.ability ? card.ability.description : '';
+    let abilityText = getCardAbilities(card).map(formatAbilitySummaryText).join(' | ');
     if (card.type === 'TRAP') {
         abilityText += ` [Trigger: Opponent has ${card.trapBucketAmount} ${card.trapBucketElement}]`;
     } else if (card.costElement && card.costAmount > 0) {

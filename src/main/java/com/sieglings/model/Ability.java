@@ -14,7 +14,7 @@ public class Ability {
     private TargetType targetType;
     private Row targetRow;          // null = any row
     private int targetCount;        // number of targets (0 = all matching)
-    private String effectType;      // damage, heal, freeze, speed_zero, damage_boost, health_boost, move
+    private String effectType;      // See AbilityEffectKeys and ABILITY_EFFECT_KEYS.md
     private int effectValue;
     private boolean passive;
 
@@ -39,15 +39,15 @@ public class Ability {
 
     // Static factory methods for common ability patterns
     public static Ability damage(String name, String desc, TargetType target, Row row, int count, int value) {
-        return new Ability(name, desc, target, row, count, "damage", value, false);
+        return new Ability(name, desc, target, row, count, AbilityEffectKeys.DAMAGE, value, false);
     }
 
     public static Ability heal(String name, String desc, TargetType target, Row row, int count, int value) {
-        return new Ability(name, desc, target, row, count, "heal", value, false);
+        return new Ability(name, desc, target, row, count, AbilityEffectKeys.HEAL, value, false);
     }
 
     public static Ability freeze(String name, String desc, TargetType target, Row row, int count) {
-        return new Ability(name, desc, target, row, count, "freeze", 1, false);
+        return new Ability(name, desc, target, row, count, AbilityEffectKeys.FREEZE, 1, false);
     }
 
     public static Ability passive(String name, String desc, String effectType, int value) {
@@ -56,6 +56,18 @@ public class Ability {
 
     public static Ability passiveRow(String name, String desc, String effectType, int value, Row row, TargetType target) {
         return new Ability(name, desc, target, row, 0, effectType, value, true);
+    }
+
+    public static Ability connectedAlliesHealthBoost(String name, String desc, int value) {
+        return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, value, false);
+    }
+
+    public static Ability connectedAlliesDamageBoost(String name, String desc, int value) {
+        return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST, value, false);
+    }
+
+    public static Ability connectedAlliesSpeedBoost(String name, String desc, int value) {
+        return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST, value, false);
     }
 
     public Ability copy() {

@@ -1,5 +1,6 @@
 package com.sieglings.controller;
 
+import com.sieglings.model.Ability;
 import com.sieglings.model.BattleAbilityOption;
 import com.sieglings.model.Card;
 import com.sieglings.model.CardInstance;
@@ -532,15 +533,15 @@ public class GameController {
             m.put("costAmount", card.getCostAmount());
         }
 
-        if (card.getAbility() != null) {
-            Map<String, Object> ab = new LinkedHashMap<>();
-            ab.put("name", card.getAbility().getName());
-            ab.put("description", card.getAbility().getDescription());
-            ab.put("targetType", card.getAbility().getTargetType().name());
-            m.put("ability", ab);
-        }
-
         if (card instanceof SieglingCard s) {
+            if (s.getAbility() != null) {
+                m.put("ability", serializeAbility(s.getAbility()));
+            }
+            if (!s.getAbilities().isEmpty()) {
+                m.put("abilities", s.getAbilities().stream()
+                        .map(this::serializeAbility)
+                        .toList());
+            }
             m.put("health", s.getHealth());
             m.put("speed", s.getSpeed());
             m.put("preferredRow", s.getPreferredRow() == null ? null : s.getPreferredRow().name());
@@ -548,6 +549,9 @@ public class GameController {
             m.put("evolvesFromId", s.getEvolvesFromId());
             m.put("evolvesFromName", s.getEvolvesFromName());
         } else if (card instanceof SpellCard sp) {
+            if (card.getAbility() != null) {
+                m.put("ability", serializeAbility(card.getAbility()));
+            }
             if (sp.getRequiredReaction() != null) {
                 m.put("requiredReaction", sp.getRequiredReaction().name());
             }
@@ -558,8 +562,13 @@ public class GameController {
                 m.put("requiredComboSignature", sp.getRequiredComboSignature());
             }
         } else if (card instanceof TrapCard trap) {
+            if (card.getAbility() != null) {
+                m.put("ability", serializeAbility(card.getAbility()));
+            }
             m.put("trapBucketElement", trap.getCostElement() == null ? null : trap.getCostElement().name());
             m.put("trapBucketAmount", trap.getCostAmount());
+        } else if (card.getAbility() != null) {
+            m.put("ability", serializeAbility(card.getAbility()));
         }
 
         return m;
@@ -632,6 +641,11 @@ public class GameController {
                 m.put("spd", ci.getEffectiveSpeed());
                 m.put("statuses", ci.getStatusEffects().stream().map(Enum::name).toList());
                 m.put("notches", serializeNotches(ci.getNotches()));
+                if (!ci.getCard().getAbilities().isEmpty()) {
+                    m.put("abilities", ci.getCard().getAbilities().stream()
+                            .map(this::serializeAbility)
+                            .toList());
+                }
                 if (ci.getCard().getAbility() != null) {
                     m.put("ability", ci.getCard().getAbility().getDescription());
                 }
@@ -649,6 +663,22 @@ public class GameController {
                     "element", n.element().name()
             ));
         }
+        return serialized;
+    }
+
+    private Map<String, Object> serializeAbility(Ability ability) {
+        Map<String, Object> serialized = new LinkedHashMap<>();
+        serialized.put("name", ability.getName());
+        serialized.put("description", ability.getDescription());
+        serialized.put("targetType", ability.getTargetType() == null ? null : ability.getTargetType().name());
+        serialized.put("targetRow", ability.getTargetRow() == null ? null : ability.getTargetRow().name());
+        serialized.put("targetCount", ability.getTargetCount());
+        serialized.put("effectType", ability.getEffectType());
+        serialized.put("effectValue", ability.getEffectValue());
+        serialized.put("passive", ability.isPassive());
+        serialized.put("requiredElement", ability.getRequiredElement() == null ? null : ability.getRequiredElement().name());
+        serialized.put("requiredEnergy", ability.getRequiredEnergy());
+        serialized.put("requiredReaction", ability.getRequiredReaction() == null ? null : ability.getRequiredReaction().name());
         return serialized;
     }
 

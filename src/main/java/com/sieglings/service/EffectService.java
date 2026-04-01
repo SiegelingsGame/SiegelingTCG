@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Ability;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Notch;
@@ -18,6 +19,7 @@ import java.util.List;
  */
 @Service
 public class EffectService {
+    private final PlacementService placementService = new PlacementService();
 
     /**
      * Resolve an ability, applying effects to appropriate targets.
@@ -117,9 +119,22 @@ public class EffectService {
         String effectType = ability.getEffectType();
         int value = ability.getEffectValue();
 
+        if (AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST.equals(effectType)) {
+            applyConnectedAlliesDamageBoost(state, ability, source, Math.max(1, value));
+            return;
+        }
+        if (AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST.equals(effectType)) {
+            applyConnectedAlliesHealthBoost(state, ability, source, Math.max(1, value));
+            return;
+        }
+        if (AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST.equals(effectType)) {
+            applyConnectedAlliesSpeedBoost(state, ability, source, Math.max(1, value));
+            return;
+        }
+
         for (CardInstance target : targets) {
             switch (effectType) {
-                case "damage" -> {
+                case AbilityEffectKeys.DAMAGE -> {
                     int damage = value;
                     boolean weaknessBonus = false;
                     if (source != null && isWeakTo(source.getElement(), target.getElement())) {
@@ -132,37 +147,37 @@ public class EffectService {
                             + (weaknessBonus ? " (weakness +1)" : "")
                             + " (HP: " + target.getCurrentHealth() + ")");
                 }
-                case "heal" -> {
+                case AbilityEffectKeys.HEAL -> {
                     target.healDamage(value);
                     state.log(ability.getName() + " heals " + target.getName() + " for " + value
                             + " (HP: " + target.getCurrentHealth() + ")");
                 }
-                case "freeze" -> {
+                case AbilityEffectKeys.FREEZE -> {
                     target.getStatusEffects().add(StatusEffect.FREEZE);
                     state.log(ability.getName() + " freezes " + target.getName() + "!");
                 }
-                case "speed_zero" -> {
+                case AbilityEffectKeys.SPEED_ZERO -> {
                     target.getStatusEffects().add(StatusEffect.SPEED_ZERO);
                     state.log(ability.getName() + " reduces " + target.getName() + "'s Speed to 0!");
                 }
-                case "damage_boost" -> {
+                case AbilityEffectKeys.DAMAGE_BOOST -> {
                     target.addDamageBuff(Math.max(1, value));
                     state.log(ability.getName() + " boosts " + target.getName() + "'s attack damage by " + Math.max(1, value) + "!");
                 }
-                case "health_boost" -> {
+                case AbilityEffectKeys.HEALTH_BOOST -> {
                     target.addHealthBuff(Math.max(1, value));
                     state.log(ability.getName() + " raises " + target.getName() + "'s max Health by " + Math.max(1, value)
                             + " (HP: " + target.getCurrentHealth() + "/" + target.getEffectiveMaxHealth() + ")");
                 }
-                case "speed_boost" -> {
+                case AbilityEffectKeys.SPEED_BOOST -> {
                     target.setCurrentSpeed(target.getCurrentSpeed() + value);
                     state.log(ability.getName() + " increases " + target.getName() + "'s Speed by " + value + "!");
                 }
-                case "destroy" -> {
+                case AbilityEffectKeys.DESTROY -> {
                     target.takeRawDamage(target.getCurrentHealth());
                     state.log(ability.getName() + " destroys " + target.getName() + "!");
                 }
-                case "move_link" -> {
+                case AbilityEffectKeys.MOVE_LINK -> {
                     if (!moveToLinkedPoint(state, target)) {
                         state.log(ability.getName() + " cannot find an open linked point.");
                     }
@@ -177,15 +192,79 @@ public class EffectService {
         int value = ability.getEffectValue();
 
         switch (ability.getEffectType()) {
-            case "damage", "player_damage" -> {
+            case AbilityEffectKeys.DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE -> {
                 targetPlayer.takeDirectDamage(value);
                 state.log(ability.getName() + " deals " + value + " direct damage to " + targetPlayer.getName() + "!");
             }
-            case "heal" -> {
+            case AbilityEffectKeys.HEAL -> {
                 targetPlayer.healPlayer(value);
                 state.log(ability.getName() + " heals " + targetPlayer.getName() + " for " + value + ".");
             }
             default -> state.log("Unknown player effect: " + ability.getEffectType());
+        }
+    }
+
+    private void applyConnectedAlliesHealthBoost(GameState state, Ability ability, CardInstance source, int value) {
+        if (source == null) {
+            state.log(ability.getName() + " has no source card to trace connected allies.");
+            return;
+        }
+
+        List<CardInstance> connectedAllies = placementService.getConnectedAllies(state, source).stream()
+                .filter(CardInstance::isAlive)
+                .toList();
+        if (connectedAllies.isEmpty()) {
+            state.log(ability.getName() + " found no connected allies.");
+            return;
+        }
+
+        for (CardInstance ally : connectedAllies) {
+            ally.addHealthBuff(value);
+            state.log(ability.getName() + " raises " + ally.getName() + "'s max Health by " + value
+                    + " through a live connection"
+                    + " (HP: " + ally.getCurrentHealth() + "/" + ally.getEffectiveMaxHealth() + ")");
+        }
+    }
+
+    private void applyConnectedAlliesDamageBoost(GameState state, Ability ability, CardInstance source, int value) {
+        if (source == null) {
+            state.log(ability.getName() + " has no source card to trace connected allies.");
+            return;
+        }
+
+        List<CardInstance> connectedAllies = placementService.getConnectedAllies(state, source).stream()
+                .filter(CardInstance::isAlive)
+                .toList();
+        if (connectedAllies.isEmpty()) {
+            state.log(ability.getName() + " found no connected allies.");
+            return;
+        }
+
+        for (CardInstance ally : connectedAllies) {
+            ally.addDamageBuff(value);
+            state.log(ability.getName() + " raises " + ally.getName() + "'s attack damage by " + value
+                    + " through a live connection.");
+        }
+    }
+
+    private void applyConnectedAlliesSpeedBoost(GameState state, Ability ability, CardInstance source, int value) {
+        if (source == null) {
+            state.log(ability.getName() + " has no source card to trace connected allies.");
+            return;
+        }
+
+        List<CardInstance> connectedAllies = placementService.getConnectedAllies(state, source).stream()
+                .filter(CardInstance::isAlive)
+                .toList();
+        if (connectedAllies.isEmpty()) {
+            state.log(ability.getName() + " found no connected allies.");
+            return;
+        }
+
+        for (CardInstance ally : connectedAllies) {
+            ally.setCurrentSpeed(ally.getCurrentSpeed() + value);
+            state.log(ability.getName() + " raises " + ally.getName() + "'s Speed by " + value
+                    + " through a live connection.");
         }
     }
 

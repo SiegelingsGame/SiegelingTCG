@@ -210,6 +210,10 @@ final class GeneratedCreatureCatalog {
     private GeneratedCreatureCatalog() {}
 
     static List<SieglingCard> createForElement(Element element) {
+        return ManualSieglingCatalog.applyOverrides(element, createGeneratedForElement(element));
+    }
+
+    static List<SieglingCard> createGeneratedForElement(Element element) {
         return CREATURE_SEEDS.stream()
                 .filter(seed -> seed.element() == element)
                 .sorted(Comparator

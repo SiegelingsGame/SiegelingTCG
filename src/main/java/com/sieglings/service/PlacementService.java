@@ -59,8 +59,9 @@ public class PlacementService {
                     // First placement: any open square on your side of the board
                     positions.add(new int[]{row, col});
                 } else {
-                    // Subsequent placements: must complete a reciprocal notch link
-                    if (isConnectedByNotch(state, isPlayer, row, col, candidate)) {
+                    // Subsequent placements: can either complete a reciprocal notch link
+                    // or anchor directly to one of the board's perimeter sockets.
+                    if (isConnectedByAnchor(state, isPlayer, row, col, candidate)) {
                         positions.add(new int[]{row, col});
                     }
                 }
@@ -73,7 +74,7 @@ public class PlacementService {
     /**
      * Check if a position is connected to any existing friendly card's active notch.
      */
-    private boolean isConnectedByNotch(GameState state, boolean isPlayer, int targetRow, int targetCol, SieglingCard candidate) {
+    private boolean isConnectedByAnchor(GameState state, boolean isPlayer, int targetRow, int targetCol, SieglingCard candidate) {
         List<CardInstance> sieglings = getFoundationSieglings(state, isPlayer);
 
         for (CardInstance ci : sieglings) {
@@ -84,6 +85,12 @@ public class PlacementService {
                 if (adjRow == targetRow && adjCol == targetCol && candidateCanLink(candidate, notch.direction())) {
                     return true;
                 }
+            }
+        }
+
+        for (NotchDirection socketDirection : getExternalSocketDirections(targetRow, targetCol, isPlayer)) {
+            if (candidateCanLink(candidate, socketDirection.opposite())) {
+                return true;
             }
         }
 
@@ -155,7 +162,64 @@ public class PlacementService {
         List<CardInstance> connected = new ArrayList<>();
         Set<String> visited = new HashSet<>();
         collectConnected(root, sieglings, isPlayer, connected, visited);
+        for (CardInstance siegling : sieglings) {
+            if (hasExternalSocketAnchor(siegling, isPlayer)) {
+                collectConnected(siegling, sieglings, isPlayer, connected, visited);
+            }
+        }
         return connected;
+    }
+
+    boolean hasExternalSocketAnchor(CardInstance card, boolean isPlayer) {
+        return card.getNotches().stream()
+                .map(Notch::direction)
+                .anyMatch(direction -> resolveExternalSocketKey(card.getBoardRow(), card.getBoardCol(), isPlayer, direction) != null);
+    }
+
+    public List<CardInstance> getConnectedSieglings(GameState state, CardInstance source) {
+        if (state == null || source == null || !source.isAlive()) {
+            return List.of();
+        }
+
+        List<CardInstance> sieglings = state.getBoardSieglings(source.isOwner());
+        if (sieglings.isEmpty()) {
+            return List.of();
+        }
+
+        List<CardInstance> connected = new ArrayList<>();
+        Set<String> visited = new HashSet<>();
+        collectConnected(source, sieglings, source.isOwner(), connected, visited);
+        return connected;
+    }
+
+    public List<CardInstance> getConnectedAllies(GameState state, CardInstance source) {
+        return getConnectedSieglings(state, source).stream()
+                .filter(candidate -> candidate != source)
+                .toList();
+    }
+
+    String resolveExternalSocketKey(int row, int col, boolean isPlayer, NotchDirection direction) {
+        return switch (direction) {
+            case LEFT -> col == 0 ? "left-" + row : null;
+            case RIGHT -> col == 2 ? "right-" + row : null;
+            case BOTTOM -> isPlayer && row == 0 ? "outer-" + col : null;
+            case TOP -> !isPlayer && row == 0 ? "outer-" + col : null;
+            default -> null;
+        };
+    }
+
+    private List<NotchDirection> getExternalSocketDirections(int row, int col, boolean isPlayer) {
+        List<NotchDirection> directions = new ArrayList<>();
+        if (col == 0) {
+            directions.add(NotchDirection.LEFT);
+        }
+        if (col == 2) {
+            directions.add(NotchDirection.RIGHT);
+        }
+        if (row == 0) {
+            directions.add(isPlayer ? NotchDirection.BOTTOM : NotchDirection.TOP);
+        }
+        return directions;
     }
 
     private void collectConnected(CardInstance current, List<CardInstance> allSieglings, boolean isPlayer,

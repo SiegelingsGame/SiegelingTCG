@@ -649,6 +649,22 @@ body.placement-active .board-cell.legal {
     object-fit: contain;
 }
 
+.card-art-crop-illustration {
+    --card-art-zoom: 1.8;
+    --card-art-focus-y: 24%;
+    --card-art-offset-y: 0%;
+}
+
+.card-art-crop-illustration img {
+    width: calc(100% * var(--card-art-zoom));
+    height: calc(100% * var(--card-art-zoom));
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
+    object-position: center var(--card-art-focus-y);
+    transform: translateY(var(--card-art-offset-y));
+}
+
 .card-art-board {
     position: absolute;
     inset: 14px 10px 24px;
@@ -662,6 +678,12 @@ body.placement-active .board-cell.legal {
 .card-art-board img {
     opacity: 0.92;
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.18));
+}
+
+.card-art-board.card-art-crop-illustration {
+    --card-art-zoom: 2.2;
+    --card-art-focus-y: 23%;
+    --card-art-offset-y: 2%;
 }
 
 .bc-inner {
@@ -977,6 +999,12 @@ body.placement-active .board-cell.legal {
     filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.16));
 }
 
+.card-art-hand.card-art-crop-illustration {
+    --card-art-zoom: 2;
+    --card-art-focus-y: 23%;
+    --card-art-offset-y: 2%;
+}
+
 .card-art-selected {
     margin: 8px 0;
     min-height: 118px;
@@ -996,6 +1024,12 @@ body.placement-active .board-cell.legal {
     max-height: 140px;
 }
 
+.card-art-selected.card-art-crop-illustration {
+    --card-art-zoom: 2.05;
+    --card-art-focus-y: 23%;
+    --card-art-offset-y: 1%;
+}
+
 .card-art-preview {
     min-height: 150px;
     border-radius: 12px;
@@ -1013,6 +1047,12 @@ body.placement-active .board-cell.legal {
     height: auto;
     max-height: 180px;
     filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.18));
+}
+
+.card-art-preview.card-art-crop-illustration {
+    --card-art-zoom: 2.08;
+    --card-art-focus-y: 23%;
+    --card-art-offset-y: 1%;
 }
 
 .card-art-fallback {
