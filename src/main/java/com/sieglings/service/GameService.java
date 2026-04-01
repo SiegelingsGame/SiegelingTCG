@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Ability;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.BattleAbilityOption;
 import com.sieglings.model.Card;
 import com.sieglings.model.CardInstance;
@@ -551,9 +552,9 @@ public class GameService {
                 continue;
             }
             switch (passive.getEffectType()) {
-                case "damage_boost" -> ci.addDamageBuff(Math.max(1, passive.getEffectValue()));
-                case "health_boost" -> ci.addHealthBuff(Math.max(1, passive.getEffectValue()));
-                case "speed_boost" -> ci.setCurrentSpeed(ci.getCurrentSpeed() + passive.getEffectValue());
+                case AbilityEffectKeys.DAMAGE_BOOST -> ci.addDamageBuff(Math.max(1, passive.getEffectValue()));
+                case AbilityEffectKeys.HEALTH_BOOST -> ci.addHealthBuff(Math.max(1, passive.getEffectValue()));
+                case AbilityEffectKeys.SPEED_BOOST -> ci.setCurrentSpeed(ci.getCurrentSpeed() + passive.getEffectValue());
             }
         }
     }

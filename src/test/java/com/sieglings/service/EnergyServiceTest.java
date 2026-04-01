@@ -67,7 +67,7 @@ class EnergyServiceTest {
                 10,
                 1,
                 List.of(new Notch(NotchDirection.TOP, Element.FIRE)),
-                Row.MIDDLE
+                Row.BACK
         );
         SieglingCard mover = new SieglingCard(
                 "mover-fire",
@@ -80,18 +80,18 @@ class EnergyServiceTest {
                         new Notch(NotchDirection.BOTTOM, Element.FIRE),
                         new Notch(NotchDirection.RIGHT, Element.FIRE)
                 ),
-                Row.FRONT
+                Row.MIDDLE
         );
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
         state.setEnemy(new Player("AI Opponent", false));
 
-        CardInstance rootInstance = new CardInstance(root.copy(), 1, 1, true);
+        CardInstance rootInstance = new CardInstance(root.copy(), 0, 0, true);
         rootInstance.setPlacementOrder(1);
-        CardInstance moverInstance = new CardInstance(mover.copy(), 2, 1, true);
+        CardInstance moverInstance = new CardInstance(mover.copy(), 1, 0, true);
         moverInstance.setPlacementOrder(2);
-        state.setAt(true, 1, 1, rootInstance);
-        state.setAt(true, 2, 1, moverInstance);
+        state.setAt(true, 0, 0, rootInstance);
+        state.setAt(true, 1, 0, moverInstance);
 
         EnergyService.EnergyBreakdown beforeMove = energyService.getBreakdown(state, true);
         assertEquals(1, beforeMove.fireInternal());
@@ -110,7 +110,7 @@ class EnergyServiceTest {
         effectService.resolveAbility(state, move, moverInstance, true, -1, -1);
         energyService.recalculateEnergy(state);
 
-        assertTrue(state.getAt(true, 2, 2) == moverInstance, "Mover should relocate to the only open destination.");
+        assertTrue(state.getAt(true, 1, 1) == moverInstance, "Mover should relocate to the only open destination.");
         EnergyService.EnergyBreakdown afterMove = energyService.getBreakdown(state, true);
         assertEquals(0, afterMove.fireInternal());
         assertEquals(0, afterMove.fireTotal());

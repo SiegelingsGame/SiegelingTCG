@@ -251,10 +251,15 @@ public class EnergyService {
                 BoardPoint point = toBoardPoint(ci, notch, isPlayer);
 
                 if (adjRow < 0 || adjRow > 2 || adjCol < 0 || adjCol > 2) {
-                    String externalSocketKey = resolveExternalSocketKey(ci, notch, isPlayer);
-                    if (externalSocketKey != null && notch.element() != Element.NEUTRAL) {
-                        activeExternalSockets.putIfAbsent(externalSocketKey, notch.element());
-                    }
+                String externalSocketKey = placementService.resolveExternalSocketKey(
+                        ci.getBoardRow(),
+                        ci.getBoardCol(),
+                        isPlayer,
+                        notch.direction()
+                );
+                if (externalSocketKey != null && notch.element() != Element.NEUTRAL) {
+                    activeExternalSockets.putIfAbsent(externalSocketKey, notch.element());
+                }
                     continue;
                 }
 
@@ -373,20 +378,6 @@ public class EnergyService {
         String first = a.getBoardRow() + ":" + a.getBoardCol();
         String second = b.getBoardRow() + ":" + b.getBoardCol();
         return first.compareTo(second) <= 0 ? first + "|" + second : second + "|" + first;
-    }
-
-    /**
-     * External sockets only exist on the left edge, right edge, and the side of the board
-     * farthest from the arena center. Diagonal and inward-facing notches do not activate them.
-     */
-    private String resolveExternalSocketKey(CardInstance card, Notch notch, boolean isPlayer) {
-        return switch (notch.direction()) {
-            case LEFT -> card.getBoardCol() == 0 ? "left-" + card.getBoardRow() : null;
-            case RIGHT -> card.getBoardCol() == 2 ? "right-" + card.getBoardRow() : null;
-            case BOTTOM -> isPlayer && card.getBoardRow() == 0 ? "outer-" + card.getBoardCol() : null;
-            case TOP -> !isPlayer && card.getBoardRow() == 0 ? "outer-" + card.getBoardCol() : null;
-            default -> null;
-        };
     }
 
     private int getBoardRowDelta(Notch notch, boolean isPlayer) {

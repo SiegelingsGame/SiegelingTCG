@@ -1,9 +1,11 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Ability;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.BattleAbilityOption;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
+import com.sieglings.model.SieglingCard;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
@@ -151,7 +153,7 @@ public class BattleService {
 
         state.log(attacker.getName() + " uses " + ability.getName() + ".");
 
-        if (enemyBoardEmpty && "damage".equals(ability.getEffectType())) {
+        if (enemyBoardEmpty && AbilityEffectKeys.DAMAGE.equals(ability.getEffectType())) {
             int directDamage = Math.max(1, ability.getEffectValue());
             var opposingPlayer = attacker.isOwner() ? state.getEnemy() : state.getPlayer();
             opposingPlayer.takeDirectDamage(directDamage);
@@ -173,12 +175,17 @@ public class BattleService {
     }
 
     private List<Ability> buildBattleAbilities(CardInstance attacker) {
+        SieglingCard card = attacker.getCard();
+        if (card.hasExplicitAbilityLoadout() && !card.getAbilities().isEmpty()) {
+            return buildConfiguredBattleAbilities(attacker, card);
+        }
+
         List<Ability> abilities = new ArrayList<>();
         Element element = attacker.getElement();
         int strikeDamage = baseBattleDamage(attacker) + attacker.getDamageBoost();
-        String cardId = attacker.getCard().getId();
+        String cardId = card.getId();
 
-        if (attacker.getCard().getRarity() == Rarity.COMMON
+        if (card.getRarity() == Rarity.COMMON
                 && (ZERO_COST_WEAK_ATTACKERS.contains(cardId) || ZERO_COST_MOVERS.contains(cardId))) {
             Ability commonFallback = buildCommonFallbackAbility(attacker);
             abilities.add(commonFallback);
@@ -196,16 +203,21 @@ public class BattleService {
             abilities.add(basicStrike);
         }
 
-        if (attacker.getCard().getRarity() != Rarity.COMMON) {
+        if (card.getRarity() != Rarity.COMMON) {
             Ability signature = buildSignatureAbility(attacker);
-            signature.setRequiredElement(element);
-            signature.setRequiredEnergy(Math.max(2, attacker.getCard().getCostAmount()));
+            if (signature.getRequiredElement() == null && signature.getRequiredEnergy() > 0) {
+                signature.setRequiredElement(element);
+            }
+            if (signature.getRequiredEnergy() <= 0) {
+                signature.setRequiredElement(element);
+                signature.setRequiredEnergy(Math.max(2, card.getCostAmount()));
+            }
             abilities.add(signature);
         }
 
-        if (attacker.getCard().getRarity() == Rarity.RARE
-                || attacker.getCard().getRarity() == Rarity.EPIC
-                || attacker.getCard().getRarity() == Rarity.LEGENDARY) {
+        if (card.getRarity() == Rarity.RARE
+                || card.getRarity() == Rarity.EPIC
+                || card.getRarity() == Rarity.LEGENDARY) {
             int finisherDamage = strikeDamage + (attacker.getCard().getRarity() == Rarity.LEGENDARY ? 2 : 1);
             Ability finisher = Ability.damage(
                     attacker.getName() + " Burst",
@@ -225,6 +237,21 @@ public class BattleService {
             abilities.add(finisher);
         }
 
+        return abilities;
+    }
+
+    private List<Ability> buildConfiguredBattleAbilities(CardInstance attacker, SieglingCard card) {
+        List<Ability> abilities = new ArrayList<>();
+        for (Ability printed : card.getAbilities()) {
+            if (printed == null) {
+                continue;
+            }
+            Ability battleAbility = buildBattleAbilityFromPrinted(attacker, printed);
+            if (battleAbility.getRequiredEnergy() > 0 && battleAbility.getRequiredElement() == null) {
+                battleAbility.setRequiredElement(attacker.getElement());
+            }
+            abilities.add(battleAbility);
+        }
         return abilities;
     }
 
@@ -273,6 +300,10 @@ public class BattleService {
             return fallback;
         }
 
+        return buildBattleAbilityFromPrinted(attacker, printed);
+    }
+
+    private Ability buildBattleAbilityFromPrinted(CardInstance attacker, Ability printed) {
         if (!printed.isPassive()) {
             return applyAttackerDamageBonus(attacker, printed.copy());
         }
@@ -280,19 +311,27 @@ public class BattleService {
         Ability converted = new Ability(
                 printed.getName(),
                 printed.getDescription(),
-                TargetType.SINGLE_ALLY,
-                null,
-                1,
+                isConnectedNetworkBuff(printed) ? TargetType.SELF : TargetType.SINGLE_ALLY,
+                printed.getTargetRow(),
+                printed.getTargetCount(),
                 printed.getEffectType(),
                 printed.getEffectValue(),
                 false
         );
         converted.setRequiredReaction(printed.getRequiredReaction());
+        converted.setRequiredElement(printed.getRequiredElement());
+        converted.setRequiredEnergy(printed.getRequiredEnergy());
         return converted;
     }
 
+    private boolean isConnectedNetworkBuff(Ability ability) {
+        return AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST.equals(ability.getEffectType())
+                || AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST.equals(ability.getEffectType())
+                || AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST.equals(ability.getEffectType());
+    }
+
     private Ability applyAttackerDamageBonus(CardInstance attacker, Ability ability) {
-        if (!"damage".equals(ability.getEffectType())) {
+        if (!AbilityEffectKeys.DAMAGE.equals(ability.getEffectType())) {
             return ability;
         }
         int boostedDamage = Math.max(1, ability.getEffectValue() + attacker.getDamageBoost());
@@ -305,7 +344,7 @@ public class BattleService {
 
     private int baseBattleDamage(CardInstance attacker) {
         Ability printed = attacker.getCard().getAbility();
-        if (printed != null && "damage".equals(printed.getEffectType())) {
+        if (printed != null && AbilityEffectKeys.DAMAGE.equals(printed.getEffectType())) {
             return switch (printed.getTargetType()) {
                 case ALL_ENEMIES -> Math.max(2, printed.getEffectValue() - 2);
                 case ROW_ENEMIES -> Math.max(2, printed.getEffectValue() - 1);

@@ -14,16 +14,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -33,8 +30,6 @@ import java.util.stream.Stream;
  */
 @Service
 public class CardDefinitionService {
-
-    private record Family(String rootId, List<SieglingCard> members) {}
 
     public record DeckOption(
             String id,
@@ -447,196 +442,256 @@ public class CardDefinitionService {
         List<Element> elementList = orderedElements.stream().distinct().toList();
         Set<Element> elementSet = EnumSet.copyOf(elementList);
         List<Card> deck = new ArrayList<>();
-
-        // Preset deck distribution: 20 Sieglings, 10 spells, 10 traps.
-        // - Max 3 copies (enforced elsewhere for custom decks; presets follow it here too)
-        // - If a Siegling from an evolution line is included, include the full evolution tree.
-        deck.addAll(selectPresetSieglings(elements, 20, 3).stream().map(SieglingCard::copy).toList());
-        deck.addAll(selectPresetSpells(elements, 10).stream().map(SpellCard::copy).toList());
-        deck.addAll(selectPresetTraps(elements, 10, 3).stream().map(TrapCard::copy).toList());
-
+        deck.addAll(buildPresetSieglings(elementList));
+        deck.addAll(buildPresetSpells(elementSet));
+        deck.addAll(buildPresetTraps(elementSet));
         return deck;
     }
 
-    private List<SieglingCard> selectPresetSieglings(Set<Element> elements, int targetCount, int maxCopies) {
-        List<SieglingCard> pool = elements.stream()
-                .flatMap(element -> getSieglingsForElement(element).stream())
-                .map(SieglingCard::copy)
-                .toList();
+    private List<Card> buildPresetSieglings(List<Element> orderedElements) {
+        Map<Element, Integer> targets = new LinkedHashMap<>();
+        int baseTarget = PRESET_SIEGLING_COUNT / orderedElements.size();
+        int remainder = PRESET_SIEGLING_COUNT % orderedElements.size();
+        for (int i = 0; i < orderedElements.size(); i++) {
+            targets.put(orderedElements.get(i), baseTarget + (i < remainder ? 1 : 0));
+        }
 
-        Map<String, SieglingCard> byId = pool.stream()
-                .collect(Collectors.toMap(SieglingCard::getId, Function.identity(), (a, b) -> a));
-
-        // Build evolution families keyed by their root id.
-        Map<String, List<SieglingCard>> membersByRoot = new HashMap<>();
-        for (SieglingCard card : pool) {
-            String root = evolutionRootId(card, byId);
-            membersByRoot.computeIfAbsent(root, _k -> new ArrayList<>()).add(card);
+        List<Card> cards = new ArrayList<>();
+        for (Element element : orderedElements) {
+            MonsterPlan plan = solveMonsterPlan(getEvolutionLinesForElement(element), targets.get(element));
+            if (plan == null) {
+                throw new IllegalStateException("Unable to build a balanced preset Siegling package for " + element.name());
+            }
+            for (LineChoice choice : plan.choices()) {
+                for (int i = 0; i < choice.line().cards().size(); i++) {
+                    addCopies(cards, choice.line().cards().get(i), choice.copies().get(i));
+                }
+            }
         }
         return cards;
     }
 
-        List<Family> families = membersByRoot.entrySet().stream()
-                .map(entry -> new Family(entry.getKey(), entry.getValue().stream()
-                        .sorted(Comparator
-                                .comparing((SieglingCard c) -> evolutionDepth(c, byId))
-                                .thenComparing(SieglingCard::getName))
-                        .toList()))
-                .sorted(Comparator
-                        .comparingInt((Family f) -> f.members().size())
-                        .thenComparing(f -> byId.get(f.rootId()).getName().toLowerCase(Locale.ROOT)))
-                .toList();
-
-        // Pick whole families so we land exactly on targetCount.
-        List<Family> chosenFamilies = pickFamiliesExact(families, targetCount);
-        List<SieglingCard> chosen = new ArrayList<>();
-        for (Family family : chosenFamilies) {
-            chosen.addAll(family.members());
-        }
-
-        // If we landed under targetCount (shouldn't), fill with single-card families.
-        if (chosen.size() < targetCount) {
-            for (Family f : families) {
-                if (chosen.size() >= targetCount) break;
-                if (chosenFamilies.contains(f)) continue;
-                if (f.members().size() != 1) continue;
-                chosen.addAll(f.members());
-            }
-        }
-
-        // Add extra copies (favor roots / non-evolutions) up to maxCopies until we reach targetCount.
-        if (chosen.size() < targetCount) {
-            Map<String, Integer> counts = new HashMap<>();
-            for (SieglingCard c : chosen) counts.merge(c.getId(), 1, Integer::sum);
-
-            List<SieglingCard> copyPriority = chosen.stream()
-                    .sorted(Comparator
-                            .comparing((SieglingCard c) -> c.isEvolutionCard()) // false first
-                            .thenComparing(SieglingCard::getRarity)
-                            .thenComparing(SieglingCard::getName))
-                    .toList();
-
-            int cursor = 0;
-            while (chosen.size() < targetCount && !copyPriority.isEmpty()) {
-                SieglingCard pick = copyPriority.get(cursor % copyPriority.size());
-                cursor += 1;
-                int next = counts.getOrDefault(pick.getId(), 0) + 1;
-                if (next > maxCopies) continue;
-                counts.put(pick.getId(), next);
-                chosen.add(pick);
-            }
-        }
-
-        // Defensive trim (should be exact).
-        return chosen.size() <= targetCount ? chosen : chosen.subList(0, targetCount);
-    }
-
-    private List<SpellCard> selectPresetSpells(Set<Element> elements, int targetCount) {
-        boolean supportsMist = elements.contains(Element.FIRE) && elements.contains(Element.WATER);
-
+    private List<Card> buildPresetSpells(Set<Element> deckElements) {
+        boolean supportsMist = deckElements.contains(Element.FIRE) && deckElements.contains(Element.WATER);
         List<SpellCard> candidates = createSpells().stream()
-                .filter(spell -> spellFitsDeck(spell, elements))
+                .filter(spell -> spellFitsDeck(spell, deckElements))
                 .filter(spell -> spell.getRequiredReaction() == null || supportsMist)
-                .map(SpellCard::copy)
                 .sorted(Comparator
-                        .comparingInt(SpellCard::getCostAmount)
-                        .thenComparing(SpellCard::getRarity)
-                        .thenComparing(SpellCard::getName))
+                        .comparingInt((SpellCard spell) -> spell.getElement() == Element.NEUTRAL ? 1 : 0)
+                        .thenComparingInt(spell -> spell.getRequiredComboSize() > 0 ? 1 : 0)
+                        .thenComparingInt(SpellCard::getCostAmount)
+                        .thenComparingInt(SpellCard::getRequiredComboSize)
+                        .thenComparingInt(spell -> rarityOrder(spell.getRarity()))
+                        .thenComparing(Card::getName))
                 .toList();
-
-        return candidates.size() <= targetCount ? candidates : candidates.subList(0, targetCount);
+        return buildRepeatedPackage(candidates, PRESET_SPELL_COUNT);
     }
 
-    private List<TrapCard> selectPresetTraps(Set<Element> elements, int targetCount, int maxCopies) {
+    private List<Card> buildPresetTraps(Set<Element> deckElements) {
         List<TrapCard> candidates = createTraps().stream()
-                .filter(trap -> elements.contains(trap.getElement()))
-                .map(TrapCard::copy)
                 .sorted(Comparator
-                        .comparing(TrapCard::getRarity)
-                        .thenComparing(TrapCard::getName))
+                        .comparingInt((TrapCard trap) -> deckElements.contains(trap.getElement()) ? 0 : 1)
+                        .thenComparingInt(TrapCard::getCostAmount)
+                        .thenComparingInt(trap -> rarityOrder(trap.getRarity()))
+                        .thenComparing(Card::getName))
                 .toList();
+        return buildRepeatedPackage(candidates, PRESET_TRAP_COUNT);
+    }
 
-        List<TrapCard> chosen = new ArrayList<>();
-        if (candidates.isEmpty()) return chosen;
+    private MonsterPlan solveMonsterPlan(List<EvolutionLine> lines, int targetCards) {
+        return solveMonsterPlan(lines, 0, targetCards, new HashMap<>());
+    }
 
-        Map<String, Integer> counts = new HashMap<>();
-        int cursor = 0;
-        while (chosen.size() < targetCount) {
-            TrapCard pick = candidates.get(cursor % candidates.size());
-            cursor += 1;
-            int next = counts.getOrDefault(pick.getId(), 0) + 1;
-            if (next > maxCopies) {
-                // If we can't add any more copies of any candidate, stop.
-                boolean anyAvailable = candidates.stream()
-                        .anyMatch(card -> counts.getOrDefault(card.getId(), 0) < maxCopies);
-                if (!anyAvailable) break;
+    private MonsterPlan solveMonsterPlan(List<EvolutionLine> lines, int index, int remaining,
+                                         Map<String, Optional<MonsterPlan>> memo) {
+        if (remaining == 0) {
+            return new MonsterPlan(List.of(), 0);
+        }
+        if (remaining < 0 || index >= lines.size()) {
+            return null;
+        }
+
+        String memoKey = index + ":" + remaining;
+        if (memo.containsKey(memoKey)) {
+            return memo.get(memoKey).orElse(null);
+        }
+
+        EvolutionLine line = lines.get(index);
+        MonsterPlan best = solveMonsterPlan(lines, index + 1, remaining, memo);
+
+        for (List<Integer> pattern : generateLineCopyPatterns(line.cards().size(), remaining)) {
+            MonsterPlan tail = solveMonsterPlan(lines, index + 1,
+                    remaining - pattern.stream().mapToInt(Integer::intValue).sum(), memo);
+            if (tail == null) {
                 continue;
             }
-            counts.put(pick.getId(), next);
-            chosen.add(pick);
+
+            List<LineChoice> combined = new ArrayList<>();
+            combined.add(new LineChoice(line, pattern));
+            combined.addAll(tail.choices());
+            MonsterPlan candidate = new MonsterPlan(List.copyOf(combined), tail.score() + lineChoiceScore(line, pattern));
+            if (isBetterMonsterPlan(candidate, best)) {
+                best = candidate;
+            }
         }
-        return chosen;
+
+        memo.put(memoKey, Optional.ofNullable(best));
+        return best;
     }
 
-    private List<Family> pickFamiliesExact(List<Family> families, int targetSize) {
-        // Small, deterministic backtracking: family sizes are typically 1-3, so this stays cheap.
-        List<Family> best = new ArrayList<>();
-        backtrackFamilies(families, 0, targetSize, new ArrayList<>(), best);
-        if (!best.isEmpty()) return best;
-
-        // Fallback: greedy smallest-first without exceeding target.
-        int sum = 0;
-        List<Family> greedy = new ArrayList<>();
-        for (Family f : families) {
-            if (sum + f.members().size() > targetSize) continue;
-            greedy.add(f);
-            sum += f.members().size();
-            if (sum == targetSize) break;
+    private boolean isBetterMonsterPlan(MonsterPlan candidate, MonsterPlan currentBest) {
+        if (candidate == null) {
+            return false;
         }
-        return greedy;
+        if (currentBest == null) {
+            return true;
+        }
+        if (candidate.score() != currentBest.score()) {
+            return candidate.score() < currentBest.score();
+        }
+        if (candidate.choices().size() != currentBest.choices().size()) {
+            return candidate.choices().size() > currentBest.choices().size();
+        }
+        int candidateEvolutionLines = (int) candidate.choices().stream().filter(choice -> choice.line().cards().size() > 1).count();
+        int currentEvolutionLines = (int) currentBest.choices().stream().filter(choice -> choice.line().cards().size() > 1).count();
+        return candidateEvolutionLines > currentEvolutionLines;
     }
 
-    private void backtrackFamilies(List<Family> families, int idx, int remaining,
-                                   List<Family> current, List<Family> outExact) {
-        if (!outExact.isEmpty()) return;
-        if (remaining == 0) {
-            outExact.addAll(current);
+    private int lineChoiceScore(EvolutionLine line, List<Integer> copies) {
+        int stagePenalty = 0;
+        for (int i = 0; i < copies.size(); i++) {
+            stagePenalty += i * copies.get(i) * 6;
+        }
+        int soloPenalty = line.cards().size() == 1 ? 24 : line.cards().size() == 2 ? 10 : 0;
+        int rarityPenalty = line.cards().stream()
+                .mapToInt(card -> rarityOrder(card.getRarity()))
+                .sum();
+        return soloPenalty + stagePenalty + rarityPenalty - copies.stream().mapToInt(Integer::intValue).sum();
+    }
+
+    private List<List<Integer>> generateLineCopyPatterns(int lineSize, int maxTotal) {
+        List<List<Integer>> patterns = new ArrayList<>();
+        generateLineCopyPatterns(lineSize, maxTotal, 0, 3, 0, new ArrayList<>(), patterns);
+        patterns.sort(Comparator
+                .comparingInt((List<Integer> pattern) -> pattern.stream().mapToInt(Integer::intValue).sum())
+                .reversed()
+                .thenComparingInt(pattern -> {
+                    int penalty = 0;
+                    for (int i = 0; i < pattern.size(); i++) {
+                        penalty += i * pattern.get(i);
+                    }
+                    return penalty;
+                }));
+        return patterns;
+    }
+
+    private void generateLineCopyPatterns(int lineSize, int maxTotal, int index, int maxAtStage, int runningTotal,
+                                          List<Integer> current, List<List<Integer>> patterns) {
+        if (index == lineSize) {
+            if (runningTotal <= maxTotal) {
+                patterns.add(List.copyOf(current));
+            }
             return;
         }
-        if (remaining < 0 || idx >= families.size()) return;
 
-        // Include.
-        Family f = families.get(idx);
-        current.add(f);
-        backtrackFamilies(families, idx + 1, remaining - f.members().size(), current, outExact);
-        current.remove(current.size() - 1);
-
-        // Exclude.
-        backtrackFamilies(families, idx + 1, remaining, current, outExact);
+        int remainingStages = lineSize - index - 1;
+        for (int copies = Math.min(3, maxAtStage); copies >= 1; copies--) {
+            int minimumPossible = runningTotal + copies + remainingStages;
+            if (minimumPossible > maxTotal) {
+                continue;
+            }
+            current.add(copies);
+            generateLineCopyPatterns(lineSize, maxTotal, index + 1, copies, runningTotal + copies, current, patterns);
+            current.remove(current.size() - 1);
+        }
     }
 
-    private String evolutionRootId(SieglingCard card, Map<String, SieglingCard> byId) {
-        String current = card.getId();
-        String from = card.getEvolvesFromId();
-        while (from != null && !from.isBlank()) {
-            SieglingCard prev = byId.get(from);
-            if (prev == null) break;
-            current = prev.getId();
-            from = prev.getEvolvesFromId();
+    private List<EvolutionLine> getEvolutionLinesForElement(Element element) {
+        List<SieglingCard> cards = getSieglingsForElement(element);
+        Map<String, SieglingCard> byId = cards.stream()
+                .collect(Collectors.toMap(Card::getId, card -> card, (left, right) -> left, LinkedHashMap::new));
+        Map<String, List<SieglingCard>> byRoot = new LinkedHashMap<>();
+        for (SieglingCard card : cards) {
+            String rootId = resolveEvolutionRoot(card, byId);
+            byRoot.computeIfAbsent(rootId, ignored -> new ArrayList<>()).add(card);
         }
-        return current;
+
+        return byRoot.entrySet().stream()
+                .map(entry -> new EvolutionLine(
+                        entry.getKey(),
+                        entry.getValue().stream()
+                                .sorted(Comparator
+                                        .comparingInt((SieglingCard card) -> evolutionDepth(card, byId))
+                                        .thenComparingInt(card -> rarityOrder(card.getRarity()))
+                                        .thenComparing(Card::getName))
+                                .toList()))
+                .sorted(Comparator
+                        .comparingInt((EvolutionLine line) -> line.cards().size() == 1 ? 1 : 0)
+                        .thenComparing(line -> line.cards().get(0).getName()))
+                .toList();
+    }
+
+    private String resolveEvolutionRoot(SieglingCard card, Map<String, SieglingCard> byId) {
+        SieglingCard current = card;
+        while (current.getEvolvesFromId() != null && byId.containsKey(current.getEvolvesFromId())) {
+            current = byId.get(current.getEvolvesFromId());
+        }
+        return current.getId();
     }
 
     private int evolutionDepth(SieglingCard card, Map<String, SieglingCard> byId) {
         int depth = 0;
-        String from = card.getEvolvesFromId();
-        while (from != null && !from.isBlank()) {
-            SieglingCard prev = byId.get(from);
-            if (prev == null) break;
+        SieglingCard current = card;
+        while (current.getEvolvesFromId() != null && byId.containsKey(current.getEvolvesFromId())) {
+            current = byId.get(current.getEvolvesFromId());
             depth += 1;
-            from = prev.getEvolvesFromId();
         }
         return depth;
+    }
+
+    private <T extends Card> List<Card> buildRepeatedPackage(List<T> orderedCandidates, int targetCount) {
+        if (orderedCandidates.isEmpty()) {
+            throw new IllegalStateException("Unable to build preset package with no candidates.");
+        }
+
+        List<Card> cards = new ArrayList<>();
+        Map<String, Integer> counts = new HashMap<>();
+        int candidateIndex = 0;
+        for (int preferredCopies : TEN_CARD_COPY_PATTERN) {
+            T candidate = orderedCandidates.get(candidateIndex % orderedCandidates.size());
+            int allowedCopies = Math.min(preferredCopies, getDeckBuilderMaxCopies() - counts.getOrDefault(candidate.getId(), 0));
+            for (int i = 0; i < allowedCopies; i++) {
+                cards.add(copyCard(candidate));
+            }
+            counts.put(candidate.getId(), counts.getOrDefault(candidate.getId(), 0) + allowedCopies);
+            candidateIndex += 1;
+        }
+
+        while (cards.size() < targetCount) {
+            boolean addedAny = false;
+            for (T candidate : orderedCandidates) {
+                if (cards.size() >= targetCount) {
+                    break;
+                }
+                if (counts.getOrDefault(candidate.getId(), 0) >= getDeckBuilderMaxCopies()) {
+                    continue;
+                }
+                cards.add(copyCard(candidate));
+                counts.put(candidate.getId(), counts.getOrDefault(candidate.getId(), 0) + 1);
+                addedAny = true;
+            }
+            if (!addedAny) {
+                throw new IllegalStateException("Unable to satisfy preset package size without breaking copy limits.");
+            }
+        }
+
+        return cards;
+    }
+
+    private void addCopies(List<Card> deck, Card card, int copies) {
+        for (int i = 0; i < copies; i++) {
+            deck.add(copyCard(card));
+        }
     }
 
     private List<SieglingCard> getSieglingsForElement(Element element) {

@@ -1,0 +1,6037 @@
+{
+  "cards" : [ {
+    "id" : "draco",
+    "name" : "Draco",
+    "element" : "FIRE",
+    "rarity" : "COMMON",
+    "health" : 9,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP",
+      "element" : "FIRE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Draco Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "dracoil",
+    "name" : "Dracoil",
+    "element" : "FIRE",
+    "rarity" : "RARE",
+    "health" : 16,
+    "speed" : 9,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "draco",
+    "costElement" : "FIRE",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Dracoil Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Dracoil Ambush",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Dracoil Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "emberfin",
+    "name" : "Emberfin",
+    "element" : "FIRE",
+    "rarity" : "UNCOMMON",
+    "health" : 12,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Emberfin Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Emberfin Ambush",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "cindergil",
+    "name" : "Cindergil",
+    "element" : "FIRE",
+    "rarity" : "RARE",
+    "health" : 17,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "emberfin",
+    "costElement" : "FIRE",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Cindergil Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Cindergil Hearth",
+      "description" : "All Fire allies gain +2 attack damage",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "damage_boost",
+      "effectValue" : 2,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Cindergil Burst",
+      "description" : "Deal 5 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "pylook",
+    "name" : "Pylook",
+    "element" : "FIRE",
+    "rarity" : "COMMON",
+    "health" : 10,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Pylook Drift",
+      "description" : "Move this Siegling to an open linked point",
+      "targetType" : "SELF",
+      "targetCount" : 1,
+      "effectType" : "move_link",
+      "effectValue" : 0,
+      "passive" : false,
+      "requiredEnergy" : 0
+    } ]
+  }, {
+    "id" : "pyleer",
+    "name" : "Pyleer",
+    "element" : "FIRE",
+    "rarity" : "RARE",
+    "health" : 16,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "pylook",
+    "costElement" : "FIRE",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Pyleer Strike",
+      "description" : "Deal 8 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Pyleer Flame Arc",
+      "description" : "Deal 9 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Pyleer Burst",
+      "description" : "Deal 9 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "sundile",
+    "name" : "Sundile",
+    "element" : "FIRE",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 3,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Sundile Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "raydile",
+    "name" : "Raydile",
+    "element" : "FIRE",
+    "rarity" : "UNCOMMON",
+    "health" : 16,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "FIRE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "sundile",
+    "costElement" : "FIRE",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Raydile Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Raydile Shield Bash",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetRow" : "FRONT",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "solgator",
+    "name" : "Solgator",
+    "element" : "FIRE",
+    "rarity" : "EPIC",
+    "health" : 22,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP",
+      "element" : "FIRE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "raydile",
+    "costElement" : "FIRE",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Solgator Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Solgator Shield Bash",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetRow" : "FRONT",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Solgator Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 4
+    } ]
+  }, {
+    "id" : "emberfox",
+    "name" : "Emberfox",
+    "element" : "FIRE",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "FIRE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Emberfox Poke",
+      "description" : "Deal 1 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredEnergy" : 0
+    } ]
+  }, {
+    "id" : "emberpup",
+    "name" : "Emberpup",
+    "element" : "FIRE",
+    "rarity" : "UNCOMMON",
+    "health" : 13,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Emberpup Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Emberpup Charge",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "firsky",
+    "name" : "Firsky",
+    "element" : "FIRE",
+    "rarity" : "COMMON",
+    "health" : 10,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Firsky Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "hotdog",
+    "name" : "Hotdog",
+    "element" : "FIRE",
+    "rarity" : "RARE",
+    "health" : 15,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "FRONT",
+    "costElement" : "FIRE",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Hotdog Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Hotdog Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Hotdog Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "hotty",
+    "name" : "Hotty",
+    "element" : "FIRE",
+    "rarity" : "UNCOMMON",
+    "health" : 13,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Hotty Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Hotty Hearth",
+      "description" : "All Fire allies gain +1 attack damage",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "damage_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "pylord",
+    "name" : "Pylord",
+    "element" : "FIRE",
+    "rarity" : "LEGENDARY",
+    "health" : 19,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "TOP",
+      "element" : "FIRE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "FIRE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "FIRE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "FIRE"
+    } ],
+    "preferredRow" : "FRONT",
+    "costElement" : "FIRE",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Pylord Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Pylord Charge",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Pylord Burst",
+      "description" : "Deal 11 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 11,
+      "passive" : false,
+      "requiredElement" : "FIRE",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "cacty",
+    "name" : "Cacty",
+    "element" : "EARTH",
+    "rarity" : "COMMON",
+    "health" : 13,
+    "speed" : 3,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Cacty Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "jackedty",
+    "name" : "Jacked'ty",
+    "element" : "EARTH",
+    "rarity" : "UNCOMMON",
+    "health" : 17,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "cacty",
+    "costElement" : "EARTH",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Jacked'ty Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Jacked'ty Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "cactyjackedty",
+    "name" : "CactyJackedty",
+    "element" : "EARTH",
+    "rarity" : "RARE",
+    "health" : 21,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "EARTH"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "jackedty",
+    "costElement" : "EARTH",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "CactyJackedty Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "CactyJackedty Charge",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "CactyJackedty Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "pylme",
+    "name" : "Pylme",
+    "element" : "EARTH",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "EARTH"
+    }, {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Pylme Strike",
+      "description" : "Deal 1 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "bonoblade",
+    "name" : "Bonoblade",
+    "element" : "EARTH",
+    "rarity" : "UNCOMMON",
+    "health" : 16,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "EARTH"
+    }, {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "pylme",
+    "costElement" : "EARTH",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Bonoblade Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Bonoblade Ambush",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "guerilla",
+    "name" : "Guerilla",
+    "element" : "EARTH",
+    "rarity" : "RARE",
+    "health" : 21,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "bonoblade",
+    "costElement" : "EARTH",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Guerilla Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Guerilla Charge",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Guerilla Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "sleaf",
+    "name" : "Sleaf",
+    "element" : "EARTH",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Sleaf Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "sleafwyrm",
+    "name" : "Sleafwyrm",
+    "element" : "EARTH",
+    "rarity" : "RARE",
+    "health" : 18,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "sleaf",
+    "costElement" : "EARTH",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Sleafwyrm Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Sleafwyrm Ambush",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Sleafwyrm Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "dracosleaf",
+    "name" : "Dracosleaf",
+    "element" : "EARTH",
+    "rarity" : "RARE",
+    "health" : 21,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "sleafwyrm",
+    "costElement" : "EARTH",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Dracosleaf Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Dracosleaf Charge",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Dracosleaf Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "squirebud",
+    "name" : "Squire Bud",
+    "element" : "EARTH",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "EARTH"
+    }, {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Squire Bud Drift",
+      "description" : "Move this Siegling to an open linked point",
+      "targetType" : "SELF",
+      "targetCount" : 1,
+      "effectType" : "move_link",
+      "effectValue" : 0,
+      "passive" : false,
+      "requiredEnergy" : 0
+    } ]
+  }, {
+    "id" : "floraknight",
+    "name" : "Flora Knight",
+    "element" : "EARTH",
+    "rarity" : "UNCOMMON",
+    "health" : 16,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "squirebud",
+    "costElement" : "EARTH",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Flora Knight Strike",
+      "description" : "Deal 2 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 2,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Flora Knight Rootbind",
+      "description" : "Set 1 enemy's Speed to 0 for this turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "speed_zero",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "generoot",
+    "name" : "Generoot",
+    "element" : "EARTH",
+    "rarity" : "RARE",
+    "health" : 21,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "EARTH"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "floraknight",
+    "costElement" : "EARTH",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Generoot Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Generoot Charge",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Generoot Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "applehead",
+    "name" : "Applehead",
+    "element" : "EARTH",
+    "rarity" : "COMMON",
+    "health" : 14,
+    "speed" : 2,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP",
+      "element" : "EARTH"
+    }, {
+      "direction" : "LEFT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Applehead Poke",
+      "description" : "Deal 1 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredEnergy" : 0
+    } ]
+  }, {
+    "id" : "gymstone",
+    "name" : "Gymstone",
+    "element" : "EARTH",
+    "rarity" : "LEGENDARY",
+    "health" : 22,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "FRONT",
+    "costElement" : "EARTH",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Gymstone Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Gymstone Barkplate",
+      "description" : "This Siegling gains +1 max Health",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "health_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Gymstone Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "mossy",
+    "name" : "Mossy",
+    "element" : "EARTH",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "EARTH"
+    }, {
+      "direction" : "TOP",
+      "element" : "EARTH"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "EARTH"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "EARTH"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Mossy Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Mossy Charge",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "EARTH",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "breezee",
+    "name" : "Breezee",
+    "element" : "WIND",
+    "rarity" : "COMMON",
+    "health" : 10,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Breezee Drift",
+      "description" : "Move this Siegling to an open linked point",
+      "targetType" : "SELF",
+      "targetCount" : 1,
+      "effectType" : "move_link",
+      "effectValue" : 0,
+      "passive" : false,
+      "requiredEnergy" : 0
+    } ]
+  }, {
+    "id" : "gagglestand",
+    "name" : "Gagglestand",
+    "element" : "WIND",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "breezee",
+    "costElement" : "WIND",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Gagglestand Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Gagglestand Tailwind",
+      "description" : "All Wind allies gain +1 Speed",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "speed_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "hurricrane",
+    "name" : "Hurricrane",
+    "element" : "WIND",
+    "rarity" : "EPIC",
+    "health" : 20,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "gagglestand",
+    "costElement" : "WIND",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Hurricrane Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Hurricrane Skyrend",
+      "description" : "Deal 10 damage to all enemies in Back Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "BACK",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Hurricrane Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 4
+    } ]
+  }, {
+    "id" : "cloudpuff",
+    "name" : "Cloudpuff",
+    "element" : "WIND",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Cloudpuff Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "cloudwisp",
+    "name" : "Cloudwisp",
+    "element" : "WIND",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "cloudpuff",
+    "costElement" : "WIND",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Cloudwisp Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Cloudwisp Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "cloudsprite",
+    "name" : "Cloudsprite",
+    "element" : "WIND",
+    "rarity" : "EPIC",
+    "health" : 20,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "cloudwisp",
+    "costElement" : "WIND",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Cloudsprite Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Cloudsprite Skyrend",
+      "description" : "Deal 10 damage to all enemies in Back Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "BACK",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Cloudsprite Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 4
+    } ]
+  }, {
+    "id" : "pursula",
+    "name" : "Pursula",
+    "element" : "WIND",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Pursula Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "purseus",
+    "name" : "Purseus",
+    "element" : "WIND",
+    "rarity" : "UNCOMMON",
+    "health" : 14,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "pursula",
+    "costElement" : "WIND",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Purseus Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Purseus Skyrend",
+      "description" : "Deal 7 damage to all enemies in Back Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "BACK",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "pursephone",
+    "name" : "Pursephone",
+    "element" : "WIND",
+    "rarity" : "EPIC",
+    "health" : 20,
+    "speed" : 11,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "purseus",
+    "costElement" : "WIND",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Pursephone Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Pursephone Slipstream",
+      "description" : "Set 1 enemy's Speed to 0 for this turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "speed_zero",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Pursephone Burst",
+      "description" : "Deal 7 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 4
+    } ]
+  }, {
+    "id" : "shellshock",
+    "name" : "Shellshock",
+    "element" : "WIND",
+    "rarity" : "RARE",
+    "health" : 14,
+    "speed" : 10,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "costElement" : "WIND",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Shellshock Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Shellshock Slipstream",
+      "description" : "Set 1 enemy's Speed to 0 for this turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "speed_zero",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Shellshock Burst",
+      "description" : "Deal 6 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "strikehawk",
+    "name" : "Strikehawk",
+    "element" : "WIND",
+    "rarity" : "RARE",
+    "health" : 17,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WIND"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "shellshock",
+    "costElement" : "WIND",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Strikehawk Strike",
+      "description" : "Deal 8 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Strikehawk Charge",
+      "description" : "Deal 8 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Strikehawk Burst",
+      "description" : "Deal 9 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "aerovane",
+    "name" : "Aerovane",
+    "element" : "WIND",
+    "rarity" : "LEGENDARY",
+    "health" : 18,
+    "speed" : 12,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "costElement" : "WIND",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Aerovane Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Aerovane Slipstream",
+      "description" : "Set 1 enemy's Speed to 0 for this turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "speed_zero",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Aerovane Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "lofty",
+    "name" : "Lofty",
+    "element" : "WIND",
+    "rarity" : "UNCOMMON",
+    "health" : 12,
+    "speed" : 9,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Lofty Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Lofty Slipstream",
+      "description" : "Set 1 enemy's Speed to 0 for this turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "speed_zero",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "skydon",
+    "name" : "Skydon",
+    "element" : "WIND",
+    "rarity" : "RARE",
+    "health" : 15,
+    "speed" : 9,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WIND"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "WIND"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WIND"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "WIND",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Skydon Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Skydon Tailwind",
+      "description" : "All Wind allies gain +1 Speed",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "speed_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Skydon Burst",
+      "description" : "Deal 5 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "WIND",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "ceeponee",
+    "name" : "Ceeponee",
+    "element" : "WATER",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Ceeponee Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "ceehorcee",
+    "name" : "Ceehorcee",
+    "element" : "WATER",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "ceeponee",
+    "costElement" : "WATER",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Ceehorcee Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Ceehorcee Undertow Fang",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "ceesteed",
+    "name" : "Ceesteed",
+    "element" : "WATER",
+    "rarity" : "RARE",
+    "health" : 21,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "ceehorcee",
+    "costElement" : "WATER",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Ceesteed Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Ceesteed Cold Anchor",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Ceesteed Burst",
+      "description" : "Deal 6 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "clawkid",
+    "name" : "Clawkid",
+    "element" : "WATER",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Clawkid Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Clawkid Cold Anchor",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "clawqueen",
+    "name" : "Claw Queen",
+    "element" : "WATER",
+    "rarity" : "RARE",
+    "health" : 17,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "clawkid",
+    "costElement" : "WATER",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Claw Queen Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Claw Queen Frostwake",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Claw Queen Burst",
+      "description" : "Deal 5 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "jawby",
+    "name" : "Jawby",
+    "element" : "WATER",
+    "rarity" : "COMMON",
+    "health" : 13,
+    "speed" : 3,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Jawby Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "jawbite",
+    "name" : "Jawbite",
+    "element" : "WATER",
+    "rarity" : "RARE",
+    "health" : 18,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "jawby",
+    "costElement" : "WATER",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Jawbite Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Jawbite Flow Mend",
+      "description" : "Heal all allies for 4",
+      "targetType" : "ALL_ALLIES",
+      "targetCount" : 0,
+      "effectType" : "heal",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Jawbite Burst",
+      "description" : "Deal 5 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "shellpack",
+    "name" : "Shellpack",
+    "element" : "WATER",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Shellpack Strike",
+      "description" : "Deal 1 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "torqlander",
+    "name" : "Torqlander",
+    "element" : "WATER",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "shellpack",
+    "costElement" : "WATER",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Torqlander Strike",
+      "description" : "Deal 2 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 2,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Torqlander Frostwake",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "shellnaut",
+    "name" : "Shellnaut",
+    "element" : "WATER",
+    "rarity" : "RARE",
+    "health" : 21,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "torqlander",
+    "costElement" : "WATER",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Shellnaut Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Shellnaut Cold Anchor",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Shellnaut Burst",
+      "description" : "Deal 6 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "spoutyl",
+    "name" : "Spoutyl",
+    "element" : "WATER",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Spoutyl Drift",
+      "description" : "Move this Siegling to an open linked point",
+      "targetType" : "SELF",
+      "targetCount" : 1,
+      "effectType" : "move_link",
+      "effectValue" : 0,
+      "passive" : false,
+      "requiredEnergy" : 0
+    } ]
+  }, {
+    "id" : "droxyl",
+    "name" : "Droxyl",
+    "element" : "WATER",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "spoutyl",
+    "costElement" : "WATER",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Droxyl Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Droxyl Undertow Fang",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "hydroxyl",
+    "name" : "Hydroxyl",
+    "element" : "WATER",
+    "rarity" : "RARE",
+    "health" : 19,
+    "speed" : 9,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "droxyl",
+    "costElement" : "WATER",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Hydroxyl Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Hydroxyl Undertow Fang",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Hydroxyl Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "conchious",
+    "name" : "Conchious",
+    "element" : "WATER",
+    "rarity" : "LEGENDARY",
+    "health" : 19,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "WATER"
+    }, {
+      "direction" : "LEFT",
+      "element" : "WATER"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "WATER"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "WATER",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Conchious Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Conchious Frostwake",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Conchious Burst",
+      "description" : "Deal 7 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "WATER",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "falcool",
+    "name" : "Falcool",
+    "element" : "ICE",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Falcool Strike",
+      "description" : "Deal 1 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "falcoat",
+    "name" : "Falcoat",
+    "element" : "ICE",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "falcool",
+    "costElement" : "ICE",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Falcoat Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Falcoat Flashfreeze",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "peatbeak",
+    "name" : "Peatbeak",
+    "element" : "ICE",
+    "rarity" : "RARE",
+    "health" : 21,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP",
+      "element" : "ICE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "falcoat",
+    "costElement" : "ICE",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Peatbeak Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Peatbeak Rime Anchor",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Peatbeak Burst",
+      "description" : "Deal 6 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "fawny",
+    "name" : "Fawny",
+    "element" : "ICE",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Fawny Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "chilldoe",
+    "name" : "Chilldoe",
+    "element" : "ICE",
+    "rarity" : "UNCOMMON",
+    "health" : 16,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "ICE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "fawny",
+    "costElement" : "ICE",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Chilldoe Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Chilldoe Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "frostag",
+    "name" : "Frostag",
+    "element" : "ICE",
+    "rarity" : "RARE",
+    "health" : 19,
+    "speed" : 9,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "chilldoe",
+    "costElement" : "ICE",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Frostag Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Frostag Flashfreeze",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Frostag Burst",
+      "description" : "Deal 6 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "icewee",
+    "name" : "Ice-Wee",
+    "element" : "ICE",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Ice-Wee Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "icecuewee",
+    "name" : "Ice-Cue-Wee",
+    "element" : "ICE",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "icewee",
+    "costElement" : "ICE",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Ice-Cue-Wee Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Ice-Cue-Wee Flashfreeze",
+      "description" : "Freeze 1 enemy for 1 turn",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "freeze",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "cozycub",
+    "name" : "Cozycub",
+    "element" : "ICE",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Cozycub Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "frostfly",
+    "name" : "Frostfly",
+    "element" : "ICE",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Frostfly Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "frosty",
+    "name" : "Frosty",
+    "element" : "ICE",
+    "rarity" : "UNCOMMON",
+    "health" : 13,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Frosty Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Frosty Hailburst",
+      "description" : "Deal 6 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "glaciemperor",
+    "name" : "Glaciemperor",
+    "element" : "ICE",
+    "rarity" : "LEGENDARY",
+    "health" : 19,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "ICE",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Glaciemperor Strike",
+      "description" : "Deal 8 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Glaciemperor Hailburst",
+      "description" : "Deal 9 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Glaciemperor Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "lumina",
+    "name" : "Lumina",
+    "element" : "ICE",
+    "rarity" : "RARE",
+    "health" : 15,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP",
+      "element" : "ICE"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ICE"
+    }, {
+      "direction" : "LEFT",
+      "element" : "ICE"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "ICE",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Lumina Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Lumina Hailburst",
+      "description" : "Deal 7 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Lumina Burst",
+      "description" : "Deal 7 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ICE",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "echo",
+    "name" : "Echo",
+    "element" : "SHADOW",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Echo Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "echowing",
+    "name" : "Echowing",
+    "element" : "SHADOW",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "echo",
+    "costElement" : "SHADOW",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Echowing Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Echowing Ambush",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "echolustrious",
+    "name" : "Echolustrious",
+    "element" : "SHADOW",
+    "rarity" : "RARE",
+    "health" : 19,
+    "speed" : 9,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "echowing",
+    "costElement" : "SHADOW",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Echolustrious Strike",
+      "description" : "Deal 8 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Echolustrious Ambush",
+      "description" : "Deal 8 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Echolustrious Burst",
+      "description" : "Deal 9 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "abysscrawler",
+    "name" : "Abysscrawler",
+    "element" : "SHADOW",
+    "rarity" : "RARE",
+    "health" : 16,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "FRONT",
+    "costElement" : "SHADOW",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Abysscrawler Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Abysscrawler Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Abysscrawler Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "doomshield",
+    "name" : "Doomshield",
+    "element" : "SHADOW",
+    "rarity" : "RARE",
+    "health" : 17,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "FRONT",
+    "costElement" : "SHADOW",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Doomshield Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Doomshield Dusk Carapace",
+      "description" : "This Siegling gains +1 max Health",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "health_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Doomshield Burst",
+      "description" : "Deal 6 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "dreadpup",
+    "name" : "Dreadpup",
+    "element" : "SHADOW",
+    "rarity" : "UNCOMMON",
+    "health" : 14,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Dreadpup Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Dreadpup Charge",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "duskmoth",
+    "name" : "Duskmoth",
+    "element" : "SHADOW",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Duskmoth Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "grimshell",
+    "name" : "Grimshell",
+    "element" : "SHADOW",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Grimshell Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Grimshell Dusk Carapace",
+      "description" : "This Siegling gains +1 max Health",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "health_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "hexweaver",
+    "name" : "Hexweaver",
+    "element" : "SHADOW",
+    "rarity" : "UNCOMMON",
+    "health" : 13,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Hexweaver Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Hexweaver Umbra Volley",
+      "description" : "Deal 6 damage to all enemies in Back Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "BACK",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "murkling",
+    "name" : "Murkling",
+    "element" : "SHADOW",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Murkling Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "phantomsteed",
+    "name" : "Phantomsteed",
+    "element" : "SHADOW",
+    "rarity" : "RARE",
+    "health" : 16,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "SHADOW",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Phantomsteed Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Phantomsteed Night Chorus",
+      "description" : "All Shadow allies gain +1 attack damage",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "damage_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Phantomsteed Burst",
+      "description" : "Deal 5 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "shadeblob",
+    "name" : "Shadeblob",
+    "element" : "SHADOW",
+    "rarity" : "COMMON",
+    "health" : 13,
+    "speed" : 3,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Shadeblob Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "umbralwyrm",
+    "name" : "Umbralwyrm",
+    "element" : "SHADOW",
+    "rarity" : "RARE",
+    "health" : 15,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "LEFT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "SHADOW",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Umbralwyrm Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Umbralwyrm Umbra Volley",
+      "description" : "Deal 7 damage to all enemies in Back Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "BACK",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Umbralwyrm Burst",
+      "description" : "Deal 7 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "voidmaw",
+    "name" : "Voidmaw",
+    "element" : "SHADOW",
+    "rarity" : "LEGENDARY",
+    "health" : 19,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "LEFT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "SHADOW",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Voidmaw Strike",
+      "description" : "Deal 8 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Voidmaw Umbra Volley",
+      "description" : "Deal 9 damage to all enemies in Back Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "BACK",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Voidmaw Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "whisperling",
+    "name" : "Whisperling",
+    "element" : "SHADOW",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "LEFT",
+      "element" : "SHADOW"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "SHADOW"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Whisperling Strike",
+      "description" : "Deal 1 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "SHADOW",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "newt",
+    "name" : "Newt",
+    "element" : "ELECTRIC",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Newt Strike",
+      "description" : "Deal 2 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 2,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "newton",
+    "name" : "New Ton",
+    "element" : "ELECTRIC",
+    "rarity" : "RARE",
+    "health" : 18,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "newt",
+    "costElement" : "ELECTRIC",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "New Ton Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "New Ton Shock Ram",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetRow" : "FRONT",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "New Ton Burst",
+      "description" : "Deal 6 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "staticap",
+    "name" : "Staticap",
+    "element" : "ELECTRIC",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Staticap Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "joltram",
+    "name" : "Joltram",
+    "element" : "ELECTRIC",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "staticap",
+    "costElement" : "ELECTRIC",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Joltram Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Joltram Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "bleetsrike",
+    "name" : "Bleetsrike",
+    "element" : "ELECTRIC",
+    "rarity" : "EPIC",
+    "health" : 21,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "joltram",
+    "costElement" : "ELECTRIC",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Bleetsrike Strike",
+      "description" : "Deal 10 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Bleetsrike Charge",
+      "description" : "Deal 10 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Bleetsrike Burst",
+      "description" : "Deal 11 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 11,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 4
+    } ]
+  }, {
+    "id" : "blinky",
+    "name" : "Blinky",
+    "element" : "ELECTRIC",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Blinky Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "kilokong",
+    "name" : "Kilokong",
+    "element" : "ELECTRIC",
+    "rarity" : "RARE",
+    "health" : 15,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "FRONT",
+    "costElement" : "ELECTRIC",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Kilokong Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Kilokong Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Kilokong Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "monkwatt",
+    "name" : "Monkwatt",
+    "element" : "ELECTRIC",
+    "rarity" : "COMMON",
+    "health" : 10,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Monkwatt Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "simicircuit",
+    "name" : "Simicircuit",
+    "element" : "ELECTRIC",
+    "rarity" : "UNCOMMON",
+    "health" : 13,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Simicircuit Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Simicircuit Static Choir",
+      "description" : "All Electric allies gain +1 Speed",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "speed_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "stormclaw",
+    "name" : "Stormclaw",
+    "element" : "ELECTRIC",
+    "rarity" : "RARE",
+    "health" : 15,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "LEFT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "FRONT",
+    "costElement" : "ELECTRIC",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Stormclaw Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Stormclaw Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Stormclaw Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "thunderlord",
+    "name" : "Thunderlord",
+    "element" : "ELECTRIC",
+    "rarity" : "LEGENDARY",
+    "health" : 18,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "ELECTRIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "ELECTRIC"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "ELECTRIC",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Thunderlord Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Thunderlord Chainflash",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Thunderlord Burst",
+      "description" : "Deal 11 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 11,
+      "passive" : false,
+      "requiredElement" : "ELECTRIC",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "coppkit",
+    "name" : "Coppkit",
+    "element" : "METAL",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 3,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Coppkit Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "brassguard",
+    "name" : "Brassguard",
+    "element" : "METAL",
+    "rarity" : "UNCOMMON",
+    "health" : 16,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "coppkit",
+    "costElement" : "METAL",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Brassguard Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Brassguard Guard",
+      "description" : "This Siegling gains +1 max Health",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "health_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "steelwarden",
+    "name" : "Steelwarden",
+    "element" : "METAL",
+    "rarity" : "RARE",
+    "health" : 20,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "METAL"
+    }, {
+      "direction" : "LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "brassguard",
+    "costElement" : "METAL",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Steelwarden Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Steelwarden Guard",
+      "description" : "This Siegling gains +1 max Health",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "health_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Steelwarden Burst",
+      "description" : "Deal 6 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "gearling",
+    "name" : "Gearling",
+    "element" : "METAL",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Gearling Strike",
+      "description" : "Deal 1 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "clockwerk",
+    "name" : "Clockwerk",
+    "element" : "METAL",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP",
+      "element" : "METAL"
+    }, {
+      "direction" : "LEFT",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "gearling",
+    "costElement" : "METAL",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Clockwerk Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Clockwerk Rally",
+      "description" : "Heal 1 ally for 2",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 1,
+      "effectType" : "heal",
+      "effectValue" : 2,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "tinpaw",
+    "name" : "Tinpaw",
+    "element" : "METAL",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Tinpaw Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "ironmaw",
+    "name" : "Ironmaw",
+    "element" : "METAL",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "tinpaw",
+    "costElement" : "METAL",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Ironmaw Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Ironmaw Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "titanjaw",
+    "name" : "Titanjaw",
+    "element" : "METAL",
+    "rarity" : "RARE",
+    "health" : 19,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "ironmaw",
+    "costElement" : "METAL",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Titanjaw Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Titanjaw Charge",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Titanjaw Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "chromelord",
+    "name" : "Chromelord",
+    "element" : "METAL",
+    "rarity" : "LEGENDARY",
+    "health" : 20,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP",
+      "element" : "METAL"
+    }, {
+      "direction" : "LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "FRONT",
+    "costElement" : "METAL",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Chromelord Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Chromelord Guard",
+      "description" : "This Siegling gains +1 max Health",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 0,
+      "effectType" : "health_boost",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Chromelord Burst",
+      "description" : "Deal 8 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "forgeclaw",
+    "name" : "Forgeclaw",
+    "element" : "METAL",
+    "rarity" : "RARE",
+    "health" : 14,
+    "speed" : 9,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "costElement" : "METAL",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Forgeclaw Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Forgeclaw Ambush",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Forgeclaw Burst",
+      "description" : "Deal 7 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "rivetpup",
+    "name" : "Rivetpup",
+    "element" : "METAL",
+    "rarity" : "COMMON",
+    "health" : 10,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "METAL"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "METAL"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Rivetpup Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "METAL",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "ghoulpup",
+    "name" : "Ghoulpup",
+    "element" : "UNDEAD",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 4,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Ghoulpup Strike",
+      "description" : "Deal 5 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "dreadmaw",
+    "name" : "Dreadmaw",
+    "element" : "UNDEAD",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "ghoulpup",
+    "costElement" : "UNDEAD",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Dreadmaw Strike",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Dreadmaw Charge",
+      "description" : "Deal 7 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "abominus",
+    "name" : "Abominus",
+    "element" : "UNDEAD",
+    "rarity" : "RARE",
+    "health" : 19,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "FRONT",
+    "evolvesFromId" : "dreadmaw",
+    "costElement" : "UNDEAD",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Abominus Strike",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Abominus Charge",
+      "description" : "Deal 9 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Abominus Burst",
+      "description" : "Deal 10 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 10,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "skully",
+    "name" : "Skully",
+    "element" : "UNDEAD",
+    "rarity" : "COMMON",
+    "health" : 10,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Skully Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "bonereaver",
+    "name" : "Bonereaver",
+    "element" : "UNDEAD",
+    "rarity" : "UNCOMMON",
+    "health" : 14,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "LEFT",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "skully",
+    "costElement" : "UNDEAD",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Bonereaver Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Bonereaver Ambush",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "gravewalker",
+    "name" : "Gravewalker",
+    "element" : "UNDEAD",
+    "rarity" : "RARE",
+    "health" : 18,
+    "speed" : 9,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "bonereaver",
+    "costElement" : "UNDEAD",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Gravewalker Strike",
+      "description" : "Deal 8 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Gravewalker Ambush",
+      "description" : "Deal 8 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 8,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Gravewalker Burst",
+      "description" : "Deal 9 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 9,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "wispshade",
+    "name" : "Wispshade",
+    "element" : "UNDEAD",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Wispshade Strike",
+      "description" : "Deal 1 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "banshee",
+    "name" : "Banshee",
+    "element" : "UNDEAD",
+    "rarity" : "UNCOMMON",
+    "health" : 14,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "wispshade",
+    "costElement" : "UNDEAD",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Banshee Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Banshee Bolt",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "lichking",
+    "name" : "Lichking",
+    "element" : "UNDEAD",
+    "rarity" : "LEGENDARY",
+    "health" : 18,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "TOP",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "UNDEAD",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Lichking Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Lichking Bolt",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Lichking Burst",
+      "description" : "Deal 5 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "rattlebones",
+    "name" : "Rattlebones",
+    "element" : "UNDEAD",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 3,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "LEFT",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Rattlebones Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "wraithlord",
+    "name" : "Wraithlord",
+    "element" : "UNDEAD",
+    "rarity" : "RARE",
+    "health" : 14,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "UNDEAD"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "UNDEAD"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "UNDEAD",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Wraithlord Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Wraithlord Bolt",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Wraithlord Burst",
+      "description" : "Deal 4 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "UNDEAD",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "blanky",
+    "name" : "Blanky",
+    "element" : "PSYCHIC",
+    "rarity" : "COMMON",
+    "health" : 11,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Blanky Strike",
+      "description" : "Deal 1 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 1,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "dreamweaver",
+    "name" : "Dreamweaver",
+    "element" : "PSYCHIC",
+    "rarity" : "UNCOMMON",
+    "health" : 15,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "blanky",
+    "costElement" : "PSYCHIC",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Dreamweaver Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Dreamweaver Rally",
+      "description" : "Heal 1 ally for 2",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 1,
+      "effectType" : "heal",
+      "effectValue" : 2,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "miragequeen",
+    "name" : "Miragequeen",
+    "element" : "PSYCHIC",
+    "rarity" : "RARE",
+    "health" : 19,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "dreamweaver",
+    "costElement" : "PSYCHIC",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Miragequeen Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Miragequeen Rally",
+      "description" : "Heal 1 ally for 2",
+      "targetType" : "SINGLE_ALLY",
+      "targetCount" : 1,
+      "effectType" : "heal",
+      "effectValue" : 2,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Miragequeen Burst",
+      "description" : "Deal 5 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "mindmite",
+    "name" : "Mindmite",
+    "element" : "PSYCHIC",
+    "rarity" : "COMMON",
+    "health" : 10,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "abilities" : [ {
+      "name" : "Mindmite Strike",
+      "description" : "Deal 4 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "thoughtfang",
+    "name" : "Thoughtfang",
+    "element" : "PSYCHIC",
+    "rarity" : "UNCOMMON",
+    "health" : 14,
+    "speed" : 8,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "evolvesFromId" : "mindmite",
+    "costElement" : "PSYCHIC",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Thoughtfang Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Thoughtfang Ambush",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "papapa",
+    "name" : "Papapa",
+    "element" : "PSYCHIC",
+    "rarity" : "COMMON",
+    "health" : 10,
+    "speed" : 5,
+    "notches" : [ {
+      "direction" : "RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "LEFT",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "BACK",
+    "abilities" : [ {
+      "name" : "Papapa Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "psylon",
+    "name" : "Psylon",
+    "element" : "PSYCHIC",
+    "rarity" : "UNCOMMON",
+    "health" : 14,
+    "speed" : 6,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "papapa",
+    "costElement" : "PSYCHIC",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Psylon Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Psylon Bolt",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 2
+    } ]
+  }, {
+    "id" : "omnipsych",
+    "name" : "Omnipsych",
+    "element" : "PSYCHIC",
+    "rarity" : "RARE",
+    "health" : 18,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "TOP_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "BACK",
+    "evolvesFromId" : "psylon",
+    "costElement" : "PSYCHIC",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Omnipsych Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Omnipsych Bolt",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Omnipsych Burst",
+      "description" : "Deal 4 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 4,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 3
+    } ]
+  }, {
+    "id" : "cosmicoracle",
+    "name" : "Cosmic Oracle",
+    "element" : "PSYCHIC",
+    "rarity" : "LEGENDARY",
+    "health" : 18,
+    "speed" : 7,
+    "notches" : [ {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "BACK",
+    "costElement" : "PSYCHIC",
+    "costAmount" : 2,
+    "abilities" : [ {
+      "name" : "Cosmic Oracle Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Cosmic Oracle Bolt",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Cosmic Oracle Burst",
+      "description" : "Deal 5 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 5,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 5
+    } ]
+  }, {
+    "id" : "glimmer",
+    "name" : "Glimmer",
+    "element" : "PSYCHIC",
+    "rarity" : "COMMON",
+    "health" : 12,
+    "speed" : 3,
+    "notches" : [ {
+      "direction" : "LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "FRONT",
+    "abilities" : [ {
+      "name" : "Glimmer Strike",
+      "description" : "Deal 3 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 3,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    } ]
+  }, {
+    "id" : "sheenx",
+    "name" : "Sheenx",
+    "element" : "PSYCHIC",
+    "rarity" : "RARE",
+    "health" : 14,
+    "speed" : 9,
+    "notches" : [ {
+      "direction" : "TOP_LEFT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "BOTTOM_RIGHT",
+      "element" : "PSYCHIC"
+    }, {
+      "direction" : "TOP",
+      "element" : "PSYCHIC"
+    } ],
+    "preferredRow" : "MIDDLE",
+    "costElement" : "PSYCHIC",
+    "costAmount" : 1,
+    "abilities" : [ {
+      "name" : "Sheenx Strike",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 1
+    }, {
+      "name" : "Sheenx Ambush",
+      "description" : "Deal 6 damage to 1 enemy",
+      "targetType" : "SINGLE_ENEMY",
+      "targetCount" : 1,
+      "effectType" : "damage",
+      "effectValue" : 6,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 2
+    }, {
+      "name" : "Sheenx Burst",
+      "description" : "Deal 7 damage to all enemies in Front Row",
+      "targetType" : "ROW_ENEMIES",
+      "targetRow" : "FRONT",
+      "targetCount" : 0,
+      "effectType" : "damage",
+      "effectValue" : 7,
+      "passive" : false,
+      "requiredElement" : "PSYCHIC",
+      "requiredEnergy" : 3
+    } ]
+  } ]
+}

@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "siegelingstcgtesting",
+  "private_key_id": "9bd8de57ff8c82b4f0aa8b245682f8ffd5c06d10",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDcYqQ03v6z4M1B\nbZShYpOdo/qH+jOppyPMBs3NH+ZZSda1sH8d96bhZUfWwru2XyI3M8U+KlqKhzRI\nLDqTP45gT61umiBWuZQHGZRQuxH5NB/6PnRE6JS9R+/f0TfgzDIuhGRQXcNk8ahu\nrtT4g98iaVHHiwtYWQSPZURVQIhoFL3vwoZizPP4uuRadGc5ng+R5EfHV0qBe2BY\n9AcT1qkho0On8fJTdVgv3+Yniv5rPEmdyUlXrfDCZ/yfwkSOZiUGmPqdtJ5/OL+i\nDC/w3Uc2C6a0e0BnhWirLq2cHPv896a4gkKFWsBjc/V4rC1ucD4MP7ZbQNOMfQfZ\nNKfrbNhXAgMBAAECggEAUk24W1JoNo8euG+PEVI6JKYnmv6SqqoT0U89LnzaTsAn\nokTexDdHqGdlk8u3xJz0rz7zS4sPsypZGRcDbRhQOKGo+GQw7ZJyuNARtrCWPsX7\npz4Jt+5QFfw2lhSRVK+Nkhe5StYpcZpaN7OtL344J6bDdszzmLPt4wuDoH7wMkXT\nIQUaunAC5WjoMlZqYt19n2Am46a++xSphvXvDvGNBrPp6b4+zVQbCQA6VWSifxvD\n1U1n1/pOmZWuSCt99A/k6je592cHIb6WKsKTH1+AhUHLpHCL+jbOdnWLUDJ9b4KR\nQl5l73KrpfS0XRJwCBsYq8ZZDWUDoVfhS5PXLxFjyQKBgQD55XeOJaa5KWf0DP71\negLAa+/Cts32ZcxlYvAASC1HeH332tf8cVe9sigX0kLcDq2vAN1vySTWNrZUlGF6\naqiqqbE/ZNTWa7Ip6/P6PSR9xo/VPPko1cM7rqRVxGRTSCBwodM2lwl1ie0F0NVA\n79fS/kl/QMNCw67GfOtDoNVEswKBgQDhxKZpHR/l7OU98SgJC14CsImWhhimit+U\neIbFohlc43LLseeXb+MBNCm39BSfIIFk3t3tL39hcT0TFGLeqoZbGQv2Lo+c+XPn\noK+1Z4xQQ08qwigfzbnXv3zCKENA1OOWZCwmvZnBf1nJ+Mnz55vko443e5OH08MW\nk2L/3oRXzQKBgBBmY9M7W1a5he35UF4x1K5mJwUDVD8AbUqWFKQgGIChQrsabKRP\nl++GGqV9kg+5EuLyTpYAgF9ildK1LjSHfWw92LkNV/5+cOHZb1iT3Ko4dsYKy1tH\ntBldm8FZMzBYAnEB3ceuX9uL4rdH/kbVtrdNIuusB2SBTR4Poqz8iCKLAoGAHNnb\nhj1BkUlntjW2Lwmz1tYmjwTN66J9leSdHG5tnVA3oE440UJsGQBIgIiBhiBKSNCu\nPZw/Q/2Ll3+YbuoNx2B5BdnHYoECTcxcB+uWo78mQ8mSBRZuNGL1F367sXJDLznX\n5o9+MZsLp2LStAeaBWrdRrvVC5uFJ8Jn+Vi/QtUCgYEA1/C0ZpmoHnd9zWb3jgcJ\n7vYqeqMBShnxXNdIo5j+4o0Wpz+LhFNUld7MfxnyR/DuyiQjiaOw1ZTLvIN1A+1v\nT1RwqvSuj5JFLdkwCxW19c2vrlnx7hVcHQD/PtJEaa8xf0GpAnG0nyiwJowjexGg\nQvAt1Ofm8p4SxEuMyTFk9vI=\n-----END PRIVATE KEY-----\n",
+  "client_email": "sieglings-jib@siegelingstcgtesting.iam.gserviceaccount.com",
+  "client_id": "115795765409767743544",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sieglings-jib%40siegelingstcgtesting.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
