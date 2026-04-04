@@ -1,9 +1,0 @@
-HTTP/1.1 400 
-Vary: Origin
-Vary: Access-Control-Request-Method
-Vary: Access-Control-Request-Headers
-Content-Type: application/json
-Transfer-Encoding: chunked
-Date: Sat, 04 Apr 2026 00:43:23 GMT
-Connection: close
-
