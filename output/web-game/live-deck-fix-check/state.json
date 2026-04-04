@@ -1,0 +1,25 @@
+{
+  "before": {
+    "text": "Start Match",
+    "disabled": false,
+    "busy": "false"
+  },
+  "during": {
+    "text": "Starting Match...",
+    "disabled": true,
+    "busy": "true",
+    "loadoutVisible": true
+  },
+  "after": {
+    "loadoutVisible": false,
+    "mulliganVisible": false,
+    "phase": "DRAW",
+    "deckMeta": "40 cards remaining",
+    "deckTierCount": 5,
+    "deckIconCount": 22,
+    "emptyState": null,
+    "previewHeight": 158,
+    "handHeight": 110,
+    "consoleMessages": []
+  }
+}

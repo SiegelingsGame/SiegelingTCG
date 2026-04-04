@@ -1,0 +1,17 @@
+{
+  "drawPhase": {
+    "phase": "DRAW",
+    "drawHidden": false,
+    "battleHidden": true,
+    "drawText": "Draw",
+    "battleText": "Auto Battle"
+  },
+  "battlePhase": {
+    "phase": "BATTLE",
+    "drawHidden": true,
+    "battleHidden": false,
+    "drawText": "Draw",
+    "battleText": "Battle Live"
+  },
+  "errors": []
+}

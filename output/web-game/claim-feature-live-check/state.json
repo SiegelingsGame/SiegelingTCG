@@ -1,0 +1,11 @@
+{
+  "claimPromptCount": 5,
+  "claimableCellCount": 5,
+  "handLockCopy": [
+    "Maxed out.",
+    "Maxed out.",
+    "Need 1 Wind energy to play this."
+  ],
+  "banner": "ClaimTap one of your battle-tested Sieglings to claim it and gain 1 temporary energy of its element this turn.",
+  "placementActive": false
+}
