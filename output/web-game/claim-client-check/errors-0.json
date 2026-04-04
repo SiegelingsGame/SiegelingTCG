@@ -1,6 +1,0 @@
-[
-  {
-    "type": "console.error",
-    "text": "API error: AbortError: signal is aborted without reason\n    at http://127.0.0.1:8080/js/game.js?v=29:1597:59\n    at <anonymous>:15:9"
-  }
-]
