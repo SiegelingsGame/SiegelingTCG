@@ -1654,6 +1654,153 @@ body.battle-phase-active .battlefield::after {
     }
 }
 
+/* ── Desktop Battle Drawer (slides left from sidebar) ── */
+
+.desktop-battle-drawer {
+    display: none;
+}
+
+@media (min-width: 980px) {
+    .app-shell {
+        position: relative;
+    }
+
+    .desktop-battle-drawer {
+        display: block;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: calc(var(--desktop-sidebar-width) + 18px);
+        width: 0;
+        overflow: hidden;
+        z-index: 520;
+        background:
+            linear-gradient(180deg, rgba(22, 32, 64, 0.98), rgba(14, 22, 44, 0.98)),
+            radial-gradient(circle at 80% 20%, rgba(255, 80, 40, 0.12), transparent 50%);
+        border-left: 2px solid rgba(255, 215, 0, 0.35);
+        box-shadow: -8px 0 32px rgba(0, 0, 0, 0.35);
+        transition: width 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+        pointer-events: none;
+        border-radius: 28px 0 0 28px;
+    }
+
+    .desktop-battle-drawer.open {
+        width: clamp(320px, calc(100% - var(--desktop-sidebar-width) - 18px), 520px);
+        pointer-events: auto;
+    }
+
+    .desktop-battle-drawer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 20px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .desktop-battle-drawer-header h3 {
+        font-size: 0.88em;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin: 0;
+    }
+
+    .desktop-battle-drawer-close {
+        width: 34px;
+        height: 34px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1.2em;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s;
+    }
+
+    .desktop-battle-drawer-close:hover {
+        background: rgba(255, 255, 255, 0.14);
+    }
+
+    .desktop-battle-drawer-content {
+        padding: 16px 20px 20px;
+        overflow-y: auto;
+        height: calc(100% - 60px);
+        font-size: 0.92em;
+        color: var(--text);
+    }
+
+    .desktop-battle-drawer-content .battle-attacker {
+        font-size: 1em;
+        margin-bottom: 12px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(255, 80, 40, 0.1);
+        border: 1px solid rgba(255, 80, 40, 0.2);
+    }
+
+    .desktop-battle-drawer-content .battle-hint {
+        font-size: 0.88em;
+        color: var(--text-dim);
+        margin-bottom: 16px;
+        line-height: 1.5;
+    }
+
+    .desktop-battle-drawer-content .battle-ability-btn {
+        display: block;
+        width: 100%;
+        padding: 12px 16px;
+        margin-bottom: 4px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        background: rgba(255, 215, 0, 0.08);
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 0.92em;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.1s;
+        text-align: left;
+    }
+
+    .desktop-battle-drawer-content .battle-ability-btn:not(:disabled):hover {
+        background: rgba(255, 215, 0, 0.16);
+        transform: translateX(-2px);
+    }
+
+    .desktop-battle-drawer-content .battle-ability-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .desktop-battle-drawer-content .battle-pass-btn {
+        border-color: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-dim);
+        margin-top: 8px;
+    }
+
+    .desktop-battle-drawer-content .battle-pass-btn:hover {
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .desktop-battle-drawer-content .battle-ability-desc {
+        font-size: 0.82em;
+        color: var(--text-dim);
+        margin-bottom: 12px;
+        padding-left: 4px;
+        line-height: 1.45;
+    }
+
+    /* When desktop battle drawer is open, dim the battlefield slightly */
+    .app-shell.battle-drawer-open .battlefield {
+        filter: brightness(0.85);
+        transition: filter 0.3s;
+    }
+}
+
 /* ── Elemental Link Connectors ───────────────────── */
 
 .link-connector {
