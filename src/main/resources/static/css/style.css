@@ -2284,6 +2284,18 @@ body.placement-active .board-cell.legal {
     margin-top: 18px;
 }
 
+.welcome-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.crafted-by {
+    font-size: 0.78em;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.03em;
+}
+
 .welcome-tutorial-stage {
     margin-top: 18px;
 }
