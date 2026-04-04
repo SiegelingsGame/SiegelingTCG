@@ -19,10 +19,16 @@ let mobileInfoTab = 'battle';
 let mulliganSelectedIndices = new Set();
 let mulliganHandSig = '';
 let loadoutErrorMessage = '';
+let loadoutStartPending = false;
 let lastInteractionCueKey = '';
+let hoveredHandCardId = null;
+let pendingClaimTarget = null;
+let lastRenderedPhase = null;
+let phaseTransitionTimer = null;
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
+const LOADOUT_ACTION_TIMEOUT_MS = 30000;
 let welcomeSlideIndex = 0;
 let welcomeDismissed = false;
 let authMode = 'login';
@@ -160,9 +166,6 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;');
 }
 
-const _cardArtProbeCache = {}; /* id -> resolved meta or '' */
-let pendingCardArtRender = false;
-
 function buildCardArtMeta(entry) {
     if (!entry) {
         return null;
@@ -174,19 +177,6 @@ function buildCardArtMeta(entry) {
         url: entry.url || '',
         crop: entry.crop || 'default'
     };
-}
-
-function queueCardArtRerender() {
-    if (pendingCardArtRender) {
-        return;
-    }
-    pendingCardArtRender = true;
-    requestAnimationFrame(() => {
-        pendingCardArtRender = false;
-        if (typeof render === 'function') {
-            render();
-        }
-    });
 }
 
 function getCardArtMeta(card) {
@@ -211,38 +201,7 @@ function getCardArtMeta(card) {
             return buildCardArtMeta(CARD_ART_BY_KEY[key]);
         }
     }
-
-    /* Auto-discover: check images/cards/{Name}.png by probing */
-    const probeName = card.name || card.id || '';
-    if (!probeName) return null;
-
-    if (_cardArtProbeCache[probeName] !== undefined) {
-        return _cardArtProbeCache[probeName];
-    }
-
-    /* Try common naming conventions: exact name, lowercase, id */
-    const probeVariants = [
-        `/images/cards/${probeName}.png`,
-        `/images/cards/${probeName.toLowerCase()}.png`,
-        card.id ? `/images/cards/${card.id}.png` : null
-    ].filter(Boolean);
-
-    /* Kick off async probes and cache results for next render */
-    for (const url of probeVariants) {
-        const img = new Image();
-        img.onload = () => {
-            _cardArtProbeCache[probeName] = { url, crop: 'default' };
-            queueCardArtRerender();
-        };
-        img.onerror = () => {
-            if (_cardArtProbeCache[probeName] === undefined) {
-                _cardArtProbeCache[probeName] = null;
-            }
-        };
-        img.src = url;
-    }
-
-    return null; /* first render won't show it; next render will pick up cached URL */
+    return null;
 }
 
 function renderCardArt(card, variant, fallbackLabel = '') {
@@ -259,38 +218,169 @@ function renderCardArt(card, variant, fallbackLabel = '') {
     return `<div class="card-art card-art-${variant} card-art-fallback"><span>${fallbackLabel}</span></div>`;
 }
 
-function formatStatValue(value) {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : null;
+function getCardAbilities(card) {
+    if (!card) {
+        return [];
+    }
+    if (Array.isArray(card.abilities) && card.abilities.length > 0) {
+        return card.abilities.filter(Boolean);
+    }
+    if (card.ability) {
+        return [card.ability];
+    }
+    return [];
+}
+
+function getAbilityRequiredEnergy(ability) {
+    const value = Number(ability?.requiredEnergy ?? ability?.costAmount ?? 0);
+    return Number.isFinite(value) ? value : 0;
+}
+
+function formatBattleAbilityCost(ability) {
+    const energy = getAbilityRequiredEnergy(ability);
+    const element = ability?.requiredElement || ability?.costElement || '';
+    if (energy <= 0) {
+        return 'Free';
+    }
+    if (element) {
+        return `${energy} ${formatElementLabel(element)}`;
+    }
+    return `${energy} energy`;
+}
+
+function getSortedBattleAbilities(abilities) {
+    return [...(abilities || [])].sort((left, right) => {
+        const energyDiff = getAbilityRequiredEnergy(left) - getAbilityRequiredEnergy(right);
+        if (energyDiff !== 0) {
+            return energyDiff;
+        }
+        if (Boolean(left?.affordable) !== Boolean(right?.affordable)) {
+            return left?.affordable ? -1 : 1;
+        }
+        return String(left?.name || '').localeCompare(String(right?.name || ''));
+    });
+}
+
+function formatAbilitySummaryText(ability) {
+    if (!ability) {
+        return '';
+    }
+    const name = String(ability.name || '').trim();
+    const description = String(ability.description || '').trim();
+    const energyAmount = Number(ability.requiredEnergy ?? ability.costAmount ?? 0);
+    const energyElement = ability.requiredElement || ability.costElement || '';
+    const costText = energyAmount > 0 && energyElement
+        ? `${energyAmount} ${formatElementLabel(energyElement)}`
+        : '';
+
+    let text = description || name || '';
+    if (name && description && !description.toLowerCase().startsWith(name.toLowerCase())) {
+        text = `${name}: ${description}`;
+    }
+    if (!text && costText) {
+        text = `Cost ${costText}`;
+    } else if (text && costText) {
+        text = `${text} (${costText})`;
+    }
+    return text;
 }
 
 function getCardSummaryStatLine(card) {
-    const segments = [];
-    const health = formatStatValue(card?.health);
-    const speed = formatStatValue(card?.speed);
-    if (health !== null) {
-        segments.push(`HP:${health}`);
+    if (!card || card.type !== 'SIEGLING') {
+        return '';
     }
-    if (speed !== null) {
-        segments.push(`SPD:${speed}`);
+    const parts = [];
+    if (Number.isFinite(Number(card.health))) {
+        parts.push(`HP:${card.health}`);
     }
-    return segments.join(' ');
+    if (Number.isFinite(Number(card.speed))) {
+        parts.push(`SPD:${card.speed}`);
+    }
+    if (card.preferredRow) {
+        parts.push(card.preferredRow);
+    }
+    return parts.join(' ');
 }
 
-function renderBoardStatBadges(cell) {
-    const badges = [];
-    const hp = formatStatValue(cell?.hp);
-    const maxHp = formatStatValue(cell?.maxHp);
-    const speed = formatStatValue(cell?.spd);
+function getCardPreviewEntries(card) {
+    const entries = [];
+    getCardAbilities(card).forEach(ability => {
+        const text = formatAbilitySummaryText(ability);
+        if (text) {
+            entries.push({ text, className: 'card-detail' });
+        }
+    });
 
-    if (hp !== null && maxHp !== null) {
-        badges.push(`<span class="stat stat-hp">${hp}/${maxHp}</span>`);
-    }
-    if (speed !== null) {
-        badges.push(`<span class="stat stat-spd">${speed}</span>`);
+    if (card.type === 'TRAP' && card.trapBucketElement) {
+        entries.push({
+            text: `Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}`,
+            className: 'card-cost'
+        });
+    } else if (card.costElement && card.costAmount > 0) {
+        entries.push({
+            text: `Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}`,
+            className: 'card-cost'
+        });
     }
 
-    return badges.join('');
+    if (card.requiredComboSize) {
+        entries.push({
+            text: `Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}`,
+            className: 'card-cost'
+        });
+    }
+    if (card.requiredReaction) {
+        entries.push({
+            text: `Requires: ${card.requiredReaction}`,
+            className: 'card-cost'
+        });
+    }
+    if (card.evolvesFromName) {
+        entries.push({
+            text: `Evolution: ${card.evolvesFromName}`,
+            className: 'card-cost'
+        });
+    }
+
+    return entries;
+}
+
+function renderShowcaseCard(card, options = {}) {
+    if (!card) {
+        return '';
+    }
+
+    const elemClass = (card.element || 'NEUTRAL').toLowerCase();
+    const fallbackArtLabel = card.type === 'SIEGLING'
+        ? formatElementLabel(card.element)
+        : `${formatElementLabel(card.element)} ${card.type}`.trim();
+    const labelText = options.labelText
+        || [card.type, formatElementLabel(card.element)].filter(Boolean).join(' / ');
+    const classes = ['hand-card', elemClass, options.cardClass].filter(Boolean).join(' ');
+    const detailEntries = getCardPreviewEntries(card);
+    const statLine = getCardSummaryStatLine(card);
+
+    let html = `<div class="${classes}">`;
+    if (card.type === 'SIEGLING') {
+        html += renderHandNotches(card.notches);
+    }
+    html += `<div class="hand-card-shell">`;
+    html += `<div class="hand-card-header">`;
+    html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
+    html += `<div class="card-label">${escapeHtml(labelText)}</div>`;
+    html += `</div>`;
+    html += renderCardArt(card, options.artVariant || 'preview', fallbackArtLabel);
+    html += `<div class="hand-card-body">`;
+    if (statLine) {
+        html += `<div class="card-detail card-stats-line">${escapeHtml(statLine)}</div>`;
+    }
+    detailEntries.forEach(entry => {
+        html += `<div class="${entry.className}">${escapeHtml(entry.text)}</div>`;
+    });
+    html += `</div>`;
+    html += `</div>`;
+    html += `</div>`;
+    return html;
 }
 
 function apiUrl(path, baseUrl = activeApiBaseUrl) {
@@ -324,8 +414,16 @@ function resolveApiBaseUrl(url) {
     }
 }
 
+function isCompactLandscapeLayout() {
+    return window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches;
+}
+
+function isDesktopSidebarLayout() {
+    return window.matchMedia('(min-width: 980px)').matches && !isCompactLandscapeLayout();
+}
+
 function isMobileLayout() {
-    return window.matchMedia('(max-width: 900px)').matches;
+    return window.matchMedia('(max-width: 900px)').matches || isCompactLandscapeLayout();
 }
 
 function setMobileInfoTab(tab) {
@@ -347,6 +445,638 @@ function syncMobileInfoTab() {
         const isActive = section.dataset.mobileTab === mobileInfoTab;
         section.classList.toggle('active', !compact || isActive);
     });
+}
+
+/* ============================================================
+   DRAWER SYSTEM — slide-up modals for log, key, battle, card info
+   ============================================================ */
+let activeDrawer = null;
+let _drawerCloseTimers = [];
+
+function isBattleTargetSelectionActive() {
+    return Boolean(targetMode && targetContext && targetContext.mode === 'battle');
+}
+
+function openDrawer(name) {
+    if (activeDrawer === name) return;
+    // Cancel any pending close timers so they don't hide the new drawer
+    _drawerCloseTimers.forEach(t => clearTimeout(t));
+    _drawerCloseTimers = [];
+    // Immediately hide any other open drawers (no animation)
+    document.querySelectorAll('.drawer').forEach(d => {
+        d.classList.remove('visible');
+        d.classList.add('hidden');
+    });
+    const backdrop = document.getElementById('drawerBackdrop');
+    const drawer = document.querySelector(`[data-drawer="${name}"]`);
+    if (!drawer || !backdrop) return;
+    backdrop.classList.remove('hidden');
+    drawer.classList.remove('hidden');
+    requestAnimationFrame(() => {
+        backdrop.classList.add('visible');
+        drawer.classList.add('visible');
+    });
+    activeDrawer = name;
+}
+
+function closeDrawer(immediate = false) {
+    _drawerCloseTimers.forEach(t => clearTimeout(t));
+    _drawerCloseTimers = [];
+    const backdrop = document.getElementById('drawerBackdrop');
+    const drawers = document.querySelectorAll('.drawer');
+    if (backdrop) {
+        backdrop.classList.remove('visible');
+        if (immediate) {
+            backdrop.classList.add('hidden');
+        } else {
+            _drawerCloseTimers.push(setTimeout(() => backdrop.classList.add('hidden'), 260));
+        }
+    }
+    drawers.forEach(d => {
+        d.classList.remove('visible');
+        if (immediate) {
+            d.classList.add('hidden');
+        } else {
+            _drawerCloseTimers.push(setTimeout(() => d.classList.add('hidden'), 300));
+        }
+    });
+    activeDrawer = null;
+}
+
+function formatPhaseLabel(phase) {
+    switch (phase) {
+        case 'DRAW':
+            return 'Draw Phase';
+        case 'SETUP':
+            return 'Setup Phase';
+        case 'BATTLE':
+            return 'Battle Phase';
+        case 'MULLIGAN':
+            return 'Opening Hand';
+        default:
+            return phase ? `${phase.charAt(0)}${phase.slice(1).toLowerCase()} Phase` : 'Phase Shift';
+    }
+}
+
+function getPhaseTransitionKicker(phase, activeSide) {
+    if (phase === 'BATTLE') {
+        return 'Clash Begins';
+    }
+    if (activeSide === 'PLAYER') {
+        return 'Your Turn';
+    }
+    if (activeSide === 'ENEMY') {
+        return 'Enemy Turn';
+    }
+    return 'Phase Shift';
+}
+
+function showPhaseTransitionBanner(phase, activeSide) {
+    const banner = document.getElementById('phaseTransitionBanner');
+    const kicker = document.getElementById('phaseTransitionKicker');
+    const title = document.getElementById('phaseTransitionTitle');
+    if (!banner || !kicker || !title || !phase) {
+        return;
+    }
+
+    if (phaseTransitionTimer) {
+        clearTimeout(phaseTransitionTimer);
+        phaseTransitionTimer = null;
+    }
+
+    banner.className = `phase-transition-banner ${String(phase).toLowerCase()}`;
+    kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
+    title.textContent = formatPhaseLabel(phase);
+    banner.classList.remove('hidden');
+    requestAnimationFrame(() => banner.classList.add('visible'));
+
+    phaseTransitionTimer = setTimeout(() => {
+        banner.classList.remove('visible');
+        phaseTransitionTimer = setTimeout(() => {
+            banner.classList.add('hidden');
+            phaseTransitionTimer = null;
+        }, 320);
+    }, 1800);
+}
+
+/* ============================================================
+   CARD INSPECTOR — full-detail overlay when tapping hand card
+   ============================================================ */
+function openCardInspector(card) {
+    const overlay = document.getElementById('cardInspector');
+    const content = document.getElementById('cardInspectorContent');
+    if (!overlay || !content || !card) return;
+
+    let html = `<div class="ci-name">${escapeHtml(card.name)}</div>`;
+    html += `<div class="ci-stats">${escapeHtml(card.type)} / ${escapeHtml(card.rarity)} / ${formatElementLabel(card.element)}</div>`;
+
+    if (card.type === 'SIEGLING') {
+        const statLine = getCardSummaryStatLine(card);
+        if (statLine) html += `<div class="ci-stats">${statLine}</div>`;
+    }
+
+    html += renderCardArt(card, 'inspector');
+
+    const abilities = getCardAbilities(card);
+    if (abilities.length > 0) {
+        html += `<div class="ci-ability">${abilities.map(a => escapeHtml(formatAbilitySummaryText(a))).join('<br>')}</div>`;
+    }
+
+    if (card.type === 'TRAP' && card.trapBucketElement) {
+        html += `<div class="ci-ability">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
+    } else if (card.costElement && card.costAmount > 0) {
+        html += `<div class="ci-ability">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
+    }
+    if (card.requiredComboSize) {
+        html += `<div class="ci-ability">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
+    }
+    if (card.evolvesFromName) {
+        html += `<div class="ci-ability">Evolves from: ${escapeHtml(card.evolvesFromName)}</div>`;
+    }
+
+    html += `<div class="ci-actions">`;
+    html += `<button class="btn" onclick="closeCardInspector(event)">Close</button>`;
+    if (gameState && gameState.currentPhase === 'SETUP' && !getHandCardLockReason(card)) {
+        html += `<button class="btn btn-primary" onclick="closeCardInspector(event); selectCard('${card.id}')">Play</button>`;
+    }
+    html += `</div>`;
+
+    content.innerHTML = html;
+    overlay.classList.remove('hidden');
+}
+
+function closeCardInspector(event) {
+    if (event) event.stopPropagation();
+    const overlay = document.getElementById('cardInspector');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+function canUseTrainerAbility(trainer = gameState?.player?.trainer) {
+    return Boolean(trainer && trainer.active && trainer.canUseActive && !isOpeningPlacementOnlyTurn());
+}
+
+function buildTrainerAbilityHint(trainer) {
+    if (!trainer?.active) {
+        return 'No active SiegeKnight ability is ready right now.';
+    }
+    const targetSide = getAbilityTargetSide(trainer.active);
+    if (targetSide) {
+        const article = /^[aeiou]/i.test(targetSide) ? 'an' : 'a';
+        return `Using this will close the popup and let you pick ${article} ${targetSide} target on the board.`;
+    }
+    if (trainer.oncePerGame) {
+        return 'This ultimate resolves immediately and can only be used once this match.';
+    }
+    return 'This ability resolves immediately when you confirm it.';
+}
+
+function renderTrainerAbilityPopup() {
+    const overlay = document.getElementById('trainerAbilityOverlay');
+    const trainer = gameState?.player?.trainer;
+    if (!overlay) {
+        return;
+    }
+    if (!trainer?.active || !canUseTrainerAbility(trainer)) {
+        closeTrainerAbilityPopup();
+        return;
+    }
+
+    const title = document.getElementById('trainerAbilityTitle');
+    const tier = document.getElementById('trainerAbilityTier');
+    const description = document.getElementById('trainerAbilityDescription');
+    const copy = document.getElementById('trainerAbilityCopy');
+    const useBtn = document.getElementById('btnUseTrainerAbility');
+
+    if (title) {
+        title.textContent = trainer.active.name || `${trainer.name} Ability`;
+    }
+    if (tier) {
+        const modeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
+        tier.textContent = `${trainer.name} • ${formatTrainerTier(trainer.tier)} • ${modeLabel}`;
+    }
+    if (description) {
+        description.textContent = trainer.active.description || 'No description available.';
+    }
+    if (copy) {
+        copy.textContent = buildTrainerAbilityHint(trainer);
+    }
+    if (useBtn) {
+        useBtn.disabled = !canUseTrainerAbility(trainer);
+        useBtn.textContent = abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability';
+    }
+}
+
+function openTrainerAbilityPopup() {
+    const trainer = gameState?.player?.trainer;
+    if (!trainer?.active || !canUseTrainerAbility(trainer)) {
+        return;
+    }
+    const overlay = document.getElementById('trainerAbilityOverlay');
+    if (!overlay) {
+        return;
+    }
+    renderTrainerAbilityPopup();
+    overlay.classList.remove('hidden');
+}
+
+function closeTrainerAbilityPopup(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const overlay = document.getElementById('trainerAbilityOverlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+}
+
+function activateTrainerAbilityFromPopup() {
+    closeTrainerAbilityPopup();
+    onTrainerUse();
+}
+
+function getPendingClaimCard() {
+    if (!pendingClaimTarget) {
+        return null;
+    }
+    const { row, col } = pendingClaimTarget;
+    const cell = gameState?.playerBoard?.[row]?.[col] || null;
+    return isClaimableBoardCell(cell, true) ? cell : null;
+}
+
+function renderClaimPopup() {
+    const overlay = document.getElementById('claimConfirmOverlay');
+    if (!overlay) {
+        return;
+    }
+    const card = getPendingClaimCard();
+    if (!card) {
+        closeClaimPopup();
+        return;
+    }
+
+    const title = document.getElementById('claimConfirmTitle');
+    const tier = document.getElementById('claimConfirmTier');
+    const description = document.getElementById('claimConfirmDescription');
+    const copy = document.getElementById('claimConfirmCopy');
+    const confirmBtn = document.getElementById('btnConfirmClaim');
+
+    if (title) {
+        title.textContent = `Claim ${card.name}?`;
+    }
+    if (tier) {
+        tier.textContent = `${formatElementLabel(card.element)} Siegling`;
+    }
+    if (description) {
+        description.textContent = `This removes ${card.name} from your board and grants 1 temporary ${formatElementLabel(card.element)} energy for this turn.`;
+    }
+    if (copy) {
+        copy.textContent = 'Claiming can break its links and lower your permanent network energy, but the temporary claim energy applies right away for this setup turn.';
+    }
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Claim';
+    }
+}
+
+function openClaimPopup(row, col) {
+    const overlay = document.getElementById('claimConfirmOverlay');
+    const cell = gameState?.playerBoard?.[row]?.[col] || null;
+    if (!overlay || !isClaimableBoardCell(cell, true)) {
+        return;
+    }
+    pendingClaimTarget = { row, col };
+    renderClaimPopup();
+    overlay.classList.remove('hidden');
+}
+
+function closeClaimPopup(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    pendingClaimTarget = null;
+    const overlay = document.getElementById('claimConfirmOverlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+}
+
+async function confirmClaimFromPopup() {
+    if (!pendingClaimTarget) {
+        return;
+    }
+    const { row, col } = pendingClaimTarget;
+    closeClaimPopup();
+    await claimBoardCard(row, col);
+}
+
+/* ============================================================
+   CARD PREVIEW FLOAT — shows selected card over enemy grid
+   ============================================================ */
+function getFocusedPreviewCard() {
+    const hoveredCard = gameState?.player?.hand?.find(card => card.id === hoveredHandCardId) || null;
+    return hoveredCard || selectedCard || null;
+}
+
+function getInteractionHintState() {
+    const state = getInteractionBannerState();
+    const focusedCard = getFocusedPreviewCard();
+    const hints = [];
+
+    if (state?.message) {
+        hints.push(state.message);
+    }
+
+    if (focusedCard) {
+        const lockReason = getHandCardLockReason(focusedCard);
+        if (lockReason) {
+            hints.push(lockReason);
+        } else if (focusedCard.type === 'SIEGLING') {
+            if (focusedCard.evolvesFromName) {
+                hints.push(`Play this on top of ${focusedCard.evolvesFromName} to evolve it.`);
+            } else if (gameState?.currentPhase === 'SETUP' && !gameState?.playerPlacementUsed) {
+                hints.push('Highlighted slots show where this Siegling can be placed.');
+            }
+        } else if (focusedCard.type === 'TRAP') {
+            hints.push('Traps stay hidden until their trigger condition is met.');
+        } else if (focusedCard.costElement && focusedCard.costAmount > 0) {
+            hints.push(`This costs ${focusedCard.costAmount} ${formatElementLabel(focusedCard.costElement)} to play.`);
+        }
+
+        hints.push('Use the eye button to open the focused card drawer.');
+    }
+
+    const uniqueHints = [...new Set(hints.filter(Boolean))];
+    return {
+        available: uniqueHints.length > 0,
+        kind: state?.kind || (focusedCard ? 'place' : 'idle'),
+        label: state?.label || (focusedCard ? 'Card Focus' : 'Hints'),
+        hints: uniqueHints
+    };
+}
+
+function renderHintPanel() {
+    const panel = document.getElementById('interactionHintPanel');
+    if (!panel) {
+        return;
+    }
+
+    const hintState = getInteractionHintState();
+    if (!hintState.available) {
+        panel.innerHTML = `
+            <div class="hint-drawer-copy">Select or hover a card to see contextual help.</div>
+            <div class="hint-list">
+                <div class="hint-item">The eye button lights up when a focused card preview is ready.</div>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `<div class="hint-drawer-copy">Context-sensitive help for your current board state.</div>`;
+    html += `<div class="hint-chip ${escapeHtml(hintState.kind)}">${escapeHtml(hintState.label)}</div>`;
+    html += `<div class="hint-list">`;
+    hintState.hints.forEach(hint => {
+        html += `<div class="hint-item">${escapeHtml(hint)}</div>`;
+    });
+    html += `</div>`;
+    panel.innerHTML = html;
+}
+
+function syncActionBarAttention() {
+    const hintButton = document.getElementById('btnHint');
+    const previewButton = document.getElementById('btnSelectedPreview');
+    const hintState = getInteractionHintState();
+    const focusedCard = getFocusedPreviewCard();
+
+    hintButton?.classList.toggle('ab-icon-live', hintState.available);
+    hintButton?.classList.toggle('ab-icon-pulse', hintState.available);
+    if (hintButton) {
+        hintButton.setAttribute(
+            'aria-label',
+            hintState.available ? `${hintState.label} hints available` : 'Hints'
+        );
+    }
+
+    previewButton?.classList.toggle('ab-icon-preview-live', Boolean(focusedCard));
+    previewButton?.classList.toggle('ab-icon-pulse', Boolean(focusedCard));
+    if (previewButton) {
+        previewButton.setAttribute(
+            'aria-label',
+            focusedCard ? `Card Preview available for ${focusedCard.name}` : 'Card Preview'
+        );
+    }
+}
+
+function syncFocusedCardUi() {
+    renderCardPreviewFloat();
+    renderDesktopCardPreviewPanel();
+    renderHintPanel();
+    syncActionBarAttention();
+}
+
+function shouldShowFloatingCardPreview() {
+    return isMobileLayout();
+}
+
+function renderCardPreviewFloat() {
+    const el = document.getElementById('cardPreviewFloat');
+    if (!el) return;
+
+    const focusedCard = getFocusedPreviewCard();
+    if (!focusedCard || !shouldShowFloatingCardPreview()) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    el.innerHTML = renderShowcaseCard(focusedCard, {
+        cardClass: 'card-preview-card',
+        artVariant: 'preview'
+    });
+    el.classList.remove('hidden');
+}
+
+function onPreviewFloatTap() {
+    const focusedCard = getFocusedPreviewCard();
+    if (focusedCard) openCardInspector(focusedCard);
+}
+
+function getDesktopPreviewNote(card, lockReason) {
+    if (lockReason) {
+        return lockReason;
+    }
+    if (!card) {
+        return 'Hover or select a hand card to inspect it here.';
+    }
+    if (card.type === 'SIEGLING') {
+        if (card.evolvesFromName) {
+            return `Place this on top of ${card.evolvesFromName} to evolve it.`;
+        }
+        if (gameState?.playerPlacementUsed) {
+            return 'You already placed your Siegling for this turn.';
+        }
+        if (gameState?.currentPhase === 'SETUP') {
+            return 'Highlighted board cells show where this Siegling can expand next.';
+        }
+        return 'Siegling battle actions resolve automatically in speed order during battle.';
+    }
+    if (card.type === 'TRAP') {
+        return 'Traps stay hidden until their trigger condition is met.';
+    }
+    if (card.requiredComboSize) {
+        const comboLabel = card.requiredComboSignature
+            ? card.requiredComboSignature.split('+').map(formatElementLabel).join(' + ')
+            : `${card.requiredComboSize}-element combo`;
+        return `Requires ${comboLabel} before it can be played.`;
+    }
+    if (card.costElement && card.costAmount > 0) {
+        return `Costs ${card.costAmount} ${formatElementLabel(card.costElement)} to play.`;
+    }
+    return 'Use the hand selector to keep swapping the highlighted preview card.';
+}
+
+function renderDesktopCardPreviewPanel() {
+    const panel = document.getElementById('desktopCardPreviewPanel');
+    if (!panel) {
+        return;
+    }
+
+    const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
+    if (!focusedCard) {
+        panel.innerHTML = '<div class="desktop-empty-state">Hover or select a hand card to inspect it here.</div>';
+        return;
+    }
+
+    const lockReason = getHandCardLockReason(focusedCard);
+    const abilities = getCardAbilities(focusedCard)
+        .map(ability => ability?.description || ability?.name || '')
+        .filter(Boolean);
+    const detailEntries = getCardPreviewEntries(focusedCard);
+    const summaryText = abilities[0] || getBuilderCardSummaryText(focusedCard) || 'No special text.';
+
+    let html = '<div class="desktop-preview-layout">';
+    html += renderShowcaseCard(focusedCard, {
+        cardClass: 'selected-preview-card desktop-preview-card',
+        artVariant: 'selected'
+    });
+    html += '<div class="desktop-preview-copy-panel">';
+    html += `<div class="desktop-preview-kicker">${escapeHtml(formatElementLabel(focusedCard.element))}</div>`;
+    html += `<div class="desktop-preview-title">${escapeHtml(focusedCard.name)}</div>`;
+    html += `<div class="desktop-preview-meta">${escapeHtml(focusedCard.type)} / ${escapeHtml(focusedCard.rarity)}</div>`;
+    if (focusedCard.type === 'SIEGLING') {
+        html += `<div class="desktop-preview-stats">Health ${escapeHtml(focusedCard.health)} | Speed ${escapeHtml(focusedCard.speed)}</div>`;
+    } else if (focusedCard.costElement && focusedCard.costAmount > 0) {
+        html += `<div class="desktop-preview-stats">${escapeHtml(formatElementLabel(focusedCard.costElement))} Cost ${escapeHtml(focusedCard.costAmount)}</div>`;
+    }
+    html += `<div class="desktop-preview-description">${escapeHtml(summaryText)}</div>`;
+    if (detailEntries.length > 0) {
+        html += '<div class="desktop-preview-tag-list">';
+        detailEntries.forEach(entry => {
+            html += `<div class="desktop-preview-tag">${escapeHtml(entry.text)}</div>`;
+        });
+        html += '</div>';
+    }
+    html += `<div class="desktop-preview-note">${escapeHtml(getDesktopPreviewNote(focusedCard, lockReason))}</div>`;
+    html += '</div>';
+    html += '</div>';
+
+    panel.innerHTML = html;
+}
+
+function summarizeDeckCards(cards) {
+    const grouped = new Map();
+    for (const card of cards || []) {
+        const key = `${card.name}::${card.type}::${card.element}::${card.rarity}`;
+        const existing = grouped.get(key);
+        if (existing) {
+            existing.count += 1;
+            continue;
+        }
+        grouped.set(key, {
+            name: card.name || 'Unknown',
+            type: card.type || '',
+            element: card.element || 'NEUTRAL',
+            rarity: card.rarity || '',
+            count: 1
+        });
+    }
+    return [...grouped.values()].sort((left, right) => {
+        const nameDiff = String(left.name).localeCompare(String(right.name));
+        if (nameDiff !== 0) {
+            return nameDiff;
+        }
+        const typeDiff = String(left.type).localeCompare(String(right.type));
+        if (typeDiff !== 0) {
+            return typeDiff;
+        }
+        return String(left.element).localeCompare(String(right.element));
+    });
+}
+
+function renderDesktopDeckPreview() {
+    const panel = document.getElementById('desktopDeckPreview');
+    if (!panel) {
+        return;
+    }
+
+    const remainingDeck = Array.isArray(gameState?.player?.remainingDeck) ? gameState.player.remainingDeck : [];
+    if (remainingDeck.length === 0) {
+        panel.innerHTML = '<div class="desktop-empty-state">No cards remain in your deck.</div>';
+        return;
+    }
+
+    const rows = summarizeDeckCards(remainingDeck);
+    let html = `<div class="desktop-deck-meta"><strong>${remainingDeck.length}</strong> cards remaining</div>`;
+    html += '<div class="desktop-deck-list">';
+    rows.forEach(row => {
+        const elementClass = String(row.element || 'neutral').toLowerCase();
+        const initial = (row.name || '?').charAt(0).toUpperCase();
+        html += `
+            <div class="desktop-deck-row">
+                <span class="desktop-deck-index ${elementClass}">${escapeHtml(initial)}</span>
+                <div class="desktop-deck-copy">
+                    <div class="desktop-deck-name">${escapeHtml(row.name)}</div>
+                    <div class="desktop-deck-type">${escapeHtml(row.type)} / ${escapeHtml(formatElementLabel(row.element))}</div>
+                </div>
+                <span class="desktop-deck-count">x${escapeHtml(row.count)}</span>
+            </div>
+        `;
+    });
+    html += '</div>';
+    panel.innerHTML = html;
+}
+
+/* ============================================================
+   COMPACT ENERGY RENDERING — for top-bar tokens
+   ============================================================ */
+function renderEnergyTopBar(containerId, playerData) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const tokens = buildEnergyTokens(playerData);
+    if (tokens.length === 0) {
+        el.innerHTML = '';
+        return;
+    }
+    // Group solid tokens by element; combo tokens stay individual
+    const counts = {};
+    const combos = [];
+    for (const t of tokens) {
+        if (t.type === 'combo') { combos.push(t); continue; }
+        counts[t.key] = (counts[t.key] || 0) + 1;
+    }
+    let html = '';
+    for (const [key, count] of Object.entries(counts)) {
+        if (count >= 5) {
+            html += `<span class="tb-energy-compact"><span class="energy-token solid-token token-${key}"></span><span class="tb-ecount">${count}</span></span>`;
+        } else {
+            for (let i = 0; i < count; i++) {
+                html += `<div class="energy-token solid-token token-${key}"></div>`;
+            }
+        }
+    }
+    for (const t of combos) {
+        html += renderEnergyToken(t);
+    }
+    el.innerHTML = html;
 }
 
 function loadSavedMultiplayerSession() {
@@ -860,6 +1590,7 @@ function isPlacementSelectionActive() {
         && selectedCard.type === 'SIEGLING'
         && !gameState.playerPlacementUsed
         && !targetMode
+        && getLegalPlacementsForCard(selectedCard).length > 0
     );
 }
 
@@ -876,6 +1607,26 @@ function canAffordCard(card) {
         return true;
     }
     return getPlayerEnergyAmount(card.costElement) >= Number(card.costAmount);
+}
+
+function countBoardSieglings(board = gameState?.playerBoard || []) {
+    return (board || []).reduce((count, row) => count + (row || []).filter(Boolean).length, 0);
+}
+
+function getClaimableSieglings(board = gameState?.playerBoard || []) {
+    if (!gameState || gameState.currentPhase !== 'SETUP' || gameState.activeSide !== 'PLAYER' || targetMode) {
+        return [];
+    }
+    const claimable = [];
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+            const cell = board?.[row]?.[col];
+            if (cell && Number(cell.battlePhasesSeen || 0) > 0) {
+                claimable.push([row, col]);
+            }
+        }
+    }
+    return claimable;
 }
 
 function getEvolutionPlacements(card, board = gameState?.playerBoard || []) {
@@ -901,6 +1652,9 @@ function getLegalPlacementsForCard(card, board = gameState?.playerBoard || []) {
     }
 
     const safeBoard = Array.isArray(board) && board.length ? board : [[], [], []];
+    if (countBoardSieglings(safeBoard) >= 5) {
+        return [];
+    }
 
     if (card.evolvesFromId) {
         return getEvolutionPlacements(card, safeBoard);
@@ -913,9 +1667,7 @@ function getLegalPlacementsForCard(card, board = gameState?.playerBoard || []) {
         for (let col = 0; col < 3; col++) {
             if (safeBoard[row][col]) continue;
 
-            if (!hasAnySiegling
-                || canCardLinkAt(card, row, col, safeBoard)
-                || canCardUseExternalSocket(card, row, col, true)) {
+            if (!hasAnySiegling || canCardLinkAt(card, row, col, safeBoard) || canCardAnchorToSocket(card, row, col)) {
                 placements.push([row, col]);
             }
         }
@@ -942,6 +1694,9 @@ function getHandCardLockReason(card) {
     }
     if (gameState.currentPhase !== 'SETUP') {
         return 'Cards can only be played during setup.';
+    }
+    if (card.type === 'SIEGLING' && countBoardSieglings() >= 5) {
+        return 'Maxed out.';
     }
     if (!canAffordCard(card)) {
         return `Need ${card.costAmount} ${formatElementLabel(card.costElement)} energy to play this.`;
@@ -992,13 +1747,20 @@ function getInteractionBannerState() {
             message: 'Your Siegling play is spent for this turn. Use spells, traps, or your trainer next.'
         };
     }
+    if (gameState.currentPhase === 'SETUP' && getClaimableSieglings().length > 0) {
+        return {
+            kind: 'place',
+            label: 'Claim',
+            message: 'Tap one of your battle-tested Sieglings to claim it and gain 1 temporary energy of its element this turn.'
+        };
+    }
     if (gameState.currentPhase === 'BATTLE') {
         return {
             kind: 'battle',
             label: 'Battle Phase',
             message: gameState.pendingBattle
-                ? 'Choose a battle ability. Your hand is hidden until battle resolves.'
-                : 'Battle phase is active. Your hand is hidden until the next setup turn.'
+                ? 'Choose a battle ability for the acting Siegling. Use the Battle button to reopen the speed queue if needed.'
+                : 'Battle is resolving in speed order. Your hand is hidden until the next setup turn.'
         };
     }
     return null;
@@ -1074,11 +1836,14 @@ function applyInteractionState() {
     handArea?.classList.toggle('interaction-locked', targetingActive);
 
     renderInteractionBanner();
+    renderHintPanel();
+    syncActionBarAttention();
     maybeTriggerInteractionFeedback();
 }
 
 function resetInteractionState(shouldRender = true) {
     selectedCard = null;
+    closeClaimPopup();
     clearTargetMode();
     updateSelectedInfo(null);
     if (shouldRender) {
@@ -1086,7 +1851,7 @@ function resetInteractionState(shouldRender = true) {
     }
 }
 
-async function api(endpoint, method = 'POST', body = null) {
+async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
     const opts = { method, headers: getAuthHeaders({ 'Content-Type': 'application/json' }) };
     if (multiplayerSession?.roomId && multiplayerSession?.playerToken) {
         opts.headers['X-Room-Id'] = multiplayerSession.roomId;
@@ -1094,7 +1859,7 @@ async function api(endpoint, method = 'POST', body = null) {
     }
     if (body) opts.body = JSON.stringify(body);
 
-    const data = await fetchJson(apiUrls('/api/game/' + endpoint), opts);
+    const data = await fetchJson(apiUrls('/api/game/' + endpoint), opts, timeoutMs);
     if (!data) {
         console.error('API error: request failed for', endpoint);
         return null;
@@ -1153,7 +1918,7 @@ async function loadGameOptions() {
         loadoutErrorMessage = '';
         updateLoadoutSummary();
         const [data] = await Promise.all([
-            fetchJson(apiUrls('/api/game/options')),
+            fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
             syncAuthProfile(true)
         ]);
         if (!data) {
@@ -1190,7 +1955,7 @@ async function newGame() {
     clearTargetMode();
     document.getElementById('gameOverOverlay').classList.remove('visible');
     const body = getSelectedLoadoutBody();
-    const started = await api('new', 'POST', body);
+    const started = await api('new', 'POST', body, LOADOUT_ACTION_TIMEOUT_MS);
     if (!started) {
         return;
     }
@@ -1199,6 +1964,13 @@ async function newGame() {
 function openLoadoutSelector() {
     clearMultiplayerSession();
     gameState = null;
+    lastRenderedPhase = null;
+    if (phaseTransitionTimer) {
+        clearTimeout(phaseTransitionTimer);
+        phaseTransitionTimer = null;
+    }
+    document.getElementById('phaseTransitionBanner')?.classList.add('hidden');
+    document.getElementById('phaseTransitionBanner')?.classList.remove('visible');
     welcomeDismissed = true;
     document.getElementById('gameOverOverlay').classList.remove('visible');
     if (!gameOptions) {
@@ -1572,6 +2344,31 @@ function renderDeckBuilder() {
     previewEl.innerHTML = renderBuilderPreviewCard(previewCard);
 }
 
+function getLoadoutStartButtonLabel() {
+    if (matchMode === 'online') {
+        return isInviteJoinFlow() ? 'Join Match' : (onlineRoomMode === 'create' ? 'Create Room' : 'Join Room');
+    }
+    return 'Start Match';
+}
+
+function getLoadoutStartButtonBusyLabel() {
+    if (matchMode === 'online') {
+        return onlineRoomMode === 'create' ? 'Creating Room...' : (isInviteJoinFlow() ? 'Joining Match...' : 'Joining Room...');
+    }
+    return 'Starting Match...';
+}
+
+function syncLoadoutStartButton(startBtn, disabled, label) {
+    if (!startBtn) {
+        return;
+    }
+
+    startBtn.textContent = label;
+    startBtn.disabled = Boolean(disabled);
+    startBtn.classList.toggle('is-loading', loadoutStartPending);
+    startBtn.setAttribute('aria-busy', loadoutStartPending ? 'true' : 'false');
+}
+
 function updateLoadoutSummary() {
     const summary = document.getElementById('loadoutSummary');
     const startBtn = document.getElementById('btnStartLoadout');
@@ -1580,39 +2377,35 @@ function updateLoadoutSummary() {
     if (!gameOptions) {
         summary.textContent = loadoutErrorMessage || 'Loading deck and SiegeKnight choices...';
         if (startBtn) {
-            startBtn.textContent = loadoutErrorMessage ? 'Retry Loadout' : 'Loading...';
-            startBtn.disabled = !loadoutErrorMessage;
             startBtn.onclick = loadoutErrorMessage ? () => loadGameOptions() : startSelectedGame;
+            syncLoadoutStartButton(startBtn, !loadoutErrorMessage, loadoutErrorMessage ? 'Retry Loadout' : 'Loading...');
         }
         return;
     }
 
+    const startButtonLabel = loadoutStartPending ? getLoadoutStartButtonBusyLabel() : getLoadoutStartButtonLabel();
     if (startBtn) {
         startBtn.onclick = startSelectedGame;
+        syncLoadoutStartButton(startBtn, false, startButtonLabel);
     }
 
     const deck = gameOptions.decks.find(item => item.id === selectedDeckId);
     const trainer = gameOptions.trainers.find(item => item.id === selectedTrainerId);
     if (!trainer) {
         summary.textContent = 'Choose a deck and SiegeKnight to begin.';
-        if (startBtn) startBtn.disabled = true;
+        syncLoadoutStartButton(startBtn, true, startButtonLabel);
         return;
     }
 
-    const startButtonLabel = matchMode === 'online'
-        ? (isInviteJoinFlow() ? 'Join Match' : (onlineRoomMode === 'create' ? 'Create Room' : 'Join Room'))
-        : 'Start Match';
-    if (startBtn) startBtn.textContent = startButtonLabel;
-
     if (needsPlayerName && !playerName) {
         summary.innerHTML = 'Enter the name you want to use online, then finish choosing your deck and SiegeKnight.';
-        if (startBtn) startBtn.disabled = true;
+        syncLoadoutStartButton(startBtn, true, startButtonLabel);
         return;
     }
 
     if (matchMode === 'online' && currentRoomStatus?.roomId && !currentRoomStatus.started) {
         summary.innerHTML = `Room <strong>${currentRoomStatus.roomId}</strong> is ready. Waiting for your opponent to join.`;
-        if (startBtn) startBtn.disabled = true;
+        syncLoadoutStartButton(startBtn, true, startButtonLabel);
         return;
     }
 
@@ -1625,37 +2418,51 @@ function updateLoadoutSummary() {
         if (!valid) {
             summary.innerHTML += ` | Add at least <strong>${gameOptions.deckBuilder.minDeckSize}</strong> cards to start.`;
         }
-        if (startBtn) {
-            startBtn.disabled = !valid || (matchMode === 'online' && onlineRoomMode === 'join' && !getCurrentRoomCode()) || (needsPlayerName && !playerName);
-        }
+        syncLoadoutStartButton(
+            startBtn,
+            loadoutStartPending || !valid || (matchMode === 'online' && onlineRoomMode === 'join' && !getCurrentRoomCode()) || (needsPlayerName && !playerName),
+            startButtonLabel
+        );
         return;
     }
 
     if (!deck) {
         summary.textContent = 'Choose a preset deck and SiegeKnight to begin.';
-        if (startBtn) startBtn.disabled = true;
+        syncLoadoutStartButton(startBtn, true, startButtonLabel);
         return;
     }
 
     summary.innerHTML = `${matchMode === 'online' ? 'Build' : 'Deck'}: <strong>${escapeHtml(getActiveLoadoutLabel() || deck.name)}</strong> | SiegeKnight: <strong>${trainer.name}</strong>${playerName ? ` | Name: <strong>${playerName}</strong>` : ''}`;
-    if (startBtn) {
-        startBtn.disabled = (matchMode === 'online' && onlineRoomMode === 'join' && !getCurrentRoomCode()) || (needsPlayerName && !playerName);
-    }
+    syncLoadoutStartButton(
+        startBtn,
+        loadoutStartPending || (matchMode === 'online' && onlineRoomMode === 'join' && !getCurrentRoomCode()) || (needsPlayerName && !playerName),
+        startButtonLabel
+    );
 }
 
 async function startSelectedGame() {
+    if (loadoutStartPending) return;
     if (!selectedTrainerId) return;
     if (loadoutMode === 'preset' && !selectedDeckId) return;
     if (loadoutMode === 'builder' && getBuilderCardCount() < gameOptions.deckBuilder.minDeckSize) return;
-    if (matchMode === 'online') {
-        if (onlineRoomMode === 'create') {
-            await createRoom();
-        } else {
-            await joinRoom();
+
+    loadoutStartPending = true;
+    updateLoadoutSummary();
+
+    try {
+        if (matchMode === 'online') {
+            if (onlineRoomMode === 'create') {
+                await createRoom();
+            } else {
+                await joinRoom();
+            }
+            return;
         }
-        return;
+        await newGame();
+    } finally {
+        loadoutStartPending = false;
+        updateLoadoutSummary();
     }
-    await newGame();
 }
 
 function getCurrentPlayerName() {
@@ -1684,7 +2491,7 @@ async function createRoom() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
-    });
+    }, LOADOUT_ACTION_TIMEOUT_MS);
     if (!data || data.error) {
         console.error(data?.error || 'Unable to create room.');
         return;
@@ -1717,7 +2524,7 @@ async function joinRoom() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
-    });
+    }, LOADOUT_ACTION_TIMEOUT_MS);
     if (!data || data.error) {
         console.error(data?.error || 'Unable to join room.');
         return;
@@ -1770,10 +2577,9 @@ function getBuilderCardCostText(card) {
 
 function getBuilderCardSummaryText(card) {
     if (card.type === 'SIEGLING') {
-        const statLine = getCardSummaryStatLine(card).replaceAll(':', ' ');
-        return `${statLine || 'Siegling'} | ${card.preferredRow || 'ANY'}${card.evolvesFromName ? ` | Evolves from ${card.evolvesFromName}` : ''}`;
+        return `HP ${card.health} | SPD ${card.speed} | ${card.preferredRow || 'ANY'}${card.evolvesFromName ? ` | Evolves from ${card.evolvesFromName}` : ''}`;
     }
-    return getCardAbilitiesSummaryText(card);
+    return card.ability?.description || 'No effect text';
 }
 
 function resolveBuilderPreviewCard(filteredCards, chosenCards) {
@@ -1815,15 +2621,14 @@ function renderBuilderPreviewCard(card) {
     html += `<div class="card-title">${card.name}</div>`;
     html += `<div class="card-label">${card.type} / ${card.rarity}</div>`;
     html += `</div>`;
-        html += renderCardArt(card, 'preview', fallbackArtLabel);
-        html += `<div class="hand-card-body">`;
-        if (card.type === 'SIEGLING') {
-            const statLine = getCardSummaryStatLine(card);
-            if (statLine) {
-                html += `<div class="card-detail card-stats-line">${statLine}</div>`;
-            }
-        }
-        html += renderCardAbilityDetails(card);
+    html += renderCardArt(card, 'preview', fallbackArtLabel);
+    html += `<div class="hand-card-body">`;
+    if (card.type === 'SIEGLING') {
+        html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
+    }
+    if (card.ability?.description) {
+        html += `<div class="card-detail">${card.ability.description}</div>`;
+    }
     if (card.type === 'TRAP' && card.trapBucketElement) {
         html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
     } else if (card.costElement) {
@@ -1916,13 +2721,20 @@ async function submitMulligan(indices) {
 }
 
 async function executeBattle() {
+    if (!gameState || gameState.gameOver || isBattleTargetSelectionActive()) {
+        return;
+    }
     selectedCard = null;
+    closeClaimPopup();
+    closeTrainerAbilityPopup();
     clearTargetMode();
-    await api('battle');
+    renderBattlePanel();
+    openDrawer('battle');
 }
 
 async function endTurn() {
     selectedCard = null;
+    closeClaimPopup();
     clearTargetMode();
     await api('endturn');
 }
@@ -1930,6 +2742,13 @@ async function endTurn() {
 async function placeCard(row, col) {
     if (!selectedCard) return;
     const data = await api('place', 'POST', { cardId: selectedCard.id, row, col });
+    if (!data) return;
+    resetInteractionState();
+}
+
+async function claimBoardCard(row, col) {
+    clearTargetMode();
+    const data = await api('claim', 'POST', { row, col });
     if (!data) return;
     resetInteractionState();
 }
@@ -1942,50 +2761,6 @@ async function castSpell(cardId, targetRow, targetCol) {
 
 function isActionCard(card) {
     return card && (card.type === 'SPELL' || card.type === 'TRAP');
-}
-
-function getCardAbilities(card) {
-    if (Array.isArray(card?.abilities) && card.abilities.length > 0) {
-        return card.abilities;
-    }
-    if (card?.ability) {
-        return [card.ability];
-    }
-    return [];
-}
-
-function getPrimaryAbility(card) {
-    return getCardAbilities(card)[0] || null;
-}
-
-function formatAbilityCostLabel(ability) {
-    if (!ability) return '';
-    const energy = Number(ability.requiredEnergy || 0);
-    if (energy <= 0) return '';
-    return `${energy} ${formatElementLabel(ability.requiredElement || 'NEUTRAL')}`;
-}
-
-function formatAbilitySummaryText(ability) {
-    if (!ability) return '';
-    const base = ability.name && ability.description
-        ? `${ability.name}: ${ability.description}`
-        : (ability.description || ability.name || 'No effect text');
-    const cost = formatAbilityCostLabel(ability);
-    return cost ? `${base} [Cost: ${cost}]` : base;
-}
-
-function getCardAbilitiesSummaryText(card) {
-    const abilities = getCardAbilities(card);
-    if (!abilities.length) {
-        return 'No effect text';
-    }
-    return abilities.map(formatAbilitySummaryText).join(' | ');
-}
-
-function renderCardAbilityDetails(card) {
-    return getCardAbilities(card).map(ability =>
-        `<div class="card-detail">${escapeHtml(formatAbilitySummaryText(ability))}</div>`
-    ).join('');
 }
 
 function getAbilityTargetSide(ability) {
@@ -2012,8 +2787,13 @@ async function submitBattleAction(abilityIndex, targetRow = -1, targetCol = -1) 
 function render() {
     if (!gameState) return;
 
+    const phase = gameState.currentPhase;
+    const previousPhase = lastRenderedPhase;
+    const phaseChanged = Boolean(previousPhase && previousPhase !== phase);
+    lastRenderedPhase = phase;
+
     document.getElementById('turnNumber').textContent = gameState.turnNumber;
-    document.getElementById('phaseBadge').textContent = gameState.currentPhase;
+    document.getElementById('phaseBadge').textContent = phase;
     document.getElementById('activeSideLabel').textContent = gameState.activeSideLabel || (gameState.activeSide === 'PLAYER' ? 'You' : 'Opponent');
     document.getElementById('firstPlayerLabel').textContent = gameState.firstPlayerLabel || (gameState.firstPlayer === 'PLAYER' ? 'You' : 'Opponent');
     document.getElementById('enemyHeading').textContent = gameState.enemyName || 'AI Opponent';
@@ -2028,18 +2808,52 @@ function render() {
         roomBadge.classList.add('hidden');
     }
 
-    const phase = gameState.currentPhase;
     const over = gameState.gameOver;
     const playerActive = gameState.activeSide === 'PLAYER';
-    document.getElementById('btnDraw').disabled = over || !playerActive || phase !== 'DRAW';
-    document.getElementById('btnBattle').disabled = true;
-    document.getElementById('btnEndTurn').disabled = over || !playerActive || phase !== 'SETUP';
+    const btnDraw = document.getElementById('btnDraw');
+    const btnBattle = document.getElementById('btnBattle');
+    const btnTrainerAbility = document.getElementById('btnTrainerAbility');
+    const btnEndTurn = document.getElementById('btnEndTurn');
+    const battlePhaseActive = phase === 'BATTLE' && !over;
+    btnDraw.disabled = over || !playerActive || phase !== 'DRAW';
+    btnEndTurn.disabled = over || !playerActive || phase !== 'SETUP';
+    btnDraw.classList.toggle('hidden', battlePhaseActive);
+    btnBattle.classList.toggle('hidden', !battlePhaseActive);
+
+    const playerBattlePending = phase === 'BATTLE'
+        && gameState.pendingBattle
+        && gameState.battleWaitingOn === 'PLAYER';
+    const enemyBattlePending = phase === 'BATTLE' && gameState.battleWaitingOn === 'ENEMY';
+    let battleLabel = 'Auto Battle';
+    let battleTitle = 'Battle starts automatically after both players finish Setup. Use this to review the speed queue.';
+    if (phase === 'BATTLE') {
+        if (playerBattlePending) {
+            battleLabel = 'Act Now';
+            battleTitle = 'Open the battle action list for the Siegling that is currently acting by speed.';
+        } else if (enemyBattlePending) {
+            battleLabel = 'Enemy Acts';
+            battleTitle = 'Open battle status while the opponent resolves the current speed action.';
+        } else {
+            battleLabel = 'Battle Live';
+            battleTitle = 'Open battle status. Sieglings resolve abilities in speed order until the phase ends.';
+        }
+    }
+    btnBattle.disabled = over;
+    btnBattle.textContent = battleLabel;
+    btnBattle.title = battleTitle;
+    btnBattle.setAttribute('aria-label', battleTitle);
+    btnBattle.classList.toggle('ab-urgent', playerBattlePending);
+
+    // Highlight the active phase button
+    btnDraw.classList.toggle('ab-active', phase === 'DRAW' && playerActive && !over);
+    btnBattle.classList.toggle('ab-active', phase === 'BATTLE' && !over);
+    btnEndTurn.classList.toggle('ab-active', phase === 'SETUP' && playerActive && !over);
 
     document.getElementById('playerHealth').textContent = gameState.player.health;
     document.getElementById('enemyHealth').textContent = gameState.enemy.health;
 
-    renderEnergy('playerEnergy', gameState.player);
-    renderEnergy('enemyEnergy', gameState.enemy);
+    renderEnergyTopBar('playerEnergy', gameState.player);
+    renderEnergyTopBar('enemyEnergy', gameState.enemy);
 
     document.getElementById('playerDeckSize').textContent = gameState.player.deckSize;
     document.getElementById('enemyDeckSize').textContent = gameState.enemy.deckSize;
@@ -2047,10 +2861,26 @@ function render() {
 
     renderTrainer('playerTrainer', gameState.player.trainer, true);
     renderTrainer('enemyTrainer', gameState.enemy.trainer, false);
+    if (btnTrainerAbility) {
+        const trainer = gameState.player.trainer;
+        const showTrainerButton = canUseTrainerAbility(trainer);
+        btnTrainerAbility.classList.toggle('hidden', !showTrainerButton);
+        btnTrainerAbility.disabled = !showTrainerButton;
+        btnTrainerAbility.textContent = trainer?.tier === 'SiegeLord' ? 'Lord' : 'Knight';
+        btnTrainerAbility.title = showTrainerButton && trainer?.active
+            ? `${trainer.name}: ${trainer.active.name}`
+            : 'No SiegeKnight ability available';
+    }
+    renderTrainerAbilityPopup();
+    renderClaimPopup();
 
     renderBoard('enemyGrid', gameState.enemyBoard, false);
     renderBoard('playerGrid', gameState.playerBoard, true);
+    applyArenaElementTheme();
     renderHand();
+    renderDesktopDeckPreview();
+    updateHandLiftLayer();
+    syncFocusedCardUi();
     renderMulliganOverlay();
     renderLog();
     renderBattlePanel();
@@ -2059,6 +2889,13 @@ function render() {
     syncMobileInfoTab();
     syncEntryOverlays();
     maybeRefreshProfileAfterGame();
+
+    if (activeDrawer === 'battle' && phase !== 'BATTLE') {
+        closeDrawer(true);
+    }
+    if (phaseChanged) {
+        showPhaseTransitionBanner(phase, gameState.activeSide);
+    }
 
     if (gameState.gameOver) {
         document.getElementById('gameOverOverlay').classList.add('visible');
@@ -2131,6 +2968,90 @@ function getElementHex(element) {
         case 'PSYCHIC': return '#c896ff';
         default: return '#95a5a6';
     }
+}
+
+function hexToRgba(hex, alpha = 1) {
+    const normalized = (hex || '').replace('#', '');
+    if (normalized.length !== 6) {
+        return `rgba(149, 165, 166, ${alpha})`;
+    }
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function collectArenaThemeElements() {
+    if (!gameState) {
+        return ['WATER', 'FIRE', 'WIND', 'EARTH'];
+    }
+
+    const weights = new Map();
+    const addElement = (element, weight = 1) => {
+        if (!element) {
+            return;
+        }
+        weights.set(element, (weights.get(element) || 0) + weight);
+    };
+
+    const addBoard = (board, ownerWeight = 1) => {
+        (board || []).forEach(row => {
+            (row || []).forEach(card => {
+                if (!card?.element) {
+                    return;
+                }
+                addElement(card.element, ownerWeight + 1);
+            });
+        });
+    };
+
+    addElement(gameState.player?.trainer?.element, 2);
+    addElement(gameState.enemy?.trainer?.element, 2);
+    addBoard(gameState.playerBoard, 1.15);
+    addBoard(gameState.enemyBoard, 1);
+
+    if (gameState.pendingBattle?.element) {
+        addElement(gameState.pendingBattle.element, 3);
+    }
+
+    const ranked = Array.from(weights.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([element]) => element);
+
+    if (ranked.length === 0) {
+        return ['WATER', 'FIRE', 'WIND', 'EARTH'];
+    }
+    if (ranked.length === 1) {
+        return [ranked[0], ranked[0], ranked[0], ranked[0]];
+    }
+    if (ranked.length === 2) {
+        return [ranked[0], ranked[1], ranked[0], ranked[1]];
+    }
+    if (ranked.length === 3) {
+        return [ranked[0], ranked[1], ranked[2], ranked[0]];
+    }
+    return ranked.slice(0, 4);
+}
+
+function applyArenaElementTheme() {
+    const boardArea = document.getElementById('boardArea');
+    if (!boardArea) {
+        return;
+    }
+
+    const [primary, secondary, tertiary, quaternary] = collectArenaThemeElements();
+    const colors = [primary, secondary, tertiary, quaternary].map(getElementHex);
+
+    boardArea.style.setProperty('--arena-color-a', colors[0]);
+    boardArea.style.setProperty('--arena-color-b', colors[1] || colors[0]);
+    boardArea.style.setProperty('--arena-color-c', colors[2] || colors[0]);
+    boardArea.style.setProperty('--arena-color-d', colors[3] || colors[1] || colors[0]);
+    boardArea.style.setProperty('--arena-glow-a', hexToRgba(colors[0], gameState?.currentPhase === 'BATTLE' ? 0.34 : 0.22));
+    boardArea.style.setProperty('--arena-glow-b', hexToRgba(colors[1] || colors[0], gameState?.currentPhase === 'BATTLE' ? 0.3 : 0.18));
+    boardArea.style.setProperty('--arena-glow-c', hexToRgba(colors[2] || colors[0], gameState?.currentPhase === 'BATTLE' ? 0.24 : 0.15));
+    boardArea.style.setProperty('--arena-glow-d', hexToRgba(colors[3] || colors[1] || colors[0], gameState?.currentPhase === 'BATTLE' ? 0.2 : 0.12));
+    boardArea.style.setProperty('--arena-rim', hexToRgba(colors[0], gameState?.currentPhase === 'BATTLE' ? 0.34 : 0.18));
+    boardArea.style.setProperty('--arena-sheen', hexToRgba(colors[1] || colors[0], gameState?.currentPhase === 'BATTLE' ? 0.2 : 0.1));
 }
 
 function getElementSigil(element, variant = 'soft') {
@@ -2324,7 +3245,7 @@ function renderTrainer(containerId, trainer, isPlayer) {
     if (trainer.active) {
         html += `<div class="effect">${trainer.oncePerGame ? 'Ultimate' : 'Active'}: ${trainer.active.description}</div>`;
         if (isPlayer) {
-            const canUseTrainer = trainer.canUseActive && !isOpeningPlacementOnlyTurn();
+            const canUseTrainer = canUseTrainerAbility(trainer);
             html += `<button class="trainer-btn" ${canUseTrainer ? '' : 'disabled'} onclick="onTrainerUse()">Use ${trainer.active.name}</button>`;
         }
     }
@@ -2336,6 +3257,7 @@ function renderBoard(gridId, board, isPlayer) {
     const grid = document.getElementById(gridId);
     const rowOrder = isPlayer ? [2, 1, 0] : [0, 1, 2];
     const legalPlacements = isPlayer ? getSelectedLegalPlacements() : [];
+    const claimableSieglings = isPlayer ? getClaimableSieglings(board) : [];
     let html = '';
 
     for (const r of rowOrder) {
@@ -2345,18 +3267,22 @@ function renderBoard(gridId, board, isPlayer) {
                 && legalPlacements.some(p => p[0] === r && p[1] === c);
             const isTargetable = isTargetCell(isPlayer, cell);
             const isActing = gameState.pendingBattle && cell && gameState.pendingBattle.instanceId === cell.instanceId;
+            const isClaimable = isPlayer && cell && claimableSieglings.some(p => p[0] === r && p[1] === c);
 
             let classes = 'board-cell';
             if (isLegal) classes += ' legal';
             if (cell) classes += ' has-card';
             if (isTargetable) classes += ' targetable';
             if (isActing) classes += ' active-attacker';
+            if (isClaimable) classes += ' claimable';
 
             let events = '';
             if (isLegal) {
                 events = `onclick="placeCard(${r}, ${c})"`;
             } else if (isTargetable) {
                 events = `onclick="onTargetSelected(${r}, ${c})"`;
+            } else if (isClaimable) {
+                events = `onclick="openClaimPopup(${r}, ${c})" onmouseenter="showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="hideTooltip()"`;
             } else if (cell) {
                 events = `onmouseenter="showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="hideTooltip()"`;
             }
@@ -2368,12 +3294,13 @@ function renderBoard(gridId, board, isPlayer) {
 
             if (cell) {
                 const elemClass = cell.element.toLowerCase();
-                const hp = formatStatValue(cell.hp);
-                const maxHp = formatStatValue(cell.maxHp);
-                const hpPercent = hp !== null && maxHp !== null && maxHp > 0
-                    ? Math.max(0, Math.min(100, (hp / maxHp) * 100))
-                    : 0;
                 html += `<div class="board-card ${elemClass}">`;
+                if (isActing) {
+                    html += `<div class="acting-badge">Acting</div>`;
+                }
+                if (isClaimable) {
+                    html += `<div class="claim-prompt">Claim</div>`;
+                }
                 html += renderBoardNotches(cell.notches, { board, row: r, col: c, isPlayer, legalPlacements });
                 html += renderCardArt(cell, 'board');
                 html += `<div class="bc-inner">`;
@@ -2382,11 +3309,11 @@ function renderBoard(gridId, board, isPlayer) {
                     html += `<div class="status-icons">${cell.statuses.join(' ')}</div>`;
                 }
                 html += `<div class="bc-stats-box">`;
-                html += `<div class="hp-bar"><div class="hp-fill" style="width:${hpPercent}%"></div></div>`;
-                const statBadges = renderBoardStatBadges(cell);
-                if (statBadges) {
-                    html += `<div class="card-stats">${statBadges}</div>`;
-                }
+                html += `<div class="hp-bar"><div class="hp-fill" style="width:${(cell.hp / cell.maxHp) * 100}%"></div></div>`;
+                html += `<div class="card-stats">`;
+                html += `<span class="stat stat-hp">${cell.hp}/${cell.maxHp}</span>`;
+                html += `<span class="stat stat-spd">${cell.spd}</span>`;
+                html += `</div>`;
                 html += `</div>`;
                 html += `</div>`;
                 if (isLegal) {
@@ -2893,12 +3820,12 @@ function renderHand() {
             placementLocked ? ' placement-locked' : '',
             targetMode ? ' target-lock' : ''
         ].join('');
-        const onclick = lockReason && !isSelected ? '' : `onclick="selectCard('${card.id}')"`
-        const onmouseenter = `onmouseenter="showTooltipHand(event, '${card.id}')" onmouseleave="hideTooltip()"`;
+        const onclick = `onclick="selectCard('${card.id}')"`
+        const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, '${card.id}')" onmouseleave="handleHandCardPointerLeave('${card.id}')"`;
         const fallbackArtLabel = card.type === 'SIEGLING'
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        html += `<div class="hand-card ${elemClass}${interactionClass}" ${onclick} ${onmouseenter}>`;
+        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" ${onclick} ${hoverEvents}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
@@ -2910,12 +3837,11 @@ function renderHand() {
         html += renderCardArt(card, 'hand', fallbackArtLabel);
         html += `<div class="hand-card-body">`;
         if (card.type === 'SIEGLING') {
-            const statLine = getCardSummaryStatLine(card);
-            if (statLine) {
-                html += `<div class="card-detail card-stats-line">${statLine}</div>`;
-            }
+            html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
         }
-        html += renderCardAbilityDetails(card);
+        if (card.ability?.description) {
+            html += `<div class="card-detail">${escapeHtml(card.ability.description)}</div>`;
+        }
         if (card.type === 'TRAP' && card.trapBucketElement) {
             html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
         } else if (card.costElement) {
@@ -2938,6 +3864,22 @@ function renderHand() {
     }
 
     container.innerHTML = html;
+}
+
+function handleHandCardPointerEnter(event, cardId) {
+    hoveredHandCardId = cardId;
+    updateHandLiftLayer();
+    syncFocusedCardUi();
+    showTooltipHand(event, cardId);
+}
+
+function handleHandCardPointerLeave(cardId) {
+    if (hoveredHandCardId === cardId) {
+        hoveredHandCardId = null;
+    }
+    updateHandLiftLayer();
+    syncFocusedCardUi();
+    hideTooltip();
 }
 
 function renderMulliganOverlay() {
@@ -2989,7 +3931,7 @@ function renderMulliganOverlay() {
         <div class="mulligan-card ${card.element.toLowerCase()}${selected}"${interactive}${click}>
             <div class="mulligan-card-name">${escapeHtml(card.name)}</div>
             <div class="mulligan-card-type">${escapeHtml(formatElementLabel(card.element))} ${escapeHtml(card.type)}</div>
-            <div class="mulligan-card-text">${escapeHtml(getPrimaryAbility(card)?.description || getBuilderCardSummaryText(card))}</div>
+            <div class="mulligan-card-text">${escapeHtml(card.ability?.description || getBuilderCardSummaryText(card))}</div>
         </div>`;
     }).join('');
 }
@@ -3008,37 +3950,45 @@ function renderLog() {
 
 function renderBattlePanel() {
     const panel = document.getElementById('battleActionPanel');
+    if (!panel || !gameState) {
+        return;
+    }
     const pending = gameState.pendingBattle;
 
     if (!pending) {
         if (gameState.currentPhase === 'BATTLE' && gameState.battleWaitingOn === 'ENEMY') {
-            if (isMobileLayout()) {
-                mobileInfoTab = 'battle';
-            }
-            panel.innerHTML = 'Waiting for your opponent to choose a battle ability.';
+            panel.innerHTML = 'Battle is live. Waiting for your opponent to finish the current speed action.';
             return;
         }
-        panel.innerHTML = 'Start battle to choose abilities for your Sieglings.';
+        if (gameState.currentPhase === 'BATTLE') {
+            panel.innerHTML = 'Battle is resolving. The next available Siegling will act in speed order.';
+            return;
+        }
+        panel.innerHTML = 'Battle starts automatically after both players press End Turn. When it begins, Sieglings act from highest speed to lowest speed.';
         return;
     }
 
-    if (isMobileLayout()) {
+    if (isMobileLayout() && activeDrawer !== 'battle' && !isBattleTargetSelectionActive()) {
         mobileInfoTab = 'battle';
+        openDrawer('battle');
     }
 
-    let html = `<div class="battle-attacker"><strong>${pending.name}</strong> is acting.</div>`;
+    let html = `<div class="battle-attacker"><strong>${pending.name}</strong> is acting now from the battle speed order.</div>`;
     if (targetMode && targetContext && targetContext.mode === 'battle') {
-        html += `<div class="battle-hint">${targetContext.message}</div>`;
+        html += `<div class="battle-hint">${targetContext.message} You can also pass to skip this action.</div>`;
     } else {
-        html += `<div class="battle-hint">Choose an ability to resolve.</div>`;
+        html += `<div class="battle-hint">Choose an ability to resolve or pass this Siegling's action.</div>`;
     }
 
-    for (const ability of pending.abilities) {
+    const sortedAbilities = getSortedBattleAbilities(pending.abilities);
+    for (const ability of sortedAbilities) {
         const disabled = ability.affordable ? '' : 'disabled';
-        const label = `${ability.name} (${ability.requiredEnergy} ${ability.requiredElement || 'NEUTRAL'})`;
+        const label = `${ability.name} (${formatBattleAbilityCost(ability)})`;
         html += `<button class="battle-ability-btn" ${disabled} onclick="chooseBattleAbility(${ability.index})">${label}</button>`;
         html += `<div class="battle-ability-desc">${ability.description}</div>`;
     }
+    html += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()">Pass</button>`;
+    html += `<div class="battle-ability-desc">Skip this card's action and move to the next acting Siegling.</div>`;
 
     panel.innerHTML = html;
 }
@@ -3065,7 +4015,17 @@ function chooseBattleAbility(index) {
         abilityIndex: index,
         message: `Select a ${targetSide} target for ${ability.name}.`
     };
+    if (activeDrawer === 'battle') {
+        closeDrawer(true);
+    }
     render();
+}
+
+function passBattleAction() {
+    if (!gameState?.pendingBattle) {
+        return;
+    }
+    submitBattleAction(-1, -1, -1);
 }
 
 function boardHasTargets(side) {
@@ -3074,7 +4034,7 @@ function boardHasTargets(side) {
 }
 
 function getSelectedLegalPlacements() {
-    if (gameState.playerPlacementUsed) {
+    if (gameState.playerPlacementUsed || countBoardSieglings() >= 5) {
         return [];
     }
 
@@ -3099,28 +4059,12 @@ function canCardLinkAt(card, row, col, board) {
     });
 }
 
-function getExternalSocketDirectionsForCell(row, col, isPlayer) {
-    const directions = [];
-    if (col === 0) {
-        directions.push('LEFT');
-    }
-    if (col === 2) {
-        directions.push('RIGHT');
-    }
-    if (row === 0) {
-        directions.push(isPlayer ? 'BOTTOM' : 'TOP');
-    }
-    return directions;
-}
-
-function canCardUseExternalSocket(card, row, col, isPlayer) {
-    const socketDirections = getExternalSocketDirectionsForCell(row, col, isPlayer);
-    if (socketDirections.length === 0) {
-        return false;
-    }
-    return socketDirections.some(direction =>
-        (card.notches || []).some(notch => notch.direction === direction)
-    );
+function canCardAnchorToSocket(card, row, col) {
+    const socketDirections = [];
+    if (col === 0) socketDirections.push('LEFT');
+    if (col === 2) socketDirections.push('RIGHT');
+    if (row === 0) socketDirections.push('BOTTOM');
+    return socketDirections.some(direction => (card.notches || []).some(notch => notch.direction === direction));
 }
 
 function canSelectedCardLinkAt(row, col, board) {
@@ -3134,6 +4078,10 @@ function selectCard(cardId) {
     if (!card) return;
 
     if (selectedCard && selectedCard.id === cardId) {
+        if (isMobileLayout()) {
+            openCardInspector(card);
+            return;
+        }
         selectedCard = null;
         clearTargetMode();
         updateSelectedInfo(null);
@@ -3141,10 +4089,16 @@ function selectCard(cardId) {
         return;
     }
 
-    if (getHandCardLockReason(card)) return;
+    const lockReason = getHandCardLockReason(card);
 
     selectedCard = card;
     clearTargetMode();
+
+    if (lockReason) {
+        updateSelectedInfo(card, lockReason);
+        render();
+        return;
+    }
 
     if (isActionCard(card)) {
         if (abilityNeedsTarget(card.ability)) {
@@ -3191,7 +4145,9 @@ function onTargetSelected(row, col) {
 function onTrainerUse() {
     const trainer = gameState.player.trainer;
     if (!trainer || !trainer.active) return;
-    if (isOpeningPlacementOnlyTurn()) return;
+    if (!canUseTrainerAbility(trainer)) return;
+
+    closeTrainerAbilityPopup();
 
     if (abilityNeedsTarget(trainer.active)) {
         targetMode = true;
@@ -3221,34 +4177,27 @@ function updateSelectedInfo(card, msg) {
 
     let html = '';
     if (msg) {
-        html += `<div style="color:var(--accent);font-weight:bold;margin-bottom:4px;">${msg}</div>`;
+        html += `<div class="selected-preview-message">${escapeHtml(msg)}</div>`;
     }
     if (card) {
-        html += `<strong>${card.name}</strong> (${card.type})<br>`;
-        html += renderCardArt(card, 'selected');
-        if (card.type === 'SIEGLING') {
-            const statLine = getCardSummaryStatLine(card);
-            if (statLine) {
-                html += `${statLine}<br>`;
-            }
+        const lockReason = getHandCardLockReason(card);
+        html += `<div class="selected-card-panel">`;
+        html += renderShowcaseCard(card, {
+            cardClass: 'selected-preview-card',
+            artVariant: 'selected'
+        });
+        html += `<div class="selected-preview-copy">`;
+        if (lockReason) {
+            html += `<span style="color:var(--accent)">${escapeHtml(lockReason)}</span>`;
+        } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">Place this on top of ${card.evolvesFromName} to evolve it.</span>`
                 : gameState.playerPlacementUsed
                 ? '<span style="color:var(--accent)">You already placed your Siegling for this turn.</span>'
-                : '<span style="color:var(--accent)">Highlighted cells show where this card can expand next, either by linking to a creature or anchoring to an open edge socket.</span>';
+                : '<span style="color:var(--accent)">Highlighted bubbles show where this card can expand next.</span>';
         }
-        const abilityDetails = getCardAbilities(card);
-        if (abilityDetails.length > 0) {
-            html += abilityDetails.map(ability => `<em>${escapeHtml(formatAbilitySummaryText(ability))}</em>`).join('<br>') + '<br>';
-        }
-        if (card.evolvesFromName) {
-            html += `Evolves from ${card.evolvesFromName}<br>`;
-        }
-        if (card.type === 'TRAP') {
-            html += `Trigger: Opponent must have ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} energy.<br>`;
-        } else if (card.costElement && card.costAmount > 0) {
-            html += `Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}<br>`;
-        }
+        html += `</div>`;
+        html += `</div>`;
     }
 
     el.innerHTML = html;
@@ -3262,21 +4211,14 @@ function showTooltipBoard(event, isPlayer, row, col) {
     const tt = document.getElementById('cardTooltip');
     document.getElementById('ttName').textContent = `${cell.name} (${cell.element})`;
     document.getElementById('ttName').style.color = getElementCssVar(cell.element);
-    const hp = formatStatValue(cell.hp);
-    const maxHp = formatStatValue(cell.maxHp);
-    const speed = formatStatValue(cell.spd);
-    let statsHtml = '';
-    if (hp !== null && maxHp !== null) {
-        statsHtml += `<span class="stat stat-hp">HP: ${hp}/${maxHp}</span>`;
+    document.getElementById('ttStats').innerHTML =
+        `<span class="stat stat-hp">HP: ${cell.hp}/${cell.maxHp}</span>` +
+        `<span class="stat stat-spd">SPD: ${cell.spd}</span>`;
+    let abilityText = cell.ability || '';
+    if (isClaimableBoardCell(cell, isPlayer)) {
+        abilityText += `${abilityText ? ' ' : ''}[Claim: Gain 1 temporary ${formatElementLabel(cell.element)} energy this turn]`;
     }
-    if (speed !== null) {
-        statsHtml += `<span class="stat stat-spd">SPD: ${speed}</span>`;
-    }
-    document.getElementById('ttStats').innerHTML = statsHtml;
-    const boardAbilityText = Array.isArray(cell.abilities) && cell.abilities.length
-        ? cell.abilities.map(formatAbilitySummaryText).join(' | ')
-        : (cell.ability || '');
-    document.getElementById('ttAbility').textContent = boardAbilityText;
+    document.getElementById('ttAbility').textContent = abilityText;
 
     positionTooltip(event, tt);
     tt.classList.add('visible');
@@ -3292,18 +4234,13 @@ function showTooltipHand(event, cardId) {
 
     let statsHtml = '';
     if (card.type === 'SIEGLING') {
-        const health = formatStatValue(card.health);
-        const speed = formatStatValue(card.speed);
-        if (health !== null) {
-            statsHtml += `<span class="stat stat-hp">HP: ${health}</span>`;
-        }
-        if (speed !== null) {
-            statsHtml += `<span class="stat stat-spd">SPD: ${speed}</span>`;
-        }
+        statsHtml =
+            `<span class="stat stat-hp">HP: ${card.health}</span>` +
+            `<span class="stat stat-spd">SPD: ${card.speed}</span>`;
     }
     document.getElementById('ttStats').innerHTML = statsHtml;
 
-    let abilityText = getCardAbilities(card).map(formatAbilitySummaryText).join(' | ');
+    let abilityText = card.ability ? card.ability.description : '';
     if (card.type === 'TRAP') {
         abilityText += ` [Trigger: Opponent has ${card.trapBucketAmount} ${card.trapBucketElement}]`;
     } else if (card.costElement && card.costAmount > 0) {
@@ -3328,6 +4265,17 @@ function showTooltipHand(event, cardId) {
     tt.classList.add('visible');
 }
 
+function isClaimableBoardCell(cell, isPlayer) {
+    return Boolean(
+        isPlayer
+        && cell
+        && gameState?.currentPhase === 'SETUP'
+        && gameState?.activeSide === 'PLAYER'
+        && !targetMode
+        && Number(cell.battlePhasesSeen || 0) > 0
+    );
+}
+
 function positionTooltip(event, tt) {
     let x = event.clientX + 15;
     let y = event.clientY + 15;
@@ -3339,6 +4287,65 @@ function positionTooltip(event, tt) {
 
 function hideTooltip() {
     document.getElementById('cardTooltip').classList.remove('visible');
+}
+
+function getLiftedHandCardId() {
+    return hoveredHandCardId || selectedCard?.id || null;
+}
+
+function getHandCardSourceElement(cardId) {
+    return Array.from(document.querySelectorAll('#playerHand .hand-card[data-card-id]'))
+        .find(card => card.dataset.cardId === cardId) || null;
+}
+
+function updateHandLiftLayer() {
+    const layer = document.getElementById('handLiftLayer');
+    if (!layer) {
+        return;
+    }
+
+    document.querySelectorAll('#playerHand .hand-card.is-lift-source')
+        .forEach(card => card.classList.remove('is-lift-source'));
+    layer.innerHTML = '';
+    layer.classList.add('hidden');
+
+    if (isHandHiddenForPhase() || isMobileLayout() || isDesktopSidebarLayout()) {
+        return;
+    }
+
+    const cardId = getLiftedHandCardId();
+    if (!cardId) {
+        return;
+    }
+
+    const source = getHandCardSourceElement(cardId);
+    const actionBar = document.getElementById('actionBar');
+    if (!source || !actionBar) {
+        return;
+    }
+
+    const sourceRect = source.getBoundingClientRect();
+    const actionRect = actionBar.getBoundingClientRect();
+    const targetLeft = Math.min(
+        Math.max(12, sourceRect.left),
+        window.innerWidth - sourceRect.width - 12
+    );
+    const visibleOverlap = Math.min(72, Math.max(50, sourceRect.height * 0.28));
+    const targetTop = Math.max(12, actionRect.top + visibleOverlap - sourceRect.height);
+
+    const clone = source.cloneNode(true);
+    clone.classList.add('lifted-card-clone');
+    clone.removeAttribute('onclick');
+    clone.removeAttribute('onmouseenter');
+    clone.removeAttribute('onmouseleave');
+    clone.style.left = `${targetLeft}px`;
+    clone.style.top = `${targetTop}px`;
+    clone.style.width = `${sourceRect.width}px`;
+    clone.style.height = `${sourceRect.height}px`;
+
+    source.classList.add('is-lift-source');
+    layer.appendChild(clone);
+    layer.classList.remove('hidden');
 }
 
 function getElementCssVar(element) {
@@ -3364,6 +4371,8 @@ function clearTargetMode() {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        closeClaimPopup();
+        closeTrainerAbilityPopup();
         selectedCard = null;
         clearTargetMode();
         updateSelectedInfo(null);
@@ -3372,6 +4381,12 @@ document.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('resize', syncMobileInfoTab);
+
+window.addEventListener('resize', () => {
+    syncFocusedCardUi();
+    renderDesktopDeckPreview();
+    updateHandLiftLayer();
+});
 
 renderWelcomeTutorial();
 renderWelcomeAuth();

@@ -1,8 +1,8 @@
 # Sieglings TCG Handoff
 
-This file is the shared handoff for assistant-driven work on this project.
-It is written so Claude, Codex, or another coding assistant can make updates
-without having to rediscover the deployment and architecture setup.
+This is the authoritative handoff for assistant-driven work on this repo.
+If Claude, Codex, or another assistant is making changes, use this file as
+the deployment and verification source of truth.
 
 ## Project Identity
 
@@ -11,58 +11,131 @@ without having to rediscover the deployment and architecture setup.
 - Stack:
   - Backend: Spring Boot
   - Frontend: static HTML/CSS/JS served by Spring Boot and Firebase Hosting
-  - Persistence: file-backed H2 + JPA
+  - Live card editor persistence: Firestore
+  - Other app persistence: file-backed H2 + JPA
   - Live backend: Cloud Run
   - Live frontend: Firebase Hosting
 
 ## Live Environments
 
-- Live frontend: [https://siegelingstcgtesting.web.app](https://siegelingstcgtesting.web.app)
-- Firebase app domain: [https://siegelingstcgtesting.firebaseapp.com](https://siegelingstcgtesting.firebaseapp.com)
-- Live backend canonical URL: [https://sieglings-tcg-api-324063847257.us-central1.run.app](https://sieglings-tcg-api-324063847257.us-central1.run.app)
-- Cloud Run routed URL in Firebase Hosting rewrites currently resolves to:
+- Live frontend: `https://siegelingstcgtesting.web.app`
+- Firebase app domain: `https://siegelingstcgtesting.firebaseapp.com`
+- Live backend canonical URL: `https://sieglings-tcg-api-324063847257.us-central1.run.app`
+- Cloud Run service:
   - service: `sieglings-tcg-api`
   - region: `us-central1`
-  - GCP project: `siegelingstcgtesting`
+  - project: `siegelingstcgtesting`
 
-## Important Deployment Facts
+## Live Card Dashboard
 
-- Firebase Hosting is configured in [firebase.json](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/firebase.json).
-- Hosting serves `src/main/resources/static`.
-- Hosting rewrites `/api/**` to the Cloud Run service `sieglings-tcg-api` in `us-central1`.
-- The frontend should stay on same-origin API calls.
-- That is controlled in [src/main/resources/static/js/config.js](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/js/config.js) with:
-  - `apiBaseUrl: ''`
+- Public dashboard URL:
+  - `https://siegelingstcgtesting.web.app/card-dashboard.html`
+- Cloud Run-served dashboard URL:
+  - `https://sieglings-tcg-api-324063847257.us-central1.run.app/card-dashboard.html`
+- Live editor API:
+  - `https://siegelingstcgtesting.web.app/api/cards/editor`
 
-## Primary Files To Edit
+Expected live API shape:
 
-These are the real live frontend entrypoints:
+- `source = FIRESTORE`
+- `liveEditingEnabled = true`
+- `firestoreAvailable = true`
+- `filePath = appConfig/cardOverrides`
 
-- [src/main/resources/static/js/game.js](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/js/game.js)
-- [src/main/resources/static/css/style.css](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/css/style.css)
-- [src/main/resources/static/index.html](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/index.html)
-- [src/main/resources/static/js/config.js](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/js/config.js)
+If the live API ever returns `CLASSPATH_RESOURCE` or the dashboard HTML shows
+old assets such as `card-dashboard.css?v=1`, the live deployment has been
+overwritten by an older build and must be redeployed.
 
-Important backend files often touched:
+## Current Source Of Truth Files
 
-- [src/main/java/com/sieglings/controller/GameController.java](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/java/com/sieglings/controller/GameController.java)
-- [src/main/java/com/sieglings/service/GameService.java](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/java/com/sieglings/service/GameService.java)
-- [src/main/java/com/sieglings/service/EnergyService.java](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/java/com/sieglings/service/EnergyService.java)
-- [src/main/java/com/sieglings/service/BattleService.java](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/java/com/sieglings/service/BattleService.java)
-- [src/main/java/com/sieglings/service/CardDefinitionService.java](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/java/com/sieglings/service/CardDefinitionService.java)
-- [src/main/java/com/sieglings/service/GeneratedCreatureCatalog.java](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/java/com/sieglings/service/GeneratedCreatureCatalog.java)
-- [src/main/java/com/sieglings/service/GeneratedSpellCatalog.java](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/java/com/sieglings/service/GeneratedSpellCatalog.java)
+Main active frontend files:
 
-## Files That Exist But Are Stale
+- `src/main/resources/static/index.html`
+- `src/main/resources/static/js/game.js`
+- `src/main/resources/static/css/style.css`
+- `src/main/resources/static/js/config.js`
 
-These old files still exist but are not the active frontend entrypoints:
+Card dashboard files:
 
-- [src/main/resources/static/game.js](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/game.js)
-- [src/main/resources/static/style.css](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/style.css)
+- `src/main/resources/static/card-dashboard.html`
+- `src/main/resources/static/js/card-dashboard.js`
+- `src/main/resources/static/css/card-dashboard.css`
 
-Do not mistake those for the current app unless intentionally cleaning up legacy files.
+Card editor backend files:
 
-## Build and Local Run
+- `src/main/java/com/sieglings/controller/CardEditorController.java`
+- `src/main/java/com/sieglings/service/CardOverrideEditorService.java`
+- `src/main/java/com/sieglings/service/CardOverrideStorageService.java`
+- `src/main/java/com/sieglings/service/CardEditorAuthService.java`
+- `src/main/java/com/sieglings/service/ManualSieglingCatalog.java`
+- `src/main/resources/application.properties`
+
+## Legacy Files That Are Still Present
+
+These exist but are not the current frontend entrypoints:
+
+- `src/main/resources/static/game.js`
+- `src/main/resources/static/style.css`
+
+Do not make dashboard or game UI changes there unless intentionally cleaning up
+legacy files.
+
+## Hosting And API Wiring
+
+- Firebase Hosting config is in `firebase.json`
+- Hosting serves `src/main/resources/static`
+- Hosting rewrites `/api/**` to Cloud Run service `sieglings-tcg-api`
+- Frontend should keep same-origin API calls
+- `src/main/resources/static/js/config.js` should keep:
+
+```js
+window.SIEGLINGS_CONFIG = {
+    apiBaseUrl: ''
+};
+```
+
+## Firestore Configuration
+
+The live card dashboard is backed by Firestore, not by the bundled JSON file.
+
+Configured values:
+
+- Firestore project id: `siegelingstcgtesting`
+- Firestore database id: `siegedb`
+- Collection: `appConfig`
+- Document: `cardOverrides`
+
+These are wired in `src/main/resources/application.properties`.
+
+Important:
+
+- The dashboard can fall back locally to project/classpath JSON if Firestore is
+  unavailable.
+- The live deployment should not be treated as healthy unless the editor API
+  returns `source = FIRESTORE`.
+
+## Portable Tooling Installed On This Machine
+
+These tools are already installed and can be used directly:
+
+- Portable Node:
+  - `C:\Users\AlexTillman\AppData\Local\CodexTools\node-v24.14.1-win-x64`
+- Portable Firebase CLI:
+  - `C:\Users\AlexTillman\AppData\Local\CodexTools\firebase-global\firebase.cmd`
+- Firebase service account key:
+  - `A:\New folder\OneDrive\Desktop\Sieglings\sieglings-tcg\siegelingstcgtesting-9bd8de57ff8c.json`
+
+Recommended environment setup before Firebase Hosting deploy:
+
+```powershell
+$toolsRoot = Join-Path $env:LOCALAPPDATA 'CodexTools'
+$nodeDir = Join-Path $toolsRoot 'node-v24.14.1-win-x64'
+$globalPrefix = Join-Path $toolsRoot 'firebase-global'
+$env:PATH = "$nodeDir;$globalPrefix;$env:PATH"
+$env:GOOGLE_APPLICATION_CREDENTIALS = 'A:\New folder\OneDrive\Desktop\Sieglings\sieglings-tcg\siegelingstcgtesting-9bd8de57ff8c.json'
+```
+
+## Build And Test Workflow
 
 From repo root:
 
@@ -78,162 +151,164 @@ Run locally:
 java -jar target\sieglings-tcg-0.1.0-SNAPSHOT.jar
 ```
 
-Local app URL:
+Useful local URLs:
 
-- [http://127.0.0.1:8080](http://127.0.0.1:8080)
+- `http://127.0.0.1:8080`
+- `http://127.0.0.1:8080/card-dashboard.html`
+- `http://127.0.0.1:8080/api/cards/editor`
 
-Useful local verification:
+## Required Deploy Workflow
 
-- [http://127.0.0.1:8080/api/game/options](http://127.0.0.1:8080/api/game/options)
+### If static dashboard or frontend files changed
 
-## Backend Deploy Workflow
-
-Backend deploys to Cloud Run using the repo [Dockerfile](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/Dockerfile).
-
-Environment variables come from:
-
-- [env.yaml](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/env.yaml)
-
-Typical backend deploy flow:
+Deploy Firebase Hosting:
 
 ```powershell
-gcloud builds submit . --tag us-central1-docker.pkg.dev/siegelingstcgtesting/cloud-run-source-deploy/sieglings-tcg-api:deploy-<timestamp>
-gcloud run deploy sieglings-tcg-api `
-  --image us-central1-docker.pkg.dev/siegelingstcgtesting/cloud-run-source-deploy/sieglings-tcg-api:deploy-<timestamp> `
-  --region us-central1 `
-  --project siegelingstcgtesting `
-  --allow-unauthenticated `
-  --env-vars-file env.yaml
+$toolsRoot = Join-Path $env:LOCALAPPDATA 'CodexTools'
+$nodeDir = Join-Path $toolsRoot 'node-v24.14.1-win-x64'
+$globalPrefix = Join-Path $toolsRoot 'firebase-global'
+$firebaseCmd = Join-Path $globalPrefix 'firebase.cmd'
+$env:PATH = "$nodeDir;$globalPrefix;$env:PATH"
+$env:GOOGLE_APPLICATION_CREDENTIALS = 'A:\New folder\OneDrive\Desktop\Sieglings\sieglings-tcg\siegelingstcgtesting-9bd8de57ff8c.json'
+& $firebaseCmd deploy --only hosting --project siegelingstcgtesting --non-interactive
 ```
 
-Notes:
+### If Java backend files changed
 
-- The Dockerfile already normalizes `mvnw` line endings for Linux builds.
-- If local package fails because the jar is locked, stop any running local `java -jar` process first.
-
-## Frontend Deploy Workflow
-
-Firebase Hosting serves directly from:
-
-- [src/main/resources/static](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static)
-
-When frontend files change:
-
-1. Update cache-bust versions in [index.html](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/index.html)
-2. Deploy Hosting
-3. Verify hosted HTML is serving the new versions
-
-If Firebase CLI is available:
+Deploy Cloud Run from source:
 
 ```powershell
-firebase deploy --only hosting
+gcloud run deploy sieglings-tcg-api --project=siegelingstcgtesting --region=us-central1 --source . --allow-unauthenticated --quiet
 ```
 
-If Firebase CLI is not available, Hosting can still be deployed through the Firebase Hosting REST API by:
+### If card editor or dashboard behavior changed
 
-1. Creating a site version
-2. Populating files from `src/main/resources/static`
-3. Finalizing the version
-4. Creating a release
+Deploy both Hosting and Cloud Run.
 
-## Public Verification Checklist
+Do not assume a frontend-only deploy is enough if `/api/cards/editor` behavior
+changed.
 
-After deploy, check:
+## Required Post-Deploy Verification
 
-- [https://siegelingstcgtesting.web.app/api/game/options](https://siegelingstcgtesting.web.app/api/game/options)
-- [https://siegelingstcgtesting.web.app/js/config.js](https://siegelingstcgtesting.web.app/js/config.js)
-- [https://siegelingstcgtesting.web.app](https://siegelingstcgtesting.web.app)
+After any live deploy touching the dashboard/editor path, verify all of these:
 
-What to confirm:
+### 1. Hosted dashboard HTML is current
 
-- `/api/game/options` returns `200`
-- `config.js` still uses `apiBaseUrl: ''`
-- hosted HTML references the expected cache-busted CSS/JS versions
+Check:
 
-## Database and Persistence Notes
+- `https://siegelingstcgtesting.web.app/card-dashboard.html`
 
-- The app uses file-backed H2.
-- Local database path is under:
-  - [data](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/data)
-- This stores account data, saved decks, and match history for local runtime.
+Confirm it contains the expected current asset versions, for example:
 
-## Current Gameplay/Data Model Notes
+- `card-dashboard.css?v=3`
+- `card-dashboard.js?v=3`
 
-- Siegling printed stats are now:
-  - `Health`
-  - `Speed`
-  - abilities
-- Printed `Attack` and `Defense` were removed from the main card model and frontend display.
-- Damage now comes from abilities and battle logic, not a permanent printed attack stat.
+### 2. Hosted editor API is Firestore-backed
 
-## Current Frontend Art Notes
+Check:
 
-- `Sundile` art is mapped in:
-  - [src/main/resources/static/assets/cards/sundile.svg](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/assets/cards/sundile.svg)
-- `Staticap` art is mapped in:
-  - [src/main/resources/static/images/cards/Staticap.png](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/images/cards/Staticap.png)
+- `https://siegelingstcgtesting.web.app/api/cards/editor`
 
-Important note about `Staticap`:
+Confirm:
 
-- `Staticap.png` is a full-card scan, not a clean illustration crop.
-- The renderer in [src/main/resources/static/js/game.js](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/js/game.js) now treats it as a cropped illustration source.
-- The crop/focus styling lives in [src/main/resources/static/css/style.css](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/css/style.css).
+- `source = FIRESTORE`
+- `liveEditingEnabled = true`
+- `firestoreAvailable = true`
 
-## Known Assistant Workflow Tips
+### 3. Cloud Run editor API is Firestore-backed
 
-- Always inspect [progress.md](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/progress.md) before doing substantial work.
-- Keep new notes appended there after meaningful changes.
-- Be careful not to confuse stale legacy frontend files with live entrypoints.
-- When changing frontend assets or JS/CSS behavior, bump the version query strings in [index.html](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/index.html).
-- Re-verify same-origin API behavior after deploys.
+Check:
 
-## Recommended Quick Start For Another Assistant
+- `https://sieglings-tcg-api-324063847257.us-central1.run.app/api/cards/editor`
 
-1. Read [progress.md](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/progress.md)
-2. Open:
-   - [src/main/resources/static/js/game.js](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/js/game.js)
-   - [src/main/resources/static/css/style.css](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/resources/static/css/style.css)
-   - [src/main/java/com/sieglings/controller/GameController.java](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/java/com/sieglings/controller/GameController.java)
-   - [src/main/java/com/sieglings/service/GameService.java](A:/New%20folder/OneDrive/Desktop/Sieglings/sieglings-tcg/src/main/java/com/sieglings/service/GameService.java)
-3. Confirm local build:
-   - `.\mvnw.cmd -q -DskipTests compile`
-4. If gameplay/UI work is needed, run locally on `127.0.0.1:8080`
-5. If deploying, use Cloud Run + Firebase Hosting with the config above
+Confirm the same Firestore values.
 
-## Last Verified Live State
+### 4. Same-origin API wiring still works
 
-At the time this handoff was written:
+Check:
 
-- Hosting URL: [https://siegelingstcgtesting.web.app](https://siegelingstcgtesting.web.app)
-- Backend URL: [https://sieglings-tcg-api-324063847257.us-central1.run.app](https://sieglings-tcg-api-324063847257.us-central1.run.app)
-- Firebase Hosting uses same-origin `/api` rewrites
-- Cloud Run service name: `sieglings-tcg-api`
+- `https://siegelingstcgtesting.web.app/js/config.js`
 
-## Supplementary reference (from merged branch)
+Confirm `apiBaseUrl` is still empty string.
 
-Stack: Spring Boot 3.2.5, Java 21 (see `Dockerfile`). If Hosting deploy uses `.deploy-hosting/static/`, sync from source:
+## Deploy Safety Rules
 
-```bash
-cp -r src/main/resources/static/* .deploy-hosting/static/
-```
+These are important. Follow them every time.
 
-### Game systems (quick)
+1. Never deploy from a stale workspace.
+   - Confirm local source files are the intended current versions before deploy.
 
-- **Point budget:** Common 25 → Legendary 55; classes Assassin, Bruiser, Guardian, Mage, Support; evolution +3 budget per stage.
-- **Placement energy:** Common/Uncommon 0; Rare 1; Epic 3; Legendary 5. Spells 0 except destroy (min 3). Destroy traps min 3 opponent bucket.
-- **Battle abilities:** (1) 1 energy, light strike (base damage − 1), single target. (2) Signature 2–3 energy (AOE cheaper than single-target). (3) Finisher 3–5 by rarity, Rare+.
-- **Elements:** FIRE, EARTH, WIND, WATER, ICE, SHADOW, ELECTRIC, METAL, UNDEAD, PSYCHIC, POISON, LIGHT, NEUTRAL.
+2. Never stop at “deploy succeeded.”
+   - A successful deploy can still publish an old build.
+   - Always verify the live HTML and the live API response after deploy.
 
-### Unix-style build / deploy (alternative to PowerShell above)
+3. If live `/api/cards/editor` returns `CLASSPATH_RESOURCE`, treat that as a broken live deployment.
+   - Redeploy the current backend.
 
-```bash
-./mvnw -q -DskipTests package
-./mvnw -q test
-gcloud run deploy sieglings-tcg-api \
-  --source . \
-  --region us-central1 \
-  --project siegelingstcgtesting \
-  --env-vars-file env.yaml
-firebase deploy --only hosting --project siegelingstcgtesting
-curl https://siegelingstcgtesting.web.app/api/game/options
-```
+4. If hosted `card-dashboard.html` shows `v=1` assets or lacks the “Live Publishing” section, treat that as a stale Hosting deploy.
+   - Redeploy Hosting from current source.
+
+5. For card dashboard work, do not claim success unless both the public dashboard page and the live API are verified.
+
+## Dashboard UX Notes
+
+- The dashboard includes login/bootstrap flows for the live Firestore editor.
+- The first admin bootstrap flow only appears if no editor admin exists.
+- If an admin already exists, users must log in before the publish button is enabled.
+- The dashboard browser cards and editor panel use element-based theming from the
+  same palette as the main game.
+
+## Element Palette Source
+
+Use the existing game palette from `src/main/resources/static/css/style.css`.
+Do not invent a second competing element palette if updating dashboard visuals.
+
+Known element variables:
+
+- `--fire`
+- `--earth`
+- `--wind`
+- `--water`
+- `--ice`
+- `--shadow`
+- `--electric`
+- `--metal`
+- `--undead`
+- `--psychic`
+- `--neutral`
+
+Dashboard-specific additions currently also include:
+
+- `--poison`
+- `--light`
+
+## Quick Recovery Procedure
+
+If the dashboard “stops working” after another assistant deploy:
+
+1. Run `.\mvnw.cmd -q test`
+2. Deploy Hosting from current source
+3. Deploy Cloud Run from current source
+4. Verify:
+   - `https://siegelingstcgtesting.web.app/card-dashboard.html`
+   - `https://siegelingstcgtesting.web.app/api/cards/editor`
+   - `https://sieglings-tcg-api-324063847257.us-central1.run.app/api/cards/editor`
+5. Do not stop until the live API reports `source = FIRESTORE`
+
+## Recommended Prompt For Another Assistant
+
+Use this repo:
+
+- `A:\New folder\OneDrive\Desktop\Sieglings\sieglings-tcg`
+
+When making changes:
+
+1. Edit the real live source files, not stale legacy files.
+2. Run `.\mvnw.cmd -q test`
+3. If frontend/dashboard files changed, deploy Firebase Hosting.
+4. If Java/backend files changed, deploy Cloud Run.
+5. If card editor behavior changed, deploy both.
+6. Verify the live public dashboard HTML version and verify the live `/api/cards/editor`
+   response is Firestore-backed.
+
+Your task is not complete unless the live site is verified after deploy.

@@ -65,7 +65,9 @@ public class GameService {
     private final Random random = new Random();
 
     public GameState newGame() {
-        return newGame("deck_fire_earth", "trainer05", null);
+        CardDefinitionService.DeckOption defaultDeck = cardDefs.getDefaultDeckOption()
+                .orElseThrow(() -> new IllegalStateException("No active preset decks are available."));
+        return newGame(defaultDeck.id(), defaultDeck.recommendedTrainerId(), null);
     }
 
     public GameState newGame(String playerDeckId, String playerTrainerId) {
@@ -93,7 +95,7 @@ public class GameService {
     }
 
     public List<TrainerCard> getTrainerOptions() {
-        return cardDefs.createTrainers().stream().map(TrainerCard::copy).toList();
+        return cardDefs.getTrainerOptions();
     }
 
     public List<Card> getDeckBuilderCatalog() {
@@ -123,10 +125,8 @@ public class GameService {
         }
 
         Player actor = getSidePlayer(state, isPlayerSide);
+        actor.clearTemporaryEnergyAdjustments();
         state.resetPlacementsForTurn(isPlayerSide);
-        if (actor.getActiveTrainer() != null) {
-            actor.getActiveTrainer().resetTurn();
-        }
 
         Card drawn = actor.drawCard();
         if (drawn != null) {
@@ -142,6 +142,10 @@ public class GameService {
 
     public GameState placeSiegling(String cardId, int row, int col) {
         return placeSiegling(currentGame, true, cardId, row, col);
+    }
+
+    public GameState claimSiegling(int row, int col) {
+        return claimSiegling(currentGame, true, row, col);
     }
 
     public GameState placeSiegling(GameState state, boolean isPlayerSide, String cardId, int row, int col) {
@@ -193,6 +197,37 @@ public class GameService {
         }
 
         energyService.recalculateEnergy(state);
+        return state;
+    }
+
+    public GameState claimSiegling(GameState state, boolean isPlayerSide, int row, int col) {
+        if (state == null || state.isGameOver()) return state;
+        if (state.isPlayerTurn() != isPlayerSide) {
+            state.log("Wait for your turn before claiming a Siegling.");
+            return state;
+        }
+        if (state.getCurrentPhase() != Phase.SETUP) {
+            state.log("You can only claim Sieglings during Setup phase.");
+            return state;
+        }
+
+        CardInstance claimed = state.getAt(isPlayerSide, row, col);
+        if (claimed == null || !claimed.isAlive()) {
+            state.log("No Siegling is there to claim.");
+            return state;
+        }
+        if (claimed.getBattlePhasesSeen() <= 0) {
+            state.log(claimed.getName() + " must survive at least 1 battle phase before it can be claimed.");
+            return state;
+        }
+
+        Player actor = getSidePlayer(state, isPlayerSide);
+        state.setAt(isPlayerSide, row, col, null);
+        actor.getDiscard().add(claimed.getCard());
+        actor.adjustTemporaryEnergy(claimed.getElement(), 1);
+        energyService.recalculateEnergy(state);
+        state.log(sideName(state, isPlayerSide) + " claims " + claimed.getName()
+                + " and gains 1 temporary " + claimed.getElement().name().toLowerCase() + " energy.");
         return state;
     }
 
@@ -435,14 +470,23 @@ public class GameService {
 
         if (usingCustomDeck) {
             List<Card> deck = cardDefs.buildCustomDeck(safeOptions.customDeckCards());
-            return new ResolvedLoadout(deck, cardDefs.getTrainerById(trainerId), inferElements(deck), preferredLabel == null ? "Custom Loadout" : preferredLabel, null, true);
+            return new ResolvedLoadout(
+                    deck,
+                    resolveTrainerSelection(trainerId, fallbackTrainerId, inferElements(deck)),
+                    inferElements(deck),
+                    preferredLabel == null ? "Custom Loadout" : preferredLabel,
+                    null,
+                    true
+            );
         }
 
         CardDefinitionService.DeckOption deckOption = cardDefs.getDeckOption(deckId)
-                .orElseGet(() -> cardDefs.getDeckOption(fallbackDeckId).orElse(cardDefs.getDeckOptions().get(0)));
+                .orElseGet(() -> cardDefs.getDeckOption(fallbackDeckId)
+                        .or(() -> cardDefs.getDefaultDeckOption())
+                        .orElseThrow(() -> new IllegalStateException("No active preset decks are available.")));
         return new ResolvedLoadout(
                 cardDefs.buildDeckById(deckOption.id()),
-                cardDefs.getTrainerById(trainerId),
+                resolveTrainerSelection(trainerId, deckOption.recommendedTrainerId(), deckOption.elements()),
                 deckOption.elements(),
                 preferredLabel == null ? deckOption.name() : preferredLabel,
                 deckOption.id(),
@@ -474,6 +518,7 @@ public class GameService {
 
         clearTempEffects(state);
         state.removeDeadSieglings();
+        recordBattlePhaseSeen(state);
         energyService.recalculateEnergy(state);
         checkWinCondition(state);
 
@@ -529,6 +574,7 @@ public class GameService {
     }
 
     private void startNextRound(GameState state) {
+        resetTrainerActivesForNewRound(state);
         state.clearBattleState();
         state.setFirstTurn(false);
         state.setTurnNumber(state.getTurnNumber() + 1);
@@ -536,6 +582,20 @@ public class GameService {
         state.setCurrentPhase(Phase.DRAW);
         state.log("--- Round " + state.getTurnNumber() + " ---");
         beginActiveSetupTurn(state);
+    }
+
+    private void resetTrainerActivesForNewRound(GameState state) {
+        if (state == null) {
+            return;
+        }
+        TrainerCard playerTrainer = state.getPlayer() == null ? null : state.getPlayer().getActiveTrainer();
+        TrainerCard enemyTrainer = state.getEnemy() == null ? null : state.getEnemy().getActiveTrainer();
+        if (playerTrainer != null) {
+            playerTrainer.resetTurn();
+        }
+        if (enemyTrainer != null) {
+            enemyTrainer.resetTurn();
+        }
     }
 
     private void applyTrainerPassives(GameState state, boolean isPlayer) {
@@ -576,6 +636,27 @@ public class GameService {
             ci.clearTemporaryEffects();
             ci.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
             ci.setCurrentSpeed(ci.getCard().getSpeed());
+        }
+    }
+
+    private void clearTemporaryEnergyAdjustments(GameState state) {
+        if (state == null) {
+            return;
+        }
+        if (state.getPlayer() != null) {
+            state.getPlayer().clearTemporaryEnergyAdjustments();
+        }
+        if (state.getEnemy() != null) {
+            state.getEnemy().clearTemporaryEnergyAdjustments();
+        }
+    }
+
+    private void recordBattlePhaseSeen(GameState state) {
+        for (CardInstance ci : state.getBoardSieglings(true)) {
+            ci.recordBattlePhaseSeen();
+        }
+        for (CardInstance ci : state.getBoardSieglings(false)) {
+            ci.recordBattlePhaseSeen();
         }
     }
 
@@ -701,17 +782,32 @@ public class GameService {
         List<CardDefinitionService.DeckOption> options = cardDefs.getDeckOptions().stream()
                 .filter(option -> !option.id().equals(playerDeckId))
                 .toList();
+        if (options.isEmpty()) {
+            List<CardDefinitionService.DeckOption> fallbackOptions = cardDefs.getDeckOptions();
+            if (fallbackOptions.isEmpty()) {
+                throw new IllegalStateException("No active preset decks are available.");
+            }
+            return fallbackOptions.get(random.nextInt(fallbackOptions.size()));
+        }
         return options.get(random.nextInt(options.size()));
     }
 
     private TrainerCard pickEnemyTrainer(CardDefinitionService.DeckOption enemyDeck) {
-        List<TrainerCard> candidates = cardDefs.createTrainers().stream()
+        List<TrainerCard> candidates = cardDefs.getTrainerOptions().stream()
                 .filter(trainer -> enemyDeck.elements().contains(trainer.getElement()))
                 .toList();
         if (candidates.isEmpty()) {
-            return cardDefs.getTrainerById(enemyDeck.recommendedTrainerId());
+            return resolveTrainerSelection(enemyDeck.recommendedTrainerId(), enemyDeck.recommendedTrainerId(), enemyDeck.elements());
         }
         return candidates.get(random.nextInt(candidates.size())).copy();
+    }
+
+    private TrainerCard resolveTrainerSelection(String requestedTrainerId, String fallbackTrainerId, List<Element> deckElements) {
+        return cardDefs.getActiveTrainerById(requestedTrainerId)
+                .or(() -> cardDefs.getActiveTrainerById(fallbackTrainerId))
+                .or(() -> deckElements == null ? java.util.Optional.empty() : deckElements.stream().findFirst().map(cardDefs::getTrainer))
+                .or(() -> cardDefs.getTrainerOptions().stream().findFirst())
+                .orElseGet(() -> cardDefs.getTrainerById(requestedTrainerId));
     }
 
     private String formatElements(List<Element> elements) {

@@ -79,7 +79,12 @@ public class SavedDeckService {
         if (trainerId == null || trainerId.isBlank()) {
             throw new IllegalArgumentException("Choose a SiegeKnight before saving.");
         }
-        cardDefinitionService.getTrainerById(trainerId);
+        if (!cardDefinitionService.hasTrainer(trainerId)) {
+            throw new IllegalArgumentException("Unknown SiegeKnight selection.");
+        }
+        if (!cardDefinitionService.isTrainerActive(trainerId)) {
+            throw new IllegalArgumentException("Choose an active SiegeKnight before saving.");
+        }
 
         if (customDeckCards != null && !customDeckCards.isEmpty()) {
             cardDefinitionService.buildCustomDeck(customDeckCards);

@@ -1,9 +1,13 @@
 package com.sieglings.model;
 
+import com.sieglings.model.enums.Element;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents a player's state: deck, hand, discard, trainer, and energy.
@@ -32,6 +36,7 @@ public class Player {
     private int undeadEnergy;
     private int psychicEnergy;
     private boolean mistActive;
+    private final Map<Element, Integer> temporaryEnergyAdjustments = new EnumMap<>(Element.class);
 
     public Player() {}
 
@@ -98,6 +103,29 @@ public class Player {
         for (int j = 0; j < returning.size(); j++) {
             drawCard();
         }
+    }
+
+    public int getTemporaryEnergyAdjustment(Element element) {
+        if (element == null) {
+            return 0;
+        }
+        return temporaryEnergyAdjustments.getOrDefault(element, 0);
+    }
+
+    public void adjustTemporaryEnergy(Element element, int delta) {
+        if (element == null || delta == 0) {
+            return;
+        }
+        int next = temporaryEnergyAdjustments.getOrDefault(element, 0) + delta;
+        if (next == 0) {
+            temporaryEnergyAdjustments.remove(element);
+        } else {
+            temporaryEnergyAdjustments.put(element, next);
+        }
+    }
+
+    public void clearTemporaryEnergyAdjustments() {
+        temporaryEnergyAdjustments.clear();
     }
 
     public String getName() { return name; }

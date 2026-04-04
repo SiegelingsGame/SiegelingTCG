@@ -23,6 +23,7 @@ public class CardInstance {
     private int boardRow;
     private int boardCol;
     private int placementOrder;
+    private int battlePhasesSeen;
     private boolean owner; // true = player, false = enemy
 
     public CardInstance() {}
@@ -95,6 +96,10 @@ public class CardInstance {
         currentHealth = Math.min(currentHealth, card.getHealth());
     }
 
+    public void recordBattlePhaseSeen() {
+        battlePhasesSeen++;
+    }
+
     // Getters and setters
     public String getInstanceId() { return instanceId; }
     public SieglingCard getCard() { return card; }
@@ -111,6 +116,8 @@ public class CardInstance {
     public void setBoardCol(int boardCol) { this.boardCol = boardCol; }
     public int getPlacementOrder() { return placementOrder; }
     public void setPlacementOrder(int placementOrder) { this.placementOrder = placementOrder; }
+    public int getBattlePhasesSeen() { return battlePhasesSeen; }
+    public void setBattlePhasesSeen(int battlePhasesSeen) { this.battlePhasesSeen = battlePhasesSeen; }
     public boolean isOwner() { return owner; }
     public Element getElement() { return card.getElement(); }
     public String getName() { return card.getName(); }

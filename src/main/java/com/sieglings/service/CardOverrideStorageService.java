@@ -46,7 +46,10 @@ public class CardOverrideStorageService {
 
     private record CacheEntry(LoadSnapshot snapshot, long loadedAtMillis) {}
 
-    private static final long CACHE_TTL_MILLIS = 5_000L;
+    // Gameplay can hit the live card catalog multiple times in the same short session.
+    // Keep the cached snapshot warm long enough that opening the loadout screen and then
+    // starting a match does not trigger another remote config round-trip.
+    private static final long CACHE_TTL_MILLIS = 5 * 60_000L;
     private static volatile CardOverrideStorageService INSTANCE;
 
     private final ObjectMapper objectMapper;
