@@ -331,6 +331,10 @@ body {
     border-radius: 28px;
     background:
         linear-gradient(180deg, rgba(11, 17, 31, 0.86), rgba(8, 12, 22, 0.96)),
+        radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.075) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 76% 26%, rgba(255, 255, 255, 0.055) 0 1.2px, transparent 2px),
+        radial-gradient(circle at 34% 74%, rgba(255, 255, 255, 0.05) 0 1px, transparent 1.9px),
+        radial-gradient(circle at 84% 82%, rgba(255, 255, 255, 0.045) 0 1.1px, transparent 2.1px),
         radial-gradient(circle at 18% 18%, var(--arena-glow-a), transparent 42%),
         radial-gradient(circle at 82% 18%, var(--arena-glow-b), transparent 40%),
         radial-gradient(circle at 22% 80%, var(--arena-glow-c), transparent 40%),
@@ -371,6 +375,14 @@ body {
 
 .battlefield::before {
     background:
+        radial-gradient(circle at 10% 16%, rgba(255, 255, 255, 0.16) 0 1.4px, transparent 2.4px),
+        radial-gradient(circle at 22% 44%, rgba(255, 255, 255, 0.12) 0 1px, transparent 1.9px),
+        radial-gradient(circle at 40% 20%, rgba(255, 255, 255, 0.09) 0 1.2px, transparent 2.1px),
+        radial-gradient(circle at 58% 62%, rgba(255, 255, 255, 0.1) 0 1.3px, transparent 2.1px),
+        radial-gradient(circle at 74% 36%, rgba(255, 255, 255, 0.14) 0 1.2px, transparent 2px),
+        radial-gradient(circle at 88% 20%, rgba(255, 255, 255, 0.12) 0 1.1px, transparent 2px),
+        radial-gradient(circle at 14% 86%, rgba(255, 255, 255, 0.1) 0 1.3px, transparent 2.3px),
+        radial-gradient(circle at 84% 78%, rgba(255, 255, 255, 0.13) 0 1.2px, transparent 2.1px),
         radial-gradient(circle at 16% 18%, var(--arena-glow-a) 0%, transparent 38%),
         radial-gradient(circle at 82% 22%, var(--arena-glow-b) 0%, transparent 36%),
         radial-gradient(circle at 30% 82%, var(--arena-glow-c) 0%, transparent 38%),
@@ -382,7 +394,7 @@ body {
 }
 
 .battlefield::after {
-    inset: 14px;
+    inset: -22%;
     background:
         conic-gradient(from 0deg at 50% 50%,
             transparent 0deg,
@@ -484,6 +496,20 @@ body {
 }
 .ab-icon:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
 
+.ab-icon-active {
+    border-color: rgba(139, 194, 255, 0.46);
+    background: rgba(74, 125, 255, 0.16);
+    color: #beddff;
+    box-shadow: 0 0 0 1px rgba(139, 194, 255, 0.18), 0 0 18px rgba(82, 146, 255, 0.16);
+}
+
+#btnOpponentView {
+    font-size: 0.6em;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
 /* ============================================================
    HAND TRAY — fanned cards at bottom
    ============================================================ */
@@ -514,11 +540,30 @@ body {
     padding: 2px 18px 6px;
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(126, 170, 255, 0.44) rgba(255, 255, 255, 0.06);
     position: relative;
     z-index: 5;
 }
-.hand-tray .hand-cards::-webkit-scrollbar { display: none; }
+.hand-tray .hand-cards::-webkit-scrollbar {
+    display: block;
+    height: 10px;
+}
+
+.hand-tray .hand-cards::-webkit-scrollbar-track {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.hand-tray .hand-cards::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(124, 174, 255, 0.7), rgba(80, 124, 214, 0.9));
+    border: 2px solid rgba(10, 18, 34, 0.5);
+}
+
+.hand-tray .hand-cards::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(150, 194, 255, 0.85), rgba(95, 143, 232, 0.95));
+}
 
 .hand-tray .hand-card {
     min-width: 138px;
@@ -749,6 +794,11 @@ body {
     margin-top: 10px;
 }
 
+.trainer-ability-description strong,
+.trainer-ability-copy strong {
+    color: #f4f7ff;
+}
+
 .claim-confirm-copy {
     color: rgba(214, 255, 230, 0.82);
 }
@@ -798,6 +848,14 @@ body {
 
 .card-preview-float:hover {
     transform: translateY(-2px);
+}
+
+.battlefield.opponent-view .bf-enemy {
+    order: 2;
+}
+
+.battlefield.opponent-view .bf-player {
+    order: 1;
 }
 
 .card-preview-card,
@@ -876,6 +934,165 @@ body {
     line-height: 1.4;
     text-align: center;
     color: var(--text-dim);
+}
+
+.opponent-scout-layout {
+    display: grid;
+    grid-template-columns: minmax(124px, 144px) minmax(0, 1fr);
+    gap: 14px;
+    height: 100%;
+    align-items: stretch;
+}
+
+.opponent-scout-card {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background:
+        linear-gradient(180deg, rgba(46, 62, 104, 0.9), rgba(22, 32, 56, 0.92)),
+        rgba(15, 23, 42, 0.84);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.opponent-scout-kicker {
+    font-size: 0.74em;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(205, 218, 255, 0.82);
+}
+
+.opponent-scout-count {
+    font-size: 1.02em;
+    font-weight: 800;
+    color: #f4f7ff;
+}
+
+.opponent-scout-backs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-content: start;
+}
+
+.opponent-hand-back {
+    width: 38px;
+    height: 52px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+        radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.16), transparent 26%),
+        linear-gradient(180deg, rgba(78, 103, 160, 0.72), rgba(24, 34, 58, 0.96));
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        0 8px 16px rgba(0, 0, 0, 0.16);
+    position: relative;
+}
+
+.opponent-hand-back::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent),
+        repeating-linear-gradient(135deg,
+            rgba(255, 255, 255, 0.08) 0 5px,
+            transparent 5px 10px);
+}
+
+.opponent-hand-back.empty {
+    opacity: 0.2;
+}
+
+.opponent-scout-copy {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    min-width: 0;
+}
+
+.opponent-hand-shell {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    min-height: 100%;
+}
+
+.opponent-hand-meta {
+    font-size: 0.88em;
+    font-weight: 700;
+    color: rgba(236, 242, 255, 0.9);
+}
+
+.opponent-hand-public-note {
+    font-size: 0.72em;
+    color: rgba(177, 196, 235, 0.72);
+}
+
+.opponent-hand-track {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 4px 2px 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(126, 170, 255, 0.42) rgba(255, 255, 255, 0.05);
+}
+
+.opponent-hand-track::-webkit-scrollbar {
+    height: 10px;
+}
+
+.opponent-hand-track::-webkit-scrollbar-track {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.opponent-hand-track::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(124, 174, 255, 0.68), rgba(80, 124, 214, 0.88));
+    border: 2px solid rgba(10, 18, 34, 0.5);
+}
+
+.hand-card-hidden {
+    min-width: 118px;
+    max-width: 124px;
+    width: 118px;
+    min-height: 168px;
+    cursor: default;
+    opacity: 0.94;
+}
+
+.opponent-hand-track .hand-card-hidden {
+    margin-left: 0;
+    scroll-snap-align: start;
+}
+
+.hand-card-hidden:hover,
+.desktop-menu .hand-card-hidden:hover,
+.desktop-menu .hand-card-hidden.selected {
+    transform: none;
+}
+
+.hand-card-hidden .hand-card-body {
+    justify-content: flex-end;
+}
+
+.hidden-hand-art {
+    background:
+        radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.12), transparent 26%),
+        linear-gradient(180deg, rgba(69, 89, 136, 0.86), rgba(24, 34, 58, 0.98));
+    color: rgba(238, 243, 255, 0.9);
+}
+
+.hidden-hand-mark {
+    font-size: 1.7em;
+    font-weight: 900;
+    letter-spacing: 0.08em;
 }
 
 /* ============================================================
@@ -1140,15 +1357,15 @@ body.battle-phase-active .battlefield::after {
 @keyframes arena-energy-clash {
     0% {
         opacity: 0.44;
-        transform: rotate(0deg) scale(1.01);
+        transform: rotate(0deg) scale(2.02);
     }
     50% {
         opacity: 0.72;
-        transform: rotate(180deg) scale(1.08);
+        transform: rotate(180deg) scale(2.14);
     }
     100% {
         opacity: 0.48;
-        transform: rotate(360deg) scale(1.02);
+        transform: rotate(360deg) scale(2.04);
     }
 }
 
@@ -1225,22 +1442,26 @@ body.battle-phase-active .battlefield::after {
 
 @media (min-width: 980px) {
     .app-shell {
-        --desktop-sidebar-width: clamp(360px, 28vw, 460px);
+        --desktop-shell-gutter: clamp(12px, 1.15vw, 24px);
+        --desktop-shell-gap: clamp(16px, 1.15vw, 26px);
+        --desktop-sidebar-width: clamp(440px, 34vw, 760px);
         display: grid;
-        grid-template-columns: minmax(0, 1fr) var(--desktop-sidebar-width);
+        grid-template-columns: minmax(0, 1fr) minmax(440px, var(--desktop-sidebar-width));
         align-items: stretch;
-        gap: 18px;
-        width: min(1600px, 100%);
-        max-width: 1600px;
-        padding: 18px;
+        gap: var(--desktop-shell-gap);
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: clamp(12px, 1vw, 20px) var(--desktop-shell-gutter) clamp(16px, 1.25vw, 24px);
     }
 
     .battlefield {
         flex-direction: column;
         align-items: stretch;
-        justify-content: space-between;
-        gap: clamp(10px, 1.6vh, 18px);
-        padding: clamp(18px, 2.4vh, 26px);
+        justify-content: flex-start;
+        gap: clamp(6px, 1vh, 12px);
+        min-width: 0;
+        padding: clamp(14px, 1.8vh, 22px) clamp(22px, 2vw, 40px) clamp(10px, 1.2vh, 16px);
         overflow: hidden;
         min-height: 0;
         height: 100%;
@@ -1251,13 +1472,14 @@ body.battle-phase-active .battlefield::after {
         width: 100%;
         max-width: none;
         align-items: center;
-        justify-content: center;
-        gap: clamp(6px, 0.9vh, 10px);
+        justify-content: flex-start;
+        gap: clamp(4px, 0.7vh, 8px);
+        padding-inline: clamp(6px, 1.2vw, 24px);
     }
 
     .bf-enemy,
     .bf-player {
-        justify-content: center;
+        justify-content: flex-start;
     }
 
     .board-label {
@@ -1267,10 +1489,10 @@ body.battle-phase-active .battlefield::after {
     }
 
     .board-grid {
-        width: min(100%, calc((100dvh - 154px) / 2.58), 430px);
+        width: min(100%, calc(((100dvh - 146px) / 2.46) * 0.93), 446px);
         max-width: none;
         gap: 6px;
-        padding: 8px 14px;
+        padding: 8px clamp(12px, 1vw, 18px);
         margin: 0 auto;
     }
 
@@ -1286,7 +1508,8 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-menu {
         min-height: 0;
-        padding: 18px;
+        width: 100%;
+        padding: clamp(16px, 1.1vw, 22px);
         border-radius: 28px;
         border: 1px solid rgba(255, 255, 255, 0.08);
         background:
@@ -1296,7 +1519,7 @@ body.battle-phase-active .battlefield::after {
             inset 0 0 0 1px rgba(255, 255, 255, 0.04),
             0 16px 38px rgba(0, 0, 0, 0.24);
         overflow: hidden;
-        gap: 14px;
+        gap: clamp(8px, 0.6vw, 10px);
     }
 
     .desktop-menu-header,
@@ -1313,21 +1536,23 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu-title {
-        font-size: 2rem;
+        font-size: clamp(1.7rem, 2vw, 2.35rem);
         font-weight: 800;
         color: #f4f7ff;
         letter-spacing: -0.02em;
     }
 
     .desktop-menu-copy {
-        font-size: 0.86em;
-        line-height: 1.45;
+        font-size: 0.82em;
+        line-height: 1.35;
         color: rgba(220, 230, 255, 0.7);
     }
 
     .desktop-menu-section {
+        display: flex;
+        flex-direction: column;
         min-height: 0;
-        padding: 14px;
+        padding: clamp(9px, 0.68vw, 12px);
         border-radius: 20px;
         border: 1px solid rgba(255, 255, 255, 0.08);
         background: rgba(255, 255, 255, 0.045);
@@ -1335,24 +1560,30 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu-preview {
-        order: 1;
+        order: 2;
+        flex: 1 1 0;
+        min-height: clamp(184px, 21.5vh, 256px);
+        overflow: hidden;
     }
 
     .desktop-menu-hand {
-        order: 2;
+        order: 3;
         min-width: 0;
-        flex-shrink: 0;
+        flex: 1.08 1 0;
+        min-height: clamp(150px, 18vh, 228px);
+        overflow: hidden;
     }
 
     .desktop-menu-deck {
-        order: 3;
+        order: 1;
         display: flex;
         flex-direction: column;
-        flex: 1 1 auto;
+        flex: 0 0 auto;
+        max-height: clamp(214px, 29vh, 276px);
     }
 
     .desktop-section-title {
-        margin-bottom: 10px;
+        margin-bottom: 6px;
         font-size: 0.78em;
         font-weight: 800;
         letter-spacing: 0.14em;
@@ -1365,21 +1596,59 @@ body.battle-phase-active .battlefield::after {
         min-height: 0;
     }
 
+    .desktop-card-preview-panel {
+        width: 100%;
+        flex: 1 1 auto;
+        overflow: auto;
+        padding-right: 2px;
+    }
+
     .desktop-preview-layout {
         display: grid;
-        grid-template-columns: minmax(0, 196px) minmax(0, 1fr);
-        gap: 16px;
-        align-items: start;
+        grid-template-columns: minmax(124px, 144px) minmax(0, 1fr);
+        gap: 14px;
+        height: 100%;
+        align-items: stretch;
     }
 
     .desktop-preview-card {
-        width: 100% !important;
-        min-height: 334px;
-        max-width: none;
+        width: min(100%, 144px) !important;
+        min-width: 124px !important;
+        height: 100%;
+        min-height: 0;
+        max-width: 144px !important;
+        max-height: 100%;
+        justify-self: start;
+    }
+
+    .desktop-preview-card .hand-card-shell {
+        height: 100%;
     }
 
     .desktop-preview-card .card-art-selected {
-        min-height: 176px;
+        min-height: clamp(104px, 11vh, 132px);
+        padding: 2px;
+    }
+
+    .desktop-preview-card .hand-card-header {
+        gap: 1px;
+    }
+
+    .desktop-preview-card .card-title {
+        font-size: 0.56em;
+    }
+
+    .desktop-preview-card .card-label,
+    .desktop-preview-card .card-detail,
+    .desktop-preview-card .card-cost {
+        font-size: 0.42em;
+        line-height: 1.14;
+    }
+
+    .desktop-preview-card .hand-card-body {
+        flex: 1 1 auto;
+        gap: 2px;
+        padding: 2px 2px 6px;
     }
 
     .desktop-preview-copy-panel {
@@ -1387,10 +1656,12 @@ body.battle-phase-active .battlefield::after {
         gap: 10px;
         align-content: start;
         min-width: 0;
+        overflow: auto;
+        padding-right: 4px;
     }
 
     .desktop-preview-kicker {
-        font-size: 0.74em;
+        font-size: 0.84em;
         font-weight: 800;
         letter-spacing: 0.14em;
         text-transform: uppercase;
@@ -1398,7 +1669,7 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-preview-title {
-        font-size: 1.7rem;
+        font-size: clamp(1.28rem, 1.58vw, 1.8rem);
         font-weight: 800;
         line-height: 1.02;
         color: #f5f8ff;
@@ -1406,42 +1677,51 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-preview-meta,
     .desktop-preview-stats {
-        font-size: 0.92em;
+        font-size: 0.82em;
         color: rgba(223, 231, 255, 0.74);
     }
 
     .desktop-preview-description {
-        font-size: 1em;
-        line-height: 1.5;
+        font-size: 0.9em;
+        line-height: 1.28;
         color: rgba(245, 248, 255, 0.94);
+        display: block;
+        overflow: visible;
     }
 
     .desktop-preview-tag-list {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 6px;
+        max-height: none;
+        overflow: visible;
     }
 
     .desktop-preview-tag {
         display: inline-flex;
         align-items: center;
-        padding: 6px 10px;
+        padding: 4px 8px;
         border-radius: 999px;
         border: 1px solid rgba(255, 255, 255, 0.12);
         background: rgba(255, 255, 255, 0.05);
         color: rgba(226, 233, 255, 0.82);
-        font-size: 0.74em;
+        font-size: 0.68em;
         line-height: 1.25;
     }
 
     .desktop-preview-note {
         padding-top: 2px;
-        font-size: 0.82em;
-        line-height: 1.45;
+        font-size: 0.76em;
+        line-height: 1.22;
         color: rgba(167, 255, 203, 0.86);
+        display: block;
+        overflow: visible;
     }
 
     .desktop-menu .hand-tray {
+        flex: 1 1 auto;
+        display: flex;
+        min-height: 0;
         padding: 0;
         border: none;
         background: transparent;
@@ -1450,21 +1730,48 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu .hand-cards {
+        flex: 1 1 auto;
+        height: 100%;
         justify-content: flex-start;
-        gap: 10px;
-        padding: 10px 2px 8px;
+        gap: clamp(8px, 0.75vw, 12px);
+        padding: 8px 2px 8px;
+        overflow-x: auto;
         overflow-y: hidden;
-        align-items: flex-start;
+        align-items: stretch;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(126, 170, 255, 0.5) rgba(255, 255, 255, 0.06);
+    }
+
+    .desktop-menu .hand-cards::-webkit-scrollbar {
+        height: 10px;
+    }
+
+    .desktop-menu .hand-cards::-webkit-scrollbar-track {
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .desktop-menu .hand-cards::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(127, 176, 255, 0.72), rgba(83, 128, 219, 0.92));
+        border: 2px solid rgba(10, 18, 34, 0.5);
     }
 
     .desktop-menu .hand-card {
-        min-width: 80px;
-        max-width: 84px;
-        width: 80px;
-        min-height: 114px;
-        padding: 4px;
+        min-width: clamp(98px, 5.95vw, 112px);
+        max-width: clamp(102px, 6.2vw, 116px);
+        width: clamp(98px, 5.95vw, 112px);
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+        align-self: stretch;
+        padding: 3px;
         margin-left: 0;
         filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.22));
+    }
+
+    .desktop-menu .hand-card .hand-card-shell {
+        height: 100%;
     }
 
     .desktop-menu .hand-card:hover {
@@ -1476,114 +1783,214 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu .card-art-hand {
-        min-height: 56px;
+        min-height: clamp(72px, 8.3vh, 94px);
         padding: 3px;
     }
 
     .desktop-menu .card-title {
-        font-size: 0.62em;
+        font-size: 0.56em;
     }
 
     .desktop-menu .card-label {
-        font-size: 0.46em;
+        font-size: 0.42em;
     }
 
     .desktop-menu .hand-phase-mask {
-        min-height: 110px;
+        min-height: 100%;
         padding: 14px;
         border-radius: 16px;
         border: 1px dashed rgba(255, 255, 255, 0.14);
         background: rgba(255, 255, 255, 0.03);
         color: var(--text-dim);
-        font-size: 0.82em;
-        line-height: 1.45;
+        font-size: 0.86em;
+        line-height: 1.4;
     }
 
     .desktop-deck-preview {
         display: flex;
         flex-direction: column;
         flex: 1 1 auto;
-        gap: 10px;
+        gap: 8px;
         min-height: 0;
     }
 
     .desktop-deck-meta {
-        font-size: 0.82em;
+        font-size: 0.72em;
         color: rgba(220, 228, 255, 0.74);
     }
 
-    .desktop-deck-list {
+    .desktop-deck-tier-list {
         display: grid;
         gap: 8px;
         overflow: auto;
         padding-right: 4px;
+        align-content: start;
     }
 
-    .desktop-deck-row {
+    .desktop-deck-tier {
         display: grid;
-        grid-template-columns: 34px minmax(0, 1fr) auto;
-        gap: 12px;
-        align-items: center;
-        padding: 10px 12px;
+        gap: 6px;
+        padding: 8px 10px;
         border-radius: 16px;
         border: 1px solid rgba(255, 255, 255, 0.08);
-        background: rgba(7, 14, 28, 0.34);
+        background: rgba(7, 14, 28, 0.28);
     }
 
-    .desktop-deck-index {
-        display: inline-flex;
+    .desktop-deck-tier.common {
+        box-shadow: inset 2px 0 0 rgba(210, 222, 255, 0.24);
+    }
+
+    .desktop-deck-tier.uncommon {
+        box-shadow: inset 2px 0 0 rgba(122, 227, 177, 0.46);
+    }
+
+    .desktop-deck-tier.rare {
+        box-shadow: inset 2px 0 0 rgba(255, 202, 97, 0.54);
+    }
+
+    .desktop-deck-tier.epic,
+    .desktop-deck-tier.legendary,
+    .desktop-deck-tier.mythic {
+        box-shadow: inset 2px 0 0 rgba(212, 146, 255, 0.58);
+    }
+
+    .desktop-deck-tier-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .desktop-deck-tier-title {
+        font-size: 0.66em;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(240, 245, 255, 0.9);
+    }
+
+    .desktop-deck-tier-count {
+        font-size: 0.62em;
+        font-weight: 700;
+        color: rgba(198, 211, 248, 0.74);
+    }
+
+    .desktop-deck-section-group {
+        display: grid;
+        gap: 4px;
+    }
+
+    .desktop-deck-section-label {
+        font-size: 0.54em;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(168, 190, 238, 0.7);
+    }
+
+    .desktop-deck-icon-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .desktop-deck-icon {
+        position: relative;
+        width: 44px;
+        min-height: 58px;
+        padding: 3px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background:
+            linear-gradient(180deg, rgba(72, 94, 142, 0.24), rgba(14, 22, 38, 0.28)),
+            rgba(12, 20, 38, 0.62);
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+            0 8px 16px rgba(0, 0, 0, 0.18);
+    }
+
+    .desktop-deck-icon.fire { border-color: rgba(255, 80, 30, 0.36); }
+    .desktop-deck-icon.earth { border-color: rgba(180, 140, 80, 0.36); }
+    .desktop-deck-icon.wind { border-color: rgba(150, 255, 180, 0.36); }
+    .desktop-deck-icon.water { border-color: rgba(50, 150, 255, 0.36); }
+    .desktop-deck-icon.ice { border-color: rgba(118, 230, 255, 0.36); }
+    .desktop-deck-icon.shadow { border-color: rgba(102, 88, 153, 0.4); }
+    .desktop-deck-icon.electric { border-color: rgba(241, 196, 15, 0.42); }
+    .desktop-deck-icon.metal { border-color: rgba(149, 165, 166, 0.36); }
+    .desktop-deck-icon.undead { border-color: rgba(140, 120, 160, 0.42); }
+    .desktop-deck-icon.psychic { border-color: rgba(200, 150, 255, 0.42); }
+
+    .desktop-deck-icon-art {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border-radius: 8px;
+        display: flex;
         align-items: center;
         justify-content: center;
-        width: 34px;
-        height: 34px;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        font-size: 0.84em;
+        overflow: hidden;
+        background:
+            radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.22), transparent 24%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(214, 223, 238, 0.9));
+    }
+
+    .desktop-deck-icon-art img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .desktop-deck-icon-fallback {
+        font-size: 0.58em;
         font-weight: 800;
-        color: rgba(242, 246, 255, 0.92);
+        letter-spacing: 0.08em;
+        color: #22314f;
+        text-transform: uppercase;
+        text-align: center;
     }
 
-    .desktop-deck-index.fire { box-shadow: inset 3px 0 0 var(--fire); }
-    .desktop-deck-index.earth { box-shadow: inset 3px 0 0 var(--earth); }
-    .desktop-deck-index.wind { box-shadow: inset 3px 0 0 var(--wind); }
-    .desktop-deck-index.water { box-shadow: inset 3px 0 0 var(--water); }
-    .desktop-deck-index.ice { box-shadow: inset 3px 0 0 var(--ice); }
-    .desktop-deck-index.shadow { box-shadow: inset 3px 0 0 var(--shadow); }
-    .desktop-deck-index.electric { box-shadow: inset 3px 0 0 var(--electric); }
-    .desktop-deck-index.metal { box-shadow: inset 3px 0 0 var(--metal); }
-    .desktop-deck-index.undead { box-shadow: inset 3px 0 0 var(--undead); }
-    .desktop-deck-index.psychic { box-shadow: inset 3px 0 0 var(--psychic); }
-
-    .desktop-deck-copy {
-        min-width: 0;
-    }
-
-    .desktop-deck-name {
-        font-size: 0.9em;
+    .desktop-deck-icon-type {
+        margin-top: 3px;
+        font-size: 0.38em;
         font-weight: 700;
-        color: #f3f6ff;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(220, 230, 255, 0.74);
+        text-align: center;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
-    .desktop-deck-type {
-        font-size: 0.72em;
-        color: rgba(209, 219, 255, 0.66);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
+    .desktop-deck-icon-count {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        border-radius: 999px;
+        background: rgba(255, 208, 72, 0.96);
+        color: #182038;
+        font-size: 0.54em;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.22);
     }
 
-    .desktop-deck-count {
-        font-size: 0.88em;
-        font-weight: 800;
-        color: rgba(255, 255, 255, 0.9);
+    .desktop-deck-preview > .desktop-empty-state {
+        flex: 1 1 auto;
+        min-height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
     }
 
     .action-bar {
         order: 4;
-        gap: 12px;
+        gap: 4px;
         padding: 0;
         background: transparent;
         border: none;
@@ -1602,22 +2009,22 @@ body.battle-phase-active .battlefield::after {
 
     .ab-btn {
         flex: 1 1 0;
-        min-height: 58px;
-        padding: 14px 16px;
-        font-size: 1em;
+        min-height: 36px;
+        padding: 7px 10px;
+        font-size: 0.86em;
         letter-spacing: 1.2px;
     }
 
     .action-bar-aux {
-        gap: 8px;
+        gap: 4px;
         justify-content: flex-end;
         flex-wrap: wrap;
     }
 
     .ab-icon {
-        width: 44px;
-        height: 44px;
-        font-size: 1em;
+        width: 32px;
+        height: 32px;
+        font-size: 0.86em;
     }
 
     .loadout-overlay {

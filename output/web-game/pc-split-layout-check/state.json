@@ -1,0 +1,12 @@
+{
+  "phaseBadge": "SETUP",
+  "playerDeckSizeText": "39",
+  "appShellColumns": "982.812px 403.188px",
+  "battlefieldOverflowY": "hidden",
+  "menuRightOfArena": true,
+  "previewHasCard": true,
+  "deckRowCount": 23,
+  "handCardCount": 6,
+  "handSectionOverflow": "hidden",
+  "consoleErrors": []
+}

@@ -1,0 +1,12 @@
+{
+  "hoveredFound": true,
+  "actionBarTop": 691,
+  "actionBarBottom": 777,
+  "cardTop": 790,
+  "cardBottom": 1006,
+  "overlapsActionBar": false,
+  "risesAboveBarTop": false,
+  "transform": "none",
+  "zIndex": "20",
+  "hoveredText": "Ember Furnace"
+}

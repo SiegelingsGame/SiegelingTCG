@@ -1,0 +1,14 @@
+{
+  "phase": "SETUP",
+  "chosen": {
+    "id": "bonoblade",
+    "name": "Bonoblade",
+    "lockReasonBefore": "Need 1 Earth energy to play this."
+  },
+  "selectedTitle": "Bonoblade",
+  "previewHidden": false,
+  "previewHasNotches": true,
+  "previewHasArtwork": true,
+  "previewHtmlLength": 1087,
+  "drawerCopy": "Need 1 Earth energy to play this.BonobladeSIEGLING / EarthEarthHP:16 SPD:7 MIDDLEBonoblade Strike: Deal 6 damage to 1 enemy (1 Earth)Bonoblade Ambush: Deal 6 damage to 1 enemy (2 Earth)Play Cost: 1 EarthEvolution: PylmeNeed 1 Earth energy to play this."
+}

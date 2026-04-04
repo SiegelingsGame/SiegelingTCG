@@ -1,0 +1,13 @@
+{
+  "phase": "BATTLE",
+  "battleClass": true,
+  "battleButtonText": "Act Now",
+  "battleButtonTitle": "Open the battle action list for the Siegling that is currently acting by speed.",
+  "actionBarHeight": 86,
+  "drawButtonHeight": 56,
+  "activeAttackerClasses": "board-cell has-card active-attacker",
+  "actingBadge": "Acting",
+  "battlefieldBackground": "linear-gradient(rgba(126, 14, 14, 0.18), rgba(72, 6, 6, 0.34)), radial-gradient(circle, rgba(255, 120, 80, 0.12), rgba(0, 0, 0, 0) 68%)",
+  "drawerVisible": true,
+  "battlePanelText": "Speed Bloom is acting now from the battle speed order.\nChoose an ability to resolve or pass this Siegling's action.\nFlare Jab (Free)\nDeal 2 damage to 1 enemy\nCrimson Dash (1 Fire)\nMove to 1 linked space\nPass\nSkip this card's action and move to the next acting Siegling."
+}

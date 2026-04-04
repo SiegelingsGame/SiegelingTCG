@@ -1,0 +1,14 @@
+{
+  "phase": "SETUP",
+  "chosen": {
+    "id": "trap03",
+    "name": "Stone Collapse",
+    "lockReasonBefore": "Turn 1 starts with a Siegling placement."
+  },
+  "selectedTitle": "Stone Collapse",
+  "previewHidden": false,
+  "previewHasNotches": false,
+  "previewHasArtwork": true,
+  "previewHtmlLength": 494,
+  "drawerCopy": "Turn 1 starts with a Siegling placement.Stone CollapseTRAP / EarthEarth TRAPStone Collapse: Deal 5 damage to 1 enemy if the opponent has 3 Earth energyTrigger: Opponent has 3 EarthTurn 1 starts with a Siegling placement."
+}

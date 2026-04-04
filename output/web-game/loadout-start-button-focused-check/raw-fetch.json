@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "status": 200,
+  "ms": 18587.099999999627,
+  "textLen": 8419,
+  "head": "{\"turnNumber\":1,\"currentPhase\":\"MULLIGAN\",\"activeSide\":\"PLAYER\",\"firstPlayer\":\"ENEMY\",\"activeSideLabel\":\"You\",\"firstPlayerLabel\":\"AI Opponent\",\"setupTurnsTakenT"
+}
