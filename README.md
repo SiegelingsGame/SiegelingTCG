@@ -2,6 +2,8 @@
 
 A playable single-match prototype of **Sieglings TCG**, a tactical elemental card game inspired by Queen's Blood and One Piece Card Game.
 
+**Crafted By PartyChatGaming**
+
 **1 Human Player (Fire Deck) vs 1 AI Opponent (Water Deck)**
 
 ## Prerequisites
@@ -32,56 +34,50 @@ chmod +x mvnw
 
 Then open your browser to: **http://localhost:8080**
 
-## Firebase Hosting Deployment
+## Deployment
 
-This project now supports a split deployment:
+This project uses a split deployment:
 
 - **Firebase Hosting** serves the static frontend from `src/main/resources/static`
-- **Cloud Run** serves the Spring Boot API
+- **Cloud Run** serves the Spring Boot API backend
 
-Firebase Hosting alone cannot run the current app because gameplay still depends on the Java `/api/...` endpoints.
+### Automated Deployment (GitHub Actions)
 
-### 1. Deploy the Java backend to Cloud Run
+Pushing to `main` automatically deploys both frontend and backend via `.github/workflows/deploy.yml`.
 
-From the project root:
+**Required GitHub Secrets:**
 
-```powershell
-gcloud config set project YOUR_FIREBASE_PROJECT_ID
-gcloud run deploy sieglings-tcg-api --source . --region us-central1 --allow-unauthenticated --set-env-vars "APP_CORS_ALLOWED_ORIGIN_PATTERNS=https://YOUR_FIREBASE_PROJECT_ID.web.app,https://YOUR_FIREBASE_PROJECT_ID.firebaseapp.com"
+| Secret | Purpose |
+|---|---|
+| `FIREBASE_SERVICE_ACCOUNT` | Firebase service account JSON for Hosting deploy |
+| `GCP_SA_KEY` | GCP service account JSON with Cloud Run Admin, Artifact Registry Writer, Service Account User roles |
+
+You can also trigger a deploy manually from the **Actions** tab → **Deploy** → **Run workflow**.
+
+### Manual Deployment
+
+#### Backend (Cloud Run)
+
+```bash
+./mvnw -q -DskipTests package
+gcloud run deploy sieglings-tcg-api \
+  --source . \
+  --region us-central1 \
+  --project siegelingstcgtesting \
+  --env-vars-file env.yaml
 ```
 
-After the deploy finishes, copy the Cloud Run service URL.
+#### Frontend (Firebase Hosting)
 
-### 2. Keep the frontend on same-origin `/api` calls
+Always run from the repo root so `firebase.json` (which points at `src/main/resources/static`) is used:
 
-`src/main/resources/static/js/config.js` can keep:
-
-```js
-window.SIEGLINGS_CONFIG = {
-    apiBaseUrl: ''
-};
+```bash
+firebase deploy --only hosting --project siegelingstcgtesting
 ```
 
-That lets local Spring Boot use `http://localhost:8080/api/...` and lets Firebase Hosting proxy `/api/...` to Cloud Run.
-
-### 3. Connect the repo to Firebase Hosting
-
-Create a `.firebaserc` file from `.firebaserc.example` and replace `YOUR_FIREBASE_PROJECT_ID` with your real Firebase project ID.
-
-The repo already includes a `firebase.json` that points Hosting at `src/main/resources/static`, rewrites `/api/**` to the Cloud Run service `sieglings-tcg-api` in `us-central1`, and rewrites all other paths to `index.html`.
-
-If your Cloud Run service name or region is different, update `firebase.json` before deploying.
-
-### 4. Deploy the frontend
-
-```powershell
-firebase deploy --only hosting
-```
-
-After that, the site will be available at:
-
-- `https://YOUR_FIREBASE_PROJECT_ID.web.app`
-- `https://YOUR_FIREBASE_PROJECT_ID.firebaseapp.com`
+Live URLs:
+- `https://siegelingstcgtesting.web.app`
+- `https://siegelingstcgtesting.firebaseapp.com`
 
 ## How to Play
 
