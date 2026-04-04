@@ -1,0 +1,15 @@
+{
+  "phase": "SETUP",
+  "selectedCardId": "emberfin",
+  "cloneTitle": "Emberfin",
+  "cloneRect": {
+    "x": 637.15625,
+    "y": 517.46875,
+    "width": 156,
+    "height": 235.4375,
+    "top": 517.46875,
+    "right": 793.15625,
+    "bottom": 752.90625,
+    "left": 637.15625
+  }
+}

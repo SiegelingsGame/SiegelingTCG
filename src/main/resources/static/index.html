@@ -73,6 +73,7 @@
                 <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
             </div>
             <div class="action-bar-aux">
+                <button class="ab-icon" id="btnOpponentView" onclick="toggleOpponentView()" title="Flip to opponent perspective" aria-label="Flip to opponent perspective" aria-pressed="false">OV</button>
                 <button class="ab-icon" id="btnSelectedPreview" onclick="openDrawer('selected')" title="Card Preview" aria-label="Card Preview">&#128065;</button>
                 <button class="ab-icon" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
                 <button class="ab-icon" onclick="openDrawer('battle')" title="Battle Panel">&#9876;</button>
@@ -341,6 +342,6 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-<script src="/js/game.js?v=34"></script>
+<script src="/js/game.js?v=42"></script>
 </body>
 </html>

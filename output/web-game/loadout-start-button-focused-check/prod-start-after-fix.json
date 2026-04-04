@@ -1,0 +1,19 @@
+{
+  "state": {
+    "visibleLoadout": false,
+    "mulliganVisible": true,
+    "phaseBadge": "MULLIGAN",
+    "gameStatePhase": "MULLIGAN",
+    "buttonText": "Start Match"
+  },
+  "events": [
+    {
+      "type": "response",
+      "status": 200,
+      "bodySummary": {
+        "phase": "MULLIGAN",
+        "mulligan": true
+      }
+    }
+  ]
+}
