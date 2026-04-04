@@ -1,0 +1,16 @@
+{
+  "beforeBattle": {
+    "phase": "DRAW",
+    "handCards": 5,
+    "firstCardWidth": 152,
+    "boardStyle": "linear-gradient(rgba(11, 17, 31, 0.86), rgba(8, 12, 22, 0.96)), radial-gradient(circle at 18% 18%, rgba(150, 255, 180, 0.22), rgba(0, 0, 0, 0) 42%), radial-gradient(circle at 82% 18%, rgba(255, 80, 30, 0.18), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 22% 80%, rgba(150, 255, 180, 0.15), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 80% 78%, rgba(255, 80, 30, 0.12), rgba(0, 0, 0, 0) 44%)"
+  },
+  "battleState": {
+    "phase": "BATTLE",
+    "battleClass": true,
+    "arenaBackground": "linear-gradient(rgba(72, 10, 10, 0.58), rgba(18, 10, 18, 0.92)), radial-gradient(circle at 18% 18%, rgba(150, 255, 180, 0.34), rgba(0, 0, 0, 0) 42%), radial-gradient(circle at 82% 18%, rgba(255, 80, 30, 0.3), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 22% 80%, rgba(150, 255, 180, 0.24), rgba(0, 0, 0, 0) 40%), radial-gradient(circle at 80% 78%, rgba(255, 80, 30, 0.2), rgba(0, 0, 0, 0) 44%)",
+    "arenaBefore": "radial-gradient(circle at 16% 18%, rgba(150, 255, 180, 0.34) 0%, rgba(0, 0, 0, 0) 38%), radial-gradient(circle at 82% 22%, rgba(255, 80, 30, 0.3) 0%, rgba(0, 0, 0, 0) 36%), radial-gradient(circle at 30% 82%, rgba(150, 255, 180, 0.24) 0%, rgba(0, 0, 0, 0) 38%), radial-gradient(circle at 72% 76%, rgba(255, 80, 30, 0.2) 0%, rgba(0, 0, 0, 0) 42%)",
+    "arenaAfter": "conic-gradient(rgba(0, 0, 0, 0) 0deg, rgba(255, 80, 30, 0.2) 58deg, rgba(0, 0, 0, 0) 118deg, rgba(150, 255, 180, 0.24) 184deg, rgba(0, 0, 0, 0) 250deg, rgba(255, 80, 30, 0.3) 320deg, rgba(0, 0, 0, 0) 360deg), repeating-linear-gradient(135deg, rgba(0, 0, 0, 0) 0px, rgba(0, 0, 0, 0) 18px, rgba(255, 255, 255, 0.027) 18px, rgba(255, 255, 255, 0.027) 20px, rgba(0, 0, 0, 0) 20px, rgba(0, 0, 0, 0) 38px)"
+  },
+  "errors": []
+}

@@ -1,0 +1,15 @@
+{
+  "currentPhase": null,
+  "battlefieldFlexDirection": "column",
+  "battlefieldOverflowY": "auto",
+  "enemyAbovePlayer": false,
+  "alignedColumns": false,
+  "battlefieldRect": {
+    "width": 1440,
+    "height": 1227
+  },
+  "enemyRect": null,
+  "playerRect": null,
+  "cssHref": "http://127.0.0.1:8080/css/style.css?v=34",
+  "consoleErrors": []
+}

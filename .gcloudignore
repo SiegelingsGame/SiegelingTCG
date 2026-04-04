@@ -1,0 +1,10 @@
+.git
+.gitignore
+.firebase
+data
+output
+target
+*.log
+*.err
+*.tmp
+*.swp

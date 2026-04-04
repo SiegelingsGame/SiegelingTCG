@@ -1,0 +1,16 @@
+{
+  "hoveredFound": true,
+  "actionBarTop": 747,
+  "actionBarBottom": 833,
+  "cardTop": 681.0400390625,
+  "cardBottom": 910,
+  "overlapsActionBar": true,
+  "risesAboveBarTop": true,
+  "transform": "matrix(1.06, 0, 0, 1.06, 0, -92)",
+  "zIndex": "20",
+  "trayPaddingTop": "18px",
+  "handCardsPaddingTop": "96px",
+  "handCardsMarginTop": "-86px",
+  "transition": "transform 0.22s, z-index, filter 0.22s",
+  "hoveredText": "Backfire Sigil"
+}

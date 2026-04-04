@@ -1,0 +1,27 @@
+{
+  "resting": {
+    "overlapsActionBar": false,
+    "risesAboveBarTop": false,
+    "liftLayerVisible": false,
+    "liftCloneCount": 0
+  },
+  "hovered": {
+    "liftLayerVisible": true,
+    "liftCloneCount": 1,
+    "cloneTop": 531.46875,
+    "cloneBottom": 751.46875,
+    "actionBarTop": 687,
+    "overlapsActionBar": true,
+    "risesAboveBarTop": true,
+    "topElementClass": "action-bar",
+    "topElementTag": "DIV",
+    "cloneTitle": "Cinder Bolt"
+  },
+  "selected": {
+    "selectedCardId": null,
+    "liftLayerVisible": true,
+    "liftCloneCount": 1,
+    "cloneTitle": "Cinder Bolt"
+  },
+  "errors": []
+}
