@@ -75,7 +75,7 @@ public class PlacementService {
      * Check if a position is connected to any existing friendly card's active notch.
      */
     private boolean isConnectedByAnchor(GameState state, boolean isPlayer, int targetRow, int targetCol, SieglingCard candidate) {
-        List<CardInstance> sieglings = getFoundationSieglings(state, isPlayer);
+        List<CardInstance> sieglings = state.getBoardSieglings(isPlayer);
 
         for (CardInstance ci : sieglings) {
             for (Notch notch : ci.getNotches()) {
@@ -127,6 +127,7 @@ public class PlacementService {
             int damageTaken = existing.getCard().getHealth() - existing.getCurrentHealth();
             evolved.setCurrentHealth(Math.max(1, placedCard.getHealth() - Math.max(0, damageTaken)));
             evolved.setPlacementOrder(existing.getPlacementOrder());
+            evolved.setBattlePhasesSeen(existing.getBattlePhasesSeen());
             return evolved;
         }
 

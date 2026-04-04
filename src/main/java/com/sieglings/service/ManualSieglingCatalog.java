@@ -1,11 +1,16 @@
 package com.sieglings.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sieglings.model.Ability;
+import com.sieglings.model.Card;
 import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.Notch;
 import com.sieglings.model.SieglingCard;
+import com.sieglings.model.SpellCard;
+import com.sieglings.model.TrapCard;
+import com.sieglings.model.enums.CardType;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Rarity;
@@ -38,6 +43,20 @@ final class ManualSieglingCatalog {
         return applyOverrides(element, generatedCards, loadDefinitions());
     }
 
+    static List<SpellCard> applySpellOverrides(List<SpellCard> generatedCards) {
+        return applySpellOverrides(generatedCards, loadDefinitions());
+    }
+
+    static List<TrapCard> applyTrapOverrides(List<TrapCard> generatedCards) {
+        return applyTrapOverrides(generatedCards, loadDefinitions());
+    }
+
+    static OverrideFile buildOverrideFile(List<? extends Card> cards) {
+        return new OverrideFile(cards.stream()
+                .map(ManualSieglingCatalog::toDefinition)
+                .toList());
+    }
+
     static List<SieglingCard> applyOverrides(Element element, List<SieglingCard> generatedCards,
                                              List<ManualSieglingDefinition> definitions) {
         Map<String, SieglingCard> cardsById = generatedCards.stream()
@@ -50,6 +69,9 @@ final class ManualSieglingCatalog {
                 ));
 
         for (ManualSieglingDefinition definition : definitions) {
+            if (definitionType(definition) != CardType.SIEGLING) {
+                continue;
+            }
             String id = normalizeId(definition.id());
             if (id == null) {
                 throw new IllegalStateException("Manual Siegling definitions require a non-blank id.");
@@ -75,7 +97,65 @@ final class ManualSieglingCatalog {
         return cardsById.values().stream()
                 .sorted(Comparator
                         .comparing(SieglingCard::getRarity, ManualSieglingCatalog::compareRarity)
-                        .thenComparing(SieglingCard::getName))
+                .thenComparing(SieglingCard::getName))
+                .toList();
+    }
+
+    static List<SpellCard> applySpellOverrides(List<SpellCard> generatedCards,
+                                               List<ManualSieglingDefinition> definitions) {
+        Map<String, SpellCard> cardsById = generatedCards.stream()
+                .map(SpellCard::copy)
+                .collect(Collectors.toMap(
+                        SpellCard::getId,
+                        card -> card,
+                        (left, right) -> right,
+                        LinkedHashMap::new
+                ));
+
+        for (ManualSieglingDefinition definition : definitions) {
+            if (definitionType(definition) != CardType.SPELL) {
+                continue;
+            }
+            String id = normalizeId(definition.id());
+            requireField(id != null, "<unknown>", "id");
+            SpellCard merged = mergeSpellDefinition(cardsById.get(id), id, definition);
+            cardsById.put(id, merged);
+        }
+
+        return cardsById.values().stream()
+                .sorted(Comparator
+                        .comparing(SpellCard::getElement)
+                        .thenComparing(SpellCard::getRarity, ManualSieglingCatalog::compareRarity)
+                        .thenComparing(SpellCard::getName))
+                .toList();
+    }
+
+    static List<TrapCard> applyTrapOverrides(List<TrapCard> generatedCards,
+                                             List<ManualSieglingDefinition> definitions) {
+        Map<String, TrapCard> cardsById = generatedCards.stream()
+                .map(TrapCard::copy)
+                .collect(Collectors.toMap(
+                        TrapCard::getId,
+                        card -> card,
+                        (left, right) -> right,
+                        LinkedHashMap::new
+                ));
+
+        for (ManualSieglingDefinition definition : definitions) {
+            if (definitionType(definition) != CardType.TRAP) {
+                continue;
+            }
+            String id = normalizeId(definition.id());
+            requireField(id != null, "<unknown>", "id");
+            TrapCard merged = mergeTrapDefinition(cardsById.get(id), id, definition);
+            cardsById.put(id, merged);
+        }
+
+        return cardsById.values().stream()
+                .sorted(Comparator
+                        .comparing(TrapCard::getElement)
+                        .thenComparing(TrapCard::getRarity, ManualSieglingCatalog::compareRarity)
+                        .thenComparing(TrapCard::getName))
                 .toList();
     }
 
@@ -145,6 +225,84 @@ final class ManualSieglingCatalog {
         return card;
     }
 
+    private static SpellCard mergeSpellDefinition(SpellCard baseCard, String id, ManualSieglingDefinition definition) {
+        SpellCard card = baseCard == null ? new SpellCard() : baseCard.copy();
+
+        if (baseCard == null) {
+            requireField(hasText(definition.name()), id, "name");
+            requireField(definition.element() != null, id, "element");
+            requireField(definition.rarity() != null, id, "rarity");
+        }
+
+        card.setId(id);
+        if (hasText(definition.name())) {
+            card.setName(definition.name().trim());
+        }
+        if (definition.element() != null) {
+            card.setElement(definition.element());
+        }
+        if (definition.rarity() != null) {
+            card.setRarity(definition.rarity());
+        }
+
+        applyStandardCost(card, id, definition.costElement(), definition.costAmount());
+        if (definition.requiredReaction() != null) {
+            card.setRequiredReaction(definition.requiredReaction());
+        }
+        if (definition.requiredComboSize() != null) {
+            card.setRequiredComboSize(definition.requiredComboSize());
+            if (definition.requiredComboSize() <= 0) {
+                card.setRequiredComboSignature(null);
+            }
+        }
+        if (definition.requiredComboSignature() != null) {
+            card.setRequiredComboSignature(normalizeBlank(definition.requiredComboSignature()));
+        }
+
+        ManualAbilityDefinition abilityDefinition = primaryAbilityDefinition(definition);
+        if (abilityDefinition != null) {
+            card.setAbility(mergeAbility(card.getAbility(), abilityDefinition));
+        }
+
+        return card;
+    }
+
+    private static TrapCard mergeTrapDefinition(TrapCard baseCard, String id, ManualSieglingDefinition definition) {
+        TrapCard card = baseCard == null ? new TrapCard() : baseCard.copy();
+
+        if (baseCard == null) {
+            requireField(hasText(definition.name()), id, "name");
+            requireField(definition.element() != null, id, "element");
+            requireField(definition.rarity() != null, id, "rarity");
+        }
+
+        card.setId(id);
+        if (hasText(definition.name())) {
+            card.setName(definition.name().trim());
+        }
+        if (definition.element() != null) {
+            card.setElement(definition.element());
+        }
+        if (definition.rarity() != null) {
+            card.setRarity(definition.rarity());
+        }
+
+        Element triggerElement = definition.trapBucketElement() != null
+                ? definition.trapBucketElement()
+                : definition.costElement();
+        Integer triggerAmount = definition.trapBucketAmount() != null
+                ? definition.trapBucketAmount()
+                : definition.costAmount();
+        applyStandardCost(card, id, triggerElement, triggerAmount);
+
+        ManualAbilityDefinition abilityDefinition = primaryAbilityDefinition(definition);
+        if (abilityDefinition != null) {
+            card.setAbility(mergeAbility(card.getAbility(), abilityDefinition));
+        }
+
+        return card;
+    }
+
     private static Ability mergeAbility(Ability baseAbility, ManualAbilityDefinition definition) {
         Ability ability = baseAbility == null ? new Ability() : baseAbility.copy();
 
@@ -186,6 +344,31 @@ final class ManualSieglingCatalog {
         }
 
         return ability;
+    }
+
+    private static void applyStandardCost(Card card, String id, Element costElement, Integer costAmount) {
+        if (costAmount != null) {
+            if (costAmount <= 0) {
+                card.setCostAmount(0);
+                card.setCostElement(null);
+            } else {
+                requireField(costElement != null, id, "costElement");
+                card.setCostElement(costElement);
+                card.setCostAmount(costAmount);
+            }
+        } else if (costElement != null && card.getCostAmount() > 0) {
+            card.setCostElement(costElement);
+        }
+    }
+
+    private static ManualAbilityDefinition primaryAbilityDefinition(ManualSieglingDefinition definition) {
+        if (definition.ability() != null) {
+            return definition.ability();
+        }
+        if (definition.abilities() != null && !definition.abilities().isEmpty()) {
+            return definition.abilities().get(0);
+        }
+        return null;
     }
 
     private static void resolveEvolutionNames(Map<String, SieglingCard> cardsById, List<ManualSieglingDefinition> definitions) {
@@ -265,6 +448,8 @@ final class ManualSieglingCatalog {
         for (Element element : Element.values()) {
             applyOverrides(element, GeneratedCreatureCatalog.createGeneratedForElement(element), safeDefinitions);
         }
+        applySpellOverrides(GeneratedSpellCatalog.createSpells(), safeDefinitions);
+        applyTrapOverrides(CardDefinitionService.createBaseTraps(), safeDefinitions);
     }
 
     static Path resolveProjectResourcePath() {
@@ -273,7 +458,7 @@ final class ManualSieglingCatalog {
 
     private static void requireField(boolean valid, String id, String fieldName) {
         if (!valid) {
-            throw new IllegalStateException("Manual Siegling definition '" + id + "' is missing required field '" + fieldName + "'.");
+            throw new IllegalStateException("Manual card definition '" + id + "' is missing required field '" + fieldName + "'.");
         }
     }
 
@@ -319,11 +504,133 @@ final class ManualSieglingCatalog {
         };
     }
 
+    private static ManualSieglingDefinition toDefinition(Card card) {
+        if (card instanceof SieglingCard siegling) {
+            List<ManualAbilityDefinition> abilities = siegling.getAbilities() == null
+                    ? List.of()
+                    : siegling.getAbilities().stream()
+                            .map(ManualSieglingCatalog::toAbilityDefinition)
+                            .toList();
+            return new ManualSieglingDefinition(
+                    CardType.SIEGLING,
+                    siegling.getId(),
+                    siegling.getName(),
+                    siegling.getElement(),
+                    siegling.getRarity(),
+                    siegling.getHealth(),
+                    siegling.getSpeed(),
+                    siegling.getNotches() == null ? List.of() : siegling.getNotches().stream()
+                            .map(notch -> new ManualNotchDefinition(notch.direction(), notch.element()))
+                            .toList(),
+                    siegling.getPreferredRow(),
+                    siegling.getEvolvesFromId(),
+                    siegling.getEvolvesFromName(),
+                    siegling.getCostElement(),
+                    siegling.getCostAmount() > 0 ? siegling.getCostAmount() : null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    abilities
+            );
+        }
+        if (card instanceof SpellCard spell) {
+            return new ManualSieglingDefinition(
+                    CardType.SPELL,
+                    spell.getId(),
+                    spell.getName(),
+                    spell.getElement(),
+                    spell.getRarity(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    spell.getCostElement(),
+                    spell.getCostAmount() > 0 ? spell.getCostAmount() : null,
+                    spell.getAbility() == null ? null : toAbilityDefinition(spell.getAbility()),
+                    null,
+                    null,
+                    spell.getRequiredReaction(),
+                    spell.getRequiredComboSize() > 0 ? spell.getRequiredComboSize() : null,
+                    normalizeBlank(spell.getRequiredComboSignature()),
+                    List.of()
+            );
+        }
+        if (card instanceof TrapCard trap) {
+            return new ManualSieglingDefinition(
+                    CardType.TRAP,
+                    trap.getId(),
+                    trap.getName(),
+                    trap.getElement(),
+                    trap.getRarity(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    trap.getAbility() == null ? null : toAbilityDefinition(trap.getAbility()),
+                    trap.getCostElement(),
+                    trap.getCostAmount() > 0 ? trap.getCostAmount() : null,
+                    null,
+                    null,
+                    null,
+                    List.of()
+            );
+        }
+        throw new IllegalStateException("Unsupported card type for override export: " + card.getClass().getSimpleName());
+    }
+
+    private static ManualAbilityDefinition toAbilityDefinition(Ability ability) {
+        return new ManualAbilityDefinition(
+                ability.getName(),
+                ability.getDescription(),
+                ability.getTargetType(),
+                ability.getTargetRow(),
+                ability.getTargetCount(),
+                ability.getEffectType(),
+                ability.getEffectValue(),
+                ability.isPassive(),
+                ability.getRequiredElement(),
+                ability.getRequiredEnergy(),
+                ability.getRequiredReaction()
+        );
+    }
+
+    private static CardType definitionType(ManualSieglingDefinition definition) {
+        if (definition.type() != null) {
+            return definition.type();
+        }
+        String normalizedId = normalizeId(definition.id());
+        if (normalizedId != null) {
+            if (normalizedId.startsWith("spell_")) {
+                return CardType.SPELL;
+            }
+            if (normalizedId.startsWith("trap")) {
+                return CardType.TRAP;
+            }
+        }
+        if (definition.trapBucketElement() != null || definition.trapBucketAmount() != null) {
+            return CardType.TRAP;
+        }
+        if (definition.requiredComboSize() != null || definition.requiredComboSignature() != null || definition.requiredReaction() != null) {
+            return CardType.SPELL;
+        }
+        return CardType.SIEGLING;
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     record OverrideFile(List<ManualSieglingDefinition> cards) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ManualSieglingDefinition(
+            @JsonProperty("type") CardType type,
             String id,
             String name,
             Element element,
@@ -337,6 +644,11 @@ final class ManualSieglingCatalog {
             Element costElement,
             Integer costAmount,
             ManualAbilityDefinition ability,
+            Element trapBucketElement,
+            Integer trapBucketAmount,
+            Reaction requiredReaction,
+            Integer requiredComboSize,
+            String requiredComboSignature,
             List<ManualAbilityDefinition> abilities
     ) {}
 

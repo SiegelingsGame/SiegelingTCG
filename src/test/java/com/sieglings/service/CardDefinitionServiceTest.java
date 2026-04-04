@@ -1,11 +1,16 @@
 package com.sieglings.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
 import com.sieglings.model.TrapCard;
+import com.sieglings.model.enums.Rarity;
+import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.TargetType;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -16,6 +21,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CardDefinitionServiceTest {
@@ -65,6 +71,147 @@ class CardDefinitionServiceTest {
         }
     }
 
+    @Test
+    void inactivePresetDecksAreHiddenAndDefaultFallsBackToFirstActiveDeck() {
+        CardDefinitionService service = serviceWithPresetDecks(List.of(
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "deck_fire_earth",
+                        "Ashen Roots",
+                        "Disabled default deck.",
+                        List.of(Element.FIRE, Element.EARTH),
+                        "trainer05",
+                        false,
+                        List.of()
+                ),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "custom_active",
+                        "Active Custom",
+                        "Shown in game options.",
+                        List.of(Element.WATER),
+                        "trainer04",
+                        true,
+                        List.of()
+                )
+        ));
+
+        List<CardDefinitionService.DeckOption> deckOptions = service.getDeckOptions();
+
+        assertEquals(List.of("custom_active"), deckOptions.stream().map(CardDefinitionService.DeckOption::id).toList());
+        assertEquals("custom_active", service.getDefaultDeckOption().orElseThrow().id());
+    }
+
+    @Test
+    void explicitPresetDeckCardListsBuildExactDeckContents() {
+        List<String> seedIds = cardDefinitions.getDeckBuilderCatalog().stream()
+                .limit(10)
+                .map(Card::getId)
+                .toList();
+        List<String> explicitDeck = new ArrayList<>();
+        for (String cardId : seedIds) {
+            explicitDeck.add(cardId);
+            explicitDeck.add(cardId);
+            explicitDeck.add(cardId);
+        }
+
+        CardDefinitionService service = serviceWithPresetDecks(List.of(
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "exact_list",
+                        "Exact List",
+                        "Uses explicit cards.",
+                        List.of(Element.EARTH),
+                        "trainer05",
+                        true,
+                        explicitDeck
+                )
+        ));
+
+        List<Card> builtDeck = service.buildDeckById("exact_list");
+
+        assertEquals(30, builtDeck.size());
+        assertIterableEquals(explicitDeck, builtDeck.stream().map(Card::getId).toList());
+    }
+
+    @Test
+    void inactiveTrainerDefinitionsAreHiddenFromTrainerOptionsButStillResolvableById() {
+        CardDefinitionService service = serviceWithTrainerDefinitions(List.of(
+                new TrainerCatalogService.TrainerDefinition(
+                        "trainer_active",
+                        "Active Marshal",
+                        Element.FIRE,
+                        Rarity.RARE,
+                        "SiegeKnight",
+                        true,
+                        false,
+                        new ManualSieglingCatalog.ManualAbilityDefinition(
+                                "Battle Orders",
+                                "All Fire allies gain +1 attack damage",
+                                TargetType.PASSIVE,
+                                null,
+                                0,
+                                "damage_boost",
+                                1,
+                                true,
+                                null,
+                                0,
+                                null
+                        ),
+                        new ManualSieglingCatalog.ManualAbilityDefinition(
+                                "Flare Call",
+                                "Deal 3 damage to 1 enemy",
+                                TargetType.SINGLE_ENEMY,
+                                null,
+                                1,
+                                "damage",
+                                3,
+                                false,
+                                Element.FIRE,
+                                1,
+                                null
+                        )
+                ),
+                new TrainerCatalogService.TrainerDefinition(
+                        "trainer_inactive",
+                        "Retired Marshal",
+                        Element.WATER,
+                        Rarity.RARE,
+                        "SiegeKnight",
+                        false,
+                        false,
+                        new ManualSieglingCatalog.ManualAbilityDefinition(
+                                "Old Guard",
+                                "All Water allies gain +1 max Health",
+                                TargetType.PASSIVE,
+                                null,
+                                0,
+                                "health_boost",
+                                1,
+                                true,
+                                null,
+                                0,
+                                null
+                        ),
+                        new ManualSieglingCatalog.ManualAbilityDefinition(
+                                "Tidal Seal",
+                                "Freeze 1 enemy",
+                                TargetType.SINGLE_ENEMY,
+                                null,
+                                1,
+                                "freeze",
+                                1,
+                                false,
+                                Element.WATER,
+                                1,
+                                null
+                        )
+                )
+        ));
+
+        assertEquals(List.of("trainer_active"), service.getTrainerOptions().stream().map(Card::getId).toList());
+        assertEquals("Retired Marshal", service.getTrainerById("trainer_inactive").getName());
+        assertEquals(true, service.hasTrainer("trainer_inactive"));
+        assertEquals(false, service.isTrainerActive("trainer_inactive"));
+    }
+
     private Map<String, Set<String>> buildLineIdsByRoot(Map<String, SieglingCard> sieglingsById) {
         Map<String, List<SieglingCard>> byRoot = new HashMap<>();
         for (SieglingCard card : sieglingsById.values()) {
@@ -87,5 +234,53 @@ class CardDefinitionServiceTest {
             current = sieglingsById.get(current.getEvolvesFromId());
         }
         return current.getId();
+    }
+
+    private CardDefinitionService serviceWithPresetDecks(List<PresetDeckCatalogService.PresetDeckDefinition> definitions) {
+        CardDefinitionService service = new CardDefinitionService();
+        PresetDeckCatalogService presetDeckCatalogService = new PresetDeckCatalogService(
+                new ObjectMapper(),
+                new CardOverrideStorageService(new ObjectMapper(), false, "", "", "(default)", "appConfig", "cardOverrides"),
+                "appConfig",
+                "presetDecks"
+        ) {
+            @Override
+            public List<PresetDeckDefinition> loadDefinitionsForGame() {
+                return definitions;
+            }
+        };
+
+        try {
+            Field field = CardDefinitionService.class.getDeclaredField("presetDeckCatalogService");
+            field.setAccessible(true);
+            field.set(service, presetDeckCatalogService);
+            return service;
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("Unable to inject preset deck catalog service for test setup.", ex);
+        }
+    }
+
+    private CardDefinitionService serviceWithTrainerDefinitions(List<TrainerCatalogService.TrainerDefinition> definitions) {
+        CardDefinitionService service = new CardDefinitionService();
+        TrainerCatalogService trainerCatalogService = new TrainerCatalogService(
+                new ObjectMapper(),
+                new CardOverrideStorageService(new ObjectMapper(), false, "", "", "(default)", "appConfig", "cardOverrides"),
+                "appConfig",
+                "trainerCards"
+        ) {
+            @Override
+            public List<TrainerDefinition> loadDefinitionsForGame() {
+                return definitions;
+            }
+        };
+
+        try {
+            Field field = CardDefinitionService.class.getDeclaredField("trainerCatalogService");
+            field.setAccessible(true);
+            field.set(service, trainerCatalogService);
+            return service;
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("Unable to inject trainer catalog service for test setup.", ex);
+        }
     }
 }

@@ -14,6 +14,7 @@ import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.service.EnergyService;
+import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.GameService;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.MultiplayerRoom;
@@ -56,8 +57,14 @@ public class GameController {
     @GetMapping("/api/game/options")
     @ResponseBody
     public Map<String, Object> getOptions() {
+        List<CardDefinitionService.DeckOption> deckOptions = gameService.getDeckOptions();
+        CardDefinitionService.DeckOption defaultDeck = deckOptions.stream()
+                .filter(deck -> deck.id().equals("deck_fire_earth"))
+                .findFirst()
+                .or(() -> deckOptions.stream().findFirst())
+                .orElse(null);
         Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("decks", gameService.getDeckOptions().stream().map(deck -> Map.of(
+        resp.put("decks", deckOptions.stream().map(deck -> Map.of(
                 "id", deck.id(),
                 "name", deck.name(),
                 "description", deck.description(),
@@ -70,8 +77,8 @@ public class GameController {
                 "maxCopies", gameService.getDeckBuilderMaxCopies()
         ));
         resp.put("cardCatalog", gameService.getDeckBuilderCatalog().stream().map(this::serializeCard).toList());
-        resp.put("defaultDeckId", "deck_fire_earth");
-        resp.put("defaultTrainerId", "trainer05");
+        resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
+        resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
         return resp;
     }
 
@@ -253,6 +260,27 @@ public class GameController {
         }
 
         gameService.castSpell(cardId, targetRow, targetCol);
+        return buildStateResponse(gameService.getState(), true, null);
+    }
+
+    @PostMapping("/api/game/claim")
+    @ResponseBody
+    public Map<String, Object> claim(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
+                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                     @RequestBody Map<String, Object> req) {
+        int row = (int) req.get("row");
+        int col = (int) req.get("col");
+
+        if (roomId != null && playerToken != null) {
+            try {
+                GameState state = multiplayerService.claimSiegling(roomId, playerToken, row, col);
+                return buildStateResponse(state, multiplayerService.viewerIsPlayer(roomId, playerToken), roomId);
+            } catch (IllegalArgumentException ex) {
+                return Map.of("error", ex.getMessage());
+            }
+        }
+
+        gameService.claimSiegling(row, col);
         return buildStateResponse(gameService.getState(), true, null);
     }
 
@@ -468,13 +496,13 @@ public class GameController {
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("name", player.getName());
         info.put("health", player.getHealth());
-        info.put("fireEnergy", energy.fireTotal());
-        info.put("earthEnergy", energy.earthTotal());
-        info.put("windEnergy", energy.windTotal());
-        info.put("waterEnergy", energy.waterTotal());
-        info.put("iceEnergy", energy.iceTotal());
-        info.put("shadowEnergy", energy.shadowTotal());
-        info.put("electricEnergy", energy.electricTotal());
+        info.put("fireEnergy", player.getFireEnergy());
+        info.put("earthEnergy", player.getEarthEnergy());
+        info.put("windEnergy", player.getWindEnergy());
+        info.put("waterEnergy", player.getWaterEnergy());
+        info.put("iceEnergy", player.getIceEnergy());
+        info.put("shadowEnergy", player.getShadowEnergy());
+        info.put("electricEnergy", player.getElectricEnergy());
         info.put("mistActive", energy.mistActive());
         info.put("fireInternal", energy.fireInternal());
         info.put("fireExternal", energy.fireExternal());
@@ -505,6 +533,7 @@ public class GameController {
 
         if (includeHand) {
             info.put("hand", serializeHand(player));
+            info.put("remainingDeck", serializeCards(player.getDeck()));
         } else {
             info.put("handSize", player.getHand().size());
         }
@@ -513,11 +542,15 @@ public class GameController {
     }
 
     private List<Map<String, Object>> serializeHand(Player player) {
-        List<Map<String, Object>> hand = new ArrayList<>();
-        for (Card card : player.getHand()) {
-            hand.add(serializeCard(card));
+        return serializeCards(player.getHand());
+    }
+
+    private List<Map<String, Object>> serializeCards(List<Card> cards) {
+        List<Map<String, Object>> serialized = new ArrayList<>();
+        for (Card card : cards) {
+            serialized.add(serializeCard(card));
         }
-        return hand;
+        return serialized;
     }
 
     private Map<String, Object> serializeCard(Card card) {
@@ -639,6 +672,7 @@ public class GameController {
                 m.put("hp", ci.getCurrentHealth());
                 m.put("maxHp", ci.getEffectiveMaxHealth());
                 m.put("spd", ci.getEffectiveSpeed());
+                m.put("battlePhasesSeen", ci.getBattlePhasesSeen());
                 m.put("statuses", ci.getStatusEffects().stream().map(Enum::name).toList());
                 m.put("notches", serializeNotches(ci.getNotches()));
                 if (!ci.getCard().getAbilities().isEmpty()) {

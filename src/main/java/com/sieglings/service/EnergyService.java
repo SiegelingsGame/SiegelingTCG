@@ -82,29 +82,11 @@ public class EnergyService {
 
     public void recalculateEnergy(GameState state) {
         EnergyBreakdown playerEnergy = analyze(state, true);
-        state.getPlayer().setFireEnergy(playerEnergy.fireTotal());
-        state.getPlayer().setEarthEnergy(playerEnergy.earthTotal());
-        state.getPlayer().setWindEnergy(playerEnergy.windTotal());
-        state.getPlayer().setWaterEnergy(playerEnergy.waterTotal());
-        state.getPlayer().setIceEnergy(playerEnergy.iceTotal());
-        state.getPlayer().setShadowEnergy(playerEnergy.shadowTotal());
-        state.getPlayer().setElectricEnergy(playerEnergy.electricTotal());
-        state.getPlayer().setMetalEnergy(playerEnergy.metalTotal());
-        state.getPlayer().setUndeadEnergy(playerEnergy.undeadTotal());
-        state.getPlayer().setPsychicEnergy(playerEnergy.psychicTotal());
+        applyEnergyTotals(state.getPlayer(), playerEnergy);
         state.getPlayer().setMistActive(playerEnergy.mistActive());
 
         EnergyBreakdown enemyEnergy = analyze(state, false);
-        state.getEnemy().setFireEnergy(enemyEnergy.fireTotal());
-        state.getEnemy().setEarthEnergy(enemyEnergy.earthTotal());
-        state.getEnemy().setWindEnergy(enemyEnergy.windTotal());
-        state.getEnemy().setWaterEnergy(enemyEnergy.waterTotal());
-        state.getEnemy().setIceEnergy(enemyEnergy.iceTotal());
-        state.getEnemy().setShadowEnergy(enemyEnergy.shadowTotal());
-        state.getEnemy().setElectricEnergy(enemyEnergy.electricTotal());
-        state.getEnemy().setMetalEnergy(enemyEnergy.metalTotal());
-        state.getEnemy().setUndeadEnergy(enemyEnergy.undeadTotal());
-        state.getEnemy().setPsychicEnergy(enemyEnergy.psychicTotal());
+        applyEnergyTotals(state.getEnemy(), enemyEnergy);
         state.getEnemy().setMistActive(enemyEnergy.mistActive());
     }
 
@@ -120,16 +102,16 @@ public class EnergyService {
         if (costElement == null || costAmount <= 0) return;
         var player = isPlayer ? state.getPlayer() : state.getEnemy();
         switch (costElement) {
-            case FIRE -> player.setFireEnergy(player.getFireEnergy() - costAmount);
-            case EARTH -> player.setEarthEnergy(player.getEarthEnergy() - costAmount);
-            case WIND -> player.setWindEnergy(player.getWindEnergy() - costAmount);
-            case WATER -> player.setWaterEnergy(player.getWaterEnergy() - costAmount);
-            case ICE -> player.setIceEnergy(player.getIceEnergy() - costAmount);
-            case SHADOW -> player.setShadowEnergy(player.getShadowEnergy() - costAmount);
-            case ELECTRIC -> player.setElectricEnergy(player.getElectricEnergy() - costAmount);
-            case METAL -> player.setMetalEnergy(player.getMetalEnergy() - costAmount);
-            case UNDEAD -> player.setUndeadEnergy(player.getUndeadEnergy() - costAmount);
-            case PSYCHIC -> player.setPsychicEnergy(player.getPsychicEnergy() - costAmount);
+            case FIRE -> consumeEnergy(player, Element.FIRE, costAmount);
+            case EARTH -> consumeEnergy(player, Element.EARTH, costAmount);
+            case WIND -> consumeEnergy(player, Element.WIND, costAmount);
+            case WATER -> consumeEnergy(player, Element.WATER, costAmount);
+            case ICE -> consumeEnergy(player, Element.ICE, costAmount);
+            case SHADOW -> consumeEnergy(player, Element.SHADOW, costAmount);
+            case ELECTRIC -> consumeEnergy(player, Element.ELECTRIC, costAmount);
+            case METAL -> consumeEnergy(player, Element.METAL, costAmount);
+            case UNDEAD -> consumeEnergy(player, Element.UNDEAD, costAmount);
+            case PSYCHIC -> consumeEnergy(player, Element.PSYCHIC, costAmount);
             case POISON, LIGHT -> { /* no energy pools — spells use NEUTRAL cost */ }
             case NEUTRAL -> spendNeutral(player, costAmount);
         }
@@ -154,19 +136,54 @@ public class EnergyService {
             if (player.getPsychicEnergy() > max) { max = player.getPsychicEnergy(); maxEl = "PSYCHIC"; }
             if (maxEl == null) break;
             switch (maxEl) {
-                case "FIRE" -> player.setFireEnergy(player.getFireEnergy() - 1);
-                case "EARTH" -> player.setEarthEnergy(player.getEarthEnergy() - 1);
-                case "WIND" -> player.setWindEnergy(player.getWindEnergy() - 1);
-                case "WATER" -> player.setWaterEnergy(player.getWaterEnergy() - 1);
-                case "ICE" -> player.setIceEnergy(player.getIceEnergy() - 1);
-                case "SHADOW" -> player.setShadowEnergy(player.getShadowEnergy() - 1);
-                case "ELECTRIC" -> player.setElectricEnergy(player.getElectricEnergy() - 1);
-                case "METAL" -> player.setMetalEnergy(player.getMetalEnergy() - 1);
-                case "UNDEAD" -> player.setUndeadEnergy(player.getUndeadEnergy() - 1);
-                case "PSYCHIC" -> player.setPsychicEnergy(player.getPsychicEnergy() - 1);
+                case "FIRE" -> consumeEnergy(player, Element.FIRE, 1);
+                case "EARTH" -> consumeEnergy(player, Element.EARTH, 1);
+                case "WIND" -> consumeEnergy(player, Element.WIND, 1);
+                case "WATER" -> consumeEnergy(player, Element.WATER, 1);
+                case "ICE" -> consumeEnergy(player, Element.ICE, 1);
+                case "SHADOW" -> consumeEnergy(player, Element.SHADOW, 1);
+                case "ELECTRIC" -> consumeEnergy(player, Element.ELECTRIC, 1);
+                case "METAL" -> consumeEnergy(player, Element.METAL, 1);
+                case "UNDEAD" -> consumeEnergy(player, Element.UNDEAD, 1);
+                case "PSYCHIC" -> consumeEnergy(player, Element.PSYCHIC, 1);
             }
             remaining--;
         }
+    }
+
+    private void applyEnergyTotals(com.sieglings.model.Player player, EnergyBreakdown breakdown) {
+        player.setFireEnergy(Math.max(0, breakdown.fireTotal() + player.getTemporaryEnergyAdjustment(Element.FIRE)));
+        player.setEarthEnergy(Math.max(0, breakdown.earthTotal() + player.getTemporaryEnergyAdjustment(Element.EARTH)));
+        player.setWindEnergy(Math.max(0, breakdown.windTotal() + player.getTemporaryEnergyAdjustment(Element.WIND)));
+        player.setWaterEnergy(Math.max(0, breakdown.waterTotal() + player.getTemporaryEnergyAdjustment(Element.WATER)));
+        player.setIceEnergy(Math.max(0, breakdown.iceTotal() + player.getTemporaryEnergyAdjustment(Element.ICE)));
+        player.setShadowEnergy(Math.max(0, breakdown.shadowTotal() + player.getTemporaryEnergyAdjustment(Element.SHADOW)));
+        player.setElectricEnergy(Math.max(0, breakdown.electricTotal() + player.getTemporaryEnergyAdjustment(Element.ELECTRIC)));
+        player.setMetalEnergy(Math.max(0, breakdown.metalTotal() + player.getTemporaryEnergyAdjustment(Element.METAL)));
+        player.setUndeadEnergy(Math.max(0, breakdown.undeadTotal() + player.getTemporaryEnergyAdjustment(Element.UNDEAD)));
+        player.setPsychicEnergy(Math.max(0, breakdown.psychicTotal() + player.getTemporaryEnergyAdjustment(Element.PSYCHIC)));
+    }
+
+    private void consumeEnergy(com.sieglings.model.Player player, Element element, int amount) {
+        if (player == null || element == null || amount <= 0) {
+            return;
+        }
+        switch (element) {
+            case FIRE -> player.setFireEnergy(Math.max(0, player.getFireEnergy() - amount));
+            case EARTH -> player.setEarthEnergy(Math.max(0, player.getEarthEnergy() - amount));
+            case WIND -> player.setWindEnergy(Math.max(0, player.getWindEnergy() - amount));
+            case WATER -> player.setWaterEnergy(Math.max(0, player.getWaterEnergy() - amount));
+            case ICE -> player.setIceEnergy(Math.max(0, player.getIceEnergy() - amount));
+            case SHADOW -> player.setShadowEnergy(Math.max(0, player.getShadowEnergy() - amount));
+            case ELECTRIC -> player.setElectricEnergy(Math.max(0, player.getElectricEnergy() - amount));
+            case METAL -> player.setMetalEnergy(Math.max(0, player.getMetalEnergy() - amount));
+            case UNDEAD -> player.setUndeadEnergy(Math.max(0, player.getUndeadEnergy() - amount));
+            case PSYCHIC -> player.setPsychicEnergy(Math.max(0, player.getPsychicEnergy() - amount));
+            case POISON, LIGHT, NEUTRAL -> {
+                return;
+            }
+        }
+        player.adjustTemporaryEnergy(element, -amount);
     }
 
     public boolean canAfford(GameState state, boolean isPlayer, Element costElement, int costAmount) {

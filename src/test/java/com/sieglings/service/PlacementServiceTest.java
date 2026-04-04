@@ -79,6 +79,48 @@ class PlacementServiceTest {
         assertTrue(foundation.contains(anchoredInstance));
     }
 
+    @Test
+    void placementCanAnchorOffDisconnectedFriendlySiegling() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+
+        SieglingCard root = siegling(
+                "root-corner",
+                Element.WATER,
+                List.of(new Notch(NotchDirection.LEFT, Element.WATER))
+        );
+        CardInstance rootInstance = new CardInstance(root.copy(), 0, 0, true);
+        rootInstance.setPlacementOrder(1);
+        state.setAt(true, 0, 0, rootInstance);
+
+        SieglingCard disconnectedNeighbor = siegling(
+                "pylook-like",
+                Element.FIRE,
+                List.of(new Notch(NotchDirection.BOTTOM, Element.FIRE))
+        );
+        CardInstance disconnectedInstance = new CardInstance(disconnectedNeighbor.copy(), 2, 1, true);
+        disconnectedInstance.setPlacementOrder(2);
+        state.setAt(true, 2, 1, disconnectedInstance);
+
+        SieglingCard emberfoxLike = siegling(
+                "emberfox-like",
+                Element.FIRE,
+                List.of(
+                        new Notch(NotchDirection.TOP, Element.FIRE),
+                        new Notch(NotchDirection.LEFT, Element.FIRE),
+                        new Notch(NotchDirection.RIGHT, Element.FIRE)
+                )
+        );
+
+        List<int[]> placements = placementService.getLegalPlacements(state, true, emberfoxLike);
+
+        assertTrue(
+                contains(placements, 1, 1),
+                "A card should be placeable if it can reciprocally link to any friendly neighbor on the board, even if that neighbor is not part of the current foundation cluster."
+        );
+    }
+
     private SieglingCard siegling(String id, Element element, List<Notch> notches) {
         return new SieglingCard(
                 id,

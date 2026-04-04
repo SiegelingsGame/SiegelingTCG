@@ -33,8 +33,16 @@ public class TrainerCard extends Card {
     }
 
     public TrainerCard copy() {
-        return new TrainerCard(getId(), getName(), getElement(), getRarity(), tier,
-                getAbility(), activeAbility, oncePerGame);
+        return new TrainerCard(
+                getId(),
+                getName(),
+                getElement(),
+                getRarity(),
+                tier,
+                getAbility() == null ? null : getAbility().copy(),
+                activeAbility == null ? null : activeAbility.copy(),
+                oncePerGame
+        );
     }
 
     public boolean canUseActive() {
