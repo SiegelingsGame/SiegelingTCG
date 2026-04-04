@@ -458,11 +458,6 @@ function isBattleTargetSelectionActive() {
 }
 
 function openDrawer(name) {
-    // On desktop, redirect 'battle' to the sliding desktop drawer
-    if (name === 'battle' && isDesktopSidebarLayout()) {
-        openDesktopBattleDrawer();
-        return;
-    }
     if (activeDrawer === name) return;
     // Cancel any pending close timers so they don't hide the new drawer
     _drawerCloseTimers.forEach(t => clearTimeout(t));
@@ -3953,57 +3948,29 @@ function renderLog() {
     log.scrollTop = log.scrollHeight;
 }
 
-function openDesktopBattleDrawer() {
-    const drawer = document.getElementById('desktopBattleDrawer');
-    if (!drawer) return;
-    drawer.classList.add('open');
-    document.querySelector('.app-shell')?.classList.add('battle-drawer-open');
-}
-
-function closeDesktopBattleDrawer() {
-    const drawer = document.getElementById('desktopBattleDrawer');
-    if (!drawer) return;
-    drawer.classList.remove('open');
-    document.querySelector('.app-shell')?.classList.remove('battle-drawer-open');
-}
-
 function renderBattlePanel() {
     const panel = document.getElementById('battleActionPanel');
-    const desktopContent = document.getElementById('desktopBattleContent');
-    const isDesktop = isDesktopSidebarLayout();
-
     if (!panel || !gameState) {
         return;
     }
     const pending = gameState.pendingBattle;
 
     if (!pending) {
-        // Close desktop battle drawer when no pending battle
-        if (isDesktop) closeDesktopBattleDrawer();
-
         if (gameState.currentPhase === 'BATTLE' && gameState.battleWaitingOn === 'ENEMY') {
             panel.innerHTML = 'Battle is live. Waiting for your opponent to finish the current speed action.';
-            if (desktopContent) desktopContent.innerHTML = panel.innerHTML;
             return;
         }
         if (gameState.currentPhase === 'BATTLE') {
             panel.innerHTML = 'Battle is resolving. The next available Siegling will act in speed order.';
-            if (desktopContent) desktopContent.innerHTML = panel.innerHTML;
             return;
         }
         panel.innerHTML = 'Battle starts automatically after both players press End Turn. When it begins, Sieglings act from highest speed to lowest speed.';
-        if (desktopContent) desktopContent.innerHTML = panel.innerHTML;
         return;
     }
 
     if (isMobileLayout() && activeDrawer !== 'battle' && !isBattleTargetSelectionActive()) {
         mobileInfoTab = 'battle';
         openDrawer('battle');
-    }
-
-    // On desktop, auto-open the sliding battle drawer instead of the bottom sheet
-    if (isDesktop && !isBattleTargetSelectionActive()) {
-        openDesktopBattleDrawer();
     }
 
     let html = `<div class="battle-attacker"><strong>${pending.name}</strong> is acting now from the battle speed order.</div>`;
@@ -4024,8 +3991,6 @@ function renderBattlePanel() {
     html += `<div class="battle-ability-desc">Skip this card's action and move to the next acting Siegling.</div>`;
 
     panel.innerHTML = html;
-    // Mirror to desktop drawer content
-    if (desktopContent) desktopContent.innerHTML = html;
 }
 
 function chooseBattleAbility(index) {
@@ -4053,8 +4018,6 @@ function chooseBattleAbility(index) {
     if (activeDrawer === 'battle') {
         closeDrawer(true);
     }
-    // Also close desktop battle drawer during target selection
-    closeDesktopBattleDrawer();
     render();
 }
 
