@@ -457,6 +457,23 @@ function isBattleTargetSelectionActive() {
     return Boolean(targetMode && targetContext && targetContext.mode === 'battle');
 }
 
+function shouldUseDesktopBattleDrawer() {
+    return isDesktopSidebarLayout();
+}
+
+function setDesktopBattleDrawerOpen(open) {
+    const drawer = document.getElementById('desktopBattleDrawer');
+    const battlePanelBtn = document.getElementById('btnBattlePanel');
+    if (!drawer) {
+        return false;
+    }
+    drawer.classList.toggle('visible', open);
+    drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+    battlePanelBtn?.classList.toggle('ab-icon-active', open);
+    document.body.classList.toggle('desktop-battle-drawer-open', open);
+    return true;
+}
+
 function openDrawer(name) {
     if (activeDrawer === name) return;
     // Cancel any pending close timers so they don't hide the new drawer
@@ -467,6 +484,15 @@ function openDrawer(name) {
         d.classList.remove('visible');
         d.classList.add('hidden');
     });
+    if (name === 'battle' && shouldUseDesktopBattleDrawer()) {
+        if (!setDesktopBattleDrawerOpen(true)) {
+            return;
+        }
+        activeDrawer = name;
+        return;
+    }
+
+    setDesktopBattleDrawerOpen(false);
     const backdrop = document.getElementById('drawerBackdrop');
     const drawer = document.querySelector(`[data-drawer="${name}"]`);
     if (!drawer || !backdrop) return;
@@ -482,6 +508,13 @@ function openDrawer(name) {
 function closeDrawer(immediate = false) {
     _drawerCloseTimers.forEach(t => clearTimeout(t));
     _drawerCloseTimers = [];
+    setDesktopBattleDrawerOpen(false);
+
+    if (activeDrawer === 'battle' && shouldUseDesktopBattleDrawer()) {
+        activeDrawer = null;
+        return;
+    }
+
     const backdrop = document.getElementById('drawerBackdrop');
     const drawers = document.querySelectorAll('.drawer');
     if (backdrop) {
@@ -1012,6 +1045,74 @@ function summarizeDeckCards(cards) {
     });
 }
 
+const DESKTOP_DECK_RARITY_ORDER = ['LEGENDARY', 'EPIC', 'RARE', 'UNCOMMON', 'COMMON'];
+const DESKTOP_DECK_TYPE_ORDER = ['SPELL', 'TRAP', 'SIEGLING'];
+
+function getDeckRarityRank(rarity) {
+    const idx = DESKTOP_DECK_RARITY_ORDER.indexOf(String(rarity || '').toUpperCase());
+    return idx === -1 ? DESKTOP_DECK_RARITY_ORDER.length : idx;
+}
+
+function getDeckTypeRank(type) {
+    const idx = DESKTOP_DECK_TYPE_ORDER.indexOf(String(type || '').toUpperCase());
+    return idx === -1 ? DESKTOP_DECK_TYPE_ORDER.length : idx;
+}
+
+function formatDeckSectionLabel(type) {
+    switch (String(type || '').toUpperCase()) {
+        case 'SPELL':
+            return 'Spells';
+        case 'TRAP':
+            return 'Traps';
+        case 'SIEGLING':
+            return 'Sieglings';
+        default:
+            return type || 'Cards';
+    }
+}
+
+function getDeckCardMonogram(name) {
+    const words = String(name || '')
+        .split(/[^A-Za-z0-9]+/)
+        .map(word => word.trim())
+        .filter(Boolean);
+    if (words.length === 0) {
+        return '??';
+    }
+    if (words.length === 1) {
+        return words[0].slice(0, 2).toUpperCase();
+    }
+    return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
+}
+
+function groupDeckRowsByTier(rows) {
+    const rarityMap = new Map();
+    rows.forEach(row => {
+        const rarityKey = String(row.rarity || 'COMMON').toUpperCase();
+        if (!rarityMap.has(rarityKey)) {
+            rarityMap.set(rarityKey, new Map());
+        }
+        const typeMap = rarityMap.get(rarityKey);
+        const typeKey = String(row.type || 'CARD').toUpperCase();
+        if (!typeMap.has(typeKey)) {
+            typeMap.set(typeKey, []);
+        }
+        typeMap.get(typeKey).push(row);
+    });
+
+    return [...rarityMap.entries()]
+        .sort((left, right) => getDeckRarityRank(left[0]) - getDeckRarityRank(right[0]))
+        .map(([rarity, typeMap]) => ({
+            rarity,
+            typeGroups: [...typeMap.entries()]
+                .sort((left, right) => getDeckTypeRank(left[0]) - getDeckTypeRank(right[0]))
+                .map(([type, cards]) => ({
+                    type,
+                    cards: cards.sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
+                }))
+        }));
+}
+
 function renderDesktopDeckPreview() {
     const panel = document.getElementById('desktopDeckPreview');
     if (!panel) {
@@ -1025,21 +1126,42 @@ function renderDesktopDeckPreview() {
     }
 
     const rows = summarizeDeckCards(remainingDeck);
+    const tiers = groupDeckRowsByTier(rows);
     let html = `<div class="desktop-deck-meta"><strong>${remainingDeck.length}</strong> cards remaining</div>`;
     html += '<div class="desktop-deck-list">';
-    rows.forEach(row => {
-        const elementClass = String(row.element || 'neutral').toLowerCase();
-        const initial = (row.name || '?').charAt(0).toUpperCase();
+    tiers.forEach(tier => {
+        const rarityClass = String(tier.rarity || 'common').toLowerCase();
+        const tierCount = tier.typeGroups.reduce((sum, group) => sum + group.cards.reduce((groupSum, card) => groupSum + Number(card.count || 0), 0), 0);
         html += `
-            <div class="desktop-deck-row">
-                <span class="desktop-deck-index ${elementClass}">${escapeHtml(initial)}</span>
-                <div class="desktop-deck-copy">
-                    <div class="desktop-deck-name">${escapeHtml(row.name)}</div>
-                    <div class="desktop-deck-type">${escapeHtml(row.type)} / ${escapeHtml(formatElementLabel(row.element))}</div>
+            <section class="desktop-deck-tier rarity-${escapeHtml(rarityClass)}">
+                <div class="desktop-deck-tier-header">
+                    <div class="desktop-deck-tier-name">${escapeHtml(tier.rarity)}</div>
+                    <div class="desktop-deck-tier-count">${escapeHtml(String(tierCount))} cards</div>
                 </div>
-                <span class="desktop-deck-count">x${escapeHtml(row.count)}</span>
-            </div>
         `;
+        tier.typeGroups.forEach(group => {
+            html += `
+                <div class="desktop-deck-type-group">
+                    <div class="desktop-deck-type-label">${escapeHtml(formatDeckSectionLabel(group.type))}</div>
+                    <div class="desktop-deck-icon-row">
+            `;
+            group.cards.forEach(card => {
+                const elementClass = String(card.element || 'neutral').toLowerCase();
+                const monogram = getDeckCardMonogram(card.name);
+                html += `
+                    <div class="desktop-deck-icon-card ${escapeHtml(elementClass)}" title="${escapeHtml(card.name)} (${escapeHtml(card.type)} / ${escapeHtml(formatElementLabel(card.element))}) x${escapeHtml(String(card.count))}">
+                        <span class="desktop-deck-icon-badge">x${escapeHtml(String(card.count))}</span>
+                        <div class="desktop-deck-icon-face">${escapeHtml(monogram)}</div>
+                        <div class="desktop-deck-icon-type">${escapeHtml(group.type)}</div>
+                    </div>
+                `;
+            });
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+        html += '</section>';
     });
     html += '</div>';
     panel.innerHTML = html;
@@ -2728,7 +2850,18 @@ async function executeBattle() {
     closeClaimPopup();
     closeTrainerAbilityPopup();
     clearTargetMode();
+    openBattlePanel(true);
+}
+
+function openBattlePanel(forceOpen = false) {
     renderBattlePanel();
+    if (activeDrawer === 'battle') {
+        if (forceOpen) {
+            return;
+        }
+        closeDrawer();
+        return;
+    }
     openDrawer('battle');
 }
 
@@ -3949,22 +4082,30 @@ function renderLog() {
 }
 
 function renderBattlePanel() {
-    const panel = document.getElementById('battleActionPanel');
-    if (!panel || !gameState) {
+    const panels = [
+        document.getElementById('battleActionPanel'),
+        document.getElementById('desktopBattleActionPanel')
+    ].filter(Boolean);
+    if (panels.length === 0 || !gameState) {
         return;
     }
+    const setPanelHtml = (html) => {
+        panels.forEach(panel => {
+            panel.innerHTML = html;
+        });
+    };
     const pending = gameState.pendingBattle;
 
     if (!pending) {
         if (gameState.currentPhase === 'BATTLE' && gameState.battleWaitingOn === 'ENEMY') {
-            panel.innerHTML = 'Battle is live. Waiting for your opponent to finish the current speed action.';
+            setPanelHtml('Battle is live. Waiting for your opponent to finish the current speed action.');
             return;
         }
         if (gameState.currentPhase === 'BATTLE') {
-            panel.innerHTML = 'Battle is resolving. The next available Siegling will act in speed order.';
+            setPanelHtml('Battle is resolving. The next available Siegling will act in speed order.');
             return;
         }
-        panel.innerHTML = 'Battle starts automatically after both players press End Turn. When it begins, Sieglings act from highest speed to lowest speed.';
+        setPanelHtml('Battle starts automatically after both players press End Turn. When it begins, Sieglings act from highest speed to lowest speed.');
         return;
     }
 
@@ -3990,7 +4131,7 @@ function renderBattlePanel() {
     html += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()">Pass</button>`;
     html += `<div class="battle-ability-desc">Skip this card's action and move to the next acting Siegling.</div>`;
 
-    panel.innerHTML = html;
+    setPanelHtml(html);
 }
 
 function chooseBattleAbility(index) {
@@ -4371,6 +4512,7 @@ function clearTargetMode() {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        closeDrawer(true);
         closeClaimPopup();
         closeTrainerAbilityPopup();
         selectedCard = null;
@@ -4383,6 +4525,14 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('resize', syncMobileInfoTab);
 
 window.addEventListener('resize', () => {
+    const desktopBattleDrawerVisible = document.getElementById('desktopBattleDrawer')?.classList.contains('visible');
+    const mobileBattleDrawerVisible = document.getElementById('drawerBattle')?.classList.contains('visible');
+    if (!shouldUseDesktopBattleDrawer() && desktopBattleDrawerVisible) {
+        closeDrawer(true);
+    } else if (shouldUseDesktopBattleDrawer() && mobileBattleDrawerVisible) {
+        closeDrawer(true);
+        openDrawer('battle');
+    }
     syncFocusedCardUi();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
