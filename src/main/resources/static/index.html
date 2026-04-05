@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=36">
+    <link rel="stylesheet" href="/css/style.css?v=45">
 </head>
 <body>
 
@@ -75,7 +75,7 @@
             <div class="action-bar-aux">
                 <button class="ab-icon" id="btnSelectedPreview" onclick="openDrawer('selected')" title="Card Preview" aria-label="Card Preview">&#128065;</button>
                 <button class="ab-icon" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
-                <button class="ab-icon" onclick="openDrawer('battle')" title="Battle Panel">&#9876;</button>
+                <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Battle Panel">&#9876;</button>
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
                 <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
                 <button class="ab-icon" onclick="openLoadoutSelector()" title="New Game">&#9654;</button>
@@ -102,6 +102,16 @@
                 <div class="desktop-empty-state">Deck contents appear here once the match starts.</div>
             </div>
         </section>
+    </aside>
+
+    <aside class="desktop-battle-drawer" id="desktopBattleDrawer" aria-hidden="true">
+        <div class="desktop-battle-drawer-header">
+            <h3>Battle Queue</h3>
+            <button class="desktop-battle-close" type="button" onclick="closeDrawer()" aria-label="Close battle queue">&times;</button>
+        </div>
+        <div id="desktopBattleActionPanel" class="desktop-battle-drawer-content">
+            Battle starts automatically after both players finish Setup. When it begins, Sieglings act in speed order.
+        </div>
     </aside>
 
     <div class="hand-lift-layer hidden" id="handLiftLayer" aria-hidden="true"></div>
@@ -341,6 +351,6 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-<script src="/js/game.js?v=34"></script>
+<script src="/js/game.js?v=45"></script>
 </body>
 </html>

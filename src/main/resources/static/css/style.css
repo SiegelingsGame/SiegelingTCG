@@ -483,6 +483,12 @@ body {
     transition: all 0.15s;
 }
 .ab-icon:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+.ab-icon-active {
+    color: #f3f8ff;
+    border-color: rgba(80, 160, 255, 0.56);
+    background: rgba(80, 160, 255, 0.16);
+    box-shadow: 0 0 0 1px rgba(80, 160, 255, 0.16), 0 0 16px rgba(80, 160, 255, 0.24);
+}
 
 /* ============================================================
    HAND TRAY — fanned cards at bottom
@@ -624,6 +630,10 @@ body {
 .drawer-content {
     font-size: 0.82em;
     color: var(--text-dim);
+}
+
+.desktop-battle-drawer {
+    display: none;
 }
 
 /* ============================================================
@@ -1018,7 +1028,8 @@ body {
 }
 
 .trainer-card,
-#battleActionPanel {
+#battleActionPanel,
+#desktopBattleActionPanel {
     background: var(--surface-strong);
     border-radius: 8px;
     padding: 10px;
@@ -1235,6 +1246,78 @@ body.battle-phase-active .battlefield::after {
         padding: 18px;
     }
 
+    .desktop-battle-drawer {
+        position: absolute;
+        top: 18px;
+        bottom: 18px;
+        right: calc(var(--desktop-sidebar-width) + 18px);
+        width: clamp(380px, 33vw, 620px);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 14px;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background:
+            linear-gradient(180deg, rgba(25, 37, 68, 0.98), rgba(15, 24, 44, 0.98)),
+            radial-gradient(circle at top left, rgba(80, 160, 255, 0.14), transparent 45%);
+        box-shadow:
+            0 20px 44px rgba(0, 0, 0, 0.34),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+        opacity: 0;
+        transform: translateX(106%);
+        transform-origin: right center;
+        transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease;
+        pointer-events: none;
+        z-index: 7;
+        overflow: hidden;
+    }
+
+    .desktop-battle-drawer.visible {
+        opacity: 1;
+        transform: translateX(0);
+        pointer-events: auto;
+    }
+
+    .desktop-battle-drawer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .desktop-battle-drawer-header h3 {
+        margin: 0;
+        font-size: 0.78em;
+        color: var(--accent);
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+    }
+
+    .desktop-battle-close {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(228, 236, 255, 0.92);
+        font-size: 1.2rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: background 0.16s ease, border-color 0.16s ease;
+    }
+
+    .desktop-battle-close:hover {
+        background: rgba(255, 255, 255, 0.14);
+        border-color: rgba(255, 255, 255, 0.28);
+    }
+
+    .desktop-battle-drawer-content {
+        min-height: 0;
+        overflow: auto;
+        padding-right: 4px;
+    }
+
     .battlefield {
         flex-direction: column;
         align-items: stretch;
@@ -1285,8 +1368,11 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu {
+        display: grid;
+        grid-template-rows: auto minmax(146px, 19vh) minmax(154px, 21vh) minmax(82px, 1fr) auto;
         min-height: 0;
-        padding: 18px;
+        z-index: 8;
+        padding: 16px;
         border-radius: 28px;
         border: 1px solid rgba(255, 255, 255, 0.08);
         background:
@@ -1296,7 +1382,7 @@ body.battle-phase-active .battlefield::after {
             inset 0 0 0 1px rgba(255, 255, 255, 0.04),
             0 16px 38px rgba(0, 0, 0, 0.24);
         overflow: hidden;
-        gap: 14px;
+        gap: 12px;
     }
 
     .desktop-menu-header,
@@ -1327,39 +1413,38 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-menu-section {
         min-height: 0;
-        padding: 14px;
+        padding: 12px;
         border-radius: 20px;
         border: 1px solid rgba(255, 255, 255, 0.08);
         background: rgba(255, 255, 255, 0.045);
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
     }
 
-    .desktop-menu-preview {
+    .desktop-menu-deck {
         order: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .desktop-menu-preview {
+        order: 2;
         overflow: auto;
-        flex-shrink: 1;
+        min-height: 0;
     }
 
     .desktop-menu-hand {
-        order: 2;
+        order: 3;
         min-width: 0;
-        flex: 1 1 auto;
         min-height: 0;
         overflow: hidden;
         display: flex;
         flex-direction: column;
     }
 
-    .desktop-menu-deck {
-        order: 3;
-        display: flex;
-        flex-direction: column;
-        flex: 0 1 auto;
-    }
-
     .desktop-section-title {
-        margin-bottom: 10px;
-        font-size: 0.78em;
+        margin-bottom: 8px;
+        font-size: 0.74em;
         font-weight: 800;
         letter-spacing: 0.14em;
         text-transform: uppercase;
@@ -1373,24 +1458,24 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-preview-layout {
         display: grid;
-        grid-template-columns: minmax(0, 196px) minmax(0, 1fr);
-        gap: 16px;
+        grid-template-columns: minmax(0, 148px) minmax(0, 1fr);
+        gap: 14px;
         align-items: start;
     }
 
     .desktop-preview-card {
         width: 100% !important;
-        min-height: 334px;
+        min-height: 214px;
         max-width: none;
     }
 
     .desktop-preview-card .card-art-selected {
-        min-height: 176px;
+        min-height: 104px;
     }
 
     .desktop-preview-copy-panel {
         display: grid;
-        gap: 10px;
+        gap: 8px;
         align-content: start;
         min-width: 0;
     }
@@ -1404,7 +1489,7 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-preview-title {
-        font-size: 1.7rem;
+        font-size: 1.1rem;
         font-weight: 800;
         line-height: 1.02;
         color: #f5f8ff;
@@ -1412,13 +1497,13 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-preview-meta,
     .desktop-preview-stats {
-        font-size: 0.92em;
+        font-size: 0.82em;
         color: rgba(223, 231, 255, 0.74);
     }
 
     .desktop-preview-description {
-        font-size: 1em;
-        line-height: 1.5;
+        font-size: 0.88em;
+        line-height: 1.4;
         color: rgba(245, 248, 255, 0.94);
     }
 
@@ -1431,19 +1516,19 @@ body.battle-phase-active .battlefield::after {
     .desktop-preview-tag {
         display: inline-flex;
         align-items: center;
-        padding: 6px 10px;
+        padding: 5px 9px;
         border-radius: 999px;
         border: 1px solid rgba(255, 255, 255, 0.12);
         background: rgba(255, 255, 255, 0.05);
         color: rgba(226, 233, 255, 0.82);
-        font-size: 0.74em;
+        font-size: 0.68em;
         line-height: 1.25;
     }
 
     .desktop-preview-note {
         padding-top: 2px;
-        font-size: 0.82em;
-        line-height: 1.45;
+        font-size: 0.74em;
+        line-height: 1.35;
         color: rgba(167, 255, 203, 0.86);
     }
 
@@ -1462,23 +1547,23 @@ body.battle-phase-active .battlefield::after {
     .desktop-menu .hand-cards {
         justify-content: flex-start;
         gap: 10px;
-        padding: 10px 2px 8px;
-        overflow-y: auto;
-        overflow-x: hidden;
-        flex-wrap: wrap;
+        padding: 6px 2px 6px;
+        overflow-y: hidden;
+        overflow-x: auto;
+        flex-wrap: nowrap;
         align-items: flex-start;
-        align-content: flex-start;
         flex: 1 1 auto;
     }
 
     .desktop-menu .hand-card {
-        min-width: 80px;
-        max-width: 84px;
-        width: 80px;
-        min-height: 114px;
+        min-width: 68px;
+        max-width: 72px;
+        width: 68px;
+        min-height: 98px;
         padding: 4px;
         margin-left: 0;
         filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.22));
+        flex: 0 0 auto;
     }
 
     .desktop-menu .hand-card:hover {
@@ -1490,16 +1575,16 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu .card-art-hand {
-        min-height: 56px;
+        min-height: 48px;
         padding: 3px;
     }
 
     .desktop-menu .card-title {
-        font-size: 0.62em;
+        font-size: 0.58em;
     }
 
     .desktop-menu .card-label {
-        font-size: 0.46em;
+        font-size: 0.44em;
     }
 
     .desktop-menu .hand-phase-mask {
@@ -1517,7 +1602,7 @@ body.battle-phase-active .battlefield::after {
         display: flex;
         flex-direction: column;
         flex: 1 1 auto;
-        gap: 10px;
+        gap: 8px;
         min-height: 0;
     }
 
@@ -1533,10 +1618,156 @@ body.battle-phase-active .battlefield::after {
         padding-right: 4px;
     }
 
+    .desktop-deck-tier {
+        display: grid;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(7, 14, 28, 0.34);
+    }
+
+    .desktop-deck-tier.rarity-legendary {
+        box-shadow: inset 3px 0 0 rgba(255, 206, 94, 0.86);
+    }
+
+    .desktop-deck-tier.rarity-epic {
+        box-shadow: inset 3px 0 0 rgba(192, 129, 255, 0.82);
+    }
+
+    .desktop-deck-tier.rarity-rare {
+        box-shadow: inset 3px 0 0 rgba(97, 163, 255, 0.82);
+    }
+
+    .desktop-deck-tier.rarity-uncommon {
+        box-shadow: inset 3px 0 0 rgba(104, 225, 159, 0.78);
+    }
+
+    .desktop-deck-tier.rarity-common {
+        box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.18);
+    }
+
+    .desktop-deck-tier-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .desktop-deck-tier-name {
+        font-size: 0.72em;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(238, 243, 255, 0.94);
+    }
+
+    .desktop-deck-tier-count {
+        font-size: 0.66em;
+        color: rgba(215, 224, 251, 0.72);
+        font-weight: 700;
+    }
+
+    .desktop-deck-type-group {
+        display: grid;
+        gap: 4px;
+    }
+
+    .desktop-deck-type-label {
+        font-size: 0.62em;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(161, 178, 225, 0.8);
+    }
+
+    .desktop-deck-icon-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .desktop-deck-icon-card {
+        position: relative;
+        width: 44px;
+        min-height: 62px;
+        padding: 5px 3px 4px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: linear-gradient(180deg, rgba(39, 58, 99, 0.92), rgba(20, 31, 58, 0.96));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+        display: grid;
+        justify-items: center;
+        align-content: start;
+        gap: 4px;
+        overflow: hidden;
+    }
+
+    .desktop-deck-icon-card::before {
+        content: '';
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 3px;
+        background: var(--neutral);
+        opacity: 0.9;
+    }
+
+    .desktop-deck-icon-card.fire::before { background: var(--fire); }
+    .desktop-deck-icon-card.earth::before { background: var(--earth); }
+    .desktop-deck-icon-card.wind::before { background: var(--wind); }
+    .desktop-deck-icon-card.water::before { background: var(--water); }
+    .desktop-deck-icon-card.ice::before { background: var(--ice); }
+    .desktop-deck-icon-card.shadow::before { background: var(--shadow); }
+    .desktop-deck-icon-card.electric::before { background: var(--electric); }
+    .desktop-deck-icon-card.metal::before { background: var(--metal); }
+    .desktop-deck-icon-card.undead::before { background: var(--undead); }
+    .desktop-deck-icon-card.psychic::before { background: var(--psychic); }
+
+    .desktop-deck-icon-badge {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        min-width: 14px;
+        height: 14px;
+        padding: 0 3px;
+        border-radius: 999px;
+        background: #ffcf44;
+        color: #10203f;
+        font-size: 0.48em;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.22);
+    }
+
+    .desktop-deck-icon-face {
+        width: 100%;
+        aspect-ratio: 5 / 6;
+        border-radius: 8px;
+        background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(204, 214, 232, 0.94));
+        color: #2b416e;
+        font-size: 0.88em;
+        font-weight: 900;
+        letter-spacing: 0.02em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-transform: uppercase;
+    }
+
+    .desktop-deck-icon-type {
+        font-size: 0.42em;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(230, 237, 255, 0.7);
+    }
+
     .desktop-deck-row {
         display: grid;
         grid-template-columns: 34px minmax(0, 1fr) auto;
-        gap: 12px;
+        gap: 8px;
         align-items: center;
         padding: 10px 12px;
         border-radius: 16px;
@@ -1616,22 +1847,22 @@ body.battle-phase-active .battlefield::after {
 
     .ab-btn {
         flex: 1 1 0;
-        min-height: 58px;
-        padding: 14px 16px;
-        font-size: 1em;
+        min-height: 50px;
+        padding: 10px 12px;
+        font-size: 0.88em;
         letter-spacing: 1.2px;
     }
 
     .action-bar-aux {
-        gap: 8px;
+        gap: 6px;
         justify-content: flex-end;
         flex-wrap: wrap;
     }
 
     .ab-icon {
-        width: 44px;
-        height: 44px;
-        font-size: 1em;
+        width: 38px;
+        height: 38px;
+        font-size: 0.92em;
     }
 
     .loadout-overlay {
