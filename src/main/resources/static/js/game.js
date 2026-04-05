@@ -22,13 +22,20 @@ let loadoutErrorMessage = '';
 let loadoutStartPending = false;
 let lastInteractionCueKey = '';
 let hoveredHandCardId = null;
+let hoveredBoardCard = null;
 let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
+let handTouchGesture = null;
+let handAutoScrollFrame = null;
+let handAutoScrollDirection = 0;
+let handTouchSuppressCardId = null;
+let handTouchSuppressUntil = 0;
+let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
-const LOADOUT_ACTION_TIMEOUT_MS = 30000;
+const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 let welcomeSlideIndex = 0;
 let welcomeDismissed = false;
 let authMode = 'login';
@@ -166,6 +173,10 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;');
 }
 
+function clampNumber(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
 function buildCardArtMeta(entry) {
     if (!entry) {
         return null;
@@ -290,11 +301,13 @@ function getCardSummaryStatLine(card) {
         return '';
     }
     const parts = [];
-    if (Number.isFinite(Number(card.health))) {
-        parts.push(`HP:${card.health}`);
+    const healthValue = Number(card.health ?? card.hp);
+    const speedValue = Number(card.speed ?? card.spd);
+    if (Number.isFinite(healthValue)) {
+        parts.push(`HP:${healthValue}`);
     }
-    if (Number.isFinite(Number(card.speed))) {
-        parts.push(`SPD:${card.speed}`);
+    if (Number.isFinite(speedValue)) {
+        parts.push(`SPD:${speedValue}`);
     }
     if (card.preferredRow) {
         parts.push(card.preferredRow);
@@ -359,6 +372,12 @@ function renderShowcaseCard(card, options = {}) {
     const classes = ['hand-card', elemClass, options.cardClass].filter(Boolean).join(' ');
     const detailEntries = getCardPreviewEntries(card);
     const statLine = getCardSummaryStatLine(card);
+    const bodyMode = options.bodyMode || 'full';
+    const visibleDetailEntries = bodyMode === 'summary'
+        ? detailEntries.slice(0, 1)
+        : bodyMode === 'hidden'
+        ? []
+        : detailEntries;
 
     let html = `<div class="${classes}">`;
     if (card.type === 'SIEGLING') {
@@ -370,14 +389,19 @@ function renderShowcaseCard(card, options = {}) {
     html += `<div class="card-label">${escapeHtml(labelText)}</div>`;
     html += `</div>`;
     html += renderCardArt(card, options.artVariant || 'preview', fallbackArtLabel);
-    html += `<div class="hand-card-body">`;
-    if (statLine) {
-        html += `<div class="card-detail card-stats-line">${escapeHtml(statLine)}</div>`;
+    if (bodyMode !== 'hidden') {
+        html += `<div class="hand-card-body">`;
+        if (statLine) {
+            html += `<div class="card-detail card-stats-line">${escapeHtml(statLine)}</div>`;
+        }
+        visibleDetailEntries.forEach(entry => {
+            html += `<div class="${entry.className}">${escapeHtml(entry.text)}</div>`;
+        });
+        if (bodyMode === 'summary' && detailEntries.length > visibleDetailEntries.length) {
+            html += `<div class="card-detail card-detail-more">+${detailEntries.length - visibleDetailEntries.length} more</div>`;
+        }
+        html += `</div>`;
     }
-    detailEntries.forEach(entry => {
-        html += `<div class="${entry.className}">${escapeHtml(entry.text)}</div>`;
-    });
-    html += `</div>`;
     html += `</div>`;
     html += `</div>`;
     return html;
@@ -426,6 +450,64 @@ function isMobileLayout() {
     return window.matchMedia('(max-width: 900px)').matches || isCompactLandscapeLayout();
 }
 
+function getViewportModeLabel() {
+    if (isDesktopSidebarLayout()) {
+        return 'Desktop Dock';
+    }
+    if (isCompactLandscapeLayout()) {
+        return 'Landscape';
+    }
+    return 'Portrait';
+}
+
+function updateResponsiveLayoutVars(force = false) {
+    const signature = `${window.innerWidth}x${window.innerHeight}:${getViewportModeLabel()}`;
+    if (!force && signature === lastViewportSignature) {
+        return;
+    }
+    lastViewportSignature = signature;
+
+    const root = document.documentElement;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const desktop = isDesktopSidebarLayout();
+    const compactLandscape = isCompactLandscapeLayout();
+    const density = clampNumber(Math.min(viewportWidth / 1440, viewportHeight / 900), 0.72, 1.08);
+    const cardAspectHeight = 7 / 5;
+    const sidebarWidth = desktop
+        ? Math.round(clampNumber(viewportWidth * 0.29, 360, Math.min(520, viewportWidth * 0.38)))
+        : 420;
+    const handWidth = desktop
+        ? Math.round(clampNumber(Math.min(sidebarWidth * 0.185, viewportHeight * 0.084), 66, 88))
+        : compactLandscape
+        ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
+        : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
+    const desktopHandSectionMinHeight = desktop
+        ? Math.round(clampNumber((handWidth * cardAspectHeight) + 60, 156, viewportHeight * 0.26))
+        : 176;
+    const previewCardWidth = desktop
+        ? Math.round(clampNumber(Math.min(sidebarWidth * 0.35, viewportHeight * 0.18), 136, 184))
+        : Math.round(clampNumber(viewportWidth * 0.38, 152, 220));
+    const previewCardMaxHeight = desktop
+        ? Math.round(clampNumber(viewportHeight * 0.29, 176, 286))
+        : Math.round(clampNumber(viewportHeight * 0.68, 180, 420));
+    const overlayWidth = Math.round(clampNumber(viewportWidth * 0.92, 320, 1180));
+    const overlayPadding = Math.round(clampNumber(Math.min(viewportWidth, viewportHeight) * 0.026, 14, 28));
+
+    root.style.setProperty('--card-scale', density.toFixed(3));
+    root.style.setProperty('--desktop-sidebar-width', `${sidebarWidth}px`);
+    root.style.setProperty('--desktop-preview-card-width', `${previewCardWidth}px`);
+    root.style.setProperty('--desktop-preview-card-max-height', `${previewCardMaxHeight}px`);
+    root.style.setProperty('--desktop-hand-section-min-height', `${desktopHandSectionMinHeight}px`);
+    root.style.setProperty('--hand-card-width', `${handWidth}px`);
+    root.style.setProperty('--hand-card-overlap', desktop ? '0px' : `${-Math.round(handWidth * 0.25)}px`);
+    root.style.setProperty('--hand-card-padding', desktop ? '4px' : `${clampNumber(Math.round(handWidth * 0.045), 2, 6)}px`);
+    root.style.setProperty('--hand-card-hover-lift', desktop ? '-4px' : `${-Math.round(handWidth * 0.16)}px`);
+    root.style.setProperty('--hand-card-selected-lift', desktop ? '-6px' : `${-Math.round(handWidth * 0.2)}px`);
+    root.style.setProperty('--overlay-shell-width', `${overlayWidth}px`);
+    root.style.setProperty('--overlay-shell-padding', `${overlayPadding}px`);
+}
+
 function setMobileInfoTab(tab) {
     mobileInfoTab = tab;
     syncMobileInfoTab();
@@ -448,7 +530,7 @@ function syncMobileInfoTab() {
 }
 
 /* ============================================================
-   DRAWER SYSTEM — slide-up modals for log, key, battle, card info
+   DRAWER SYSTEM â€” slide-up modals for log, key, battle, card info
    ============================================================ */
 let activeDrawer = null;
 let _drawerCloseTimers = [];
@@ -593,7 +675,7 @@ function showPhaseTransitionBanner(phase, activeSide) {
 }
 
 /* ============================================================
-   CARD INSPECTOR — full-detail overlay when tapping hand card
+   CARD INSPECTOR â€” full-detail overlay when tapping hand card
    ============================================================ */
 function openCardInspector(card) {
     const overlay = document.getElementById('cardInspector');
@@ -645,7 +727,13 @@ function closeCardInspector(event) {
 }
 
 function canUseTrainerAbility(trainer = gameState?.player?.trainer) {
-    return Boolean(trainer && trainer.active && trainer.canUseActive && !isOpeningPlacementOnlyTurn());
+    return Boolean(
+        trainer
+        && trainer.active
+        && trainer.canUseActive
+        && !isOpeningPlacementOnlyTurn()
+        && abilityHasAvailableTarget(trainer.active)
+    );
 }
 
 function buildTrainerAbilityHint(trainer) {
@@ -653,6 +741,9 @@ function buildTrainerAbilityHint(trainer) {
         return 'No active SiegeKnight ability is ready right now.';
     }
     const targetSide = getAbilityTargetSide(trainer.active);
+    if (targetSide && !abilityHasAvailableTarget(trainer.active)) {
+        return `No ${targetSide} targets are available right now.`;
+    }
     if (targetSide) {
         const article = /^[aeiou]/i.test(targetSide) ? 'an' : 'a';
         return `Using this will close the popup and let you pick ${article} ${targetSide} target on the board.`;
@@ -669,7 +760,7 @@ function renderTrainerAbilityPopup() {
     if (!overlay) {
         return;
     }
-    if (!trainer?.active || !canUseTrainerAbility(trainer)) {
+    if (!trainer) {
         closeTrainerAbilityPopup();
         return;
     }
@@ -681,27 +772,40 @@ function renderTrainerAbilityPopup() {
     const useBtn = document.getElementById('btnUseTrainerAbility');
 
     if (title) {
-        title.textContent = trainer.active.name || `${trainer.name} Ability`;
+        title.textContent = trainer.name || 'SiegeKnight';
     }
     if (tier) {
-        const modeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
-        tier.textContent = `${trainer.name} • ${formatTrainerTier(trainer.tier)} • ${modeLabel}`;
+        tier.textContent = [
+            formatTrainerTier(trainer.tier),
+            formatElementLabel(trainer.element),
+            trainer.rarity || null
+        ].filter(Boolean).join(' • ');
     }
     if (description) {
-        description.textContent = trainer.active.description || 'No description available.';
+        description.textContent = trainer.passive?.description
+            ? `Passive: ${trainer.passive.description}`
+            : 'No passive effect listed.';
     }
     if (copy) {
-        copy.textContent = buildTrainerAbilityHint(trainer);
+        const activeDescription = trainer.active?.description
+            ? `Active: ${trainer.active.description}`
+            : 'No active ability listed.';
+        const availability = trainer.active
+            ? buildTrainerAbilityHint(trainer)
+            : 'No active SiegeKnight ability is available right now.';
+        copy.textContent = `${activeDescription} ${availability}`.trim();
     }
     if (useBtn) {
-        useBtn.disabled = !canUseTrainerAbility(trainer);
-        useBtn.textContent = abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability';
+        const canUse = canUseTrainerAbility(trainer);
+        useBtn.disabled = !canUse;
+        useBtn.textContent = !trainer.active
+            ? 'No Active Ability'
+            : (abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability');
     }
 }
-
 function openTrainerAbilityPopup() {
     const trainer = gameState?.player?.trainer;
-    if (!trainer?.active || !canUseTrainerAbility(trainer)) {
+    if (!trainer) {
         return;
     }
     const overlay = document.getElementById('trainerAbilityOverlay');
@@ -803,9 +907,12 @@ async function confirmClaimFromPopup() {
 }
 
 /* ============================================================
-   CARD PREVIEW FLOAT — shows selected card over enemy grid
+   CARD PREVIEW FLOAT â€” shows selected card over enemy grid
    ============================================================ */
 function getFocusedPreviewCard() {
+    if (hoveredBoardCard) {
+        return hoveredBoardCard;
+    }
     const hoveredCard = gameState?.player?.hand?.find(card => card.id === hoveredHandCardId) || null;
     return hoveredCard || selectedCard || null;
 }
@@ -902,12 +1009,14 @@ function syncActionBarAttention() {
 function syncFocusedCardUi() {
     renderCardPreviewFloat();
     renderDesktopCardPreviewPanel();
+    renderDesktopMenuMeta();
     renderHintPanel();
+    syncFocusedEnergyCue();
     syncActionBarAttention();
 }
 
 function shouldShowFloatingCardPreview() {
-    return isMobileLayout();
+    return false;
 }
 
 function renderCardPreviewFloat() {
@@ -967,6 +1076,100 @@ function getDesktopPreviewNote(card, lockReason) {
     return 'Use the hand selector to keep swapping the highlighted preview card.';
 }
 
+function isPlayerHandCard(card) {
+    return Boolean(card && gameState?.player?.hand?.some(handCard => handCard.id === card.id));
+}
+
+function getFocusedCardSummary(card, lockReason) {
+    if (!card) {
+        return 'Hover a hand or board card to inspect live costs, lock reasons, and setup timing.';
+    }
+    if (!isPlayerHandCard(card)) {
+        return 'Board card details update live as links, statuses, and battle order change.';
+    }
+    if (lockReason) {
+        return lockReason;
+    }
+    if (card.costElement && card.costAmount > 0) {
+        return canAffordCard(card)
+            ? `${card.costAmount} ${formatElementLabel(card.costElement)} ready to spend.`
+            : `Need ${card.costAmount} ${formatElementLabel(card.costElement)} to play this.`;
+    }
+    if (card.requiredComboSize) {
+        return card.requiredComboSignature
+            ? `Needs ${card.requiredComboSignature.split('+').map(formatElementLabel).join(' + ')}.`
+            : `Needs a ${card.requiredComboSize}-element combo.`;
+    }
+    if (card.type === 'TRAP') {
+        return 'Trap timing depends on the opponent meeting its trigger.';
+    }
+    if (card.type === 'SIEGLING') {
+        return gameState?.playerPlacementUsed
+            ? 'Placement is already spent this turn.'
+            : 'Ready to place during setup if a legal anchor is open.';
+    }
+    return 'Ready to inspect or play.';
+}
+
+function renderDesktopMenuMeta() {
+    const viewportChip = document.getElementById('desktopMenuViewport');
+    const focusChip = document.getElementById('desktopMenuFocus');
+    if (!viewportChip && !focusChip) {
+        return;
+    }
+
+    if (viewportChip) {
+        viewportChip.textContent = `${getViewportModeLabel()} ${window.innerWidth}x${window.innerHeight}`;
+    }
+
+    if (focusChip) {
+        const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
+        const lockReason = isPlayerHandCard(focusedCard) ? getHandCardLockReason(focusedCard) : '';
+        focusChip.textContent = getFocusedCardSummary(focusedCard, lockReason);
+    }
+}
+
+function renderDesktopActionHistory() {
+    const history = document.getElementById('desktopActionHistory');
+    if (!history) {
+        return;
+    }
+
+    const entries = Array.isArray(gameState?.gameLog) ? gameState.gameLog.slice(0, 3) : [];
+    if (entries.length === 0) {
+        history.innerHTML = '<div class="desktop-history-empty">Latest actions appear here once the match starts.</div>';
+        return;
+    }
+
+    history.innerHTML = entries.map((entry, index) => `
+        <div class="desktop-history-entry${index === 0 ? ' current' : ''}">
+            <span class="desktop-history-dot"></span>
+            <span>${escapeHtml(entry)}</span>
+        </div>
+    `).join('');
+}
+
+function syncFocusedEnergyCue() {
+    const playerEnergy = document.getElementById('playerEnergy');
+    if (!playerEnergy) {
+        return;
+    }
+
+    playerEnergy.classList.remove('tb-energy-focus-affordable', 'tb-energy-focus-unaffordable');
+    playerEnergy.removeAttribute('title');
+
+    const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
+    if (!isPlayerHandCard(focusedCard) || !focusedCard?.costElement || !focusedCard?.costAmount) {
+        return;
+    }
+
+    const affordable = canAffordCard(focusedCard);
+    playerEnergy.classList.add(affordable ? 'tb-energy-focus-affordable' : 'tb-energy-focus-unaffordable');
+    playerEnergy.title = affordable
+        ? `${focusedCard.name}: ${focusedCard.costAmount} ${formatElementLabel(focusedCard.costElement)} ready.`
+        : `${focusedCard.name}: need ${focusedCard.costAmount} ${formatElementLabel(focusedCard.costElement)}.`;
+}
+
 function renderDesktopCardPreviewPanel() {
     const panel = document.getElementById('desktopCardPreviewPanel');
     if (!panel) {
@@ -975,11 +1178,11 @@ function renderDesktopCardPreviewPanel() {
 
     const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
     if (!focusedCard) {
-        panel.innerHTML = '<div class="desktop-empty-state">Hover or select a hand card to inspect it here.</div>';
+        panel.innerHTML = '<div class="desktop-empty-state">Hover a board card or select a hand card to inspect it here.</div>';
         return;
     }
 
-    const lockReason = getHandCardLockReason(focusedCard);
+    const lockReason = isPlayerHandCard(focusedCard) ? getHandCardLockReason(focusedCard) : '';
     const abilities = getCardAbilities(focusedCard)
         .map(ability => ability?.description || ability?.name || '')
         .filter(Boolean);
@@ -989,14 +1192,15 @@ function renderDesktopCardPreviewPanel() {
     let html = '<div class="desktop-preview-layout">';
     html += renderShowcaseCard(focusedCard, {
         cardClass: 'selected-preview-card desktop-preview-card',
-        artVariant: 'selected'
+        artVariant: 'selected',
+        bodyMode: 'summary'
     });
     html += '<div class="desktop-preview-copy-panel">';
     html += `<div class="desktop-preview-kicker">${escapeHtml(formatElementLabel(focusedCard.element))}</div>`;
     html += `<div class="desktop-preview-title">${escapeHtml(focusedCard.name)}</div>`;
     html += `<div class="desktop-preview-meta">${escapeHtml(focusedCard.type)} / ${escapeHtml(focusedCard.rarity)}</div>`;
     if (focusedCard.type === 'SIEGLING') {
-        html += `<div class="desktop-preview-stats">Health ${escapeHtml(focusedCard.health)} | Speed ${escapeHtml(focusedCard.speed)}</div>`;
+        html += `<div class="desktop-preview-stats">Health ${escapeHtml(String(focusedCard.health ?? focusedCard.hp ?? '?'))} | Speed ${escapeHtml(String(focusedCard.speed ?? focusedCard.spd ?? '?'))}</div>`;
     } else if (focusedCard.costElement && focusedCard.costAmount > 0) {
         html += `<div class="desktop-preview-stats">${escapeHtml(formatElementLabel(focusedCard.costElement))} Cost ${escapeHtml(focusedCard.costAmount)}</div>`;
     }
@@ -1168,7 +1372,7 @@ function renderDesktopDeckPreview() {
 }
 
 /* ============================================================
-   COMPACT ENERGY RENDERING — for top-bar tokens
+   COMPACT ENERGY RENDERING â€” for top-bar tokens
    ============================================================ */
 function renderEnergyTopBar(containerId, playerData) {
     const el = document.getElementById(containerId);
@@ -1774,12 +1978,12 @@ function getLegalPlacementsForCard(card, board = gameState?.playerBoard || []) {
     }
 
     const safeBoard = Array.isArray(board) && board.length ? board : [[], [], []];
-    if (countBoardSieglings(safeBoard) >= 5) {
-        return [];
-    }
-
     if (card.evolvesFromId) {
         return getEvolutionPlacements(card, safeBoard);
+    }
+
+    if (countBoardSieglings(safeBoard) >= 5) {
+        return [];
     }
 
     const placements = [];
@@ -1817,11 +2021,15 @@ function getHandCardLockReason(card) {
     if (gameState.currentPhase !== 'SETUP') {
         return 'Cards can only be played during setup.';
     }
-    if (card.type === 'SIEGLING' && countBoardSieglings() >= 5) {
+    if (card.type === 'SIEGLING' && countBoardSieglings() >= 5 && !card.evolvesFromId) {
         return 'Maxed out.';
     }
     if (!canAffordCard(card)) {
         return `Need ${card.costAmount} ${formatElementLabel(card.costElement)} energy to play this.`;
+    }
+    if (isActionCard(card) && !abilityHasAvailableTarget(card.ability)) {
+        const targetSide = getAbilityTargetSide(card.ability);
+        return targetSide ? `No ${targetSide} targets are available right now.` : 'This card has no valid target right now.';
     }
     if (gameState.playerPlacementUsed && card.type === 'SIEGLING') {
         return 'You already played a Siegling this turn.';
@@ -1965,6 +2173,7 @@ function applyInteractionState() {
 
 function resetInteractionState(shouldRender = true) {
     selectedCard = null;
+    hoveredBoardCard = null;
     closeClaimPopup();
     clearTargetMode();
     updateSelectedInfo(null);
@@ -2279,7 +2488,7 @@ function renderLoadoutOptions() {
         const elementLabels = deck.elements.map(formatElementLabel).join(' / ');
         const elClasses = deck.elements.map(e => 'el-' + e.toLowerCase()).join(' ');
 
-        /* Build spine bands – each element gets its own colored band with a sigil inside */
+        /* Build spine bands â€“ each element gets its own colored band with a sigil inside */
         const spineBands = deck.elements.map(el => {
             const c = getElementHex(el);
             return `<div class="spine-band" style="background:${c}"></div>`;
@@ -2919,6 +3128,7 @@ async function submitBattleAction(abilityIndex, targetRow = -1, targetCol = -1) 
 
 function render() {
     if (!gameState) return;
+    updateResponsiveLayoutVars();
 
     const phase = gameState.currentPhase;
     const previousPhase = lastRenderedPhase;
@@ -2996,13 +3206,14 @@ function render() {
     renderTrainer('enemyTrainer', gameState.enemy.trainer, false);
     if (btnTrainerAbility) {
         const trainer = gameState.player.trainer;
-        const showTrainerButton = canUseTrainerAbility(trainer);
-        btnTrainerAbility.classList.toggle('hidden', !showTrainerButton);
-        btnTrainerAbility.disabled = !showTrainerButton;
+        const hasTrainer = Boolean(trainer);
+        const canUse = canUseTrainerAbility(trainer);
+        btnTrainerAbility.classList.toggle('hidden', !hasTrainer);
+        btnTrainerAbility.disabled = !hasTrainer;
         btnTrainerAbility.textContent = trainer?.tier === 'SiegeLord' ? 'Lord' : 'Knight';
-        btnTrainerAbility.title = showTrainerButton && trainer?.active
-            ? `${trainer.name}: ${trainer.active.name}`
-            : 'No SiegeKnight ability available';
+        btnTrainerAbility.title = trainer
+            ? `${trainer.name}${trainer.active?.name ? `: ${trainer.active.name}` : ''}${canUse ? '' : ' (details only)'}`
+            : 'No SiegeKnight selected';
     }
     renderTrainerAbilityPopup();
     renderClaimPopup();
@@ -3411,13 +3622,13 @@ function renderBoard(gridId, board, isPlayer) {
 
             let events = '';
             if (isLegal) {
-                events = `onclick="placeCard(${r}, ${c})"`;
+                events = `onclick="placeCard(${r}, ${c})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isTargetable) {
-                events = `onclick="onTargetSelected(${r}, ${c})"`;
+                events = `onclick="onTargetSelected(${r}, ${c})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isClaimable) {
-                events = `onclick="openClaimPopup(${r}, ${c})" onmouseenter="showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="hideTooltip()"`;
+                events = `onclick="openClaimPopup(${r}, ${c})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})" onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
             } else if (cell) {
-                events = `onmouseenter="showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="hideTooltip()"`;
+                events = `onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
             }
 
             html += `<div class="${classes}" ${events} data-row="${r}" data-col="${c}">`;
@@ -3955,10 +4166,11 @@ function renderHand() {
         ].join('');
         const onclick = `onclick="selectCard('${card.id}')"`
         const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, '${card.id}')" onmouseleave="handleHandCardPointerLeave('${card.id}')"`;
+        const touchEvents = `ontouchstart="handleHandCardTouchStart(event, '${card.id}')" ontouchmove="handleHandCardTouchMove(event, '${card.id}')" ontouchend="handleHandCardTouchEnd(event, '${card.id}')"`;
         const fallbackArtLabel = card.type === 'SIEGLING'
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" ${onclick} ${hoverEvents}>`;
+        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" ${onclick} ${hoverEvents} ${touchEvents}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
@@ -4000,6 +4212,9 @@ function renderHand() {
 }
 
 function handleHandCardPointerEnter(event, cardId) {
+    if (isMobileLayout()) {
+        return;
+    }
     hoveredHandCardId = cardId;
     updateHandLiftLayer();
     syncFocusedCardUi();
@@ -4007,12 +4222,60 @@ function handleHandCardPointerEnter(event, cardId) {
 }
 
 function handleHandCardPointerLeave(cardId) {
+    if (isMobileLayout()) {
+        return;
+    }
     if (hoveredHandCardId === cardId) {
         hoveredHandCardId = null;
     }
     updateHandLiftLayer();
     syncFocusedCardUi();
     hideTooltip();
+}
+
+function handleHandCardTouchStart(event, cardId) {
+    if (!isMobileLayout()) {
+        return;
+    }
+    const touch = event.changedTouches?.[0];
+    if (!touch) {
+        return;
+    }
+    handTouchGesture = {
+        cardId,
+        x: touch.clientX,
+        y: touch.clientY,
+        moved: false
+    };
+}
+
+function handleHandCardTouchMove(event, cardId) {
+    if (!isMobileLayout() || !handTouchGesture || handTouchGesture.cardId !== cardId) {
+        return;
+    }
+    const touch = event.changedTouches?.[0];
+    if (!touch) {
+        return;
+    }
+    if (Math.abs(touch.clientX - handTouchGesture.x) > 12 || Math.abs(touch.clientY - handTouchGesture.y) > 12) {
+        handTouchGesture.moved = true;
+    }
+}
+
+function handleHandCardTouchEnd(event, cardId) {
+    if (!isMobileLayout()) {
+        return;
+    }
+    const shouldSelect = Boolean(handTouchGesture && handTouchGesture.cardId === cardId && !handTouchGesture.moved);
+    handTouchGesture = null;
+    if (!shouldSelect) {
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    selectCard(cardId);
+    handTouchSuppressCardId = cardId;
+    handTouchSuppressUntil = Date.now() + 500;
 }
 
 function renderMulliganOverlay() {
@@ -4071,14 +4334,18 @@ function renderMulliganOverlay() {
 
 function renderLog() {
     const log = document.getElementById('gameLog');
-    if (!gameState.gameLog) return;
+    if (!log || !gameState?.gameLog) {
+        renderDesktopActionHistory();
+        return;
+    }
 
     let html = '';
     for (const entry of gameState.gameLog) {
-        html += `<div class="log-entry">${entry}</div>`;
+        html += `<div class="log-entry">${escapeHtml(entry)}</div>`;
     }
     log.innerHTML = html;
-    log.scrollTop = log.scrollHeight;
+    log.scrollTop = 0;
+    renderDesktopActionHistory();
 }
 
 function renderBattlePanel() {
@@ -4174,8 +4441,14 @@ function boardHasTargets(side) {
     return board.some(row => row.some(cell => cell));
 }
 
+function abilityHasAvailableTarget(ability) {
+    const targetSide = getAbilityTargetSide(ability);
+    return !targetSide || boardHasTargets(targetSide);
+}
+
 function getSelectedLegalPlacements() {
-    if (gameState.playerPlacementUsed || countBoardSieglings() >= 5) {
+    const evolutionCardSelected = Boolean(selectedCard?.evolvesFromId);
+    if (gameState.playerPlacementUsed || (countBoardSieglings() >= 5 && !evolutionCardSelected)) {
         return [];
     }
 
@@ -4214,15 +4487,16 @@ function canSelectedCardLinkAt(row, col, board) {
 
 function selectCard(cardId) {
     if (gameState.currentPhase !== 'SETUP') return;
+    if (isMobileLayout() && handTouchSuppressCardId === cardId && Date.now() < handTouchSuppressUntil) {
+        handTouchSuppressCardId = null;
+        handTouchSuppressUntil = 0;
+        return;
+    }
 
     const card = gameState.player.hand.find(c => c.id === cardId);
     if (!card) return;
 
     if (selectedCard && selectedCard.id === cardId) {
-        if (isMobileLayout()) {
-            openCardInspector(card);
-            return;
-        }
         selectedCard = null;
         clearTargetMode();
         updateSelectedInfo(null);
@@ -4242,11 +4516,13 @@ function selectCard(cardId) {
     }
 
     if (isActionCard(card)) {
-        if (abilityNeedsTarget(card.ability)) {
+        const targetSide = getAbilityTargetSide(card.ability);
+        const needsExplicitTarget = Boolean(targetSide);
+        if (needsExplicitTarget) {
             targetMode = true;
             targetContext = {
                 mode: 'spell',
-                side: getAbilityTargetSide(card.ability),
+                side: targetSide,
                 message: `Select a target for ${card.name}.`,
                 callback: (row, col) => castSpell(card.id, row, col)
             };
@@ -4290,11 +4566,13 @@ function onTrainerUse() {
 
     closeTrainerAbilityPopup();
 
-    if (abilityNeedsTarget(trainer.active)) {
+    const targetSide = getAbilityTargetSide(trainer.active);
+    const needsExplicitTarget = targetSide && boardHasTargets(targetSide);
+    if (needsExplicitTarget) {
         targetMode = true;
         targetContext = {
             mode: 'trainer',
-            side: getAbilityTargetSide(trainer.active),
+            side: targetSide,
             message: `Select a target for ${trainer.active.name}.`,
             callback: (row, col) => useTrainer(row, col)
         };
@@ -4344,7 +4622,57 @@ function updateSelectedInfo(card, msg) {
     el.innerHTML = html;
 }
 
+function handleBoardCardPointerEnter(isPlayer, row, col) {
+    if (!isDesktopSidebarLayout()) {
+        return;
+    }
+    hoveredBoardCard = (isPlayer ? gameState?.playerBoard : gameState?.enemyBoard)?.[row]?.[col] || null;
+    syncFocusedCardUi();
+}
+
+function handleBoardCardPointerLeave(isPlayer, row, col) {
+    const card = (isPlayer ? gameState?.playerBoard : gameState?.enemyBoard)?.[row]?.[col] || null;
+    if (!hoveredBoardCard || !card || hoveredBoardCard.instanceId !== card.instanceId) {
+        return;
+    }
+    hoveredBoardCard = null;
+    syncFocusedCardUi();
+}
+
+function handleBoardCellTouch(event, isPlayer, row, col) {
+    if (!isMobileLayout()) {
+        return;
+    }
+    const board = isPlayer ? gameState?.playerBoard : gameState?.enemyBoard;
+    const cell = board?.[row]?.[col] || null;
+    const legalPlacement = isPlayer
+        && !targetMode
+        && Boolean(selectedCard)
+        && selectedCard.type === 'SIEGLING'
+        && getSelectedLegalPlacements().some(pos => pos[0] === row && pos[1] === col);
+    const targetable = isTargetCell(isPlayer, cell);
+    const claimable = isPlayer && isClaimableBoardCell(cell, true);
+    if (!legalPlacement && !targetable && !claimable) {
+        return;
+    }
+    event.preventDefault();
+    if (legalPlacement) {
+        placeCard(row, col);
+        return;
+    }
+    if (targetable) {
+        onTargetSelected(row, col);
+        return;
+    }
+    if (claimable) {
+        openClaimPopup(row, col);
+    }
+}
+
 function showTooltipBoard(event, isPlayer, row, col) {
+    if (isDesktopSidebarLayout() || isMobileLayout()) {
+        return;
+    }
     const board = isPlayer ? gameState.playerBoard : gameState.enemyBoard;
     const cell = board[row][col];
     if (!cell) return;
@@ -4366,6 +4694,9 @@ function showTooltipBoard(event, isPlayer, row, col) {
 }
 
 function showTooltipHand(event, cardId) {
+    if (isDesktopSidebarLayout() || isMobileLayout()) {
+        return;
+    }
     const card = gameState.player.hand.find(c => c.id === cardId);
     if (!card) return;
 
@@ -4432,6 +4763,53 @@ function hideTooltip() {
 
 function getLiftedHandCardId() {
     return hoveredHandCardId || selectedCard?.id || null;
+}
+
+function handleHandSelectorPointerMove(event) {
+    if (!isDesktopSidebarLayout()) {
+        stopHandSelectorAutoScroll();
+        return;
+    }
+    const tray = document.getElementById('handTray');
+    const cards = document.getElementById('playerHand');
+    if (!tray || !cards || cards.scrollWidth <= cards.clientWidth + 4) {
+        stopHandSelectorAutoScroll();
+        return;
+    }
+    const rect = tray.getBoundingClientRect();
+    const threshold = Math.max(36, Math.min(92, rect.width * 0.12));
+    let direction = 0;
+    if (event.clientX <= rect.left + threshold) {
+        direction = -1;
+    } else if (event.clientX >= rect.right - threshold) {
+        direction = 1;
+    }
+    if (direction === handAutoScrollDirection) {
+        return;
+    }
+    stopHandSelectorAutoScroll();
+    if (direction === 0) {
+        return;
+    }
+    handAutoScrollDirection = direction;
+    const tick = () => {
+        const row = document.getElementById('playerHand');
+        if (!row || handAutoScrollDirection === 0) {
+            handAutoScrollFrame = null;
+            return;
+        }
+        row.scrollLeft += handAutoScrollDirection * 12;
+        handAutoScrollFrame = window.requestAnimationFrame(tick);
+    };
+    handAutoScrollFrame = window.requestAnimationFrame(tick);
+}
+
+function stopHandSelectorAutoScroll() {
+    handAutoScrollDirection = 0;
+    if (handAutoScrollFrame) {
+        window.cancelAnimationFrame(handAutoScrollFrame);
+        handAutoScrollFrame = null;
+    }
 }
 
 function getHandCardSourceElement(cardId) {
@@ -4522,9 +4900,16 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-window.addEventListener('resize', syncMobileInfoTab);
+window.addEventListener('resize', () => {
+    updateResponsiveLayoutVars(true);
+    stopHandSelectorAutoScroll();
+    hoveredBoardCard = null;
+    syncMobileInfoTab();
+    syncFocusedCardUi();
+});
 
 window.addEventListener('resize', () => {
+    updateResponsiveLayoutVars(true);
     const desktopBattleDrawerVisible = document.getElementById('desktopBattleDrawer')?.classList.contains('visible');
     const mobileBattleDrawerVisible = document.getElementById('drawerBattle')?.classList.contains('visible');
     if (!shouldUseDesktopBattleDrawer() && desktopBattleDrawerVisible) {
@@ -4538,7 +4923,18 @@ window.addEventListener('resize', () => {
     updateHandLiftLayer();
 });
 
+window.addEventListener('orientationchange', () => {
+    updateResponsiveLayoutVars(true);
+    syncFocusedCardUi();
+    renderDesktopDeckPreview();
+    updateHandLiftLayer();
+});
+
+updateResponsiveLayoutVars(true);
+renderDesktopMenuMeta();
+renderDesktopActionHistory();
 renderWelcomeTutorial();
 renderWelcomeAuth();
 syncEntryOverlays();
 loadGameOptions();
+
