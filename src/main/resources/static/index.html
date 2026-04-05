@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=45">
+    <link rel="stylesheet" href="/css/style.css?v=48">
 </head>
 <body>
 
@@ -12,7 +12,7 @@
 <nav class="top-bar">
     <div class="top-bar-side top-bar-enemy">
         <span class="tb-label" id="enemyHeading">AI</span>
-        <span class="tb-hp tb-hp-enemy"><span id="enemyHealth">100</span> HP</span>
+        <span class="tb-hp tb-hp-enemy"><span id="enemyHealth">50</span> HP</span>
         <span class="tb-meta">H:<span id="enemyHandSize">0</span> D:<span id="enemyDeckSize">0</span></span>
         <div class="tb-energy" id="enemyEnergy"></div>
     </div>
@@ -26,7 +26,7 @@
     <div class="top-bar-side top-bar-player">
         <div class="tb-energy" id="playerEnergy"></div>
         <span class="tb-meta">D:<span id="playerDeckSize">0</span></span>
-        <span class="tb-hp tb-hp-player"><span id="playerHealth">100</span> HP</span>
+        <span class="tb-hp tb-hp-player"><span id="playerHealth">50</span> HP</span>
         <span class="tb-label" id="playerHeading">Player</span>
     </div>
 </nav>
@@ -62,6 +62,13 @@
         <div class="desktop-menu-header">
             <div class="desktop-menu-title">Menu &amp; Info</div>
             <div class="desktop-menu-copy">Wide desktop docks previews, actions, and deck tracking beside the arena.</div>
+            <div class="desktop-menu-meta">
+                <span class="desktop-menu-chip" id="desktopMenuViewport">Adaptive layout</span>
+                <span class="desktop-menu-chip" id="desktopMenuFocus">Hover a card to inspect live costs and timing notes.</span>
+            </div>
+            <div class="desktop-action-history" id="desktopActionHistory">
+                <div class="desktop-history-empty">Latest actions appear here once the match starts.</div>
+            </div>
         </div>
 
         <!-- Action Bar: slim segmented control -->
@@ -69,7 +76,7 @@
             <div class="action-bar-btns" id="actionButtons">
                 <button class="ab-btn ab-draw" id="btnDraw" onclick="playerDraw()">Draw</button>
                 <button class="ab-btn ab-battle" id="btnBattle" onclick="executeBattle()" title="Battle starts automatically after both players finish Setup.">Auto Battle</button>
-                <button class="ab-btn ab-trainer hidden" id="btnTrainerAbility" onclick="openTrainerAbilityPopup()">SiegeKnight</button>
+                <button class="ab-btn ab-trainer" id="btnTrainerAbility" onclick="openTrainerAbilityPopup()">SiegeKnight</button>
                 <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
             </div>
             <div class="action-bar-aux">
@@ -91,7 +98,7 @@
 
         <section class="desktop-menu-section desktop-menu-hand" id="desktopHandSection">
             <div class="desktop-section-title">Hand Selector</div>
-            <div class="hand-tray" id="handTray">
+            <div class="hand-tray" id="handTray" onmousemove="handleHandSelectorPointerMove(event)" onmouseleave="stopHandSelectorAutoScroll()">
                 <div class="hand-cards" id="playerHand"></div>
             </div>
         </section>
@@ -351,6 +358,6 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-<script src="/js/game.js?v=45"></script>
+    <script src="/js/game.js?v=48"></script>
 </body>
 </html>
