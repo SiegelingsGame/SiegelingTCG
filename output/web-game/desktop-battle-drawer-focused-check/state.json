@@ -1,0 +1,19 @@
+{
+  "phaseBadge": "BATTLE",
+  "desktopDrawerVisible": true,
+  "desktopDrawerWidth": 570,
+  "desktopDrawerLeft": 1284,
+  "desktopDrawerRight": 1854,
+  "mobileDrawerVisible": false,
+  "battlePanelHasButtons": true,
+  "previewTop": 175,
+  "handTop": 455,
+  "deckTop": 606,
+  "actionBarTop": 817,
+  "battleDrawerAboveActionBar": false,
+  "previewOverlapsHand": false,
+  "handOverlapsDeck": false,
+  "battlePanelPreview": "Fawny is acting now from the battle speed order.Choose an ability to resolve or pass this Siegling's action.Fawny Strike (Free)Deal 3 damage to 1 enemySolar Bur",
+  "consoleMessages": [],
+  "pageErrors": []
+}

@@ -1,0 +1,14 @@
+{
+  "viewport": {
+    "width": 3840,
+    "height": 2160
+  },
+  "viewportMode": "Desktop Dock 3840x2160",
+  "handSectionHeight": 723.5,
+  "handRailHeight": 673.5,
+  "firstCardHeight": 123.1875,
+  "firstShellHeight": 111.1875,
+  "firstCardFullyVisibleInRail": true,
+  "firstShellFullyVisibleInRail": true,
+  "renderState": null
+}
