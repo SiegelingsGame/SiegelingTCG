@@ -56,8 +56,7 @@ export class FxLayer {
                 fill: color,
                 fontSize: 24,
                 fontWeight: "700",
-                stroke: 0x000000,
-                strokeThickness: 4
+                stroke: { color: 0x000000, width: 4 }
             }
         });
         label.anchor.set(0.5);
@@ -80,8 +79,7 @@ export class FxLayer {
                 fill: color,
                 fontSize: 30,
                 fontWeight: "900",
-                stroke: 0x000000,
-                strokeThickness: 5
+                stroke: { color: 0x000000, width: 5 }
             }
         });
         label.anchor.set(0.5);
@@ -338,8 +336,7 @@ export class FxLayer {
                 fill: 0xffe6a5,
                 fontSize: 42,
                 fontWeight: "800",
-                stroke: 0x1b1428,
-                strokeThickness: 5
+                stroke: { color: 0x1b1428, width: 5 }
             }
         });
         banner.anchor.set(0.5);

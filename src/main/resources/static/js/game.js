@@ -3654,6 +3654,57 @@ function buildPixiViewModel() {
         clearPixiBoardHold();
     }
 
+    const scene = determinePixiScene();
+    if (scene !== 'match') {
+        pixiLastFrameAt = now;
+        const loadoutSummary = getLoadoutSummaryText();
+        const mulliganCopy = document.getElementById('mulliganCopy')?.textContent || '';
+        const winnerName = gameState?.winner || '';
+        const gameOverTitle = gameState?.gameOver
+            ? (winnerName === 'Draw'
+                ? 'DRAW'
+                : (winnerName === (gameState.playerName || 'Player') ? 'VICTORY!' : 'DEFEAT'))
+            : '';
+        const renderKey = [
+            scene,
+            loadoutSummary,
+            mulliganCopy,
+            gameState?.mulligan?.active ? '1' : '0',
+            gameState?.mulligan?.youPending ? '1' : '0',
+            gameOverTitle,
+            gameState?.gameOver ? '1' : '0'
+        ].join('\x1e');
+        const emptyBoard = [[], [], []];
+        return {
+            scene,
+            renderKey,
+            fps: 0,
+            phase: gameState?.currentPhase || 'LOADOUT',
+            turnNumber: gameState?.turnNumber || 0,
+            enemyName: gameState?.enemyName || 'AI Opponent',
+            playerName: gameState?.playerName || 'Player',
+            enemyHealth: gameState?.enemy?.health ?? 0,
+            playerHealth: gameState?.player?.health ?? 0,
+            truePlayerBoard: emptyBoard,
+            trueEnemyBoard: emptyBoard,
+            enemyBoard: emptyBoard,
+            playerBoard: emptyBoard,
+            playerHand: [],
+            selectedCardId: null,
+            targetMode: false,
+            legalPlacements: [],
+            claimableCells: [],
+            targetableCells: [],
+            gameLog: [],
+            loadoutSummary,
+            mulliganCopy,
+            gameOverTitle,
+            gameOverMessage: gameState?.gameOver
+                ? (winnerName === 'Draw' ? 'Both players were defeated.' : `${winnerName} wins!`)
+                : ''
+        };
+    }
+
     const elapsed = Math.max(1, now - pixiLastFrameAt);
     pixiLastFrameAt = now;
     pixiFps = Math.round(1000 / elapsed);
@@ -3685,7 +3736,7 @@ function buildPixiViewModel() {
         .map((cell) => (cell ? `${cell.instanceId || cell.id || cell.name}:${boardCellHp(cell)}` : '0'))
         .join('|');
     const renderKey = [
-        determinePixiScene(),
+        scene,
         gameState?.turnNumber || 0,
         gameState?.currentPhase || '',
         selectedCard?.id || '',
@@ -3707,7 +3758,7 @@ function buildPixiViewModel() {
     ].join('~');
 
     return {
-        scene: determinePixiScene(),
+        scene,
         renderKey,
         fps: pixiFps,
         phase: gameState?.currentPhase || 'LOADOUT',
