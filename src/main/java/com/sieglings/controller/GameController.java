@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -247,19 +248,21 @@ public class GameController {
                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
                                     @RequestBody Map<String, Object> req) {
         String cardId = (String) req.get("cardId");
-        int targetRow = req.containsKey("targetRow") ? (int) req.get("targetRow") : -1;
-        int targetCol = req.containsKey("targetCol") ? (int) req.get("targetCol") : -1;
+        int targetRow = req.containsKey("targetRow") ? ((Number) req.get("targetRow")).intValue() : -1;
+        int targetCol = req.containsKey("targetCol") ? ((Number) req.get("targetCol")).intValue() : -1;
+        int destRow = req.containsKey("destRow") ? ((Number) req.get("destRow")).intValue() : -1;
+        int destCol = req.containsKey("destCol") ? ((Number) req.get("destCol")).intValue() : -1;
 
         if (roomId != null && playerToken != null) {
             try {
-                GameState state = multiplayerService.castSpell(roomId, playerToken, cardId, targetRow, targetCol);
+                GameState state = multiplayerService.castSpell(roomId, playerToken, cardId, targetRow, targetCol, destRow, destCol);
                 return buildStateResponse(state, multiplayerService.viewerIsPlayer(roomId, playerToken), roomId);
             } catch (IllegalArgumentException ex) {
                 return Map.of("error", ex.getMessage());
             }
         }
 
-        gameService.castSpell(cardId, targetRow, targetCol);
+        gameService.castSpell(cardId, targetRow, targetCol, destRow, destCol);
         return buildStateResponse(gameService.getState(), true, null);
     }
 
@@ -411,7 +414,9 @@ public class GameController {
         resp.put("playerBoard", serializeBoard(gs, viewerIsPlayer));
         resp.put("enemyBoard", serializeBoard(gs, !viewerIsPlayer));
         resp.put("legalPlacements", gameService.getLegalPlacements(gs, viewerIsPlayer));
-        resp.put("playerPlacementUsed", gs.hasPlacedSieglingThisTurn(viewerIsPlayer));
+        resp.put("playerPlacementUsed", gs.isSieglingSetupBudgetExhausted(viewerIsPlayer));
+        resp.put("setupSieglingActionsUsed", gs.getSieglingSetupActionsUsed(viewerIsPlayer));
+        resp.put("setupSieglingActionBudget", gs.getSieglingSetupActionBudget(viewerIsPlayer));
         resp.put("mulligan", Map.of(
                 "active", mulliganActive,
                 "youPending", viewerPendingMulligan,
@@ -430,7 +435,9 @@ public class GameController {
         }
 
         List<String> log = gs.getGameLog();
-        resp.put("gameLog", log.subList(Math.max(0, log.size() - 20), log.size()));
+        List<String> latestLog = new ArrayList<>(log.subList(Math.max(0, log.size() - 80), log.size()));
+        Collections.reverse(latestLog);
+        resp.put("gameLog", latestLog);
         return resp;
     }
 

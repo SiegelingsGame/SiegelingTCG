@@ -13,7 +13,7 @@ import java.util.Map;
  * Represents a player's state: deck, hand, discard, trainer, and energy.
  */
 public class Player {
-    private static final int STARTING_HEALTH = 100;
+    private static final int STARTING_HEALTH = 50;
 
     private String name;
     private boolean isHuman;
@@ -160,7 +160,7 @@ public class Player {
     public boolean isMistActive() { return mistActive; }
     public void setMistActive(boolean mistActive) { this.mistActive = mistActive; }
     public int getHealth() { return health; }
-    public void setHealth(int health) { this.health = health; }
+    public void setHealth(int health) { this.health = Math.max(0, Math.min(STARTING_HEALTH, health)); }
     public Long getAccountUserId() { return accountUserId; }
     public void setAccountUserId(Long accountUserId) { this.accountUserId = accountUserId; }
     public String getLoadoutLabel() { return loadoutLabel; }

@@ -51,8 +51,7 @@ public class CardInstance {
     }
 
     public int getEffectiveSpeed() {
-        if (isSpeedZero()) return 0;
-        return currentSpeed;
+        return Math.max(0, currentSpeed);
     }
 
     public int getEffectiveMaxHealth() {
@@ -106,7 +105,7 @@ public class CardInstance {
     public int getCurrentHealth() { return currentHealth; }
     public void setCurrentHealth(int currentHealth) { this.currentHealth = currentHealth; }
     public int getCurrentSpeed() { return currentSpeed; }
-    public void setCurrentSpeed(int currentSpeed) { this.currentSpeed = currentSpeed; }
+    public void setCurrentSpeed(int currentSpeed) { this.currentSpeed = Math.max(0, currentSpeed); }
     public int getTemporaryHealthBuff() { return temporaryHealthBuff; }
     public int getTemporaryDamageBuff() { return temporaryDamageBuff; }
     public Set<StatusEffect> getStatusEffects() { return statusEffects; }

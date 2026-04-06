@@ -108,10 +108,11 @@ public class MultiplayerService {
         return gameService.placeSiegling(room.getGameState(), room.isHostToken(token), cardId, row, col);
     }
 
-    public synchronized GameState castSpell(String roomId, String token, String cardId, int targetRow, int targetCol) {
+    public synchronized GameState castSpell(String roomId, String token, String cardId,
+                                            int targetRow, int targetCol, int destRow, int destCol) {
         MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
         room.touch();
-        return gameService.castSpell(room.getGameState(), room.isHostToken(token), cardId, targetRow, targetCol);
+        return gameService.castSpell(room.getGameState(), room.isHostToken(token), cardId, targetRow, targetCol, destRow, destCol);
     }
 
     public synchronized GameState claimSiegling(String roomId, String token, int row, int col) {

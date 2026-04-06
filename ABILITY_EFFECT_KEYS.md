@@ -20,7 +20,7 @@ These are the effect keys the rules engine currently understands.
 | `connected_allies_speed_boost` | Gives Speed to every allied Siegling connected to the source card through active reciprocal links. The source card itself is not buffed. | `SELF` |
 | `speed_boost` | Adds temporary Speed. | `SINGLE_ALLY`, `ALL_ALLIES`, `ROW_ALLIES`, `PASSIVE` |
 | `destroy` | Defeats the resolved target immediately. | `SINGLE_ENEMY` |
-| `move_link` | Moves the source card to an open linked point. | `SELF` |
+| `move_link` | On a Siegling (`SELF`), moves along reciprocal links to an adjacent empty cell. On a **spell or trap** with `SINGLE_ENEMY`, the caster picks the enemy’s square **and** an empty destination square on that enemy board (no link required). | `SELF`, `SINGLE_ENEMY` (spells/traps) |
 
 ## Notes
 

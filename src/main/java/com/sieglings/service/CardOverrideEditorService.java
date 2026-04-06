@@ -207,7 +207,7 @@ public class CardOverrideEditorService {
                 effect(AbilityEffectKeys.SPEED_BOOST, "Speed Boost", "Adds temporary speed.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "PASSIVE")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST, "Connected Allies Speed Boost", "Gives connected allied Sieglings extra speed.", List.of("SELF")),
                 effect(AbilityEffectKeys.DESTROY, "Destroy", "Defeats the resolved target immediately.", List.of("SINGLE_ENEMY")),
-                effect(AbilityEffectKeys.MOVE_LINK, "Move Link", "Moves the source card to an open linked point.", List.of("SELF"))
+                effect(AbilityEffectKeys.MOVE_LINK, "Move Link", "SELF: move along links. Spell/trap + SINGLE_ENEMY: move that enemy to any empty cell on its board (client sends destRow/destCol).", List.of("SELF", "SINGLE_ENEMY"))
         );
     }
 

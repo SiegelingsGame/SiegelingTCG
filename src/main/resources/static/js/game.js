@@ -29,6 +29,7 @@ let phaseTransitionTimer = null;
 let handTouchGesture = null;
 let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
+let handAutoScrollAxis = null;
 let handTouchSuppressCardId = null;
 let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
@@ -47,6 +48,15 @@ let authState = {
 };
 let selectedSavedDeckId = null;
 let lastProfileRefreshKey = '';
+let pixiDriver = null;
+const PIXI_RENDERER_STORAGE_KEY = 'sieglingsRendererMode';
+let usePixiRenderer = false;
+let pixiLastFrameAt = performance.now();
+let pixiFps = 0;
+const PIXI_BATTLE_BOARD_HOLD_MS = 1000;
+const PIXI_ATTACK_PROJECTILE_MS = 1000;
+let pixiBoardHoldUntil = 0;
+let pixiBoardHoldSnapshot = null;
 
 const ROW_NAMES = ['Back', 'Middle', 'Front'];
 const TARGET_TYPES = {
@@ -69,6 +79,117 @@ const API_BASE_URL = normalizeApiBaseUrl(
     window.SIEGLINGS_CONFIG?.apiBaseUrl || window.SIEGLINGS_API_BASE || ''
 );
 let activeApiBaseUrl = API_BASE_URL;
+const LOG_FILTER_STORAGE_KEY = 'sieglings_log_filters';
+
+function loadLogFilters() {
+    try {
+        const raw = localStorage.getItem(LOG_FILTER_STORAGE_KEY);
+        if (raw) {
+            const p = JSON.parse(raw);
+            return {
+                turns: p.turns !== false,
+                rounds: p.rounds !== false,
+                actions: p.actions !== false
+            };
+        }
+    } catch (e) {
+        /* ignore */
+    }
+    return { turns: true, rounds: true, actions: true };
+}
+
+function saveLogFilters(f) {
+    try {
+        localStorage.setItem(LOG_FILTER_STORAGE_KEY, JSON.stringify(f));
+    } catch (e) {
+        /* ignore */
+    }
+}
+
+function isRoundLogLine(entry) {
+    return /---\s*Round\s+\d+|Turn order this round/i.test(String(entry));
+}
+
+function isBattlePhaseLogEntry(entry) {
+    return /^\[Turn\s+\d+\s+BATTLE\]\s*/.test(String(entry));
+}
+
+/** turns = draw phase, rounds = round headers, actions = setup + battle */
+function logEntryMatchesFilters(entry, filters) {
+    const roundLine = isRoundLogLine(entry);
+    const m = String(entry).match(/^\[Turn\s+(\d+)\s+(\w+)\]\s*/);
+    if (!m) {
+        return filters.turns && filters.rounds && filters.actions;
+    }
+    const phase = m[2];
+    if (roundLine) {
+        return filters.rounds;
+    }
+    if (phase === 'DRAW') {
+        return filters.turns;
+    }
+    if (phase === 'SETUP' || phase === 'BATTLE') {
+        return filters.actions;
+    }
+    return filters.actions;
+}
+
+function getFilteredGameLog(entries) {
+    const filters = loadLogFilters();
+    if (!Array.isArray(entries)) {
+        return [];
+    }
+    if (filters.turns && filters.rounds && filters.actions) {
+        return entries;
+    }
+    return entries.filter((e) => logEntryMatchesFilters(e, filters));
+}
+
+function renderGameLogToolbar() {
+    const bar = document.getElementById('gameLogToolbar');
+    if (!bar) {
+        return;
+    }
+    const f = loadLogFilters();
+    bar.innerHTML = `
+        <span class="game-log-toolbar-label">Show</span>
+        <label class="game-log-filter"><input type="checkbox" data-log-filter="turns" ${f.turns ? 'checked' : ''}/> Turns</label>
+        <label class="game-log-filter"><input type="checkbox" data-log-filter="rounds" ${f.rounds ? 'checked' : ''}/> Rounds</label>
+        <label class="game-log-filter"><input type="checkbox" data-log-filter="actions" ${f.actions ? 'checked' : ''}/> Actions</label>
+    `;
+    if (bar.dataset.wired !== '1') {
+        bar.dataset.wired = '1';
+        bar.addEventListener('change', (ev) => {
+            const t = ev.target;
+            if (!t || t.tagName !== 'INPUT' || !t.dataset.logFilter) {
+                return;
+            }
+            const key = t.dataset.logFilter;
+            const next = { ...loadLogFilters(), [key]: t.checked };
+            saveLogFilters(next);
+            renderLog();
+        });
+    }
+}
+
+function sieglingPlacementLockMessage() {
+    if (!gameState?.playerPlacementUsed) {
+        return '';
+    }
+    const used = gameState.setupSieglingActionsUsed;
+    const budget = gameState.setupSieglingActionBudget;
+    if (used != null && budget != null) {
+        return `No setup placements left (${used}/${budget}; 1 base + 1 per external socket you had when you drew).`;
+    }
+    return 'No Siegling setup actions left this turn.';
+}
+
+function isPlacementBudgetLockedForCard(card) {
+    return Boolean(
+        gameState?.playerPlacementUsed
+        && !(card?.type === 'SIEGLING' && card?.evolvesFromId)
+    );
+}
 const CARD_ART_BY_KEY = Object.freeze({
     sundile: { url: '/assets/cards/sundile.svg' },
     staticap: {
@@ -147,6 +268,40 @@ const WELCOME_SLIDES = [
         `
     }
 ];
+
+function getRendererModeFromUrl() {
+    try {
+        const mode = new URLSearchParams(window.location.search).get('renderer');
+        return mode === 'pixi' || mode === 'dom' ? mode : '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function getConfiguredRendererMode() {
+    const queryMode = getRendererModeFromUrl();
+    if (queryMode) {
+        return queryMode;
+    }
+    try {
+        const saved = localStorage.getItem(PIXI_RENDERER_STORAGE_KEY);
+        if (saved === 'pixi' || saved === 'dom') {
+            return saved;
+        }
+    } catch (e) {
+        // no-op
+    }
+    return window.SIEGLINGS_CONFIG?.renderer?.mode === 'pixi' ? 'pixi' : 'dom';
+}
+
+function syncPixiDomShell() {
+    const active = Boolean(usePixiRenderer && pixiDriver);
+    document.body.classList.toggle('pixi-enabled', active);
+    const pixiRoot = document.getElementById('pixiRoot');
+    if (pixiRoot) {
+        pixiRoot.setAttribute('aria-hidden', active ? 'false' : 'true');
+    }
+}
 
 function normalizeApiBaseUrl(baseUrl) {
     return (baseUrl || '').replace(/\/+$/, '');
@@ -257,6 +412,27 @@ function formatBattleAbilityCost(ability) {
         return `${energy} ${formatElementLabel(element)}`;
     }
     return `${energy} energy`;
+}
+
+function renderBattleAbilityCostEmblems(ability) {
+    const energy = getAbilityRequiredEnergy(ability);
+    const element = String(ability?.requiredElement || ability?.costElement || '').toLowerCase();
+    if (energy <= 0) {
+        return '<span class="battle-cost-free">Free</span>';
+    }
+    if (!element) {
+        return `<span class="battle-cost-energy">${energy} energy</span>`;
+    }
+    const tokensToDraw = Math.min(energy, 5);
+    let html = '<span class="battle-cost-emblems">';
+    for (let i = 0; i < tokensToDraw; i += 1) {
+        html += `<span class="energy-token solid-token token-${element}"></span>`;
+    }
+    if (energy > tokensToDraw) {
+        html += `<span class="battle-cost-count">x${energy}</span>`;
+    }
+    html += `</span><span class="battle-cost-label">${formatElementLabel(element)}</span>`;
+    return html;
 }
 
 function getSortedBattleAbilities(abilities) {
@@ -485,12 +661,21 @@ function updateResponsiveLayoutVars(force = false) {
     const desktopHandSectionMinHeight = desktop
         ? Math.round(clampNumber((handWidth * cardAspectHeight) + 60, 156, viewportHeight * 0.26))
         : 176;
-    const previewCardWidth = desktop
-        ? Math.round(clampNumber(Math.min(sidebarWidth * 0.35, viewportHeight * 0.18), 136, 184))
-        : Math.round(clampNumber(viewportWidth * 0.38, 152, 220));
-    const previewCardMaxHeight = desktop
-        ? Math.round(clampNumber(viewportHeight * 0.29, 176, 286))
-        : Math.round(clampNumber(viewportHeight * 0.68, 180, 420));
+    let previewCardWidth = handWidth;
+    let previewCardMaxHeight = Math.round(handWidth * cardAspectHeight);
+    if (desktop) {
+        const sidebarGutter = 56;
+        const maxPreviewWidth = Math.max(120, Math.min(sidebarWidth - sidebarGutter, 236));
+        previewCardWidth = Math.round(
+            clampNumber(sidebarWidth * 0.44, 132, maxPreviewWidth)
+        );
+        previewCardMaxHeight = Math.round(previewCardWidth * cardAspectHeight);
+        const maxPreviewHeight = Math.round(viewportHeight * 0.38);
+        if (previewCardMaxHeight > maxPreviewHeight) {
+            previewCardMaxHeight = maxPreviewHeight;
+            previewCardWidth = Math.round(previewCardMaxHeight * (5 / 7));
+        }
+    }
     const overlayWidth = Math.round(clampNumber(viewportWidth * 0.92, 320, 1180));
     const overlayPadding = Math.round(clampNumber(Math.min(viewportWidth, viewportHeight) * 0.026, 14, 28));
 
@@ -540,7 +725,7 @@ function isBattleTargetSelectionActive() {
 }
 
 function shouldUseDesktopBattleDrawer() {
-    return isDesktopSidebarLayout();
+    return false;
 }
 
 function setDesktopBattleDrawerOpen(open) {
@@ -1006,6 +1191,42 @@ function syncActionBarAttention() {
     }
 }
 
+let desktopInspectTab = 'card';
+
+function setDesktopInspectTab(tab) {
+    const next = tab === 'deck' ? 'deck' : 'card';
+    desktopInspectTab = next;
+    syncDesktopInspectTabUi();
+}
+
+function syncDesktopInspectTabUi() {
+    const cardTab = document.getElementById('tabDesktopInspectCard');
+    const deckTab = document.getElementById('tabDesktopInspectDeck');
+    const cardPane = document.getElementById('desktopInspectPaneCard');
+    const deckPane = document.getElementById('desktopInspectPaneDeck');
+    const isCard = desktopInspectTab === 'card';
+    cardTab?.classList.toggle('is-active', isCard);
+    deckTab?.classList.toggle('is-active', !isCard);
+    cardTab?.setAttribute('aria-selected', isCard ? 'true' : 'false');
+    deckTab?.setAttribute('aria-selected', isCard ? 'false' : 'true');
+    cardPane?.classList.toggle('is-active', isCard);
+    deckPane?.classList.toggle('is-active', !isCard);
+    if (cardPane) {
+        if (isCard) {
+            cardPane.removeAttribute('hidden');
+        } else {
+            cardPane.setAttribute('hidden', '');
+        }
+    }
+    if (deckPane) {
+        if (isCard) {
+            deckPane.setAttribute('hidden', '');
+        } else {
+            deckPane.removeAttribute('hidden');
+        }
+    }
+}
+
 function syncFocusedCardUi() {
     renderCardPreviewFloat();
     renderDesktopCardPreviewPanel();
@@ -1053,8 +1274,8 @@ function getDesktopPreviewNote(card, lockReason) {
         if (card.evolvesFromName) {
             return `Place this on top of ${card.evolvesFromName} to evolve it.`;
         }
-        if (gameState?.playerPlacementUsed) {
-            return 'You already placed your Siegling for this turn.';
+        if (isPlacementBudgetLockedForCard(card)) {
+            return sieglingPlacementLockMessage();
         }
         if (gameState?.currentPhase === 'SETUP') {
             return 'Highlighted board cells show where this Siegling can expand next.';
@@ -1073,7 +1294,7 @@ function getDesktopPreviewNote(card, lockReason) {
     if (card.costElement && card.costAmount > 0) {
         return `Costs ${card.costAmount} ${formatElementLabel(card.costElement)} to play.`;
     }
-    return 'Use the hand selector to keep swapping the highlighted preview card.';
+    return 'Use the hand HUD to keep swapping the highlighted preview card.';
 }
 
 function isPlayerHandCard(card) {
@@ -1082,6 +1303,9 @@ function isPlayerHandCard(card) {
 
 function getFocusedCardSummary(card, lockReason) {
     if (!card) {
+        if (isHandHiddenForPhase()) {
+            return 'Battle Action is live in the hand HUD while battle resolves.';
+        }
         return 'Hover a hand or board card to inspect live costs, lock reasons, and setup timing.';
     }
     if (!isPlayerHandCard(card)) {
@@ -1104,8 +1328,8 @@ function getFocusedCardSummary(card, lockReason) {
         return 'Trap timing depends on the opponent meeting its trigger.';
     }
     if (card.type === 'SIEGLING') {
-        return gameState?.playerPlacementUsed
-            ? 'Placement is already spent this turn.'
+        return isPlacementBudgetLockedForCard(card)
+            ? sieglingPlacementLockMessage()
             : 'Ready to place during setup if a legal anchor is open.';
     }
     return 'Ready to inspect or play.';
@@ -1135,18 +1359,23 @@ function renderDesktopActionHistory() {
         return;
     }
 
-    const entries = Array.isArray(gameState?.gameLog) ? gameState.gameLog.slice(0, 3) : [];
-    if (entries.length === 0) {
-        history.innerHTML = '<div class="desktop-history-empty">Latest actions appear here once the match starts.</div>';
+    const battleLines = Array.isArray(gameState?.gameLog)
+        ? gameState.gameLog.filter(isBattlePhaseLogEntry).slice(0, 5)
+        : [];
+    if (battleLines.length === 0) {
+        history.innerHTML = `
+            <div class="desktop-battle-log-title">Battle log</div>
+            <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>`;
         return;
     }
 
-    history.innerHTML = entries.map((entry, index) => `
+    history.innerHTML = `
+        <div class="desktop-battle-log-title">Battle log</div>
+        ${battleLines.map((entry, index) => `
         <div class="desktop-history-entry${index === 0 ? ' current' : ''}">
             <span class="desktop-history-dot"></span>
             <span>${escapeHtml(entry)}</span>
-        </div>
-    `).join('');
+        </div>`).join('')}`;
 }
 
 function syncFocusedEnergyCue() {
@@ -1914,7 +2143,7 @@ function isPlacementSelectionActive() {
         && gameState.currentPhase === 'SETUP'
         && selectedCard
         && selectedCard.type === 'SIEGLING'
-        && !gameState.playerPlacementUsed
+        && !isPlacementBudgetLockedForCard(selectedCard)
         && !targetMode
         && getLegalPlacementsForCard(selectedCard).length > 0
     );
@@ -1973,7 +2202,7 @@ function getEvolutionPlacements(card, board = gameState?.playerBoard || []) {
 }
 
 function getLegalPlacementsForCard(card, board = gameState?.playerBoard || []) {
-    if (gameState?.playerPlacementUsed || !card || card.type !== 'SIEGLING') {
+    if (isPlacementBudgetLockedForCard(card) || !card || card.type !== 'SIEGLING') {
         return [];
     }
 
@@ -2010,9 +2239,12 @@ function getHandCardLockReason(card) {
         return 'Choose cards to redraw (optional) or keep your opening hand.';
     }
     if (isHandHiddenForPhase()) {
-        return 'Hand hidden during battle.';
+        return 'Battle Action is active in the hand HUD during battle.';
     }
     if (targetMode) {
+        if (targetContext?.mode === 'battle') {
+            return 'Finish queueing the current battle action first.';
+        }
         return 'Finish the current target selection first.';
     }
     if (isOpeningPlacementOnlyTurn() && card.type !== 'SIEGLING') {
@@ -2031,8 +2263,8 @@ function getHandCardLockReason(card) {
         const targetSide = getAbilityTargetSide(card.ability);
         return targetSide ? `No ${targetSide} targets are available right now.` : 'This card has no valid target right now.';
     }
-    if (gameState.playerPlacementUsed && card.type === 'SIEGLING') {
-        return 'You already played a Siegling this turn.';
+    if (isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING') {
+        return sieglingPlacementLockMessage();
     }
     if (card.type === 'SIEGLING' && card.evolvesFromId && getEvolutionPlacements(card).length === 0) {
         return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
@@ -2073,8 +2305,8 @@ function getInteractionBannerState() {
     if (gameState.currentPhase === 'SETUP' && gameState.playerPlacementUsed) {
         return {
             kind: 'locked',
-            label: 'Placement Used',
-            message: 'Your Siegling play is spent for this turn. Use spells, traps, or your trainer next.'
+            label: 'Placements done',
+            message: 'No Siegling setup actions left this turn. Cast spells, set traps, use your SiegeKnight, or end setup.'
         };
     }
     if (gameState.currentPhase === 'SETUP' && getClaimableSieglings().length > 0) {
@@ -2087,10 +2319,10 @@ function getInteractionBannerState() {
     if (gameState.currentPhase === 'BATTLE') {
         return {
             kind: 'battle',
-            label: 'Battle Phase',
+            label: 'Battle Action',
             message: gameState.pendingBattle
-                ? 'Choose a battle ability for the acting Siegling. Use the Battle button to reopen the speed queue if needed.'
-                : 'Battle is resolving in speed order. Your hand is hidden until the next setup turn.'
+                ? 'Queue one action for the acting Siegling. The hand HUD now hosts the live battle queue.'
+                : 'Battle is resolving in speed order. The hand HUD stays in queue mode until setup returns.'
         };
     }
     return null;
@@ -2182,6 +2414,79 @@ function resetInteractionState(shouldRender = true) {
     }
 }
 
+function cloneBoardGridForPixi(board) {
+    return (board || []).map((row) => (row || []).map((cell) => (cell ? { ...cell } : null)));
+}
+
+function getBoardCellHpForPixiHold(cell) {
+    if (!cell) {
+        return 0;
+    }
+    const v = cell.hp ?? cell.health;
+    return Number(v) || 0;
+}
+
+function hasBattleBoardHpDelta(prevState, nextState) {
+    if (!prevState || !nextState) {
+        return false;
+    }
+    for (const key of ['playerBoard', 'enemyBoard']) {
+        const pb = prevState[key];
+        const nb = nextState[key];
+        for (let r = 0; r < 3; r += 1) {
+            for (let c = 0; c < 3; c += 1) {
+                const pc = pb?.[r]?.[c] || null;
+                const nc = nb?.[r]?.[c] || null;
+                if (!pc || !nc) {
+                    continue;
+                }
+                const sameCard = (pc.instanceId && nc.instanceId && pc.instanceId === nc.instanceId)
+                    || (pc.id && nc.id && pc.id === nc.id)
+                    || (String(pc.name || '') === String(nc.name || '') && String(pc.name || '').length > 0);
+                if (!sameCard) {
+                    continue;
+                }
+                if (getBoardCellHpForPixiHold(pc) !== getBoardCellHpForPixiHold(nc)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+function clearPixiBoardHold() {
+    pixiBoardHoldUntil = 0;
+    pixiBoardHoldSnapshot = null;
+}
+
+function extendPixiBoardHold(extraMs) {
+    if (!pixiBoardHoldSnapshot || extraMs <= 0) {
+        return;
+    }
+    const target = performance.now() + extraMs;
+    if (target > pixiBoardHoldUntil) {
+        pixiBoardHoldUntil = target;
+    }
+}
+
+function maybeStartPixiBattleBoardHold(prevState, nextState) {
+    if (!usePixiRenderer || !prevState || !nextState) {
+        return;
+    }
+    if (nextState.currentPhase !== 'BATTLE' && prevState.currentPhase !== 'BATTLE') {
+        return;
+    }
+    if (!hasBattleBoardHpDelta(prevState, nextState)) {
+        return;
+    }
+    pixiBoardHoldUntil = performance.now() + PIXI_BATTLE_BOARD_HOLD_MS;
+    pixiBoardHoldSnapshot = {
+        playerBoard: cloneBoardGridForPixi(prevState.playerBoard),
+        enemyBoard: cloneBoardGridForPixi(prevState.enemyBoard)
+    };
+}
+
 async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
     const opts = { method, headers: getAuthHeaders({ 'Content-Type': 'application/json' }) };
     if (multiplayerSession?.roomId && multiplayerSession?.playerToken) {
@@ -2200,7 +2505,9 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         return null;
     }
 
+    const prevState = gameState;
     gameState = data;
+    maybeStartPixiBattleBoardHold(prevState, data);
     render();
     return data;
 }
@@ -3064,6 +3371,12 @@ async function executeBattle() {
 
 function openBattlePanel(forceOpen = false) {
     renderBattlePanel();
+    if (isDesktopSidebarLayout() && isHandHiddenForPhase()) {
+        if (activeDrawer === 'battle') {
+            closeDrawer(true);
+        }
+        return;
+    }
     if (activeDrawer === 'battle') {
         if (forceOpen) {
             return;
@@ -3095,10 +3408,25 @@ async function claimBoardCard(row, col) {
     resetInteractionState();
 }
 
-async function castSpell(cardId, targetRow, targetCol) {
-    const data = await api('cast', 'POST', { cardId, targetRow, targetCol });
+async function castSpell(cardId, targetRow, targetCol, destRow = -1, destCol = -1) {
+    const body = { cardId, targetRow, targetCol };
+    if (destRow >= 0 && destCol >= 0) {
+        body.destRow = destRow;
+        body.destCol = destCol;
+    }
+    const data = await api('cast', 'POST', body);
     if (!data) return;
     resetInteractionState();
+}
+
+function needsForcedEnemyMoveFlow(card) {
+    const a = card?.ability;
+    return Boolean(
+        a
+        && a.effectType === 'move_link'
+        && a.targetType === 'SINGLE_ENEMY'
+        && (card.type === 'SPELL' || card.type === 'TRAP')
+    );
 }
 
 function isActionCard(card) {
@@ -3126,7 +3454,7 @@ async function submitBattleAction(abilityIndex, targetRow = -1, targetCol = -1) 
     resetInteractionState();
 }
 
-function render() {
+function renderDomLegacy() {
     if (!gameState) return;
     updateResponsiveLayoutVars();
 
@@ -3155,6 +3483,7 @@ function render() {
     const playerActive = gameState.activeSide === 'PLAYER';
     const btnDraw = document.getElementById('btnDraw');
     const btnBattle = document.getElementById('btnBattle');
+    const btnBattlePanel = document.getElementById('btnBattlePanel');
     const btnTrainerAbility = document.getElementById('btnTrainerAbility');
     const btnEndTurn = document.getElementById('btnEndTurn');
     const battlePhaseActive = phase === 'BATTLE' && !over;
@@ -3167,18 +3496,18 @@ function render() {
         && gameState.pendingBattle
         && gameState.battleWaitingOn === 'PLAYER';
     const enemyBattlePending = phase === 'BATTLE' && gameState.battleWaitingOn === 'ENEMY';
-    let battleLabel = 'Auto Battle';
-    let battleTitle = 'Battle starts automatically after both players finish Setup. Use this to review the speed queue.';
+    let battleLabel = 'Queue';
+    let battleTitle = 'Battle starts automatically after both players finish Setup. Use this to review the action queue.';
     if (phase === 'BATTLE') {
         if (playerBattlePending) {
-            battleLabel = 'Act Now';
-            battleTitle = 'Open the battle action list for the Siegling that is currently acting by speed.';
+            battleLabel = 'Battle Action';
+            battleTitle = 'Open the live queue prompt for the Siegling that is currently acting by speed.';
         } else if (enemyBattlePending) {
-            battleLabel = 'Enemy Acts';
-            battleTitle = 'Open battle status while the opponent resolves the current speed action.';
+            battleLabel = 'Queue Locked';
+            battleTitle = 'Review battle status while the opponent resolves the current speed action.';
         } else {
-            battleLabel = 'Battle Live';
-            battleTitle = 'Open battle status. Sieglings resolve abilities in speed order until the phase ends.';
+            battleLabel = 'Queue Live';
+            battleTitle = 'Review the live battle queue. Sieglings resolve abilities in speed order until the phase ends.';
         }
     }
     btnBattle.disabled = over;
@@ -3186,6 +3515,11 @@ function render() {
     btnBattle.title = battleTitle;
     btnBattle.setAttribute('aria-label', battleTitle);
     btnBattle.classList.toggle('ab-urgent', playerBattlePending);
+    if (btnBattlePanel) {
+        const panelTitle = 'Battle Action';
+        btnBattlePanel.title = panelTitle;
+        btnBattlePanel.setAttribute('aria-label', panelTitle);
+    }
 
     // Highlight the active phase button
     btnDraw.classList.toggle('ab-active', phase === 'DRAW' && playerActive && !over);
@@ -3228,6 +3562,9 @@ function render() {
     renderMulliganOverlay();
     renderLog();
     renderBattlePanel();
+    if (isDesktopSidebarLayout() && isHandHiddenForPhase() && activeDrawer === 'battle') {
+        closeDrawer(true);
+    }
     applyInteractionState();
     renderElementKey();
     syncMobileInfoTab();
@@ -3252,6 +3589,224 @@ function render() {
             : `${gameState.winner} wins!`;
     }
 }
+
+function getBoardCellMarkers(board, markers) {
+    const result = [];
+    for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+            if (markers.some((entry) => entry[0] === r && entry[1] === c)) {
+                result.push({ row: r, col: c, cell: board?.[r]?.[c] || null });
+            }
+        }
+    }
+    return result;
+}
+
+function getTargetableCellsForPixi() {
+    const targetable = [];
+    if (!gameState || !targetMode || !targetContext) {
+        return targetable;
+    }
+    const pb = gameState.playerBoard || [];
+    const eb = gameState.enemyBoard || [];
+    for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+            const pcell = pb?.[r]?.[c] || null;
+            if (isTargetCell(true, pcell)) {
+                targetable.push({ row: r, col: c, side: 'player' });
+            }
+            const ecell = eb?.[r]?.[c] || null;
+            if (isTargetCell(false, ecell)) {
+                targetable.push({ row: r, col: c, side: 'enemy' });
+            }
+        }
+    }
+    return targetable;
+}
+
+function getLoadoutSummaryText() {
+    const summary = document.getElementById('loadoutSummary');
+    return summary?.textContent || 'Choose your deck and SiegeKnight.';
+}
+
+function determinePixiScene() {
+    if (gameState?.gameOver) {
+        return 'gameover';
+    }
+    if (gameState?.mulligan?.active) {
+        return 'mulligan';
+    }
+    if (gameState) {
+        return 'match';
+    }
+    if (!welcomeDismissed) {
+        return 'welcome';
+    }
+    return 'loadout';
+}
+
+function buildPixiViewModel() {
+    const now = performance.now();
+    if (pixiBoardHoldUntil > 0 && now >= pixiBoardHoldUntil) {
+        clearPixiBoardHold();
+    }
+    if (!gameState || gameState.gameOver || determinePixiScene() !== 'match') {
+        clearPixiBoardHold();
+    }
+
+    const elapsed = Math.max(1, now - pixiLastFrameAt);
+    pixiLastFrameAt = now;
+    pixiFps = Math.round(1000 / elapsed);
+
+    const holdActive = Boolean(pixiBoardHoldSnapshot && pixiBoardHoldUntil > now);
+    const truePlayerBoard = gameState?.playerBoard || [[], [], []];
+    const trueEnemyBoard = gameState?.enemyBoard || [[], [], []];
+    const displayPlayerBoard = holdActive ? pixiBoardHoldSnapshot.playerBoard : truePlayerBoard;
+    const displayEnemyBoard = holdActive ? pixiBoardHoldSnapshot.enemyBoard : trueEnemyBoard;
+
+    const legalPlacements = gameState ? getBoardCellMarkers(gameState.playerBoard, getSelectedLegalPlacements()) : [];
+    const claimableCells = gameState ? getBoardCellMarkers(gameState.playerBoard, getClaimableSieglings(gameState.playerBoard)) : [];
+    const targetableCells = gameState ? getTargetableCellsForPixi() : [];
+    const winnerName = gameState?.winner || '';
+    const gameOverTitle = gameState?.gameOver
+        ? (winnerName === 'Draw'
+            ? 'DRAW'
+            : (winnerName === (gameState.playerName || 'Player') ? 'VICTORY!' : 'DEFEAT'))
+        : '';
+    const boardCellHp = (cell) => {
+        if (!cell) {
+            return 0;
+        }
+        const v = cell.hp ?? cell.health;
+        return Number(v) || 0;
+    };
+    const boardSignature = (board) => (board || [])
+        .flatMap((row) => row || [])
+        .map((cell) => (cell ? `${cell.instanceId || cell.id || cell.name}:${boardCellHp(cell)}` : '0'))
+        .join('|');
+    const renderKey = [
+        determinePixiScene(),
+        gameState?.turnNumber || 0,
+        gameState?.currentPhase || '',
+        selectedCard?.id || '',
+        targetMode ? 'target' : 'idle',
+        targetContext?.mode || '',
+        targetContext?.side || '',
+        targetContext?.step || '',
+        gameState?.player?.health || 0,
+        gameState?.enemy?.health || 0,
+        boardSignature(displayPlayerBoard),
+        boardSignature(displayEnemyBoard),
+        holdActive ? `hold:${Math.round(pixiBoardHoldUntil)}` : 'hold:off',
+        (gameState?.player?.hand || []).map((card) => card.id).join(','),
+        legalPlacements.map((p) => `${p.row}:${p.col}`).join(','),
+        targetableCells.map((p) => `${p.side || 'player'}:${p.row}:${p.col}`).join(','),
+        gameState?.gameLog?.length || 0,
+        (gameState?.gameLog || []).slice(-1)[0] || '',
+        JSON.stringify(loadLogFilters())
+    ].join('~');
+
+    return {
+        scene: determinePixiScene(),
+        renderKey,
+        fps: pixiFps,
+        phase: gameState?.currentPhase || 'LOADOUT',
+        turnNumber: gameState?.turnNumber || 0,
+        enemyName: gameState?.enemyName || 'AI Opponent',
+        playerName: gameState?.playerName || 'Player',
+        enemyHealth: gameState?.enemy?.health ?? 0,
+        playerHealth: gameState?.player?.health ?? 0,
+        truePlayerBoard,
+        trueEnemyBoard,
+        enemyBoard: displayEnemyBoard,
+        playerBoard: displayPlayerBoard,
+        playerHand: gameState?.player?.hand || [],
+        selectedCardId: selectedCard?.id || null,
+        targetMode: Boolean(targetMode),
+        legalPlacements,
+        claimableCells: claimableCells.map((p) => ({ row: p.row, col: p.col })),
+        targetableCells,
+        gameLog: getFilteredGameLog(gameState?.gameLog || []),
+        loadoutSummary: getLoadoutSummaryText(),
+        mulliganCopy: document.getElementById('mulliganCopy')?.textContent || '',
+        gameOverTitle,
+        gameOverMessage: gameState?.gameOver
+            ? (winnerName === 'Draw' ? 'Both players were defeated.' : `${winnerName} wins!`)
+            : ''
+    };
+}
+
+function renderPixi() {
+    if (!pixiDriver) {
+        return;
+    }
+    pixiDriver.render(buildPixiViewModel());
+}
+
+function render() {
+    if (usePixiRenderer && pixiDriver) {
+        renderPixi();
+        return;
+    }
+    renderDomLegacy();
+}
+
+function setRendererMode(mode) {
+    usePixiRenderer = mode === 'pixi';
+    syncPixiDomShell();
+    try {
+        localStorage.setItem(PIXI_RENDERER_STORAGE_KEY, usePixiRenderer ? 'pixi' : 'dom');
+    } catch (e) {
+        // no-op
+    }
+    render();
+}
+
+function attachPixiDriver(driver) {
+    pixiDriver = driver;
+    if (pixiDriver?.resize) {
+        pixiDriver.resize(window.innerWidth, window.innerHeight);
+    }
+    if (usePixiRenderer && pixiDriver) {
+        renderPixi();
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                syncPixiDomShell();
+                if (pixiDriver?.resize) {
+                    pixiDriver.resize(window.innerWidth, window.innerHeight);
+                }
+                renderPixi();
+            });
+        });
+        return;
+    }
+    syncPixiDomShell();
+    render();
+}
+
+window.setSieglingsRendererMode = setRendererMode;
+window.__SIEGLINGS_PIXI_BRIDGE = {
+    attachDriver: attachPixiDriver,
+    isPixiEnabled: () => Boolean(usePixiRenderer && pixiDriver),
+    getViewModel: buildPixiViewModel,
+    battleBoardHoldMs: PIXI_BATTLE_BOARD_HOLD_MS,
+    attackProjectileMs: PIXI_ATTACK_PROJECTILE_MS,
+    extendBattleAnimHold: (extraMs) => extendPixiBoardHold(extraMs),
+    actions: {
+        selectCard: (cardId) => selectCard(cardId),
+        placeCard: (row, col) => placeCard(row, col),
+        onTargetSelected: (row, col, fromPlayerBoard) => onTargetSelected(row, col, fromPlayerBoard),
+        openClaimPopup: (row, col) => openClaimPopup(row, col),
+        playerDraw: () => playerDraw(),
+        executeBattle: () => executeBattle(),
+        endTurn: () => endTurn(),
+        playAsGuest: () => playAsGuest(),
+        startSelectedGame: () => startSelectedGame(),
+        submitMulliganKeep: () => submitMulliganKeep(),
+        submitMulliganSelected: () => submitMulliganSelected(),
+        openLoadoutSelector: () => openLoadoutSelector()
+    }
+};
 
 function renderEnergy(containerId, playerData) {
     const el = document.getElementById(containerId);
@@ -3624,7 +4179,7 @@ function renderBoard(gridId, board, isPlayer) {
             if (isLegal) {
                 events = `onclick="placeCard(${r}, ${c})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isTargetable) {
-                events = `onclick="onTargetSelected(${r}, ${c})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
+                events = `onclick="onTargetSelected(${r}, ${c}, ${isPlayer})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isClaimable) {
                 events = `onclick="openClaimPopup(${r}, ${c})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})" onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
             } else if (cell) {
@@ -3676,6 +4231,57 @@ function renderBoard(gridId, board, isPlayer) {
     renderLinkConnectors(gridId, board, isPlayer);
 }
 
+function collectBoardCellElements(grid) {
+    const map = new Map();
+    grid.querySelectorAll(':scope > .board-cell').forEach((el) => {
+        const r = Number(el.dataset.row);
+        const c = Number(el.dataset.col);
+        if (Number.isInteger(r) && Number.isInteger(c)) {
+            map.set(`${r}:${c}`, el);
+        }
+    });
+    return map;
+}
+
+/**
+ * Cell box in the same coordinate system as absolutely positioned children of the grid
+ * (origin = grid padding edge). Avoids getBoundingClientRect drift vs CSS left/top when
+ * layout is driven by dvh, subpixel rounding, or compositor timing.
+ */
+function getBoardCellLocalRect(grid, cellEl) {
+    if (!grid || !cellEl) return null;
+    let left = 0;
+    let top = 0;
+    let n = cellEl;
+    while (n && n !== grid) {
+        left += n.offsetLeft;
+        top += n.offsetTop;
+        n = n.offsetParent;
+    }
+    if (n !== grid) {
+        const gr = grid.getBoundingClientRect();
+        const br = cellEl.getBoundingClientRect();
+        return {
+            left: br.left - gr.left,
+            top: br.top - gr.top,
+            width: br.width,
+            height: br.height,
+            right: br.left - gr.left + br.width,
+            bottom: br.top - gr.top + br.height
+        };
+    }
+    const width = cellEl.offsetWidth;
+    const height = cellEl.offsetHeight;
+    return {
+        left,
+        top,
+        width,
+        height,
+        right: left + width,
+        bottom: top + height
+    };
+}
+
 function renderLinkConnectors(gridId, board, isPlayer) {
     const grid = document.getElementById(gridId);
     grid.querySelectorAll('.link-connector, .external-energy-point').forEach(el => el.remove());
@@ -3683,17 +4289,7 @@ function renderLinkConnectors(gridId, board, isPlayer) {
     const rowOrder = isPlayer ? [2, 1, 0] : [0, 1, 2];
     const links = [];
     const activeExternalSockets = new Map();
-    const cellRefs = new Map();
-
-    for (let displayRow = 0; displayRow < rowOrder.length; displayRow++) {
-        const boardRow = rowOrder[displayRow];
-        for (let col = 0; col < 3; col++) {
-            const cellEl = grid.children[displayRow * 3 + col];
-            if (cellEl) {
-                cellRefs.set(`${boardRow}:${col}`, cellEl);
-            }
-        }
-    }
+    const cellRefs = collectBoardCellElements(grid);
 
     for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 3; c++) {
@@ -3736,20 +4332,19 @@ function renderLinkConnectors(gridId, board, isPlayer) {
         }
     }
 
-    const gridRect = grid.getBoundingClientRect();
-
     for (const link of links) {
         const fromCell = cellRefs.get(`${link.fromRow}:${link.fromCol}`);
         const toCell = cellRefs.get(`${link.toRow}:${link.toCol}`);
         if (!fromCell || !toCell) continue;
 
-        const fromRect = fromCell.getBoundingClientRect();
-        const toRect = toCell.getBoundingClientRect();
+        const fromLocal = getBoardCellLocalRect(grid, fromCell);
+        const toLocal = getBoardCellLocalRect(grid, toCell);
+        if (!fromLocal || !toLocal) continue;
 
-        const fromX = fromRect.left + fromRect.width / 2 - gridRect.left;
-        const fromY = fromRect.top + fromRect.height / 2 - gridRect.top;
-        const toX = toRect.left + toRect.width / 2 - gridRect.left;
-        const toY = toRect.top + toRect.height / 2 - gridRect.top;
+        const fromX = fromLocal.left + fromLocal.width / 2;
+        const fromY = fromLocal.top + fromLocal.height / 2;
+        const toX = toLocal.left + toLocal.width / 2;
+        const toY = toLocal.top + toLocal.height / 2;
 
         const dx = link.toCol - link.fromCol;
         const dy = link.toRow - link.fromRow;
@@ -3760,26 +4355,26 @@ function renderLinkConnectors(gridId, board, isPlayer) {
 
         let startX, startY, endX, endY;
         if (isHorizontal) {
-            startX = Math.min(fromRect.right, toRect.right) - gridRect.left;
-            endX = Math.max(fromRect.left, toRect.left) - gridRect.left;
-            if (dx > 0) { startX = fromRect.right - gridRect.left; endX = toRect.left - gridRect.left; }
-            else { startX = toRect.right - gridRect.left; endX = fromRect.left - gridRect.left; }
+            startX = Math.min(fromLocal.right, toLocal.right);
+            endX = Math.max(fromLocal.left, toLocal.left);
+            if (dx > 0) { startX = fromLocal.right; endX = toLocal.left; }
+            else { startX = toLocal.right; endX = fromLocal.left; }
             startY = fromY;
             endY = toY;
         } else if (isVertical) {
             startX = fromX;
             endX = toX;
-            const fromBottom = fromRect.bottom - gridRect.top;
-            const toTop = toRect.top - gridRect.top;
-            const fromTop = fromRect.top - gridRect.top;
-            const toBottom = toRect.bottom - gridRect.top;
+            const fromBottom = fromLocal.bottom;
+            const toTop = toLocal.top;
+            const fromTop = fromLocal.top;
+            const toBottom = toLocal.bottom;
             if (fromGridRow < toGridRow) { startY = fromBottom; endY = toTop; }
             else { startY = toBottom; endY = fromTop; }
         } else {
-            startX = dx > 0 ? fromRect.right - gridRect.left : fromRect.left - gridRect.left;
-            endX = dx > 0 ? toRect.left - gridRect.left : toRect.right - gridRect.left;
-            startY = fromGridRow < toGridRow ? fromRect.bottom - gridRect.top : fromRect.top - gridRect.top;
-            endY = fromGridRow < toGridRow ? toRect.top - gridRect.top : toRect.bottom - gridRect.top;
+            startX = dx > 0 ? fromLocal.right : fromLocal.left;
+            endX = dx > 0 ? toLocal.left : toLocal.right;
+            startY = fromGridRow < toGridRow ? fromLocal.bottom : fromLocal.top;
+            endY = fromGridRow < toGridRow ? toLocal.top : toLocal.bottom;
         }
 
         const sameElement = link.fromElement === link.toElement;
@@ -3878,17 +4473,41 @@ function renderLinkConnectors(gridId, board, isPlayer) {
         const cellEl = cellRefs.get(`${socket.row}:${socket.col}`);
         if (!cellEl) continue;
 
-        const cellRect = cellEl.getBoundingClientRect();
-        const point = getExternalSocketPoint(gridRect, cellRect, socket.side);
+        const cellLocal = getBoardCellLocalRect(grid, cellEl);
+        if (!cellLocal) continue;
+
+        const point = getExternalSocketPoint(cellLocal, socket.side);
         const activeSocket = activeExternalSockets.get(socket.key);
 
         if (activeSocket) {
-            const anchor = getCellEdgeAnchor(gridRect, cellRect, activeSocket.direction);
+            const anchor = getCellEdgeAnchor(cellLocal, activeSocket.direction);
             appendExternalLink(grid, anchor, point, getElementHex(activeSocket.element));
         }
 
         appendExternalEnergyPoint(grid, point, activeSocket?.element || null);
     }
+}
+
+let boardLinkConnectorRefreshRaf = null;
+
+function refreshBoardLinkConnectors() {
+    if (!gameState) return;
+    const playerGrid = document.getElementById('playerGrid');
+    const enemyGrid = document.getElementById('enemyGrid');
+    if (!playerGrid || !enemyGrid) return;
+    renderLinkConnectors('enemyGrid', gameState.enemyBoard, false);
+    renderLinkConnectors('playerGrid', gameState.playerBoard, true);
+}
+
+function scheduleBoardLinkConnectorRefresh() {
+    if (!gameState) return;
+    if (boardLinkConnectorRefreshRaf != null) return;
+    boardLinkConnectorRefreshRaf = requestAnimationFrame(() => {
+        boardLinkConnectorRefreshRaf = null;
+        requestAnimationFrame(() => {
+            refreshBoardLinkConnectors();
+        });
+    });
 }
 
 function getAllExternalSockets(isPlayer) {
@@ -3929,37 +4548,37 @@ function getExternalSocketForNotch(row, col, isPlayer, direction) {
     return null;
 }
 
-function getCellEdgeAnchor(gridRect, cellRect, direction) {
-    const centerX = cellRect.left + cellRect.width / 2 - gridRect.left;
-    const centerY = cellRect.top + cellRect.height / 2 - gridRect.top;
+function getCellEdgeAnchor(local, direction) {
+    const centerX = local.left + local.width / 2;
+    const centerY = local.top + local.height / 2;
     switch (direction) {
         case 'LEFT':
-            return { x: cellRect.left - gridRect.left, y: centerY };
+            return { x: local.left, y: centerY };
         case 'RIGHT':
-            return { x: cellRect.right - gridRect.left, y: centerY };
+            return { x: local.right, y: centerY };
         case 'TOP':
-            return { x: centerX, y: cellRect.top - gridRect.top };
+            return { x: centerX, y: local.top };
         case 'BOTTOM':
-            return { x: centerX, y: cellRect.bottom - gridRect.top };
+            return { x: centerX, y: local.bottom };
         default:
             return { x: centerX, y: centerY };
     }
 }
 
-function getExternalSocketPoint(gridRect, cellRect, side) {
-    const centerX = cellRect.left + cellRect.width / 2 - gridRect.left;
-    const centerY = cellRect.top + cellRect.height / 2 - gridRect.top;
-    const offset = Math.max(12, Math.round(Math.min(cellRect.width, cellRect.height) * 0.12));
+function getExternalSocketPoint(local, side) {
+    const centerX = local.left + local.width / 2;
+    const centerY = local.top + local.height / 2;
+    const offset = Math.max(12, Math.round(Math.min(local.width, local.height) * 0.12));
 
     switch (side) {
         case 'left':
-            return { x: cellRect.left - gridRect.left - offset, y: centerY };
+            return { x: local.left - offset, y: centerY };
         case 'right':
-            return { x: cellRect.right - gridRect.left + offset, y: centerY };
+            return { x: local.right + offset, y: centerY };
         case 'top':
-            return { x: centerX, y: cellRect.top - gridRect.top - offset };
+            return { x: centerX, y: local.top - offset };
         case 'bottom':
-            return { x: centerX, y: cellRect.bottom - gridRect.top + offset };
+            return { x: centerX, y: local.bottom + offset };
         default:
             return { x: centerX, y: centerY };
     }
@@ -4141,9 +4760,32 @@ function hasOppositeNotch(notches, direction) {
 
 function renderHand() {
     const container = document.getElementById('playerHand');
+    const handTray = document.getElementById('handTray');
+    const handTitle = document.getElementById('desktopHandSectionTitle');
+    const battlePanel = document.getElementById('desktopHandBattlePanel');
+    if (handTitle) {
+        handTitle.textContent = isHandHiddenForPhase() ? 'Battle Action' : 'Hand Selector';
+    }
     if (isHandHiddenForPhase()) {
-        container.innerHTML = '<div class="hand-phase-mask">Hand hidden during battle phase. Resolve battle actions to see your hand again.</div>';
+        if (handTray) {
+            handTray.classList.add('battle-queue-mode');
+        }
+        if (container) {
+            container.classList.add('hidden');
+        }
+        if (battlePanel) {
+            battlePanel.classList.remove('hidden');
+        }
         return;
+    }
+    if (handTray) {
+        handTray.classList.remove('battle-queue-mode');
+    }
+    if (container) {
+        container.classList.remove('hidden');
+    }
+    if (battlePanel) {
+        battlePanel.classList.add('hidden');
     }
     if (!gameState.player.hand || gameState.player.hand.length === 0) {
         container.innerHTML = '<div style="color:var(--text-dim);font-size:0.8em;">No cards in hand</div>';
@@ -4156,7 +4798,7 @@ function renderHand() {
         const isSelected = selectedCard && selectedCard.id === card.id;
         const lockReason = getHandCardLockReason(card);
         const openingLocked = isOpeningPlacementOnlyTurn() && card.type !== 'SIEGLING';
-        const placementLocked = gameState.playerPlacementUsed && card.type === 'SIEGLING';
+        const placementLocked = isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING';
         const interactionClass = [
             isSelected ? ' selected' : '',
             lockReason ? ' interaction-locked' : '',
@@ -4334,13 +4976,14 @@ function renderMulliganOverlay() {
 
 function renderLog() {
     const log = document.getElementById('gameLog');
+    renderGameLogToolbar();
     if (!log || !gameState?.gameLog) {
         renderDesktopActionHistory();
         return;
     }
 
     let html = '';
-    for (const entry of gameState.gameLog) {
+    for (const entry of getFilteredGameLog(gameState.gameLog)) {
         html += `<div class="log-entry">${escapeHtml(entry)}</div>`;
     }
     log.innerHTML = html;
@@ -4351,7 +4994,8 @@ function renderLog() {
 function renderBattlePanel() {
     const panels = [
         document.getElementById('battleActionPanel'),
-        document.getElementById('desktopBattleActionPanel')
+        document.getElementById('desktopBattleActionPanel'),
+        document.getElementById('desktopHandBattlePanel')
     ].filter(Boolean);
     if (panels.length === 0 || !gameState) {
         return;
@@ -4362,17 +5006,49 @@ function renderBattlePanel() {
         });
     };
     const pending = gameState.pendingBattle;
+    const buildQueueShell = (stateLabel, stateClass, bodyHtml, options = {}) => {
+        const compact = options.compact === true;
+        const cardTitle = options.cardTitle != null ? String(options.cardTitle) : null;
+        const expanded = options.expanded === true;
+        const shellClass = [
+            'battle-queue-shell',
+            'battle-queue-flat',
+            compact ? 'battle-queue-compact' : '',
+            expanded ? 'battle-queue-expanded' : ''
+        ].filter(Boolean).join(' ');
+        const headerHtml = cardTitle
+            ? `<div class="battle-queue-topbar">
+                <div class="battle-queue-card-title">${escapeHtml(cardTitle)}</div>
+                <div class="battle-queue-state ${stateClass}">${escapeHtml(stateLabel)}</div>
+            </div>`
+            : `<div class="battle-queue-header">
+                <div class="battle-queue-state ${stateClass}">${escapeHtml(stateLabel)}</div>
+            </div>`;
+        return `<div class="${shellClass}">${headerHtml}${bodyHtml}</div>`;
+    };
 
     if (!pending) {
         if (gameState.currentPhase === 'BATTLE' && gameState.battleWaitingOn === 'ENEMY') {
-            setPanelHtml('Battle is live. Waiting for your opponent to finish the current speed action.');
+            setPanelHtml(buildQueueShell(
+                'Await Opponent',
+                'waiting',
+                '<div class="battle-attacker"><strong>Queue locked.</strong> The opponent is resolving the current speed action.</div><div class="battle-hint">The hand HUD will reopen your queue prompt as soon as the next acting Siegling is ready.</div>'
+            ));
             return;
         }
         if (gameState.currentPhase === 'BATTLE') {
-            setPanelHtml('Battle is resolving. The next available Siegling will act in speed order.');
+            setPanelHtml(buildQueueShell(
+                'Resolving',
+                'waiting',
+                '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegling arrives, this panel flips into queue mode automatically.</div>'
+            ));
             return;
         }
-        setPanelHtml('Battle starts automatically after both players press End Turn. When it begins, Sieglings act from highest speed to lowest speed.');
+        setPanelHtml(buildQueueShell(
+            'Stand By',
+            'waiting',
+            '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Finish setup to send Sieglings into speed order.</div><div class="battle-hint">When battle begins, the hand HUD transforms into this queue prompt so you can act without leaving the bottom command area.</div>'
+        ));
         return;
     }
 
@@ -4381,24 +5057,31 @@ function renderBattlePanel() {
         openDrawer('battle');
     }
 
-    let html = `<div class="battle-attacker"><strong>${pending.name}</strong> is acting now from the battle speed order.</div>`;
+    let bodyHtml = '';
     if (targetMode && targetContext && targetContext.mode === 'battle') {
-        html += `<div class="battle-hint">${targetContext.message} You can also pass to skip this action.</div>`;
-    } else {
-        html += `<div class="battle-hint">Choose an ability to resolve or pass this Siegling's action.</div>`;
+        bodyHtml += `<div class="battle-hint battle-hint-compact">${escapeHtml(targetContext.message)} Pass skips this step.</div>`;
     }
 
+    let actionsHtml = '';
     const sortedAbilities = getSortedBattleAbilities(pending.abilities);
     for (const ability of sortedAbilities) {
         const disabled = ability.affordable ? '' : 'disabled';
-        const label = `${ability.name} (${formatBattleAbilityCost(ability)})`;
-        html += `<button class="battle-ability-btn" ${disabled} onclick="chooseBattleAbility(${ability.index})">${label}</button>`;
-        html += `<div class="battle-ability-desc">${ability.description}</div>`;
+        const desc = (ability.description && String(ability.description).trim()) || ability.name;
+        const tip = ability.description
+            ? `${ability.name} — ${ability.description}`
+            : ability.name;
+        actionsHtml += `<button class="battle-ability-btn" ${disabled} onclick="chooseBattleAbility(${ability.index})" title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(desc)}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
     }
-    html += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()">Pass</button>`;
-    html += `<div class="battle-ability-desc">Skip this card's action and move to the next acting Siegling.</div>`;
+    const passDesc = 'Pass this turn without using an ability. No energy cost.';
+    actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passDesc)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(passDesc)}</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
+    bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
 
-    setPanelHtml(html);
+    setPanelHtml(buildQueueShell(
+        targetMode && targetContext && targetContext.mode === 'battle' ? 'Queue Target' : 'Acting Now',
+        targetMode && targetContext && targetContext.mode === 'battle' ? 'targeting' : 'live',
+        bodyHtml,
+        { expanded: true, cardTitle: pending.name }
+    ));
 }
 
 function chooseBattleAbility(index) {
@@ -4421,7 +5104,7 @@ function chooseBattleAbility(index) {
         mode: 'battle',
         side: targetSide,
         abilityIndex: index,
-        message: `Select a ${targetSide} target for ${ability.name}.`
+        message: `Queue a ${targetSide} target for ${ability.name}.`
     };
     if (activeDrawer === 'battle') {
         closeDrawer(true);
@@ -4441,14 +5124,38 @@ function boardHasTargets(side) {
     return board.some(row => row.some(cell => cell));
 }
 
+function enemyBoardHasEmptyCell() {
+    const b = gameState?.enemyBoard;
+    if (!b) {
+        return false;
+    }
+    for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+            if (!b[r][c]) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 function abilityHasAvailableTarget(ability) {
     const targetSide = getAbilityTargetSide(ability);
-    return !targetSide || boardHasTargets(targetSide);
+    if (!targetSide) {
+        return true;
+    }
+    if (!boardHasTargets(targetSide)) {
+        return false;
+    }
+    if (ability?.effectType === 'move_link' && ability?.targetType === 'SINGLE_ENEMY') {
+        return enemyBoardHasEmptyCell();
+    }
+    return true;
 }
 
 function getSelectedLegalPlacements() {
     const evolutionCardSelected = Boolean(selectedCard?.evolvesFromId);
-    if (gameState.playerPlacementUsed || (countBoardSieglings() >= 5 && !evolutionCardSelected)) {
+    if (isPlacementBudgetLockedForCard(selectedCard) || (countBoardSieglings() >= 5 && !evolutionCardSelected)) {
         return [];
     }
 
@@ -4519,6 +5226,19 @@ function selectCard(cardId) {
         const targetSide = getAbilityTargetSide(card.ability);
         const needsExplicitTarget = Boolean(targetSide);
         if (needsExplicitTarget) {
+            if (needsForcedEnemyMoveFlow(card)) {
+                targetMode = true;
+                targetContext = {
+                    mode: 'spell-move-enemy',
+                    side: 'enemy',
+                    step: 'pickEnemy',
+                    cardId: card.id,
+                    message: `Select an enemy Siegling to move, then an empty enemy cell.`
+                };
+                updateSelectedInfo(card, targetContext.message);
+                render();
+                return;
+            }
             targetMode = true;
             targetContext = {
                 mode: 'spell',
@@ -4540,22 +5260,94 @@ function selectCard(cardId) {
 }
 
 function isTargetCell(isPlayer, cell) {
-    if (!targetMode || !targetContext || !cell) return false;
-    if (targetContext.side === 'enemy') return !isPlayer;
-    if (targetContext.side === 'ally') return isPlayer;
+    if (!targetMode || !targetContext) return false;
+
+    if (targetContext.mode === 'spell-move-enemy') {
+        if (!isPlayer) {
+            if (targetContext.step === 'pickEnemy') {
+                return Boolean(cell);
+            }
+            if (targetContext.step === 'pickDest') {
+                return !cell;
+            }
+        }
+        return false;
+    }
+
+    if (targetContext.side === 'enemy') {
+        return !isPlayer && Boolean(cell);
+    }
+    if (targetContext.side === 'ally') {
+        return isPlayer && Boolean(cell);
+    }
     return false;
 }
 
-function onTargetSelected(row, col) {
+function onTargetSelected(row, col, fromPlayerBoard) {
     if (!targetMode || !targetContext) return;
 
+    if (targetContext.mode === 'spell-move-enemy') {
+        if (fromPlayerBoard) {
+            return;
+        }
+        const board = gameState.enemyBoard;
+        const cell = board?.[row]?.[col] || null;
+        if (targetContext.step === 'pickEnemy') {
+            if (!cell) {
+                return;
+            }
+            targetContext.step = 'pickDest';
+            targetContext.fromRow = row;
+            targetContext.fromCol = col;
+            targetContext.message = 'Choose an empty cell on the enemy board.';
+            updateSelectedInfo(selectedCard, targetContext.message);
+            render();
+            return;
+        }
+        if (targetContext.step === 'pickDest') {
+            if (cell) {
+                return;
+            }
+            castSpell(targetContext.cardId, targetContext.fromRow, targetContext.fromCol, row, col);
+            return;
+        }
+        return;
+    }
+
     if (targetContext.mode === 'battle') {
+        if (targetContext.side === 'enemy' && fromPlayerBoard) {
+            return;
+        }
+        if (targetContext.side === 'ally' && !fromPlayerBoard) {
+            return;
+        }
         submitBattleAction(targetContext.abilityIndex, row, col);
         return;
     }
 
-    if (typeof targetContext.callback === 'function') {
-        targetContext.callback(row, col);
+    if (targetContext.mode === 'trainer') {
+        if (targetContext.side === 'enemy' && fromPlayerBoard) {
+            return;
+        }
+        if (targetContext.side === 'ally' && !fromPlayerBoard) {
+            return;
+        }
+        if (typeof targetContext.callback === 'function') {
+            targetContext.callback(row, col);
+        }
+        return;
+    }
+
+    if (targetContext.mode === 'spell') {
+        if (targetContext.side === 'enemy' && fromPlayerBoard) {
+            return;
+        }
+        if (targetContext.side === 'ally' && !fromPlayerBoard) {
+            return;
+        }
+        if (typeof targetContext.callback === 'function') {
+            targetContext.callback(row, col);
+        }
     }
 }
 
@@ -4612,7 +5404,7 @@ function updateSelectedInfo(card, msg) {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">Place this on top of ${card.evolvesFromName} to evolve it.</span>`
                 : gameState.playerPlacementUsed
-                ? '<span style="color:var(--accent)">You already placed your Siegling for this turn.</span>'
+                ? `<span style="color:var(--accent)">${escapeHtml(sieglingPlacementLockMessage())}</span>`
                 : '<span style="color:var(--accent)">Highlighted bubbles show where this card can expand next.</span>';
         }
         html += `</div>`;
@@ -4661,7 +5453,7 @@ function handleBoardCellTouch(event, isPlayer, row, col) {
         return;
     }
     if (targetable) {
-        onTargetSelected(row, col);
+        onTargetSelected(row, col, isPlayer);
         return;
     }
     if (claimable) {
@@ -4766,39 +5558,83 @@ function getLiftedHandCardId() {
 }
 
 function handleHandSelectorPointerMove(event) {
-    if (!isDesktopSidebarLayout()) {
+    if (isHandHiddenForPhase()) {
         stopHandSelectorAutoScroll();
         return;
     }
-    const tray = document.getElementById('handTray');
     const cards = document.getElementById('playerHand');
-    if (!tray || !cards || cards.scrollWidth <= cards.clientWidth + 4) {
+    if (!cards) {
         stopHandSelectorAutoScroll();
         return;
     }
-    const rect = tray.getBoundingClientRect();
-    const threshold = Math.max(36, Math.min(92, rect.width * 0.12));
-    let direction = 0;
-    if (event.clientX <= rect.left + threshold) {
-        direction = -1;
-    } else if (event.clientX >= rect.right - threshold) {
-        direction = 1;
+    const canScrollX = cards.scrollWidth > cards.clientWidth + 4;
+    const canScrollY = cards.scrollHeight > cards.clientHeight + 4;
+    if (!canScrollX && !canScrollY) {
+        stopHandSelectorAutoScroll();
+        return;
     }
-    if (direction === handAutoScrollDirection) {
+    const rect = cards.getBoundingClientRect();
+    const thresholdX = Math.max(32, Math.min(100, rect.width * 0.16));
+    const thresholdY = Math.max(32, Math.min(100, rect.height * 0.22));
+    let direction = 0;
+    let axis = null;
+    if (canScrollX) {
+        if (event.clientX <= rect.left + thresholdX) {
+            direction = -1;
+            axis = 'x';
+        } else if (event.clientX >= rect.right - thresholdX) {
+            direction = 1;
+            axis = 'x';
+        }
+    }
+    if (direction === 0 && canScrollY) {
+        if (event.clientY <= rect.top + thresholdY) {
+            direction = -1;
+            axis = 'y';
+        } else if (event.clientY >= rect.bottom - thresholdY) {
+            direction = 1;
+            axis = 'y';
+        }
+    }
+    if (direction === handAutoScrollDirection && axis === handAutoScrollAxis) {
         return;
     }
     stopHandSelectorAutoScroll();
-    if (direction === 0) {
+    if (direction === 0 || !axis) {
         return;
     }
     handAutoScrollDirection = direction;
+    handAutoScrollAxis = axis;
+    const speed = 14;
     const tick = () => {
         const row = document.getElementById('playerHand');
-        if (!row || handAutoScrollDirection === 0) {
+        if (!row || handAutoScrollDirection === 0 || !handAutoScrollAxis) {
             handAutoScrollFrame = null;
             return;
         }
-        row.scrollLeft += handAutoScrollDirection * 12;
+        if (handAutoScrollAxis === 'x') {
+            const maxL = Math.max(0, row.scrollWidth - row.clientWidth);
+            if (handAutoScrollDirection < 0 && row.scrollLeft <= 0.5) {
+                stopHandSelectorAutoScroll();
+                return;
+            }
+            if (handAutoScrollDirection > 0 && row.scrollLeft >= maxL - 0.5) {
+                stopHandSelectorAutoScroll();
+                return;
+            }
+            row.scrollLeft += handAutoScrollDirection * speed;
+        } else {
+            const maxT = Math.max(0, row.scrollHeight - row.clientHeight);
+            if (handAutoScrollDirection < 0 && row.scrollTop <= 0.5) {
+                stopHandSelectorAutoScroll();
+                return;
+            }
+            if (handAutoScrollDirection > 0 && row.scrollTop >= maxT - 0.5) {
+                stopHandSelectorAutoScroll();
+                return;
+            }
+            row.scrollTop += handAutoScrollDirection * speed;
+        }
         handAutoScrollFrame = window.requestAnimationFrame(tick);
     };
     handAutoScrollFrame = window.requestAnimationFrame(tick);
@@ -4806,6 +5642,7 @@ function handleHandSelectorPointerMove(event) {
 
 function stopHandSelectorAutoScroll() {
     handAutoScrollDirection = 0;
+    handAutoScrollAxis = null;
     if (handAutoScrollFrame) {
         window.cancelAnimationFrame(handAutoScrollFrame);
         handAutoScrollFrame = null;
@@ -4906,6 +5743,7 @@ window.addEventListener('resize', () => {
     hoveredBoardCard = null;
     syncMobileInfoTab();
     syncFocusedCardUi();
+    scheduleBoardLinkConnectorRefresh();
 });
 
 window.addEventListener('resize', () => {
@@ -4921,6 +5759,7 @@ window.addEventListener('resize', () => {
     syncFocusedCardUi();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    scheduleBoardLinkConnectorRefresh();
 });
 
 window.addEventListener('orientationchange', () => {
@@ -4928,9 +5767,53 @@ window.addEventListener('orientationchange', () => {
     syncFocusedCardUi();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    scheduleBoardLinkConnectorRefresh();
 });
 
+usePixiRenderer = getConfiguredRendererMode() === 'pixi';
+syncPixiDomShell();
+
 updateResponsiveLayoutVars(true);
+syncDesktopInspectTabUi();
+
+(function setupBoardGridLayoutObservers() {
+    const onLayoutModeBoundsChange = () => {
+        scheduleBoardLinkConnectorRefresh();
+        setTimeout(scheduleBoardLinkConnectorRefresh, 200);
+    };
+
+    const connect = () => {
+        const playerGrid = document.getElementById('playerGrid');
+        const enemyGrid = document.getElementById('enemyGrid');
+        if (!playerGrid || !enemyGrid || typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(() => scheduleBoardLinkConnectorRefresh());
+        ro.observe(playerGrid);
+        ro.observe(enemyGrid);
+    };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', connect);
+    } else {
+        connect();
+    }
+
+    const mqListeners = [
+        window.matchMedia('(max-width: 900px)'),
+        window.matchMedia('(min-width: 980px)'),
+        window.matchMedia('(orientation: landscape) and (max-height: 600px)')
+    ];
+    mqListeners.forEach((mq) => {
+        if (typeof mq.addEventListener === 'function') {
+            mq.addEventListener('change', onLayoutModeBoundsChange);
+        } else if (typeof mq.addListener === 'function') {
+            mq.addListener(onLayoutModeBoundsChange);
+        }
+    });
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', scheduleBoardLinkConnectorRefresh);
+    }
+})();
+
 renderDesktopMenuMeta();
 renderDesktopActionHistory();
 renderWelcomeTutorial();
