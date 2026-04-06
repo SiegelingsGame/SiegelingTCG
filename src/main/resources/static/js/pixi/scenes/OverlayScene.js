@@ -20,6 +20,7 @@ export class OverlayScene {
         this.bodyText.anchor.set(0.5, 0);
         this.container.addChild(this.bodyText);
         this.buttons = [];
+        this._lastRenderSig = null;
     }
 
     show() {
@@ -70,6 +71,13 @@ export class OverlayScene {
         const height = this.size?.height || 720;
         const title = this.options.title(viewModel);
         const body = this.options.body(viewModel);
+        const buttons = this.options.buttons(viewModel) || [];
+        const btnSig = buttons.map((b) => `${b.label}\0${b.variant || "primary"}`).join("\x1f");
+        const sig = `${width}\0${height}\0${title}\0${body}\0${btnSig}`;
+        if (sig === this._lastRenderSig) {
+            return;
+        }
+        this._lastRenderSig = sig;
 
         this.bg.clear();
         this.bg.rect(0, 0, width, height).fill(0x121828);
@@ -83,7 +91,6 @@ export class OverlayScene {
         this.bodyText.position.set(width / 2, (height / 2) - 90);
 
         this.clearButtons();
-        const buttons = this.options.buttons(viewModel) || [];
         const rowY = (height / 2) + 145;
         const rowStartX = (width / 2) - (((buttons.length - 1) * 280) / 2);
         buttons.forEach((button, idx) => {
