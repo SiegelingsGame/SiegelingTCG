@@ -1,0 +1,23 @@
+{
+  "deckTop": 171,
+  "previewTop": 390,
+  "handTop": 741,
+  "actionTop": 875,
+  "deckBeforePreview": true,
+  "previewBeforeHand": true,
+  "handBeforeAction": true,
+  "deckTierCount": 5,
+  "deckIconCount": 7,
+  "handCardCount": 5,
+  "deckTypeLabels": [
+    "Sieglings",
+    "Sieglings",
+    "Spells",
+    "Traps",
+    "Spells",
+    "Sieglings"
+  ],
+  "consoleReady": true,
+  "consoleMessages": [],
+  "pageErrors": []
+}

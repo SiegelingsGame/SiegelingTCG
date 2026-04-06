@@ -1,0 +1,16 @@
+{
+  "viewport": {
+    "width": 844,
+    "height": 390
+  },
+  "mode": "Landscape",
+  "handCardCount": 5,
+  "handCardsFitTray": true,
+  "handRowScrollable": false,
+  "previewVisible": true,
+  "previewFitsPanel": true,
+  "actionHistoryEntries": 3,
+  "energyCueClass": "tb-energy",
+  "desktopMenuVisible": true,
+  "handOverflowingViewport": false
+}

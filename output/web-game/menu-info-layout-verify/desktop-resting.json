@@ -1,0 +1,9 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 980
+  },
+  "handCardCount": 5,
+  "handCardsFitTray": false,
+  "handOverflowingViewport": false
+}
