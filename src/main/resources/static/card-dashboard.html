@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sieglings Card, Siegeknight, And Deck Dashboard</title>
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=6">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=7">
 </head>
 <body>
 <div class="dashboard-shell">
@@ -230,7 +230,39 @@
                         <div class="notch-list" id="activeNotchList"></div>
                     </section>
 
-                    <section class="form-section">
+                    <section class="form-section hidden" id="sieglingMovesSection">
+                        <div class="panel-heading sub-heading">
+                            <div>
+                                <div class="section-kicker">Moves pool</div>
+                                <h3>Siegling Moves</h3>
+                            </div>
+                            <div class="inline-actions">
+                                <button class="btn btn-secondary" type="button" id="newMoveBtn">New move</button>
+                                <button class="btn btn-secondary" type="button" id="openMovePickerBtn">Add from pool</button>
+                            </div>
+                        </div>
+                        <p class="section-help">Up to five move ids per Siegling. Passives apply when the card is on the board; actives (0–6 energy) appear in battle. Define shared moves in the pool; use Copy to fork an existing move.</p>
+                        <div id="sieglingAssignedMoves" class="move-assigned-list"></div>
+                        <div class="form-grid" id="moveDraftPanel" style="display:none;">
+                            <label><span>Move id</span><input type="text" id="moveDraftIdInput" autocomplete="off"></label>
+                            <label><span>Name</span><input type="text" id="moveDraftNameInput" autocomplete="off"></label>
+                            <label><span>Element</span><select id="moveDraftElementSelect"></select></label>
+                            <label><span>Category</span><select id="moveDraftCategorySelect"></select></label>
+                            <label><span>Target</span><select id="moveDraftTargetSelect"></select></label>
+                            <label id="moveDraftTargetRowWrap"><span>Target row</span><select id="moveDraftTargetRowSelect"></select></label>
+                            <label><span>Effect</span><select id="moveDraftEffectSelect"></select></label>
+                            <label><span>Effect value</span><input type="number" id="moveDraftEffectValueInput" step="1"></label>
+                            <label><span>Energy cost</span><input type="number" id="moveDraftEnergyInput" min="0" max="6" step="1"></label>
+                            <label class="full-width"><span>Description</span><textarea id="moveDraftDescInput" rows="2"></textarea></label>
+                            <label><span>Passive</span><select id="moveDraftPassiveSelect"><option value="false">No</option><option value="true">Yes</option></select></label>
+                            <div class="inline-actions full-width">
+                                <button class="btn btn-primary" type="button" id="saveMoveDraftBtn">Save to pool</button>
+                                <button class="btn btn-secondary" type="button" id="cancelMoveDraftBtn">Cancel</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="form-section" id="actionAbilitySection">
                         <div class="panel-heading sub-heading">
                             <div>
                                 <div class="section-kicker">Abilities</div>
@@ -694,9 +726,25 @@
     </section>
 </div>
 
+<div class="move-picker-overlay hidden" id="movePickerOverlay" role="dialog" aria-modal="true" aria-labelledby="movePickerTitle">
+    <div class="move-picker-modal" onclick="event.stopPropagation()">
+        <div class="move-picker-head">
+            <h3 id="movePickerTitle">Choose a move</h3>
+            <button type="button" class="btn btn-secondary" id="movePickerCloseBtn" aria-label="Close">&times;</button>
+        </div>
+        <div class="move-picker-filters form-grid">
+            <label class="full-width"><span>Search</span><input type="search" id="movePickerSearch" autocomplete="off" placeholder="Name or id"></label>
+            <label><span>Element</span><select id="movePickerElementFilter"><option value="ALL">All</option></select></label>
+            <label><span>Max energy</span><select id="movePickerEnergyFilter"><option value="99">Any</option><option value="0">0</option><option value="1">≤1</option><option value="2">≤2</option><option value="3">≤3</option><option value="6">≤6</option></select></label>
+            <label><span>Category</span><select id="movePickerCategoryFilter"><option value="ALL">All</option><option value="STANDARD">Standard</option><option value="SPECIALITY">Speciality</option><option value="UTILITY">Utility</option></select></label>
+        </div>
+        <div class="move-picker-list" id="movePickerList"></div>
+    </div>
+</div>
+
 <datalist id="cardIdOptions"></datalist>
 
 <script src="/js/config.js"></script>
-<script src="/js/card-dashboard.js?v=7"></script>
+<script src="/js/card-dashboard.js?v=9"></script>
 </body>
 </html>

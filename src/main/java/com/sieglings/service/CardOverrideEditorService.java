@@ -31,6 +31,7 @@ public class CardOverrideEditorService {
     private final CardEditorAuthService authService;
     private final CardDefinitionService cardDefinitionService;
     private final LiveElementCatalogService liveElementCatalogService;
+    private final MovesPoolService movesPoolService;
 
     public CardOverrideEditorService(ObjectMapper objectMapper,
                                      CardOverrideStorageService storageService,
@@ -38,7 +39,8 @@ public class CardOverrideEditorService {
                                      TrainerCatalogService trainerCatalogService,
                                      CardEditorAuthService authService,
                                      CardDefinitionService cardDefinitionService,
-                                     LiveElementCatalogService liveElementCatalogService) {
+                                     LiveElementCatalogService liveElementCatalogService,
+                                     MovesPoolService movesPoolService) {
         this.objectMapper = objectMapper;
         this.storageService = storageService;
         this.presetDeckCatalogService = presetDeckCatalogService;
@@ -46,6 +48,7 @@ public class CardOverrideEditorService {
         this.authService = authService;
         this.cardDefinitionService = cardDefinitionService;
         this.liveElementCatalogService = liveElementCatalogService;
+        this.movesPoolService = movesPoolService;
     }
 
     public Map<String, Object> loadEditorState(String editorToken) {
@@ -66,6 +69,9 @@ public class CardOverrideEditorService {
         TrainerCatalogService.LoadSnapshot currentTrainerSnapshot = trainerCatalogService.loadSnapshot();
         LiveElementCatalogService.LoadSnapshot currentLiveSnapshot = liveElementCatalogService.loadSnapshot();
         JsonNode cardsData = extractCardsData(data, currentCardSnapshot.data());
+        ObjectNode cardSavePayload = objectMapper.createObjectNode();
+        cardSavePayload.set("cards", cardsData.get("cards"));
+        cardSavePayload.set("moves", extractMovesData(data, currentCardSnapshot.data()));
         JsonNode decksData = extractDecksData(data, currentDeckSnapshot.data());
         JsonNode trainersData = extractTrainersData(data, currentTrainerSnapshot.data());
         JsonNode liveElementsData = extractLiveElementsData(data, currentLiveSnapshot.data());
@@ -73,7 +79,7 @@ public class CardOverrideEditorService {
         validateLiveElements(liveElementsData);
         Set<String> activeLiveElementNames = activeLiveElementNames(liveElementsData);
         validateDeckDefinitions(decksData, cardsData, trainerDefinitions, activeLiveElementNames);
-        CardOverrideStorageService.LoadSnapshot cardSnapshot = storageService.saveSnapshot(cardsData, updatedByEmail);
+        CardOverrideStorageService.LoadSnapshot cardSnapshot = storageService.saveSnapshot(cardSavePayload, updatedByEmail);
         PresetDeckCatalogService.LoadSnapshot deckSnapshot = presetDeckCatalogService.saveSnapshot(decksData, updatedByEmail);
         TrainerCatalogService.LoadSnapshot trainerSnapshot = trainerCatalogService.saveSnapshot(trainersData, updatedByEmail);
         LiveElementCatalogService.LoadSnapshot liveSnapshot = liveElementCatalogService.saveSnapshot(liveElementsData, updatedByEmail);
@@ -146,12 +152,20 @@ public class CardOverrideEditorService {
         metadata.put("deckRules", buildDeckRules());
         metadata.put("effectTypes", buildEffectTypes());
         metadata.put("targetRules", buildTargetRules());
+        metadata.put("moveCategories", List.of("STANDARD", "SPECIALITY", "UTILITY"));
         return metadata;
     }
 
     private JsonNode buildEditorData() {
         ObjectNode data = objectMapper.createObjectNode();
         data.set("cards", objectMapper.valueToTree(ManualSieglingCatalog.buildOverrideFile(cardDefinitionService.getDeckBuilderCatalog()).cards()));
+        JsonNode snap = storageService.loadSnapshot().data();
+        if (snap.get("moves") != null && snap.get("moves").isArray()) {
+            data.set("moves", snap.get("moves").deepCopy());
+        } else {
+            movesPoolService.syncFromSources();
+            data.set("moves", objectMapper.valueToTree(movesPoolService.allMovesSorted()));
+        }
         data.set("decks", objectMapper.valueToTree(buildDeckEditorData()));
         data.set("trainers", objectMapper.valueToTree(cardDefinitionService.getStoredTrainerDefinitions()));
         ObjectNode live = objectMapper.createObjectNode();
@@ -264,6 +278,14 @@ public class CardOverrideEditorService {
             return node;
         }
         return fallbackData.deepCopy();
+    }
+
+    private JsonNode extractMovesData(JsonNode submittedData, JsonNode fallbackRoot) {
+        if (submittedData != null && submittedData.get("moves") != null) {
+            return submittedData.get("moves").deepCopy();
+        }
+        JsonNode fb = fallbackRoot != null ? fallbackRoot.get("moves") : null;
+        return fb != null ? fb.deepCopy() : objectMapper.createArrayNode();
     }
 
     private JsonNode extractDecksData(JsonNode submittedData, JsonNode fallbackData) {

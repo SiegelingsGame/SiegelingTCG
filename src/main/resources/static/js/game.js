@@ -39,6 +39,21 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 let welcomeSlideIndex = 0;
 let welcomeDismissed = false;
+const LEADERBOARD_STORAGE_KEY = 'sieglings_leaderboards_v1';
+const LEADERBOARD_TABS = [
+    { id: 'wins', label: 'Wins' },
+    { id: 'matchesPlayed', label: 'Matches' },
+    { id: 'spellsCast', label: 'Spells' },
+    { id: 'trapsSprung', label: 'Traps' },
+    { id: 'siegelingsDefeated', label: 'Sieglings' },
+    { id: 'pvpWinRate', label: 'PVP W/L' }
+];
+let welcomeLeaderboardState = {
+    tab: 'wins',
+    data: null,
+    loading: false,
+    error: ''
+};
 let authMode = 'login';
 let authState = {
     token: loadSavedAuthToken(),
@@ -199,71 +214,159 @@ const CARD_ART_BY_KEY = Object.freeze({
 });
 const WELCOME_SLIDES = [
     {
-        title: '1. Place one Siegling during setup',
-        copy: 'Each setup turn starts with fresh energy. Place a Siegling to claim space, then decide whether your remaining energy should become spells, traps, or trainer pressure.',
+        title: '1. Notches can wake external sockets',
+        copy: 'When you place a Siegling, any notch that points off the board lines up with a perimeter socket. That live connection feeds your energy pool the same way it does in a real match.',
         visual: `
             <div class="tutorial-visual tutorial-board">
-                <div class="tutorial-board-grid">
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot active"><span>F</span></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
+                <div class="tutorial-arena-mid tutorial-arena-external-demo">
+                    <div class="tutorial-grid-with-sides tutorial-has-ex-connector">
+                        <div class="tutorial-ex-rail vertical tutorial-ex-rail--rows" aria-hidden="true">
+                            <span class="tutorial-ex-point"></span>
+                            <span class="tutorial-ex-point active fire"></span>
+                            <span class="tutorial-ex-point"></span>
+                        </div>
+                        <div class="tutorial-board-stage">
+                            <div class="tutorial-board-grid seamless">
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot tutorial-slot-anchored">
+                                    <span class="tutorial-slot-face">S</span>
+                                    <span class="tutorial-slot-notch left fire"></span>
+                                </div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                            </div>
+                        </div>
+                        <div class="tutorial-ex-rail vertical tutorial-ex-rail--rows" aria-hidden="true">
+                            <span class="tutorial-ex-point"></span>
+                            <span class="tutorial-ex-point"></span>
+                            <span class="tutorial-ex-point"></span>
+                        </div>
+                        <div class="tutorial-ex-bar-to-socket" aria-hidden="true"></div>
+                    </div>
+                    <div class="tutorial-ex-rail horizontal" aria-hidden="true">
+                        <span class="tutorial-ex-point"></span>
+                        <span class="tutorial-ex-point"></span>
+                        <span class="tutorial-ex-point"></span>
+                    </div>
                 </div>
-                <div class="tutorial-caption">One placement creates your anchor point for the turn.</div>
+                <div class="tutorial-caption">The straight bar is the same external link the game draws from your card to the glowing socket.</div>
             </div>
         `
     },
     {
-        title: '2. Matching notches grow your network',
-        copy: 'A new Siegling expands only when its notch meets an opposite notch on a neighbor. Matching these links creates the pathways that power your later actions.',
+        title: '2. Same element, straight link',
+        copy: 'When opposite notches share an element, the arena draws a simple horizontal bar between them—exactly the same connector style you see between linked Sieglings in play.',
         visual: `
             <div class="tutorial-visual tutorial-links">
-                <div class="tutorial-card fire left"><span></span></div>
-                <div class="tutorial-link fire"></div>
-                <div class="tutorial-card earth right"><span></span></div>
-                <div class="tutorial-caption">Matched sides create a live elemental connection.</div>
+                <div class="tutorial-arena-mid tutorial-arena-compact">
+                    <div class="tutorial-board-stage">
+                        <div class="tutorial-same-element-pair">
+                            <div class="tutorial-slot tutorial-slot-anchored">
+                                <span class="tutorial-slot-face">A</span>
+                                <span class="tutorial-slot-notch right fire"></span>
+                            </div>
+                            <span class="tutorial-inner-fire-link-bar" aria-hidden="true"></span>
+                            <div class="tutorial-slot tutorial-slot-anchored">
+                                <span class="tutorial-slot-face">B</span>
+                                <span class="tutorial-slot-notch left fire"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tutorial-caption">This is the same straight bar the live board draws between two matching notches.</div>
             </div>
         `
     },
     {
-        title: '3. Edge sockets generate outside energy',
-        copy: 'Perimeter sockets only light up when the card on that edge points directly into them. Wake sockets on the board edge to stock your energy pool.',
+        title: '3. Mix elements for spells and traps',
+        copy: 'Linking different elements bends the pathway: the board blends both colors along a zigzag. That mixed energy is what lets you pay for powerful spell and trap cards that ask for more than one element.',
         visual: `
-            <div class="tutorial-visual tutorial-sockets">
-                <div class="tutorial-socket-ring left"></div>
-                <div class="tutorial-socket-ring right active electric"></div>
-                <div class="tutorial-card electric edge"><span></span></div>
-                <div class="tutorial-socket-link electric"></div>
-                <div class="tutorial-caption">Only the outward-facing notch for that edge activates the socket.</div>
+            <div class="tutorial-visual tutorial-mix">
+                <div class="tutorial-arena-mid tutorial-arena-compact">
+                    <div class="tutorial-board-stage">
+                        <div class="tutorial-mix-element-pair">
+                            <div class="tutorial-slot tutorial-slot-linked tutorial-slot-linked-left fire">
+                                <span class="tutorial-slot-face">A</span>
+                                <span class="tutorial-slot-notch right fire"></span>
+                            </div>
+                            <div class="tutorial-mix-link-bridge" aria-hidden="true">
+                                <svg width="64" height="12" viewBox="0 -2 64 12" overflow="visible" aria-hidden="true">
+                                    <defs>
+                                        <linearGradient id="welcomeMixGradSlide3" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="45%" stop-color="#ff501e"/>
+                                            <stop offset="55%" stop-color="#b48c50"/>
+                                        </linearGradient>
+                                    </defs>
+                                    <path d="M0,4 L5.3,9.0 L10.7,4.0 L16.0,-1.0 L21.3,4.0 L26.7,9.0 L32.0,4.0 L37.3,-1.0 L42.7,4.0 L48.0,9.0 L53.3,4.0 L58.7,-1.0 L64.0,4.0" fill="none" stroke="url(#welcomeMixGradSlide3)" stroke-width="5" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <div class="tutorial-slot tutorial-slot-linked tutorial-slot-linked-right earth">
+                                <span class="tutorial-slot-face">B</span>
+                                <span class="tutorial-slot-notch left earth"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tutorial-caption">Hybrid links mirror the zigzag gradient paths the game paints for mismatched elements.</div>
             </div>
         `
     },
     {
-        title: '4. Setup spends energy, battle refreshes it',
-        copy: 'Spells and traps drain your setup pool, so you cannot spam them. When battle starts, energy restores and your linked board turns into live attacks and abilities.',
+        title: '4. Battle mode in motion',
+        copy: 'After setup, battle turns your board into combat: Sieglings strike in speed order, abilities resolve, and HP ticks down on both sides—this is the same two-board view you fight on.',
         visual: `
-            <div class="tutorial-visual tutorial-phase">
-                <div class="tutorial-phase-pill">Setup</div>
-                <div class="tutorial-energy-row">
-                    <span class="tutorial-energy fire"></span>
-                    <span class="tutorial-energy fire"></span>
-                    <span class="tutorial-energy earth"></span>
-                    <span class="tutorial-energy empty"></span>
+            <div class="tutorial-visual tutorial-battle">
+                <div class="tutorial-battle-snapshot">
+                    <div class="tutorial-snap-half enemy">
+                        <div class="tutorial-snap-label">ENEMY</div>
+                        <div class="tutorial-snap-grid-wrap">
+                            <div class="tutorial-snap-grid">
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell has-card">A</div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell has-card">B</div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                            </div>
+                            <svg class="tutorial-snap-link-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                                <line class="tutorial-snap-link-line" x1="50" y1="28" x2="50" y2="72" />
+                            </svg>
+                        </div>
+                        <div class="tutorial-snap-hp"><span>45</span> HP</div>
+                    </div>
+                    <div class="tutorial-snap-divider"></div>
+                    <div class="tutorial-snap-half player">
+                        <div class="tutorial-snap-label">YOU</div>
+                        <div class="tutorial-snap-grid-wrap">
+                            <div class="tutorial-snap-grid">
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell has-card">C</div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell has-card">D</div>
+                                <div class="tutorial-snap-cell has-card">E</div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                            </div>
+                            <svg class="tutorial-snap-link-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                                <line class="tutorial-snap-link-line" x1="50" y1="28" x2="50" y2="72" />
+                                <line class="tutorial-snap-link-line" x1="17" y1="50" x2="50" y2="50" />
+                            </svg>
+                        </div>
+                        <div class="tutorial-snap-hp"><span>50</span> HP</div>
+                    </div>
+                    <div class="tutorial-snap-phase">Battle</div>
                 </div>
-                <div class="tutorial-phase-arrow"></div>
-                <div class="tutorial-phase-pill battle">Battle</div>
-                <div class="tutorial-energy-row">
-                    <span class="tutorial-energy fire"></span>
-                    <span class="tutorial-energy fire"></span>
-                    <span class="tutorial-energy earth"></span>
-                    <span class="tutorial-energy wind"></span>
-                </div>
-                <div class="tutorial-caption">Spend carefully in setup, then swing hard in battle.</div>
+                <div class="tutorial-caption">Twin 3×3 halves, divider seam, and HP readout—snapshot of the live battlefield.</div>
             </div>
         `
     }
@@ -395,6 +498,37 @@ function getCardAbilities(card) {
         return [card.ability];
     }
     return [];
+}
+
+/** Compact move rows from server (`moves` on Sieglings) or fall back to ability objects. */
+function getSieglingMovesForDisplay(card) {
+    if (!card || card.type !== "SIEGLING") {
+        return [];
+    }
+    if (Array.isArray(card.moves) && card.moves.length > 0) {
+        return card.moves.filter(Boolean);
+    }
+    return getCardAbilities(card).map((a) => ({
+        name: a.name,
+        energyCost: Number(a.requiredEnergy ?? a.costAmount ?? 0),
+        description: a.description || formatAbilitySummaryText(a),
+        isPassive: !!a.passive
+    }));
+}
+
+function formatSieglingMoveLine(move) {
+    if (!move) {
+        return "";
+    }
+    const name = String(move.name || "").trim();
+    const desc = String(move.description || "").trim();
+    const passive = Boolean(move.isPassive);
+    const cost = passive ? "Passive" : (Number(move.energyCost) || 0) <= 0 ? "Free" : `${move.energyCost} energy`;
+    const head = name ? `${name} (${cost})` : cost;
+    if (desc && name && !desc.toLowerCase().startsWith(name.toLowerCase())) {
+        return `${head}: ${desc}`;
+    }
+    return desc || head;
 }
 
 function getElementColorForCard(element) {
@@ -989,9 +1123,16 @@ function openCardInspector(card) {
 
     html += renderCardArt(card, 'inspector');
 
-    const abilities = getCardAbilities(card);
-    if (abilities.length > 0) {
-        html += `<div class="ci-ability">${abilities.map(a => escapeHtml(formatAbilitySummaryText(a))).join('<br>')}</div>`;
+    if (card.type === "SIEGLING") {
+        const moveLines = getSieglingMovesForDisplay(card);
+        if (moveLines.length > 0) {
+            html += `<div class="ci-ability ci-moves">${moveLines.map((m) => escapeHtml(formatSieglingMoveLine(m))).join("<br>")}</div>`;
+        }
+    } else {
+        const abilities = getCardAbilities(card);
+        if (abilities.length > 0) {
+            html += `<div class="ci-ability">${abilities.map((a) => escapeHtml(formatAbilitySummaryText(a))).join("<br>")}</div>`;
+        }
     }
 
     if (card.type === 'TRAP' && card.trapBucketElement) {
@@ -1229,7 +1370,7 @@ function getInteractionHintState() {
             hints.push(lockReason);
         } else if (focusedCard.type === 'SIEGLING') {
             if (focusedCard.evolvesFromName) {
-                hints.push(`Play this on top of ${focusedCard.evolvesFromName} to evolve it.`);
+                hints.push(`After ${focusedCard.evolvesFromName} survives a battle phase, play this on it to evolve.`);
             } else if (gameState?.currentPhase === 'SETUP' && !gameState?.playerPlacementUsed) {
                 hints.push('Highlighted slots show where this Siegling can be placed.');
             }
@@ -1301,6 +1442,35 @@ function syncActionBarAttention() {
             focusedCard ? `Card Preview available for ${focusedCard.name}` : 'Card Preview'
         );
     }
+
+    syncSetupActionsCounter();
+}
+
+function syncSetupActionsCounter() {
+    const el = document.getElementById('setupActionsCounter');
+    if (!el) {
+        return;
+    }
+    const gs = gameState;
+    if (!gs || gs.gameOver || gs.currentPhase !== 'SETUP' || gs.mulligan?.active) {
+        el.hidden = true;
+        el.textContent = '';
+        el.removeAttribute('title');
+        el.classList.remove('is-zero');
+        return;
+    }
+    const budget = gs.setupSieglingActionBudget;
+    const used = gs.setupSieglingActionsUsed;
+    if (budget == null || used == null) {
+        el.hidden = true;
+        el.textContent = '';
+        return;
+    }
+    const remaining = Math.max(0, budget - used);
+    el.hidden = false;
+    el.textContent = String(remaining);
+    el.title = `${remaining} Siegling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used).`;
+    el.classList.toggle('is-zero', remaining === 0);
 }
 
 let desktopInspectTab = 'card';
@@ -1384,7 +1554,7 @@ function getDesktopPreviewNote(card, lockReason) {
     }
     if (card.type === 'SIEGLING') {
         if (card.evolvesFromName) {
-            return `Place this on top of ${card.evolvesFromName} to evolve it.`;
+            return `After ${card.evolvesFromName} completes a battle phase, place this on it to evolve.`;
         }
         if (isPlacementBudgetLockedForCard(card)) {
             return sieglingPlacementLockMessage();
@@ -1440,6 +1610,9 @@ function getFocusedCardSummary(card, lockReason) {
         return 'Trap timing depends on the opponent meeting its trigger.';
     }
     if (card.type === 'SIEGLING') {
+        if (card.evolvesFromName) {
+            return `Evolution: ${card.evolvesFromName} must finish a battle phase before you can play this on it.`;
+        }
         return isPlacementBudgetLockedForCard(card)
             ? sieglingPlacementLockMessage()
             : 'Ready to place during setup if a legal anchor is open.';
@@ -1865,12 +2038,140 @@ function syncEntryOverlays() {
     const loadoutOverlay = document.getElementById('loadoutOverlay');
     const mulliganOverlay = document.getElementById('mulliganOverlay');
     const showingGameplay = Boolean(gameState);
+    const welcomeVisible = !showingGameplay && !welcomeDismissed;
 
-    welcomeOverlay?.classList.toggle('visible', !showingGameplay && !welcomeDismissed);
+    welcomeOverlay?.classList.toggle('visible', welcomeVisible);
     loadoutOverlay?.classList.toggle('visible', !showingGameplay && welcomeDismissed);
     if (!gameState?.mulligan?.active) {
         mulliganOverlay?.classList.remove('visible');
     }
+    if (welcomeVisible) {
+        refreshWelcomeLeaderboards();
+    }
+}
+
+function localCalendarDateKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function refreshWelcomeLeaderboards() {
+    const section = document.getElementById('welcomeLeaderboardsSection');
+    if (!section) {
+        return;
+    }
+    const today = localCalendarDateKey();
+    let loadedFromCache = false;
+    welcomeLeaderboardState.error = '';
+    try {
+        const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.date === today && parsed.payload && parsed.payload.boards) {
+                welcomeLeaderboardState.data = parsed.payload;
+                loadedFromCache = true;
+                renderWelcomeLeaderboards();
+            }
+        }
+    } catch {
+        /* ignore cache parse errors */
+    }
+    if (!loadedFromCache) {
+        void fetchWelcomeLeaderboardsNetwork(today);
+    }
+}
+
+async function fetchWelcomeLeaderboardsNetwork(today) {
+    if (welcomeLeaderboardState.loading) {
+        return;
+    }
+    welcomeLeaderboardState.loading = true;
+    welcomeLeaderboardState.error = '';
+    renderWelcomeLeaderboards();
+    const data = await fetchJson(apiUrls('/api/leaderboards'), { method: 'GET' });
+    welcomeLeaderboardState.loading = false;
+    if (data && data.boards) {
+        welcomeLeaderboardState.data = data;
+        try {
+            localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify({ date: today, payload: data }));
+        } catch {
+            /* storage full or disabled */
+        }
+    } else {
+        welcomeLeaderboardState.error = (data && data.error) || 'Unable to load leaderboards.';
+    }
+    renderWelcomeLeaderboards();
+}
+
+function setWelcomeLeaderboardTab(tabId) {
+    welcomeLeaderboardState.tab = tabId;
+    renderWelcomeLeaderboards();
+}
+
+function renderWelcomeLeaderboards() {
+    const meta = document.getElementById('welcomeLeaderboardsMeta');
+    const tabsEl = document.getElementById('welcomeLeaderboardsTabs');
+    const body = document.getElementById('welcomeLeaderboardsBody');
+    if (!meta || !tabsEl || !body) {
+        return;
+    }
+
+    const boards = welcomeLeaderboardState.data?.boards;
+    const tz = welcomeLeaderboardState.data?.timeZone || 'UTC';
+    const gen = welcomeLeaderboardState.data?.generatedAt;
+    if (gen) {
+        let label = gen;
+        try {
+            label = new Date(gen).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        } catch {
+            /* keep raw */
+        }
+        meta.textContent = `Last updated: ${label} (${tz})`;
+    } else {
+        meta.textContent = '';
+    }
+
+    if (boards && !boards[welcomeLeaderboardState.tab]) {
+        welcomeLeaderboardState.tab = 'wins';
+    }
+
+    if (welcomeLeaderboardState.error && !boards) {
+        meta.textContent = welcomeLeaderboardState.error;
+    }
+
+    tabsEl.innerHTML = LEADERBOARD_TABS.map((t) => {
+        const active = welcomeLeaderboardState.tab === t.id ? ' active' : '';
+        return `<button type="button" class="welcome-lb-tab${active}" role="tab" aria-selected="${welcomeLeaderboardState.tab === t.id}" onclick="setWelcomeLeaderboardTab('${t.id}')">${escapeHtml(t.label)}</button>`;
+    }).join('');
+
+    if (welcomeLeaderboardState.loading && !boards) {
+        body.innerHTML = '<div class="welcome-lb-loading">Loading rankings…</div>';
+        return;
+    }
+
+    if (!boards) {
+        body.innerHTML = '<div class="welcome-lb-empty">No leaderboard data yet.</div>';
+        return;
+    }
+
+    const rows = boards[welcomeLeaderboardState.tab] || [];
+    const isPvp = welcomeLeaderboardState.tab === 'pvpWinRate';
+    const statLabel = isPvp ? 'Record' : 'Total';
+
+    if (rows.length === 0) {
+        body.innerHTML = '<div class="welcome-lb-empty">No players in this category yet.</div>';
+        return;
+    }
+
+    const head = `<div class="welcome-lb-head"><span>#</span><span>Player</span><span>${statLabel}</span></div>`;
+    const list = rows.map((row) => {
+        const display = isPvp && row.detail ? escapeHtml(String(row.detail)) : escapeHtml(String(row.value ?? ''));
+        return `<div class="welcome-lb-row"><span class="lb-rank">${row.rank}</span><span class="lb-name">${escapeHtml(row.displayName)}</span><span class="lb-val">${display}</span></div>`;
+    }).join('');
+    body.innerHTML = `<div class="welcome-lb-table">${head}${list}</div>`;
 }
 
 function renderWelcomeTutorial() {
@@ -2309,12 +2610,30 @@ function getEvolutionPlacements(card, board = gameState?.playerBoard || []) {
     for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
             const cell = board?.[row]?.[col];
-            if (cell && cell.cardId === card.evolvesFromId) {
+            if (cell
+                && cell.cardId === card.evolvesFromId
+                && Number(cell.battlePhasesSeen || 0) > 0) {
                 placements.push([row, col]);
             }
         }
     }
     return placements;
+}
+
+function getEvolutionBaseCells(card, board = gameState?.playerBoard || []) {
+    if (!card?.evolvesFromId) {
+        return [];
+    }
+    const cells = [];
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+            const cell = board?.[row]?.[col];
+            if (cell && cell.cardId === card.evolvesFromId) {
+                cells.push(cell);
+            }
+        }
+    }
+    return cells;
 }
 
 function getLegalPlacementsForCard(card, board = gameState?.playerBoard || []) {
@@ -2382,8 +2701,14 @@ function getHandCardLockReason(card) {
     if (isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING') {
         return sieglingPlacementLockMessage();
     }
-    if (card.type === 'SIEGLING' && card.evolvesFromId && getEvolutionPlacements(card).length === 0) {
-        return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
+    if (card.type === 'SIEGLING' && card.evolvesFromId) {
+        const baseCells = getEvolutionBaseCells(card);
+        if (baseCells.length === 0) {
+            return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
+        }
+        if (getEvolutionPlacements(card).length === 0) {
+            return `${card.evolvesFromName || 'Base form'} must complete a battle phase before it can evolve.`;
+        }
     }
     if (card.type === 'SIEGLING' && getLegalPlacementsForCard(card).length === 0) {
         return 'No legal placement available for this Siegling.';
@@ -5569,7 +5894,7 @@ function updateSelectedInfo(card, msg) {
             html += `<span style="color:var(--accent)">${escapeHtml(lockReason)}</span>`;
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
-                ? `<span style="color:var(--accent)">Place this on top of ${card.evolvesFromName} to evolve it.</span>`
+                ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a battle phase, place this on it to evolve.</span>`
                 : gameState.playerPlacementUsed
                 ? `<span style="color:var(--accent)">${escapeHtml(sieglingPlacementLockMessage())}</span>`
                 : '<span style="color:var(--accent)">Highlighted bubbles show where this card can expand next.</span>';

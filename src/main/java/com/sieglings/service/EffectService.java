@@ -23,6 +23,9 @@ import java.util.List;
 public class EffectService {
     private final PlacementService placementService = new PlacementService();
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private MovesPoolService movesPoolService;
+
     /**
      * Spells/traps with {@code move_link} on a single enemy require an explicit empty destination cell
      * on that unit's board (no notch link required).
@@ -467,10 +470,14 @@ public class EffectService {
                 continue;
             }
             SieglingCard card = source.getCard();
-            if (card == null || !card.hasExplicitAbilityLoadout() || card.getAbilities().isEmpty()) {
+            if (movesPoolService == null || card == null || !card.hasMoveLoadout()) {
                 continue;
             }
-            for (Ability ab : card.getAbilities()) {
+            List<Ability> printed = movesPoolService.resolvePrintedAbilities(card);
+            if (printed.isEmpty()) {
+                continue;
+            }
+            for (Ability ab : printed) {
                 if (ab == null || !ab.isPassive() || !AbilityEffectKeys.DAMAGE_BOOST.equals(ab.getEffectType())) {
                     continue;
                 }

@@ -176,7 +176,13 @@ public class GameService {
             return state;
         }
         if (!placementService.isLegalPlacement(state, isPlayerSide, row, col, siegling)) {
-            state.log("Cannot place at that position!");
+            CardInstance at = state.getAt(isPlayerSide, row, col);
+            if (siegling.isEvolutionCard() && at != null && siegling.getEvolvesFromId().equals(at.getCard().getId())
+                    && at.getBattlePhasesSeen() <= 0) {
+                state.log(at.getName() + " must complete a battle phase before it can evolve.");
+            } else {
+                state.log("Cannot place at that position!");
+            }
             return state;
         }
 
@@ -299,6 +305,7 @@ public class GameService {
             effectService.resolveAbility(state, spell.getAbility(), null, isPlayerSide, targetRow, targetCol, destRow, destCol);
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
+            actor.incrementSpellsCastThisMatch();
             state.log(sideName(state, isPlayerSide) + " casts " + spell.getName() + "!");
             // Spend energy from pool instead of recalculating (pool restores at next phase)
             energyService.spendEnergy(state, isPlayerSide, spell.getCostElement(), spell.getCostAmount());
@@ -327,6 +334,7 @@ public class GameService {
             effectService.resolveAbility(state, trap.getAbility(), null, isPlayerSide, targetRow, targetCol, destRow, destCol);
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
+            actor.incrementTrapsSprungThisMatch();
             state.log(sideName(state, isPlayerSide) + " springs trap " + trap.getName() + "!");
             // Spend energy from pool instead of recalculating
             energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount());
