@@ -6,6 +6,7 @@ import com.sieglings.model.BattleAbilityOption;
 import com.sieglings.model.Card;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
+import com.sieglings.model.Move;
 import com.sieglings.model.Notch;
 import com.sieglings.model.Player;
 import com.sieglings.model.SieglingCard;
@@ -17,6 +18,7 @@ import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.service.EnergyService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.GameService;
+import com.sieglings.service.MovesPoolService;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.MultiplayerRoom;
 import com.sieglings.service.MultiplayerService;
@@ -55,6 +57,9 @@ public class GameController {
 
     @Autowired
     private AccountService accountService;
+
+    @Autowired
+    private MovesPoolService movesPoolService;
 
     @GetMapping("/api/game/options")
     @ResponseBody
@@ -576,6 +581,8 @@ public class GameController {
         }
 
         if (card instanceof SieglingCard s) {
+            m.put("moveIds", new ArrayList<>(s.getMoveIds()));
+            m.put("moves", serializeSieglingMoves(s));
             List<Ability> visibleAbilities = visibleSieglingAbilities(s);
             if (!visibleAbilities.isEmpty()) {
                 m.put("abilities", visibleAbilities.stream().map(this::serializeAbility).toList());
@@ -750,20 +757,35 @@ public class GameController {
         return serialized;
     }
 
+    private List<Map<String, Object>> serializeSieglingMoves(SieglingCard s) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        if (s == null || s.getMoveIds() == null) {
+            return rows;
+        }
+        for (String mid : s.getMoveIds()) {
+            Move move = movesPoolService.getMove(mid);
+            if (move == null) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", move.id());
+            row.put("name", move.name());
+            row.put("energyCost", move.energyCost());
+            row.put("description", move.description());
+            row.put("isPassive", move.isPassive());
+            rows.add(row);
+        }
+        return rows;
+    }
+
     /** Abilities shown on cards / board in the game client (printed passives are hidden). */
     private List<Ability> visibleSieglingAbilities(SieglingCard s) {
         if (s == null) {
             return List.of();
         }
-        List<Ability> all = s.getAbilities();
-        if (!all.isEmpty()) {
-            return all.stream().filter(a -> !a.isPassive()).toList();
-        }
-        Ability sole = s.getAbility();
-        if (sole != null && !sole.isPassive()) {
-            return List.of(sole);
-        }
-        return List.of();
+        return movesPoolService.resolvePrintedAbilities(s).stream()
+                .filter(a -> a != null && !a.isPassive())
+                .toList();
     }
 
     private Object serializePendingBattle(GameState gs) {

@@ -38,6 +38,11 @@ public class Player {
     private boolean mistActive;
     private final Map<Element, Integer> temporaryEnergyAdjustments = new EnumMap<>(Element.class);
 
+    /** Counts for the current match; persisted to match_history for registered users. */
+    private int spellsCastThisMatch;
+    private int trapsSprungThisMatch;
+    private int opponentSieglingsDefeatedThisMatch;
+
     public Player() {}
 
     public Player(String name, boolean isHuman) {
@@ -126,6 +131,32 @@ public class Player {
 
     public void clearTemporaryEnergyAdjustments() {
         temporaryEnergyAdjustments.clear();
+    }
+
+    public int getSpellsCastThisMatch() {
+        return spellsCastThisMatch;
+    }
+
+    public int getTrapsSprungThisMatch() {
+        return trapsSprungThisMatch;
+    }
+
+    public int getOpponentSieglingsDefeatedThisMatch() {
+        return opponentSieglingsDefeatedThisMatch;
+    }
+
+    public void incrementSpellsCastThisMatch() {
+        spellsCastThisMatch++;
+    }
+
+    public void incrementTrapsSprungThisMatch() {
+        trapsSprungThisMatch++;
+    }
+
+    public void addOpponentSieglingsDefeatedThisMatch(int delta) {
+        if (delta > 0) {
+            opponentSieglingsDefeatedThisMatch += delta;
+        }
     }
 
     public String getName() { return name; }

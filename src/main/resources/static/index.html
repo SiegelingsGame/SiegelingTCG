@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=60">
+    <link rel="stylesheet" href="/css/style.css?v=64">
 </head>
 <body>
 <div class="pixi-root" id="pixiRoot" aria-hidden="true"></div>
@@ -82,7 +82,10 @@
                 <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
             </div>
             <div class="action-bar-aux">
-                <button class="ab-icon" id="btnSelectedPreview" onclick="openDrawer('selected')" title="Card Preview" aria-label="Card Preview">&#128065;</button>
+                <div class="ab-preview-wrap">
+                    <span id="setupActionsCounter" class="ab-setup-actions-badge" hidden aria-live="polite"></span>
+                    <button class="ab-icon" id="btnSelectedPreview" onclick="openDrawer('selected')" title="Card Preview" aria-label="Card Preview">&#128065;</button>
+                </div>
                 <button class="ab-icon" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
                 <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
@@ -256,6 +259,13 @@
                 <section class="welcome-history-card" id="welcomeHistoryCard"></section>
             </aside>
         </div>
+        <section class="welcome-leaderboards" id="welcomeLeaderboardsSection" aria-label="Daily leaderboards">
+            <div class="welcome-card-kicker">Daily leaderboards</div>
+            <p class="welcome-leaderboards-intro">Top 10 registered players. Rankings refresh on the server once per day.</p>
+            <div class="welcome-lb-meta identity-note" id="welcomeLeaderboardsMeta"></div>
+            <div class="welcome-lb-tabs" id="welcomeLeaderboardsTabs" role="tablist" aria-label="Leaderboard category"></div>
+            <div class="welcome-lb-body" id="welcomeLeaderboardsBody"></div>
+        </section>
         <div class="welcome-footer">
             <div class="identity-note">Sign in to save progress, or jump in immediately as a guest.</div>
             <div class="welcome-footer-actions">
@@ -371,7 +381,7 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=61"></script>
+    <script src="/js/game.js?v=65"></script>
     <script type="module" src="/js/pixi/app.js?v=7"></script>
 </body>
 </html>

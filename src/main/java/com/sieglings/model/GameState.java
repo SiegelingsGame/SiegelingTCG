@@ -108,11 +108,13 @@ public class GameState {
                 if (playerBoard[r][c] != null && !playerBoard[r][c].isAlive()) {
                     player.getDiscard().add(playerBoard[r][c].getCard());
                     log(playerBoard[r][c].getName() + " was defeated!");
+                    enemy.addOpponentSieglingsDefeatedThisMatch(1);
                     playerBoard[r][c] = null;
                 }
                 if (enemyBoard[r][c] != null && !enemyBoard[r][c].isAlive()) {
                     enemy.getDiscard().add(enemyBoard[r][c].getCard());
                     log(enemyBoard[r][c].getName() + " was defeated!");
+                    player.addOpponentSieglingsDefeatedThisMatch(1);
                     enemyBoard[r][c] = null;
                 }
             }

@@ -116,7 +116,10 @@ public class PlacementService {
             return false;
         }
         CardInstance existing = state.getAt(isPlayer, row, col);
-        return existing != null && candidate.getEvolvesFromId().equals(existing.getCard().getId());
+        if (existing == null || !candidate.getEvolvesFromId().equals(existing.getCard().getId())) {
+            return false;
+        }
+        return existing.getBattlePhasesSeen() > 0;
     }
 
     public CardInstance createPlacedInstance(CardInstance existing, SieglingCard candidate, boolean owner, int row, int col) {

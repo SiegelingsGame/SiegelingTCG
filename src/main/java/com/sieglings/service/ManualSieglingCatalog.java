@@ -40,7 +40,11 @@ final class ManualSieglingCatalog {
     private ManualSieglingCatalog() {}
 
     static List<SieglingCard> applyOverrides(Element element, List<SieglingCard> generatedCards) {
-        return applyOverrides(element, generatedCards, loadDefinitions());
+        return applyOverrides(element, generatedCards, loadDefinitions(), new MovesPoolService(OBJECT_MAPPER, null));
+    }
+
+    static List<SieglingCard> applyOverrides(Element element, List<SieglingCard> generatedCards, MovesPoolService movesPool) {
+        return applyOverrides(element, generatedCards, loadDefinitions(), movesPool);
     }
 
     static List<SpellCard> applySpellOverrides(List<SpellCard> generatedCards) {
@@ -54,11 +58,18 @@ final class ManualSieglingCatalog {
     static OverrideFile buildOverrideFile(List<? extends Card> cards) {
         return new OverrideFile(cards.stream()
                 .map(ManualSieglingCatalog::toDefinition)
-                .toList());
+                .toList(), List.of());
     }
 
     static List<SieglingCard> applyOverrides(Element element, List<SieglingCard> generatedCards,
                                              List<ManualSieglingDefinition> definitions) {
+        return applyOverrides(element, generatedCards, definitions, new MovesPoolService(OBJECT_MAPPER, null));
+    }
+
+    static List<SieglingCard> applyOverrides(Element element, List<SieglingCard> generatedCards,
+                                             List<ManualSieglingDefinition> definitions,
+                                             MovesPoolService movesPool) {
+        Objects.requireNonNull(movesPool, "movesPool");
         Map<String, SieglingCard> cardsById = generatedCards.stream()
                 .map(ManualSieglingCatalog::copyCard)
                 .collect(Collectors.toMap(
@@ -84,7 +95,7 @@ final class ManualSieglingCatalog {
                 continue;
             }
 
-            SieglingCard merged = mergeDefinition(generated, id, definition);
+            SieglingCard merged = mergeDefinition(generated, id, definition, movesPool);
             if (merged.getElement() == element) {
                 cardsById.put(id, merged);
             } else {
@@ -93,6 +104,10 @@ final class ManualSieglingCatalog {
         }
 
         resolveEvolutionNames(cardsById, definitions);
+
+        for (SieglingCard card : cardsById.values()) {
+            movesPool.hydrateGeneratedCard(card);
+        }
 
         return cardsById.values().stream()
                 .sorted(Comparator
@@ -159,7 +174,8 @@ final class ManualSieglingCatalog {
                 .toList();
     }
 
-    private static SieglingCard mergeDefinition(SieglingCard baseCard, String id, ManualSieglingDefinition definition) {
+    private static SieglingCard mergeDefinition(SieglingCard baseCard, String id, ManualSieglingDefinition definition,
+                                                MovesPoolService movesPool) {
         SieglingCard card = baseCard == null ? new SieglingCard() : copyCard(baseCard);
 
         if (baseCard == null) {
@@ -194,13 +210,7 @@ final class ManualSieglingCatalog {
                     .map(ManualSieglingCatalog::toNotch)
                     .toList());
         }
-        if (definition.abilities() != null) {
-            card.setAbilities(definition.abilities().stream()
-                    .map(abilityDefinition -> mergeAbility(null, abilityDefinition))
-                    .toList());
-        } else if (definition.ability() != null) {
-            card.setAbility(mergeAbility(card.getAbility(), definition.ability()));
-        }
+        applySieglingMoveDefinition(card, id, definition, movesPool);
         if (definition.costAmount() != null) {
             if (definition.costAmount() <= 0) {
                 card.setCostAmount(0);
@@ -223,6 +233,39 @@ final class ManualSieglingCatalog {
         }
 
         return card;
+    }
+
+    private static void applySieglingMoveDefinition(SieglingCard card, String id,
+                                                    ManualSieglingDefinition definition,
+                                                    MovesPoolService movesPool) {
+        if (definition.moveIds() != null) {
+            card.setMoveIds(definition.moveIds());
+            card.setAbility(null);
+            return;
+        }
+        if (definition.abilities() != null) {
+            if (definition.abilities().isEmpty()) {
+                card.setMoveIds(List.of());
+                card.setAbility(null);
+                return;
+            }
+            List<String> ids = new ArrayList<>();
+            List<ManualAbilityDefinition> abs = definition.abilities();
+            for (int i = 0; i < abs.size(); i++) {
+                String mid = "legacy:" + id + ":" + i;
+                movesPool.registerLegacyManualMove(mid, abs.get(i), card.getElement());
+                ids.add(mid);
+            }
+            card.setMoveIds(ids);
+            card.setAbility(null);
+            return;
+        }
+        if (definition.ability() != null) {
+            String mid = "legacy:" + id + ":0";
+            movesPool.registerLegacyManualMove(mid, definition.ability(), card.getElement());
+            card.setMoveIds(List.of(mid));
+            card.setAbility(null);
+        }
     }
 
     private static SpellCard mergeSpellDefinition(SpellCard baseCard, String id, ManualSieglingDefinition definition) {
@@ -415,11 +458,8 @@ final class ManualSieglingCatalog {
         card.setCostAmount(source.getCostAmount());
         card.setEvolvesFromId(source.getEvolvesFromId());
         card.setEvolvesFromName(source.getEvolvesFromName());
-        if (source.hasExplicitAbilityLoadout()) {
-            card.setAbilities(source.getAbilities());
-        } else {
-            card.setAbility(source.getAbility() == null ? null : source.getAbility().copy());
-        }
+        card.setMoveIds(source.getMoveIds() == null ? new ArrayList<>() : new ArrayList<>(source.getMoveIds()));
+        card.setAbility(source.getAbility() == null ? null : source.getAbility().copy());
         return card;
     }
 
@@ -435,7 +475,13 @@ final class ManualSieglingCatalog {
     }
 
     static void validateDefinitions(List<ManualSieglingDefinition> definitions) {
-        List<ManualSieglingDefinition> safeDefinitions = definitions == null ? List.of() : List.copyOf(definitions);
+        validateDefinitions(new OverrideFile(definitions == null ? List.of() : definitions, List.of()));
+    }
+
+    static void validateDefinitions(OverrideFile file) {
+        List<ManualSieglingDefinition> safeDefinitions = file.cards() == null ? List.of() : List.copyOf(file.cards());
+        MovesPoolService pool = new MovesPoolService(OBJECT_MAPPER, null);
+        pool.reloadClasspathAndOverlayEditor(file.moves());
         Set<String> ids = new LinkedHashSet<>();
         for (ManualSieglingDefinition definition : safeDefinitions) {
             String id = normalizeId(definition.id());
@@ -446,7 +492,7 @@ final class ManualSieglingCatalog {
         }
 
         for (Element element : Element.values()) {
-            applyOverrides(element, GeneratedCreatureCatalog.createGeneratedForElement(element), safeDefinitions);
+            applyOverrides(element, GeneratedCreatureCatalog.createGeneratedForElement(element), safeDefinitions, pool);
         }
         applySpellOverrides(GeneratedSpellCatalog.createSpells(), safeDefinitions);
         applyTrapOverrides(CardDefinitionService.createBaseTraps(), safeDefinitions);
@@ -506,11 +552,9 @@ final class ManualSieglingCatalog {
 
     private static ManualSieglingDefinition toDefinition(Card card) {
         if (card instanceof SieglingCard siegling) {
-            List<ManualAbilityDefinition> abilities = siegling.getAbilities() == null
-                    ? List.of()
-                    : siegling.getAbilities().stream()
-                            .map(ManualSieglingCatalog::toAbilityDefinition)
-                            .toList();
+            List<String> moveIds = siegling.getMoveIds() == null || siegling.getMoveIds().isEmpty()
+                    ? null
+                    : List.copyOf(siegling.getMoveIds());
             return new ManualSieglingDefinition(
                     CardType.SIEGLING,
                     siegling.getId(),
@@ -533,7 +577,8 @@ final class ManualSieglingCatalog {
                     null,
                     null,
                     null,
-                    abilities
+                    moveIds,
+                    null
             );
         }
         if (card instanceof SpellCard spell) {
@@ -557,6 +602,7 @@ final class ManualSieglingCatalog {
                     spell.getRequiredReaction(),
                     spell.getRequiredComboSize() > 0 ? spell.getRequiredComboSize() : null,
                     normalizeBlank(spell.getRequiredComboSignature()),
+                    null,
                     List.of()
             );
         }
@@ -578,6 +624,7 @@ final class ManualSieglingCatalog {
                     trap.getAbility() == null ? null : toAbilityDefinition(trap.getAbility()),
                     trap.getCostElement(),
                     trap.getCostAmount() > 0 ? trap.getCostAmount() : null,
+                    null,
                     null,
                     null,
                     null,
@@ -626,7 +673,15 @@ final class ManualSieglingCatalog {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record OverrideFile(List<ManualSieglingDefinition> cards) {}
+    record OverrideFile(
+            List<ManualSieglingDefinition> cards,
+            List<MovesPoolService.MoveDefinition> moves
+    ) {
+        OverrideFile {
+            cards = cards == null ? List.of() : cards;
+            moves = moves == null ? List.of() : moves;
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ManualSieglingDefinition(
@@ -649,6 +704,7 @@ final class ManualSieglingCatalog {
             Reaction requiredReaction,
             Integer requiredComboSize,
             String requiredComboSignature,
+            List<String> moveIds,
             List<ManualAbilityDefinition> abilities
     ) {}
 

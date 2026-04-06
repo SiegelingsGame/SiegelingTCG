@@ -209,8 +209,8 @@ final class GeneratedCreatureCatalog {
 
     private GeneratedCreatureCatalog() {}
 
-    static List<SieglingCard> createForElement(Element element) {
-        return ManualSieglingCatalog.applyOverrides(element, createGeneratedForElement(element));
+    static List<SieglingCard> createForElement(Element element, MovesPoolService movesPool) {
+        return ManualSieglingCatalog.applyOverrides(element, createGeneratedForElement(element), movesPool);
     }
 
     static List<SieglingCard> createGeneratedForElement(Element element) {
