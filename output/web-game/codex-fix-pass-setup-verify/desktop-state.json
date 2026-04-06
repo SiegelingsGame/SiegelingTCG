@@ -1,0 +1,11 @@
+{
+  "phase": "SETUP",
+  "previewScrolls": false,
+  "previewSectionScrolls": true,
+  "handHasHorizontalOverflow": true,
+  "handOverflowX": "auto",
+  "selectedCardCount": 2,
+  "legalPlacementCount": 9,
+  "trainerLabel": "Knight",
+  "logFirst": "[Turn 1 DRAW] Player draws a card."
+}

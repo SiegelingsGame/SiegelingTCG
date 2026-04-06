@@ -1,0 +1,16 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 980
+  },
+  "mode": "Desktop Dock",
+  "handCardCount": 5,
+  "handCardsFitTray": false,
+  "handRowScrollable": false,
+  "previewVisible": true,
+  "previewFitsPanel": true,
+  "actionHistoryEntries": 3,
+  "energyCueClass": "tb-energy",
+  "desktopMenuVisible": true,
+  "handOverflowingViewport": false
+}
