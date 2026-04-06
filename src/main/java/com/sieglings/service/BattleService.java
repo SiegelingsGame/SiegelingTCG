@@ -255,6 +255,9 @@ public class BattleService {
             if (printed == null) {
                 continue;
             }
+            if (isAutoAppliedTeamAuraDamagePassive(printed)) {
+                continue;
+            }
             Ability battleAbility = buildBattleAbilityFromPrinted(attacker, printed);
             if (battleAbility.getRequiredEnergy() > 0 && battleAbility.getRequiredElement() == null) {
                 battleAbility.setRequiredElement(attacker.getElement());
@@ -312,25 +315,73 @@ public class BattleService {
         return buildBattleAbilityFromPrinted(attacker, printed);
     }
 
+    /**
+     * Team damage auras (ALL_ALLIES / ROW_ALLIES passives) are applied continuously via
+     * {@link EffectService#recalculateBoardAuraDamageBoosts}; they must not consume a battle action.
+     */
+    private static boolean isAutoAppliedTeamAuraDamagePassive(Ability printed) {
+        if (printed == null || !printed.isPassive()) {
+            return false;
+        }
+        if (!AbilityEffectKeys.DAMAGE_BOOST.equals(printed.getEffectType())) {
+            return false;
+        }
+        TargetType tt = printed.getTargetType();
+        return tt == TargetType.ALL_ALLIES || tt == TargetType.ROW_ALLIES;
+    }
+
     private Ability buildBattleAbilityFromPrinted(CardInstance attacker, Ability printed) {
         if (!printed.isPassive()) {
-            return applyAttackerDamageBonus(attacker, printed.copy());
+            Ability active = applyAttackerDamageBonus(attacker, printed.copy());
+            active.setBattleOptionFromPrintedPassive(false);
+            return active;
         }
+
+        TargetType battleTarget = resolvePassiveBattleTarget(printed);
 
         Ability converted = new Ability(
                 printed.getName(),
                 printed.getDescription(),
-                isConnectedNetworkBuff(printed) ? TargetType.SELF : TargetType.SINGLE_ALLY,
+                battleTarget,
                 printed.getTargetRow(),
                 printed.getTargetCount(),
                 printed.getEffectType(),
                 printed.getEffectValue(),
                 false
         );
+        converted.setBattleOptionFromPrintedPassive(true);
         converted.setRequiredReaction(printed.getRequiredReaction());
         converted.setRequiredElement(printed.getRequiredElement());
         converted.setRequiredEnergy(printed.getRequiredEnergy());
         return converted;
+    }
+
+    /**
+     * Passives are stored {@code passive=true} on the card, but the battle queue needs a concrete
+     * {@link TargetType} for resolution and UI. Team auras ({@code ALL_ALLIES}, etc.) must stay
+     * non-single-target so players are not asked to click an ally for "all Fire allies" buffs.
+     */
+    private TargetType resolvePassiveBattleTarget(Ability printed) {
+        if (isConnectedNetworkBuff(printed)) {
+            return TargetType.SELF;
+        }
+        TargetType printedType = printed.getTargetType();
+        if (printedType == TargetType.ALL_ALLIES
+                || printedType == TargetType.ALL_ENEMIES
+                || printedType == TargetType.ROW_ALLIES
+                || printedType == TargetType.ROW_ENEMIES
+                || printedType == TargetType.SELF
+                || printedType == TargetType.ENEMY_PLAYER) {
+            return printedType;
+        }
+        if (printedType == TargetType.PASSIVE) {
+            return switch (printed.getEffectType()) {
+                case AbilityEffectKeys.DAMAGE_BOOST, AbilityEffectKeys.HEALTH_BOOST, AbilityEffectKeys.SPEED_BOOST ->
+                        TargetType.ALL_ALLIES;
+                default -> TargetType.SINGLE_ALLY;
+            };
+        }
+        return TargetType.SINGLE_ALLY;
     }
 
     private boolean isConnectedNetworkBuff(Ability ability) {

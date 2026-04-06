@@ -6,6 +6,29 @@
         "BOTTOM_LEFT", "BOTTOM", "BOTTOM_RIGHT"
     ];
 
+    /** Must match server live-element roster order (see LiveElementCatalogService). */
+    const DEFAULT_LIVE_ELEMENT_ORDER = [
+        "FIRE", "EARTH", "WIND", "WATER", "ICE", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
+    ];
+
+    function defaultLiveElements() {
+        return DEFAULT_LIVE_ELEMENT_ORDER.map((element) => ({ element, active: true }));
+    }
+
+    function normalizeLiveElements(rows) {
+        const map = new Map();
+        (rows || []).forEach((row) => {
+            const el = String(row?.element || "").trim().toUpperCase();
+            if (DEFAULT_LIVE_ELEMENT_ORDER.includes(el)) {
+                map.set(el, row?.active !== false);
+            }
+        });
+        return DEFAULT_LIVE_ELEMENT_ORDER.map((element) => ({
+            element,
+            active: map.has(element) ? map.get(element) : true
+        }));
+    }
+
     const DEFAULT_STATUS = {
         message: "Loading the current override file...",
         tone: "warning"
@@ -25,6 +48,7 @@
         cards: [],
         decks: [],
         trainers: [],
+        liveElements: defaultLiveElements(),
         selectedCardId: null,
         selectedDeckId: null,
         selectedTrainerId: null,
@@ -77,9 +101,14 @@
             "showActionsBtn",
             "showTrainersBtn",
             "showDecksBtn",
+            "showLiveElementsBtn",
             "cardWorkspace",
             "deckWorkspace",
             "trainerWorkspace",
+            "liveElementsWorkspace",
+            "liveElementToggles",
+            "liveElementValidationList",
+            "liveElementsJsonPreview",
             "browserTitle",
             "newSieglingBtn",
             "newSpellBtn",
@@ -252,6 +281,24 @@
         refs.showActionsBtn.addEventListener("click", () => setEditorPage("ACTION"));
         refs.showTrainersBtn.addEventListener("click", () => setEditorPage("TRAINERS"));
         refs.showDecksBtn.addEventListener("click", () => setEditorPage("DECKS"));
+        refs.showLiveElementsBtn.addEventListener("click", () => setEditorPage("LIVE_ELEMENTS"));
+        refs.liveElementsWorkspace.addEventListener("change", (event) => {
+            const input = event.target.closest("input[data-live-element-index]");
+            if (!input || input.type !== "checkbox") {
+                return;
+            }
+            const index = Number(input.dataset.liveElementIndex);
+            if (!Number.isFinite(index) || !state.liveElements[index]) {
+                return;
+            }
+            state.liveElements[index].active = input.checked;
+            state.dirty = true;
+            state.validation = validateDashboard();
+            setStatus("You have unsaved changes in the dashboard.", "warning");
+            renderLiveElementsPanel();
+            renderValidation();
+            renderButtons();
+        });
         refs.newSieglingBtn.addEventListener("click", () => createCard("SIEGLING"));
         refs.newSpellBtn.addEventListener("click", () => createCard("SPELL"));
         refs.newTrapBtn.addEventListener("click", () => createCard("TRAP"));
@@ -606,8 +653,8 @@
             applyDataSet(payload.data, false);
             setStatus(
                 state.liveEditingEnabled
-                    ? "Published the live card, Siegeknight, and premade deck data to Firestore."
-                    : "Saved the card, Siegeknight, and premade deck JSON back to the project files.",
+                    ? "Published the live card, Siegeknight, premade deck, and live element roster to Firestore."
+                    : "Saved the card, Siegeknight, premade deck, and live element JSON back to the project files.",
                 "success"
             );
             renderAll();
@@ -923,9 +970,20 @@
         const trainers = Array.isArray(data?.trainers)
             ? data.trainers.map((trainer) => normalizeTrainer(trainer))
             : state.trainers.map((trainer) => normalizeTrainer(buildExportTrainer(trainer)));
+        let liveElements;
+        if (Array.isArray(data?.liveElements?.elements)) {
+            liveElements = normalizeLiveElements(data.liveElements.elements);
+        } else if (data && (Array.isArray(data.cards) || Array.isArray(data.decks) || Array.isArray(data.trainers))) {
+            liveElements = defaultLiveElements();
+        } else {
+            liveElements = state.liveElements.length
+                ? state.liveElements.map((row) => ({ element: row.element, active: row.active !== false }))
+                : defaultLiveElements();
+        }
         state.cards = cards;
         state.decks = decks;
         state.trainers = trainers;
+        state.liveElements = liveElements;
         state.selectedCardId = cards.find((card) => card.id === state.selectedCardId)?.id || cards[0]?.id || null;
         state.selectedDeckId = decks.find((deck) => deck.id === state.selectedDeckId)?.id || decks[0]?.id || null;
         state.selectedTrainerId = trainers.find((trainer) => trainer.id === state.selectedTrainerId)?.id || trainers[0]?.id || null;
@@ -1189,7 +1247,11 @@
     function setEditorPage(page) {
         state.editorPage = page === "ACTION"
             ? "ACTION"
-            : (page === "DECKS" ? "DECKS" : (page === "TRAINERS" ? "TRAINERS" : "SIEGLING"));
+            : (page === "DECKS"
+                ? "DECKS"
+                : (page === "TRAINERS"
+                    ? "TRAINERS"
+                    : (page === "LIVE_ELEMENTS" ? "LIVE_ELEMENTS" : "SIEGLING")));
         syncSelectionToEditorPage();
         renderAll();
     }
@@ -1360,9 +1422,10 @@
         renderAuth();
         renderStatus();
         renderFilterOptions();
-        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "TRAINERS");
+        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS");
         refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
         refs.trainerWorkspace.classList.toggle("hidden", state.editorPage !== "TRAINERS");
+        refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
         renderCardList();
         renderEditor();
         renderSummary();
@@ -1376,6 +1439,7 @@
         renderTrainerEditor();
         renderTrainerSummary();
         renderTrainerPreview();
+        renderLiveElementsPanel();
         renderValidation();
         renderButtons();
         renderCardIdOptions();
@@ -1426,7 +1490,9 @@
             ? `${state.decks.length} preset deck${state.decks.length === 1 ? "" : "s"}`
             : (state.editorPage === "TRAINERS"
                 ? `${state.trainers.length} Siegeknight${state.trainers.length === 1 ? "" : "s"}`
-                : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`);
+                : (state.editorPage === "LIVE_ELEMENTS"
+                    ? `${state.liveElements.filter((row) => row.active !== false).length} active element${state.liveElements.filter((row) => row.active !== false).length === 1 ? "" : "s"}`
+                    : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`));
         refs.filePathLabel.textContent = buildStatusPathText();
         refs.statusMessage.textContent = state.status.message;
 
@@ -1459,6 +1525,10 @@
         refs.showActionsBtn.classList.toggle("active", state.editorPage === "ACTION");
         refs.showTrainersBtn.classList.toggle("active", state.editorPage === "TRAINERS");
         refs.showDecksBtn.classList.toggle("active", state.editorPage === "DECKS");
+        refs.showLiveElementsBtn.classList.toggle("active", state.editorPage === "LIVE_ELEMENTS");
+        if (state.editorPage === "LIVE_ELEMENTS") {
+            refs.browserTitle.textContent = "Live Elements";
+        }
     }
 
     function renderCardList() {
@@ -2011,6 +2081,29 @@
         refs.trainerJsonPreview.value = trainer ? JSON.stringify(buildExportTrainer(trainer), null, 2) : "";
     }
 
+    function renderLiveElementsPanel() {
+        if (state.editorPage !== "LIVE_ELEMENTS") {
+            return;
+        }
+        if (!state.liveElements.length) {
+            state.liveElements = defaultLiveElements();
+        }
+        refs.liveElementToggles.innerHTML = state.liveElements.map((row, index) => `
+            <label class="toggle-field">
+                <input type="checkbox" data-live-element-index="${index}" ${row.active !== false ? "checked" : ""}>
+                <span>${escapeHtml(formatEnumLabel(row.element))} — ${escapeHtml(row.element)}</span>
+            </label>
+        `).join("");
+        refs.liveElementsJsonPreview.value = JSON.stringify({
+            liveElements: {
+                elements: state.liveElements.map((row) => ({
+                    element: row.element,
+                    active: row.active !== false
+                }))
+            }
+        }, null, 2);
+    }
+
     function renderPreview() {
         refs.jsonPreviewMode.value = state.previewMode;
         if (state.previewMode === "card") {
@@ -2055,6 +2148,18 @@
                 <div class="validation-item ${issue.severity}">
                     <span class="validation-severity">${escapeHtml(issue.severity)}</span>
                     <div>${escapeHtml(issue.message)}</div>
+                </div>
+            `).join("");
+        }
+
+        const liveIssues = state.validation.filter((issue) => issue.scope === "liveElements");
+        if (liveIssues.length === 0) {
+            refs.liveElementValidationList.innerHTML = `<div class="validation-empty">No live roster issues.</div>`;
+        } else {
+            refs.liveElementValidationList.innerHTML = liveIssues.map((item) => `
+                <div class="validation-item ${item.severity}">
+                    <span class="validation-severity">${escapeHtml(item.severity)}</span>
+                    <div>${escapeHtml(item.message)}</div>
                 </div>
             `).join("");
         }
@@ -2462,6 +2567,31 @@
         if (state.decks.length > 0 && activeDecks.length === 0) {
             issues.push(issue("error", "Keep at least one premade deck active so the live game has a preset option.", "decks"));
         }
+
+        const liveNames = new Set(state.liveElements.filter((row) => row.active !== false).map((row) => row.element));
+        const activeLiveCount = liveNames.size;
+        if (activeLiveCount === 0) {
+            issues.push(issue("error", "Keep at least one live element active for the game.", "liveElements"));
+        }
+        state.decks.forEach((deck) => {
+            if (!deck.active) {
+                return;
+            }
+            (deck.elements || []).forEach((el) => {
+                if (el && !liveNames.has(el)) {
+                    issues.push(issue("error", `Active premade deck '${deck.id.trim() || deck.name}' uses element ${el}, which is off in Live Elements.`, "decks"));
+                }
+            });
+        });
+        state.trainers.forEach((trainer) => {
+            if (!trainer.active || !trainer.element) {
+                return;
+            }
+            if (!liveNames.has(trainer.element)) {
+                issues.push(issue("error", `Active Siegeknight '${trainer.id.trim() || trainer.name}' uses element ${trainer.element}, which is off in Live Elements.`, "trainers"));
+            }
+        });
+
         return issues;
     }
 
@@ -2469,7 +2599,13 @@
         return {
             cards: state.cards.map((card) => buildExportCard(card)),
             decks: state.decks.map((deck) => buildExportDeck(deck)),
-            trainers: state.trainers.map((trainer) => buildExportTrainer(trainer))
+            trainers: state.trainers.map((trainer) => buildExportTrainer(trainer)),
+            liveElements: {
+                elements: state.liveElements.map((row) => ({
+                    element: row.element,
+                    active: row.active !== false
+                }))
+            }
         };
     }
 
@@ -2822,15 +2958,15 @@
         if (state.liveEditingEnabled) {
             return state.auth?.authenticated
                 ? "Your account cannot publish live changes right now."
-                : "Sign in to publish live card, Siegeknight, and premade deck data from this dashboard.";
+                : "Sign in to publish live card, Siegeknight, premade deck, and live element data from this dashboard.";
         }
         return "This runtime cannot write to the project file. Download the JSON instead.";
     }
 
     function buildLoadedMessage() {
         return state.liveEditingEnabled
-            ? "Loaded the live Firestore card, Siegeknight, and premade deck catalog into the dashboard."
-            : "Loaded the current card, Siegeknight, and premade deck catalog into the dashboard.";
+            ? "Loaded the live Firestore card, Siegeknight, premade deck, and live element roster into the dashboard."
+            : "Loaded the current card, Siegeknight, premade deck, and live element roster into the dashboard.";
     }
 
     function buildStatusPathText() {

@@ -30,26 +30,30 @@ public class CardOverrideEditorService {
     private final TrainerCatalogService trainerCatalogService;
     private final CardEditorAuthService authService;
     private final CardDefinitionService cardDefinitionService;
+    private final LiveElementCatalogService liveElementCatalogService;
 
     public CardOverrideEditorService(ObjectMapper objectMapper,
                                      CardOverrideStorageService storageService,
                                      PresetDeckCatalogService presetDeckCatalogService,
                                      TrainerCatalogService trainerCatalogService,
                                      CardEditorAuthService authService,
-                                     CardDefinitionService cardDefinitionService) {
+                                     CardDefinitionService cardDefinitionService,
+                                     LiveElementCatalogService liveElementCatalogService) {
         this.objectMapper = objectMapper;
         this.storageService = storageService;
         this.presetDeckCatalogService = presetDeckCatalogService;
         this.trainerCatalogService = trainerCatalogService;
         this.authService = authService;
         this.cardDefinitionService = cardDefinitionService;
+        this.liveElementCatalogService = liveElementCatalogService;
     }
 
     public Map<String, Object> loadEditorState(String editorToken) {
         CardOverrideStorageService.LoadSnapshot cardSnapshot = storageService.loadSnapshot();
         PresetDeckCatalogService.LoadSnapshot deckSnapshot = presetDeckCatalogService.loadSnapshot();
         TrainerCatalogService.LoadSnapshot trainerSnapshot = trainerCatalogService.loadSnapshot();
-        return buildEditorState(cardSnapshot, deckSnapshot, trainerSnapshot, authService.describe(editorToken));
+        LiveElementCatalogService.LoadSnapshot liveSnapshot = liveElementCatalogService.loadSnapshot();
+        return buildEditorState(cardSnapshot, deckSnapshot, trainerSnapshot, liveSnapshot, authService.describe(editorToken));
     }
 
     public Map<String, Object> saveEditorState(JsonNode data, String editorToken) {
@@ -60,15 +64,20 @@ public class CardOverrideEditorService {
         CardOverrideStorageService.LoadSnapshot currentCardSnapshot = storageService.loadSnapshot();
         PresetDeckCatalogService.LoadSnapshot currentDeckSnapshot = presetDeckCatalogService.loadSnapshot();
         TrainerCatalogService.LoadSnapshot currentTrainerSnapshot = trainerCatalogService.loadSnapshot();
+        LiveElementCatalogService.LoadSnapshot currentLiveSnapshot = liveElementCatalogService.loadSnapshot();
         JsonNode cardsData = extractCardsData(data, currentCardSnapshot.data());
         JsonNode decksData = extractDecksData(data, currentDeckSnapshot.data());
         JsonNode trainersData = extractTrainersData(data, currentTrainerSnapshot.data());
+        JsonNode liveElementsData = extractLiveElementsData(data, currentLiveSnapshot.data());
         List<TrainerCatalogService.TrainerDefinition> trainerDefinitions = validateTrainerDefinitions(trainersData);
-        validateDeckDefinitions(decksData, cardsData, trainerDefinitions);
+        validateLiveElements(liveElementsData);
+        Set<String> activeLiveElementNames = activeLiveElementNames(liveElementsData);
+        validateDeckDefinitions(decksData, cardsData, trainerDefinitions, activeLiveElementNames);
         CardOverrideStorageService.LoadSnapshot cardSnapshot = storageService.saveSnapshot(cardsData, updatedByEmail);
         PresetDeckCatalogService.LoadSnapshot deckSnapshot = presetDeckCatalogService.saveSnapshot(decksData, updatedByEmail);
         TrainerCatalogService.LoadSnapshot trainerSnapshot = trainerCatalogService.saveSnapshot(trainersData, updatedByEmail);
-        return buildEditorState(cardSnapshot, deckSnapshot, trainerSnapshot, authService.describe(editorToken));
+        LiveElementCatalogService.LoadSnapshot liveSnapshot = liveElementCatalogService.saveSnapshot(liveElementsData, updatedByEmail);
+        return buildEditorState(cardSnapshot, deckSnapshot, trainerSnapshot, liveSnapshot, authService.describe(editorToken));
     }
 
     public Map<String, Object> bootstrapEditor(String email, String password, String displayName) {
@@ -92,19 +101,22 @@ public class CardOverrideEditorService {
     private Map<String, Object> buildEditorState(CardOverrideStorageService.LoadSnapshot cardSnapshot,
                                                  PresetDeckCatalogService.LoadSnapshot deckSnapshot,
                                                  TrainerCatalogService.LoadSnapshot trainerSnapshot,
+                                                 LiveElementCatalogService.LoadSnapshot liveSnapshot,
                                                  CardEditorAuthService.EditorAuthSnapshot authSnapshot) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("data", buildEditorData());
-        response.put("filePath", buildFilePath(cardSnapshot, deckSnapshot, trainerSnapshot));
+        response.put("filePath", buildFilePath(cardSnapshot, deckSnapshot, trainerSnapshot, liveSnapshot));
         response.put("canSaveToProjectFile", cardSnapshot.canWriteProjectFile()
                 && deckSnapshot.canWriteProjectFile()
-                && trainerSnapshot.canWriteProjectFile());
-        response.put("source", resolveSource(cardSnapshot, deckSnapshot, trainerSnapshot));
+                && trainerSnapshot.canWriteProjectFile()
+                && liveSnapshot.canWriteProjectFile());
+        response.put("source", resolveSource(cardSnapshot, deckSnapshot, trainerSnapshot, liveSnapshot));
         response.put("liveEditingEnabled", cardSnapshot.backend() == CardOverrideStorageService.StorageBackend.FIRESTORE
                 && deckSnapshot.backend() == CardOverrideStorageService.StorageBackend.FIRESTORE
-                && trainerSnapshot.backend() == CardOverrideStorageService.StorageBackend.FIRESTORE);
-        response.put("updatedBy", coalesce(trainerSnapshot.updatedBy(), deckSnapshot.updatedBy(), cardSnapshot.updatedBy()));
-        response.put("updatedAt", coalesce(trainerSnapshot.updatedAt(), deckSnapshot.updatedAt(), cardSnapshot.updatedAt()));
+                && trainerSnapshot.backend() == CardOverrideStorageService.StorageBackend.FIRESTORE
+                && liveSnapshot.backend() == CardOverrideStorageService.StorageBackend.FIRESTORE);
+        response.put("updatedBy", coalesce(trainerSnapshot.updatedBy(), deckSnapshot.updatedBy(), cardSnapshot.updatedBy(), liveSnapshot.updatedBy()));
+        response.put("updatedAt", coalesce(trainerSnapshot.updatedAt(), deckSnapshot.updatedAt(), cardSnapshot.updatedAt(), liveSnapshot.updatedAt()));
         response.put("firestoreAvailable", storageService.isFirestoreReady());
         response.put("firestoreError", storageService.getFirestoreInitializationError());
         response.put("auth", authSnapshot);
@@ -142,6 +154,9 @@ public class CardOverrideEditorService {
         data.set("cards", objectMapper.valueToTree(ManualSieglingCatalog.buildOverrideFile(cardDefinitionService.getDeckBuilderCatalog()).cards()));
         data.set("decks", objectMapper.valueToTree(buildDeckEditorData()));
         data.set("trainers", objectMapper.valueToTree(cardDefinitionService.getStoredTrainerDefinitions()));
+        ObjectNode live = objectMapper.createObjectNode();
+        live.set("elements", objectMapper.valueToTree(liveElementCatalogService.buildEditorPayload()));
+        data.set("liveElements", live);
         return data;
     }
 
@@ -269,6 +284,48 @@ public class CardOverrideEditorService {
         return fallbackData.deepCopy();
     }
 
+    private JsonNode extractLiveElementsData(JsonNode submittedData, JsonNode fallbackData) {
+        if (submittedData != null && submittedData.get("liveElements") != null) {
+            JsonNode live = submittedData.get("liveElements");
+            if (live.get("elements") != null) {
+                ObjectNode node = objectMapper.createObjectNode();
+                node.set("elements", live.get("elements"));
+                return node;
+            }
+        }
+        return fallbackData.deepCopy();
+    }
+
+    private void validateLiveElements(JsonNode liveData) {
+        try {
+            LiveElementCatalogService.LiveElementsFile file = objectMapper.treeToValue(liveData, LiveElementCatalogService.LiveElementsFile.class);
+            if (file == null || file.elements() == null) {
+                throw new IllegalArgumentException("Live element data must include an 'elements' array.");
+            }
+            if (LiveElementCatalogService.resolveActiveElements(file.elements()).isEmpty()) {
+                throw new IllegalArgumentException("Keep at least one live element active for gameplay.");
+            }
+        } catch (IllegalArgumentException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("The submitted live element roster is invalid.", ex);
+        }
+    }
+
+    private Set<String> activeLiveElementNames(JsonNode liveData) {
+        try {
+            LiveElementCatalogService.LiveElementsFile file = objectMapper.treeToValue(liveData, LiveElementCatalogService.LiveElementsFile.class);
+            if (file == null || file.elements() == null) {
+                return Set.of();
+            }
+            return LiveElementCatalogService.resolveActiveElements(file.elements()).stream()
+                    .map(Enum::name)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        } catch (Exception ex) {
+            return Set.of();
+        }
+    }
+
     private List<TrainerCatalogService.TrainerDefinition> validateTrainerDefinitions(JsonNode trainersData) {
         try {
             TrainerCatalogService.TrainerFile file = objectMapper.treeToValue(trainersData, TrainerCatalogService.TrainerFile.class);
@@ -319,7 +376,8 @@ public class CardOverrideEditorService {
 
     private void validateDeckDefinitions(JsonNode decksData,
                                          JsonNode cardsData,
-                                         List<TrainerCatalogService.TrainerDefinition> trainerDefinitions) {
+                                         List<TrainerCatalogService.TrainerDefinition> trainerDefinitions,
+                                         Set<String> activeLiveElementNames) {
         try {
             PresetDeckCatalogService.PresetDeckFile file = objectMapper.treeToValue(decksData, PresetDeckCatalogService.PresetDeckFile.class);
             if (file == null || file.decks() == null) {
@@ -359,6 +417,17 @@ public class CardOverrideEditorService {
                 if (active) {
                     if (!activeTrainerIds.contains(trainerId)) {
                         throw new IllegalArgumentException("Active preset deck '" + deckId + "' must use an active recommended trainer.");
+                    }
+                    if (definition.elements() != null) {
+                        for (Element element : definition.elements()) {
+                            if (element == null || element == Element.NEUTRAL) {
+                                continue;
+                            }
+                            if (!activeLiveElementNames.contains(element.name())) {
+                                throw new IllegalArgumentException("Active preset deck '" + deckId
+                                        + "' references inactive live element '" + element.name() + "'.");
+                            }
+                        }
                     }
                     hasActiveDeck = true;
                 }
@@ -475,19 +544,23 @@ public class CardOverrideEditorService {
 
     private String buildFilePath(CardOverrideStorageService.LoadSnapshot cardSnapshot,
                                  PresetDeckCatalogService.LoadSnapshot deckSnapshot,
-                                 TrainerCatalogService.LoadSnapshot trainerSnapshot) {
+                                 TrainerCatalogService.LoadSnapshot trainerSnapshot,
+                                 LiveElementCatalogService.LoadSnapshot liveSnapshot) {
         return "Cards: " + cardSnapshot.filePath()
                 + " | Decks: " + deckSnapshot.filePath()
-                + " | SiegeKnights: " + trainerSnapshot.filePath();
+                + " | SiegeKnights: " + trainerSnapshot.filePath()
+                + " | Live elements: " + liveSnapshot.filePath();
     }
 
     private String resolveSource(CardOverrideStorageService.LoadSnapshot cardSnapshot,
                                  PresetDeckCatalogService.LoadSnapshot deckSnapshot,
-                                 TrainerCatalogService.LoadSnapshot trainerSnapshot) {
+                                 TrainerCatalogService.LoadSnapshot trainerSnapshot,
+                                 LiveElementCatalogService.LoadSnapshot liveSnapshot) {
         Set<String> backends = new LinkedHashSet<>();
         backends.add(cardSnapshot.backend().name());
         backends.add(deckSnapshot.backend().name());
         backends.add(trainerSnapshot.backend().name());
+        backends.add(liveSnapshot.backend().name());
         return String.join(" + ", backends);
     }
 

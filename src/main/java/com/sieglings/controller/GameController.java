@@ -1,6 +1,7 @@
 package com.sieglings.controller;
 
 import com.sieglings.model.Ability;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.BattleAbilityOption;
 import com.sieglings.model.Card;
 import com.sieglings.model.CardInstance;
@@ -78,6 +79,7 @@ public class GameController {
                 "maxCopies", gameService.getDeckBuilderMaxCopies()
         ));
         resp.put("cardCatalog", gameService.getDeckBuilderCatalog().stream().map(this::serializeCard).toList());
+        resp.put("liveElements", gameService.getActiveLiveElementNames());
         resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
         resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
         return resp;
@@ -574,13 +576,10 @@ public class GameController {
         }
 
         if (card instanceof SieglingCard s) {
-            if (s.getAbility() != null) {
-                m.put("ability", serializeAbility(s.getAbility()));
-            }
-            if (!s.getAbilities().isEmpty()) {
-                m.put("abilities", s.getAbilities().stream()
-                        .map(this::serializeAbility)
-                        .toList());
+            List<Ability> visibleAbilities = visibleSieglingAbilities(s);
+            if (!visibleAbilities.isEmpty()) {
+                m.put("abilities", visibleAbilities.stream().map(this::serializeAbility).toList());
+                m.put("ability", serializeAbility(visibleAbilities.get(0)));
             }
             m.put("health", s.getHealth());
             m.put("speed", s.getSpeed());
@@ -678,17 +677,20 @@ public class GameController {
                 m.put("rarity", ci.getCard().getRarity().name());
                 m.put("hp", ci.getCurrentHealth());
                 m.put("maxHp", ci.getEffectiveMaxHealth());
+                m.put("printedHealth", ci.getCard().getHealth());
+                m.put("printedSpeed", ci.getCard().getSpeed());
+                m.put("damageBoost", ci.getDamageBoost());
                 m.put("spd", ci.getEffectiveSpeed());
                 m.put("battlePhasesSeen", ci.getBattlePhasesSeen());
                 m.put("statuses", ci.getStatusEffects().stream().map(Enum::name).toList());
                 m.put("notches", serializeNotches(ci.getNotches()));
-                if (!ci.getCard().getAbilities().isEmpty()) {
-                    m.put("abilities", ci.getCard().getAbilities().stream()
-                            .map(this::serializeAbility)
+                List<Ability> visibleBoardAbilities = visibleSieglingAbilities(ci.getCard());
+                if (!visibleBoardAbilities.isEmpty()) {
+                    m.put("abilities", visibleBoardAbilities.stream()
+                            .map((ab) -> serializeAbilityForBoard(ci, ab))
                             .toList());
-                }
-                if (ci.getCard().getAbility() != null) {
-                    m.put("ability", ci.getCard().getAbility().getDescription());
+                    Ability first = visibleBoardAbilities.get(0);
+                    m.put("ability", describeBoardDamageAbility(ci, first));
                 }
                 board[r][c] = m;
             }
@@ -707,6 +709,31 @@ public class GameController {
         return serialized;
     }
 
+    private String describeBoardDamageAbility(CardInstance ci, Ability ability) {
+        if (ability == null) {
+            return "";
+        }
+        String desc = ability.getDescription();
+        if (AbilityEffectKeys.DAMAGE.equals(ability.getEffectType()) && desc != null && desc.startsWith("Deal ")) {
+            int boosted = Math.max(1, ability.getEffectValue() + ci.getDamageBoost());
+            return desc.replaceFirst("Deal \\d+", "Deal " + boosted);
+        }
+        return desc == null ? "" : desc;
+    }
+
+    private Map<String, Object> serializeAbilityForBoard(CardInstance ci, Ability ability) {
+        Map<String, Object> serialized = serializeAbility(ability);
+        if (AbilityEffectKeys.DAMAGE.equals(ability.getEffectType())) {
+            String desc = ability.getDescription();
+            int boosted = Math.max(1, ability.getEffectValue() + ci.getDamageBoost());
+            if (desc != null && desc.startsWith("Deal ")) {
+                serialized.put("description", desc.replaceFirst("Deal \\d+", "Deal " + boosted));
+                serialized.put("effectValue", boosted);
+            }
+        }
+        return serialized;
+    }
+
     private Map<String, Object> serializeAbility(Ability ability) {
         Map<String, Object> serialized = new LinkedHashMap<>();
         serialized.put("name", ability.getName());
@@ -721,6 +748,22 @@ public class GameController {
         serialized.put("requiredEnergy", ability.getRequiredEnergy());
         serialized.put("requiredReaction", ability.getRequiredReaction() == null ? null : ability.getRequiredReaction().name());
         return serialized;
+    }
+
+    /** Abilities shown on cards / board in the game client (printed passives are hidden). */
+    private List<Ability> visibleSieglingAbilities(SieglingCard s) {
+        if (s == null) {
+            return List.of();
+        }
+        List<Ability> all = s.getAbilities();
+        if (!all.isEmpty()) {
+            return all.stream().filter(a -> !a.isPassive()).toList();
+        }
+        Ability sole = s.getAbility();
+        if (sole != null && !sole.isPassive()) {
+            return List.of(sole);
+        }
+        return List.of();
     }
 
     private Object serializePendingBattle(GameState gs) {
@@ -746,6 +789,7 @@ public class GameController {
             ability.put("requiredElement", option.getRequiredElement() == null ? null : option.getRequiredElement().name());
             ability.put("requiredEnergy", option.getRequiredEnergy());
             ability.put("affordable", option.isAffordable());
+            ability.put("fromPrintedPassive", option.getAbility().isBattleOptionFromPrintedPassive());
             abilities.add(ability);
         }
 

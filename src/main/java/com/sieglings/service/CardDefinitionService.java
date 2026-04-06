@@ -38,6 +38,9 @@ public class CardDefinitionService {
     @Autowired(required = false)
     private TrainerCatalogService trainerCatalogService;
 
+    @Autowired(required = false)
+    private LiveElementCatalogService liveElementCatalogService;
+
     public record DeckOption(
             String id,
             String name,
@@ -187,10 +190,14 @@ public class CardDefinitionService {
     }
 
     public List<DeckOption> getDeckOptions() {
-        return loadPresetDeckDefinitions().stream()
-                .filter(CardDefinitionService::isDeckActive)
+        return loadPlayablePresetDeckDefinitions().stream()
                 .map(this::toDeckOption)
                 .toList();
+    }
+
+    /** Element names currently active for matchmaking / deck builder (from Firestore when configured). */
+    public List<String> getActiveLiveElementNames() {
+        return activeGameplayElements().stream().map(Enum::name).toList();
     }
 
     public int getDeckBuilderMinSize() {
@@ -224,6 +231,7 @@ public class CardDefinitionService {
         }
         return loadTrainerDefinitions().stream()
                 .filter(CardDefinitionService::isTrainerActive)
+                .filter(this::trainerElementIsLive)
                 .filter(definition -> normalizedTrainerId.equals(definition.id()))
                 .findFirst()
                 .map(this::toTrainerCard)
@@ -231,10 +239,15 @@ public class CardDefinitionService {
     }
 
     public List<Card> getDeckBuilderCatalog() {
+        Set<Element> live = activeGameplayElements();
         return Stream.concat(
-                        Stream.of(Element.FIRE, Element.EARTH, Element.WIND, Element.WATER, Element.ICE, Element.SHADOW, Element.ELECTRIC, Element.METAL, Element.UNDEAD, Element.PSYCHIC)
+                        LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
+                                .filter(live::contains)
                                 .flatMap(element -> getSieglingsForElement(element).stream().map(this::copyCard)),
-                        Stream.concat(createSpells().stream().map(this::copyCard), createTraps().stream().map(this::copyCard))
+                        Stream.concat(
+                                createSpells().stream().filter(this::isSpellLiveForMeta).map(this::copyCard),
+                                createTraps().stream().filter(this::isTrapLiveForMeta).map(this::copyCard)
+                        )
                 )
                 .sorted(Comparator
                         .comparing((Card card) -> switch (card.getCardType().name()) {
@@ -317,13 +330,17 @@ public class CardDefinitionService {
     public List<TrainerCard> getTrainerOptions() {
         return loadTrainerDefinitions().stream()
                 .filter(CardDefinitionService::isTrainerActive)
+                .filter(this::trainerElementIsLive)
                 .map(this::toTrainerCard)
                 .map(TrainerCard::copy)
                 .toList();
     }
 
     public Optional<DeckOption> getDeckOption(String deckId) {
-        return getDeckOptions().stream().filter(option -> option.id().equals(deckId)).findFirst();
+        return loadPlayablePresetDeckDefinitions().stream()
+                .filter(definition -> definition.id().equals(deckId))
+                .findFirst()
+                .map(this::toDeckOption);
     }
 
     public Optional<DeckOption> getDefaultDeckOption() {
@@ -338,13 +355,17 @@ public class CardDefinitionService {
     }
 
     public List<Card> buildDeckById(String deckId) {
-        PresetDeckCatalogService.PresetDeckDefinition definition = loadPresetDeckDefinitions().stream()
+        List<PresetDeckCatalogService.PresetDeckDefinition> playable = loadPlayablePresetDeckDefinitions();
+        if (playable.isEmpty()) {
+            throw new IllegalStateException("No playable preset decks are available for the current live element roster.");
+        }
+        PresetDeckCatalogService.PresetDeckDefinition definition = playable.stream()
                 .filter(option -> option.id().equals(deckId))
                 .findFirst()
-                .orElseGet(() -> loadPresetDeckDefinitions().stream()
+                .orElseGet(() -> playable.stream()
                         .filter(option -> option.id().equals("deck_fire_earth"))
                         .findFirst()
-                        .orElse(loadPresetDeckDefinitions().get(0)));
+                        .orElseGet(() -> playable.stream().findFirst().orElseThrow()));
         return buildDeck(definition);
     }
 
@@ -399,6 +420,7 @@ public class CardDefinitionService {
     private List<Card> buildPresetSpells(Set<Element> deckElements) {
         boolean supportsMist = deckElements.contains(Element.FIRE) && deckElements.contains(Element.WATER);
         List<SpellCard> candidates = createSpells().stream()
+                .filter(this::isSpellLiveForMeta)
                 .filter(spell -> spellFitsDeck(spell, deckElements))
                 .filter(spell -> spell.getRequiredReaction() == null || supportsMist)
                 .sorted(Comparator
@@ -414,6 +436,7 @@ public class CardDefinitionService {
 
     private List<Card> buildPresetTraps(Set<Element> deckElements) {
         List<TrapCard> candidates = createTraps().stream()
+                .filter(this::isTrapLiveForMeta)
                 .sorted(Comparator
                         .comparingInt((TrapCard trap) -> deckElements.contains(trap.getElement()) ? 0 : 1)
                         .thenComparingInt(TrapCard::getCostAmount)
@@ -619,7 +642,110 @@ public class CardDefinitionService {
         }
     }
 
+    private Set<Element> activeGameplayElements() {
+        if (liveElementCatalogService == null) {
+            return EnumSet.copyOf(LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER);
+        }
+        return liveElementCatalogService.loadActiveElementsForGame();
+    }
+
+    private List<PresetDeckCatalogService.PresetDeckDefinition> loadPlayablePresetDeckDefinitions() {
+        return loadPresetDeckDefinitions().stream()
+                .filter(CardDefinitionService::isDeckActive)
+                .filter(this::presetDeckUsesOnlyLiveElements)
+                .toList();
+    }
+
+    private boolean presetDeckUsesOnlyLiveElements(PresetDeckCatalogService.PresetDeckDefinition definition) {
+        Set<Element> live = activeGameplayElements();
+        if (definition.elements() != null) {
+            for (Element element : definition.elements()) {
+                if (element == null || element == Element.NEUTRAL) {
+                    continue;
+                }
+                if (!live.contains(element)) {
+                    return false;
+                }
+            }
+        }
+        if (definition.cardIds() != null && !definition.cardIds().isEmpty()) {
+            for (String cardId : definition.cardIds()) {
+                Element cardElement = resolveCardElementIgnoringLiveFilter(cardId);
+                if (cardElement != null && cardElement != Element.NEUTRAL && !live.contains(cardElement)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private Element resolveCardElementIgnoringLiveFilter(String cardId) {
+        if (cardId == null || cardId.isBlank()) {
+            return null;
+        }
+        String normalized = cardId.trim().toLowerCase();
+        for (Element element : LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
+            for (SieglingCard card : loadSieglingsUnchecked(element)) {
+                if (card.getId().equalsIgnoreCase(normalized)) {
+                    return card.getElement();
+                }
+            }
+        }
+        for (SpellCard spell : createSpells()) {
+            if (spell.getId().equalsIgnoreCase(normalized)) {
+                return spell.getElement();
+            }
+        }
+        for (TrapCard trap : createTraps()) {
+            if (trap.getId().equalsIgnoreCase(normalized)) {
+                return trap.getElement();
+            }
+        }
+        return null;
+    }
+
+    private boolean isSpellLiveForMeta(SpellCard spell) {
+        Set<Element> live = activeGameplayElements();
+        if (spell.getElement() != Element.NEUTRAL) {
+            return live.contains(spell.getElement());
+        }
+        String signature = spell.getRequiredComboSignature();
+        if (signature == null || signature.isBlank()) {
+            return true;
+        }
+        for (String part : signature.split("\\+")) {
+            try {
+                Element required = Element.valueOf(part.trim());
+                if (!live.contains(required)) {
+                    return false;
+                }
+            } catch (IllegalArgumentException ex) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isTrapLiveForMeta(TrapCard trap) {
+        return activeGameplayElements().contains(trap.getElement());
+    }
+
+    private boolean trainerElementIsLive(TrainerCatalogService.TrainerDefinition definition) {
+        Element element = definition.element();
+        if (element == null || element == Element.NEUTRAL) {
+            return true;
+        }
+        return activeGameplayElements().contains(element);
+    }
+
     private List<SieglingCard> getSieglingsForElement(Element element) {
+        if (!activeGameplayElements().contains(element)) {
+            return List.of();
+        }
+        return loadSieglingsUnchecked(element);
+    }
+
+    private List<SieglingCard> loadSieglingsUnchecked(Element element) {
         return switch (element) {
             case FIRE -> createFireSieglings();
             case EARTH -> createEarthSieglings();

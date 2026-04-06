@@ -397,6 +397,112 @@ function getCardAbilities(card) {
     return [];
 }
 
+function getElementColorForCard(element) {
+    return getElementCssVar(element);
+}
+
+/** Buff / aura lines that describe a stat increase — emphasize the full clause, not only digits. */
+function isStatIncreaseAbilityDescription(text) {
+    return /\bincrease\b/i.test(String(text || ''));
+}
+
+function escapeHtmlWithFlavorNumericHighlights(text, element) {
+    const raw = String(text || '');
+    if (!raw) {
+        return '';
+    }
+    const accentColor = element ? getElementColorForCard(element) : '';
+    const numStyle = accentColor ? ` style="color:${accentColor}"` : '';
+    return raw.split(/(\d+)/).map((part) => {
+        if (part === '') {
+            return '';
+        }
+        if (/^\d+$/.test(part)) {
+            return `<span class="card-ability-flavor-em"${numStyle}>${escapeHtml(part)}</span>`;
+        }
+        return escapeHtml(part);
+    }).join('');
+}
+
+function renderAbilityFlavorBodyInnerHtml(body, element) {
+    const trimmed = String(body || '').trim();
+    if (!trimmed) {
+        return '';
+    }
+    const accentColor = element ? getElementColorForCard(element) : '';
+    const emStyle = accentColor ? ` style="color:${accentColor}"` : '';
+    if (isStatIncreaseAbilityDescription(trimmed)) {
+        return `<span class="card-ability-flavor-em"${emStyle}>${escapeHtml(trimmed)}</span>`;
+    }
+    return escapeHtmlWithFlavorNumericHighlights(trimmed, element);
+}
+
+function renderCardStatAsterisk(element) {
+    const color = getElementColorForCard(element);
+    return `<span class="card-stat-asterisk" style="color:${color}" title="Buffed">*</span>`;
+}
+
+/** Ability / flavor lines tinted by element; passives use a subtler style. */
+function renderAbilityFlavorHtml(element, ability) {
+    if (!ability) {
+        return '';
+    }
+    const color = getElementColorForCard(element);
+    const isPassive = Boolean(ability.passive);
+    const name = String(ability.name || '').trim();
+    const desc = String(ability.description || '').trim();
+    const body = desc || formatAbilitySummaryText(ability);
+    if (!body && !name) {
+        return '';
+    }
+    const label = name
+        ? `<span class="card-ability-flavor-name">${escapeHtml(name)}</span> `
+        : '';
+    const passiveCls = isPassive ? ' card-ability-flavor-passive' : '';
+    const descInner = renderAbilityFlavorBodyInnerHtml(body, element);
+    return `<div class="card-ability-flavor${passiveCls}" style="color:${color}">${label}<span class="card-ability-flavor-desc">${descInner}</span></div>`;
+}
+
+function renderCardAbilitiesFlavorSection(card) {
+    if (!card) {
+        return '';
+    }
+    return getCardAbilities(card)
+        .filter((ab) => !ab.passive)
+        .map((ab) => renderAbilityFlavorHtml(card.element, ab))
+        .join('');
+}
+
+function renderBoardCellCombatStatsInner(cell) {
+    const el = cell.element;
+    const printedHp = Number(cell.printedHealth);
+    const printedSpd = Number(cell.printedSpeed);
+    const maxHp = cell.maxHp;
+    const hp = cell.hp;
+    const spd = cell.spd;
+    const dmgBoost = Number(cell.damageBoost) || 0;
+    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
+    const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
+    const color = getElementColorForCard(el);
+
+    let hpInner = `${hp}/<span class="stat-hp-max">${maxHp}</span>`;
+    if (hpBuffed) {
+        hpInner += renderCardStatAsterisk(el);
+    }
+
+    let spdInner = `${spd}`;
+    if (spdBuffed) {
+        spdInner += renderCardStatAsterisk(el);
+    }
+
+    let dmgBlock = '';
+    if (dmgBoost > 0) {
+        dmgBlock = `<span class="stat stat-dmg" style="color:${color}" title="Bonus attack damage">+${dmgBoost} DMG${renderCardStatAsterisk(el)}</span>`;
+    }
+
+    return { hpInner, spdInner, dmgBlock };
+}
+
 function getAbilityRequiredEnergy(ability) {
     const value = Number(ability?.requiredEnergy ?? ability?.costAmount ?? 0);
     return Number.isFinite(value) ? value : 0;
@@ -493,12 +599,14 @@ function getCardSummaryStatLine(card) {
 
 function getCardPreviewEntries(card) {
     const entries = [];
-    getCardAbilities(card).forEach(ability => {
-        const text = formatAbilitySummaryText(ability);
-        if (text) {
-            entries.push({ text, className: 'card-detail' });
-        }
-    });
+    getCardAbilities(card)
+        .filter((ability) => !ability.passive)
+        .forEach((ability) => {
+            const flavorHtml = renderAbilityFlavorHtml(card.element, ability);
+            if (flavorHtml) {
+                entries.push({ html: flavorHtml, className: 'card-detail card-flavor-wrap', isAbilityFlavor: true });
+            }
+        });
 
     if (card.type === 'TRAP' && card.trapBucketElement) {
         entries.push({
@@ -570,8 +678,12 @@ function renderShowcaseCard(card, options = {}) {
         if (statLine) {
             html += `<div class="card-detail card-stats-line">${escapeHtml(statLine)}</div>`;
         }
-        visibleDetailEntries.forEach(entry => {
-            html += `<div class="${entry.className}">${escapeHtml(entry.text)}</div>`;
+        visibleDetailEntries.forEach((entry) => {
+            if (entry.html) {
+                html += `<div class="${entry.className}">${entry.html}</div>`;
+            } else {
+                html += `<div class="${entry.className}">${escapeHtml(entry.text)}</div>`;
+            }
         });
         if (bodyMode === 'summary' && detailEntries.length > visibleDetailEntries.length) {
             html += `<div class="card-detail card-detail-more">+${detailEntries.length - visibleDetailEntries.length} more</div>`;
@@ -1433,10 +1545,14 @@ function renderDesktopCardPreviewPanel() {
     } else if (focusedCard.costElement && focusedCard.costAmount > 0) {
         html += `<div class="desktop-preview-stats">${escapeHtml(formatElementLabel(focusedCard.costElement))} Cost ${escapeHtml(focusedCard.costAmount)}</div>`;
     }
-    html += `<div class="desktop-preview-description">${escapeHtml(summaryText)}</div>`;
-    if (detailEntries.length > 0) {
+    const flavorBlock = detailEntries.filter((e) => e.isAbilityFlavor).map((e) => e.html).join('');
+    html += flavorBlock
+        ? `<div class="desktop-preview-description desktop-preview-flavor">${flavorBlock}</div>`
+        : `<div class="desktop-preview-description">${escapeHtml(summaryText)}</div>`;
+    const tagEntries = detailEntries.filter((e) => !e.isAbilityFlavor);
+    if (tagEntries.length > 0) {
         html += '<div class="desktop-preview-tag-list">';
-        detailEntries.forEach(entry => {
+        tagEntries.forEach((entry) => {
             html += `<div class="desktop-preview-tag">${escapeHtml(entry.text)}</div>`;
         });
         html += '</div>';
@@ -3264,9 +3380,7 @@ function renderBuilderPreviewCard(card) {
     if (card.type === 'SIEGLING') {
         html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
     }
-    if (card.ability?.description) {
-        html += `<div class="card-detail">${card.ability.description}</div>`;
-    }
+    html += renderCardAbilitiesFlavorSection(card);
     if (card.type === 'TRAP' && card.trapBucketElement) {
         html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
     } else if (card.costElement) {
@@ -4260,9 +4374,13 @@ function renderBoard(gridId, board, isPlayer) {
                 }
                 html += `<div class="bc-stats-box">`;
                 html += `<div class="hp-bar"><div class="hp-fill" style="width:${(cell.hp / cell.maxHp) * 100}%"></div></div>`;
+                const combat = renderBoardCellCombatStatsInner(cell);
                 html += `<div class="card-stats">`;
-                html += `<span class="stat stat-hp">${cell.hp}/${cell.maxHp}</span>`;
-                html += `<span class="stat stat-spd">${cell.spd}</span>`;
+                html += `<span class="stat stat-hp">${combat.hpInner}</span>`;
+                html += `<span class="stat stat-spd">${combat.spdInner}</span>`;
+                if (combat.dmgBlock) {
+                    html += combat.dmgBlock;
+                }
                 html += `</div>`;
                 html += `</div>`;
                 html += `</div>`;
@@ -4877,9 +4995,7 @@ function renderHand() {
         if (card.type === 'SIEGLING') {
             html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
         }
-        if (card.ability?.description) {
-            html += `<div class="card-detail">${escapeHtml(card.ability.description)}</div>`;
-        }
+        html += renderCardAbilitiesFlavorSection(card);
         if (card.type === 'TRAP' && card.trapBucketElement) {
             html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
         } else if (card.costElement) {
@@ -5114,7 +5230,7 @@ function renderBattlePanel() {
     }
 
     let actionsHtml = '';
-    const sortedAbilities = getSortedBattleAbilities(pending.abilities);
+    const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
     for (const ability of sortedAbilities) {
         const disabled = ability.affordable ? '' : 'disabled';
         const desc = (ability.description && String(ability.description).trim()) || ability.name;
@@ -5523,14 +5639,24 @@ function showTooltipBoard(event, isPlayer, row, col) {
     const tt = document.getElementById('cardTooltip');
     document.getElementById('ttName').textContent = `${cell.name} (${cell.element})`;
     document.getElementById('ttName').style.color = getElementCssVar(cell.element);
+    const combat = renderBoardCellCombatStatsInner(cell);
     document.getElementById('ttStats').innerHTML =
-        `<span class="stat stat-hp">HP: ${cell.hp}/${cell.maxHp}</span>` +
-        `<span class="stat stat-spd">SPD: ${cell.spd}</span>`;
-    let abilityText = cell.ability || '';
-    if (isClaimableBoardCell(cell, isPlayer)) {
-        abilityText += `${abilityText ? ' ' : ''}[Claim: Gain 1 temporary ${formatElementLabel(cell.element)} energy this turn]`;
+        `<span class="stat stat-hp">HP: ${combat.hpInner}</span>` +
+        `<span class="stat stat-spd">SPD: ${combat.spdInner}</span>` +
+        (combat.dmgBlock || '');
+    let abilityHtml = '';
+    if (Array.isArray(cell.abilities) && cell.abilities.length > 0) {
+        abilityHtml = cell.abilities
+            .filter((ab) => !ab.passive)
+            .map((ab) => renderAbilityFlavorHtml(cell.element, ab))
+            .join('');
+    } else if (cell.ability) {
+        abilityHtml = `<div class="card-ability-flavor" style="color:${getElementColorForCard(cell.element)}"><span class="card-ability-flavor-desc">${renderAbilityFlavorBodyInnerHtml(cell.ability, cell.element)}</span></div>`;
     }
-    document.getElementById('ttAbility').textContent = abilityText;
+    if (isClaimableBoardCell(cell, isPlayer)) {
+        abilityHtml += `<div class="tt-claim-note">${escapeHtml(`Claim: Gain 1 temporary ${formatElementLabel(cell.element)} energy this turn`)}</div>`;
+    }
+    document.getElementById('ttAbility').innerHTML = abilityHtml;
 
     positionTooltip(event, tt);
     tt.classList.add('visible');
@@ -5555,26 +5681,28 @@ function showTooltipHand(event, cardId) {
     }
     document.getElementById('ttStats').innerHTML = statsHtml;
 
-    let abilityText = card.ability ? card.ability.description : '';
+    let abilityHtml = renderCardAbilitiesFlavorSection(card);
+    const extras = [];
     if (card.type === 'TRAP') {
-        abilityText += ` [Trigger: Opponent has ${card.trapBucketAmount} ${card.trapBucketElement}]`;
+        extras.push(`Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}`);
     } else if (card.costElement && card.costAmount > 0) {
-        abilityText += ` [Play Cost: ${card.costAmount} ${card.costElement}]`;
+        extras.push(`Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}`);
     }
     if (card.evolvesFromName) {
-        abilityText += ` [Evolves from ${card.evolvesFromName}]`;
+        extras.push(`Evolves from ${card.evolvesFromName}`);
     }
     if (card.requiredComboSize) {
         const comboLabel = card.requiredComboSignature
             ? card.requiredComboSignature.split('+').map(formatElementLabel).join(' + ')
             : `${card.requiredComboSize}-element combo`;
-        abilityText += ` [Combo: ${comboLabel}]`;
+        extras.push(`Combo: ${comboLabel}`);
     }
     const lockReason = getHandCardLockReason(card);
     if (lockReason) {
-        abilityText += ` [Unavailable: ${lockReason}]`;
+        extras.push(`Unavailable: ${lockReason}`);
     }
-    document.getElementById('ttAbility').textContent = abilityText;
+    const extrasHtml = extras.map((line) => `<div class="tt-extra-line">${escapeHtml(line)}</div>`).join('');
+    document.getElementById('ttAbility').innerHTML = abilityHtml + extrasHtml;
 
     positionTooltip(event, tt);
     tt.classList.add('visible');

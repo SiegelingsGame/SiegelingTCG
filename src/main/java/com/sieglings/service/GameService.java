@@ -103,6 +103,10 @@ public class GameService {
         return cardDefs.getDeckBuilderCatalog();
     }
 
+    public List<String> getActiveLiveElementNames() {
+        return cardDefs.getActiveLiveElementNames();
+    }
+
     public int getDeckBuilderMinSize() {
         return cardDefs.getDeckBuilderMinSize();
     }
@@ -204,6 +208,7 @@ public class GameService {
         }
 
         energyService.recalculateEnergy(state);
+        effectService.recalculateBoardAuraDamageBoosts(state);
         return state;
     }
 
@@ -235,6 +240,7 @@ public class GameService {
         energyService.recalculateEnergy(state);
         state.log(sideName(state, isPlayerSide) + " claims " + claimed.getName()
                 + " and gains 1 temporary " + claimed.getElement().name().toLowerCase() + " energy.");
+        effectService.recalculateBoardAuraDamageBoosts(state);
         return state;
     }
 
@@ -629,6 +635,7 @@ public class GameService {
 
         clearTempEffects(state);
         state.removeDeadSieglings();
+        effectService.recalculateBoardAuraDamageBoosts(state);
         recordBattlePhaseSeen(state);
         energyService.recalculateEnergy(state);
         checkWinCondition(state);
@@ -679,6 +686,7 @@ public class GameService {
         state.log("Both setup turns are complete. Entering battle phase. Energy restored!");
         applyTrainerPassives(state, true);
         applyTrainerPassives(state, false);
+        effectService.recalculateBoardAuraDamageBoosts(state);
         battleService.initializeBattle(state);
         battleService.advanceBattle(state);
         completeBattleIfFinished(state);

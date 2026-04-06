@@ -1357,6 +1357,58 @@ body.pixi-enabled > :not(.pixi-root):not(script) {
     background: rgba(255, 255, 255, 0.14);
 }
 
+.battle-passive-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.battle-passive-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 0 0 1px var(--battle-passive-accent, transparent);
+    cursor: pointer;
+    text-align: left;
+    font-size: 0.74em;
+    line-height: 1.2;
+}
+
+.battle-passive-row:focus-visible {
+    outline: 2px solid var(--battle-passive-accent, var(--accent));
+    outline-offset: 1px;
+}
+
+.battle-passive-row-locked {
+    opacity: 0.48;
+    cursor: not-allowed;
+    border-style: dashed;
+}
+
+.battle-passive-tag {
+    flex-shrink: 0;
+    font-weight: 800;
+    font-size: 0.68em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.battle-passive-text {
+    flex: 1;
+    color: var(--text);
+}
+
+.battle-passive-cost {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+}
+
 .battle-attacker {
     font-size: 0.78em;
     margin-bottom: 2px;
@@ -3549,6 +3601,66 @@ body.placement-active .board-cell.legal {
     margin-top: 6px;
     padding-top: 6px;
     border-top: 1px solid var(--surface-light);
+}
+
+/* Inline element tint on .card-ability-flavor beats this; keep damage numerals vivid. */
+.tt-ability .card-ability-flavor-em {
+    font-weight: 800;
+}
+
+.tt-extra-line {
+    font-size: 0.78em;
+    color: var(--text-dim);
+    margin-top: 4px;
+}
+
+.tt-claim-note {
+    font-size: 0.78em;
+    color: var(--accent);
+    margin-top: 6px;
+}
+
+.card-ability-flavor {
+    font-size: 0.78em;
+    line-height: 1.25;
+    margin: 2px 0 4px;
+}
+
+.card-ability-flavor-passive {
+    opacity: 0.88;
+    font-style: italic;
+}
+
+.card-ability-flavor-name {
+    font-weight: 700;
+}
+
+.card-ability-flavor-desc {
+    font-weight: 400;
+}
+
+.card-ability-flavor-em {
+    font-weight: 700;
+    padding: 0.06em 0.18em;
+    border-radius: 3px;
+    background: var(--highlight);
+}
+
+.card-stat-asterisk {
+    font-weight: 800;
+    margin-left: 1px;
+    font-size: 1.05em;
+    line-height: 0;
+}
+
+.board-card .stat.stat-dmg {
+    font-size: 0.68em;
+    font-weight: 700;
+    margin-left: 4px;
+}
+
+.desktop-preview-flavor .card-ability-flavor {
+    font-size: 0.88em;
 }
 
 .game-over-overlay {

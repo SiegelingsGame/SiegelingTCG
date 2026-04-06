@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sieglings Card, Siegeknight, And Deck Dashboard</title>
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=5">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=6">
 </head>
 <body>
 <div class="dashboard-shell">
@@ -88,6 +88,7 @@
         <button class="page-tab" id="showActionsBtn" type="button" data-editor-page="ACTION">Spell / Trap Page</button>
         <button class="page-tab" id="showTrainersBtn" type="button" data-editor-page="TRAINERS">Siegeknights</button>
         <button class="page-tab" id="showDecksBtn" type="button" data-editor-page="DECKS">Premade Decks</button>
+        <button class="page-tab" id="showLiveElementsBtn" type="button" data-editor-page="LIVE_ELEMENTS">Live Elements</button>
     </section>
 
     <main class="workspace-grid" id="cardWorkspace">
@@ -660,11 +661,42 @@
             </div>
         </aside>
     </section>
+
+    <section class="deck-workspace hidden" id="liveElementsWorkspace">
+        <div class="panel deck-editor-panel live-elements-panel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">Meta</div>
+                    <h2>Live Element Roster</h2>
+                </div>
+            </div>
+            <p class="section-help">When an element is off, its Sieglings, spells, traps, matching Siegeknights, and premade decks that use it are hidden from the live game. Publish saves this together with cards, Siegeknights, and decks. At least one element must stay on.</p>
+            <div id="liveElementToggles" class="live-element-toggle-grid"></div>
+            <div class="panel validation-panel">
+                <div class="panel-heading sub-heading">
+                    <div>
+                        <div class="section-kicker">Checks</div>
+                        <h3>Roster validation</h3>
+                    </div>
+                </div>
+                <div id="liveElementValidationList" class="validation-list"></div>
+            </div>
+            <div class="panel preview-panel">
+                <div class="panel-heading sub-heading">
+                    <div>
+                        <div class="section-kicker">Export</div>
+                        <h3>liveElements JSON</h3>
+                    </div>
+                </div>
+                <textarea id="liveElementsJsonPreview" readonly spellcheck="false" rows="14"></textarea>
+            </div>
+        </div>
+    </section>
 </div>
 
 <datalist id="cardIdOptions"></datalist>
 
 <script src="/js/config.js"></script>
-<script src="/js/card-dashboard.js?v=6"></script>
+<script src="/js/card-dashboard.js?v=7"></script>
 </body>
 </html>

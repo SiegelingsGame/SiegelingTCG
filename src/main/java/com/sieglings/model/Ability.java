@@ -23,6 +23,9 @@ public class Ability {
     private int requiredEnergy;
     private Reaction requiredReaction;
 
+    /** True when this battle-queue option was converted from a printed passive Siegling ability (UI only). */
+    private boolean battleOptionFromPrintedPassive;
+
     public Ability() {}
 
     public Ability(String name, String description, TargetType targetType, Row targetRow,
@@ -75,6 +78,7 @@ public class Ability {
         copy.setRequiredElement(requiredElement);
         copy.setRequiredEnergy(requiredEnergy);
         copy.setRequiredReaction(requiredReaction);
+        copy.setBattleOptionFromPrintedPassive(battleOptionFromPrintedPassive);
         return copy;
     }
 
@@ -101,4 +105,8 @@ public class Ability {
     public void setRequiredEnergy(int requiredEnergy) { this.requiredEnergy = requiredEnergy; }
     public Reaction getRequiredReaction() { return requiredReaction; }
     public void setRequiredReaction(Reaction requiredReaction) { this.requiredReaction = requiredReaction; }
+    public boolean isBattleOptionFromPrintedPassive() { return battleOptionFromPrintedPassive; }
+    public void setBattleOptionFromPrintedPassive(boolean battleOptionFromPrintedPassive) {
+        this.battleOptionFromPrintedPassive = battleOptionFromPrintedPassive;
+    }
 }
