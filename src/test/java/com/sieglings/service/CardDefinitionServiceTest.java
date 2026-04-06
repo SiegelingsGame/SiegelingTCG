@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -129,6 +130,15 @@ class CardDefinitionServiceTest {
 
         assertEquals(30, builtDeck.size());
         assertIterableEquals(explicitDeck, builtDeck.stream().map(Card::getId).toList());
+    }
+
+    @Test
+    void liveElementRosterHidesDecksAndCatalogEntriesForInactiveElements() {
+        CardDefinitionService service = serviceWithLiveElements(Set.of(Element.FIRE, Element.EARTH, Element.WATER, Element.WIND));
+        assertTrue(service.getDeckOptions().stream().noneMatch(deck -> deck.id().equals("deck_ice")));
+        assertTrue(service.getActiveLiveElementNames().containsAll(List.of("FIRE", "WATER")));
+        assertTrue(service.getActiveLiveElementNames().stream().noneMatch(name -> name.equals("ICE")));
+        assertTrue(service.getDeckBuilderCatalog().stream().noneMatch(card -> card.getElement() == Element.ICE));
     }
 
     @Test
@@ -257,6 +267,38 @@ class CardDefinitionServiceTest {
             return service;
         } catch (ReflectiveOperationException ex) {
             throw new IllegalStateException("Unable to inject preset deck catalog service for test setup.", ex);
+        }
+    }
+
+    private CardDefinitionService serviceWithLiveElements(Set<Element> active) {
+        CardDefinitionService service = new CardDefinitionService();
+        CardOverrideStorageService storage = new CardOverrideStorageService(
+                new ObjectMapper(),
+                false,
+                "",
+                "",
+                "(default)",
+                "appConfig",
+                "cardOverrides"
+        );
+        LiveElementCatalogService liveCatalog = new LiveElementCatalogService(
+                new ObjectMapper(),
+                storage,
+                "appConfig",
+                "liveElements"
+        ) {
+            @Override
+            public Set<Element> loadActiveElementsForGame() {
+                return new LinkedHashSet<>(active);
+            }
+        };
+        try {
+            Field field = CardDefinitionService.class.getDeclaredField("liveElementCatalogService");
+            field.setAccessible(true);
+            field.set(service, liveCatalog);
+            return service;
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("Unable to inject live element catalog for test setup.", ex);
         }
     }
 

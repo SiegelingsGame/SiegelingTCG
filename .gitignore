@@ -13,3 +13,12 @@ multiplayer-tunnel.log
 data/
 *.mv.db
 *.trace.db
+
+# Local secrets (never commit)
+application-local.properties
+.env
+.env.local
+*-firebase-adminsdk-*.json
+*service-account*.json
+# Project-specific key filename (matches CardOverrideStorageService default)
+siegelingstcgtesting-*.json

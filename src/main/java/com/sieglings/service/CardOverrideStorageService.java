@@ -68,7 +68,7 @@ public class CardOverrideStorageService {
             ObjectMapper objectMapper,
             @Value("${app.card-editor.firestore-enabled:true}") boolean firestoreEnabled,
             @Value("${app.card-editor.firestore-project-id:}") String firestoreProjectId,
-            @Value("${app.card-editor.firestore-service-account-path:siegelingstcgtesting-9bd8de57ff8c.json}") String firestoreServiceAccountPath,
+            @Value("${app.card-editor.firestore-service-account-path:}") String firestoreServiceAccountPath,
             @Value("${app.card-editor.firestore-database-id:(default)}") String firestoreDatabaseId,
             @Value("${app.card-editor.firestore-collection:appConfig}") String firestoreCollection,
             @Value("${app.card-editor.firestore-document:cardOverrides}") String firestoreDocument
