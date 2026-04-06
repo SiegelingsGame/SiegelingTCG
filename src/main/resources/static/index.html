@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=48">
+    <link rel="stylesheet" href="/css/style.css?v=55">
 </head>
 <body>
+<div class="pixi-root" id="pixiRoot" aria-hidden="true"></div>
 
 <!-- Top Nav Bar: consolidated stats + actions -->
 <nav class="top-bar">
@@ -53,8 +54,8 @@
         </div>
 
         <div class="bf-half bf-player">
-            <div class="board-grid" id="playerGrid"></div>
             <div class="board-label">YOU</div>
+            <div class="board-grid" id="playerGrid"></div>
         </div>
     </div>
 
@@ -67,7 +68,8 @@
                 <span class="desktop-menu-chip" id="desktopMenuFocus">Hover a card to inspect live costs and timing notes.</span>
             </div>
             <div class="desktop-action-history" id="desktopActionHistory">
-                <div class="desktop-history-empty">Latest actions appear here once the match starts.</div>
+                <div class="desktop-battle-log-title">Battle log</div>
+                <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>
             </div>
         </div>
 
@@ -82,39 +84,49 @@
             <div class="action-bar-aux">
                 <button class="ab-icon" id="btnSelectedPreview" onclick="openDrawer('selected')" title="Card Preview" aria-label="Card Preview">&#128065;</button>
                 <button class="ab-icon" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
-                <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Battle Panel">&#9876;</button>
+                <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
                 <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
                 <button class="ab-icon" onclick="openLoadoutSelector()" title="New Game">&#9654;</button>
             </div>
         </div>
 
-        <section class="desktop-menu-section desktop-menu-preview" id="desktopPreviewSection">
-            <div class="desktop-section-title">Card Preview</div>
-            <div class="desktop-card-preview-panel" id="desktopCardPreviewPanel">
-                <div class="desktop-empty-state">Hover or select a hand card to inspect it here.</div>
+        <section class="desktop-menu-section desktop-menu-inspect" id="desktopInspectSection" aria-label="Card and deck inspector">
+            <div class="desktop-inspect-toolbar">
+                <div class="desktop-inspect-toggle" role="tablist" aria-label="Inspector view">
+                    <button type="button" class="desktop-inspect-tab is-active" role="tab" id="tabDesktopInspectCard" aria-selected="true" aria-controls="desktopInspectPaneCard" onclick="setDesktopInspectTab('card')">Card</button>
+                    <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectDeck" aria-selected="false" aria-controls="desktopInspectPaneDeck" onclick="setDesktopInspectTab('deck')">Deck</button>
+                </div>
+            </div>
+            <div class="desktop-inspect-viewport">
+                <div class="desktop-inspect-pane desktop-inspect-pane-card is-active" id="desktopInspectPaneCard" role="tabpanel" aria-labelledby="tabDesktopInspectCard">
+                    <div class="desktop-card-preview-panel" id="desktopCardPreviewPanel">
+                        <div class="desktop-empty-state">Hover or select a hand card to inspect it here.</div>
+                    </div>
+                </div>
+                <div class="desktop-inspect-pane desktop-inspect-pane-deck" id="desktopInspectPaneDeck" role="tabpanel" aria-labelledby="tabDesktopInspectDeck" hidden>
+                    <div class="desktop-deck-preview" id="desktopDeckPreview">
+                        <div class="desktop-empty-state">Deck contents appear here once the match starts.</div>
+                    </div>
+                </div>
             </div>
         </section>
 
         <section class="desktop-menu-section desktop-menu-hand" id="desktopHandSection">
-            <div class="desktop-section-title">Hand Selector</div>
+            <div class="desktop-section-title" id="desktopHandSectionTitle">Hand Selector</div>
             <div class="hand-tray" id="handTray" onmousemove="handleHandSelectorPointerMove(event)" onmouseleave="stopHandSelectorAutoScroll()">
-                <div class="hand-cards" id="playerHand"></div>
-            </div>
-        </section>
-
-        <section class="desktop-menu-section desktop-menu-deck" id="desktopDeckSection">
-            <div class="desktop-section-title">Deck Preview</div>
-            <div class="desktop-deck-preview" id="desktopDeckPreview">
-                <div class="desktop-empty-state">Deck contents appear here once the match starts.</div>
+                <div class="hand-cards" id="playerHand" onmousemove="handleHandSelectorPointerMove(event)"></div>
+                <div class="desktop-hand-battle-panel hidden" id="desktopHandBattlePanel" aria-live="polite">
+                    Queue actions appear here when battle begins.
+                </div>
             </div>
         </section>
     </aside>
 
     <aside class="desktop-battle-drawer" id="desktopBattleDrawer" aria-hidden="true">
         <div class="desktop-battle-drawer-header">
-            <h3>Battle Queue</h3>
-            <button class="desktop-battle-close" type="button" onclick="closeDrawer()" aria-label="Close battle queue">&times;</button>
+            <h3>Battle Action</h3>
+            <button class="desktop-battle-close" type="button" onclick="closeDrawer()" aria-label="Close battle action panel">&times;</button>
         </div>
         <div id="desktopBattleActionPanel" class="desktop-battle-drawer-content">
             Battle starts automatically after both players finish Setup. When it begins, Sieglings act in speed order.
@@ -129,7 +141,7 @@
 
 <div class="drawer hidden" id="drawerBattle" data-drawer="battle">
     <div class="drawer-handle" onclick="closeDrawer()"></div>
-    <h3>Battle Queue</h3>
+    <h3>Battle Action</h3>
     <div id="battleActionPanel" class="drawer-content">
         Battle starts automatically after both players finish Setup. When it begins, Sieglings act in speed order.
     </div>
@@ -154,6 +166,7 @@
 <div class="drawer hidden" id="drawerLog" data-drawer="log">
     <div class="drawer-handle" onclick="closeDrawer()"></div>
     <h3>Game Log</h3>
+    <div class="game-log-toolbar" id="gameLogToolbar" aria-label="Log filters"></div>
     <div class="game-log drawer-content" id="gameLog"></div>
 </div>
 
@@ -358,6 +371,7 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=48"></script>
+    <script src="/js/game.js?v=56"></script>
+    <script type="module" src="/js/pixi/app.js?v=6"></script>
 </body>
 </html>

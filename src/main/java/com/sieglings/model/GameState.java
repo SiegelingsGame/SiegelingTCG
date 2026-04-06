@@ -1,9 +1,12 @@
 package com.sieglings.model;
 
+import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Phase;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Complete game state for a single match.
@@ -25,8 +28,19 @@ public class GameState {
     private List<String> battleQueue = new ArrayList<>();
     private int battleCursor = 0;
     private String pendingBattleInstanceId;
+    /** Siegling setup actions consumed this turn (evolution does not consume). */
     private int playerPlacementsThisTurn = 0;
     private int enemyPlacementsThisTurn = 0;
+    /** External board sockets that have ever been activated; persist even if Sieglinks break. */
+    private Map<String, Element> playerExternalSocketActivations = new LinkedHashMap<>();
+    private Map<String, Element> enemyExternalSocketActivations = new LinkedHashMap<>();
+    /**
+     * Distinct external sockets counted toward Siegling setup actions for this turn only.
+     * Captured at draw phase (after energy merge) so sockets first touched during setup
+     * grant extra placements on later turns, not the same setup phase.
+     */
+    private int playerSetupExternalSocketBonus = 0;
+    private int enemySetupExternalSocketBonus = 0;
     private boolean playerGoesFirst = true;
     private int setupTurnsTakenThisRound = 0;
     private boolean enemyHumanControlled = false;
@@ -128,16 +142,61 @@ public class GameState {
         pendingBattleInstanceId = null;
     }
 
-    public boolean hasPlacedSieglingThisTurn(boolean isPlayer) {
-        return isPlayer ? playerPlacementsThisTurn > 0 : enemyPlacementsThisTurn > 0;
+    /**
+     * Setup actions budget = 1 base + one per external socket that was already recorded when this turn's draw phase ran.
+     */
+    public int getSieglingSetupActionBudget(boolean isPlayer) {
+        int bonus = isPlayer ? playerSetupExternalSocketBonus : enemySetupExternalSocketBonus;
+        return 1 + bonus;
     }
 
-    public void recordSieglingPlacement(boolean isPlayer) {
+    /** Call after {@code recalculateEnergy} at the start of a side's turn (draw → setup). */
+    public void captureSetupActionBonusFromExternalSockets(boolean isPlayer) {
+        if (isPlayer) {
+            playerSetupExternalSocketBonus = playerExternalSocketActivations.size();
+        } else {
+            enemySetupExternalSocketBonus = enemyExternalSocketActivations.size();
+        }
+    }
+
+    public int getSieglingSetupActionsUsed(boolean isPlayer) {
+        return isPlayer ? playerPlacementsThisTurn : enemyPlacementsThisTurn;
+    }
+
+    public boolean isSieglingSetupBudgetExhausted(boolean isPlayer) {
+        return getSieglingSetupActionsUsed(isPlayer) >= getSieglingSetupActionBudget(isPlayer);
+    }
+
+    public boolean hasPlacedSieglingThisTurn(boolean isPlayer) {
+        return isSieglingSetupBudgetExhausted(isPlayer);
+    }
+
+    public void mergeExternalSocketActivations(boolean isPlayer, Map<String, Element> detected) {
+        if (detected == null || detected.isEmpty()) {
+            return;
+        }
+        Map<String, Element> target = isPlayer ? playerExternalSocketActivations : enemyExternalSocketActivations;
+        for (Map.Entry<String, Element> e : detected.entrySet()) {
+            if (e.getKey() != null && e.getValue() != null) {
+                target.putIfAbsent(e.getKey(), e.getValue());
+            }
+        }
+    }
+
+    public Map<String, Element> getExternalSocketActivations(boolean isPlayer) {
+        return isPlayer ? playerExternalSocketActivations : enemyExternalSocketActivations;
+    }
+
+    public void recordSieglingSetupActionConsumed(boolean isPlayer) {
         if (isPlayer) {
             playerPlacementsThisTurn++;
         } else {
             enemyPlacementsThisTurn++;
         }
+    }
+
+    public void recordSieglingPlacement(boolean isPlayer) {
+        recordSieglingSetupActionConsumed(isPlayer);
     }
 
     public void resetPlacementsForTurn(boolean isPlayer) {

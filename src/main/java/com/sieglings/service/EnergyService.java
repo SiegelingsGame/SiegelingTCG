@@ -90,6 +90,37 @@ public class EnergyService {
         state.getEnemy().setMistActive(enemyEnergy.mistActive());
     }
 
+    /**
+     * Any Siegling currently touching a perimeter socket activates that socket for the match
+     * (merged into GameState); energy and setup-action budget persist if the Sieglink breaks.
+     */
+    private void mergeDetectedExternalSockets(GameState state, boolean isPlayer) {
+        state.mergeExternalSocketActivations(isPlayer, collectExternalSocketTouches(state, isPlayer));
+    }
+
+    private Map<String, Element> collectExternalSocketTouches(GameState state, boolean isPlayer) {
+        Map<String, Element> detected = new LinkedHashMap<>();
+        for (CardInstance ci : state.getBoardSieglings(isPlayer)) {
+            for (Notch notch : ci.getNotches()) {
+                int adjRow = ci.getBoardRow() + getBoardRowDelta(notch, isPlayer);
+                int adjCol = ci.getBoardCol() + notch.direction().getDx();
+                if (adjRow >= 0 && adjRow <= 2 && adjCol >= 0 && adjCol <= 2) {
+                    continue;
+                }
+                String externalSocketKey = placementService.resolveExternalSocketKey(
+                        ci.getBoardRow(),
+                        ci.getBoardCol(),
+                        isPlayer,
+                        notch.direction()
+                );
+                if (externalSocketKey != null && notch.element() != Element.NEUTRAL) {
+                    detected.putIfAbsent(externalSocketKey, notch.element());
+                }
+            }
+        }
+        return detected;
+    }
+
     public EnergyBreakdown getBreakdown(GameState state, boolean isPlayer) {
         return analyze(state, isPlayer);
     }
@@ -235,6 +266,8 @@ public class EnergyService {
     }
 
     private EnergyBreakdown analyze(GameState state, boolean isPlayer) {
+        mergeDetectedExternalSockets(state, isPlayer);
+
         int fireInternal = 0;
         int fireExternal = 0;
         int earthInternal = 0;
@@ -258,7 +291,6 @@ public class EnergyService {
 
         List<CardInstance> sieglings = placementService.getFoundationSieglings(state, isPlayer);
         Set<String> countedConnections = new HashSet<>();
-        Map<String, Element> activeExternalSockets = new LinkedHashMap<>();
         Map<String, Set<Element>> pointElements = new HashMap<>();
 
         for (CardInstance ci : sieglings) {
@@ -268,15 +300,6 @@ public class EnergyService {
                 BoardPoint point = toBoardPoint(ci, notch, isPlayer);
 
                 if (adjRow < 0 || adjRow > 2 || adjCol < 0 || adjCol > 2) {
-                String externalSocketKey = placementService.resolveExternalSocketKey(
-                        ci.getBoardRow(),
-                        ci.getBoardCol(),
-                        isPlayer,
-                        notch.direction()
-                );
-                if (externalSocketKey != null && notch.element() != Element.NEUTRAL) {
-                    activeExternalSockets.putIfAbsent(externalSocketKey, notch.element());
-                }
                     continue;
                 }
 
@@ -324,7 +347,7 @@ public class EnergyService {
             }
         }
 
-        for (Element element : activeExternalSockets.values()) {
+        for (Element element : state.getExternalSocketActivations(isPlayer).values()) {
             switch (element) {
                 case FIRE -> fireExternal++;
                 case EARTH -> earthExternal++;

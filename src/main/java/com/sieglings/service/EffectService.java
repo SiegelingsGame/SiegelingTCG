@@ -22,15 +22,33 @@ public class EffectService {
     private final PlacementService placementService = new PlacementService();
 
     /**
+     * Spells/traps with {@code move_link} on a single enemy require an explicit empty destination cell
+     * on that unit's board (no notch link required).
+     */
+    public static boolean isForcedBoardMoveSpell(Ability ability) {
+        return ability != null
+                && AbilityEffectKeys.MOVE_LINK.equals(ability.getEffectType())
+                && ability.getTargetType() == TargetType.SINGLE_ENEMY;
+    }
+
+    /**
      * Resolve an ability, applying effects to appropriate targets.
      * @param ability the ability to resolve
      * @param source the card using the ability (null for spells/trainers)
      * @param isPlayerSource true if the source belongs to the player
      * @param targetRow specific target row (for targeted abilities), -1 if auto
      * @param targetCol specific target col, -1 if auto
+     * @param destRow destination row for forced enemy reposition spells, -1 if unused
+     * @param destCol destination col for forced enemy reposition spells, -1 if unused
      */
     public void resolveAbility(GameState state, Ability ability, CardInstance source,
                                 boolean isPlayerSource, int targetRow, int targetCol) {
+        resolveAbility(state, ability, source, isPlayerSource, targetRow, targetCol, -1, -1);
+    }
+
+    public void resolveAbility(GameState state, Ability ability, CardInstance source,
+                                boolean isPlayerSource, int targetRow, int targetCol,
+                                int destRow, int destCol) {
         if (ability == null) return;
         if (ability.isPassive()) return; // Passives are applied differently
 
@@ -55,7 +73,7 @@ public class EffectService {
             return;
         }
 
-        applyEffect(state, ability, source, targets);
+        applyEffect(state, ability, source, targets, destRow, destCol);
     }
 
     private List<CardInstance> resolveTargets(GameState state, Ability ability, CardInstance source,
@@ -115,7 +133,8 @@ public class EffectService {
         return targets;
     }
 
-    private void applyEffect(GameState state, Ability ability, CardInstance source, List<CardInstance> targets) {
+    private void applyEffect(GameState state, Ability ability, CardInstance source, List<CardInstance> targets,
+                             int destRow, int destCol) {
         String effectType = ability.getEffectType();
         int value = ability.getEffectValue();
 
@@ -157,6 +176,7 @@ public class EffectService {
                     state.log(ability.getName() + " freezes " + target.getName() + "!");
                 }
                 case AbilityEffectKeys.SPEED_ZERO -> {
+                    target.setCurrentSpeed(0);
                     target.getStatusEffects().add(StatusEffect.SPEED_ZERO);
                     state.log(ability.getName() + " reduces " + target.getName() + "'s Speed to 0!");
                 }
@@ -171,6 +191,9 @@ public class EffectService {
                 }
                 case AbilityEffectKeys.SPEED_BOOST -> {
                     target.setCurrentSpeed(target.getCurrentSpeed() + value);
+                    if (target.getCurrentSpeed() > 0) {
+                        target.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
+                    }
                     state.log(ability.getName() + " increases " + target.getName() + "'s Speed by " + value + "!");
                 }
                 case AbilityEffectKeys.DESTROY -> {
@@ -178,7 +201,11 @@ public class EffectService {
                     state.log(ability.getName() + " destroys " + target.getName() + "!");
                 }
                 case AbilityEffectKeys.MOVE_LINK -> {
-                    if (!moveToLinkedPoint(state, target)) {
+                    if (source == null && isForcedBoardMoveSpell(ability)) {
+                        if (!moveUnitToAbsoluteCell(state, target, destRow, destCol)) {
+                            state.log(ability.getName() + " could not move the target to that cell.");
+                        }
+                    } else if (!moveToLinkedPoint(state, target)) {
                         state.log(ability.getName() + " cannot find an open linked point.");
                     }
                 }
@@ -263,6 +290,9 @@ public class EffectService {
 
         for (CardInstance ally : connectedAllies) {
             ally.setCurrentSpeed(ally.getCurrentSpeed() + value);
+            if (ally.getCurrentSpeed() > 0) {
+                ally.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
+            }
             state.log(ability.getName() + " raises " + ally.getName() + "'s Speed by " + value
                     + " through a live connection.");
         }
@@ -307,6 +337,30 @@ public class EffectService {
             case ELECTRIC -> defender == com.sieglings.model.enums.Element.WATER;
             default -> false;
         };
+    }
+
+    /**
+     * Move a board unit to any empty cell on its owner's board (used by forced-move spells on enemies).
+     */
+    private boolean moveUnitToAbsoluteCell(GameState state, CardInstance unit, int destRow, int destCol) {
+        if (unit == null || !unit.isAlive()) {
+            return false;
+        }
+        if (destRow < 0 || destRow > 2 || destCol < 0 || destCol > 2) {
+            return false;
+        }
+        boolean side = unit.isOwner();
+        if (state.getAt(side, destRow, destCol) != null) {
+            return false;
+        }
+        int fromRow = unit.getBoardRow();
+        int fromCol = unit.getBoardCol();
+        state.setAt(side, fromRow, fromCol, null);
+        unit.setBoardRow(destRow);
+        unit.setBoardCol(destCol);
+        state.setAt(side, destRow, destCol, unit);
+        state.log(unit.getName() + " is moved to " + rowName(destRow) + " row, col " + destCol + ".");
+        return true;
     }
 
     private boolean moveToLinkedPoint(GameState state, CardInstance source) {

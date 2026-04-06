@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
@@ -137,6 +138,7 @@ public class GameService {
 
         state.setCurrentPhase(Phase.SETUP);
         energyService.recalculateEnergy(state);
+        state.captureSetupActionBonusFromExternalSockets(isPlayerSide);
         return state;
     }
 
@@ -165,10 +167,6 @@ public class GameService {
             state.log("Card not found in hand or not a Siegling!");
             return state;
         }
-        if (state.hasPlacedSieglingThisTurn(isPlayerSide)) {
-            state.log("You can only place 1 Siegling per turn.");
-            return state;
-        }
         if (!energyService.canAfford(state, isPlayerSide, siegling.getCostElement(), siegling.getCostAmount())) {
             state.log("Not enough energy to play " + siegling.getName() + "!");
             return state;
@@ -180,12 +178,21 @@ public class GameService {
 
         CardInstance existing = state.getAt(isPlayerSide, row, col);
         boolean evolutionPlacement = placementService.isEvolutionPlacement(state, isPlayerSide, row, col, siegling);
+        if (!evolutionPlacement) {
+            energyService.recalculateEnergy(state);
+            if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
+                state.log("No Siegling setup actions left this turn (1 base + 1 per external socket you had when you drew).");
+                return state;
+            }
+        }
         CardInstance instance = placementService.createPlacedInstance(existing, siegling, isPlayerSide, row, col);
         if (!evolutionPlacement) {
             instance.setPlacementOrder(state.consumePlacementOrder());
         }
         state.setAt(isPlayerSide, row, col, instance);
-        state.recordSieglingPlacement(isPlayerSide);
+        if (!evolutionPlacement) {
+            state.recordSieglingSetupActionConsumed(isPlayerSide);
+        }
         actor.removeFromHand(card);
 
         if (evolutionPlacement && existing != null) {
@@ -232,10 +239,19 @@ public class GameService {
     }
 
     public GameState castSpell(String cardId, int targetRow, int targetCol) {
-        return castSpell(currentGame, true, cardId, targetRow, targetCol);
+        return castSpell(currentGame, true, cardId, targetRow, targetCol, -1, -1);
+    }
+
+    public GameState castSpell(String cardId, int targetRow, int targetCol, int destRow, int destCol) {
+        return castSpell(currentGame, true, cardId, targetRow, targetCol, destRow, destCol);
     }
 
     public GameState castSpell(GameState state, boolean isPlayerSide, String cardId, int targetRow, int targetCol) {
+        return castSpell(state, isPlayerSide, cardId, targetRow, targetCol, -1, -1);
+    }
+
+    public GameState castSpell(GameState state, boolean isPlayerSide, String cardId,
+                               int targetRow, int targetCol, int destRow, int destCol) {
         if (state == null || state.isGameOver()) return state;
         if (state.isPlayerTurn() != isPlayerSide) {
             state.log("Wait for your turn before casting cards.");
@@ -258,7 +274,23 @@ public class GameService {
                 return state;
             }
 
-            effectService.resolveAbility(state, spell.getAbility(), null, isPlayerSide, targetRow, targetCol);
+            if (EffectService.isForcedBoardMoveSpell(spell.getAbility())) {
+                if (targetRow < 0 || targetCol < 0 || destRow < 0 || destCol < 0) {
+                    state.log(spell.getName() + " needs the enemy's cell and an empty destination cell.");
+                    return state;
+                }
+                CardInstance victim = state.getAt(!isPlayerSide, targetRow, targetCol);
+                if (victim == null || !victim.isAlive()) {
+                    state.log("No enemy Siegling at the chosen cell.");
+                    return state;
+                }
+                if (state.getAt(!isPlayerSide, destRow, destCol) != null) {
+                    state.log("Destination must be an empty cell on the enemy board.");
+                    return state;
+                }
+            }
+
+            effectService.resolveAbility(state, spell.getAbility(), null, isPlayerSide, targetRow, targetCol, destRow, destCol);
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
             state.log(sideName(state, isPlayerSide) + " casts " + spell.getName() + "!");
@@ -270,7 +302,23 @@ public class GameService {
                 return state;
             }
 
-            effectService.resolveAbility(state, trap.getAbility(), null, isPlayerSide, targetRow, targetCol);
+            if (EffectService.isForcedBoardMoveSpell(trap.getAbility())) {
+                if (targetRow < 0 || targetCol < 0 || destRow < 0 || destCol < 0) {
+                    state.log(trap.getName() + " needs the enemy's cell and an empty destination cell.");
+                    return state;
+                }
+                CardInstance victim = state.getAt(!isPlayerSide, targetRow, targetCol);
+                if (victim == null || !victim.isAlive()) {
+                    state.log("No enemy Siegling at the chosen cell.");
+                    return state;
+                }
+                if (state.getAt(!isPlayerSide, destRow, destCol) != null) {
+                    state.log("Destination must be an empty cell on the enemy board.");
+                    return state;
+                }
+            }
+
+            effectService.resolveAbility(state, trap.getAbility(), null, isPlayerSide, targetRow, targetCol, destRow, destCol);
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
             state.log(sideName(state, isPlayerSide) + " springs trap " + trap.getName() + "!");
@@ -378,7 +426,8 @@ public class GameService {
     public List<int[]> getLegalPlacements(GameState state, boolean isPlayerSide) {
         if (state == null) return List.of();
         if (state.isPlayerTurn() != isPlayerSide || state.getCurrentPhase() != Phase.SETUP) return List.of();
-        if (state.hasPlacedSieglingThisTurn(isPlayerSide)) return List.of();
+        energyService.recalculateEnergy(state);
+        if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) return List.of();
         return placementService.getLegalPlacements(state, isPlayerSide);
     }
 
@@ -424,6 +473,8 @@ public class GameService {
 
         player.shuffleDeck();
         enemy.shuffleDeck();
+        biasOpeningDraw(player);
+        biasOpeningDraw(enemy);
 
         state.setPlayer(player);
         state.setEnemy(enemy);
@@ -440,7 +491,7 @@ public class GameService {
         state.setMulliganUsed(true, false);
         state.setMulliganUsed(false, false);
         state.log("Game started!");
-        state.log("Both players begin at 100 health.");
+        state.log("Both players begin at 50 health.");
         state.log("Coin flip: " + sideName(state, playerStarts) + " goes first.");
         state.log(player.getName() + " deck: " + formatElements(playerLoadout.elements()) + " with " + playerLoadout.trainer().getName() + ".");
         state.log(enemy.getName() + " deck: " + formatElements(enemyLoadout.elements()) + " with " + enemyLoadout.trainer().getName() + ".");
@@ -454,6 +505,66 @@ public class GameService {
         }
         tryCompleteOpeningMulligan(state);
         return state;
+    }
+
+    private void biasOpeningDraw(Player player) {
+        if (player == null || player.getDeck().size() < 6) {
+            return;
+        }
+
+        List<Card> workingDeck = new ArrayList<>(player.getDeck());
+        List<Card> seededCards = new ArrayList<>();
+
+        pullOpeningCards(workingDeck, seededCards, 2, card ->
+                card instanceof SieglingCard siegling && !siegling.isEvolutionCard());
+        pullOpeningCards(workingDeck, seededCards, 1, this::isOpeningSupportCard);
+
+        if (seededCards.isEmpty()) {
+            return;
+        }
+
+        Collections.shuffle(seededCards, random);
+        List<Card> rebuiltDeck = new ArrayList<>(workingDeck.size() + seededCards.size());
+        int deckIndex = 0;
+        for (Card seeded : seededCards) {
+            rebuiltDeck.add(seeded);
+            for (int filler = 0; filler < 2 && deckIndex < workingDeck.size(); filler++) {
+                rebuiltDeck.add(workingDeck.get(deckIndex++));
+            }
+        }
+        while (deckIndex < workingDeck.size()) {
+            rebuiltDeck.add(workingDeck.get(deckIndex++));
+        }
+        player.setDeck(rebuiltDeck);
+    }
+
+    private void pullOpeningCards(List<Card> sourceDeck, List<Card> seededCards, int maxCount,
+                                  java.util.function.Predicate<Card> predicate) {
+        if (maxCount <= 0) {
+            return;
+        }
+        for (int i = 0; i < sourceDeck.size() && maxCount > 0; ) {
+            Card card = sourceDeck.get(i);
+            if (predicate.test(card)) {
+                seededCards.add(card);
+                sourceDeck.remove(i);
+                maxCount--;
+                continue;
+            }
+            i++;
+        }
+    }
+
+    private boolean isOpeningSupportCard(Card card) {
+        if (card instanceof SpellCard spell) {
+            return spell.getRequiredReaction() == null
+                    && spell.getRequiredComboSize() <= 0
+                    && spell.getCostAmount() <= 1;
+        }
+        if (card instanceof TrapCard trap) {
+            return trap.getCostAmount() <= 1;
+        }
+        return false;
     }
 
     private ResolvedLoadout resolveLoadout(StartOptions options, String fallbackDeckId, String fallbackTrainerId) {

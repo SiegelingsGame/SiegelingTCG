@@ -2,8 +2,8 @@
     --card-aspect-ratio: 5 / 7;
     --card-scale: 1;
     --desktop-sidebar-width: 420px;
-    --desktop-preview-card-width: 168px;
-    --desktop-preview-card-max-height: 280px;
+    --desktop-preview-card-width: 138px;
+    --desktop-preview-card-max-height: 193px;
     --desktop-hand-section-min-height: 176px;
     --hand-card-width: 138px;
     --hand-card-overlap: -34px;
@@ -51,6 +51,31 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.pixi-root {
+    position: fixed;
+    inset: 0;
+    display: none;
+    z-index: 2000;
+    background: var(--bg);
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+body.pixi-enabled .pixi-root {
+    display: block;
+}
+
+body.pixi-enabled .pixi-root canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+body.pixi-enabled > :not(.pixi-root):not(script) {
+    display: none !important;
 }
 
 /* ============================================================
@@ -318,8 +343,7 @@ body {
 }
 
 .desktop-menu-header,
-.desktop-menu-preview,
-.desktop-menu-deck,
+.desktop-menu-inspect,
 .desktop-section-title {
     display: none;
 }
@@ -402,14 +426,24 @@ body {
 
 .battlefield::before {
     background:
+        linear-gradient(120deg,
+            rgba(153, 205, 255, 0.1) 0%,
+            rgba(153, 205, 255, 0.02) 32%,
+            rgba(153, 205, 255, 0.12) 50%,
+            rgba(153, 205, 255, 0.02) 68%,
+            rgba(153, 205, 255, 0.1) 100%),
         radial-gradient(circle at 16% 18%, var(--arena-glow-a) 0%, transparent 38%),
         radial-gradient(circle at 82% 22%, var(--arena-glow-b) 0%, transparent 36%),
         radial-gradient(circle at 30% 82%, var(--arena-glow-c) 0%, transparent 38%),
         radial-gradient(circle at 72% 76%, var(--arena-glow-d) 0%, transparent 42%);
+    box-shadow:
+        inset 0 0 0 1px rgba(162, 208, 255, 0.2),
+        inset 0 0 36px rgba(121, 183, 255, 0.12);
     filter: blur(14px) saturate(1.08);
     mix-blend-mode: screen;
     opacity: 0.9;
-    animation: arena-energy-drift 15s ease-in-out infinite alternate;
+    transform-origin: center;
+    animation: arena-energy-drift-reverse 21s ease-in-out infinite;
 }
 
 .battlefield::after {
@@ -639,6 +673,18 @@ body {
     overflow-y: auto;
 }
 .drawer.visible { transform: translateY(0); }
+
+#drawerBattle.drawer.visible {
+    display: flex;
+    flex-direction: column;
+}
+
+#drawerBattle .drawer-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
 
 .drawer-handle {
     width: 36px;
@@ -1073,6 +1119,18 @@ body {
     border: 1px solid rgba(226, 183, 20, 0.2);
 }
 
+#battleActionPanel,
+#desktopBattleActionPanel,
+#desktopHandBattlePanel {
+    background: transparent;
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
 .trainer-card .name {
     font-weight: bold;
     font-size: 0.85em;
@@ -1094,18 +1152,191 @@ body {
     margin-top: 4px;
 }
 
+.battle-ability-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.battle-queue-shell {
+    display: grid;
+    gap: 7px;
+}
+
+.battle-queue-flat {
+    background: transparent;
+}
+
+.battle-queue-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.battle-queue-topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.battle-queue-card-title {
+    margin: 0;
+    font-size: 1.05em;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #f5f8ff;
+    letter-spacing: 0.02em;
+    flex: 1;
+    min-width: 0;
+}
+
+.battle-queue-expanded {
+    min-height: 100%;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.battle-queue-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.battle-queue-expanded .battle-ability-btn {
+    margin-top: 0;
+    padding: 12px 14px;
+    font-size: 0.82em;
+    min-height: 48px;
+}
+
+.battle-queue-expanded .battle-ability-btn-inner {
+    align-items: flex-start;
+}
+
+.battle-queue-expanded .battle-ability-name {
+    white-space: normal;
+    line-height: 1.35;
+}
+
+.battle-queue-title {
+    margin-top: 0;
+    font-size: 0.9em;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #f5f8ff;
+}
+
+.battle-queue-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(233, 240, 255, 0.88);
+    font-size: 0.68em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.battle-queue-state.live {
+    border-color: rgba(255, 188, 92, 0.4);
+    background: rgba(255, 138, 78, 0.14);
+    color: #ffd77e;
+}
+
+.battle-queue-state.targeting {
+    border-color: rgba(255, 112, 112, 0.4);
+    background: rgba(255, 112, 112, 0.12);
+    color: #ffd4d4;
+}
+
+.battle-queue-state.waiting {
+    border-color: rgba(139, 194, 255, 0.34);
+    background: rgba(139, 194, 255, 0.12);
+    color: #cfe4ff;
+}
+
+@keyframes desktop-queue-pop {
+    from {
+        opacity: 0;
+        transform: translate(-50%, calc(-50% + 16px)) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
 .trainer-btn,
 .battle-ability-btn {
     width: 100%;
-    margin-top: 8px;
+    margin-top: 4px;
     padding: 6px 8px;
-    font-size: 0.75em;
+    font-size: 0.72em;
     background: var(--accent);
     color: var(--bg);
     border: none;
     border-radius: 5px;
     cursor: pointer;
     font-weight: bold;
+}
+
+.battle-ability-btn-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+}
+
+.battle-ability-name {
+    text-align: left;
+    line-height: 1.15;
+}
+
+.battle-ability-cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.battle-cost-emblems {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.battle-cost-emblems .energy-token {
+    width: 11px;
+    height: 11px;
+}
+
+.battle-cost-label,
+.battle-cost-count,
+.battle-cost-energy,
+.battle-cost-free {
+    font-size: 0.86em;
+    font-weight: 700;
+    color: rgba(10, 18, 34, 0.9);
+}
+
+.battle-pass-btn .battle-cost-free {
+    color: var(--text);
 }
 
 .battle-ability-btn:disabled,
@@ -1127,8 +1358,24 @@ body {
 }
 
 .battle-attacker {
-    font-size: 0.82em;
-    margin-bottom: 6px;
+    font-size: 0.78em;
+    margin-bottom: 2px;
+}
+
+.battle-queue-compact .battle-attacker,
+.battle-queue-compact .battle-hint,
+.battle-queue-compact .battle-ability-desc {
+    font-size: 0.69em;
+    line-height: 1.25;
+}
+
+.battle-queue-compact .battle-ability-btn {
+    margin-top: 3px;
+    padding: 5px 7px;
+}
+
+.battle-queue-compact .battle-ability-desc {
+    margin-top: 2px;
 }
 
 .board-area, .battlefield {
@@ -1182,6 +1429,25 @@ body.battle-phase-active .battlefield::after {
     100% {
         opacity: 0.9;
         transform: translate3d(3%, 1%, 0) scale(1.03);
+    }
+}
+
+@keyframes arena-energy-drift-reverse {
+    0% {
+        opacity: 0.74;
+        transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1.06);
+    }
+    34% {
+        opacity: 0.96;
+        transform: translate3d(2%, -2%, 0) rotate(-122deg) scale(1.1);
+    }
+    68% {
+        opacity: 0.82;
+        transform: translate3d(-1%, 2%, 0) rotate(-244deg) scale(1.12);
+    }
+    100% {
+        opacity: 0.9;
+        transform: translate3d(3%, 1%, 0) rotate(-360deg) scale(1.08);
     }
 }
 
@@ -1271,6 +1537,11 @@ body.battle-phase-active .battlefield::after {
     max-width: 420px;
 }
 
+/* Bottom external sockets sit below row cells; reserve space so markers stay inside .battlefield (overflow: hidden). */
+#playerGrid.board-grid {
+    padding-bottom: clamp(18px, 2.4vh, 26px);
+}
+
 @media (min-width: 980px) {
     .app-shell {
         display: grid;
@@ -1349,12 +1620,24 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-battle-drawer-content {
+        flex: 1 1 auto;
         min-height: 0;
-        overflow: auto;
-        padding-right: 4px;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 0;
+    }
+
+    .desktop-battle-drawer-content .battle-queue-expanded {
+        flex: 1 1 auto;
+        min-height: min(100%, 420px);
     }
 
     .battlefield {
+        /* Enables cqw/cqh so board width scales from *actual* column height (flex), not 100dvh alone. */
+        container-type: size;
+        container-name: battlefield;
         flex-direction: column;
         align-items: stretch;
         justify-content: space-between;
@@ -1374,9 +1657,13 @@ body.battle-phase-active .battlefield::after {
         gap: clamp(6px, 0.9vh, 10px);
     }
 
-    .bf-enemy,
+    /* Pack each half toward the middle seam so tall boards don’t center-clip the outer edge (YOU + bottom sockets). */
+    .bf-enemy {
+        justify-content: flex-end;
+    }
+
     .bf-player {
-        justify-content: center;
+        justify-content: flex-start;
     }
 
     .board-label {
@@ -1386,11 +1673,24 @@ body.battle-phase-active .battlefield::after {
     }
 
     .board-grid {
-        width: min(100%, calc((100dvh - 154px) / 2.58), 430px);
+        /*
+         * Fixed stack ratio: two 3×3 boards (aspect 5/6 cells) + labels + gaps + player socket padding
+         * consume ~2.45–2.65× the board width in height. Cap width from real arena height (cqh).
+         */
+        width: min(100%, calc((100dvh - 248px) / 2.95), 430px);
+        width: min(
+            100cqw,
+            430px,
+            calc((100cqh - clamp(100px, 12cqh, 188px)) / 2.72)
+        );
         max-width: none;
         gap: 6px;
         padding: 8px 14px;
         margin: 0 auto;
+    }
+
+    #playerGrid.board-grid {
+        padding-bottom: clamp(30px, 4vh, 48px);
     }
 
     .board-cell {
@@ -1405,7 +1705,7 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-menu {
         display: grid;
-        grid-template-rows: auto minmax(0, 0.72fr) minmax(0, 0.84fr) minmax(var(--desktop-hand-section-min-height), 1.16fr) auto;
+        grid-template-rows: auto minmax(0, 1.68fr) minmax(var(--desktop-hand-section-min-height), 1.1fr) auto;
         min-height: 0;
         z-index: 8;
         padding: clamp(14px, 1.4vw, 20px);
@@ -1422,8 +1722,7 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu-header,
-    .desktop-menu-preview,
-    .desktop-menu-deck,
+    .desktop-menu-inspect,
     .desktop-section-title {
         display: block;
     }
@@ -1479,6 +1778,14 @@ body.battle-phase-active .battlefield::after {
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
     }
 
+    .desktop-battle-log-title {
+        font-size: 0.68em;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(180, 200, 255, 0.55);
+    }
+
     .desktop-history-entry {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr);
@@ -1522,28 +1829,84 @@ body.battle-phase-active .battlefield::after {
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
     }
 
-    .desktop-menu-deck {
+    .desktop-menu-inspect {
         order: 1;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-    }
-
-    .desktop-menu-preview {
-        order: 2;
         display: flex;
         flex-direction: column;
         overflow: hidden;
         min-height: 0;
     }
 
+    .desktop-inspect-toolbar {
+        flex-shrink: 0;
+        margin-bottom: 8px;
+    }
+
+    .desktop-inspect-toggle {
+        display: flex;
+        gap: 6px;
+        padding: 4px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(6, 12, 26, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    }
+
+    .desktop-inspect-tab {
+        flex: 1;
+        min-height: 34px;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.72em;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        cursor: pointer;
+        color: rgba(200, 214, 255, 0.62);
+        background: transparent;
+        transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .desktop-inspect-tab:hover {
+        color: rgba(232, 240, 255, 0.92);
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .desktop-inspect-tab.is-active {
+        color: #0b1020;
+        background: linear-gradient(180deg, rgba(139, 194, 255, 0.95), rgba(90, 156, 255, 0.88));
+        box-shadow: 0 6px 14px rgba(40, 110, 220, 0.28);
+    }
+
+    .desktop-inspect-viewport {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+
+    .desktop-inspect-pane {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .desktop-inspect-pane.is-active {
+        display: flex;
+    }
+
     .desktop-menu-hand {
-        order: 3;
+        order: 2;
         min-width: 0;
         min-height: var(--desktop-hand-section-min-height);
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        position: relative;
     }
 
     .desktop-section-title {
@@ -1555,12 +1918,12 @@ body.battle-phase-active .battlefield::after {
         color: rgba(205, 218, 255, 0.8);
     }
 
-    .desktop-card-preview-panel,
-    .desktop-deck-preview {
+    .desktop-inspect-pane .desktop-card-preview-panel,
+    .desktop-inspect-pane .desktop-deck-preview {
         min-height: 0;
     }
 
-    .desktop-card-preview-panel {
+    .desktop-inspect-pane .desktop-card-preview-panel {
         display: flex;
         flex: 1 1 auto;
         min-height: 0;
@@ -1568,9 +1931,17 @@ body.battle-phase-active .battlefield::after {
         padding-right: 4px;
     }
 
+    .desktop-inspect-pane .desktop-deck-preview {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        gap: 8px;
+        min-height: 0;
+    }
+
     .desktop-preview-layout {
         display: grid;
-        grid-template-columns: minmax(0, var(--desktop-preview-card-width)) minmax(0, 1fr);
+        grid-template-columns: auto minmax(0, 1fr);
         gap: clamp(10px, 1vw, 14px);
         align-items: start;
         width: 100%;
@@ -1578,22 +1949,62 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-preview-card {
-        width: min(100%, var(--desktop-preview-card-width)) !important;
+        box-sizing: border-box;
+        width: var(--desktop-preview-card-width) !important;
+        min-width: 0 !important;
+        max-width: var(--desktop-preview-card-width) !important;
         min-height: 0;
-        max-width: none;
         max-height: var(--desktop-preview-card-max-height);
+        aspect-ratio: var(--card-aspect-ratio);
         align-self: start;
+        justify-self: start;
+        flex-shrink: 0;
+        overflow: hidden;
+    }
+
+    .desktop-preview-card .hand-card-shell {
+        gap: 5px;
+        min-height: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
+    }
+
+    .desktop-preview-card .hand-card-header {
+        gap: 1px;
+    }
+
+    .desktop-preview-card .card-title {
+        font-size: 0.84em;
+        line-height: 1.04;
+    }
+
+    .desktop-preview-card .card-label,
+    .desktop-preview-card .card-detail,
+    .desktop-preview-card .card-cost {
+        font-size: 0.61em;
+        line-height: 1.16;
+        text-align: center;
     }
 
     .desktop-preview-card .card-art-selected {
-        min-height: clamp(76px, 9vw, 108px);
-        margin: 4px 0;
+        flex: 1 1 auto;
+        min-height: 0;
+        margin: 3px 0;
+        padding: 5px;
+    }
+
+    .desktop-preview-card .card-art-selected img {
+        max-height: 100%;
+        width: auto;
     }
 
     .desktop-preview-card .hand-card-body {
         width: 100%;
         min-width: 0;
-        padding-bottom: 10px;
+        min-height: 0;
+        flex: 0 1 auto;
+        gap: 2px;
+        padding: 1px 2px 6px;
     }
 
     .desktop-preview-copy-panel {
@@ -1661,10 +2072,18 @@ body.battle-phase-active .battlefield::after {
         background: transparent;
         box-shadow: none;
         overflow: hidden;
-        flex: 1 1 auto;
+        /* 0% basis so this row reliably consumes remaining section height under the title */
+        flex: 1 1 0%;
         display: flex;
         flex-direction: column;
         min-height: 0;
+    }
+
+    .desktop-menu .hand-tray.battle-queue-mode {
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        padding: 12px;
     }
 
     .desktop-menu .hand-cards {
@@ -1674,8 +2093,10 @@ body.battle-phase-active .battlefield::after {
         overflow-y: hidden;
         overflow-x: auto;
         flex-wrap: nowrap;
-        align-items: flex-start;
-        flex: 1 1 auto;
+        align-items: stretch;
+        flex: 1 1 0%;
+        min-height: 0;
+        height: 100%;
         scroll-padding-inline: 4px;
         scrollbar-width: thin;
         scrollbar-color: rgba(90, 156, 255, 0.72) rgba(10, 18, 33, 0.52);
@@ -1697,10 +2118,15 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu .hand-card {
-        min-width: var(--hand-card-width);
-        max-width: var(--hand-card-width);
-        width: var(--hand-card-width);
+        /* Stretch to full row height; width follows --card-aspect-ratio (5/7). Avoid height:100% — it can fall back to intrinsic height when the % base is indefinite. */
+        box-sizing: border-box;
+        height: auto;
+        width: auto;
+        min-width: 0;
+        max-width: none;
         min-height: 0;
+        max-height: none;
+        align-self: stretch;
         aspect-ratio: var(--card-aspect-ratio);
         padding: var(--hand-card-padding);
         margin-left: 0;
@@ -1716,8 +2142,18 @@ body.battle-phase-active .battlefield::after {
         transform: scale(1.02);
     }
 
+    .desktop-menu .hand-card-shell {
+        min-height: 0;
+        flex: 1;
+    }
+
+    .desktop-menu .hand-card-header {
+        flex-shrink: 0;
+    }
+
     .desktop-menu .card-art-hand {
-        min-height: clamp(56px, 8vw, 78px);
+        flex: 1 1 auto;
+        min-height: 40px;
         padding: 3px;
     }
 
@@ -1729,6 +2165,84 @@ body.battle-phase-active .battlefield::after {
         font-size: clamp(0.46em, 0.54em, 0.58em);
     }
 
+    .desktop-hand-battle-panel {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(calc(100% - 10px), 560px);
+        height: min(calc(100% - 10px), 580px);
+        max-height: min(calc(100% - 10px), 580px);
+        z-index: 9;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 14px;
+        border-radius: 22px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background:
+            linear-gradient(180deg, rgba(18, 28, 52, 0.96), rgba(10, 18, 34, 0.98)),
+            radial-gradient(circle at top left, rgba(255, 168, 76, 0.16), transparent 42%),
+            radial-gradient(circle at bottom right, rgba(86, 149, 255, 0.14), transparent 48%);
+        box-shadow:
+            0 18px 44px rgba(0, 0, 0, 0.34),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(8px);
+        animation: desktop-queue-pop 0.18s ease-out;
+        color: rgba(228, 236, 255, 0.86);
+        scrollbar-width: none;
+    }
+
+    .desktop-hand-battle-panel::-webkit-scrollbar {
+        width: 0;
+    }
+
+    .desktop-hand-battle-panel::-webkit-scrollbar-track {
+        background: rgba(10, 18, 33, 0.52);
+        border-radius: 999px;
+    }
+
+    .desktop-hand-battle-panel::-webkit-scrollbar-thumb {
+        background: rgba(90, 156, 255, 0.72);
+        border-radius: 999px;
+    }
+
+    .desktop-hand-battle-panel .battle-attacker {
+        font-size: 0.92em;
+        margin-bottom: 0;
+        color: #f5f8ff;
+        line-height: 1.35;
+    }
+
+    .desktop-hand-battle-panel .battle-hint,
+    .desktop-hand-battle-panel .battle-ability-desc {
+        font-size: 0.74em;
+        line-height: 1.3;
+    }
+
+    .desktop-hand-battle-panel .battle-ability-btn {
+        margin-top: 3px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        font-size: 0.74em;
+        box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .desktop-hand-battle-panel .battle-queue-expanded .battle-ability-btn {
+        margin-top: 0;
+        padding: 12px 14px;
+        font-size: 0.82em;
+        min-height: 48px;
+    }
+
+    .desktop-hand-battle-panel .battle-queue-expanded {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
     .desktop-menu .hand-phase-mask {
         min-height: 110px;
         padding: 14px;
@@ -1738,14 +2252,6 @@ body.battle-phase-active .battlefield::after {
         color: var(--text-dim);
         font-size: 0.82em;
         line-height: 1.45;
-    }
-
-    .desktop-deck-preview {
-        display: flex;
-        flex-direction: column;
-        flex: 1 1 auto;
-        gap: 8px;
-        min-height: 0;
     }
 
     .desktop-deck-meta {
@@ -1969,7 +2475,7 @@ body.battle-phase-active .battlefield::after {
     }
 
     .action-bar {
-        order: 4;
+        order: 3;
         gap: 12px;
         padding: 0;
         background: transparent;
@@ -2009,21 +2515,27 @@ body.battle-phase-active .battlefield::after {
 
     .loadout-overlay {
         align-items: stretch;
-        justify-content: flex-end;
-        padding: 18px;
-        background:
-            linear-gradient(90deg,
-                rgba(8, 12, 24, 0.16) 0%,
-                rgba(8, 12, 24, 0.38) 46%,
-                rgba(8, 12, 24, 0.82) 64%,
-                rgba(8, 12, 24, 0.94) 100%);
+        justify-content: stretch;
+        padding:
+            env(safe-area-inset-top, 0)
+            env(safe-area-inset-right, 0)
+            env(safe-area-inset-bottom, 0)
+            env(safe-area-inset-left, 0);
+        background: rgba(8, 12, 24, 0.97);
     }
 
     .loadout-box {
-        width: min(560px, 40vw);
-        max-height: calc(100dvh - 36px);
-        margin-top: 18px;
-        border-radius: 24px;
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        margin-top: 0;
+        margin-left: 0;
+        border-radius: 0;
+    }
+
+    .loadout-box .builder-catalog,
+    .loadout-box .builder-deck-list {
+        max-height: min(56vh, calc(100dvh - 300px));
     }
 }
 
@@ -2088,7 +2600,14 @@ body.battle-phase-active .battlefield::after {
     align-items: stretch;
     justify-content: stretch;
     position: relative;
-    transition: all 0.15s;
+    /* Avoid transition:all — animating padding/size across breakpoints left link/socket
+       overlays measured against mid-animation geometry (especially on mobile). */
+    transition:
+        opacity 0.15s ease,
+        filter 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.15s ease;
     padding: 6px;
 }
 
@@ -2945,6 +3464,37 @@ body.placement-active .board-cell.legal {
 .btn-fire { background: var(--fire); color: white; }
 .btn-success { background: var(--success); color: var(--bg); }
 
+.game-log-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    font-size: 0.68em;
+    color: var(--text-dim);
+    padding: 4px 2px 8px;
+    margin: 0;
+}
+
+.game-log-toolbar-label {
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(200, 210, 235, 0.78);
+}
+
+.game-log-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.battle-hint-compact {
+    margin-bottom: 4px;
+    line-height: 1.3;
+}
+
 .game-log {
     font-size: 0.7em;
     max-height: 240px;
@@ -3019,32 +3569,46 @@ body.placement-active .board-cell.legal {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(8, 12, 24, 0.88);
+    background: rgba(8, 12, 24, 0.96);
     z-index: 1900;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    align-items: stretch;
+    justify-content: stretch;
+    padding:
+        env(safe-area-inset-top, 0)
+        env(safe-area-inset-right, 0)
+        env(safe-area-inset-bottom, 0)
+        env(safe-area-inset-left, 0);
+    box-sizing: border-box;
 }
 
-.loadout-overlay.visible { display: flex; }
+.loadout-overlay.visible {
+    display: flex;
+    flex-direction: column;
+}
 
 .loadout-box {
-    --loadout-padding: 20px;
-    width: min(var(--overlay-shell-width), 100%);
-    max-height: 90vh;
-    overflow: auto;
+    --loadout-padding: clamp(16px, 2.2vw, 28px);
+    flex: 1 1 0;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
     background: linear-gradient(180deg, #192849, #13203a);
-    border: 1px solid rgba(226, 183, 20, 0.3);
-    border-radius: 14px;
+    border: none;
+    border-radius: 0;
     padding: var(--loadout-padding);
     padding-bottom: 0;
     scroll-padding-bottom: 120px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    box-shadow: none;
+    box-sizing: border-box;
 }
 
 .loadout-box h2 {
     color: var(--accent);
     margin-bottom: 6px;
+    font-size: clamp(1.35rem, 2.4vw, 2.05rem);
 }
 
 .loadout-hero {
@@ -3070,9 +3634,10 @@ body.placement-active .board-cell.legal {
 
 .loadout-copy {
     color: var(--text-dim);
-    font-size: 0.85em;
+    font-size: clamp(0.82em, 1.1vw, 0.92em);
     margin-bottom: 0;
-    max-width: 720px;
+    max-width: min(72ch, 100%);
+    line-height: 1.45;
 }
 
 .hidden {
@@ -3150,8 +3715,8 @@ body.placement-active .board-cell.legal {
 
 .loadout-options {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(118px, 11vw, 200px)), 1fr));
+    gap: clamp(10px, 1.4vw, 18px);
 }
 
 /* ── Deck Cards ─────────────────────────────────────── */
@@ -3306,7 +3871,7 @@ body.placement-active .board-cell.legal {
 /* ── SiegeKnight Cards ──────────────────────────────── */
 
 .trainer-section .loadout-options {
-    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(120px, 11.5vw, 200px)), 1fr));
 }
 
 .knight-card {
@@ -3598,22 +4163,27 @@ body.placement-active .board-cell.legal {
 @media (min-width: 980px) {
     .loadout-overlay {
         align-items: stretch;
-        justify-content: flex-end;
-        padding: 18px;
-        background:
-            linear-gradient(90deg,
-                rgba(8, 12, 24, 0.14) 0%,
-                rgba(8, 12, 24, 0.36) 44%,
-                rgba(8, 12, 24, 0.82) 62%,
-                rgba(8, 12, 24, 0.94) 100%);
+        justify-content: stretch;
+        padding:
+            env(safe-area-inset-top, 0)
+            env(safe-area-inset-right, 0)
+            env(safe-area-inset-bottom, 0)
+            env(safe-area-inset-left, 0);
+        background: rgba(8, 12, 24, 0.97);
     }
 
     .loadout-box {
-        width: min(560px, 40vw);
-        max-height: calc(100dvh - 36px);
-        margin-top: 18px;
-        margin-left: auto;
-        border-radius: 24px;
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        margin-top: 0;
+        margin-left: 0;
+        border-radius: 0;
+    }
+
+    .loadout-box .builder-catalog,
+    .loadout-box .builder-deck-list {
+        max-height: min(56vh, calc(100dvh - 300px));
     }
 }
 
@@ -3652,7 +4222,7 @@ body.placement-active .board-cell.legal {
 }
 
 .loadout-box.invite-focused {
-    width: min(860px, 100%);
+    width: 100%;
 }
 
 .loadout-overlay.invite-flow .loadout-box {
@@ -4471,6 +5041,10 @@ body.placement-active .board-cell.legal {
         padding: 4px 6px;
     }
 
+    #playerGrid.board-grid {
+        padding-bottom: clamp(18px, 2.2vh, 24px);
+    }
+
     .board-cell {
         width: auto;
         min-height: 0;
@@ -4651,15 +5225,21 @@ body.placement-active .board-cell.legal {
     .loadout-box {
         --loadout-padding: 14px;
         width: 100%;
-        max-height: 100dvh;
+        height: 100%;
+        max-height: none;
         border-radius: 0;
         padding: var(--loadout-padding);
         padding-bottom: 0;
     }
 
     .loadout-overlay {
-        padding: 12px;
-        align-items: flex-start;
+        padding:
+            env(safe-area-inset-top, 0)
+            env(safe-area-inset-right, 0)
+            env(safe-area-inset-bottom, 0)
+            env(safe-area-inset-left, 0);
+        align-items: stretch;
+        justify-content: stretch;
     }
 
     .loadout-box.invite-focused {
@@ -4858,6 +5438,10 @@ body.placement-active .board-cell.legal {
         padding: 4px 6px;
     }
 
+    #playerGrid.board-grid {
+        padding-bottom: clamp(16px, 2vh, 22px);
+    }
+
     .board-cell {
         padding: 2px;
         border-radius: 5px;
@@ -5021,6 +5605,10 @@ body.placement-active .board-cell.legal {
         padding: 4px 6px;
     }
 
+    #playerGrid.board-grid {
+        padding-bottom: clamp(16px, 2vh, 22px);
+    }
+
     .board-cell {
         aspect-ratio: 5 / 7;
     }
@@ -5076,6 +5664,10 @@ body.placement-active .board-cell.legal {
         padding: 3px 6px;
         max-height: 100%;
         align-self: center;
+    }
+
+    #playerGrid.board-grid {
+        padding-bottom: clamp(14px, 2.4vh, 22px);
     }
 
     .board-cell {
@@ -5196,17 +5788,33 @@ body.placement-active .board-cell.legal {
     }
 
     .welcome-overlay,
-    .loadout-overlay,
     .mulligan-overlay {
         align-items: flex-start;
         overflow-y: auto;
         padding: 10px;
     }
 
+    .loadout-overlay {
+        align-items: stretch;
+        justify-content: stretch;
+        overflow: hidden;
+        padding:
+            env(safe-area-inset-top, 0)
+            env(safe-area-inset-right, 0)
+            env(safe-area-inset-bottom, 0)
+            env(safe-area-inset-left, 0);
+    }
+
     .welcome-shell,
-    .loadout-box,
     .mulligan-box {
         max-height: calc(100dvh - 20px);
+        overflow-y: auto;
+    }
+
+    .loadout-box {
+        max-height: none;
+        height: 100%;
+        min-height: 100dvh;
         overflow-y: auto;
     }
 
