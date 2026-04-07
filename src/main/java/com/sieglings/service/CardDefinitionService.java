@@ -280,12 +280,17 @@ public class CardDefinitionService {
                 .toList();
     }
 
+    /** Card editor / export sometimes appends {@code -copy} when duplicating rows; resolve to catalog ids. */
+    private static final String EDITOR_COPY_SUFFIX = "-copy";
+
     public List<Card> buildCustomDeck(List<String> cardIds) {
         if (cardIds == null || cardIds.size() < getDeckBuilderMinSize()) {
             throw new IllegalArgumentException("Custom decks must contain at least " + getDeckBuilderMinSize() + " cards.");
         }
 
-        Map<String, Long> counts = cardIds.stream()
+        List<String> canonicalIds = cardIds.stream().map(this::resolveToCatalogCardId).toList();
+
+        Map<String, Long> counts = canonicalIds.stream()
                 .collect(Collectors.groupingBy(id -> id, Collectors.counting()));
         for (Map.Entry<String, Long> entry : counts.entrySet()) {
             if (entry.getValue() > getDeckBuilderMaxCopies()) {
@@ -297,12 +302,29 @@ public class CardDefinitionService {
         }
 
         List<Card> deck = new ArrayList<>();
-        for (String cardId : cardIds) {
-            Card card = findCardDefinition(cardId)
-                    .orElseThrow(() -> new IllegalArgumentException("Unknown card id: " + cardId));
+        for (String canonicalId : canonicalIds) {
+            Card card = findCardDefinition(canonicalId)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown card id: " + canonicalId));
             deck.add(copyCard(card));
         }
         return deck;
+    }
+
+    private String resolveToCatalogCardId(String cardId) {
+        if (cardId == null || cardId.isBlank()) {
+            throw new IllegalArgumentException("Card id cannot be empty.");
+        }
+        String candidate = cardId.trim();
+        while (true) {
+            Optional<Card> found = findCardDefinition(candidate);
+            if (found.isPresent()) {
+                return found.get().getId();
+            }
+            if (!candidate.endsWith(EDITOR_COPY_SUFFIX)) {
+                throw new IllegalArgumentException("Unknown card id: " + cardId);
+            }
+            candidate = candidate.substring(0, candidate.length() - EDITOR_COPY_SUFFIX.length());
+        }
     }
 
     public List<Card> buildFireDeck() { return buildDeck(List.of(Element.FIRE)); }

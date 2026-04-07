@@ -2659,6 +2659,131 @@ body.battle-phase-active .battlefield::after {
     filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.16));
 }
 
+.nexus-overlay {
+    position: absolute;
+    z-index: 6;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.nexus-overlay .nexus-svg {
+    display: block;
+    overflow: visible;
+    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.45));
+}
+
+/* Nexus hub fill/ring colors come from JS (match energy tokens 1:1). */
+
+.top-bar-center .energy-detail-details {
+    position: relative;
+    z-index: 30;
+}
+
+.energy-detail-summary {
+    list-style: none;
+    cursor: pointer;
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.2);
+    user-select: none;
+}
+
+.energy-detail-summary::-webkit-details-marker {
+    display: none;
+}
+
+.energy-detail-details[open] .energy-detail-summary {
+    color: var(--accent);
+    border-color: rgba(255, 215, 0, 0.35);
+}
+
+.energy-detail-dropdown {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: calc(100% + 6px);
+    min-width: min(420px, 92vw);
+    max-width: min(520px, 94vw);
+    max-height: min(52vh, 360px);
+    overflow-y: auto;
+    padding: 10px 12px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+        linear-gradient(180deg, rgba(18, 26, 44, 0.98), rgba(10, 14, 26, 0.98)),
+        radial-gradient(circle at top, rgba(80, 140, 255, 0.12), transparent 55%);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+}
+
+.energy-detail-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 520px) {
+    .energy-detail-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+.energy-detail-section .energy-detail-h2 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 4px;
+}
+
+.energy-detail-hp {
+    font-size: 0.75rem;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.energy-detail-subh {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-top: 10px;
+    margin-bottom: 4px;
+}
+
+.energy-detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.72rem;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.energy-detail-muted {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.energy-detail-combo .combo-point-line,
+.energy-detail-nexus {
+    font-size: 0.68rem;
+    padding: 2px 0;
+    color: var(--text);
+}
+
+.energy-detail-panel .energy-mist,
+.energy-detail-dropdown .energy-mist {
+    margin-top: 8px;
+    font-size: 0.68rem;
+    color: var(--water);
+}
+
 .external-energy-point {
     position: absolute;
     width: 16px;
@@ -2687,6 +2812,10 @@ body.battle-phase-active .battlefield::after {
 .external-energy-point.active.ice { color: var(--ice); }
 .external-energy-point.active.shadow { color: var(--shadow); }
 .external-energy-point.active.electric { color: var(--electric); }
+.external-energy-point.active.metal { color: var(--metal); }
+.external-energy-point.active.undead { color: var(--undead); }
+.external-energy-point.active.psychic { color: var(--psychic); }
+.external-energy-point.active.neutral { color: var(--neutral); }
 
 .board-cell {
     width: 100%;
@@ -2711,6 +2840,14 @@ body.battle-phase-active .battlefield::after {
 
 .board-cell.has-card {
     padding: 4px;
+}
+
+.board-cell.arena-selected {
+    box-shadow:
+        0 0 0 2px rgba(255, 224, 138, 0.92),
+        0 0 16px rgba(255, 200, 90, 0.38);
+    cursor: pointer;
+    z-index: 5;
 }
 
 #enemyGrid .board-cell {
