@@ -67,6 +67,9 @@
         dirty: false,
         previewMode: "card",
         validation: [],
+        movesPool: [],
+        movePickerSlot: 0,
+        moveDraftSourceId: null,
         filePath: "",
         source: "Loading...",
         canSaveToProjectFile: false,
@@ -193,6 +196,33 @@
             "abilityRequiredReactionSelect",
             "abilityTargetHelper",
             "abilityEffectHelper",
+            "sieglingMovesSection",
+            "actionAbilitySection",
+            "sieglingAssignedMoves",
+            "newMoveBtn",
+            "openMovePickerBtn",
+            "moveDraftPanel",
+            "moveDraftIdInput",
+            "moveDraftNameInput",
+            "moveDraftElementSelect",
+            "moveDraftCategorySelect",
+            "moveDraftTargetSelect",
+            "moveDraftTargetRowWrap",
+            "moveDraftTargetRowSelect",
+            "moveDraftEffectSelect",
+            "moveDraftEffectValueInput",
+            "moveDraftEnergyInput",
+            "moveDraftDescInput",
+            "moveDraftPassiveSelect",
+            "saveMoveDraftBtn",
+            "cancelMoveDraftBtn",
+            "movePickerOverlay",
+            "movePickerSearch",
+            "movePickerElementFilter",
+            "movePickerEnergyFilter",
+            "movePickerCategoryFilter",
+            "movePickerList",
+            "movePickerCloseBtn",
             "cardSummary",
             "jsonPreviewMode",
             "jsonPreview",
@@ -372,6 +402,21 @@
         refs.addAbilityBtn.addEventListener("click", addAbility);
         refs.duplicateAbilityBtn.addEventListener("click", duplicateAbility);
         refs.deleteAbilityBtn.addEventListener("click", deleteAbility);
+
+        refs.newMoveBtn?.addEventListener("click", startNewMoveDraft);
+        refs.openMovePickerBtn?.addEventListener("click", () => openMovePickerModal(-1));
+        refs.saveMoveDraftBtn?.addEventListener("click", saveMoveDraftToPool);
+        refs.cancelMoveDraftBtn?.addEventListener("click", hideMoveDraft);
+        refs.movePickerCloseBtn?.addEventListener("click", closeMovePickerModal);
+        refs.movePickerOverlay?.addEventListener("click", closeMovePickerModal);
+        refs.movePickerSearch?.addEventListener("input", renderMovePickerList);
+        refs.movePickerElementFilter?.addEventListener("change", renderMovePickerList);
+        refs.movePickerEnergyFilter?.addEventListener("change", renderMovePickerList);
+        refs.movePickerCategoryFilter?.addEventListener("change", renderMovePickerList);
+        refs.movePickerList?.addEventListener("click", onMovePickerListClick);
+        refs.sieglingAssignedMoves?.addEventListener("click", onSieglingAssignedMovesClick);
+        refs.moveDraftTargetSelect?.addEventListener("change", syncMoveDraftTargetRowUi);
+        refs.moveDraftPassiveSelect?.addEventListener("change", onMoveDraftPassiveChange);
 
         refs.abilityTabs.addEventListener("click", (event) => {
             const tab = event.target.closest("[data-ability-index]");
@@ -984,6 +1029,11 @@
         state.decks = decks;
         state.trainers = trainers;
         state.liveElements = liveElements;
+        if (data && Object.prototype.hasOwnProperty.call(data, "moves")) {
+            state.movesPool = Array.isArray(data.moves)
+                ? data.moves.map((m) => normalizeMoveFromServer(m)).filter((m) => m && m.id)
+                : [];
+        }
         state.selectedCardId = cards.find((card) => card.id === state.selectedCardId)?.id || cards[0]?.id || null;
         state.selectedDeckId = decks.find((deck) => deck.id === state.selectedDeckId)?.id || decks[0]?.id || null;
         state.selectedTrainerId = trainers.find((trainer) => trainer.id === state.selectedTrainerId)?.id || trainers[0]?.id || null;
@@ -996,6 +1046,35 @@
     function normalizeCard(card) {
         const cardType = normalizeCardType(card?.type || card?.cardType || inferCardType(card));
         const baseElement = card?.element || firstMetaValue("elements", "FIRE");
+        if (cardType === "SIEGLING") {
+            let moveIds = Array.isArray(card?.moveIds)
+                ? card.moveIds.map((id) => String(id || "").trim()).filter(Boolean).slice(0, 5)
+                : [];
+            if (!moveIds.length && Array.isArray(card?.abilities) && card.abilities.length > 0) {
+                moveIds = [];
+            }
+            return {
+                cardType,
+                id: String(card?.id || ""),
+                name: String(card?.name || ""),
+                element: baseElement,
+                rarity: card?.rarity || firstMetaValue("rarities", "COMMON"),
+                health: toNumber(card?.health, 10),
+                speed: toNumber(card?.speed, 5),
+                preferredRow: card?.preferredRow || firstMetaValue("rows", "FRONT"),
+                evolvesFromId: String(card?.evolvesFromId || ""),
+                costElement: card?.costElement || "",
+                costAmount: toNumber(card?.costAmount, 0),
+                trapBucketElement: card?.trapBucketElement || card?.costElement || "",
+                trapBucketAmount: toNumber(card?.trapBucketAmount ?? card?.costAmount, 0),
+                requiredReaction: String(card?.requiredReaction || ""),
+                requiredComboSize: toNumber(card?.requiredComboSize, 0),
+                requiredComboSignature: String(card?.requiredComboSignature || "").trim().toUpperCase(),
+                notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
+                moveIds,
+                abilities: []
+            };
+        }
         const abilities = Array.isArray(card?.abilities) && card.abilities.length > 0
             ? card.abilities.map((ability) => normalizeAbility(ability, baseElement))
             : (card?.ability ? [normalizeAbility(card.ability, baseElement)] : [createBlankAbility(baseElement)]);
@@ -1114,7 +1193,7 @@
             costElement: element,
             costAmount: 0,
             notches: [{ direction: "TOP", element }],
-            abilities: [createBlankAbility(element)]
+            moveIds: []
         });
     }
 
@@ -1607,7 +1686,20 @@
             : "Spell cards can use a normal energy cost, a reaction gate, or a combo signature to control when they can be cast.";
         refs.abilitySectionTitle.textContent = isSiegling ? "Ability Editor" : (isTrap ? "Trap Effect" : "Spell Effect");
 
+        if (refs.sieglingMovesSection) {
+            refs.sieglingMovesSection.classList.toggle("hidden", !isSiegling);
+        }
+        if (refs.actionAbilitySection) {
+            refs.actionAbilitySection.classList.toggle("hidden", isSiegling);
+        }
+
         renderNotches(card);
+        if (isSiegling) {
+            renderSieglingMovesUI(card);
+            refs.abilityEditor.classList.add("hidden");
+            return;
+        }
+
         renderAbilityTabs(card);
 
         if (!ability) {
@@ -1727,13 +1819,20 @@
                 </div>
             </div>
             <div class="summary-ability-list">
-                ${card.abilities.map((ability, index) => `
+                ${(card.moveIds || []).length > 0
+                    ? (card.moveIds || []).map((mid) => {
+                        const mv = findMoveById(mid);
+                        const title = mv ? mv.name : mid;
+                        const desc = mv ? mv.description : "Unknown move id (add it to the moves pool).";
+                        const meta = mv ? describeMove(mv) : "";
+                        return `
                     <div class="summary-ability">
-                        <strong>${escapeHtml(ability.name || `Ability ${index + 1}`)}</strong>
-                        <div class="card-summary-copy">${escapeHtml(ability.description || "No description yet.")}</div>
-                        <div class="card-summary-copy">${escapeHtml(describeAbility(ability))}</div>
-                    </div>
-                `).join("")}
+                        <strong>${escapeHtml(title)}</strong>
+                        <div class="card-summary-copy">${escapeHtml(desc)}</div>
+                        ${meta ? `<div class="card-summary-copy">${escapeHtml(meta)}</div>` : ""}
+                    </div>`;
+                    }).join("")
+                    : `<div class="summary-ability"><div class="card-summary-copy">No moves assigned yet.</div></div>`}
             </div>
         `;
     }
@@ -2172,7 +2271,7 @@
         const hasTrainer = Boolean(getSelectedTrainer());
         const hasErrors = state.validation.some((issue) => issue.severity === "error");
         const selectedCard = getSelectedCard();
-        const canEditMultipleAbilities = selectedCard?.cardType === "SIEGLING";
+        const canEditMultipleAbilities = selectedCard?.cardType !== "SIEGLING";
         refs.saveProjectBtn.textContent = state.liveEditingEnabled ? "Publish Live Changes" : "Save To Project File";
         refs.newSieglingBtn.classList.toggle("hidden", state.editorPage !== "SIEGLING");
         refs.newSpellBtn.classList.toggle("hidden", state.editorPage !== "ACTION");
@@ -2182,7 +2281,15 @@
         refs.deleteCardBtn.disabled = !hasCard;
         refs.addAbilityBtn.disabled = !hasCard || !canEditMultipleAbilities;
         refs.duplicateAbilityBtn.disabled = !hasAbility || !canEditMultipleAbilities;
-        refs.deleteAbilityBtn.disabled = !hasAbility || !canEditMultipleAbilities || getSelectedCard()?.abilities.length <= 1;
+        refs.deleteAbilityBtn.disabled = !hasAbility || !canEditMultipleAbilities
+            || (getSelectedCard()?.abilities?.length ?? 0) <= 1;
+        const sieg = selectedCard?.cardType === "SIEGLING";
+        if (refs.newMoveBtn) {
+            refs.newMoveBtn.disabled = !sieg;
+        }
+        if (refs.openMovePickerBtn) {
+            refs.openMovePickerBtn.disabled = !sieg || (selectedCard?.moveIds?.length ?? 0) >= 5;
+        }
         refs.duplicateDeckBtn.disabled = !hasDeck;
         refs.deleteDeckBtn.disabled = !hasDeck;
         refs.clearDeckCardsBtn.disabled = !hasDeck;
@@ -2286,7 +2393,10 @@
 
     function getSelectedAbility() {
         const card = getSelectedCard();
-        if (!card || card.abilities.length === 0) {
+        if (!card || card.cardType === "SIEGLING") {
+            return null;
+        }
+        if (card.abilities.length === 0) {
             return null;
         }
         state.selectedAbilityIndex = Math.max(0, Math.min(state.selectedAbilityIndex, card.abilities.length - 1));
@@ -2393,6 +2503,20 @@
                 if (card.costAmount > 0 && !card.costElement) {
                     issues.push(issue("error", `${trimmedId || card.name || "A card"} needs a cost element when cost amount is above 0.`));
                 }
+                const mids = card.moveIds || [];
+                if (mids.length === 0) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} needs at least one move id from the shared moves pool.`));
+                }
+                const seenMid = new Set();
+                mids.forEach((mid) => {
+                    if (seenMid.has(mid)) {
+                        issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} lists move "${mid}" more than once.`));
+                    }
+                    seenMid.add(mid);
+                    if (!findMoveById(mid)) {
+                        issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} references unknown move id "${mid}".`));
+                    }
+                });
             } else if (card.cardType === "SPELL") {
                 if (card.costAmount > 0 && !card.costElement) {
                     issues.push(issue("error", `${trimmedId || card.name || "A spell"} needs a play cost element when cost amount is above 0.`));
@@ -2411,39 +2535,62 @@
                     issues.push(issue("error", `${trimmedId || card.name || "A trap"} needs a trigger element.`));
                 }
             }
-            if (!card.abilities.length) {
-                issues.push(issue("error", `${trimmedId || card.name || "A card"} needs at least one ability.`));
+            if (card.cardType !== "SIEGLING") {
+                if (!card.abilities.length) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A card"} needs at least one ability.`));
+                }
+                if (card.abilities.length !== 1) {
+                    issues.push(issue("error", `${trimmedId || card.name || "An action card"} must have exactly one effect ability.`));
+                }
+                card.abilities.forEach((ability, index) => {
+                    const label = `${trimmedId || card.name || "A card"} ability ${index + 1}`;
+                    if (!ability.name.trim()) {
+                        issues.push(issue("error", `${label} is missing a name.`));
+                    }
+                    if (!ability.description.trim()) {
+                        issues.push(issue("warn", `${label} has no description yet.`));
+                    }
+                    if (!ability.targetType) {
+                        issues.push(issue("error", `${label} is missing a target type.`));
+                    }
+                    if (getTargetRule(ability.targetType).requiresRow && !ability.targetRow) {
+                        issues.push(issue("error", `${label} needs a target row because it targets a row.`));
+                    }
+                    if (!ability.effectType) {
+                        issues.push(issue("error", `${label} is missing an effect type.`));
+                    }
+                    if (!effectByKey()[ability.effectType]) {
+                        issues.push(issue("error", `${label} uses unsupported effect type ${ability.effectType}.`));
+                    }
+                    if (ability.requiredEnergy < 0) {
+                        issues.push(issue("error", `${label} cannot require negative energy.`));
+                    }
+                    if (ability.requiredEnergy > 0 && !ability.requiredElement && !ability.requiredReaction) {
+                        issues.push(issue("warn", `${label} spends energy but has no required element or reaction set.`));
+                    }
+                });
             }
-            if (card.cardType !== "SIEGLING" && card.abilities.length !== 1) {
-                issues.push(issue("error", `${trimmedId || card.name || "An action card"} must have exactly one effect ability.`));
+        });
+
+        const poolIdCounts = new Map();
+        (state.movesPool || []).forEach((m) => {
+            const moveId = String(m?.id || "").trim();
+            if (!moveId) {
+                issues.push(issue("error", "A move in the shared pool is missing an id."));
+                return;
             }
-            card.abilities.forEach((ability, index) => {
-                const label = `${trimmedId || card.name || "A card"} ability ${index + 1}`;
-                if (!ability.name.trim()) {
-                    issues.push(issue("error", `${label} is missing a name.`));
-                }
-                if (!ability.description.trim()) {
-                    issues.push(issue("warn", `${label} has no description yet.`));
-                }
-                if (!ability.targetType) {
-                    issues.push(issue("error", `${label} is missing a target type.`));
-                }
-                if (getTargetRule(ability.targetType).requiresRow && !ability.targetRow) {
-                    issues.push(issue("error", `${label} needs a target row because it targets a row.`));
-                }
-                if (!ability.effectType) {
-                    issues.push(issue("error", `${label} is missing an effect type.`));
-                }
-                if (!effectByKey()[ability.effectType]) {
-                    issues.push(issue("error", `${label} uses unsupported effect type ${ability.effectType}.`));
-                }
-                if (ability.requiredEnergy < 0) {
-                    issues.push(issue("error", `${label} cannot require negative energy.`));
-                }
-                if (ability.requiredEnergy > 0 && !ability.requiredElement && !ability.requiredReaction) {
-                    issues.push(issue("warn", `${label} spends energy but has no required element or reaction set.`));
-                }
-            });
+            poolIdCounts.set(moveId, (poolIdCounts.get(moveId) || 0) + 1);
+            if (!String(m.name || "").trim()) {
+                issues.push(issue("error", `Move '${moveId}' needs a name.`));
+            }
+            if (m.effectType && !effectByKey()[m.effectType]) {
+                issues.push(issue("error", `Move '${moveId}' uses unsupported effect type ${m.effectType}.`));
+            }
+        });
+        poolIdCounts.forEach((count, moveId) => {
+            if (count > 1) {
+                issues.push(issue("error", `Move id '${moveId}' is duplicated ${count} times in the moves pool.`));
+            }
         });
 
         ids.forEach((count, id) => {
@@ -2598,6 +2745,7 @@
     function buildExportData() {
         return {
             cards: state.cards.map((card) => buildExportCard(card)),
+            moves: state.movesPool.map((m) => buildExportMove(m)),
             decks: state.decks.map((deck) => buildExportDeck(deck)),
             trainers: state.trainers.map((trainer) => buildExportTrainer(trainer)),
             liveElements: {
@@ -2664,7 +2812,7 @@
                 element: notch.element || card.element
             })),
             preferredRow: card.preferredRow,
-            abilities: card.abilities.map((ability) => buildExportAbility(ability))
+            moveIds: (card.moveIds || []).map((id) => String(id || "").trim()).filter(Boolean).slice(0, 5)
         };
 
         if (card.evolvesFromId.trim()) {
@@ -2829,6 +2977,15 @@
                 formatEnumLabel(card.rarity),
                 `Trigger ${card.trapBucketAmount || 0} ${formatEnumLabel(card.trapBucketElement || card.element)}`,
                 `${card.abilities.length} effect`
+            ].join(" | ");
+        }
+        if (card.cardType === "SIEGLING") {
+            const n = (card.moveIds || []).length;
+            return [
+                formatEnumLabel(card.rarity),
+                `${n} move${n === 1 ? "" : "s"}`,
+                `HP ${card.health}`,
+                `SPD ${card.speed}`
             ].join(" | ");
         }
         return [
@@ -3103,6 +3260,474 @@
             default:
                 return direction;
         }
+    }
+
+    function findMoveById(id) {
+        const key = String(id || "").trim();
+        if (!key) {
+            return null;
+        }
+        return state.movesPool.find((m) => m.id === key) || null;
+    }
+
+    function normalizeMoveFromServer(raw) {
+        if (!raw || typeof raw !== "object") {
+            return null;
+        }
+        const id = String(raw.id || "").trim();
+        if (!id) {
+            return null;
+        }
+        const targetType = String(raw.targetType || "SINGLE_ENEMY").trim();
+        const rule = getTargetRule(targetType);
+        const passiveFlag = Boolean(raw.isPassive) || targetType === "PASSIVE";
+        const targetRow = raw.targetRow != null && String(raw.targetRow).trim()
+            ? String(raw.targetRow).trim()
+            : (rule.requiresRow ? firstMetaValue("rows", "FRONT") : "");
+        const targetCount = raw.targetCount != null && raw.targetCount !== ""
+            ? toNumber(raw.targetCount, 0)
+            : rule.fixedTargetCount;
+        let energyCost = Math.max(0, Math.min(6, toNumber(raw.energyCost, 0)));
+        if (passiveFlag || targetType === "PASSIVE") {
+            energyCost = 0;
+        }
+        return {
+            id,
+            name: String(raw.name || "").trim() || "Unnamed Move",
+            element: String(raw.element || firstMetaValue("elements", "FIRE")).trim(),
+            category: String(raw.category || "STANDARD").trim(),
+            targetType,
+            targetRow,
+            targetCount,
+            effectType: String(raw.effectType || firstEffectKey()).trim(),
+            effectValue: toNumber(raw.effectValue, 0),
+            energyCost,
+            description: String(raw.description || ""),
+            isPassive: passiveFlag,
+            requiredElement: raw.requiredElement ? String(raw.requiredElement).trim() : "",
+            requiredReaction: raw.requiredReaction ? String(raw.requiredReaction).trim() : ""
+        };
+    }
+
+    function buildExportMove(m) {
+        const rule = getTargetRule(m.targetType);
+        return {
+            id: m.id.trim(),
+            name: m.name.trim(),
+            element: m.element,
+            category: m.category || "STANDARD",
+            targetType: m.targetType,
+            targetRow: m.targetRow && String(m.targetRow).trim() ? m.targetRow : null,
+            targetCount: m.targetCount != null ? toNumber(m.targetCount, rule.fixedTargetCount) : rule.fixedTargetCount,
+            effectType: m.effectType,
+            effectValue: toNumber(m.effectValue, 0),
+            energyCost: toNumber(m.energyCost, 0),
+            description: String(m.description || ""),
+            isPassive: Boolean(m.isPassive) || m.targetType === "PASSIVE",
+            requiredElement: m.requiredElement ? String(m.requiredElement).trim() : null,
+            requiredReaction: m.requiredReaction ? String(m.requiredReaction).trim() : null
+        };
+    }
+
+    function describeMove(move) {
+        const passive = Boolean(move.isPassive) || move.targetType === "PASSIVE";
+        const pieces = [
+            passive ? "Passive" : "Activated",
+            `${effectLabel(move.effectType)} -> ${formatEnumLabel(move.targetType)}`
+        ];
+        if (!passive && move.energyCost > 0) {
+            if (move.requiredElement) {
+                pieces.push(`Cost ${move.energyCost} ${formatEnumLabel(move.requiredElement)}`);
+            } else if (move.requiredReaction) {
+                pieces.push(`Needs ${move.requiredReaction}`);
+            } else {
+                pieces.push(`Energy ${move.energyCost}`);
+            }
+        }
+        return pieces.join(" · ");
+    }
+
+    function createBlankMoveFromElement(element) {
+        const tt = "SINGLE_ENEMY";
+        const rule = getTargetRule(tt);
+        return normalizeMoveFromServer({
+            id: "temp",
+            name: "New Move",
+            element: element || firstMetaValue("elements", "FIRE"),
+            category: "STANDARD",
+            targetType: tt,
+            targetRow: rule.requiresRow ? firstMetaValue("rows", "FRONT") : null,
+            targetCount: rule.fixedTargetCount,
+            effectType: firstEffectKey(),
+            effectValue: 0,
+            energyCost: 0,
+            description: "",
+            isPassive: false,
+            requiredElement: null,
+            requiredReaction: null
+        });
+    }
+
+    function createUniqueMoveId(base) {
+        let candidate = slugify(base) || "move";
+        if (!findMoveById(candidate)) {
+            return candidate;
+        }
+        let n = 2;
+        while (findMoveById(`${candidate}-${n}`)) {
+            n += 1;
+        }
+        return `${candidate}-${n}`;
+    }
+
+    function hideMoveDraft() {
+        state.moveDraftSourceId = null;
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "none";
+        }
+    }
+
+    function ensureMoveDraftPopulatedWith(move) {
+        const categories = state.metadata?.moveCategories || ["STANDARD", "SPECIALITY", "UTILITY"];
+        populateSelect(refs.moveDraftElementSelect, state.metadata?.elements || [], move.element);
+        populateSelect(refs.moveDraftCategorySelect, categories, move.category || "STANDARD");
+        populateSelect(refs.moveDraftTargetSelect, state.metadata?.targetTypes || [], move.targetType);
+        populateSelect(refs.moveDraftTargetRowSelect, state.metadata?.rows || [], move.targetRow || firstMetaValue("rows", "FRONT"));
+        populateSelect(
+            refs.moveDraftEffectSelect,
+            (state.metadata?.effectTypes || []).map((effect) => effect.key),
+            move.effectType,
+            false,
+            effectLabelMap()
+        );
+        setInputValue(refs.moveDraftIdInput, move.id);
+        setInputValue(refs.moveDraftNameInput, move.name);
+        setInputValue(refs.moveDraftEffectValueInput, move.effectValue);
+        setInputValue(refs.moveDraftEnergyInput, move.energyCost);
+        setInputValue(refs.moveDraftDescInput, move.description);
+        refs.moveDraftPassiveSelect.value = move.isPassive || move.targetType === "PASSIVE" ? "true" : "false";
+        syncMoveDraftTargetRowUi();
+    }
+
+    function startNewMoveDraft() {
+        const card = getSelectedCard();
+        if (!card || card.cardType !== "SIEGLING") {
+            return;
+        }
+        state.moveDraftSourceId = null;
+        const draft = createBlankMoveFromElement(card.element);
+        draft.id = createUniqueMoveId(`${slugify(card.name)}-move`);
+        ensureMoveDraftPopulatedWith(draft);
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "grid";
+        }
+    }
+
+    function copyMoveToDraft(sourceMoveId) {
+        const src = findMoveById(sourceMoveId);
+        if (!src) {
+            setStatus(`Move "${sourceMoveId}" is not in the pool.`, "warning");
+            return;
+        }
+        state.moveDraftSourceId = sourceMoveId;
+        const exported = buildExportMove(src);
+        const draft = normalizeMoveFromServer({
+            ...exported,
+            id: createUniqueMoveId(`copy-of-${slugify(src.name)}`),
+            name: `${src.name.trim()} Copy`
+        });
+        ensureMoveDraftPopulatedWith(draft);
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "grid";
+        }
+    }
+
+    function readMoveDraftFromForm() {
+        const id = String(refs.moveDraftIdInput?.value || "").trim();
+        const name = String(refs.moveDraftNameInput?.value || "").trim();
+        const targetType = String(refs.moveDraftTargetSelect?.value || "SINGLE_ENEMY").trim();
+        const rule = getTargetRule(targetType);
+        let targetRow = String(refs.moveDraftTargetRowSelect?.value || "").trim();
+        if (!rule.requiresRow) {
+            targetRow = "";
+        }
+        let passive = refs.moveDraftPassiveSelect?.value === "true";
+        let energy = Math.max(0, Math.min(6, toNumber(refs.moveDraftEnergyInput?.value, 0)));
+        if (passive || targetType === "PASSIVE") {
+            passive = true;
+            energy = 0;
+        }
+        return normalizeMoveFromServer({
+            id: id || "missing-id",
+            name: name || "Unnamed Move",
+            element: refs.moveDraftElementSelect?.value || firstMetaValue("elements", "FIRE"),
+            category: refs.moveDraftCategorySelect?.value || "STANDARD",
+            targetType,
+            targetRow: targetRow || null,
+            targetCount: rule.fixedTargetCount,
+            effectType: refs.moveDraftEffectSelect?.value || firstEffectKey(),
+            effectValue: refs.moveDraftEffectValueInput?.value,
+            energyCost: energy,
+            description: refs.moveDraftDescInput?.value || "",
+            isPassive: passive,
+            requiredElement: null,
+            requiredReaction: null
+        });
+    }
+
+    function syncMoveDraftTargetRowUi() {
+        if (!refs.moveDraftTargetSelect || !refs.moveDraftTargetRowWrap) {
+            return;
+        }
+        const rule = getTargetRule(refs.moveDraftTargetSelect.value);
+        refs.moveDraftTargetRowWrap.classList.toggle("hidden", !rule.requiresRow);
+    }
+
+    function onMoveDraftPassiveChange() {
+        if (!refs.moveDraftPassiveSelect || !refs.moveDraftTargetSelect) {
+            return;
+        }
+        if (refs.moveDraftPassiveSelect.value === "true") {
+            populateSelect(refs.moveDraftTargetSelect, state.metadata?.targetTypes || [], "PASSIVE");
+            if (refs.moveDraftEnergyInput) {
+                refs.moveDraftEnergyInput.value = "0";
+            }
+        }
+        syncMoveDraftTargetRowUi();
+    }
+
+    function saveMoveDraftToPool() {
+        const draftRaw = readMoveDraftFromForm();
+        const id = String(refs.moveDraftIdInput?.value || "").trim();
+        if (!id) {
+            setStatus("Give the move a non-empty id before saving to the pool.", "warning");
+            return;
+        }
+        if (!draftRaw.name.trim()) {
+            setStatus("Give the move a name before saving.", "warning");
+            return;
+        }
+        const next = normalizeMoveFromServer({ ...buildExportMove(draftRaw), id });
+        if (!next) {
+            setStatus("Could not normalize this move; check required fields.", "warning");
+            return;
+        }
+        const idx = state.movesPool.findIndex((m) => m.id === next.id);
+        if (idx >= 0) {
+            state.movesPool.splice(idx, 1, next);
+        } else {
+            state.movesPool.push(next);
+        }
+        state.movesPool.sort((a, b) => {
+            const elCmp = a.element.localeCompare(b.element);
+            return elCmp !== 0 ? elCmp : a.name.localeCompare(b.name);
+        });
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus(`Saved move "${next.id}" to the shared pool.`, "warning");
+        hideMoveDraft();
+        renderAll();
+    }
+
+    function populateMovePickerElementFilterOptions() {
+        if (!refs.movePickerElementFilter) {
+            return;
+        }
+        const elements = state.metadata?.elements || [];
+        const options = ["ALL", ...elements];
+        const prev = refs.movePickerElementFilter.value;
+        const markup = options.map((v) => {
+            const label = v === "ALL" ? "All" : formatEnumLabel(v);
+            const sel = v === (prev || "ALL") ? " selected" : "";
+            return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
+        }).join("");
+        if (refs.movePickerElementFilter.dataset.options !== markup) {
+            refs.movePickerElementFilter.innerHTML = markup;
+            refs.movePickerElementFilter.dataset.options = markup;
+        }
+        if (options.includes(prev)) {
+            refs.movePickerElementFilter.value = prev;
+        }
+    }
+
+    function openMovePickerModal(slotIndex) {
+        const card = getSelectedCard();
+        if (!card || card.cardType !== "SIEGLING") {
+            return;
+        }
+        let slot = slotIndex;
+        if (slot < 0) {
+            slot = Math.min(4, (card.moveIds || []).length);
+        }
+        state.movePickerSlot = Math.max(0, Math.min(4, slot));
+        populateMovePickerElementFilterOptions();
+        refs.movePickerOverlay?.classList.remove("hidden");
+        document.body.classList.add("move-picker-open");
+        renderMovePickerList();
+    }
+
+    function closeMovePickerModal() {
+        refs.movePickerOverlay?.classList.add("hidden");
+        document.body.classList.remove("move-picker-open");
+    }
+
+    function renderMovePickerList() {
+        if (!refs.movePickerList) {
+            return;
+        }
+        const q = String(refs.movePickerSearch?.value || "").trim().toLowerCase();
+        const elFilter = refs.movePickerElementFilter?.value || "ALL";
+        const maxEn = toNumber(refs.movePickerEnergyFilter?.value, 99);
+        const catFilter = refs.movePickerCategoryFilter?.value || "ALL";
+        const list = (state.movesPool || []).filter((m) => {
+            if (elFilter !== "ALL" && m.element !== elFilter) {
+                return false;
+            }
+            if (catFilter !== "ALL" && m.category !== catFilter) {
+                return false;
+            }
+            const passive = m.isPassive || m.targetType === "PASSIVE";
+            const cost = passive ? 0 : toNumber(m.energyCost, 0);
+            if (maxEn < 99 && cost > maxEn) {
+                return false;
+            }
+            if (!q) {
+                return true;
+            }
+            return m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q);
+        });
+        if (list.length === 0) {
+            refs.movePickerList.innerHTML = `<div class="move-picker-empty">No moves match these filters.</div>`;
+            return;
+        }
+        refs.movePickerList.innerHTML = list.map((m) => {
+            const passive = m.isPassive || m.targetType === "PASSIVE";
+            const costLabel = passive ? "Passive" : `${m.energyCost} en`;
+            return `
+            <div class="move-picker-row">
+                <div class="move-picker-row-main">
+                    <strong>${escapeHtml(m.name)}</strong>
+                    <span class="move-picker-meta">${escapeHtml(formatEnumLabel(m.element))} · ${escapeHtml(costLabel)} · ${escapeHtml(m.category || "STANDARD")}</span>
+                    <div class="move-picker-desc">${escapeHtml(m.description || "")}</div>
+                    <div class="move-picker-id">${escapeHtml(m.id)}</div>
+                </div>
+                <div class="move-picker-row-actions">
+                    <button type="button" class="btn btn-primary btn-sm" data-pick-move-id="${escapeHtml(m.id)}">Assign</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-copy-pool-move-id="${escapeHtml(m.id)}">Copy to editor</button>
+                </div>
+            </div>`;
+        }).join("");
+    }
+
+    function pickMoveForSlot(moveId) {
+        const card = getSelectedCard();
+        if (!card || card.cardType !== "SIEGLING") {
+            return;
+        }
+        const mid = String(moveId || "").trim();
+        if (!mid || !findMoveById(mid)) {
+            return;
+        }
+        const slot = state.movePickerSlot ?? 0;
+        mutateSelectedCard((c) => {
+            const ids = [...(c.moveIds || [])].slice(0, 5);
+            if (slot < ids.length) {
+                ids[slot] = mid;
+            } else if (ids.length < 5) {
+                ids.push(mid);
+            }
+            c.moveIds = ids.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 5);
+        });
+        closeMovePickerModal();
+    }
+
+    function onMovePickerListClick(event) {
+        const pick = event.target.closest("[data-pick-move-id]");
+        if (pick) {
+            pickMoveForSlot(pick.dataset.pickMoveId);
+            return;
+        }
+        const copyBtn = event.target.closest("[data-copy-pool-move-id]");
+        if (copyBtn) {
+            copyMoveToDraft(copyBtn.dataset.copyPoolMoveId);
+            closeMovePickerModal();
+        }
+    }
+
+    function onSieglingAssignedMovesClick(event) {
+        const rm = event.target.closest("[data-remove-move-slot]");
+        if (rm) {
+            const slot = Number(rm.dataset.removeMoveSlot);
+            mutateSelectedCard((c) => {
+                const ids = [...(c.moveIds || [])];
+                if (!Number.isFinite(slot) || slot < 0 || slot >= ids.length) {
+                    return;
+                }
+                ids.splice(slot, 1);
+                c.moveIds = ids;
+            });
+            return;
+        }
+        const assign = event.target.closest("[data-assign-move-slot]");
+        if (assign && !assign.disabled) {
+            openMovePickerModal(Number(assign.dataset.assignMoveSlot));
+        }
+        const copyAssigned = event.target.closest("[data-copy-assigned-move]");
+        if (copyAssigned) {
+            copyMoveToDraft(copyAssigned.dataset.copyAssignedMove);
+        }
+    }
+
+    function renderSieglingMovesUI(card) {
+        hideMoveDraft();
+        if (!refs.sieglingAssignedMoves) {
+            return;
+        }
+        const ids = (card.moveIds || []).slice(0, 5);
+        const rows = [];
+        for (let i = 0; i < 5; i += 1) {
+            if (i < ids.length) {
+                const mid = ids[i];
+                const mv = findMoveById(mid);
+                const title = mv ? mv.name : mid;
+                const passive = mv && (mv.isPassive || mv.targetType === "PASSIVE");
+                const costLabel = mv ? (passive ? "Passive" : `${mv.energyCost} energy`) : "?";
+                rows.push(`
+                <div class="move-assigned-row">
+                    <div class="move-assigned-body">
+                        <div class="move-assigned-title">${escapeHtml(title)}</div>
+                        <div class="move-assigned-meta">${escapeHtml(costLabel)}${mv ? ` · ${escapeHtml(formatEnumLabel(mv.element))}` : ""}${mv ? ` · ${escapeHtml(mv.category || "STANDARD")}` : ""}</div>
+                        <div class="move-assigned-desc">${escapeHtml(mv?.description || "Resolve this id in the moves pool.")}</div>
+                        <div class="move-assigned-id">${escapeHtml(mid)}</div>
+                    </div>
+                    <div class="move-assigned-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" data-assign-move-slot="${i}">Change</button>
+                        <button type="button" class="btn btn-secondary btn-sm" data-copy-assigned-move="${escapeHtml(mid)}">Copy</button>
+                        <button type="button" class="btn btn-danger btn-sm" data-remove-move-slot="${i}">Remove</button>
+                    </div>
+                </div>`);
+            } else if (i === ids.length && ids.length < 5) {
+                rows.push(`
+                <div class="move-assigned-row move-assigned-row-empty">
+                    <div class="move-assigned-body">
+                        <div class="move-assigned-title">Add move (${ids.length + 1} / 5)</div>
+                        <div class="move-assigned-desc">Pick from the pool or create a new move, then assign it here.</div>
+                    </div>
+                    <div class="move-assigned-actions">
+                        <button type="button" class="btn btn-primary btn-sm" data-assign-move-slot="${i}">Pick move</button>
+                    </div>
+                </div>`);
+            } else {
+                rows.push(`
+                <div class="move-assigned-row move-assigned-row-locked">
+                    <div class="move-assigned-body">
+                        <div class="move-assigned-title">Slot ${i + 1}</div>
+                        <div class="move-assigned-desc">Fill previous slots first.</div>
+                    </div>
+                </div>`);
+            }
+        }
+        refs.sieglingAssignedMoves.innerHTML = rows.join("");
     }
 
     function escapeHtml(value) {

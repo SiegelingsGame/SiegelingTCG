@@ -14,11 +14,48 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlacementServiceTest {
 
     private final PlacementService placementService = new PlacementService();
+
+    @Test
+    void evolvedFormStartsAtZeroBattlePhasesSoCannotChainEvolveWithoutABattle() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+
+        SieglingCard base = siegling(
+                "base-e",
+                Element.FIRE,
+                List.of(new Notch(NotchDirection.RIGHT, Element.FIRE))
+        );
+        SieglingCard stage2 = siegling(
+                "stage2-e",
+                Element.FIRE,
+                List.of(new Notch(NotchDirection.RIGHT, Element.FIRE))
+        );
+        stage2.setEvolvesFromId("base-e");
+        SieglingCard stage3 = siegling(
+                "stage3-e",
+                Element.FIRE,
+                List.of(new Notch(NotchDirection.RIGHT, Element.FIRE))
+        );
+        stage3.setEvolvesFromId("stage2-e");
+
+        CardInstance baseInstance = new CardInstance(base.copy(), 1, 1, true);
+        baseInstance.setBattlePhasesSeen(2);
+        CardInstance evolved = placementService.createPlacedInstance(baseInstance, stage2.copy(), true, 1, 1);
+
+        assertEquals(0, evolved.getBattlePhasesSeen());
+        state.setAt(true, 1, 1, evolved);
+        assertFalse(
+                placementService.isEvolutionPlacement(state, true, 1, 1, stage3),
+                "New evolution stage must complete a battle phase before evolving again."
+        );
+    }
 
     @Test
     void edgeSocketAllowsPlacementWithoutReciprocalCreatureLink() {

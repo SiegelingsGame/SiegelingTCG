@@ -10,6 +10,7 @@ import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.TargetType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -41,6 +42,11 @@ public class CardDefinitionService {
     @Autowired(required = false)
     private LiveElementCatalogService liveElementCatalogService;
 
+    @Autowired(required = false)
+    private MovesPoolService movesPoolService;
+
+    private MovesPoolService fallbackMovesPool;
+
     public record DeckOption(
             String id,
             String name,
@@ -63,43 +69,55 @@ public class CardDefinitionService {
     private static final List<Integer> TEN_CARD_COPY_PATTERN = List.of(3, 3, 2, 2);
 
     public List<SieglingCard> createFireSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.FIRE);
+        return GeneratedCreatureCatalog.createForElement(Element.FIRE, movesPool());
     }
 
     public List<SieglingCard> createWaterSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.WATER);
+        return GeneratedCreatureCatalog.createForElement(Element.WATER, movesPool());
     }
 
     public List<SieglingCard> createEarthSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.EARTH);
+        return GeneratedCreatureCatalog.createForElement(Element.EARTH, movesPool());
     }
 
     public List<SieglingCard> createWindSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.WIND);
+        return GeneratedCreatureCatalog.createForElement(Element.WIND, movesPool());
     }
 
     public List<SieglingCard> createShadowSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.SHADOW);
+        return GeneratedCreatureCatalog.createForElement(Element.SHADOW, movesPool());
     }
 
     public List<SieglingCard> createIceSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.ICE);
+        return GeneratedCreatureCatalog.createForElement(Element.ICE, movesPool());
     }
 
     public List<SieglingCard> createElectricSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.ELECTRIC);
+        return GeneratedCreatureCatalog.createForElement(Element.ELECTRIC, movesPool());
     }
 
     public List<SieglingCard> createMetalSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.METAL);
+        return GeneratedCreatureCatalog.createForElement(Element.METAL, movesPool());
     }
 
     public List<SieglingCard> createUndeadSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.UNDEAD);
+        return GeneratedCreatureCatalog.createForElement(Element.UNDEAD, movesPool());
     }
 
     public List<SieglingCard> createPsychicSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.PSYCHIC);
+        return GeneratedCreatureCatalog.createForElement(Element.PSYCHIC, movesPool());
+    }
+
+    private MovesPoolService movesPool() {
+        if (movesPoolService != null) {
+            movesPoolService.syncFromSources();
+            return movesPoolService;
+        }
+        if (fallbackMovesPool == null) {
+            fallbackMovesPool = new MovesPoolService(new ObjectMapper(), null);
+        }
+        fallbackMovesPool.syncFromSources();
+        return fallbackMovesPool;
     }
 
     public List<SpellCard> createSpells() {
@@ -262,12 +280,17 @@ public class CardDefinitionService {
                 .toList();
     }
 
+    /** Card editor / export sometimes appends {@code -copy} when duplicating rows; resolve to catalog ids. */
+    private static final String EDITOR_COPY_SUFFIX = "-copy";
+
     public List<Card> buildCustomDeck(List<String> cardIds) {
         if (cardIds == null || cardIds.size() < getDeckBuilderMinSize()) {
             throw new IllegalArgumentException("Custom decks must contain at least " + getDeckBuilderMinSize() + " cards.");
         }
 
-        Map<String, Long> counts = cardIds.stream()
+        List<String> canonicalIds = cardIds.stream().map(this::resolveToCatalogCardId).toList();
+
+        Map<String, Long> counts = canonicalIds.stream()
                 .collect(Collectors.groupingBy(id -> id, Collectors.counting()));
         for (Map.Entry<String, Long> entry : counts.entrySet()) {
             if (entry.getValue() > getDeckBuilderMaxCopies()) {
@@ -279,12 +302,29 @@ public class CardDefinitionService {
         }
 
         List<Card> deck = new ArrayList<>();
-        for (String cardId : cardIds) {
-            Card card = findCardDefinition(cardId)
-                    .orElseThrow(() -> new IllegalArgumentException("Unknown card id: " + cardId));
+        for (String canonicalId : canonicalIds) {
+            Card card = findCardDefinition(canonicalId)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown card id: " + canonicalId));
             deck.add(copyCard(card));
         }
         return deck;
+    }
+
+    private String resolveToCatalogCardId(String cardId) {
+        if (cardId == null || cardId.isBlank()) {
+            throw new IllegalArgumentException("Card id cannot be empty.");
+        }
+        String candidate = cardId.trim();
+        while (true) {
+            Optional<Card> found = findCardDefinition(candidate);
+            if (found.isPresent()) {
+                return found.get().getId();
+            }
+            if (!candidate.endsWith(EDITOR_COPY_SUFFIX)) {
+                throw new IllegalArgumentException("Unknown card id: " + cardId);
+            }
+            candidate = candidate.substring(0, candidate.length() - EDITOR_COPY_SUFFIX.length());
+        }
     }
 
     public List<Card> buildFireDeck() { return buildDeck(List.of(Element.FIRE)); }

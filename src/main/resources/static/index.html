@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=60">
+    <link rel="stylesheet" href="/css/style.css?v=65">
 </head>
 <body>
 <div class="pixi-root" id="pixiRoot" aria-hidden="true"></div>
@@ -20,6 +20,10 @@
     <div class="top-bar-center">
         <span class="phase-badge" id="phaseBadge">DRAW</span>
         <span class="tb-turn">T<span id="turnNumber">0</span></span>
+        <details class="energy-detail-details" id="energyDetailDetails">
+            <summary class="energy-detail-summary">Energy detail</summary>
+            <div class="energy-detail-dropdown" id="energyDetailPanel" role="region" aria-label="Energy breakdown for both players"></div>
+        </details>
         <span class="hidden" id="activeSideLabel">Player</span>
         <span class="hidden" id="firstPlayerLabel">Player</span>
         <span class="hidden" id="roomBadge"></span>
@@ -82,7 +86,10 @@
                 <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
             </div>
             <div class="action-bar-aux">
-                <button class="ab-icon" id="btnSelectedPreview" onclick="openDrawer('selected')" title="Card Preview" aria-label="Card Preview">&#128065;</button>
+                <div class="ab-preview-wrap">
+                    <span id="setupActionsCounter" class="ab-setup-actions-badge" hidden aria-live="polite"></span>
+                    <button class="ab-icon" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
+                </div>
                 <button class="ab-icon" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
                 <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
@@ -149,9 +156,9 @@
 
 <div class="drawer hidden" id="drawerSelected" data-drawer="selected">
     <div class="drawer-handle" onclick="closeDrawer()"></div>
-    <h3>Selected Card</h3>
+    <h3>Card Preview</h3>
     <div id="selectedCardInfo" class="drawer-content">
-        Tap a card in your hand to inspect it.
+        Select a hand card or tap a Siegling on either board to inspect it.
     </div>
 </div>
 
@@ -256,6 +263,13 @@
                 <section class="welcome-history-card" id="welcomeHistoryCard"></section>
             </aside>
         </div>
+        <section class="welcome-leaderboards" id="welcomeLeaderboardsSection" aria-label="Daily leaderboards">
+            <div class="welcome-card-kicker">Daily leaderboards</div>
+            <p class="welcome-leaderboards-intro">Top 10 registered players. Rankings refresh on the server once per day.</p>
+            <div class="welcome-lb-meta identity-note" id="welcomeLeaderboardsMeta"></div>
+            <div class="welcome-lb-tabs" id="welcomeLeaderboardsTabs" role="tablist" aria-label="Leaderboard category"></div>
+            <div class="welcome-lb-body" id="welcomeLeaderboardsBody"></div>
+        </section>
         <div class="welcome-footer">
             <div class="identity-note">Sign in to save progress, or jump in immediately as a guest.</div>
             <div class="welcome-footer-actions">
@@ -371,7 +385,7 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=61"></script>
+    <script src="/js/game.js?v=74"></script>
     <script type="module" src="/js/pixi/app.js?v=7"></script>
 </body>
 </html>
