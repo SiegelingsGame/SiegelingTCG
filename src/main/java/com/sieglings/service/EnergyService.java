@@ -42,6 +42,16 @@ public class EnergyService {
             int size
     ) {}
 
+    /**
+     * Lattice intersection where 2–4 in-board notches meet (visual nexus tier = notchCount).
+     */
+    public record NexusPoint(
+            int x,
+            int y,
+            int notchCount,
+            List<Element> contributingElements
+    ) {}
+
     public record EnergyBreakdown(
             int fireTotal,
             int fireInternal,
@@ -77,6 +87,7 @@ public class EnergyService {
             int comboThreeCount,
             int comboFourCount,
             List<ComboPoint> comboPoints,
+            List<NexusPoint> nexusPoints,
             boolean mistActive
     ) {}
 
@@ -92,7 +103,8 @@ public class EnergyService {
 
     /**
      * Any Siegling currently touching a perimeter socket activates that socket for the match
-     * (merged into GameState); energy and setup-action budget persist if the Sieglink breaks.
+     * (merged into GameState); energy persists if the Sieglink breaks. Setup placement budget is snapshotted
+     * from total pooled energy when setup begins, not from socket count.
      */
     private void mergeDetectedExternalSockets(GameState state, boolean isPlayer) {
         state.mergeExternalSocketActivations(isPlayer, collectExternalSocketTouches(state, isPlayer));
@@ -291,7 +303,7 @@ public class EnergyService {
 
         List<CardInstance> sieglings = placementService.getFoundationSieglings(state, isPlayer);
         Set<String> countedConnections = new HashSet<>();
-        Map<String, Set<Element>> pointElements = new HashMap<>();
+        Map<String, List<Element>> pointContributions = new HashMap<>();
 
         for (CardInstance ci : sieglings) {
             for (Notch notch : ci.getNotches()) {
@@ -304,8 +316,8 @@ public class EnergyService {
                 }
 
                 if (point.x() > 0 && point.x() < 6 && point.y() > 0 && point.y() < 6) {
-                    pointElements
-                            .computeIfAbsent(point.key(), ignored -> new LinkedHashSet<>())
+                    pointContributions
+                            .computeIfAbsent(point.key(), ignored -> new ArrayList<>())
                             .add(notch.element());
                 }
 
@@ -363,9 +375,15 @@ public class EnergyService {
             }
         }
 
-        List<ComboPoint> comboPoints = pointElements.entrySet().stream()
+        List<NexusPoint> nexusPoints = pointContributions.entrySet().stream()
+                .filter(e -> e.getValue().size() >= 2)
+                .map(e -> toNexusPoint(e.getKey(), e.getValue()))
+                .sorted(Comparator.comparingInt(NexusPoint::y).thenComparingInt(NexusPoint::x))
+                .toList();
+
+        List<ComboPoint> comboPoints = pointContributions.entrySet().stream()
                 .map(entry -> toComboPoint(entry.getKey(), entry.getValue()))
-                .filter(comboPoint -> comboPoint.size() >= 2)
+                .filter(comboPoint -> comboPoint != null && comboPoint.size() >= 2)
                 .sorted(Comparator.comparingInt(ComboPoint::y).thenComparingInt(ComboPoint::x))
                 .toList();
 
@@ -410,6 +428,7 @@ public class EnergyService {
                 comboThreeCount,
                 comboFourCount,
                 comboPoints,
+                nexusPoints,
                 mistActive
         );
     }
@@ -431,9 +450,24 @@ public class EnergyService {
                         || point.signature().equals(requiredSignature)));
     }
 
-    private ComboPoint toComboPoint(String key, Set<Element> elements) {
+    private NexusPoint toNexusPoint(String key, List<Element> contributions) {
         String[] parts = key.split(":");
-        List<Element> sortedElements = elements.stream()
+        return new NexusPoint(
+                Integer.parseInt(parts[0]),
+                Integer.parseInt(parts[1]),
+                contributions.size(),
+                List.copyOf(contributions)
+        );
+    }
+
+    /** Combo typing uses distinct elements only (multiset collapse). */
+    private ComboPoint toComboPoint(String key, List<Element> contributions) {
+        Set<Element> distinct = new LinkedHashSet<>(contributions);
+        if (distinct.size() < 2) {
+            return null;
+        }
+        String[] parts = key.split(":");
+        List<Element> sortedElements = distinct.stream()
                 .sorted(Comparator.comparing(Enum::name))
                 .toList();
         return new ComboPoint(

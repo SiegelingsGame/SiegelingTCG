@@ -64,6 +64,9 @@ public class MatchHistoryService {
                 : player.getLoadoutLabel());
         history.setTrainerName(player.getActiveTrainer() == null ? "No Trainer" : player.getActiveTrainer().getName());
         history.setTurnNumber(state.getTurnNumber());
+        history.setSpellsCast(player.getSpellsCastThisMatch());
+        history.setTrapsSprung(player.getTrapsSprungThisMatch());
+        history.setSiegelingsDefeated(player.getOpponentSieglingsDefeatedThisMatch());
         matchHistoryRepository.save(history);
     }
 

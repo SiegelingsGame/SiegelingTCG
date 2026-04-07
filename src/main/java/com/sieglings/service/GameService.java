@@ -142,7 +142,7 @@ public class GameService {
 
         state.setCurrentPhase(Phase.SETUP);
         energyService.recalculateEnergy(state);
-        state.captureSetupActionBonusFromExternalSockets(isPlayerSide);
+        state.captureSieglingSetupPlacementBonusFromEnergy(isPlayerSide);
         return state;
     }
 
@@ -176,7 +176,13 @@ public class GameService {
             return state;
         }
         if (!placementService.isLegalPlacement(state, isPlayerSide, row, col, siegling)) {
-            state.log("Cannot place at that position!");
+            CardInstance at = state.getAt(isPlayerSide, row, col);
+            if (siegling.isEvolutionCard() && at != null && siegling.getEvolvesFromId().equals(at.getCard().getId())
+                    && at.getBattlePhasesSeen() <= 0) {
+                state.log(at.getName() + " must complete a full battle phase in its current form before it can evolve.");
+            } else {
+                state.log("Cannot place at that position!");
+            }
             return state;
         }
 
@@ -185,7 +191,7 @@ public class GameService {
         if (!evolutionPlacement) {
             energyService.recalculateEnergy(state);
             if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
-                state.log("No Siegling setup actions left this turn (1 base + 1 per external socket you had when you drew).");
+                state.log("No Siegling setup actions left this turn (1 base + 1 per energy in your pool when you entered setup).");
                 return state;
             }
         }
@@ -299,6 +305,7 @@ public class GameService {
             effectService.resolveAbility(state, spell.getAbility(), null, isPlayerSide, targetRow, targetCol, destRow, destCol);
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
+            actor.incrementSpellsCastThisMatch();
             state.log(sideName(state, isPlayerSide) + " casts " + spell.getName() + "!");
             // Spend energy from pool instead of recalculating (pool restores at next phase)
             energyService.spendEnergy(state, isPlayerSide, spell.getCostElement(), spell.getCostAmount());
@@ -327,6 +334,7 @@ public class GameService {
             effectService.resolveAbility(state, trap.getAbility(), null, isPlayerSide, targetRow, targetCol, destRow, destCol);
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
+            actor.incrementTrapsSprungThisMatch();
             state.log(sideName(state, isPlayerSide) + " springs trap " + trap.getName() + "!");
             // Spend energy from pool instead of recalculating
             energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount());
