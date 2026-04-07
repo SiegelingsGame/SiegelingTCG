@@ -262,14 +262,26 @@ export class MatchScene {
                 const targetable = containsCoord(viewModel.targetableCells, row, col, boardSide);
                 const claimable = isPlayer && containsCoord(viewModel.claimableCells, row, col, "player");
 
+                const ah = viewModel.arenaHighlight;
+                const arenaSelected = Boolean(
+                    cell
+                    && ah
+                    && ah.isPlayer === isPlayer
+                    && ah.row === row
+                    && ah.col === col
+                    && cell.instanceId === ah.instanceId
+                );
+
                 const cellGraphic = new this.PIXI.Graphics();
                 cellGraphic.roundRect(x, y, CELL_SIZE, CELL_SIZE, 14).fill(0x1d2945);
                 cellGraphic.roundRect(x, y, CELL_SIZE, CELL_SIZE, 14).stroke({
-                    color: legal ? 0x65ff99 : (targetable ? 0xffc270 : (claimable ? 0x84d0ff : 0x4b6284)),
-                    width: legal || targetable || claimable ? 4 : 2
+                    color: arenaSelected
+                        ? 0xffe08a
+                        : (legal ? 0x65ff99 : (targetable ? 0xffc270 : (claimable ? 0x84d0ff : 0x4b6284))),
+                    width: arenaSelected ? 5 : (legal || targetable || claimable ? 4 : 2)
                 });
                 cellGraphic.eventMode = "static";
-                cellGraphic.cursor = legal || targetable || claimable ? "pointer" : "default";
+                cellGraphic.cursor = legal || targetable || claimable || cell ? "pointer" : "default";
                 cellGraphic.on("pointertap", () => {
                     if (legal) {
                         this.bridge.actions.placeCard(row, col);
@@ -277,6 +289,8 @@ export class MatchScene {
                         this.bridge.actions.onTargetSelected(row, col, isPlayer);
                     } else if (claimable) {
                         this.bridge.actions.openClaimPopup(row, col);
+                    } else if (cell) {
+                        this.bridge.actions.focusArenaCard(isPlayer, row, col);
                     }
                 });
                 this.boardLayer.addChild(cellGraphic);
@@ -356,18 +370,20 @@ export class MatchScene {
         }
     }
 
-    createHandCardContainer(card, x, y, cardW, cardH, selected) {
+    createHandCardContainer(card, x, y, cardW, cardH, selected, lockReason) {
         const cardContainer = new this.PIXI.Container();
         cardContainer.position.set(x, y - (selected ? 22 : 0));
         cardContainer.eventMode = "static";
         cardContainer.cursor = "pointer";
         cardContainer.hitArea = new this.PIXI.Rectangle(0, 0, cardW, cardH);
         cardContainer.cardId = card.id;
+        cardContainer.handLocked = Boolean(lockReason);
 
+        const borderColor = lockReason ? 0x4a5568 : cardColor(card.element);
         const bg = new this.PIXI.Graphics();
-        bg.roundRect(0, 0, cardW, cardH, 12).fill(0x1f2e4f);
+        bg.roundRect(0, 0, cardW, cardH, 12).fill(lockReason ? 0x151d2e : 0x1f2e4f);
         bg.roundRect(0, 0, cardW, cardH, 12).stroke({
-            color: selected ? 0xffd76a : cardColor(card.element),
+            color: selected ? 0xffd76a : borderColor,
             width: selected ? 4 : 2
         });
         cardContainer.addChild(bg);
@@ -387,15 +403,19 @@ export class MatchScene {
         meta.anchor.set(0.5, 1);
         meta.position.set(cardW / 2, cardH - 10);
         cardContainer.addChild(meta);
+        if (lockReason) {
+            cardContainer.alpha = 0.55;
+        }
         return cardContainer;
     }
 
-    beginDrag(card, event, cardContainer) {
+    beginDrag(card, handIndex, event, cardContainer) {
         const pointer = event.global;
         const origin = cardContainer.getGlobalPosition();
         this.dragState = {
             card,
             cardId: card.id,
+            handIndex,
             container: cardContainer,
             startX: pointer.x,
             startY: pointer.y,
@@ -416,6 +436,10 @@ export class MatchScene {
         const dx = pointer.x - this.dragState.startX;
         const dy = pointer.y - this.dragState.startY;
         if (!this.dragState.isDragging && ((dx * dx) + (dy * dy)) > 64) {
+            const locks = this.currentViewModel?.playerHandLockReasons;
+            if (locks && locks[this.dragState.handIndex]) {
+                return;
+            }
             this.dragState.isDragging = true;
             this.dragState.container.alpha = 0.92;
             this.dragLayer.addChild(this.dragState.container);
@@ -442,10 +466,10 @@ export class MatchScene {
         }
         const drag = this.dragState;
         this.dragState = null;
-        drag.container.alpha = 1;
+        drag.container.alpha = drag.container.handLocked ? 0.55 : 1;
 
         if (!drag.isDragging) {
-            this.bridge.actions.selectCard(drag.cardId);
+            this.bridge.actions.selectCard(drag.handIndex);
             return;
         }
 
@@ -469,8 +493,8 @@ export class MatchScene {
             }
         };
 
-        if (this.currentViewModel?.selectedCardId !== drag.cardId) {
-            this.bridge.actions.selectCard(drag.cardId);
+        if (this.currentViewModel?.selectedHandIndex !== drag.handIndex) {
+            this.bridge.actions.selectCard(drag.handIndex);
             window.setTimeout(executeDrop, 0);
         } else {
             executeDrop();
@@ -492,10 +516,13 @@ export class MatchScene {
         let x = Math.max(16, Math.round((width - total) / 2));
         const y = height - cardH - 24;
 
-        for (const card of cards) {
-            const selected = viewModel.selectedCardId === card.id;
-            const cardContainer = this.createHandCardContainer(card, x, y, cardW, cardH, selected);
-            cardContainer.on("pointerdown", (event) => this.beginDrag(card, event, cardContainer));
+        for (let handIndex = 0; handIndex < cards.length; handIndex++) {
+            const card = cards[handIndex];
+            const selected = viewModel.selectedHandIndex === handIndex;
+            const lockReason = viewModel.playerHandLockReasons?.[handIndex] || "";
+            const cardContainer = this.createHandCardContainer(card, x, y, cardW, cardH, selected, lockReason);
+            cardContainer.handIndex = handIndex;
+            cardContainer.on("pointerdown", (event) => this.beginDrag(card, handIndex, event, cardContainer));
             cardContainer.on("pointermove", (event) => this.updateDrag(event));
             cardContainer.on("pointerup", (event) => this.endDrag(event));
             cardContainer.on("pointerupoutside", (event) => this.endDrag(event));

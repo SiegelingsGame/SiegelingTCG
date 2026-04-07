@@ -45,7 +45,7 @@ public class AIService {
         }
 
         energyService.recalculateEnergy(state);
-        state.captureSetupActionBonusFromExternalSockets(false);
+        state.captureSieglingSetupPlacementBonusFromEnergy(false);
 
         state.setCurrentPhase(Phase.SETUP);
         state.log("AI Setup phase.");

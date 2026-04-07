@@ -133,6 +133,12 @@ public class Player {
         temporaryEnergyAdjustments.clear();
     }
 
+    /** Sum of all element pool totals (used for Siegling setup placement budget snapshot). */
+    public int sumPooledEnergy() {
+        return fireEnergy + earthEnergy + windEnergy + waterEnergy + iceEnergy + shadowEnergy
+                + electricEnergy + metalEnergy + undeadEnergy + psychicEnergy;
+    }
+
     public int getSpellsCastThisMatch() {
         return spellsCastThisMatch;
     }

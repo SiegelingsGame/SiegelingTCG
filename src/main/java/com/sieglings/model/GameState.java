@@ -35,12 +35,12 @@ public class GameState {
     private Map<String, Element> playerExternalSocketActivations = new LinkedHashMap<>();
     private Map<String, Element> enemyExternalSocketActivations = new LinkedHashMap<>();
     /**
-     * Distinct external sockets counted toward Siegling setup actions for this turn only.
-     * Captured at draw phase (after energy merge) so sockets first touched during setup
-     * grant extra placements on later turns, not the same setup phase.
+     * Extra Siegling setup placements from total pooled energy ({@link Player#sumPooledEnergy()}) for this turn only.
+     * Captured when entering setup (after {@code recalculateEnergy}) so energy gained during the same setup phase
+     * does not increase the budget mid-turn.
      */
-    private int playerSetupExternalSocketBonus = 0;
-    private int enemySetupExternalSocketBonus = 0;
+    private int playerSetupEnergyPlacementBonus = 0;
+    private int enemySetupEnergyPlacementBonus = 0;
     private boolean playerGoesFirst = true;
     private int setupTurnsTakenThisRound = 0;
     private boolean enemyHumanControlled = false;
@@ -145,19 +145,19 @@ public class GameState {
     }
 
     /**
-     * Setup actions budget = 1 base + one per external socket that was already recorded when this turn's draw phase ran.
+     * Siegling setup placements this turn = 1 base + total pooled energy when setup began (after draw).
      */
     public int getSieglingSetupActionBudget(boolean isPlayer) {
-        int bonus = isPlayer ? playerSetupExternalSocketBonus : enemySetupExternalSocketBonus;
+        int bonus = isPlayer ? playerSetupEnergyPlacementBonus : enemySetupEnergyPlacementBonus;
         return 1 + bonus;
     }
 
-    /** Call after {@code recalculateEnergy} at the start of a side's turn (draw → setup). */
-    public void captureSetupActionBonusFromExternalSockets(boolean isPlayer) {
+    /** Call after {@code recalculateEnergy} when entering setup (draw → setup, or AI draw → setup). */
+    public void captureSieglingSetupPlacementBonusFromEnergy(boolean isPlayer) {
         if (isPlayer) {
-            playerSetupExternalSocketBonus = playerExternalSocketActivations.size();
+            playerSetupEnergyPlacementBonus = player.sumPooledEnergy();
         } else {
-            enemySetupExternalSocketBonus = enemyExternalSocketActivations.size();
+            enemySetupEnergyPlacementBonus = enemy.sumPooledEnergy();
         }
     }
 

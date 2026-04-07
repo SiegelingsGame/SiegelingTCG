@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CardDefinitionServiceTest {
@@ -220,6 +221,47 @@ class CardDefinitionServiceTest {
         assertEquals("Retired Marshal", service.getTrainerById("trainer_inactive").getName());
         assertEquals(true, service.hasTrainer("trainer_inactive"));
         assertEquals(false, service.isTrainerActive("trainer_inactive"));
+    }
+
+    @Test
+    void customDeckResolvesEditorCopySuffixesOnCardIds() {
+        List<String> seedIds = cardDefinitions.getDeckBuilderCatalog().stream()
+                .map(Card::getId)
+                .filter(id -> !"trap03".equals(id))
+                .limit(9)
+                .toList();
+        assertEquals(9, seedIds.size(), "Need 9 catalog cards other than trap03 for a 30-card deck.");
+
+        List<String> deck = new ArrayList<>();
+        for (String id : seedIds) {
+            deck.add(id);
+            deck.add(id);
+            deck.add(id);
+        }
+        deck.add("trap03");
+        deck.add("trap03-copy");
+        deck.add("trap03-copy-copy");
+
+        List<Card> built = cardDefinitions.buildCustomDeck(deck);
+        assertEquals(30, built.size());
+        assertEquals(3, built.stream().filter(c -> "trap03".equals(c.getId())).count());
+    }
+
+    @Test
+    void customDeckRejectsUnknownIdsAfterCopySuffixStripping() {
+        List<String> seedIds = cardDefinitions.getDeckBuilderCatalog().stream()
+                .map(Card::getId)
+                .limit(10)
+                .toList();
+        List<String> deck = new ArrayList<>();
+        for (String cardId : seedIds) {
+            deck.add(cardId);
+            deck.add(cardId);
+            deck.add(cardId);
+        }
+        deck.set(deck.size() - 1, "not-a-real-card-copy");
+
+        assertThrows(IllegalArgumentException.class, () -> cardDefinitions.buildCustomDeck(deck));
     }
 
     private Map<String, Set<String>> buildLineIdsByRoot(Map<String, SieglingCard> sieglingsById) {

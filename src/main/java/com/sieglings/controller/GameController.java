@@ -542,6 +542,14 @@ public class GameController {
                 "size", point.size(),
                 "elements", point.elements().stream().map(Enum::name).toList()
         )).toList());
+        info.put("nexusPoints", energy.nexusPoints().stream().map(point -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("x", point.x());
+            row.put("y", point.y());
+            row.put("notchCount", point.notchCount());
+            row.put("contributingElements", point.contributingElements().stream().map(Enum::name).toList());
+            return row;
+        }).toList());
         info.put("deckSize", player.getDeck().size());
         info.put("trainer", serializeTrainer(player.getActiveTrainer()));
 
