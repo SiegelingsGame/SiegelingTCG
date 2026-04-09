@@ -409,6 +409,41 @@ input[type="file"] {
     align-items: start;
 }
 
+.browser-help {
+    margin: 0 0 12px;
+    color: var(--text-soft);
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.browser-filters.moves-pool-filters {
+    gap: 10px;
+}
+
+.moves-pool-used-by {
+    margin-bottom: 16px;
+}
+
+.moves-pool-used-list {
+    margin: 8px 0 0;
+    padding-left: 1.25rem;
+    color: var(--text-soft);
+    line-height: 1.5;
+}
+
+.card-id-inline {
+    color: var(--text-dim);
+    font-size: 0.85em;
+    margin-left: 0.25em;
+}
+
+#movesPoolJsonPreview {
+    width: 100%;
+    min-height: 200px;
+    max-height: 42vh;
+    resize: vertical;
+}
+
 .browser-panel,
 .editor-panel,
 .summary-panel,
