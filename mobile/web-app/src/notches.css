@@ -1,0 +1,140 @@
+/**
+ * Matches SiegelingsTCG web hand + board notch geometry from
+ * src/main/resources/static/css/style.css (bc-notch / hand-notches / notch-dot).
+ */
+:root {
+  --fire: #ff501e;
+  --earth: #b48c50;
+  --wind: #96ffb4;
+  --water: #3296ff;
+  --ice: #76e6ff;
+  --shadow: #7832b4;
+  --electric: #ffe63c;
+  --metal: #a0aab4;
+  --undead: #8c78a0;
+  --psychic: #c896ff;
+  --poison: #78dc50;
+  --light: #fffac8;
+  --neutral: #95a5a6;
+}
+
+.hand-notches {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.notch-center {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid rgba(255, 255, 255, 0.34);
+  background: rgba(9, 17, 30, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.server-card--small .notch-center {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+}
+
+.notch-dot {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid rgba(12, 18, 34, 0.6);
+  background: rgba(8, 12, 20, 0.76);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.server-card--small .notch-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.notch-dot.fire { background: var(--fire); border-color: #c0351a; }
+.notch-dot.earth { background: var(--earth); border-color: #8a6c30; }
+.notch-dot.wind { background: var(--wind); border-color: #4ab86a; }
+.notch-dot.water { background: var(--water); border-color: #1a6fd0; }
+.notch-dot.ice { background: var(--ice); border-color: #3fb7d4; }
+.notch-dot.shadow { background: var(--shadow); border-color: #5a1e8c; }
+.notch-dot.electric { background: var(--electric); border-color: #c0a800; }
+.notch-dot.metal { background: var(--metal); border-color: #7a848c; }
+.notch-dot.undead { background: var(--undead); border-color: #6a5a7c; }
+.notch-dot.psychic { background: var(--psychic); border-color: #9a6ecc; }
+.notch-dot.poison { background: var(--poison); border-color: #4a9a32; }
+.notch-dot.light { background: var(--light); border-color: #c9b860; }
+.notch-dot.neutral { background: var(--neutral); border-color: #6a737d; }
+
+/* Same as .hand-card / .notch-* — edge vs corner offsets */
+.notch-TOP { left: 50%; top: var(--notch-edge-offset, 5px); }
+.notch-TOP_RIGHT { left: calc(100% - var(--notch-corner-offset, 12px)); top: var(--notch-corner-offset, 12px); }
+.notch-RIGHT { left: calc(100% - var(--notch-edge-offset, 5px)); top: 50%; }
+.notch-BOTTOM_RIGHT { left: calc(100% - var(--notch-corner-offset, 12px)); top: calc(100% - var(--notch-corner-offset, 12px)); }
+.notch-BOTTOM { left: 50%; top: calc(100% - var(--notch-edge-offset, 5px)); }
+.notch-BOTTOM_LEFT { left: var(--notch-corner-offset, 12px); top: calc(100% - var(--notch-corner-offset, 12px)); }
+.notch-LEFT { left: var(--notch-edge-offset, 5px); top: 50%; }
+.notch-TOP_LEFT { left: var(--notch-corner-offset, 12px); top: var(--notch-corner-offset, 12px); }
+
+/* ── Board cell notches (same 8 directions as bc-notch-*) ───────── */
+.bc-notches {
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Inner layer: matches web layout (bc-notch at card edges); scale fits small grid cells. */
+.bc-notches-scale {
+  position: absolute;
+  inset: 0;
+  transform: scale(0.42);
+  transform-origin: center center;
+}
+
+.bc-notch {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid #888;
+  background: #f0f0f0;
+  box-sizing: border-box;
+}
+
+.bc-notch.empty {
+  background: #f0f0f0;
+  border-color: #888;
+}
+
+.bc-notch.filled.fire { background: var(--fire); border-color: #c0351a; }
+.bc-notch.filled.earth { background: var(--earth); border-color: #8a6c30; }
+.bc-notch.filled.wind { background: var(--wind); border-color: #4ab86a; }
+.bc-notch.filled.water { background: var(--water); border-color: #1a6fd0; }
+.bc-notch.filled.ice { background: var(--ice); border-color: #3fb7d4; }
+.bc-notch.filled.shadow { background: var(--shadow); border-color: #5a1e8c; }
+.bc-notch.filled.electric { background: var(--electric); border-color: #c0a800; }
+.bc-notch.filled.metal { background: var(--metal); border-color: #7a848c; }
+.bc-notch.filled.undead { background: var(--undead); border-color: #6a5a7c; }
+.bc-notch.filled.psychic { background: var(--psychic); border-color: #9a6ecc; }
+.bc-notch.filled.poison { background: var(--poison); border-color: #4a9a32; }
+.bc-notch.filled.light { background: var(--light); border-color: #c9b860; }
+.bc-notch.filled.neutral { background: var(--neutral); border-color: #6a737d; }
+
+.bc-notch-TOP { left: 50%; top: 0; }
+.bc-notch-TOP_RIGHT { left: 100%; top: 0; }
+.bc-notch-RIGHT { left: 100%; top: 50%; }
+.bc-notch-BOTTOM_RIGHT { left: 100%; top: 100%; }
+.bc-notch-BOTTOM { left: 50%; top: 100%; }
+.bc-notch-BOTTOM_LEFT { left: 0; top: 100%; }
+.bc-notch-LEFT { left: 0; top: 50%; }
+.bc-notch-TOP_LEFT { left: 0; top: 0; }
