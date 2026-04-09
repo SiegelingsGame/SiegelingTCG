@@ -90,6 +90,39 @@ public class GameController {
         return resp;
     }
 
+    /**
+     * Mobile/low-bandwidth option payload (no full deck-builder catalog).
+     * The full /api/game/options response can be very large and slow to generate
+     * on cold starts, which makes lightweight clients feel disconnected.
+     */
+    @GetMapping("/api/game/options-lite")
+    @ResponseBody
+    public Map<String, Object> getOptionsLite() {
+        List<CardDefinitionService.DeckOption> deckOptions = gameService.getDeckOptions();
+        CardDefinitionService.DeckOption defaultDeck = deckOptions.stream()
+                .filter(deck -> deck.id().equals("deck_fire_earth"))
+                .findFirst()
+                .or(() -> deckOptions.stream().findFirst())
+                .orElse(null);
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("decks", deckOptions.stream().map(deck -> Map.of(
+                "id", deck.id(),
+                "name", deck.name(),
+                "description", deck.description(),
+                "elements", deck.elements().stream().map(Enum::name).toList(),
+                "recommendedTrainerId", deck.recommendedTrainerId()
+        )).toList());
+        resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
+        resp.put("deckBuilder", Map.of(
+                "minDeckSize", gameService.getDeckBuilderMinSize(),
+                "maxCopies", gameService.getDeckBuilderMaxCopies()
+        ));
+        resp.put("liveElements", gameService.getActiveLiveElementNames());
+        resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
+        resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
+        return resp;
+    }
+
     @PostMapping("/api/match/create")
     @ResponseBody
     public Map<String, Object> createMatch(@RequestBody(required = false) Map<String, Object> req,

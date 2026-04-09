@@ -2,7 +2,9 @@
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
 /** Default timeout so hung API calls surface a clear error instead of infinite loading. */
-export const API_FETCH_TIMEOUT_MS = 28000;
+export const API_FETCH_TIMEOUT_MS = 45000;
+/** Cold-start + large payload endpoints may legitimately take longer. */
+export const API_HEAVY_FETCH_TIMEOUT_MS = 300000;
 
 function networkHint() {
   return API_BASE
@@ -106,8 +108,13 @@ export async function getGameOptions(options = {}) {
   }
   gameOptionsInflight = (async () => {
     try {
-      const r = await fetchWithTimeout(`${API_BASE}/api/game/options`);
-      const data = await readJsonSafe(r);
+      // Prefer the lightweight endpoint; fall back to the full payload if unavailable.
+      let r = await fetchWithTimeout(`${API_BASE}/api/game/options-lite`, {}, API_FETCH_TIMEOUT_MS);
+      let data = await readJsonSafe(r);
+      if (!r.ok) {
+        r = await fetchWithTimeout(`${API_BASE}/api/game/options`, {}, API_HEAVY_FETCH_TIMEOUT_MS);
+        data = await readJsonSafe(r);
+      }
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
       gameOptionsCache = { data, fetchedAt: Date.now() };
       return data;

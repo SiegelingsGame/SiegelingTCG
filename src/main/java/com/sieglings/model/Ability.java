@@ -12,6 +12,8 @@ public class Ability {
     private String name;
     private String description;
     private TargetType targetType;
+    /** Optional element filter for targets (e.g. ALL_ALLIES but only ICE). */
+    private Element targetElement;
     private Row targetRow;          // null = any row
     private int targetCount;        // number of targets (0 = all matching)
     private String effectType;      // See AbilityEffectKeys and ABILITY_EFFECT_KEYS.md
@@ -75,6 +77,7 @@ public class Ability {
 
     public Ability copy() {
         Ability copy = new Ability(name, description, targetType, targetRow, targetCount, effectType, effectValue, passive);
+        copy.setTargetElement(targetElement);
         copy.setRequiredElement(requiredElement);
         copy.setRequiredEnergy(requiredEnergy);
         copy.setRequiredReaction(requiredReaction);
@@ -89,6 +92,8 @@ public class Ability {
     public void setDescription(String description) { this.description = description; }
     public TargetType getTargetType() { return targetType; }
     public void setTargetType(TargetType targetType) { this.targetType = targetType; }
+    public Element getTargetElement() { return targetElement; }
+    public void setTargetElement(Element targetElement) { this.targetElement = targetElement; }
     public Row getTargetRow() { return targetRow; }
     public void setTargetRow(Row targetRow) { this.targetRow = targetRow; }
     public int getTargetCount() { return targetCount; }

@@ -221,6 +221,8 @@
             "moveDraftElementSelect",
             "moveDraftCategorySelect",
             "moveDraftTargetSelect",
+            "moveDraftTargetElementWrap",
+            "moveDraftTargetElementSelect",
             "moveDraftTargetRowWrap",
             "moveDraftTargetRowSelect",
             "moveDraftEffectSelect",
@@ -486,7 +488,10 @@
         refs.movePickerCategoryFilter?.addEventListener("change", renderMovePickerList);
         refs.movePickerList?.addEventListener("click", onMovePickerListClick);
         refs.sieglingAssignedMoves?.addEventListener("click", onSieglingAssignedMovesClick);
-        refs.moveDraftTargetSelect?.addEventListener("change", syncMoveDraftTargetRowUi);
+        refs.moveDraftTargetSelect?.addEventListener("change", () => {
+            syncMoveDraftTargetRowUi();
+            syncMoveDraftTargetElementUi();
+        });
         refs.moveDraftPassiveSelect?.addEventListener("change", onMoveDraftPassiveChange);
 
         refs.abilityTabs.addEventListener("click", (event) => {
@@ -3445,6 +3450,7 @@
             element: String(raw.element || firstMetaValue("elements", "FIRE")).trim(),
             category: String(raw.category || "STANDARD").trim(),
             targetType,
+            targetElement: raw.targetElement ? String(raw.targetElement).trim() : "",
             targetRow,
             targetCount,
             effectType: String(raw.effectType || firstEffectKey()).trim(),
@@ -3459,12 +3465,15 @@
 
     function buildExportMove(m) {
         const rule = getTargetRule(m.targetType);
+        const rawTargetElement = m.targetElement != null ? String(m.targetElement).trim() : "";
+        const exportTargetElement = rawTargetElement && rawTargetElement !== "ALL" ? rawTargetElement : null;
         return {
             id: m.id.trim(),
             name: m.name.trim(),
             element: m.element,
             category: m.category || "STANDARD",
             targetType: m.targetType,
+            targetElement: exportTargetElement,
             targetRow: m.targetRow && String(m.targetRow).trim() ? m.targetRow : null,
             targetCount: m.targetCount != null ? toNumber(m.targetCount, rule.fixedTargetCount) : rule.fixedTargetCount,
             effectType: m.effectType,
@@ -3504,6 +3513,7 @@
             element: element || firstMetaValue("elements", "FIRE"),
             category: "STANDARD",
             targetType: tt,
+            targetElement: null,
             targetRow: rule.requiresRow ? firstMetaValue("rows", "FRONT") : null,
             targetCount: rule.fixedTargetCount,
             effectType: firstEffectKey(),
@@ -3959,6 +3969,11 @@
         populateSelect(refs.moveDraftElementSelect, state.metadata?.elements || [], move.element);
         populateSelect(refs.moveDraftCategorySelect, categories, move.category || "STANDARD");
         populateSelect(refs.moveDraftTargetSelect, state.metadata?.targetTypes || [], move.targetType);
+        populateMoveDraftTargetElementOptions();
+        if (refs.moveDraftTargetElementSelect) {
+            const chosen = move.targetElement && String(move.targetElement).trim() ? String(move.targetElement).trim() : "ALL";
+            refs.moveDraftTargetElementSelect.value = chosen;
+        }
         populateSelect(refs.moveDraftTargetRowSelect, state.metadata?.rows || [], move.targetRow || firstMetaValue("rows", "FRONT"));
         populateSelect(
             refs.moveDraftEffectSelect,
@@ -3974,6 +3989,7 @@
         setInputValue(refs.moveDraftDescInput, move.description);
         refs.moveDraftPassiveSelect.value = move.isPassive || move.targetType === "PASSIVE" ? "true" : "false";
         syncMoveDraftTargetRowUi();
+        syncMoveDraftTargetElementUi();
         if (editingOriginalId != null && String(editingOriginalId).trim()) {
             state.moveDraftEditingOriginalId = String(editingOriginalId).trim();
         } else {
@@ -4019,6 +4035,8 @@
         const name = String(refs.moveDraftNameInput?.value || "").trim();
         const targetType = String(refs.moveDraftTargetSelect?.value || "SINGLE_ENEMY").trim();
         const rule = getTargetRule(targetType);
+        const rawTargetElement = String(refs.moveDraftTargetElementSelect?.value || "ALL").trim();
+        const targetElement = rawTargetElement && rawTargetElement !== "ALL" ? rawTargetElement : null;
         let targetRow = String(refs.moveDraftTargetRowSelect?.value || "").trim();
         if (!rule.requiresRow) {
             targetRow = "";
@@ -4035,6 +4053,7 @@
             element: refs.moveDraftElementSelect?.value || firstMetaValue("elements", "FIRE"),
             category: refs.moveDraftCategorySelect?.value || "STANDARD",
             targetType,
+            targetElement,
             targetRow: targetRow || null,
             targetCount: rule.fixedTargetCount,
             effectType: refs.moveDraftEffectSelect?.value || firstEffectKey(),
@@ -4055,17 +4074,53 @@
         refs.moveDraftTargetRowWrap.classList.toggle("hidden", !rule.requiresRow);
     }
 
+    function populateMoveDraftTargetElementOptions() {
+        if (!refs.moveDraftTargetElementSelect) {
+            return;
+        }
+        const elements = state.metadata?.elements || [];
+        const options = ["ALL", ...elements];
+        const prev = String(refs.moveDraftTargetElementSelect.value || "ALL").trim() || "ALL";
+        const markup = options.map((v) => {
+            const label = v === "ALL" ? "All" : formatEnumLabel(v);
+            const sel = v === prev ? " selected" : "";
+            return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
+        }).join("");
+        if (refs.moveDraftTargetElementSelect.dataset.options !== markup) {
+            refs.moveDraftTargetElementSelect.innerHTML = markup;
+            refs.moveDraftTargetElementSelect.dataset.options = markup;
+        }
+    }
+
+    function syncMoveDraftTargetElementUi() {
+        if (!refs.moveDraftTargetElementWrap || !refs.moveDraftPassiveSelect || !refs.moveDraftTargetSelect) {
+            return;
+        }
+        const passive = refs.moveDraftPassiveSelect.value === "true";
+        const tt = String(refs.moveDraftTargetSelect.value || "").trim();
+        const supportsElementFilter = tt.includes("ALLY") || tt.includes("ENEMY");
+        refs.moveDraftTargetElementWrap.classList.toggle("hidden", !(passive && supportsElementFilter));
+    }
+
     function onMoveDraftPassiveChange() {
         if (!refs.moveDraftPassiveSelect || !refs.moveDraftTargetSelect) {
             return;
         }
         if (refs.moveDraftPassiveSelect.value === "true") {
-            populateSelect(refs.moveDraftTargetSelect, state.metadata?.targetTypes || [], "PASSIVE");
+            // Passives can still have real targets (e.g. ALL_ALLIES) — don't force PASSIVE.
+            const current = String(refs.moveDraftTargetSelect.value || "").trim();
+            if (!current || current === "PASSIVE") {
+                populateSelect(refs.moveDraftTargetSelect, state.metadata?.targetTypes || [], "ALL_ALLIES");
+            } else {
+                populateSelect(refs.moveDraftTargetSelect, state.metadata?.targetTypes || [], current);
+            }
             if (refs.moveDraftEnergyInput) {
                 refs.moveDraftEnergyInput.value = "0";
             }
         }
         syncMoveDraftTargetRowUi();
+        populateMoveDraftTargetElementOptions();
+        syncMoveDraftTargetElementUi();
     }
 
     function saveMoveDraftToPool() {

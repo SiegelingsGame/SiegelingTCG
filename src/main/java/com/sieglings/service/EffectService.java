@@ -72,6 +72,7 @@ public class EffectService {
         }
 
         List<CardInstance> targets = resolveTargets(state, ability, source, isPlayerSource, targetRow, targetCol);
+        targets = filterExplicitTargetElement(ability, targets);
         targets = filterSameElementTeamBuffs(ability, source, targets);
 
         if (targets.isEmpty()) {
@@ -157,11 +158,22 @@ public class EffectService {
         if (!teamStatBuff) {
             return targets;
         }
-        Element el = source.getElement();
+        Element el = ability.getTargetElement() != null ? ability.getTargetElement() : source.getElement();
         if (el == null || el == Element.NEUTRAL) {
             return targets;
         }
         return targets.stream().filter(t -> t.getElement() == el).toList();
+    }
+
+    private List<CardInstance> filterExplicitTargetElement(Ability ability, List<CardInstance> targets) {
+        if (ability == null || targets == null || targets.isEmpty()) {
+            return targets == null ? List.of() : targets;
+        }
+        Element el = ability.getTargetElement();
+        if (el == null || el == Element.NEUTRAL) {
+            return targets;
+        }
+        return targets.stream().filter(t -> t != null && t.isAlive() && t.getElement() == el).toList();
     }
 
     private void applyEffect(GameState state, Ability ability, CardInstance source, List<CardInstance> targets,
@@ -511,14 +523,15 @@ public class EffectService {
             }
             default -> new ArrayList<>();
         };
-        return filterSameElementTeamBuffTargets(source, targets);
+        targets = filterExplicitTargetElement(ab, targets);
+        return filterSameElementTeamBuffTargets(source, targets, ab);
     }
 
-    private List<CardInstance> filterSameElementTeamBuffTargets(CardInstance source, List<CardInstance> targets) {
+    private List<CardInstance> filterSameElementTeamBuffTargets(CardInstance source, List<CardInstance> targets, Ability ab) {
         if (targets == null || targets.isEmpty()) {
             return targets == null ? List.of() : targets;
         }
-        Element el = source.getElement();
+        Element el = (ab != null && ab.getTargetElement() != null) ? ab.getTargetElement() : source.getElement();
         if (el == null || el == Element.NEUTRAL) {
             return targets;
         }
