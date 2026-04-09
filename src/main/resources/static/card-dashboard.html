@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sieglings Card, Siegeknight, And Deck Dashboard</title>
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=7">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=9">
 </head>
 <body>
 <div class="dashboard-shell">
@@ -89,6 +89,7 @@
         <button class="page-tab" id="showTrainersBtn" type="button" data-editor-page="TRAINERS">Siegeknights</button>
         <button class="page-tab" id="showDecksBtn" type="button" data-editor-page="DECKS">Premade Decks</button>
         <button class="page-tab" id="showLiveElementsBtn" type="button" data-editor-page="LIVE_ELEMENTS">Live Elements</button>
+        <button class="page-tab" id="showMovesPoolBtn" type="button" data-editor-page="MOVES_POOL">Shared Abilities</button>
     </section>
 
     <main class="workspace-grid" id="cardWorkspace">
@@ -241,8 +242,9 @@
                                 <button class="btn btn-secondary" type="button" id="openMovePickerBtn">Add from pool</button>
                             </div>
                         </div>
-                        <p class="section-help">Up to five move ids per Siegling. Passives apply when the card is on the board; actives (0–6 energy) appear in battle. Define shared moves in the pool; use Copy to fork an existing move.</p>
+                        <p class="section-help">Up to five move ids per Siegling. Passives apply when the card is on the board; actives (0–6 energy) appear in battle. Define shared moves in the pool; use Copy to fork an existing move. Edit the <strong>Shared Abilities</strong> page to change one definition everywhere it is assigned.</p>
                         <div id="sieglingAssignedMoves" class="move-assigned-list"></div>
+                        <div id="moveDraftPanelHostSiegling">
                         <div class="form-grid" id="moveDraftPanel" style="display:none;">
                             <label><span>Move id</span><input type="text" id="moveDraftIdInput" autocomplete="off"></label>
                             <label><span>Name</span><input type="text" id="moveDraftNameInput" autocomplete="off"></label>
@@ -259,6 +261,7 @@
                                 <button class="btn btn-primary" type="button" id="saveMoveDraftBtn">Save to pool</button>
                                 <button class="btn btn-secondary" type="button" id="cancelMoveDraftBtn">Cancel</button>
                             </div>
+                        </div>
                         </div>
                     </section>
 
@@ -389,7 +392,7 @@
             <div class="card-list" id="deckList"></div>
         </aside>
 
-        <section class="panel deck-editor-panel" id="deckEditorPanel">
+        <section class="panel deck-editor-panel editor-panel el-neutral" id="deckEditorPanel">
             <div class="panel-heading">
                 <div>
                     <div class="section-kicker">Edit</div>
@@ -724,6 +727,120 @@
             </div>
         </div>
     </section>
+
+    <section class="deck-workspace hidden" id="movesPoolWorkspace">
+        <aside class="panel deck-list-panel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">Browse</div>
+                    <h2>Shared Abilities</h2>
+                </div>
+                <div class="inline-actions">
+                    <button class="btn btn-secondary" id="newPoolMoveBtn" type="button">New ability</button>
+                </div>
+            </div>
+            <p class="section-help browser-help">These entries power every Siegling move slot. Updating an ability here updates the rules text and effect for every card that references its id.</p>
+            <div class="browser-filters moves-pool-filters form-grid">
+                <label class="full-width">
+                    <span>Search</span>
+                    <input id="movesPoolSearchInput" type="search" placeholder="Search by name or id" autocomplete="off">
+                </label>
+                <label>
+                    <span>Element</span>
+                    <select id="movesPoolElementFilter" aria-label="Filter by element"></select>
+                </label>
+                <label>
+                    <span>Category</span>
+                    <select id="movesPoolCategoryFilter" aria-label="Filter by move category"></select>
+                </label>
+                <label>
+                    <span>Activation</span>
+                    <select id="movesPoolActivationFilter" aria-label="Passive or activated">
+                        <option value="ALL">All</option>
+                        <option value="PASSIVE">Passive</option>
+                        <option value="ACTIVATED">Activated</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Target</span>
+                    <select id="movesPoolTargetFilter" aria-label="Filter by target type"></select>
+                </label>
+                <label>
+                    <span>Max energy</span>
+                    <select id="movesPoolEnergyFilter" aria-label="Filter by energy cost">
+                        <option value="99">Any</option>
+                        <option value="0">0 only</option>
+                        <option value="1">≤ 1</option>
+                        <option value="2">≤ 2</option>
+                        <option value="3">≤ 3</option>
+                        <option value="6">≤ 6</option>
+                    </select>
+                </label>
+                <label class="full-width">
+                    <span>Sort</span>
+                    <select id="movesPoolSortSelect" aria-label="Sort abilities">
+                        <option value="name-asc">Name (A–Z)</option>
+                        <option value="name-desc">Name (Z–A)</option>
+                        <option value="element-asc">Element, then name</option>
+                        <option value="category-asc">Category, then name</option>
+                        <option value="target-asc">Target, then name</option>
+                        <option value="energy-asc">Energy (low → high)</option>
+                        <option value="energy-desc">Energy (high → low)</option>
+                    </select>
+                </label>
+            </div>
+            <div class="card-list" id="movesPoolList"></div>
+        </aside>
+
+        <section class="panel deck-editor-panel editor-panel el-neutral" id="movesPoolEditorPanel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">Edit</div>
+                    <h2 id="movesPoolEditorTitle">Shared Ability</h2>
+                </div>
+                <button class="btn btn-danger" id="deletePoolMoveBtn" type="button">Delete From Pool</button>
+            </div>
+
+            <div class="empty-state" id="emptyMovesPoolEditorState">
+                Select a shared ability on the left or create a new one. Sieglings only store references by id—edits here apply to every card using that id.
+            </div>
+
+            <div class="editor-content hidden" id="movesPoolEditorContent">
+                <div id="movesPoolUsedBy" class="moves-pool-used-by" aria-live="polite"></div>
+                <div id="moveDraftPanelHostPool"></div>
+            </div>
+        </section>
+
+        <aside class="deck-side-column">
+            <div class="panel summary-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">Review</div>
+                        <h2>Ability Summary</h2>
+                    </div>
+                </div>
+                <div id="movesPoolSummaryPanel" class="card-summary"></div>
+            </div>
+            <div class="panel preview-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">Export</div>
+                        <h2>Moves JSON</h2>
+                    </div>
+                </div>
+                <textarea id="movesPoolJsonPreview" readonly spellcheck="false"></textarea>
+            </div>
+            <div class="panel validation-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">Checks</div>
+                        <h2>Validation</h2>
+                    </div>
+                </div>
+                <div id="movesPoolValidationList" class="validation-list"></div>
+            </div>
+        </aside>
+    </section>
 </div>
 
 <div class="move-picker-overlay hidden" id="movePickerOverlay" role="dialog" aria-modal="true" aria-labelledby="movePickerTitle">
@@ -745,6 +862,6 @@
 <datalist id="cardIdOptions"></datalist>
 
 <script src="/js/config.js"></script>
-<script src="/js/card-dashboard.js?v=9"></script>
+<script src="/js/card-dashboard.js?v=13"></script>
 </body>
 </html>

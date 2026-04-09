@@ -52,6 +52,18 @@
         selectedCardId: null,
         selectedDeckId: null,
         selectedTrainerId: null,
+        selectedMoveId: null,
+        movesPoolSearch: "",
+        movesPoolFilterElement: "ALL",
+        movesPoolFilterCategory: "ALL",
+        movesPoolFilterActivation: "ALL",
+        movesPoolFilterTarget: "ALL",
+        movesPoolFilterEnergy: "99",
+        movesPoolSort: "name-asc",
+        movesPoolIsNewDraft: false,
+        movesPoolFormEpoch: 0,
+        movesPoolFormEpochApplied: -1,
+        moveDraftEditingOriginalId: null,
         selectedAbilityIndex: 0,
         editorPage: "SIEGLING",
         actionTypeFilter: "ALL",
@@ -105,7 +117,9 @@
             "showTrainersBtn",
             "showDecksBtn",
             "showLiveElementsBtn",
+            "showMovesPoolBtn",
             "cardWorkspace",
+            "movesPoolWorkspace",
             "deckWorkspace",
             "trainerWorkspace",
             "liveElementsWorkspace",
@@ -216,6 +230,26 @@
             "moveDraftPassiveSelect",
             "saveMoveDraftBtn",
             "cancelMoveDraftBtn",
+            "moveDraftPanelHostSiegling",
+            "moveDraftPanelHostPool",
+            "movesPoolEditorPanel",
+            "movesPoolEditorTitle",
+            "emptyMovesPoolEditorState",
+            "movesPoolEditorContent",
+            "movesPoolUsedBy",
+            "movesPoolList",
+            "movesPoolSearchInput",
+            "movesPoolElementFilter",
+            "movesPoolCategoryFilter",
+            "movesPoolActivationFilter",
+            "movesPoolTargetFilter",
+            "movesPoolEnergyFilter",
+            "movesPoolSortSelect",
+            "newPoolMoveBtn",
+            "deletePoolMoveBtn",
+            "movesPoolSummaryPanel",
+            "movesPoolJsonPreview",
+            "movesPoolValidationList",
             "movePickerOverlay",
             "movePickerSearch",
             "movePickerElementFilter",
@@ -312,6 +346,7 @@
         refs.showTrainersBtn.addEventListener("click", () => setEditorPage("TRAINERS"));
         refs.showDecksBtn.addEventListener("click", () => setEditorPage("DECKS"));
         refs.showLiveElementsBtn.addEventListener("click", () => setEditorPage("LIVE_ELEMENTS"));
+        refs.showMovesPoolBtn.addEventListener("click", () => setEditorPage("MOVES_POOL"));
         refs.liveElementsWorkspace.addEventListener("change", (event) => {
             const input = event.target.closest("input[data-live-element-index]");
             if (!input || input.type !== "checkbox") {
@@ -406,7 +441,43 @@
         refs.newMoveBtn?.addEventListener("click", startNewMoveDraft);
         refs.openMovePickerBtn?.addEventListener("click", () => openMovePickerModal(-1));
         refs.saveMoveDraftBtn?.addEventListener("click", saveMoveDraftToPool);
-        refs.cancelMoveDraftBtn?.addEventListener("click", hideMoveDraft);
+        refs.cancelMoveDraftBtn?.addEventListener("click", onCancelMoveDraft);
+        refs.newPoolMoveBtn?.addEventListener("click", startNewPoolMoveDraft);
+        refs.deletePoolMoveBtn?.addEventListener("click", deleteSelectedPoolMove);
+        refs.movesPoolList?.addEventListener("click", onMovesPoolListClick);
+        refs.movesPoolSearchInput?.addEventListener("input", (event) => {
+            state.movesPoolSearch = event.target.value || "";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolElementFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterElement = event.target.value || "ALL";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolCategoryFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterCategory = event.target.value || "ALL";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolActivationFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterActivation = event.target.value || "ALL";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolTargetFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterTarget = event.target.value || "ALL";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolEnergyFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterEnergy = event.target.value || "99";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolSortSelect?.addEventListener("change", (event) => {
+            state.movesPoolSort = event.target.value || "name-asc";
+            renderMovesPoolBrowser();
+        });
+        refs.moveDraftElementSelect?.addEventListener("change", () => {
+            if (state.editorPage === "MOVES_POOL") {
+                applyMovesPoolEditorPanelTheme();
+            }
+        });
         refs.movePickerCloseBtn?.addEventListener("click", closeMovePickerModal);
         refs.movePickerOverlay?.addEventListener("click", closeMovePickerModal);
         refs.movePickerSearch?.addEventListener("input", renderMovePickerList);
@@ -1041,6 +1112,9 @@
         state.dirty = dirty;
         state.validation = validateDashboard();
         syncSelectionToEditorPage();
+        if (state.editorPage === "MOVES_POOL") {
+            state.movesPoolFormEpoch += 1;
+        }
     }
 
     function normalizeCard(card) {
@@ -1324,13 +1398,23 @@
     }
 
     function setEditorPage(page) {
-        state.editorPage = page === "ACTION"
-            ? "ACTION"
-            : (page === "DECKS"
-                ? "DECKS"
-                : (page === "TRAINERS"
-                    ? "TRAINERS"
-                    : (page === "LIVE_ELEMENTS" ? "LIVE_ELEMENTS" : "SIEGLING")));
+        if (page === "ACTION") {
+            state.editorPage = "ACTION";
+        } else if (page === "DECKS") {
+            state.editorPage = "DECKS";
+        } else if (page === "TRAINERS") {
+            state.editorPage = "TRAINERS";
+        } else if (page === "LIVE_ELEMENTS") {
+            state.editorPage = "LIVE_ELEMENTS";
+        } else if (page === "MOVES_POOL") {
+            const prev = state.editorPage;
+            state.editorPage = "MOVES_POOL";
+            if (prev !== "MOVES_POOL") {
+                state.movesPoolFormEpoch += 1;
+            }
+        } else {
+            state.editorPage = "SIEGLING";
+        }
         syncSelectionToEditorPage();
         renderAll();
     }
@@ -1350,6 +1434,19 @@
                 return;
             }
             state.selectedDeckId = state.decks[0]?.id || null;
+            return;
+        }
+        if (state.editorPage === "MOVES_POOL") {
+            if (state.movesPoolIsNewDraft) {
+                return;
+            }
+            const selectedMove = findMoveById(state.selectedMoveId);
+            if (selectedMove) {
+                return;
+            }
+            state.selectedMoveId = state.movesPool[0]?.id || null;
+            state.movesPoolIsNewDraft = false;
+            state.moveDraftEditingOriginalId = null;
             return;
         }
         const selectedCard = state.cards.find((card) => card.id === state.selectedCardId) || null;
@@ -1501,10 +1598,18 @@
         renderAuth();
         renderStatus();
         renderFilterOptions();
-        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS");
+        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL");
+        refs.movesPoolWorkspace.classList.toggle("hidden", state.editorPage !== "MOVES_POOL");
         refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
         refs.trainerWorkspace.classList.toggle("hidden", state.editorPage !== "TRAINERS");
         refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
+        if (state.editorPage === "MOVES_POOL") {
+            mountMoveDraftPanel(refs.moveDraftPanelHostPool);
+            renderMovesPoolBrowser();
+            renderMovesPoolEditorShell();
+        } else {
+            mountMoveDraftPanel(refs.moveDraftPanelHostSiegling);
+        }
         renderCardList();
         renderEditor();
         renderSummary();
@@ -1522,6 +1627,9 @@
         renderValidation();
         renderButtons();
         renderCardIdOptions();
+        if (state.editorPage === "MOVES_POOL") {
+            renderMovesPoolSidePanels();
+        }
     }
 
     function renderAuth() {
@@ -1571,7 +1679,9 @@
                 ? `${state.trainers.length} Siegeknight${state.trainers.length === 1 ? "" : "s"}`
                 : (state.editorPage === "LIVE_ELEMENTS"
                     ? `${state.liveElements.filter((row) => row.active !== false).length} active element${state.liveElements.filter((row) => row.active !== false).length === 1 ? "" : "s"}`
-                    : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`));
+                    : (state.editorPage === "MOVES_POOL"
+                        ? `${state.movesPool.length} shared abilit${state.movesPool.length === 1 ? "y" : "ies"}`
+                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`)));
         refs.filePathLabel.textContent = buildStatusPathText();
         refs.statusMessage.textContent = state.status.message;
 
@@ -1599,12 +1709,15 @@
         refs.elementFilterSelect.value = state.elementFilter;
         refs.actionTypeFilterSelect.value = state.actionTypeFilter;
         refs.actionTypeFilterSelect.classList.toggle("hidden", state.editorPage !== "ACTION");
-        refs.browserTitle.textContent = state.editorPage === "ACTION" ? "Spells And Traps" : "Sieglings";
+        refs.browserTitle.textContent = state.editorPage === "ACTION"
+            ? "Spells And Traps"
+            : (state.editorPage === "MOVES_POOL" ? "Shared Abilities" : "Sieglings");
         refs.showSieglingsBtn.classList.toggle("active", state.editorPage === "SIEGLING");
         refs.showActionsBtn.classList.toggle("active", state.editorPage === "ACTION");
         refs.showTrainersBtn.classList.toggle("active", state.editorPage === "TRAINERS");
         refs.showDecksBtn.classList.toggle("active", state.editorPage === "DECKS");
         refs.showLiveElementsBtn.classList.toggle("active", state.editorPage === "LIVE_ELEMENTS");
+        refs.showMovesPoolBtn.classList.toggle("active", state.editorPage === "MOVES_POOL");
         if (state.editorPage === "LIVE_ELEMENTS") {
             refs.browserTitle.textContent = "Live Elements";
         }
@@ -1696,6 +1809,9 @@
         renderNotches(card);
         if (isSiegling) {
             renderSieglingMovesUI(card);
+            if (refs.saveMoveDraftBtn) {
+                refs.saveMoveDraftBtn.textContent = "Save to pool";
+            }
             refs.abilityEditor.classList.add("hidden");
             return;
         }
@@ -1893,10 +2009,11 @@
         }
         refs.deckList.innerHTML = decks.map((deck) => {
             const active = deck.id === state.selectedDeckId ? " active" : "";
+            const theme = elementThemeClass(primaryDeckElement(deck));
             const statusBadge = deck.active ? "Active" : "Inactive";
             const counts = deckTypeCounts(deck.cardIds);
             return `
-                <div class="card-row${active}" data-deck-id="${escapeHtml(deck.id)}">
+                <div class="card-row ${theme}${active}" data-deck-id="${escapeHtml(deck.id)}">
                     <div class="card-row-title">
                         <strong>${escapeHtml(deck.name || "Unnamed Deck")}</strong>
                         <span class="summary-badge">${escapeHtml(statusBadge)} | ${deck.cardIds.length} cards</span>
@@ -1915,6 +2032,11 @@
         const deck = getSelectedDeck();
         refs.emptyDeckState.classList.toggle("hidden", Boolean(deck));
         refs.deckEditorContent.classList.toggle("hidden", !deck);
+        if (refs.deckEditorPanel) {
+            refs.deckEditorPanel.className = deck
+                ? `panel deck-editor-panel editor-panel ${elementThemeClass(primaryDeckElement(deck))}`
+                : "panel deck-editor-panel editor-panel el-neutral";
+        }
         if (!deck) {
             refs.deckCompositionList.innerHTML = "";
             return;
@@ -2277,6 +2399,10 @@
         refs.newSpellBtn.classList.toggle("hidden", state.editorPage !== "ACTION");
         refs.newTrapBtn.classList.toggle("hidden", state.editorPage !== "ACTION");
         refs.newTrainerBtn.classList.toggle("hidden", state.editorPage !== "TRAINERS");
+        if (refs.deletePoolMoveBtn) {
+            const poolMove = findMoveById(state.selectedMoveId);
+            refs.deletePoolMoveBtn.disabled = state.editorPage !== "MOVES_POOL" || state.movesPoolIsNewDraft || !poolMove;
+        }
         refs.duplicateCardBtn.disabled = !hasCard;
         refs.deleteCardBtn.disabled = !hasCard;
         refs.addAbilityBtn.disabled = !hasCard || !canEditMultipleAbilities;
@@ -2453,6 +2579,28 @@
         return Array.from(new Set((cardIds || [])
             .map((cardId) => findCardById(cardId)?.element || "")
             .filter((element) => element && element !== "NEUTRAL")));
+    }
+
+    /** First element for theming: inferred from cards, then stored deck.elements, then recommended trainer. */
+    function primaryDeckElement(deck) {
+        if (!deck) {
+            return "NEUTRAL";
+        }
+        const inferred = inferDeckElements(deck.cardIds);
+        if (inferred.length > 0) {
+            return inferred[0];
+        }
+        const stored = Array.isArray(deck.elements) ? deck.elements.filter(Boolean) : [];
+        if (stored.length > 0) {
+            return stored[0];
+        }
+        if (deck.recommendedTrainerId) {
+            const tr = findTrainerById(deck.recommendedTrainerId);
+            if (tr?.element) {
+                return tr.element;
+            }
+        }
+        return "NEUTRAL";
     }
 
     function buildDeckSummaryChips(deck) {
@@ -3382,12 +3530,431 @@
 
     function hideMoveDraft() {
         state.moveDraftSourceId = null;
+        state.moveDraftEditingOriginalId = null;
         if (refs.moveDraftPanel) {
             refs.moveDraftPanel.style.display = "none";
         }
     }
 
-    function ensureMoveDraftPopulatedWith(move) {
+    function onCancelMoveDraft() {
+        if (state.editorPage === "MOVES_POOL") {
+            state.movesPoolIsNewDraft = false;
+            state.selectedMoveId = state.movesPool[0]?.id || null;
+            state.moveDraftEditingOriginalId = null;
+            state.movesPoolFormEpoch += 1;
+            renderAll();
+            return;
+        }
+        hideMoveDraft();
+    }
+
+    function mountMoveDraftPanel(targetHost) {
+        if (!refs.moveDraftPanel || !targetHost) {
+            return;
+        }
+        if (refs.moveDraftPanel.parentElement !== targetHost) {
+            targetHost.appendChild(refs.moveDraftPanel);
+        }
+    }
+
+    function getSieglingsUsingMoveId(moveId) {
+        const key = String(moveId || "").trim();
+        if (!key) {
+            return [];
+        }
+        return state.cards.filter((card) => {
+            if (card.cardType !== "SIEGLING") {
+                return false;
+            }
+            return (card.moveIds || []).some((id) => String(id || "").trim() === key);
+        });
+    }
+
+    function migrateMoveIdOnAllCards(oldId, newId) {
+        const o = String(oldId || "").trim();
+        const n = String(newId || "").trim();
+        if (!o || !n || o === n) {
+            return;
+        }
+        state.cards.forEach((card) => {
+            if (card.cardType !== "SIEGLING" || !Array.isArray(card.moveIds)) {
+                return;
+            }
+            card.moveIds = card.moveIds.map((id) => (String(id || "").trim() === o ? n : id));
+        });
+    }
+
+    function isMovePassiveForFilter(m) {
+        return Boolean(m?.isPassive) || m?.targetType === "PASSIVE";
+    }
+
+    function moveEffectiveEnergyForFilter(m) {
+        return isMovePassiveForFilter(m) ? 0 : toNumber(m?.energyCost, 0);
+    }
+
+    function compareMovesPoolSort(a, b, sortKey) {
+        const enA = moveEffectiveEnergyForFilter(a);
+        const enB = moveEffectiveEnergyForFilter(b);
+        switch (sortKey) {
+            case "name-desc":
+                return b.name.localeCompare(a.name) || a.id.localeCompare(b.id);
+            case "element-asc":
+                return a.element.localeCompare(b.element) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "category-asc":
+                return String(a.category || "").localeCompare(String(b.category || "")) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "target-asc":
+                return String(a.targetType || "").localeCompare(String(b.targetType || "")) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "energy-asc":
+                if (enA !== enB) {
+                    return enA - enB;
+                }
+                return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "energy-desc":
+                if (enA !== enB) {
+                    return enB - enA;
+                }
+                return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "name-asc":
+            default:
+                return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+        }
+    }
+
+    function syncMovesPoolFilterUi() {
+        if (state.editorPage !== "MOVES_POOL" || !refs.movesPoolElementFilter) {
+            return;
+        }
+        const elements = state.metadata?.elements || [];
+        const categories = state.metadata?.moveCategories || ["STANDARD", "SPECIALITY", "UTILITY"];
+        const targets = state.metadata?.targetTypes || [];
+
+        const optsHtml = (allLabel, values, formatLabel) => {
+            const rows = [`<option value="ALL">${escapeHtml(allLabel)}</option>`];
+            values.forEach((v) => {
+                rows.push(`<option value="${escapeHtml(v)}">${escapeHtml(formatLabel(v))}</option>`);
+            });
+            return rows.join("");
+        };
+
+        const elHtml = optsHtml("All elements", elements, formatEnumLabel);
+        if (refs.movesPoolElementFilter.dataset.opts !== elHtml) {
+            refs.movesPoolElementFilter.dataset.opts = elHtml;
+            refs.movesPoolElementFilter.innerHTML = elHtml;
+        }
+        refs.movesPoolElementFilter.value = state.movesPoolFilterElement;
+        if (refs.movesPoolElementFilter.value !== state.movesPoolFilterElement) {
+            state.movesPoolFilterElement = "ALL";
+            refs.movesPoolElementFilter.value = "ALL";
+        }
+
+        if (refs.movesPoolCategoryFilter) {
+            const catHtml = optsHtml("All categories", categories, formatEnumLabel);
+            if (refs.movesPoolCategoryFilter.dataset.opts !== catHtml) {
+                refs.movesPoolCategoryFilter.dataset.opts = catHtml;
+                refs.movesPoolCategoryFilter.innerHTML = catHtml;
+            }
+            refs.movesPoolCategoryFilter.value = state.movesPoolFilterCategory;
+            if (refs.movesPoolCategoryFilter.value !== state.movesPoolFilterCategory) {
+                state.movesPoolFilterCategory = "ALL";
+                refs.movesPoolCategoryFilter.value = "ALL";
+            }
+        }
+
+        if (refs.movesPoolTargetFilter) {
+            const tgtHtml = optsHtml("All targets", targets, formatEnumLabel);
+            if (refs.movesPoolTargetFilter.dataset.opts !== tgtHtml) {
+                refs.movesPoolTargetFilter.dataset.opts = tgtHtml;
+                refs.movesPoolTargetFilter.innerHTML = tgtHtml;
+            }
+            refs.movesPoolTargetFilter.value = state.movesPoolFilterTarget;
+            if (refs.movesPoolTargetFilter.value !== state.movesPoolFilterTarget) {
+                state.movesPoolFilterTarget = "ALL";
+                refs.movesPoolTargetFilter.value = "ALL";
+            }
+        }
+
+        if (refs.movesPoolActivationFilter) {
+            refs.movesPoolActivationFilter.value = state.movesPoolFilterActivation;
+            if (refs.movesPoolActivationFilter.value !== state.movesPoolFilterActivation) {
+                state.movesPoolFilterActivation = "ALL";
+                refs.movesPoolActivationFilter.value = "ALL";
+            }
+        }
+        if (refs.movesPoolEnergyFilter) {
+            refs.movesPoolEnergyFilter.value = state.movesPoolFilterEnergy;
+            if (!refs.movesPoolEnergyFilter.value) {
+                state.movesPoolFilterEnergy = "99";
+                refs.movesPoolEnergyFilter.value = "99";
+            }
+        }
+        if (refs.movesPoolSortSelect) {
+            refs.movesPoolSortSelect.value = state.movesPoolSort;
+            if (refs.movesPoolSortSelect.value !== state.movesPoolSort) {
+                state.movesPoolSort = "name-asc";
+                refs.movesPoolSortSelect.value = "name-asc";
+            }
+        }
+    }
+
+    function applyMovesPoolEditorPanelTheme() {
+        if (!refs.movesPoolEditorPanel || state.editorPage !== "MOVES_POOL") {
+            return;
+        }
+        const hasEditor = state.movesPoolIsNewDraft || Boolean(findMoveById(state.selectedMoveId));
+        if (!hasEditor) {
+            refs.movesPoolEditorPanel.className = "panel deck-editor-panel editor-panel el-neutral";
+            return;
+        }
+        let el = firstMetaValue("elements", "FIRE");
+        if (state.movesPoolIsNewDraft) {
+            const draft = readMoveDraftFromForm();
+            if (draft?.element) {
+                el = draft.element;
+            }
+        } else {
+            const move = findMoveById(state.selectedMoveId);
+            if (move?.element) {
+                el = move.element;
+            }
+        }
+        refs.movesPoolEditorPanel.className = `panel deck-editor-panel editor-panel ${elementThemeClass(el)}`;
+    }
+
+    function getFilteredMovesPoolRows() {
+        const q = state.movesPoolSearch.trim().toLowerCase();
+        const maxEn = toNumber(state.movesPoolFilterEnergy, 99);
+        const rows = (state.movesPool || []).filter((m) => {
+            if (!m || !m.id) {
+                return false;
+            }
+            if (state.movesPoolFilterElement !== "ALL" && m.element !== state.movesPoolFilterElement) {
+                return false;
+            }
+            if (state.movesPoolFilterCategory !== "ALL" && String(m.category || "STANDARD") !== state.movesPoolFilterCategory) {
+                return false;
+            }
+            const passive = isMovePassiveForFilter(m);
+            if (state.movesPoolFilterActivation === "PASSIVE" && !passive) {
+                return false;
+            }
+            if (state.movesPoolFilterActivation === "ACTIVATED" && passive) {
+                return false;
+            }
+            if (state.movesPoolFilterTarget !== "ALL" && String(m.targetType || "") !== state.movesPoolFilterTarget) {
+                return false;
+            }
+            const cost = moveEffectiveEnergyForFilter(m);
+            if (maxEn < 99 && cost > maxEn) {
+                return false;
+            }
+            if (q && !m.id.toLowerCase().includes(q) && !String(m.name || "").toLowerCase().includes(q)) {
+                return false;
+            }
+            return true;
+        });
+        rows.sort((a, b) => compareMovesPoolSort(a, b, state.movesPoolSort));
+        return rows;
+    }
+
+    function renderMovesPoolBrowser() {
+        if (!refs.movesPoolList) {
+            return;
+        }
+        syncMovesPoolFilterUi();
+        const rows = getFilteredMovesPoolRows();
+        if (rows.length === 0) {
+            const empty = (state.movesPool || []).length === 0
+                ? "The moves pool is empty. Create a new ability or reload data."
+                : "No abilities match the current search and filters.";
+            refs.movesPoolList.innerHTML = `<div class="empty-browser">${escapeHtml(empty)}</div>`;
+            if (refs.movesPoolSearchInput && refs.movesPoolSearchInput.value !== state.movesPoolSearch) {
+                refs.movesPoolSearchInput.value = state.movesPoolSearch;
+            }
+            applyMovesPoolEditorPanelTheme();
+            return;
+        }
+        refs.movesPoolList.innerHTML = rows.map((m) => {
+            const users = getSieglingsUsingMoveId(m.id);
+            const active = m.id === state.selectedMoveId && !state.movesPoolIsNewDraft ? " active" : "";
+            const useLabel = users.length === 0 ? "Unused" : `${users.length} Siegling${users.length === 1 ? "" : "s"}`;
+            const theme = elementThemeClass(m.element);
+            return `
+                <div class="card-row ${theme}${active}" data-pool-move-id="${escapeHtml(m.id)}">
+                    <div class="card-row-title">
+                        <strong>${escapeHtml(m.name || "Unnamed")}</strong>
+                        <span class="summary-badge">${escapeHtml(formatEnumLabel(m.element))} · ${escapeHtml(useLabel)}</span>
+                    </div>
+                    <div class="card-meta">${escapeHtml(describeMove(m))}</div>
+                    <div class="card-id">${escapeHtml(m.id)}</div>
+                </div>
+            `;
+        }).join("");
+        if (refs.movesPoolSearchInput && refs.movesPoolSearchInput.value !== state.movesPoolSearch) {
+            refs.movesPoolSearchInput.value = state.movesPoolSearch;
+        }
+        applyMovesPoolEditorPanelTheme();
+    }
+
+    function renderMovesPoolEditorShell() {
+        if (state.editorPage !== "MOVES_POOL" || !refs.emptyMovesPoolEditorState || !refs.movesPoolEditorContent) {
+            return;
+        }
+        const hasEditor = state.movesPoolIsNewDraft || Boolean(findMoveById(state.selectedMoveId));
+        refs.emptyMovesPoolEditorState.classList.toggle("hidden", hasEditor);
+        refs.movesPoolEditorContent.classList.toggle("hidden", !hasEditor);
+        if (refs.saveMoveDraftBtn) {
+            refs.saveMoveDraftBtn.textContent = "Save ability";
+        }
+        if (!hasEditor) {
+            if (refs.moveDraftPanel) {
+                refs.moveDraftPanel.style.display = "none";
+            }
+            applyMovesPoolEditorPanelTheme();
+            return;
+        }
+        if (state.movesPoolFormEpoch !== state.movesPoolFormEpochApplied) {
+            state.movesPoolFormEpochApplied = state.movesPoolFormEpoch;
+            if (state.movesPoolIsNewDraft) {
+                const draft = createBlankMoveFromElement(firstMetaValue("elements", "FIRE"));
+                draft.id = createUniqueMoveId("ability");
+                ensureMoveDraftPopulatedWith(draft, null);
+            } else {
+                const move = findMoveById(state.selectedMoveId);
+                if (move) {
+                    ensureMoveDraftPopulatedWith(move, move.id);
+                }
+            }
+        }
+        if (refs.movesPoolEditorTitle) {
+            refs.movesPoolEditorTitle.textContent = state.movesPoolIsNewDraft ? "New Shared Ability" : "Edit Shared Ability";
+        }
+        if (refs.movesPoolUsedBy) {
+            const idInForm = String(refs.moveDraftIdInput?.value || "").trim();
+            const storedId = state.movesPoolIsNewDraft ? "" : String(state.selectedMoveId || "").trim();
+            const list = storedId ? getSieglingsUsingMoveId(storedId) : [];
+            const renameNote = !state.movesPoolIsNewDraft && storedId && idInForm && idInForm !== storedId
+                ? `<p class="section-help">Move id changed in the form — saving will point every Siegling that used <strong>${escapeHtml(storedId)}</strong> at <strong>${escapeHtml(idInForm)}</strong> instead.</p>`
+                : "";
+            if (state.movesPoolIsNewDraft) {
+                refs.movesPoolUsedBy.innerHTML = `<p class="section-help">Save to add this ability to the pool, then assign it from any Siegling’s move list.</p>`;
+            } else if (list.length === 0) {
+                refs.movesPoolUsedBy.innerHTML = `${renameNote}<p class="section-help"><strong>Not assigned</strong> — no Siegling references this id yet.</p>`;
+            } else {
+                refs.movesPoolUsedBy.innerHTML = `
+                    ${renameNote}
+                    <p class="section-help"><strong>Used by ${list.length} Siegling${list.length === 1 ? "" : "s"}</strong> (by move id). Edits to name, effect, and cost apply to every assignment.</p>
+                    <ul class="moves-pool-used-list">${list.map((c) => `<li>${escapeHtml(c.name || c.id)} <span class="card-id-inline">${escapeHtml(c.id)}</span></li>`).join("")}</ul>
+                `;
+            }
+        }
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "grid";
+        }
+        applyMovesPoolEditorPanelTheme();
+    }
+
+    function renderMovesPoolSidePanels() {
+        if (state.editorPage !== "MOVES_POOL") {
+            return;
+        }
+        const move = state.movesPoolIsNewDraft ? readMoveDraftFromForm() : findMoveById(state.selectedMoveId);
+        if (refs.movesPoolSummaryPanel) {
+            if (!move) {
+                refs.movesPoolSummaryPanel.innerHTML = `<div class="validation-empty">Select an ability to preview.</div>`;
+            } else {
+                refs.movesPoolSummaryPanel.innerHTML = `
+                    <div class="summary-ability">
+                        <strong>${escapeHtml(move.name || move.id)}</strong>
+                        <div class="card-summary-copy">${escapeHtml(move.description || "No description.")}</div>
+                        <div class="card-summary-copy">${escapeHtml(describeMove(move))}</div>
+                        <div class="card-id">${escapeHtml(move.id)}</div>
+                    </div>
+                `;
+            }
+        }
+        if (refs.movesPoolJsonPreview) {
+            refs.movesPoolJsonPreview.value = JSON.stringify(state.movesPool.map((m) => buildExportMove(m)), null, 2);
+        }
+        if (refs.movesPoolValidationList) {
+            const cardIssues = state.validation.filter((issue) => issue.scope === "cards");
+            if (cardIssues.length === 0) {
+                refs.movesPoolValidationList.innerHTML = `<div class="validation-empty">No validation issues right now.</div>`;
+            } else {
+                refs.movesPoolValidationList.innerHTML = cardIssues.map((issue) => `
+                    <div class="validation-item ${issue.severity}">
+                        <span class="validation-severity">${escapeHtml(issue.severity)}</span>
+                        <div>${escapeHtml(issue.message)}</div>
+                    </div>
+                `).join("");
+            }
+        }
+    }
+
+    function onMovesPoolListClick(event) {
+        const row = event.target.closest("[data-pool-move-id]");
+        if (!row) {
+            return;
+        }
+        selectMovesPoolMove(row.dataset.poolMoveId);
+    }
+
+    function selectMovesPoolMove(moveId) {
+        const id = String(moveId || "").trim();
+        if (!id || !findMoveById(id)) {
+            return;
+        }
+        state.movesPoolIsNewDraft = false;
+        state.selectedMoveId = id;
+        state.moveDraftEditingOriginalId = id;
+        state.movesPoolFormEpoch += 1;
+        state.validation = validateDashboard();
+        renderAll();
+    }
+
+    function startNewPoolMoveDraft() {
+        state.editorPage = "MOVES_POOL";
+        state.movesPoolIsNewDraft = true;
+        state.selectedMoveId = null;
+        state.moveDraftEditingOriginalId = null;
+        state.movesPoolFormEpoch += 1;
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("New shared ability draft — set id and fields, then save.", "warning");
+        renderAll();
+    }
+
+    function deleteSelectedPoolMove() {
+        const id = String(state.selectedMoveId || "").trim();
+        if (!id || !findMoveById(id) || state.movesPoolIsNewDraft) {
+            return;
+        }
+        const users = getSieglingsUsingMoveId(id);
+        const warn = users.length > 0
+            ? `Delete "${id}" from the pool? It will be removed from ${users.length} Siegling deck list${users.length === 1 ? "" : "s"}.`
+            : `Delete "${id}" from the shared pool?`;
+        if (!window.confirm(warn)) {
+            return;
+        }
+        state.movesPool = state.movesPool.filter((m) => m.id !== id);
+        state.cards.forEach((card) => {
+            if (card.cardType === "SIEGLING" && Array.isArray(card.moveIds)) {
+                card.moveIds = card.moveIds.filter((x) => String(x || "").trim() !== id);
+            }
+        });
+        state.selectedMoveId = state.movesPool[0]?.id || null;
+        state.movesPoolIsNewDraft = false;
+        state.moveDraftEditingOriginalId = null;
+        state.movesPoolFormEpoch += 1;
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "none";
+        }
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus(`Removed "${id}" from the pool.`, "warning");
+        renderAll();
+    }
+
+    function ensureMoveDraftPopulatedWith(move, editingOriginalId = null) {
         const categories = state.metadata?.moveCategories || ["STANDARD", "SPECIALITY", "UTILITY"];
         populateSelect(refs.moveDraftElementSelect, state.metadata?.elements || [], move.element);
         populateSelect(refs.moveDraftCategorySelect, categories, move.category || "STANDARD");
@@ -3407,6 +3974,11 @@
         setInputValue(refs.moveDraftDescInput, move.description);
         refs.moveDraftPassiveSelect.value = move.isPassive || move.targetType === "PASSIVE" ? "true" : "false";
         syncMoveDraftTargetRowUi();
+        if (editingOriginalId != null && String(editingOriginalId).trim()) {
+            state.moveDraftEditingOriginalId = String(editingOriginalId).trim();
+        } else {
+            state.moveDraftEditingOriginalId = null;
+        }
     }
 
     function startNewMoveDraft() {
@@ -3512,6 +4084,16 @@
             setStatus("Could not normalize this move; check required fields.", "warning");
             return;
         }
+        const originalId = state.moveDraftEditingOriginalId
+            ? String(state.moveDraftEditingOriginalId).trim()
+            : null;
+        if (originalId && originalId !== next.id) {
+            const oldIdx = state.movesPool.findIndex((m) => m.id === originalId);
+            if (oldIdx >= 0) {
+                state.movesPool.splice(oldIdx, 1);
+                migrateMoveIdOnAllCards(originalId, next.id);
+            }
+        }
         const idx = state.movesPool.findIndex((m) => m.id === next.id);
         if (idx >= 0) {
             state.movesPool.splice(idx, 1, next);
@@ -3525,7 +4107,17 @@
         state.dirty = true;
         state.validation = validateDashboard();
         setStatus(`Saved move "${next.id}" to the shared pool.`, "warning");
-        hideMoveDraft();
+        state.moveDraftEditingOriginalId = next.id;
+        state.movesPoolIsNewDraft = false;
+        state.selectedMoveId = next.id;
+        state.movesPoolFormEpoch += 1;
+        if (state.editorPage === "MOVES_POOL") {
+            if (refs.moveDraftPanel) {
+                refs.moveDraftPanel.style.display = "grid";
+            }
+        } else {
+            hideMoveDraft();
+        }
         renderAll();
     }
 
@@ -3679,7 +4271,9 @@
     }
 
     function renderSieglingMovesUI(card) {
-        hideMoveDraft();
+        if (state.editorPage === "SIEGLING") {
+            hideMoveDraft();
+        }
         if (!refs.sieglingAssignedMoves) {
             return;
         }
