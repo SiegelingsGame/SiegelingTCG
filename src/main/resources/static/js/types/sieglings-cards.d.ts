@@ -11,6 +11,7 @@ export interface Move {
     element: string;
     category: MoveCategory;
     targetType: string;
+    targetElement?: string | null;
     targetRow?: string | null;
     targetCount?: number;
     effectType: string;

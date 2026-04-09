@@ -14,6 +14,7 @@ public record Move(
         Element element,
         MoveCategory category,
         TargetType targetType,
+        Element targetElement,
         Row targetRow,
         int targetCount,
         String effectType,
@@ -59,6 +60,9 @@ public record Move(
                 effectValue,
                 isPassive || targetType == TargetType.PASSIVE
         );
+        if (targetElement != null) {
+            ability.setTargetElement(targetElement);
+        }
         ability.setRequiredEnergy(Math.max(0, energyCost));
         if (requiredElement != null) {
             ability.setRequiredElement(requiredElement);
