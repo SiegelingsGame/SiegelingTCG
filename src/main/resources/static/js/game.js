@@ -975,7 +975,9 @@ function apiUrl(path, baseUrl = activeApiBaseUrl) {
 function apiUrls(path) {
     const seen = new Set();
     const urls = [];
-    for (const baseUrl of [activeApiBaseUrl, API_BASE_URL, '']) {
+    // Same-origin and configured API first. A stale activeApiBaseUrl (last successful host) was
+    // previously tried first and could hang for the full timeout before falling back to localhost.
+    for (const baseUrl of ['', API_BASE_URL, activeApiBaseUrl]) {
         const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
         if (seen.has(normalizedBaseUrl)) {
             continue;
@@ -3158,6 +3160,10 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     const data = await fetchJson(apiUrls('/api/game/' + endpoint), opts, timeoutMs);
     if (!data) {
         console.error('API error: request failed for', endpoint);
+        if (endpoint === 'new') {
+            showLoadoutLoadingError('Could not start the match. Is the server running? If you use a hosted build, check API settings.');
+            syncEntryOverlays();
+        }
         return null;
     }
     if (data.error) {
@@ -3176,7 +3182,17 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     const prevState = gameState;
     gameState = data;
     maybeStartPixiBattleBoardHold(prevState, data);
-    render();
+    try {
+        render();
+    } catch (e) {
+        console.error('render() failed after API success:', e);
+        if (endpoint === 'new') {
+            gameState = prevState;
+            showLoadoutLoadingError('Could not show the game. See the browser console for details.');
+            syncEntryOverlays();
+        }
+        throw e;
+    }
     return data;
 }
 
