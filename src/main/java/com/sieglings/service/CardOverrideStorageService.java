@@ -68,7 +68,7 @@ public class CardOverrideStorageService {
             ObjectMapper objectMapper,
             @Value("${app.card-editor.firestore-enabled:true}") boolean firestoreEnabled,
             @Value("${app.card-editor.firestore-project-id:}") String firestoreProjectId,
-            @Value("${app.card-editor.firestore-service-account-path:siegelingstcgtesting-9bd8de57ff8c.json}") String firestoreServiceAccountPath,
+            @Value("${app.card-editor.firestore-service-account-path:}") String firestoreServiceAccountPath,
             @Value("${app.card-editor.firestore-database-id:(default)}") String firestoreDatabaseId,
             @Value("${app.card-editor.firestore-collection:appConfig}") String firestoreCollection,
             @Value("${app.card-editor.firestore-document:cardOverrides}") String firestoreDocument
@@ -119,7 +119,7 @@ public class CardOverrideStorageService {
 
     public LoadSnapshot saveSnapshot(JsonNode data, String updatedByEmail) {
         ManualSieglingCatalog.OverrideFile file = parseOverrideFile(data);
-        ManualSieglingCatalog.validateDefinitions(file.cards());
+        ManualSieglingCatalog.validateDefinitions(file);
         ensureFirestoreInitialized();
 
         if (isFirestoreReady()) {
@@ -185,6 +185,9 @@ public class CardOverrideStorageService {
                 } else {
                     ObjectNode data = objectMapper.createObjectNode();
                     data.set("cards", objectMapper.valueToTree(snapshot.get("cards")));
+                    if (snapshot.get("moves") != null) {
+                        data.set("moves", objectMapper.valueToTree(snapshot.get("moves")));
+                    }
                     loadSnapshot = new LoadSnapshot(
                             data,
                             StorageBackend.FIRESTORE,
@@ -218,6 +221,9 @@ public class CardOverrideStorageService {
         JsonNode data = objectMapper.valueToTree(file);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("cards", objectMapper.convertValue(data.get("cards"), Object.class));
+        if (data.get("moves") != null) {
+            payload.put("moves", objectMapper.convertValue(data.get("moves"), Object.class));
+        }
         payload.put("updatedBy", updatedByEmail == null || updatedByEmail.isBlank() ? "unknown" : updatedByEmail.trim().toLowerCase());
         payload.put("updatedAt", Timestamp.now());
         docRef.set(payload).get(10, TimeUnit.SECONDS);

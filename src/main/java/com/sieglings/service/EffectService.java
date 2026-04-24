@@ -5,6 +5,8 @@ import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Notch;
+import com.sieglings.model.SieglingCard;
+import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Reaction;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.StatusEffect;
@@ -20,6 +22,9 @@ import java.util.List;
 @Service
 public class EffectService {
     private final PlacementService placementService = new PlacementService();
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private MovesPoolService movesPoolService;
 
     /**
      * Spells/traps with {@code move_link} on a single enemy require an explicit empty destination cell
@@ -67,6 +72,8 @@ public class EffectService {
         }
 
         List<CardInstance> targets = resolveTargets(state, ability, source, isPlayerSource, targetRow, targetCol);
+        targets = filterExplicitTargetElement(ability, targets);
+        targets = filterSameElementTeamBuffs(ability, source, targets);
 
         if (targets.isEmpty()) {
             state.log(ability.getName() + " found no valid targets.");
@@ -131,6 +138,42 @@ public class EffectService {
         }
 
         return targets;
+    }
+
+    /**
+     * Siegling "all allies" damage/health/speed buffs are elemental auras (e.g. all Fire allies).
+     * Without filtering, {@link TargetType#ALL_ALLIES} would hit every ally on board.
+     */
+    private List<CardInstance> filterSameElementTeamBuffs(Ability ability, CardInstance source, List<CardInstance> targets) {
+        if (source == null || targets.isEmpty()) {
+            return targets;
+        }
+        if (ability.getTargetType() != TargetType.ALL_ALLIES) {
+            return targets;
+        }
+        String effectType = ability.getEffectType();
+        boolean teamStatBuff = AbilityEffectKeys.DAMAGE_BOOST.equals(effectType)
+                || AbilityEffectKeys.HEALTH_BOOST.equals(effectType)
+                || AbilityEffectKeys.SPEED_BOOST.equals(effectType);
+        if (!teamStatBuff) {
+            return targets;
+        }
+        Element el = ability.getTargetElement() != null ? ability.getTargetElement() : source.getElement();
+        if (el == null || el == Element.NEUTRAL) {
+            return targets;
+        }
+        return targets.stream().filter(t -> t.getElement() == el).toList();
+    }
+
+    private List<CardInstance> filterExplicitTargetElement(Ability ability, List<CardInstance> targets) {
+        if (ability == null || targets == null || targets.isEmpty()) {
+            return targets == null ? List.of() : targets;
+        }
+        Element el = ability.getTargetElement();
+        if (el == null || el == Element.NEUTRAL) {
+            return targets;
+        }
+        return targets.stream().filter(t -> t != null && t.isAlive() && t.getElement() == el).toList();
     }
 
     private void applyEffect(GameState state, Ability ability, CardInstance source, List<CardInstance> targets,
@@ -412,5 +455,86 @@ public class EffectService {
             case 2 -> "Front";
             default -> "?";
         };
+    }
+
+    /**
+     * Recomputes attack-damage boosts from passive allied Siegling auras (e.g. Pylook Aura on the board).
+     * Trainer/actives use {@link CardInstance#addDamageBuff}; this only sets {@link CardInstance#setAuraDamageBoost}.
+     */
+    public void recalculateBoardAuraDamageBoosts(GameState state) {
+        if (state == null) {
+            return;
+        }
+        for (CardInstance ci : state.getBoardSieglings(true)) {
+            ci.setAuraDamageBoost(0);
+        }
+        for (CardInstance ci : state.getBoardSieglings(false)) {
+            ci.setAuraDamageBoost(0);
+        }
+        applySieglingAuraDamageForSide(state, true);
+        applySieglingAuraDamageForSide(state, false);
+    }
+
+    private void applySieglingAuraDamageForSide(GameState state, boolean isPlayerSide) {
+        List<CardInstance> allies = state.getBoardSieglings(isPlayerSide);
+        for (CardInstance source : allies) {
+            if (!source.isAlive()) {
+                continue;
+            }
+            SieglingCard card = source.getCard();
+            if (movesPoolService == null || card == null || !card.hasMoveLoadout()) {
+                continue;
+            }
+            List<Ability> printed = movesPoolService.resolvePrintedAbilities(card);
+            if (printed.isEmpty()) {
+                continue;
+            }
+            for (Ability ab : printed) {
+                if (ab == null || !ab.isPassive() || !AbilityEffectKeys.DAMAGE_BOOST.equals(ab.getEffectType())) {
+                    continue;
+                }
+                if (!isAlwaysOnTeamAuraDamagePassive(ab)) {
+                    continue;
+                }
+                List<CardInstance> targets = resolveAuraDamageTargets(state, source, isPlayerSide, ab);
+                int value = Math.max(1, ab.getEffectValue());
+                for (CardInstance t : targets) {
+                    t.setAuraDamageBoost(t.getAuraDamageBoost() + value);
+                }
+            }
+        }
+    }
+
+    private static boolean isAlwaysOnTeamAuraDamagePassive(Ability ab) {
+        TargetType tt = ab.getTargetType();
+        return tt == TargetType.ALL_ALLIES || tt == TargetType.ROW_ALLIES;
+    }
+
+    private List<CardInstance> resolveAuraDamageTargets(GameState state, CardInstance source,
+                                                        boolean isPlayerSide, Ability ab) {
+        List<CardInstance> targets = switch (ab.getTargetType()) {
+            case ALL_ALLIES -> new ArrayList<>(state.getBoardSieglings(isPlayerSide));
+            case ROW_ALLIES -> {
+                Row row = ab.getTargetRow();
+                if (row == null) {
+                    yield new ArrayList<>();
+                }
+                yield new ArrayList<>(getSieglingsInRow(state, isPlayerSide, row.getIndex()));
+            }
+            default -> new ArrayList<>();
+        };
+        targets = filterExplicitTargetElement(ab, targets);
+        return filterSameElementTeamBuffTargets(source, targets, ab);
+    }
+
+    private List<CardInstance> filterSameElementTeamBuffTargets(CardInstance source, List<CardInstance> targets, Ability ab) {
+        if (targets == null || targets.isEmpty()) {
+            return targets == null ? List.of() : targets;
+        }
+        Element el = (ab != null && ab.getTargetElement() != null) ? ab.getTargetElement() : source.getElement();
+        if (el == null || el == Element.NEUTRAL) {
+            return targets;
+        }
+        return targets.stream().filter(t -> t != null && t.isAlive() && t.getElement() == el).toList();
     }
 }

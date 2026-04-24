@@ -81,6 +81,7 @@ class GameServiceTest {
         GameService gameService = new GameService();
         EnergyService energyService = new EnergyService(new PlacementService());
         setField(gameService, "energyService", energyService);
+        setField(gameService, "effectService", new EffectService());
 
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
@@ -138,6 +139,7 @@ class GameServiceTest {
         EnergyService energyService = new EnergyService(placementService);
         setField(gameService, "energyService", energyService);
         setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
         setField(gameService, "battleService", new BattleService() {
             @Override
             public void initializeBattle(GameState state) {

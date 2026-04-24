@@ -46,6 +46,9 @@ public class BattleService {
     @Autowired
     private EnergyService energyService;
 
+    @Autowired
+    private MovesPoolService movesPoolService;
+
     public void initializeBattle(GameState state) {
         state.log("=== BATTLE PHASE ===");
 
@@ -176,8 +179,11 @@ public class BattleService {
 
     private List<Ability> buildBattleAbilities(CardInstance attacker) {
         SieglingCard card = attacker.getCard();
-        if (card.hasExplicitAbilityLoadout() && !card.getAbilities().isEmpty()) {
-            return buildConfiguredBattleAbilities(attacker, card);
+        if (card.hasMoveLoadout()) {
+            List<Ability> printed = movesPoolService.resolvePrintedAbilities(card);
+            if (!printed.isEmpty()) {
+                return buildConfiguredBattleAbilities(attacker, card, printed);
+            }
         }
 
         List<Ability> abilities = new ArrayList<>();
@@ -249,10 +255,13 @@ public class BattleService {
         return abilities;
     }
 
-    private List<Ability> buildConfiguredBattleAbilities(CardInstance attacker, SieglingCard card) {
+    private List<Ability> buildConfiguredBattleAbilities(CardInstance attacker, SieglingCard card, List<Ability> printedAbilities) {
         List<Ability> abilities = new ArrayList<>();
-        for (Ability printed : card.getAbilities()) {
+        for (Ability printed : printedAbilities) {
             if (printed == null) {
+                continue;
+            }
+            if (isAutoAppliedTeamAuraDamagePassive(printed)) {
                 continue;
             }
             Ability battleAbility = buildBattleAbilityFromPrinted(attacker, printed);
@@ -295,7 +304,11 @@ public class BattleService {
     }
 
     private Ability buildSignatureAbility(CardInstance attacker) {
-        Ability printed = attacker.getCard().getAbility();
+        List<Ability> fromPool = movesPoolService.resolvePrintedAbilities(attacker.getCard());
+        Ability printed = fromPool.stream()
+                .filter(a -> a != null && AbilityEffectKeys.DAMAGE.equals(a.getEffectType()) && !a.isPassive())
+                .findFirst()
+                .orElseGet(() -> fromPool.stream().filter(a -> a != null && !a.isPassive()).findFirst().orElse(null));
         if (printed == null) {
             int slashDamage = baseBattleDamage(attacker) + attacker.getDamageBoost() + 1;
             Ability fallback = Ability.damage(
@@ -312,25 +325,73 @@ public class BattleService {
         return buildBattleAbilityFromPrinted(attacker, printed);
     }
 
+    /**
+     * Team damage auras (ALL_ALLIES / ROW_ALLIES passives) are applied continuously via
+     * {@link EffectService#recalculateBoardAuraDamageBoosts}; they must not consume a battle action.
+     */
+    private static boolean isAutoAppliedTeamAuraDamagePassive(Ability printed) {
+        if (printed == null || !printed.isPassive()) {
+            return false;
+        }
+        if (!AbilityEffectKeys.DAMAGE_BOOST.equals(printed.getEffectType())) {
+            return false;
+        }
+        TargetType tt = printed.getTargetType();
+        return tt == TargetType.ALL_ALLIES || tt == TargetType.ROW_ALLIES;
+    }
+
     private Ability buildBattleAbilityFromPrinted(CardInstance attacker, Ability printed) {
         if (!printed.isPassive()) {
-            return applyAttackerDamageBonus(attacker, printed.copy());
+            Ability active = applyAttackerDamageBonus(attacker, printed.copy());
+            active.setBattleOptionFromPrintedPassive(false);
+            return active;
         }
+
+        TargetType battleTarget = resolvePassiveBattleTarget(printed);
 
         Ability converted = new Ability(
                 printed.getName(),
                 printed.getDescription(),
-                isConnectedNetworkBuff(printed) ? TargetType.SELF : TargetType.SINGLE_ALLY,
+                battleTarget,
                 printed.getTargetRow(),
                 printed.getTargetCount(),
                 printed.getEffectType(),
                 printed.getEffectValue(),
                 false
         );
+        converted.setBattleOptionFromPrintedPassive(true);
         converted.setRequiredReaction(printed.getRequiredReaction());
         converted.setRequiredElement(printed.getRequiredElement());
         converted.setRequiredEnergy(printed.getRequiredEnergy());
         return converted;
+    }
+
+    /**
+     * Passives are stored {@code passive=true} on the card, but the battle queue needs a concrete
+     * {@link TargetType} for resolution and UI. Team auras ({@code ALL_ALLIES}, etc.) must stay
+     * non-single-target so players are not asked to click an ally for "all Fire allies" buffs.
+     */
+    private TargetType resolvePassiveBattleTarget(Ability printed) {
+        if (isConnectedNetworkBuff(printed)) {
+            return TargetType.SELF;
+        }
+        TargetType printedType = printed.getTargetType();
+        if (printedType == TargetType.ALL_ALLIES
+                || printedType == TargetType.ALL_ENEMIES
+                || printedType == TargetType.ROW_ALLIES
+                || printedType == TargetType.ROW_ENEMIES
+                || printedType == TargetType.SELF
+                || printedType == TargetType.ENEMY_PLAYER) {
+            return printedType;
+        }
+        if (printedType == TargetType.PASSIVE) {
+            return switch (printed.getEffectType()) {
+                case AbilityEffectKeys.DAMAGE_BOOST, AbilityEffectKeys.HEALTH_BOOST, AbilityEffectKeys.SPEED_BOOST ->
+                        TargetType.ALL_ALLIES;
+                default -> TargetType.SINGLE_ALLY;
+            };
+        }
+        return TargetType.SINGLE_ALLY;
     }
 
     private boolean isConnectedNetworkBuff(Ability ability) {
@@ -352,8 +413,11 @@ public class BattleService {
     }
 
     private int baseBattleDamage(CardInstance attacker) {
-        Ability printed = attacker.getCard().getAbility();
-        if (printed != null && AbilityEffectKeys.DAMAGE.equals(printed.getEffectType())) {
+        Ability printed = movesPoolService.resolvePrintedAbilities(attacker.getCard()).stream()
+                .filter(a -> a != null && AbilityEffectKeys.DAMAGE.equals(a.getEffectType()) && !a.isPassive())
+                .findFirst()
+                .orElse(null);
+        if (printed != null) {
             return switch (printed.getTargetType()) {
                 case ALL_ENEMIES -> Math.max(2, printed.getEffectValue() - 2);
                 case ROW_ENEMIES -> Math.max(2, printed.getEffectValue() - 1);

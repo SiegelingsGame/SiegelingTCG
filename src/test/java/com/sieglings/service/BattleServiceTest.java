@@ -1,6 +1,6 @@
 package com.sieglings.service;
 
-import com.sieglings.model.Ability;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sieglings.model.BattleAbilityOption;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
@@ -22,18 +22,44 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BattleServiceTest {
 
     @Test
-    void explicitAbilityLoadoutUsesConfiguredAbilitiesAndCosts() throws Exception {
+    void explicitMoveLoadoutUsesConfiguredAbilitiesAndCosts() throws Exception {
         BattleService battleService = new BattleService();
         setField(battleService, "effectService", new EffectService());
         setField(battleService, "energyService", new EnergyService(new PlacementService()));
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+        setField(battleService, "movesPoolService", pool);
+
+        String m0 = "test:staticap:0";
+        String m1 = "test:staticap:1";
+        pool.registerLegacyManualMove(m0, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Quick Circuit",
+                "Connected allies gain +1 Speed",
+                TargetType.SELF,
+                null,
+                0,
+                "connected_allies_speed_boost",
+                1,
+                false,
+                null,
+                0,
+                null
+        ), Element.ELECTRIC);
+        pool.registerLegacyManualMove(m1, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Volt Crash",
+                "Deal 5 damage to 1 enemy",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                "damage",
+                5,
+                false,
+                Element.ELECTRIC,
+                2,
+                null
+        ), Element.ELECTRIC);
 
         SieglingCard card = new SieglingCard("staticap", "Staticap", Element.ELECTRIC, Rarity.COMMON, 12, 4, List.of(), Row.FRONT);
-        card.setAbilities(List.of(
-                Ability.connectedAlliesSpeedBoost("Quick Circuit", "Connected allies gain +1 Speed", 1),
-                Ability.damage("Volt Crash", "Deal 5 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 5)
-        ));
-        card.getAbilities().get(1).setRequiredElement(Element.ELECTRIC);
-        card.getAbilities().get(1).setRequiredEnergy(2);
+        card.setMoveIds(List.of(m0, m1));
 
         CardInstance attacker = new CardInstance(card, 1, 1, true);
 
