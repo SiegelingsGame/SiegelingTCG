@@ -102,14 +102,10 @@ public class EnergyService {
     }
 
     /**
-     * Any Siegling currently touching a perimeter socket activates that socket for the match
-     * (merged into GameState); energy persists if the Sieglink breaks. Setup placement budget is snapshotted
-     * from total pooled energy when setup begins, not from socket count.
+     * External sockets (board perimeter) contribute energy only while a Siegling is currently touching them.
+     * This must be derived from the live board state so sockets are not permanently active after links break
+     * or units are defeated/moved.
      */
-    private void mergeDetectedExternalSockets(GameState state, boolean isPlayer) {
-        state.mergeExternalSocketActivations(isPlayer, collectExternalSocketTouches(state, isPlayer));
-    }
-
     private Map<String, Element> collectExternalSocketTouches(GameState state, boolean isPlayer) {
         Map<String, Element> detected = new LinkedHashMap<>();
         for (CardInstance ci : state.getBoardSieglings(isPlayer)) {
@@ -278,7 +274,7 @@ public class EnergyService {
     }
 
     private EnergyBreakdown analyze(GameState state, boolean isPlayer) {
-        mergeDetectedExternalSockets(state, isPlayer);
+        Map<String, Element> activeExternalSockets = collectExternalSocketTouches(state, isPlayer);
 
         int fireInternal = 0;
         int fireExternal = 0;
@@ -359,7 +355,7 @@ public class EnergyService {
             }
         }
 
-        for (Element element : state.getExternalSocketActivations(isPlayer).values()) {
+        for (Element element : activeExternalSockets.values()) {
             switch (element) {
                 case FIRE -> fireExternal++;
                 case EARTH -> earthExternal++;
