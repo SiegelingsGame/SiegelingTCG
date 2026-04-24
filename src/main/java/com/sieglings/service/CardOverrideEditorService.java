@@ -110,7 +110,7 @@ public class CardOverrideEditorService {
                                                  LiveElementCatalogService.LoadSnapshot liveSnapshot,
                                                  CardEditorAuthService.EditorAuthSnapshot authSnapshot) {
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("data", buildEditorData());
+        response.put("data", buildEditorData(cardSnapshot));
         response.put("filePath", buildFilePath(cardSnapshot, deckSnapshot, trainerSnapshot, liveSnapshot));
         response.put("canSaveToProjectFile", cardSnapshot.canWriteProjectFile()
                 && deckSnapshot.canWriteProjectFile()
@@ -156,16 +156,13 @@ public class CardOverrideEditorService {
         return metadata;
     }
 
-    private JsonNode buildEditorData(CardOverrideStorageService.LoadSnapshot cardSnapshot,
-                                     PresetDeckCatalogService.LoadSnapshot deckSnapshot,
-                                     TrainerCatalogService.LoadSnapshot trainerSnapshot) {
-        // Use the snapshot payloads directly so the dashboard always reflects what was persisted.
-        // Relying on gameplay catalogs can lag behind after publishing because those catalogs cache data.
+    private JsonNode buildEditorData(CardOverrideStorageService.LoadSnapshot cardSnapshot) {
         ObjectNode data = objectMapper.createObjectNode();
         data.set("cards", objectMapper.valueToTree(ManualSieglingCatalog.buildOverrideFile(cardDefinitionService.getDeckBuilderCatalog()).cards()));
-        JsonNode snap = storageService.loadSnapshot().data();
-        if (snap.get("moves") != null && snap.get("moves").isArray()) {
-            data.set("moves", snap.get("moves").deepCopy());
+        JsonNode snap = cardSnapshot == null ? null : cardSnapshot.data();
+        JsonNode movesNode = snap == null ? null : snap.get("moves");
+        if (movesNode != null && movesNode.isArray()) {
+            data.set("moves", movesNode.deepCopy());
         } else {
             movesPoolService.syncFromSources();
             data.set("moves", objectMapper.valueToTree(movesPoolService.allMovesSorted()));
