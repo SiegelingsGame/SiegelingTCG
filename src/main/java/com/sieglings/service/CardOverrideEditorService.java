@@ -156,7 +156,11 @@ public class CardOverrideEditorService {
         return metadata;
     }
 
-    private JsonNode buildEditorData() {
+    private JsonNode buildEditorData(CardOverrideStorageService.LoadSnapshot cardSnapshot,
+                                     PresetDeckCatalogService.LoadSnapshot deckSnapshot,
+                                     TrainerCatalogService.LoadSnapshot trainerSnapshot) {
+        // Use the snapshot payloads directly so the dashboard always reflects what was persisted.
+        // Relying on gameplay catalogs can lag behind after publishing because those catalogs cache data.
         ObjectNode data = objectMapper.createObjectNode();
         data.set("cards", objectMapper.valueToTree(ManualSieglingCatalog.buildOverrideFile(cardDefinitionService.getDeckBuilderCatalog()).cards()));
         JsonNode snap = storageService.loadSnapshot().data();
