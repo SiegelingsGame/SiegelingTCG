@@ -281,11 +281,22 @@ public class CardOverrideEditorService {
     }
 
     private JsonNode extractMovesData(JsonNode submittedData, JsonNode fallbackRoot) {
-        if (submittedData != null && submittedData.get("moves") != null) {
-            return submittedData.get("moves").deepCopy();
+        JsonNode submittedMoves = submittedData != null ? submittedData.get("moves") : null;
+        JsonNode fallbackMoves = fallbackRoot != null ? fallbackRoot.get("moves") : null;
+
+        if (submittedMoves != null && submittedMoves.isArray()) {
+            // Guardrail: avoid wiping the shared moves pool if the client posts an empty array
+            // while an existing pool is present (most commonly caused by loading a partial editor
+            // state, then publishing from another tab/page).
+            if (submittedMoves.size() == 0 && fallbackMoves != null && fallbackMoves.isArray() && fallbackMoves.size() > 0) {
+                return fallbackMoves.deepCopy();
+            }
+            return submittedMoves.deepCopy();
         }
-        JsonNode fb = fallbackRoot != null ? fallbackRoot.get("moves") : null;
-        return fb != null ? fb.deepCopy() : objectMapper.createArrayNode();
+
+        return (fallbackMoves != null && fallbackMoves.isArray())
+                ? fallbackMoves.deepCopy()
+                : objectMapper.createArrayNode();
     }
 
     private JsonNode extractDecksData(JsonNode submittedData, JsonNode fallbackData) {
