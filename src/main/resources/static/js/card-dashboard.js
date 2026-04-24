@@ -758,23 +758,22 @@
             return;
         }
 
-        const blockers = state.liveEditingEnabled
-            ? state.validation.filter((issue) => issue.severity === "error" || issue.severity === "warn")
-            : alerts;
-        if (blockers.length > 0) {
-            const summary = blockers
+        const alerts = state.validation.filter((issue) => issue.severity === "warn");
+        if (alerts.length > 0) {
+            const verb = state.liveEditingEnabled ? "publish live changes" : "save to the project file";
+            const summary = alerts
                 .slice(0, 5)
-                .map((issue) => `- [${issue.severity}] ${issue.message}`)
+                .map((issue) => `- ${issue.message}`)
                 .join("\n");
-            const extra = blockers.length > 5 ? `\n- ...and ${blockers.length - 5} more` : "";
-            const firstPrompt = `There are ${blockers.length} validation issue(s). Do you want to ${verb} anyway?\n\n${summary}${extra}`;
+            const extra = alerts.length > 5 ? `\n- ...and ${alerts.length - 5} more` : "";
+            const firstPrompt = `There are ${alerts.length} alert(s). Do you want to ${verb} anyway?\n\n${summary}${extra}`;
             if (!window.confirm(firstPrompt)) {
-                setStatus(`Cancelled — review the ${blockers.length} validation issue(s) and try again.`, "warning");
+                setStatus(`Cancelled — review the ${alerts.length} alert(s) and try again.`, "warning");
                 renderStatus();
                 renderValidation();
                 return;
             }
-            const secondPrompt = `Confirm again to ${verb}. This will proceed even with validation issues.`;
+            const secondPrompt = `Confirm again to ${verb}. This will proceed even with alerts.`;
             if (!window.confirm(secondPrompt)) {
                 setStatus(`Cancelled — no changes were ${state.liveEditingEnabled ? "published" : "saved"}.`, "warning");
                 renderStatus();
