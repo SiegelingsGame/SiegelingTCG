@@ -11,6 +11,7 @@ import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Reaction;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.TargetType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -62,10 +63,12 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
-        SieglingCard staticap = ManualSieglingCatalog.applyOverrides(Element.ELECTRIC, generated, List.of(definition)).stream()
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+        SieglingCard staticap = ManualSieglingCatalog.applyOverrides(Element.ELECTRIC, generated, List.of(definition), pool).stream()
                 .filter(card -> card.getId().equals("staticap"))
                 .findFirst()
                 .orElseThrow();
@@ -80,13 +83,14 @@ class ManualSieglingCatalogTest {
                 List.of(NotchDirection.LEFT, NotchDirection.TOP, NotchDirection.RIGHT),
                 staticap.getNotches().stream().map(notch -> notch.direction()).toList()
         );
-        assertNotNull(staticap.getAbility());
-        assertEquals("Capacitor Bash", staticap.getAbility().getName());
-        assertEquals("damage", staticap.getAbility().getEffectType());
-        assertEquals(3, staticap.getAbility().getEffectValue());
-        assertEquals(TargetType.SINGLE_ENEMY, staticap.getAbility().getTargetType());
-        assertEquals(Element.ELECTRIC, staticap.getAbility().getRequiredElement());
-        assertEquals(1, staticap.getAbility().getRequiredEnergy());
+        List<com.sieglings.model.Ability> resolved = pool.resolvePrintedAbilities(staticap);
+        assertEquals(1, resolved.size());
+        assertEquals("Capacitor Bash", resolved.get(0).getName());
+        assertEquals("damage", resolved.get(0).getEffectType());
+        assertEquals(3, resolved.get(0).getEffectValue());
+        assertEquals(TargetType.SINGLE_ENEMY, resolved.get(0).getTargetType());
+        assertEquals(Element.ELECTRIC, resolved.get(0).getRequiredElement());
+        assertEquals(1, resolved.get(0).getRequiredEnergy());
     }
 
     @Test
@@ -103,6 +107,7 @@ class ManualSieglingCatalogTest {
                 4,
                 null,
                 Row.FRONT,
+                null,
                 null,
                 null,
                 null,
@@ -143,19 +148,21 @@ class ManualSieglingCatalogTest {
                 )
         );
 
-        SieglingCard staticap = ManualSieglingCatalog.applyOverrides(Element.ELECTRIC, generated, List.of(definition)).stream()
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+        SieglingCard staticap = ManualSieglingCatalog.applyOverrides(Element.ELECTRIC, generated, List.of(definition), pool).stream()
                 .filter(card -> card.getId().equals("staticap"))
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(2, staticap.getAbilities().size());
-        assertEquals("Arc Nip", staticap.getAbilities().get(0).getName());
-        assertEquals(0, staticap.getAbilities().get(0).getRequiredEnergy());
-        assertEquals("Volt Burst", staticap.getAbilities().get(1).getName());
-        assertEquals(Element.ELECTRIC, staticap.getAbilities().get(1).getRequiredElement());
-        assertEquals(2, staticap.getAbilities().get(1).getRequiredEnergy());
-        assertEquals("Arc Nip", staticap.getAbility().getName());
-        assertEquals(true, staticap.hasExplicitAbilityLoadout());
+        List<com.sieglings.model.Ability> resolved = pool.resolvePrintedAbilities(staticap);
+        assertEquals(2, resolved.size());
+        assertEquals("Arc Nip", resolved.get(0).getName());
+        assertEquals(0, resolved.get(0).getRequiredEnergy());
+        assertEquals("Volt Burst", resolved.get(1).getName());
+        assertEquals(Element.ELECTRIC, resolved.get(1).getRequiredElement());
+        assertEquals(2, resolved.get(1).getRequiredEnergy());
+        assertEquals(2, staticap.getMoveIds().size());
+        assertEquals(true, staticap.hasMoveLoadout());
     }
 
     @Test
@@ -194,7 +201,8 @@ class ManualSieglingCatalogTest {
                 Reaction.MIST,
                 2,
                 "EARTH+FIRE",
-                null
+                null,
+                List.of()
         );
 
         SpellCard spell = ManualSieglingCatalog.applySpellOverrides(generated, List.of(definition)).stream()
@@ -249,7 +257,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                null
+                null,
+                List.of()
         );
 
         TrapCard trap = ManualSieglingCatalog.applyTrapOverrides(generated, List.of(definition)).stream()
@@ -301,7 +310,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                null
+                null,
+                List.of()
         );
 
         SpellCard spell = ManualSieglingCatalog.applySpellOverrides(generated, List.of(definition)).stream()
@@ -342,6 +352,7 @@ class ManualSieglingCatalogTest {
         ManualSieglingCatalog.OverrideFile overrideFile = ManualSieglingCatalog.buildOverrideFile(List.of(spell, trap));
 
         assertEquals(2, overrideFile.cards().size());
+        assertEquals(0, overrideFile.moves().size());
 
         ManualSieglingCatalog.ManualSieglingDefinition exportedSpell = overrideFile.cards().get(0);
         assertEquals(CardType.SPELL, exportedSpell.type());

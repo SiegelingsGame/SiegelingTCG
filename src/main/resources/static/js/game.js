@@ -1,5 +1,21 @@
 let gameState = null;
+
+/**
+ * Remembers the last element that activated each perimeter socket so the socket
+ * keeps its color as a reference after the Siegling is removed. A new notch
+ * connection to the same socket overwrites the stored element.
+ */
+// External sockets are active only while a notch currently touches them.
+// We intentionally do NOT "remember" prior touches: otherwise exterior notches appear permanently active.
+let externalSocketElementMemory = { player: Object.create(null), enemy: Object.create(null) };
+
+function clearExternalSocketElementMemory() {
+    externalSocketElementMemory.player = Object.create(null);
+    externalSocketElementMemory.enemy = Object.create(null);
+}
 let selectedCard = null;
+/** Index in `gameState.player.hand` for selection UI (duplicates share `card.id`). */
+let selectedHandIndex = null;
 let targetMode = false;
 let targetContext = null;
 let gameOptions = null;
@@ -21,8 +37,10 @@ let mulliganHandSig = '';
 let loadoutErrorMessage = '';
 let loadoutStartPending = false;
 let lastInteractionCueKey = '';
-let hoveredHandCardId = null;
+let hoveredHandIndex = null;
 let hoveredBoardCard = null;
+/** Persisted board selection for live preview / drawer ({ isPlayer, row, col, instanceId }). */
+let arenaSelection = null;
 let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
@@ -30,7 +48,7 @@ let handTouchGesture = null;
 let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
-let handTouchSuppressCardId = null;
+let handTouchSuppressHandIndex = null;
 let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
@@ -39,6 +57,21 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 let welcomeSlideIndex = 0;
 let welcomeDismissed = false;
+const LEADERBOARD_STORAGE_KEY = 'sieglings_leaderboards_v1';
+const LEADERBOARD_TABS = [
+    { id: 'wins', label: 'Wins' },
+    { id: 'matchesPlayed', label: 'Matches' },
+    { id: 'spellsCast', label: 'Spells' },
+    { id: 'trapsSprung', label: 'Traps' },
+    { id: 'siegelingsDefeated', label: 'Sieglings' },
+    { id: 'pvpWinRate', label: 'PVP W/L' }
+];
+let welcomeLeaderboardState = {
+    tab: 'wins',
+    data: null,
+    loading: false,
+    error: ''
+};
 let authMode = 'login';
 let authState = {
     token: loadSavedAuthToken(),
@@ -179,7 +212,7 @@ function sieglingPlacementLockMessage() {
     const used = gameState.setupSieglingActionsUsed;
     const budget = gameState.setupSieglingActionBudget;
     if (used != null && budget != null) {
-        return `No setup placements left (${used}/${budget}; 1 base + 1 per external socket you had when you drew).`;
+        return `No setup placements left (${used}/${budget}; 1 base + 1 per energy in your pool when you entered setup).`;
     }
     return 'No Siegling setup actions left this turn.';
 }
@@ -199,71 +232,159 @@ const CARD_ART_BY_KEY = Object.freeze({
 });
 const WELCOME_SLIDES = [
     {
-        title: '1. Place one Siegling during setup',
-        copy: 'Each setup turn starts with fresh energy. Place a Siegling to claim space, then decide whether your remaining energy should become spells, traps, or trainer pressure.',
+        title: '1. Notches can wake external sockets',
+        copy: 'When you place a Siegling, any notch that points off the board lines up with a perimeter socket. That live connection feeds your energy pool the same way it does in a real match.',
         visual: `
             <div class="tutorial-visual tutorial-board">
-                <div class="tutorial-board-grid">
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot active"><span>F</span></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
-                    <div class="tutorial-slot"></div>
+                <div class="tutorial-arena-mid tutorial-arena-external-demo">
+                    <div class="tutorial-grid-with-sides tutorial-has-ex-connector">
+                        <div class="tutorial-ex-rail vertical tutorial-ex-rail--rows" aria-hidden="true">
+                            <span class="tutorial-ex-point"></span>
+                            <span class="tutorial-ex-point active fire"></span>
+                            <span class="tutorial-ex-point"></span>
+                        </div>
+                        <div class="tutorial-board-stage">
+                            <div class="tutorial-board-grid seamless">
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot tutorial-slot-anchored">
+                                    <span class="tutorial-slot-face">S</span>
+                                    <span class="tutorial-slot-notch left fire"></span>
+                                </div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                                <div class="tutorial-slot"></div>
+                            </div>
+                        </div>
+                        <div class="tutorial-ex-rail vertical tutorial-ex-rail--rows" aria-hidden="true">
+                            <span class="tutorial-ex-point"></span>
+                            <span class="tutorial-ex-point"></span>
+                            <span class="tutorial-ex-point"></span>
+                        </div>
+                        <div class="tutorial-ex-bar-to-socket" aria-hidden="true"></div>
+                    </div>
+                    <div class="tutorial-ex-rail horizontal" aria-hidden="true">
+                        <span class="tutorial-ex-point"></span>
+                        <span class="tutorial-ex-point"></span>
+                        <span class="tutorial-ex-point"></span>
+                    </div>
                 </div>
-                <div class="tutorial-caption">One placement creates your anchor point for the turn.</div>
+                <div class="tutorial-caption">The straight bar is the same external link the game draws from your card to the glowing socket.</div>
             </div>
         `
     },
     {
-        title: '2. Matching notches grow your network',
-        copy: 'A new Siegling expands only when its notch meets an opposite notch on a neighbor. Matching these links creates the pathways that power your later actions.',
+        title: '2. Same element, straight link',
+        copy: 'When opposite notches share an element, the arena draws a simple horizontal bar between them—exactly the same connector style you see between linked Sieglings in play.',
         visual: `
             <div class="tutorial-visual tutorial-links">
-                <div class="tutorial-card fire left"><span></span></div>
-                <div class="tutorial-link fire"></div>
-                <div class="tutorial-card earth right"><span></span></div>
-                <div class="tutorial-caption">Matched sides create a live elemental connection.</div>
+                <div class="tutorial-arena-mid tutorial-arena-compact">
+                    <div class="tutorial-board-stage">
+                        <div class="tutorial-same-element-pair">
+                            <div class="tutorial-slot tutorial-slot-anchored">
+                                <span class="tutorial-slot-face">A</span>
+                                <span class="tutorial-slot-notch right fire"></span>
+                            </div>
+                            <span class="tutorial-inner-fire-link-bar" aria-hidden="true"></span>
+                            <div class="tutorial-slot tutorial-slot-anchored">
+                                <span class="tutorial-slot-face">B</span>
+                                <span class="tutorial-slot-notch left fire"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tutorial-caption">This is the same straight bar the live board draws between two matching notches.</div>
             </div>
         `
     },
     {
-        title: '3. Edge sockets generate outside energy',
-        copy: 'Perimeter sockets only light up when the card on that edge points directly into them. Wake sockets on the board edge to stock your energy pool.',
+        title: '3. Mix elements for spells and traps',
+        copy: 'Linking different elements bends the pathway: the board blends both colors along a zigzag. That mixed energy is what lets you pay for powerful spell and trap cards that ask for more than one element.',
         visual: `
-            <div class="tutorial-visual tutorial-sockets">
-                <div class="tutorial-socket-ring left"></div>
-                <div class="tutorial-socket-ring right active electric"></div>
-                <div class="tutorial-card electric edge"><span></span></div>
-                <div class="tutorial-socket-link electric"></div>
-                <div class="tutorial-caption">Only the outward-facing notch for that edge activates the socket.</div>
+            <div class="tutorial-visual tutorial-mix">
+                <div class="tutorial-arena-mid tutorial-arena-compact">
+                    <div class="tutorial-board-stage">
+                        <div class="tutorial-mix-element-pair">
+                            <div class="tutorial-slot tutorial-slot-linked tutorial-slot-linked-left fire">
+                                <span class="tutorial-slot-face">A</span>
+                                <span class="tutorial-slot-notch right fire"></span>
+                            </div>
+                            <div class="tutorial-mix-link-bridge" aria-hidden="true">
+                                <svg width="64" height="12" viewBox="0 -2 64 12" overflow="visible" aria-hidden="true">
+                                    <defs>
+                                        <linearGradient id="welcomeMixGradSlide3" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="45%" stop-color="#ff501e"/>
+                                            <stop offset="55%" stop-color="#b48c50"/>
+                                        </linearGradient>
+                                    </defs>
+                                    <path d="M0,4 L5.3,9.0 L10.7,4.0 L16.0,-1.0 L21.3,4.0 L26.7,9.0 L32.0,4.0 L37.3,-1.0 L42.7,4.0 L48.0,9.0 L53.3,4.0 L58.7,-1.0 L64.0,4.0" fill="none" stroke="url(#welcomeMixGradSlide3)" stroke-width="5" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <div class="tutorial-slot tutorial-slot-linked tutorial-slot-linked-right earth">
+                                <span class="tutorial-slot-face">B</span>
+                                <span class="tutorial-slot-notch left earth"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tutorial-caption">Hybrid links mirror the zigzag gradient paths the game paints for mismatched elements.</div>
             </div>
         `
     },
     {
-        title: '4. Setup spends energy, battle refreshes it',
-        copy: 'Spells and traps drain your setup pool, so you cannot spam them. When battle starts, energy restores and your linked board turns into live attacks and abilities.',
+        title: '4. Battle mode in motion',
+        copy: 'After setup, battle turns your board into combat: Sieglings strike in speed order, abilities resolve, and HP ticks down on both sides—this is the same two-board view you fight on.',
         visual: `
-            <div class="tutorial-visual tutorial-phase">
-                <div class="tutorial-phase-pill">Setup</div>
-                <div class="tutorial-energy-row">
-                    <span class="tutorial-energy fire"></span>
-                    <span class="tutorial-energy fire"></span>
-                    <span class="tutorial-energy earth"></span>
-                    <span class="tutorial-energy empty"></span>
+            <div class="tutorial-visual tutorial-battle">
+                <div class="tutorial-battle-snapshot">
+                    <div class="tutorial-snap-half enemy">
+                        <div class="tutorial-snap-label">ENEMY</div>
+                        <div class="tutorial-snap-grid-wrap">
+                            <div class="tutorial-snap-grid">
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell has-card">A</div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell has-card">B</div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                            </div>
+                            <svg class="tutorial-snap-link-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                                <line class="tutorial-snap-link-line" x1="50" y1="28" x2="50" y2="72" />
+                            </svg>
+                        </div>
+                        <div class="tutorial-snap-hp"><span>45</span> HP</div>
+                    </div>
+                    <div class="tutorial-snap-divider"></div>
+                    <div class="tutorial-snap-half player">
+                        <div class="tutorial-snap-label">YOU</div>
+                        <div class="tutorial-snap-grid-wrap">
+                            <div class="tutorial-snap-grid">
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell has-card">C</div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell has-card">D</div>
+                                <div class="tutorial-snap-cell has-card">E</div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                                <div class="tutorial-snap-cell"></div>
+                            </div>
+                            <svg class="tutorial-snap-link-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                                <line class="tutorial-snap-link-line" x1="50" y1="28" x2="50" y2="72" />
+                                <line class="tutorial-snap-link-line" x1="17" y1="50" x2="50" y2="50" />
+                            </svg>
+                        </div>
+                        <div class="tutorial-snap-hp"><span>50</span> HP</div>
+                    </div>
+                    <div class="tutorial-snap-phase">Battle</div>
                 </div>
-                <div class="tutorial-phase-arrow"></div>
-                <div class="tutorial-phase-pill battle">Battle</div>
-                <div class="tutorial-energy-row">
-                    <span class="tutorial-energy fire"></span>
-                    <span class="tutorial-energy fire"></span>
-                    <span class="tutorial-energy earth"></span>
-                    <span class="tutorial-energy wind"></span>
-                </div>
-                <div class="tutorial-caption">Spend carefully in setup, then swing hard in battle.</div>
+                <div class="tutorial-caption">Twin 3×3 halves, divider seam, and HP readout—snapshot of the live battlefield.</div>
             </div>
         `
     }
@@ -397,6 +518,262 @@ function getCardAbilities(card) {
     return [];
 }
 
+function getBoardCellAt(isPlayer, row, col) {
+    const board = isPlayer ? gameState?.playerBoard : gameState?.enemyBoard;
+    return board?.[row]?.[col] || null;
+}
+
+function boardCellToPreviewCard(cell) {
+    if (!cell) {
+        return null;
+    }
+    return {
+        ...cell,
+        id: cell.cardId || cell.id,
+        type: 'SIEGLING',
+        health: cell.hp,
+        speed: cell.spd
+    };
+}
+
+function isBoardPreviewCard(card) {
+    return Boolean(card?.instanceId);
+}
+
+function boardCardOwnershipLabel(card) {
+    if (!gameState || !card?.instanceId) {
+        return 'Board';
+    }
+    const onPlayer = gameState.playerBoard?.some((row) => row.some((c) => c?.instanceId === card.instanceId));
+    if (onPlayer) {
+        return 'Your';
+    }
+    const onEnemy = gameState.enemyBoard?.some((row) => row.some((c) => c?.instanceId === card.instanceId));
+    if (onEnemy) {
+        return 'Opponent';
+    }
+    return 'Board';
+}
+
+function resolveArenaSelectionCell() {
+    if (!arenaSelection || !gameState) {
+        return null;
+    }
+    const cell = getBoardCellAt(arenaSelection.isPlayer, arenaSelection.row, arenaSelection.col);
+    if (!cell || cell.instanceId !== arenaSelection.instanceId) {
+        return null;
+    }
+    return cell;
+}
+
+function pruneInvalidArenaSelection() {
+    if (!arenaSelection) {
+        return;
+    }
+    if (!resolveArenaSelectionCell()) {
+        arenaSelection = null;
+    }
+}
+
+function clearArenaSelection() {
+    arenaSelection = null;
+}
+
+/**
+ * Focus a Siegling on either board for the live preview / Card Preview drawer.
+ * Second click on the same piece clears selection.
+ */
+function onArenaCardClick(isPlayer, row, col, event) {
+    if (event?.stopPropagation) {
+        event.stopPropagation();
+    }
+    const cell = getBoardCellAt(isPlayer, row, col);
+    if (!cell) {
+        return;
+    }
+    if (
+        arenaSelection
+        && arenaSelection.isPlayer === isPlayer
+        && arenaSelection.row === row
+        && arenaSelection.col === col
+        && arenaSelection.instanceId === cell.instanceId
+    ) {
+        clearArenaSelection();
+        syncFocusedCardUi();
+        render();
+        return;
+    }
+    arenaSelection = { isPlayer, row, col, instanceId: cell.instanceId };
+    selectedHandIndex = null;
+    selectedCard = null;
+    clearTargetMode();
+    hoveredHandIndex = null;
+    updateSelectedInfo(boardCellToPreviewCard(cell));
+    syncFocusedCardUi();
+    render();
+}
+
+/** Mobile: inspect board cell; Claim control uses stopPropagation + openClaimPopup. */
+function handleBoardCellInspectTouch(event, isPlayer, row, col) {
+    if (!isMobileLayout()) {
+        return;
+    }
+    if (event.target.closest('.claim-prompt')) {
+        event.preventDefault();
+        openClaimPopup(row, col);
+        return;
+    }
+    const cell = getBoardCellAt(isPlayer, row, col);
+    if (!cell) {
+        return;
+    }
+    event.preventDefault();
+    onArenaCardClick(isPlayer, row, col);
+}
+
+function openSelectedCardDrawer() {
+    const card = getFocusedPreviewCard();
+    updateSelectedInfo(card, card ? null : 'Hover, select a hand card, or click a Siegling on the board.');
+    openDrawer('selected');
+}
+
+/** Compact move rows from server (`moves` on Sieglings) or fall back to ability objects. */
+function getSieglingMovesForDisplay(card) {
+    if (!card || card.type !== "SIEGLING") {
+        return [];
+    }
+    if (Array.isArray(card.moves) && card.moves.length > 0) {
+        return card.moves.filter(Boolean);
+    }
+    return getCardAbilities(card).map((a) => ({
+        name: a.name,
+        energyCost: Number(a.requiredEnergy ?? a.costAmount ?? 0),
+        description: a.description || formatAbilitySummaryText(a),
+        isPassive: !!a.passive
+    }));
+}
+
+function formatSieglingMoveLine(move) {
+    if (!move) {
+        return "";
+    }
+    const name = String(move.name || "").trim();
+    const desc = String(move.description || "").trim();
+    const passive = Boolean(move.isPassive);
+    const cost = passive ? "Passive" : (Number(move.energyCost) || 0) <= 0 ? "Free" : `${move.energyCost} energy`;
+    const head = name ? `${name} (${cost})` : cost;
+    if (desc && name && !desc.toLowerCase().startsWith(name.toLowerCase())) {
+        return `${head}: ${desc}`;
+    }
+    return desc || head;
+}
+
+function getElementColorForCard(element) {
+    return getElementCssVar(element);
+}
+
+/** Buff / aura lines that describe a stat increase — emphasize the full clause, not only digits. */
+function isStatIncreaseAbilityDescription(text) {
+    return /\bincrease\b/i.test(String(text || ''));
+}
+
+function escapeHtmlWithFlavorNumericHighlights(text, element) {
+    const raw = String(text || '');
+    if (!raw) {
+        return '';
+    }
+    const accentColor = element ? getElementColorForCard(element) : '';
+    const numStyle = accentColor ? ` style="color:${accentColor}"` : '';
+    return raw.split(/(\d+)/).map((part) => {
+        if (part === '') {
+            return '';
+        }
+        if (/^\d+$/.test(part)) {
+            return `<span class="card-ability-flavor-em"${numStyle}>${escapeHtml(part)}</span>`;
+        }
+        return escapeHtml(part);
+    }).join('');
+}
+
+function renderAbilityFlavorBodyInnerHtml(body, element) {
+    const trimmed = String(body || '').trim();
+    if (!trimmed) {
+        return '';
+    }
+    const accentColor = element ? getElementColorForCard(element) : '';
+    const emStyle = accentColor ? ` style="color:${accentColor}"` : '';
+    if (isStatIncreaseAbilityDescription(trimmed)) {
+        return `<span class="card-ability-flavor-em"${emStyle}>${escapeHtml(trimmed)}</span>`;
+    }
+    return escapeHtmlWithFlavorNumericHighlights(trimmed, element);
+}
+
+function renderCardStatAsterisk(element) {
+    const color = getElementColorForCard(element);
+    return `<span class="card-stat-asterisk" style="color:${color}" title="Buffed">*</span>`;
+}
+
+/** Ability / flavor lines tinted by element; passives use a subtler style. */
+function renderAbilityFlavorHtml(element, ability) {
+    if (!ability) {
+        return '';
+    }
+    const color = getElementColorForCard(element);
+    const isPassive = Boolean(ability.passive);
+    const name = String(ability.name || '').trim();
+    const desc = String(ability.description || '').trim();
+    const body = desc || formatAbilitySummaryText(ability);
+    if (!body && !name) {
+        return '';
+    }
+    const label = name
+        ? `<span class="card-ability-flavor-name">${escapeHtml(name)}</span> `
+        : '';
+    const passiveCls = isPassive ? ' card-ability-flavor-passive' : '';
+    const descInner = renderAbilityFlavorBodyInnerHtml(body, element);
+    return `<div class="card-ability-flavor${passiveCls}" style="color:${color}">${label}<span class="card-ability-flavor-desc">${descInner}</span></div>`;
+}
+
+function renderCardAbilitiesFlavorSection(card) {
+    if (!card) {
+        return '';
+    }
+    return getCardAbilities(card)
+        .filter((ab) => !ab.passive)
+        .map((ab) => renderAbilityFlavorHtml(card.element, ab))
+        .join('');
+}
+
+function renderBoardCellCombatStatsInner(cell) {
+    const el = cell.element;
+    const printedHp = Number(cell.printedHealth);
+    const printedSpd = Number(cell.printedSpeed);
+    const maxHp = cell.maxHp;
+    const hp = cell.hp;
+    const spd = cell.spd;
+    const dmgBoost = Number(cell.damageBoost) || 0;
+    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
+    const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
+    const color = getElementColorForCard(el);
+
+    let hpInner = `${hp}/<span class="stat-hp-max">${maxHp}</span>`;
+    if (hpBuffed) {
+        hpInner += renderCardStatAsterisk(el);
+    }
+
+    let spdInner = `${spd}`;
+    if (spdBuffed) {
+        spdInner += renderCardStatAsterisk(el);
+    }
+
+    let dmgBlock = '';
+    if (dmgBoost > 0) {
+        dmgBlock = `<span class="stat stat-dmg" style="color:${color}" title="Bonus attack damage">+${dmgBoost} DMG${renderCardStatAsterisk(el)}</span>`;
+    }
+
+    return { hpInner, spdInner, dmgBlock };
+}
+
 function getAbilityRequiredEnergy(ability) {
     const value = Number(ability?.requiredEnergy ?? ability?.costAmount ?? 0);
     return Number.isFinite(value) ? value : 0;
@@ -493,12 +870,14 @@ function getCardSummaryStatLine(card) {
 
 function getCardPreviewEntries(card) {
     const entries = [];
-    getCardAbilities(card).forEach(ability => {
-        const text = formatAbilitySummaryText(ability);
-        if (text) {
-            entries.push({ text, className: 'card-detail' });
-        }
-    });
+    getCardAbilities(card)
+        .filter((ability) => !ability.passive)
+        .forEach((ability) => {
+            const flavorHtml = renderAbilityFlavorHtml(card.element, ability);
+            if (flavorHtml) {
+                entries.push({ html: flavorHtml, className: 'card-detail card-flavor-wrap', isAbilityFlavor: true });
+            }
+        });
 
     if (card.type === 'TRAP' && card.trapBucketElement) {
         entries.push({
@@ -570,8 +949,12 @@ function renderShowcaseCard(card, options = {}) {
         if (statLine) {
             html += `<div class="card-detail card-stats-line">${escapeHtml(statLine)}</div>`;
         }
-        visibleDetailEntries.forEach(entry => {
-            html += `<div class="${entry.className}">${escapeHtml(entry.text)}</div>`;
+        visibleDetailEntries.forEach((entry) => {
+            if (entry.html) {
+                html += `<div class="${entry.className}">${entry.html}</div>`;
+            } else {
+                html += `<div class="${entry.className}">${escapeHtml(entry.text)}</div>`;
+            }
         });
         if (bodyMode === 'summary' && detailEntries.length > visibleDetailEntries.length) {
             html += `<div class="card-detail card-detail-more">+${detailEntries.length - visibleDetailEntries.length} more</div>`;
@@ -594,7 +977,9 @@ function apiUrl(path, baseUrl = activeApiBaseUrl) {
 function apiUrls(path) {
     const seen = new Set();
     const urls = [];
-    for (const baseUrl of [activeApiBaseUrl, API_BASE_URL, '']) {
+    // Same-origin and configured API first. A stale activeApiBaseUrl (last successful host) was
+    // previously tried first and could hang for the full timeout before falling back to localhost.
+    for (const baseUrl of ['', API_BASE_URL, activeApiBaseUrl]) {
         const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
         if (seen.has(normalizedBaseUrl)) {
             continue;
@@ -877,15 +1262,25 @@ function openCardInspector(card) {
 
     html += renderCardArt(card, 'inspector');
 
-    const abilities = getCardAbilities(card);
-    if (abilities.length > 0) {
-        html += `<div class="ci-ability">${abilities.map(a => escapeHtml(formatAbilitySummaryText(a))).join('<br>')}</div>`;
+    if (card.type === "SIEGLING") {
+        const moveLines = getSieglingMovesForDisplay(card);
+        if (moveLines.length > 0) {
+            html += `<div class="ci-ability ci-moves">${moveLines.map((m) => escapeHtml(formatSieglingMoveLine(m))).join("<br>")}</div>`;
+        }
+    } else {
+        const abilities = getCardAbilities(card);
+        if (abilities.length > 0) {
+            html += `<div class="ci-ability">${abilities.map((a) => escapeHtml(formatAbilitySummaryText(a))).join("<br>")}</div>`;
+        }
     }
 
     if (card.type === 'TRAP' && card.trapBucketElement) {
         html += `<div class="ci-ability">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
     } else if (card.costElement && card.costAmount > 0) {
         html += `<div class="ci-ability">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
+    }
+    if (card.requiredReaction) {
+        html += `<div class="ci-ability">Requires active ${escapeHtml(String(card.requiredReaction).charAt(0) + String(card.requiredReaction).slice(1).toLowerCase())} (see energy panel).</div>`;
     }
     if (card.requiredComboSize) {
         html += `<div class="ci-ability">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
@@ -1095,10 +1490,15 @@ async function confirmClaimFromPopup() {
    CARD PREVIEW FLOAT â€” shows selected card over enemy grid
    ============================================================ */
 function getFocusedPreviewCard() {
-    if (hoveredBoardCard) {
-        return hoveredBoardCard;
+    const arenaCell = resolveArenaSelectionCell();
+    if (arenaCell) {
+        return boardCellToPreviewCard(arenaCell);
     }
-    const hoveredCard = gameState?.player?.hand?.find(card => card.id === hoveredHandCardId) || null;
+    if (hoveredBoardCard) {
+        return boardCellToPreviewCard(hoveredBoardCard);
+    }
+    const hand = gameState?.player?.hand;
+    const hoveredCard = hoveredHandIndex != null && hand ? hand[hoveredHandIndex] : null;
     return hoveredCard || selectedCard || null;
 }
 
@@ -1112,19 +1512,25 @@ function getInteractionHintState() {
     }
 
     if (focusedCard) {
-        const lockReason = getHandCardLockReason(focusedCard);
-        if (lockReason) {
-            hints.push(lockReason);
-        } else if (focusedCard.type === 'SIEGLING') {
-            if (focusedCard.evolvesFromName) {
-                hints.push(`Play this on top of ${focusedCard.evolvesFromName} to evolve it.`);
-            } else if (gameState?.currentPhase === 'SETUP' && !gameState?.playerPlacementUsed) {
-                hints.push('Highlighted slots show where this Siegling can be placed.');
+        if (isBoardPreviewCard(focusedCard)) {
+            hints.push(
+                `${boardCardOwnershipLabel(focusedCard)} Siegling — ${focusedCard.hp ?? '?'}/${focusedCard.maxHp ?? '?'} HP.`
+            );
+        } else {
+            const lockReason = getHandCardLockReason(focusedCard);
+            if (lockReason) {
+                hints.push(lockReason);
+            } else if (focusedCard.type === 'SIEGLING') {
+                if (focusedCard.evolvesFromName) {
+                    hints.push(`After ${focusedCard.evolvesFromName} survives a full battle phase in that form, play this on it to evolve.`);
+                } else if (gameState?.currentPhase === 'SETUP' && !gameState?.playerPlacementUsed) {
+                    hints.push('Highlighted slots show where this Siegling can be placed.');
+                }
+            } else if (focusedCard.type === 'TRAP') {
+                hints.push('Traps stay hidden until their trigger condition is met.');
+            } else if (focusedCard.costElement && focusedCard.costAmount > 0) {
+                hints.push(`This costs ${focusedCard.costAmount} ${formatElementLabel(focusedCard.costElement)} to play.`);
             }
-        } else if (focusedCard.type === 'TRAP') {
-            hints.push('Traps stay hidden until their trigger condition is met.');
-        } else if (focusedCard.costElement && focusedCard.costAmount > 0) {
-            hints.push(`This costs ${focusedCard.costAmount} ${formatElementLabel(focusedCard.costElement)} to play.`);
         }
 
         hints.push('Use the eye button to open the focused card drawer.');
@@ -1148,9 +1554,9 @@ function renderHintPanel() {
     const hintState = getInteractionHintState();
     if (!hintState.available) {
         panel.innerHTML = `
-            <div class="hint-drawer-copy">Select or hover a card to see contextual help.</div>
+            <div class="hint-drawer-copy">Select or hover a hand card, or click a Siegling on either board, to see contextual help.</div>
             <div class="hint-list">
-                <div class="hint-item">The eye button lights up when a focused card preview is ready.</div>
+                <div class="hint-item">The eye button opens the live card preview drawer when something is focused.</div>
             </div>
         `;
         return;
@@ -1189,6 +1595,35 @@ function syncActionBarAttention() {
             focusedCard ? `Card Preview available for ${focusedCard.name}` : 'Card Preview'
         );
     }
+
+    syncSetupActionsCounter();
+}
+
+function syncSetupActionsCounter() {
+    const el = document.getElementById('setupActionsCounter');
+    if (!el) {
+        return;
+    }
+    const gs = gameState;
+    if (!gs || gs.gameOver || gs.currentPhase !== 'SETUP' || gs.mulligan?.active) {
+        el.hidden = true;
+        el.textContent = '';
+        el.removeAttribute('title');
+        el.classList.remove('is-zero');
+        return;
+    }
+    const budget = gs.setupSieglingActionBudget;
+    const used = gs.setupSieglingActionsUsed;
+    if (budget == null || used == null) {
+        el.hidden = true;
+        el.textContent = '';
+        return;
+    }
+    const remaining = Math.max(0, budget - used);
+    el.hidden = false;
+    el.textContent = String(remaining);
+    el.title = `${remaining} Siegling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used).`;
+    el.classList.toggle('is-zero', remaining === 0);
 }
 
 let desktopInspectTab = 'card';
@@ -1268,11 +1703,16 @@ function getDesktopPreviewNote(card, lockReason) {
         return lockReason;
     }
     if (!card) {
-        return 'Hover or select a hand card to inspect it here.';
+        return 'Hover, select a hand card, or click a Siegling on either board to inspect it here.';
+    }
+    if (isBoardPreviewCard(card)) {
+        const own = boardCardOwnershipLabel(card);
+        const phases = Number(card.battlePhasesSeen || 0);
+        return `${own} Siegling in play — ${card.hp}/${card.maxHp} HP · ${phases} battle phase(s) survived.`;
     }
     if (card.type === 'SIEGLING') {
         if (card.evolvesFromName) {
-            return `Place this on top of ${card.evolvesFromName} to evolve it.`;
+            return `After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.`;
         }
         if (isPlacementBudgetLockedForCard(card)) {
             return sieglingPlacementLockMessage();
@@ -1298,7 +1738,11 @@ function getDesktopPreviewNote(card, lockReason) {
 }
 
 function isPlayerHandCard(card) {
-    return Boolean(card && gameState?.player?.hand?.some(handCard => handCard.id === card.id));
+    return Boolean(
+        card
+        && !card.instanceId
+        && gameState?.player?.hand?.some((handCard) => handCard.id === card.id)
+    );
 }
 
 function getFocusedCardSummary(card, lockReason) {
@@ -1307,6 +1751,10 @@ function getFocusedCardSummary(card, lockReason) {
             return 'Battle Action is live in the hand HUD while battle resolves.';
         }
         return 'Hover a hand or board card to inspect live costs, lock reasons, and setup timing.';
+    }
+    if (isBoardPreviewCard(card)) {
+        const own = boardCardOwnershipLabel(card);
+        return `${own} Siegling on board — HP ${card.hp}/${card.maxHp}. Eye button opens the full preview.`;
     }
     if (!isPlayerHandCard(card)) {
         return 'Board card details update live as links, statuses, and battle order change.';
@@ -1328,6 +1776,9 @@ function getFocusedCardSummary(card, lockReason) {
         return 'Trap timing depends on the opponent meeting its trigger.';
     }
     if (card.type === 'SIEGLING') {
+        if (card.evolvesFromName) {
+            return `Evolution: ${card.evolvesFromName} must finish a full battle phase in its current form before you can play this on it.`;
+        }
         return isPlacementBudgetLockedForCard(card)
             ? sieglingPlacementLockMessage()
             : 'Ready to place during setup if a legal anchor is open.';
@@ -1407,7 +1858,7 @@ function renderDesktopCardPreviewPanel() {
 
     const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
     if (!focusedCard) {
-        panel.innerHTML = '<div class="desktop-empty-state">Hover a board card or select a hand card to inspect it here.</div>';
+        panel.innerHTML = '<div class="desktop-empty-state">Hover or click a Siegling on either board, or select a hand card, to inspect it here.</div>';
         return;
     }
 
@@ -1433,10 +1884,14 @@ function renderDesktopCardPreviewPanel() {
     } else if (focusedCard.costElement && focusedCard.costAmount > 0) {
         html += `<div class="desktop-preview-stats">${escapeHtml(formatElementLabel(focusedCard.costElement))} Cost ${escapeHtml(focusedCard.costAmount)}</div>`;
     }
-    html += `<div class="desktop-preview-description">${escapeHtml(summaryText)}</div>`;
-    if (detailEntries.length > 0) {
+    const flavorBlock = detailEntries.filter((e) => e.isAbilityFlavor).map((e) => e.html).join('');
+    html += flavorBlock
+        ? `<div class="desktop-preview-description desktop-preview-flavor">${flavorBlock}</div>`
+        : `<div class="desktop-preview-description">${escapeHtml(summaryText)}</div>`;
+    const tagEntries = detailEntries.filter((e) => !e.isAbilityFlavor);
+    if (tagEntries.length > 0) {
         html += '<div class="desktop-preview-tag-list">';
-        detailEntries.forEach(entry => {
+        tagEntries.forEach((entry) => {
             html += `<div class="desktop-preview-tag">${escapeHtml(entry.text)}</div>`;
         });
         html += '</div>';
@@ -1749,12 +2204,140 @@ function syncEntryOverlays() {
     const loadoutOverlay = document.getElementById('loadoutOverlay');
     const mulliganOverlay = document.getElementById('mulliganOverlay');
     const showingGameplay = Boolean(gameState);
+    const welcomeVisible = !showingGameplay && !welcomeDismissed;
 
-    welcomeOverlay?.classList.toggle('visible', !showingGameplay && !welcomeDismissed);
+    welcomeOverlay?.classList.toggle('visible', welcomeVisible);
     loadoutOverlay?.classList.toggle('visible', !showingGameplay && welcomeDismissed);
     if (!gameState?.mulligan?.active) {
         mulliganOverlay?.classList.remove('visible');
     }
+    if (welcomeVisible) {
+        refreshWelcomeLeaderboards();
+    }
+}
+
+function localCalendarDateKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function refreshWelcomeLeaderboards() {
+    const section = document.getElementById('welcomeLeaderboardsSection');
+    if (!section) {
+        return;
+    }
+    const today = localCalendarDateKey();
+    let loadedFromCache = false;
+    welcomeLeaderboardState.error = '';
+    try {
+        const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.date === today && parsed.payload && parsed.payload.boards) {
+                welcomeLeaderboardState.data = parsed.payload;
+                loadedFromCache = true;
+                renderWelcomeLeaderboards();
+            }
+        }
+    } catch {
+        /* ignore cache parse errors */
+    }
+    if (!loadedFromCache) {
+        void fetchWelcomeLeaderboardsNetwork(today);
+    }
+}
+
+async function fetchWelcomeLeaderboardsNetwork(today) {
+    if (welcomeLeaderboardState.loading) {
+        return;
+    }
+    welcomeLeaderboardState.loading = true;
+    welcomeLeaderboardState.error = '';
+    renderWelcomeLeaderboards();
+    const data = await fetchJson(apiUrls('/api/leaderboards'), { method: 'GET' });
+    welcomeLeaderboardState.loading = false;
+    if (data && data.boards) {
+        welcomeLeaderboardState.data = data;
+        try {
+            localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify({ date: today, payload: data }));
+        } catch {
+            /* storage full or disabled */
+        }
+    } else {
+        welcomeLeaderboardState.error = (data && data.error) || 'Unable to load leaderboards.';
+    }
+    renderWelcomeLeaderboards();
+}
+
+function setWelcomeLeaderboardTab(tabId) {
+    welcomeLeaderboardState.tab = tabId;
+    renderWelcomeLeaderboards();
+}
+
+function renderWelcomeLeaderboards() {
+    const meta = document.getElementById('welcomeLeaderboardsMeta');
+    const tabsEl = document.getElementById('welcomeLeaderboardsTabs');
+    const body = document.getElementById('welcomeLeaderboardsBody');
+    if (!meta || !tabsEl || !body) {
+        return;
+    }
+
+    const boards = welcomeLeaderboardState.data?.boards;
+    const tz = welcomeLeaderboardState.data?.timeZone || 'UTC';
+    const gen = welcomeLeaderboardState.data?.generatedAt;
+    if (gen) {
+        let label = gen;
+        try {
+            label = new Date(gen).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        } catch {
+            /* keep raw */
+        }
+        meta.textContent = `Last updated: ${label} (${tz})`;
+    } else {
+        meta.textContent = '';
+    }
+
+    if (boards && !boards[welcomeLeaderboardState.tab]) {
+        welcomeLeaderboardState.tab = 'wins';
+    }
+
+    if (welcomeLeaderboardState.error && !boards) {
+        meta.textContent = welcomeLeaderboardState.error;
+    }
+
+    tabsEl.innerHTML = LEADERBOARD_TABS.map((t) => {
+        const active = welcomeLeaderboardState.tab === t.id ? ' active' : '';
+        return `<button type="button" class="welcome-lb-tab${active}" role="tab" aria-selected="${welcomeLeaderboardState.tab === t.id}" onclick="setWelcomeLeaderboardTab('${t.id}')">${escapeHtml(t.label)}</button>`;
+    }).join('');
+
+    if (welcomeLeaderboardState.loading && !boards) {
+        body.innerHTML = '<div class="welcome-lb-loading">Loading rankings…</div>';
+        return;
+    }
+
+    if (!boards) {
+        body.innerHTML = '<div class="welcome-lb-empty">No leaderboard data yet.</div>';
+        return;
+    }
+
+    const rows = boards[welcomeLeaderboardState.tab] || [];
+    const isPvp = welcomeLeaderboardState.tab === 'pvpWinRate';
+    const statLabel = isPvp ? 'Record' : 'Total';
+
+    if (rows.length === 0) {
+        body.innerHTML = '<div class="welcome-lb-empty">No players in this category yet.</div>';
+        return;
+    }
+
+    const head = `<div class="welcome-lb-head"><span>#</span><span>Player</span><span>${statLabel}</span></div>`;
+    const list = rows.map((row) => {
+        const display = isPvp && row.detail ? escapeHtml(String(row.detail)) : escapeHtml(String(row.value ?? ''));
+        return `<div class="welcome-lb-row"><span class="lb-rank">${row.rank}</span><span class="lb-name">${escapeHtml(row.displayName)}</span><span class="lb-val">${display}</span></div>`;
+    }).join('');
+    body.innerHTML = `<div class="welcome-lb-table">${head}${list}</div>`;
 }
 
 function renderWelcomeTutorial() {
@@ -2193,12 +2776,30 @@ function getEvolutionPlacements(card, board = gameState?.playerBoard || []) {
     for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
             const cell = board?.[row]?.[col];
-            if (cell && cell.cardId === card.evolvesFromId) {
+            if (cell
+                && cell.cardId === card.evolvesFromId
+                && Number(cell.battlePhasesSeen || 0) > 0) {
                 placements.push([row, col]);
             }
         }
     }
     return placements;
+}
+
+function getEvolutionBaseCells(card, board = gameState?.playerBoard || []) {
+    if (!card?.evolvesFromId) {
+        return [];
+    }
+    const cells = [];
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+            const cell = board?.[row]?.[col];
+            if (cell && cell.cardId === card.evolvesFromId) {
+                cells.push(cell);
+            }
+        }
+    }
+    return cells;
 }
 
 function getLegalPlacementsForCard(card, board = gameState?.playerBoard || []) {
@@ -2231,9 +2832,42 @@ function getLegalPlacementsForCard(card, board = gameState?.playerBoard || []) {
     return placements;
 }
 
+function playerMeetsSpellComboRequirement(card) {
+    const needSize = Number(card?.requiredComboSize || 0);
+    if (needSize <= 0) {
+        return true;
+    }
+    const sig = card.requiredComboSignature;
+    const points = gameState?.player?.comboPoints || [];
+    return points.some((p) => Number(p.size) >= needSize
+        && (!sig || !String(sig).trim() || p.signature === sig));
+}
+
+/** Mirrors EnergyService.canCastSpell status/combo gates (energy checked separately). */
+function getSpellPlayRequirementLockReason(card) {
+    if (!card || card.type !== 'SPELL') {
+        return '';
+    }
+    if (card.requiredReaction && !gameState?.player?.mistActive) {
+        return 'Requires Mist (Fire + Water lattice intersection active).';
+    }
+    const needSize = Number(card.requiredComboSize || 0);
+    if (needSize > 0 && !playerMeetsSpellComboRequirement(card)) {
+        if (card.requiredComboSignature) {
+            const label = String(card.requiredComboSignature).split('+').map(formatElementLabel).join(' + ');
+            return `Requires lattice combo: ${label}.`;
+        }
+        return `Requires a ${needSize}-element lattice combo on the board.`;
+    }
+    return '';
+}
+
 function getHandCardLockReason(card) {
     if (!gameState || !card) {
         return '';
+    }
+    if (isBoardPreviewCard(card)) {
+        return 'This Siegling is already on the board.';
     }
     if (gameState.currentPhase === 'MULLIGAN') {
         return 'Choose cards to redraw (optional) or keep your opening hand.';
@@ -2259,6 +2893,12 @@ function getHandCardLockReason(card) {
     if (!canAffordCard(card)) {
         return `Need ${card.costAmount} ${formatElementLabel(card.costElement)} energy to play this.`;
     }
+    if (card.type === 'SPELL') {
+        const spellReqLock = getSpellPlayRequirementLockReason(card);
+        if (spellReqLock) {
+            return spellReqLock;
+        }
+    }
     if (isActionCard(card) && !abilityHasAvailableTarget(card.ability)) {
         const targetSide = getAbilityTargetSide(card.ability);
         return targetSide ? `No ${targetSide} targets are available right now.` : 'This card has no valid target right now.';
@@ -2266,8 +2906,14 @@ function getHandCardLockReason(card) {
     if (isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING') {
         return sieglingPlacementLockMessage();
     }
-    if (card.type === 'SIEGLING' && card.evolvesFromId && getEvolutionPlacements(card).length === 0) {
-        return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
+    if (card.type === 'SIEGLING' && card.evolvesFromId) {
+        const baseCells = getEvolutionBaseCells(card);
+        if (baseCells.length === 0) {
+            return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
+        }
+        if (getEvolutionPlacements(card).length === 0) {
+            return `${card.evolvesFromName || 'Base form'} must complete a full battle phase in its current form before it can evolve.`;
+        }
     }
     if (card.type === 'SIEGLING' && getLegalPlacementsForCard(card).length === 0) {
         return 'No legal placement available for this Siegling.';
@@ -2403,9 +3049,27 @@ function applyInteractionState() {
     maybeTriggerInteractionFeedback();
 }
 
+/**
+ * After a server refresh, hand slots are new object references; keep selection aligned to `selectedHandIndex`.
+ */
+function rebindSelectedHandSlotFromState() {
+    if (selectedHandIndex == null || !gameState?.player?.hand) {
+        return;
+    }
+    const h = gameState.player.hand;
+    if (selectedHandIndex < 0 || selectedHandIndex >= h.length) {
+        selectedHandIndex = null;
+        selectedCard = null;
+        return;
+    }
+    selectedCard = h[selectedHandIndex];
+}
+
 function resetInteractionState(shouldRender = true) {
     selectedCard = null;
+    selectedHandIndex = null;
     hoveredBoardCard = null;
+    clearArenaSelection();
     closeClaimPopup();
     clearTargetMode();
     updateSelectedInfo(null);
@@ -2498,17 +3162,39 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     const data = await fetchJson(apiUrls('/api/game/' + endpoint), opts, timeoutMs);
     if (!data) {
         console.error('API error: request failed for', endpoint);
+        if (endpoint === 'new') {
+            showLoadoutLoadingError('Could not start the match. Is the server running? If you use a hosted build, check API settings.');
+            syncEntryOverlays();
+        }
         return null;
     }
     if (data.error) {
         console.error(data.error);
+        if (endpoint === 'new') {
+            showLoadoutLoadingError(String(data.error));
+            syncEntryOverlays();
+        }
         return null;
+    }
+
+    if (endpoint === 'new') {
+        clearExternalSocketElementMemory();
     }
 
     const prevState = gameState;
     gameState = data;
     maybeStartPixiBattleBoardHold(prevState, data);
-    render();
+    try {
+        render();
+    } catch (e) {
+        console.error('render() failed after API success:', e);
+        if (endpoint === 'new') {
+            gameState = prevState;
+            showLoadoutLoadingError('Could not show the game. See the browser console for details.');
+            syncEntryOverlays();
+        }
+        throw e;
+    }
     return data;
 }
 
@@ -2590,6 +3276,7 @@ async function loadGameOptions() {
 async function newGame() {
     clearMultiplayerSession();
     selectedCard = null;
+    selectedHandIndex = null;
     clearTargetMode();
     document.getElementById('gameOverOverlay').classList.remove('visible');
     const body = getSelectedLoadoutBody();
@@ -2601,6 +3288,7 @@ async function newGame() {
 
 function openLoadoutSelector() {
     clearMultiplayerSession();
+    clearExternalSocketElementMemory();
     gameState = null;
     lastRenderedPhase = null;
     if (phaseTransitionTimer) {
@@ -2690,6 +3378,9 @@ async function resumeMultiplayerSession() {
     currentRoomStatus = data;
     startRoomPolling();
     if (data.started) {
+        if (!gameState) {
+            clearExternalSocketElementMemory();
+        }
         gameState = data;
         render();
     } else {
@@ -2722,6 +3413,9 @@ function startRoomPolling() {
         }
         currentRoomStatus = data;
         if (data.started) {
+            if (!gameState) {
+                clearExternalSocketElementMemory();
+            }
             gameState = data;
             render();
         } else {
@@ -3178,6 +3872,7 @@ async function joinRoom() {
     startRoomPolling();
 
     if (data.started) {
+        clearExternalSocketElementMemory();
         gameState = data;
         render();
     } else {
@@ -3264,9 +3959,7 @@ function renderBuilderPreviewCard(card) {
     if (card.type === 'SIEGLING') {
         html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
     }
-    if (card.ability?.description) {
-        html += `<div class="card-detail">${card.ability.description}</div>`;
-    }
+    html += renderCardAbilitiesFlavorSection(card);
     if (card.type === 'TRAP' && card.trapBucketElement) {
         html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
     } else if (card.costElement) {
@@ -3363,6 +4056,7 @@ async function executeBattle() {
         return;
     }
     selectedCard = null;
+    selectedHandIndex = null;
     closeClaimPopup();
     closeTrainerAbilityPopup();
     clearTargetMode();
@@ -3389,6 +4083,7 @@ function openBattlePanel(forceOpen = false) {
 
 async function endTurn() {
     selectedCard = null;
+    selectedHandIndex = null;
     closeClaimPopup();
     clearTargetMode();
     await api('endturn');
@@ -3456,6 +4151,7 @@ async function submitBattleAction(abilityIndex, targetRow = -1, targetCol = -1) 
 
 function renderDomLegacy() {
     if (!gameState) return;
+    rebindSelectedHandSlotFromState();
     updateResponsiveLayoutVars();
 
     const phase = gameState.currentPhase;
@@ -3531,6 +4227,7 @@ function renderDomLegacy() {
 
     renderEnergyTopBar('playerEnergy', gameState.player);
     renderEnergyTopBar('enemyEnergy', gameState.enemy);
+    renderEnergyDetailPanel();
 
     document.getElementById('playerDeckSize').textContent = gameState.player.deckSize;
     document.getElementById('enemyDeckSize').textContent = gameState.enemy.deckSize;
@@ -3647,6 +4344,9 @@ function determinePixiScene() {
 
 function buildPixiViewModel() {
     const now = performance.now();
+    if (gameState) {
+        rebindSelectedHandSlotFromState();
+    }
     if (pixiBoardHoldUntil > 0 && now >= pixiBoardHoldUntil) {
         clearPixiBoardHold();
     }
@@ -3691,6 +4391,7 @@ function buildPixiViewModel() {
             playerBoard: emptyBoard,
             playerHand: [],
             selectedCardId: null,
+            selectedHandIndex: null,
             targetMode: false,
             legalPlacements: [],
             claimableCells: [],
@@ -3739,7 +4440,7 @@ function buildPixiViewModel() {
         scene,
         gameState?.turnNumber || 0,
         gameState?.currentPhase || '',
-        selectedCard?.id || '',
+        `${selectedHandIndex ?? ''}:${selectedCard?.id || ''}`,
         targetMode ? 'target' : 'idle',
         targetContext?.mode || '',
         targetContext?.side || '',
@@ -3750,6 +4451,10 @@ function buildPixiViewModel() {
         boardSignature(displayEnemyBoard),
         holdActive ? `hold:${Math.round(pixiBoardHoldUntil)}` : 'hold:off',
         (gameState?.player?.hand || []).map((card) => card.id).join(','),
+        (gameState?.player?.hand || []).map((c) => getHandCardLockReason(c)).join('\x1f'),
+        arenaSelection
+            ? `${arenaSelection.isPlayer}:${arenaSelection.row}:${arenaSelection.col}:${arenaSelection.instanceId}`
+            : '',
         legalPlacements.map((p) => `${p.row}:${p.col}`).join(','),
         targetableCells.map((p) => `${p.side || 'player'}:${p.row}:${p.col}`).join(','),
         gameState?.gameLog?.length || 0,
@@ -3772,11 +4477,14 @@ function buildPixiViewModel() {
         enemyBoard: displayEnemyBoard,
         playerBoard: displayPlayerBoard,
         playerHand: gameState?.player?.hand || [],
+        playerHandLockReasons: (gameState?.player?.hand || []).map((c) => getHandCardLockReason(c)),
         selectedCardId: selectedCard?.id || null,
+        selectedHandIndex: selectedHandIndex != null ? selectedHandIndex : null,
         targetMode: Boolean(targetMode),
         legalPlacements,
         claimableCells: claimableCells.map((p) => ({ row: p.row, col: p.col })),
         targetableCells,
+        arenaHighlight: arenaSelection,
         gameLog: getFilteredGameLog(gameState?.gameLog || []),
         loadoutSummary: getLoadoutSummaryText(),
         mulliganCopy: document.getElementById('mulliganCopy')?.textContent || '',
@@ -3795,8 +4503,12 @@ function renderPixi() {
 }
 
 function render() {
+    if (gameState) {
+        pruneInvalidArenaSelection();
+    }
     if (usePixiRenderer && pixiDriver) {
         renderPixi();
+        syncEntryOverlays();
         return;
     }
     renderDomLegacy();
@@ -3855,7 +4567,8 @@ window.__SIEGLINGS_PIXI_BRIDGE = {
         startSelectedGame: () => startSelectedGame(),
         submitMulliganKeep: () => submitMulliganKeep(),
         submitMulliganSelected: () => submitMulliganSelected(),
-        openLoadoutSelector: () => openLoadoutSelector()
+        openLoadoutSelector: () => openLoadoutSelector(),
+        focusArenaCard: (isPlayer, row, col) => onArenaCardClick(isPlayer, row, col)
     }
 };
 
@@ -3889,6 +4602,82 @@ function formatBreakdown(internal, external) {
     if (internal > 0) parts.push(`${internal} internal`);
     if (external > 0) parts.push(`${external} external`);
     return parts.length > 0 ? parts.join(' + ') : '0';
+}
+
+function energyDetailElementRows(playerData) {
+    const rows = [];
+    for (const [key, label] of ENERGY_ORDER) {
+        const total = playerData[`${key}Energy`] || 0;
+        if (total <= 0) continue;
+        const intl = playerData[`${key}Internal`];
+        const ext = playerData[`${key}External`];
+        let sub = '';
+        if (typeof intl === 'number' && typeof ext === 'number') {
+            sub = ` — ${formatBreakdown(intl, ext)}`;
+        }
+        rows.push(`<div class="energy-detail-row"><span>${label}</span><span>${total}${sub}</span></div>`);
+    }
+    return rows.length > 0
+        ? rows.join('')
+        : '<div class="energy-detail-muted">No elemental energy</div>';
+}
+
+function energyDetailComboBlock(playerData) {
+    const pts = playerData.comboPoints || [];
+    if (pts.length === 0) {
+        return '<div class="energy-detail-muted">No multicolor combo sites</div>';
+    }
+    return pts.map((p) => `<div class="energy-detail-combo">${formatComboPoint(p)}</div>`).join('');
+}
+
+function energyDetailNexusBlock(playerData) {
+    const pts = playerData.nexusPoints || [];
+    if (pts.length === 0) {
+        return '<div class="energy-detail-muted">No nexus intersections</div>';
+    }
+    return pts.map((p) => {
+        const els = (p.contributingElements || []).map(formatElementLabel).join(', ');
+        return `<div class="energy-detail-nexus">Nexus (${p.notchCount}): ${escapeHtml(els || '—')}</div>`;
+    }).join('');
+}
+
+function renderEnergyDetailPanel() {
+    const panel = document.getElementById('energyDetailPanel');
+    if (!panel || !gameState) return;
+
+    const p = gameState.player;
+    const e = gameState.enemy;
+    const enemyTitle = escapeHtml(gameState.enemyName || 'Opponent');
+    let html = '';
+    html += '<div class="energy-detail-columns">';
+    html += '<div class="energy-detail-section">';
+    html += `<div class="energy-detail-h2">${escapeHtml(gameState.playerName || 'You')}</div>`;
+    html += `<div class="energy-detail-hp">${p.health ?? 0} HP</div>`;
+    html += energyDetailElementRows(p);
+    html += '<div class="energy-detail-subh">Combos</div>';
+    html += energyDetailComboBlock(p);
+    html += '<div class="energy-detail-subh">Nexus</div>';
+    html += energyDetailNexusBlock(p);
+    if (p.mistActive) {
+        html += '<div class="energy-mist">Mist combo active</div>';
+    }
+    html += '</div>';
+
+    html += '<div class="energy-detail-section">';
+    html += `<div class="energy-detail-h2">${enemyTitle}</div>`;
+    html += `<div class="energy-detail-hp">${e.health ?? 0} HP</div>`;
+    html += energyDetailElementRows(e);
+    html += '<div class="energy-detail-subh">Combos</div>';
+    html += energyDetailComboBlock(e);
+    html += '<div class="energy-detail-subh">Nexus</div>';
+    html += energyDetailNexusBlock(e);
+    if (e.mistActive) {
+        html += '<div class="energy-mist">Mist combo active</div>';
+    }
+    html += '</div>';
+    html += '</div>';
+
+    panel.innerHTML = html;
 }
 
 function formatComboPoint(point) {
@@ -4127,10 +4916,12 @@ function buildEnergyTokens(playerData) {
     }
 
     for (const comboPoint of (playerData.comboPoints || [])) {
+        const raw = comboPoint.elements || [];
+        const distinct = [...new Set(raw)].sort((a, b) => String(a).localeCompare(String(b)));
         tokens.push({
             type: 'combo',
-            elements: comboPoint.elements || [],
-            label: `Combo-${comboPoint.size}: ${(comboPoint.elements || []).map(formatElementLabel).join(' + ')}`
+            elements: distinct,
+            label: `Combo-${comboPoint.size}: ${distinct.map(formatElementLabel).join(' + ')}`
         });
     }
 
@@ -4157,6 +4948,42 @@ function buildComboStyle(elements) {
     }).join(', ');
 
     return `background: conic-gradient(${slices});`;
+}
+
+/** Distinct elements for nexus display; matches combo token logic (API may repeat elements per notch). */
+function normalizeNexusContributingElements(np, latticeEntries) {
+    const raw = Array.isArray(np?.contributingElements) ? np.contributingElements : [];
+    const fromApi = raw.map((e) => String(e || '').toUpperCase()).filter(Boolean);
+    if (fromApi.length > 0) {
+        return [...new Set(fromApi)].sort((a, b) => a.localeCompare(b));
+    }
+    const fromBoard = latticeEntries
+        .map((e) => String(e.element || '').toUpperCase())
+        .filter(Boolean);
+    return [...new Set(fromBoard)].sort((a, b) => a.localeCompare(b));
+}
+
+/** Opacity for nexus solid fill — aligns orbs with solid energy token intensity. */
+const APPROX_NEXUS_SOLID_FILL_ALPHA = 0.88;
+
+/** SVG snippet: hub matches energy tokens (solid vs conic combo). */
+function buildNexusHubGraphics(hx, hy, hubR, distinctElements) {
+    const distinct = distinctElements && distinctElements.length > 0 ? distinctElements : ['NEUTRAL'];
+    if (distinct.length === 1) {
+        const c = getElementHex(distinct[0]);
+        const fill = hexToRgba(c, APPROX_NEXUS_SOLID_FILL_ALPHA);
+        return `<circle cx="${hx}" cy="${hy}" r="${hubR}" fill="${fill}" stroke="rgba(255,255,255,0.22)" stroke-width="1" />`
+            + `<circle cx="${hx}" cy="${hy}" r="${hubR + 3}" fill="none" stroke="${c}" stroke-width="2.5" stroke-opacity="0.95" />`;
+    }
+    const d = hubR * 2;
+    const foX = hx - hubR;
+    const foY = hy - hubR;
+    const comboBg = buildComboStyle(distinct);
+    return `<foreignObject x="${foX}" y="${foY}" width="${d}" height="${d}">`
+        + `<div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;border-radius:50%;box-sizing:border-box;`
+        + `border:2px solid rgba(255,255,255,0.22);box-shadow:0 2px 8px rgba(0,0,0,0.35);${comboBg}"></div>`
+        + `</foreignObject>`
+        + `<circle cx="${hx}" cy="${hy}" r="${hubR + 3}" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2.5" />`;
 }
 
 function renderElementKey() {
@@ -4225,6 +5052,16 @@ function renderBoard(gridId, board, isPlayer) {
             if (isTargetable) classes += ' targetable';
             if (isActing) classes += ' active-attacker';
             if (isClaimable) classes += ' claimable';
+            if (
+                arenaSelection
+                && arenaSelection.isPlayer === isPlayer
+                && arenaSelection.row === r
+                && arenaSelection.col === c
+                && cell
+                && cell.instanceId === arenaSelection.instanceId
+            ) {
+                classes += ' arena-selected';
+            }
 
             let events = '';
             if (isLegal) {
@@ -4232,9 +5069,9 @@ function renderBoard(gridId, board, isPlayer) {
             } else if (isTargetable) {
                 events = `onclick="onTargetSelected(${r}, ${c}, ${isPlayer})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isClaimable) {
-                events = `onclick="openClaimPopup(${r}, ${c})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})" onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
+                events = `onclick="onArenaCardClick(${isPlayer}, ${r}, ${c})" ontouchend="handleBoardCellInspectTouch(event, ${isPlayer}, ${r}, ${c})" onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
             } else if (cell) {
-                events = `onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
+                events = `onclick="onArenaCardClick(${isPlayer}, ${r}, ${c})" ontouchend="handleBoardCellInspectTouch(event, ${isPlayer}, ${r}, ${c})" onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
             }
 
             html += `<div class="${classes}" ${events} data-row="${r}" data-col="${c}">`;
@@ -4249,7 +5086,7 @@ function renderBoard(gridId, board, isPlayer) {
                     html += `<div class="acting-badge">Acting</div>`;
                 }
                 if (isClaimable) {
-                    html += `<div class="claim-prompt">Claim</div>`;
+                    html += `<div class="claim-prompt" onclick="event.stopPropagation(); openClaimPopup(${r}, ${c})">Claim</div>`;
                 }
                 html += renderBoardNotches(cell.notches, { board, row: r, col: c, isPlayer, legalPlacements });
                 html += renderCardArt(cell, 'board');
@@ -4260,9 +5097,13 @@ function renderBoard(gridId, board, isPlayer) {
                 }
                 html += `<div class="bc-stats-box">`;
                 html += `<div class="hp-bar"><div class="hp-fill" style="width:${(cell.hp / cell.maxHp) * 100}%"></div></div>`;
+                const combat = renderBoardCellCombatStatsInner(cell);
                 html += `<div class="card-stats">`;
-                html += `<span class="stat stat-hp">${cell.hp}/${cell.maxHp}</span>`;
-                html += `<span class="stat stat-spd">${cell.spd}</span>`;
+                html += `<span class="stat stat-hp">${combat.hpInner}</span>`;
+                html += `<span class="stat stat-spd">${combat.spdInner}</span>`;
+                if (combat.dmgBlock) {
+                    html += combat.dmgBlock;
+                }
                 html += `</div>`;
                 html += `</div>`;
                 html += `</div>`;
@@ -4280,6 +5121,8 @@ function renderBoard(gridId, board, isPlayer) {
 
     grid.innerHTML = html;
     renderLinkConnectors(gridId, board, isPlayer);
+    const side = isPlayer ? gameState?.player : gameState?.enemy;
+    renderNexusOverlays(gridId, board, isPlayer, side?.nexusPoints || []);
 }
 
 function collectBoardCellElements(grid) {
@@ -4292,6 +5135,136 @@ function collectBoardCellElements(grid) {
         }
     });
     return map;
+}
+
+const NOTCH_LATTICE_LOCAL = {
+    TOP: [1, 0],
+    TOP_RIGHT: [2, 0],
+    RIGHT: [2, 1],
+    BOTTOM_RIGHT: [2, 2],
+    BOTTOM: [1, 2],
+    BOTTOM_LEFT: [0, 2],
+    LEFT: [0, 1],
+    TOP_LEFT: [0, 0]
+};
+
+function notchLatticeKey(boardRow, boardCol, direction, isPlayer) {
+    const loc = NOTCH_LATTICE_LOCAL[direction];
+    if (!loc) return null;
+    const localY = isPlayer ? 2 - loc[1] : loc[1];
+    const x = boardCol * 2 + loc[0];
+    const y = boardRow * 2 + localY;
+    return `${x}:${y}`;
+}
+
+function collectLatticeNotchContributions(board, isPlayer) {
+    const map = new Map();
+    for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+            const cell = board[r][c];
+            if (!cell?.notches) continue;
+            for (const notch of cell.notches) {
+                const delta = directionDelta(notch.direction, isPlayer);
+                const nr = r + delta.dy;
+                const nc = c + delta.dx;
+                if (nr < 0 || nr > 2 || nc < 0 || nc > 2) continue;
+                const key = notchLatticeKey(r, c, notch.direction, isPlayer);
+                if (!key) continue;
+                const parts = key.split(':').map(Number);
+                const lx = parts[0];
+                const ly = parts[1];
+                if (lx <= 0 || lx >= 6 || ly <= 0 || ly >= 6) continue;
+                if (!map.has(key)) map.set(key, []);
+                map.get(key).push({ r, c, direction: notch.direction, element: notch.element });
+            }
+        }
+    }
+    return map;
+}
+
+function getNotchOutgoingAnchor(grid, cellRefs, r, c, direction, _isPlayer) {
+    const fromCell = cellRefs.get(`${r}:${c}`);
+    if (!fromCell) return null;
+    const fromLocal = getBoardCellLocalRect(grid, fromCell);
+    if (!fromLocal) return null;
+    const cx = fromLocal.left + fromLocal.width / 2;
+    const cy = fromLocal.top + fromLocal.height / 2;
+    switch (direction) {
+        case 'TOP': return { x: cx, y: fromLocal.top };
+        case 'BOTTOM': return { x: cx, y: fromLocal.bottom };
+        case 'LEFT': return { x: fromLocal.left, y: cy };
+        case 'RIGHT': return { x: fromLocal.right, y: cy };
+        case 'TOP_LEFT': return { x: fromLocal.left, y: fromLocal.top };
+        case 'TOP_RIGHT': return { x: fromLocal.right, y: fromLocal.top };
+        case 'BOTTOM_LEFT': return { x: fromLocal.left, y: fromLocal.bottom };
+        case 'BOTTOM_RIGHT': return { x: fromLocal.right, y: fromLocal.bottom };
+        default: return null;
+    }
+}
+
+function renderNexusOverlays(gridId, board, isPlayer, nexusPoints) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    grid.querySelectorAll('.nexus-overlay').forEach((el) => el.remove());
+    if (!nexusPoints || nexusPoints.length === 0) return;
+
+    const cellRefs = collectBoardCellElements(grid);
+    const contribMap = collectLatticeNotchContributions(board, isPlayer);
+
+    for (const np of nexusPoints) {
+        const key = `${np.x}:${np.y}`;
+        const entries = contribMap.get(key) || [];
+        const anchors = [];
+        for (const e of entries) {
+            const a = getNotchOutgoingAnchor(grid, cellRefs, e.r, e.c, e.direction, isPlayer);
+            if (a) anchors.push({ ...a, element: e.element });
+        }
+        if (anchors.length === 0) continue;
+
+        const hubX = anchors.reduce((s, a) => s + a.x, 0) / anchors.length;
+        const hubY = anchors.reduce((s, a) => s + a.y, 0) / anchors.length;
+        const tier = Math.min(4, Math.max(2, Number(np.notchCount) || anchors.length));
+        const pad = 6;
+        let minX = hubX;
+        let maxX = hubX;
+        let minY = hubY;
+        let maxY = hubY;
+        for (const a of anchors) {
+            minX = Math.min(minX, a.x);
+            maxX = Math.max(maxX, a.x);
+            minY = Math.min(minY, a.y);
+            maxY = Math.max(maxY, a.y);
+        }
+        minX -= pad;
+        maxX += pad;
+        minY -= pad;
+        maxY += pad;
+        const boxW = Math.max(24, maxX - minX);
+        const boxH = Math.max(24, maxY - minY);
+
+        const wrap = document.createElement('div');
+        wrap.className = `nexus-overlay nexus-tier-${tier}`;
+        wrap.style.left = `${minX}px`;
+        wrap.style.top = `${minY}px`;
+        wrap.style.width = `${boxW}px`;
+        wrap.style.height = `${boxH}px`;
+
+        const hx = hubX - minX;
+        const hy = hubY - minY;
+        const hubR = tier === 2 ? 7 : tier === 3 ? 8 : 9;
+        const hubDistinct = normalizeNexusContributingElements(np, entries);
+        let svg = `<svg class="nexus-svg" width="${boxW}" height="${boxH}" viewBox="0 0 ${boxW} ${boxH}" aria-hidden="true">`;
+        for (const a of anchors) {
+            const ax = a.x - minX;
+            const ay = a.y - minY;
+            const col = getElementHex(a.element) || 'rgba(200,210,255,0.5)';
+            svg += `<line x1="${hx}" y1="${hy}" x2="${ax}" y2="${ay}" stroke="${col}" stroke-width="3" stroke-linecap="round" opacity="0.85"/>`;
+        }
+        svg += buildNexusHubGraphics(hx, hy, hubR, hubDistinct);
+        svg += '</svg>';
+        wrap.innerHTML = svg;
+        grid.appendChild(wrap);
+    }
 }
 
 /**
@@ -4382,6 +5355,15 @@ function renderLinkConnectors(gridId, board, isPlayer) {
             }
         }
     }
+
+    const memorySide = isPlayer ? 'player' : 'enemy';
+    // External sockets should reflect the current board state (not latched permanently).
+    // Clear any previously remembered socket elements before repopulating.
+    externalSocketElementMemory[memorySide] = Object.create(null);
+    const freshMem = externalSocketElementMemory[memorySide];
+    activeExternalSockets.forEach((info, key) => {
+        freshMem[key] = info.element;
+    });
 
     for (const link of links) {
         const fromCell = cellRefs.get(`${link.fromRow}:${link.fromCol}`);
@@ -4547,7 +5529,9 @@ function refreshBoardLinkConnectors() {
     const enemyGrid = document.getElementById('enemyGrid');
     if (!playerGrid || !enemyGrid) return;
     renderLinkConnectors('enemyGrid', gameState.enemyBoard, false);
+    renderNexusOverlays('enemyGrid', gameState.enemyBoard, false, gameState.enemy?.nexusPoints || []);
     renderLinkConnectors('playerGrid', gameState.playerBoard, true);
+    renderNexusOverlays('playerGrid', gameState.playerBoard, true, gameState.player?.nexusPoints || []);
 }
 
 function scheduleBoardLinkConnectorRefresh() {
@@ -4844,9 +5828,11 @@ function renderHand() {
     }
 
     let html = '';
-    for (const card of gameState.player.hand) {
+    const hand = gameState.player.hand;
+    for (let handIndex = 0; handIndex < hand.length; handIndex++) {
+        const card = hand[handIndex];
         const elemClass = card.element.toLowerCase();
-        const isSelected = selectedCard && selectedCard.id === card.id;
+        const isSelected = selectedHandIndex === handIndex;
         const lockReason = getHandCardLockReason(card);
         const openingLocked = isOpeningPlacementOnlyTurn() && card.type !== 'SIEGLING';
         const placementLocked = isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING';
@@ -4857,13 +5843,13 @@ function renderHand() {
             placementLocked ? ' placement-locked' : '',
             targetMode ? ' target-lock' : ''
         ].join('');
-        const onclick = `onclick="selectCard('${card.id}')"`
-        const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, '${card.id}')" onmouseleave="handleHandCardPointerLeave('${card.id}')"`;
-        const touchEvents = `ontouchstart="handleHandCardTouchStart(event, '${card.id}')" ontouchmove="handleHandCardTouchMove(event, '${card.id}')" ontouchend="handleHandCardTouchEnd(event, '${card.id}')"`;
+        const onclick = `onclick="selectCard(${handIndex})"`;
+        const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, ${handIndex})" onmouseleave="handleHandCardPointerLeave(${handIndex})"`;
+        const touchEvents = `ontouchstart="handleHandCardTouchStart(event, ${handIndex})" ontouchmove="handleHandCardTouchMove(event, ${handIndex})" ontouchend="handleHandCardTouchEnd(event, ${handIndex})"`;
         const fallbackArtLabel = card.type === 'SIEGLING'
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" ${onclick} ${hoverEvents} ${touchEvents}>`;
+        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${hoverEvents} ${touchEvents}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
@@ -4877,9 +5863,7 @@ function renderHand() {
         if (card.type === 'SIEGLING') {
             html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
         }
-        if (card.ability?.description) {
-            html += `<div class="card-detail">${escapeHtml(card.ability.description)}</div>`;
-        }
+        html += renderCardAbilitiesFlavorSection(card);
         if (card.type === 'TRAP' && card.trapBucketElement) {
             html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
         } else if (card.costElement) {
@@ -4904,29 +5888,29 @@ function renderHand() {
     container.innerHTML = html;
 }
 
-function handleHandCardPointerEnter(event, cardId) {
+function handleHandCardPointerEnter(event, handIndex) {
     if (isMobileLayout()) {
         return;
     }
-    hoveredHandCardId = cardId;
+    hoveredHandIndex = handIndex;
     updateHandLiftLayer();
     syncFocusedCardUi();
-    showTooltipHand(event, cardId);
+    showTooltipHand(event, handIndex);
 }
 
-function handleHandCardPointerLeave(cardId) {
+function handleHandCardPointerLeave(handIndex) {
     if (isMobileLayout()) {
         return;
     }
-    if (hoveredHandCardId === cardId) {
-        hoveredHandCardId = null;
+    if (hoveredHandIndex === handIndex) {
+        hoveredHandIndex = null;
     }
     updateHandLiftLayer();
     syncFocusedCardUi();
     hideTooltip();
 }
 
-function handleHandCardTouchStart(event, cardId) {
+function handleHandCardTouchStart(event, handIndex) {
     if (!isMobileLayout()) {
         return;
     }
@@ -4935,15 +5919,15 @@ function handleHandCardTouchStart(event, cardId) {
         return;
     }
     handTouchGesture = {
-        cardId,
+        handIndex,
         x: touch.clientX,
         y: touch.clientY,
         moved: false
     };
 }
 
-function handleHandCardTouchMove(event, cardId) {
-    if (!isMobileLayout() || !handTouchGesture || handTouchGesture.cardId !== cardId) {
+function handleHandCardTouchMove(event, handIndex) {
+    if (!isMobileLayout() || !handTouchGesture || handTouchGesture.handIndex !== handIndex) {
         return;
     }
     const touch = event.changedTouches?.[0];
@@ -4955,19 +5939,19 @@ function handleHandCardTouchMove(event, cardId) {
     }
 }
 
-function handleHandCardTouchEnd(event, cardId) {
+function handleHandCardTouchEnd(event, handIndex) {
     if (!isMobileLayout()) {
         return;
     }
-    const shouldSelect = Boolean(handTouchGesture && handTouchGesture.cardId === cardId && !handTouchGesture.moved);
+    const shouldSelect = Boolean(handTouchGesture && handTouchGesture.handIndex === handIndex && !handTouchGesture.moved);
     handTouchGesture = null;
     if (!shouldSelect) {
         return;
     }
     event.preventDefault();
     event.stopPropagation();
-    selectCard(cardId);
-    handTouchSuppressCardId = cardId;
+    selectCard(handIndex);
+    handTouchSuppressHandIndex = handIndex;
     handTouchSuppressUntil = Date.now() + 500;
 }
 
@@ -5114,7 +6098,7 @@ function renderBattlePanel() {
     }
 
     let actionsHtml = '';
-    const sortedAbilities = getSortedBattleAbilities(pending.abilities);
+    const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
     for (const ability of sortedAbilities) {
         const disabled = ability.affordable ? '' : 'disabled';
         const desc = (ability.description && String(ability.description).trim()) || ability.name;
@@ -5243,19 +6227,33 @@ function canSelectedCardLinkAt(row, col, board) {
     return canCardLinkAt(selectedCard, row, col, board);
 }
 
-function selectCard(cardId) {
+/**
+ * @param {number|string} handIndexOrCardId — hand slot index (preferred), or legacy card definition id (first match).
+ */
+function selectCard(handIndexOrCardId) {
     if (gameState.currentPhase !== 'SETUP') return;
-    if (isMobileLayout() && handTouchSuppressCardId === cardId && Date.now() < handTouchSuppressUntil) {
-        handTouchSuppressCardId = null;
+    clearArenaSelection();
+    const hand = gameState.player.hand || [];
+    let handIndex;
+    let card;
+    if (typeof handIndexOrCardId === 'number' && Number.isInteger(handIndexOrCardId) && handIndexOrCardId >= 0) {
+        handIndex = handIndexOrCardId;
+        card = hand[handIndex];
+    } else {
+        handIndex = hand.findIndex((c) => c.id === handIndexOrCardId);
+        card = handIndex >= 0 ? hand[handIndex] : null;
+    }
+    if (!card) return;
+
+    if (isMobileLayout() && handTouchSuppressHandIndex === handIndex && Date.now() < handTouchSuppressUntil) {
+        handTouchSuppressHandIndex = null;
         handTouchSuppressUntil = 0;
         return;
     }
 
-    const card = gameState.player.hand.find(c => c.id === cardId);
-    if (!card) return;
-
-    if (selectedCard && selectedCard.id === cardId) {
+    if (selectedHandIndex === handIndex) {
         selectedCard = null;
+        selectedHandIndex = null;
         clearTargetMode();
         updateSelectedInfo(null);
         render();
@@ -5265,6 +6263,7 @@ function selectCard(cardId) {
     const lockReason = getHandCardLockReason(card);
 
     selectedCard = card;
+    selectedHandIndex = handIndex;
     clearTargetMode();
 
     if (lockReason) {
@@ -5429,7 +6428,7 @@ function onTrainerUse() {
 function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
     if (!card && !msg) {
-        el.innerHTML = 'Click a card in your hand to select it.';
+        el.innerHTML = 'Select a hand card or click a Siegling on either board to preview it here.';
         return;
     }
 
@@ -5442,7 +6441,7 @@ function updateSelectedInfo(card, msg) {
         html += `<div class="selected-preview-message">${escapeHtml(msg)}</div>`;
     }
     if (card) {
-        const lockReason = getHandCardLockReason(card);
+        const lockReason = isBoardPreviewCard(card) ? '' : getHandCardLockReason(card);
         html += `<div class="selected-card-panel">`;
         html += renderShowcaseCard(card, {
             cardClass: 'selected-preview-card',
@@ -5451,9 +6450,13 @@ function updateSelectedInfo(card, msg) {
         html += `<div class="selected-preview-copy">`;
         if (lockReason) {
             html += `<span style="color:var(--accent)">${escapeHtml(lockReason)}</span>`;
+        } else if (isBoardPreviewCard(card)) {
+            const own = boardCardOwnershipLabel(card);
+            const phases = Number(card.battlePhasesSeen || 0);
+            html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
-                ? `<span style="color:var(--accent)">Place this on top of ${card.evolvesFromName} to evolve it.</span>`
+                ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`
                 : gameState.playerPlacementUsed
                 ? `<span style="color:var(--accent)">${escapeHtml(sieglingPlacementLockMessage())}</span>`
                 : '<span style="color:var(--accent)">Highlighted bubbles show where this card can expand next.</span>';
@@ -5495,6 +6498,11 @@ function handleBoardCellTouch(event, isPlayer, row, col) {
         && getSelectedLegalPlacements().some(pos => pos[0] === row && pos[1] === col);
     const targetable = isTargetCell(isPlayer, cell);
     const claimable = isPlayer && isClaimableBoardCell(cell, true);
+    if (cell && !legalPlacement && !targetable && !claimable) {
+        event.preventDefault();
+        onArenaCardClick(isPlayer, row, col);
+        return;
+    }
     if (!legalPlacement && !targetable && !claimable) {
         return;
     }
@@ -5523,24 +6531,34 @@ function showTooltipBoard(event, isPlayer, row, col) {
     const tt = document.getElementById('cardTooltip');
     document.getElementById('ttName').textContent = `${cell.name} (${cell.element})`;
     document.getElementById('ttName').style.color = getElementCssVar(cell.element);
+    const combat = renderBoardCellCombatStatsInner(cell);
     document.getElementById('ttStats').innerHTML =
-        `<span class="stat stat-hp">HP: ${cell.hp}/${cell.maxHp}</span>` +
-        `<span class="stat stat-spd">SPD: ${cell.spd}</span>`;
-    let abilityText = cell.ability || '';
-    if (isClaimableBoardCell(cell, isPlayer)) {
-        abilityText += `${abilityText ? ' ' : ''}[Claim: Gain 1 temporary ${formatElementLabel(cell.element)} energy this turn]`;
+        `<span class="stat stat-hp">HP: ${combat.hpInner}</span>` +
+        `<span class="stat stat-spd">SPD: ${combat.spdInner}</span>` +
+        (combat.dmgBlock || '');
+    let abilityHtml = '';
+    if (Array.isArray(cell.abilities) && cell.abilities.length > 0) {
+        abilityHtml = cell.abilities
+            .filter((ab) => !ab.passive)
+            .map((ab) => renderAbilityFlavorHtml(cell.element, ab))
+            .join('');
+    } else if (cell.ability) {
+        abilityHtml = `<div class="card-ability-flavor" style="color:${getElementColorForCard(cell.element)}"><span class="card-ability-flavor-desc">${renderAbilityFlavorBodyInnerHtml(cell.ability, cell.element)}</span></div>`;
     }
-    document.getElementById('ttAbility').textContent = abilityText;
+    if (isClaimableBoardCell(cell, isPlayer)) {
+        abilityHtml += `<div class="tt-claim-note">${escapeHtml(`Claim: Gain 1 temporary ${formatElementLabel(cell.element)} energy this turn`)}</div>`;
+    }
+    document.getElementById('ttAbility').innerHTML = abilityHtml;
 
     positionTooltip(event, tt);
     tt.classList.add('visible');
 }
 
-function showTooltipHand(event, cardId) {
+function showTooltipHand(event, handIndex) {
     if (isDesktopSidebarLayout() || isMobileLayout()) {
         return;
     }
-    const card = gameState.player.hand.find(c => c.id === cardId);
+    const card = gameState.player.hand[handIndex];
     if (!card) return;
 
     const tt = document.getElementById('cardTooltip');
@@ -5555,26 +6573,31 @@ function showTooltipHand(event, cardId) {
     }
     document.getElementById('ttStats').innerHTML = statsHtml;
 
-    let abilityText = card.ability ? card.ability.description : '';
+    let abilityHtml = renderCardAbilitiesFlavorSection(card);
+    const extras = [];
     if (card.type === 'TRAP') {
-        abilityText += ` [Trigger: Opponent has ${card.trapBucketAmount} ${card.trapBucketElement}]`;
+        extras.push(`Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}`);
     } else if (card.costElement && card.costAmount > 0) {
-        abilityText += ` [Play Cost: ${card.costAmount} ${card.costElement}]`;
+        extras.push(`Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}`);
     }
     if (card.evolvesFromName) {
-        abilityText += ` [Evolves from ${card.evolvesFromName}]`;
+        extras.push(`Evolves from ${card.evolvesFromName}`);
     }
     if (card.requiredComboSize) {
         const comboLabel = card.requiredComboSignature
             ? card.requiredComboSignature.split('+').map(formatElementLabel).join(' + ')
             : `${card.requiredComboSize}-element combo`;
-        abilityText += ` [Combo: ${comboLabel}]`;
+        extras.push(`Combo: ${comboLabel}`);
+    }
+    if (card.requiredReaction) {
+        extras.push(`Requires: ${formatElementLabel(card.requiredReaction)} active`);
     }
     const lockReason = getHandCardLockReason(card);
     if (lockReason) {
-        abilityText += ` [Unavailable: ${lockReason}]`;
+        extras.push(`Unavailable: ${lockReason}`);
     }
-    document.getElementById('ttAbility').textContent = abilityText;
+    const extrasHtml = extras.map((line) => `<div class="tt-extra-line">${escapeHtml(line)}</div>`).join('');
+    document.getElementById('ttAbility').innerHTML = abilityHtml + extrasHtml;
 
     positionTooltip(event, tt);
     tt.classList.add('visible');
@@ -5604,8 +6627,10 @@ function hideTooltip() {
     document.getElementById('cardTooltip').classList.remove('visible');
 }
 
-function getLiftedHandCardId() {
-    return hoveredHandCardId || selectedCard?.id || null;
+function getLiftedHandIndex() {
+    if (hoveredHandIndex != null) return hoveredHandIndex;
+    if (selectedHandIndex != null) return selectedHandIndex;
+    return null;
 }
 
 function handleHandSelectorPointerMove(event) {
@@ -5700,9 +6725,9 @@ function stopHandSelectorAutoScroll() {
     }
 }
 
-function getHandCardSourceElement(cardId) {
-    return Array.from(document.querySelectorAll('#playerHand .hand-card[data-card-id]'))
-        .find(card => card.dataset.cardId === cardId) || null;
+function getHandCardSourceElement(handIndex) {
+    if (handIndex == null || handIndex === '') return null;
+    return document.querySelector(`#playerHand .hand-card[data-hand-index="${handIndex}"]`);
 }
 
 function updateHandLiftLayer() {
@@ -5720,12 +6745,12 @@ function updateHandLiftLayer() {
         return;
     }
 
-    const cardId = getLiftedHandCardId();
-    if (!cardId) {
+    const liftIndex = getLiftedHandIndex();
+    if (liftIndex == null) {
         return;
     }
 
-    const source = getHandCardSourceElement(cardId);
+    const source = getHandCardSourceElement(liftIndex);
     const actionBar = document.getElementById('actionBar');
     if (!source || !actionBar) {
         return;
@@ -5782,6 +6807,7 @@ document.addEventListener('keydown', (e) => {
         closeClaimPopup();
         closeTrainerAbilityPopup();
         selectedCard = null;
+        selectedHandIndex = null;
         clearTargetMode();
         updateSelectedInfo(null);
         render();

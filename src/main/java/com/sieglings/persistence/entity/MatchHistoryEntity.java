@@ -43,6 +43,15 @@ public class MatchHistoryEntity {
     @Column
     private Integer turnNumber;
 
+    @Column(nullable = false)
+    private int spellsCast;
+
+    @Column(nullable = false)
+    private int trapsSprung;
+
+    @Column(nullable = false)
+    private int siegelingsDefeated;
+
     public String getId() {
         return id;
     }
@@ -113,5 +122,29 @@ public class MatchHistoryEntity {
 
     public void setTurnNumber(Integer turnNumber) {
         this.turnNumber = turnNumber;
+    }
+
+    public int getSpellsCast() {
+        return spellsCast;
+    }
+
+    public void setSpellsCast(int spellsCast) {
+        this.spellsCast = spellsCast;
+    }
+
+    public int getTrapsSprung() {
+        return trapsSprung;
+    }
+
+    public void setTrapsSprung(int trapsSprung) {
+        this.trapsSprung = trapsSprung;
+    }
+
+    public int getSiegelingsDefeated() {
+        return siegelingsDefeated;
+    }
+
+    public void setSiegelingsDefeated(int siegelingsDefeated) {
+        this.siegelingsDefeated = siegelingsDefeated;
     }
 }

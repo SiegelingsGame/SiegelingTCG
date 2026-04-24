@@ -19,6 +19,8 @@ public class CardInstance {
     private int currentSpeed;
     private int temporaryHealthBuff;
     private int temporaryDamageBuff;
+    /** Passive team-aura attack damage from allied Sieglings on the board (recomputed when the board changes). */
+    private int auraDamageBoost;
     private Set<StatusEffect> statusEffects = new HashSet<>();
     private int boardRow;
     private int boardCol;
@@ -29,7 +31,10 @@ public class CardInstance {
     public CardInstance() {}
 
     public CardInstance(SieglingCard card, int row, int col, boolean owner) {
-        this.instanceId = UUID.randomUUID().toString().substring(0, 8);
+        // IDs must be globally unique: instanceId is used as a stable identity in battle queues,
+        // connected-network traversal, and UI diffing. Shortened UUIDs can collide and cause
+        // unrelated Sieglings to "disappear" when one is defeated.
+        this.instanceId = UUID.randomUUID().toString();
         this.card = card;
         this.currentHealth = card.getHealth();
         this.currentSpeed = card.getSpeed();
@@ -61,9 +66,19 @@ public class CardInstance {
     }
 
     public int getDamageBoost() {
-        int damageBoost = temporaryDamageBuff;
-        if (temporaryDamageBuff == 0 && statusEffects.contains(StatusEffect.DAMAGE_BOOST)) damageBoost += 1;
+        int damageBoost = temporaryDamageBuff + auraDamageBoost;
+        if (temporaryDamageBuff == 0 && auraDamageBoost == 0 && statusEffects.contains(StatusEffect.DAMAGE_BOOST)) {
+            damageBoost += 1;
+        }
         return damageBoost;
+    }
+
+    public int getAuraDamageBoost() {
+        return auraDamageBoost;
+    }
+
+    public void setAuraDamageBoost(int auraDamageBoost) {
+        this.auraDamageBoost = Math.max(0, auraDamageBoost);
     }
 
     public void addDamageBuff(int amount) {

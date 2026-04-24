@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CardDefinitionServiceTest {
@@ -132,6 +134,15 @@ class CardDefinitionServiceTest {
     }
 
     @Test
+    void liveElementRosterHidesDecksAndCatalogEntriesForInactiveElements() {
+        CardDefinitionService service = serviceWithLiveElements(Set.of(Element.FIRE, Element.EARTH, Element.WATER, Element.WIND));
+        assertTrue(service.getDeckOptions().stream().noneMatch(deck -> deck.id().equals("deck_ice")));
+        assertTrue(service.getActiveLiveElementNames().containsAll(List.of("FIRE", "WATER")));
+        assertTrue(service.getActiveLiveElementNames().stream().noneMatch(name -> name.equals("ICE")));
+        assertTrue(service.getDeckBuilderCatalog().stream().noneMatch(card -> card.getElement() == Element.ICE));
+    }
+
+    @Test
     void inactiveTrainerDefinitionsAreHiddenFromTrainerOptionsButStillResolvableById() {
         CardDefinitionService service = serviceWithTrainerDefinitions(List.of(
                 new TrainerCatalogService.TrainerDefinition(
@@ -212,6 +223,47 @@ class CardDefinitionServiceTest {
         assertEquals(false, service.isTrainerActive("trainer_inactive"));
     }
 
+    @Test
+    void customDeckResolvesEditorCopySuffixesOnCardIds() {
+        List<String> seedIds = cardDefinitions.getDeckBuilderCatalog().stream()
+                .map(Card::getId)
+                .filter(id -> !"trap03".equals(id))
+                .limit(9)
+                .toList();
+        assertEquals(9, seedIds.size(), "Need 9 catalog cards other than trap03 for a 30-card deck.");
+
+        List<String> deck = new ArrayList<>();
+        for (String id : seedIds) {
+            deck.add(id);
+            deck.add(id);
+            deck.add(id);
+        }
+        deck.add("trap03");
+        deck.add("trap03-copy");
+        deck.add("trap03-copy-copy");
+
+        List<Card> built = cardDefinitions.buildCustomDeck(deck);
+        assertEquals(30, built.size());
+        assertEquals(3, built.stream().filter(c -> "trap03".equals(c.getId())).count());
+    }
+
+    @Test
+    void customDeckRejectsUnknownIdsAfterCopySuffixStripping() {
+        List<String> seedIds = cardDefinitions.getDeckBuilderCatalog().stream()
+                .map(Card::getId)
+                .limit(10)
+                .toList();
+        List<String> deck = new ArrayList<>();
+        for (String cardId : seedIds) {
+            deck.add(cardId);
+            deck.add(cardId);
+            deck.add(cardId);
+        }
+        deck.set(deck.size() - 1, "not-a-real-card-copy");
+
+        assertThrows(IllegalArgumentException.class, () -> cardDefinitions.buildCustomDeck(deck));
+    }
+
     private Map<String, Set<String>> buildLineIdsByRoot(Map<String, SieglingCard> sieglingsById) {
         Map<String, List<SieglingCard>> byRoot = new HashMap<>();
         for (SieglingCard card : sieglingsById.values()) {
@@ -257,6 +309,38 @@ class CardDefinitionServiceTest {
             return service;
         } catch (ReflectiveOperationException ex) {
             throw new IllegalStateException("Unable to inject preset deck catalog service for test setup.", ex);
+        }
+    }
+
+    private CardDefinitionService serviceWithLiveElements(Set<Element> active) {
+        CardDefinitionService service = new CardDefinitionService();
+        CardOverrideStorageService storage = new CardOverrideStorageService(
+                new ObjectMapper(),
+                false,
+                "",
+                "",
+                "(default)",
+                "appConfig",
+                "cardOverrides"
+        );
+        LiveElementCatalogService liveCatalog = new LiveElementCatalogService(
+                new ObjectMapper(),
+                storage,
+                "appConfig",
+                "liveElements"
+        ) {
+            @Override
+            public Set<Element> loadActiveElementsForGame() {
+                return new LinkedHashSet<>(active);
+            }
+        };
+        try {
+            Field field = CardDefinitionService.class.getDeclaredField("liveElementCatalogService");
+            field.setAccessible(true);
+            field.set(service, liveCatalog);
+            return service;
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("Unable to inject live element catalog for test setup.", ex);
         }
     }
 

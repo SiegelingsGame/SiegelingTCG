@@ -9,17 +9,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A Siegling creature card with health, speed, notches, and an ability.
+ * A Siegling creature card with health, speed, notches, and up to five moves from the shared pool.
  */
 public class SieglingCard extends Card {
     private int health;
     private int speed;
     private List<Notch> notches = new ArrayList<>();
-    private List<Ability> abilities = new ArrayList<>();
+    /** Up to five ids referencing {@link com.sieglings.service.MovesPoolService}. */
+    private List<String> moveIds = new ArrayList<>();
     private Row preferredRow;
     private String evolvesFromId;
     private String evolvesFromName;
-    private boolean explicitAbilityLoadout;
 
     public SieglingCard() {
         setCardType(CardType.SIEGLING);
@@ -38,16 +38,12 @@ public class SieglingCard extends Card {
     public SieglingCard copy() {
         SieglingCard c = new SieglingCard(getId(), getName(), getElement(), getRarity(),
                 health, speed, new ArrayList<>(notches), preferredRow);
-        if (explicitAbilityLoadout) {
-            c.setAbilities(copyAbilities(abilities));
-        } else {
-            c.setAbility(getAbility() == null ? null : getAbility().copy());
-        }
+        c.setMoveIds(new ArrayList<>(moveIds));
+        c.setAbility(getAbility() == null ? null : getAbility().copy());
         c.setCostElement(getCostElement());
         c.setCostAmount(getCostAmount());
         c.setEvolvesFromId(evolvesFromId);
         c.setEvolvesFromName(evolvesFromName);
-        c.setExplicitAbilityLoadout(explicitAbilityLoadout);
         return c;
     }
 
@@ -57,20 +53,32 @@ public class SieglingCard extends Card {
     public void setSpeed(int speed) { this.speed = speed; }
     public List<Notch> getNotches() { return notches; }
     public void setNotches(List<Notch> notches) { this.notches = notches; }
-    public List<Ability> getAbilities() { return abilities; }
-    public void setAbilities(List<Ability> abilities) {
-        this.abilities = copyAbilities(abilities);
-        super.setAbility(this.abilities.isEmpty() ? null : this.abilities.get(0));
-        this.explicitAbilityLoadout = true;
+    public List<String> getMoveIds() { return moveIds; }
+    public void setMoveIds(List<String> moveIds) {
+        this.moveIds = normalizeMoveIds(moveIds);
     }
-    @Override
-    public void setAbility(Ability ability) {
-        super.setAbility(ability);
-        this.abilities = new ArrayList<>();
-        if (ability != null) {
-            this.abilities.add(ability);
+
+    public static final int MAX_MOVES_PER_SIEGLING = 5;
+
+    /** Trims, drops blanks, caps at {@link #MAX_MOVES_PER_SIEGLING}. */
+    public static List<String> normalizeMoveIds(List<String> moveIds) {
+        if (moveIds == null || moveIds.isEmpty()) {
+            return new ArrayList<>();
         }
-        this.explicitAbilityLoadout = false;
+        List<String> out = new ArrayList<>();
+        for (String id : moveIds) {
+            if (id == null || id.isBlank()) {
+                continue;
+            }
+            out.add(id.trim());
+            if (out.size() >= MAX_MOVES_PER_SIEGLING) {
+                break;
+            }
+        }
+        return out;
+    }
+    public boolean hasMoveLoadout() {
+        return moveIds != null && !moveIds.isEmpty();
     }
     public Row getPreferredRow() { return preferredRow; }
     public void setPreferredRow(Row preferredRow) { this.preferredRow = preferredRow; }
@@ -79,19 +87,9 @@ public class SieglingCard extends Card {
     public String getEvolvesFromName() { return evolvesFromName; }
     public void setEvolvesFromName(String evolvesFromName) { this.evolvesFromName = evolvesFromName; }
     public boolean isEvolutionCard() { return evolvesFromId != null && !evolvesFromId.isBlank(); }
-    public boolean hasExplicitAbilityLoadout() { return explicitAbilityLoadout; }
-    public void setExplicitAbilityLoadout(boolean explicitAbilityLoadout) { this.explicitAbilityLoadout = explicitAbilityLoadout; }
 
-    private List<Ability> copyAbilities(List<Ability> source) {
-        List<Ability> copies = new ArrayList<>();
-        if (source == null) {
-            return copies;
-        }
-        for (Ability ability : source) {
-            if (ability != null) {
-                copies.add(ability.copy());
-            }
-        }
-        return copies;
+    @Override
+    public void setAbility(Ability ability) {
+        super.setAbility(ability);
     }
 }

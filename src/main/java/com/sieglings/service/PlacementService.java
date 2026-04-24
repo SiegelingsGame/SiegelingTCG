@@ -116,7 +116,11 @@ public class PlacementService {
             return false;
         }
         CardInstance existing = state.getAt(isPlayer, row, col);
-        return existing != null && candidate.getEvolvesFromId().equals(existing.getCard().getId());
+        if (existing == null || !candidate.getEvolvesFromId().equals(existing.getCard().getId())) {
+            return false;
+        }
+        // Must complete at least one full battle phase while in this form (newly placed = 0; just evolved = 0).
+        return existing.getBattlePhasesSeen() > 0;
     }
 
     public CardInstance createPlacedInstance(CardInstance existing, SieglingCard candidate, boolean owner, int row, int col) {
@@ -127,7 +131,8 @@ public class PlacementService {
             int damageTaken = existing.getCard().getHealth() - existing.getCurrentHealth();
             evolved.setCurrentHealth(Math.max(1, placedCard.getHealth() - Math.max(0, damageTaken)));
             evolved.setPlacementOrder(existing.getPlacementOrder());
-            evolved.setBattlePhasesSeen(existing.getBattlePhasesSeen());
+            // New form: no same-turn chain evolve; must go through a full battle phase in this stage first.
+            evolved.setBattlePhasesSeen(0);
             return evolved;
         }
 
