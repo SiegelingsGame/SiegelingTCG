@@ -809,7 +809,15 @@
             );
             renderAll();
         } catch (error) {
-            setStatus(error.message || "Unable to save the override file.", "error");
+            const message = error?.message || "Unable to save the override file.";
+            setStatus(message, "error");
+            if (state.liveEditingEnabled) {
+                try {
+                    window.alert(message);
+                } catch (ignored) {
+                    // Ignore alert failures and fall back to inline status.
+                }
+            }
             renderAll();
         }
     }
