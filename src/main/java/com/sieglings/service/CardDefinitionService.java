@@ -254,11 +254,14 @@ public class CardDefinitionService {
             throw new IllegalArgumentException("Custom decks must contain at least " + getDeckBuilderMinSize() + " cards.");
         }
 
+        Map<String, Card> catalogById = getDeckBuilderCatalog().stream()
+                .collect(Collectors.toMap(Card::getId, card -> card, (left, right) -> left, LinkedHashMap::new));
+
         Map<String, Long> counts = cardIds.stream()
                 .collect(Collectors.groupingBy(id -> id, Collectors.counting()));
         for (Map.Entry<String, Long> entry : counts.entrySet()) {
             if (entry.getValue() > getDeckBuilderMaxCopies()) {
-                Card card = findCardDefinition(entry.getKey())
+                Card card = findCardDefinition(catalogById, entry.getKey())
                         .orElseThrow(() -> new IllegalArgumentException("Unknown card id: " + entry.getKey()));
                 throw new IllegalArgumentException("You can only use up to " + getDeckBuilderMaxCopies()
                         + " copies of " + card.getName() + ".");
@@ -267,7 +270,7 @@ public class CardDefinitionService {
 
         List<Card> deck = new ArrayList<>();
         for (String cardId : cardIds) {
-            Card card = findCardDefinition(cardId)
+            Card card = findCardDefinition(catalogById, cardId)
                     .orElseThrow(() -> new IllegalArgumentException("Unknown card id: " + cardId));
             deck.add(copyCard(card));
         }
@@ -654,8 +657,8 @@ public class CardDefinitionService {
         return true;
     }
 
-    private Optional<Card> findCardDefinition(String cardId) {
-        return getDeckBuilderCatalog().stream().filter(card -> card.getId().equals(cardId)).findFirst();
+    private Optional<Card> findCardDefinition(Map<String, Card> catalogById, String cardId) {
+        return Optional.ofNullable(catalogById.get(cardId));
     }
 
     private Card copyCard(Card card) {

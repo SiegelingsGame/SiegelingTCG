@@ -94,7 +94,7 @@ public class CardOverrideEditorService {
                                                  TrainerCatalogService.LoadSnapshot trainerSnapshot,
                                                  CardEditorAuthService.EditorAuthSnapshot authSnapshot) {
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("data", buildEditorData());
+        response.put("data", buildEditorData(cardSnapshot, deckSnapshot, trainerSnapshot));
         response.put("filePath", buildFilePath(cardSnapshot, deckSnapshot, trainerSnapshot));
         response.put("canSaveToProjectFile", cardSnapshot.canWriteProjectFile()
                 && deckSnapshot.canWriteProjectFile()
@@ -137,11 +137,18 @@ public class CardOverrideEditorService {
         return metadata;
     }
 
-    private JsonNode buildEditorData() {
+    private JsonNode buildEditorData(CardOverrideStorageService.LoadSnapshot cardSnapshot,
+                                     PresetDeckCatalogService.LoadSnapshot deckSnapshot,
+                                     TrainerCatalogService.LoadSnapshot trainerSnapshot) {
+        // Use the snapshot payloads directly so the dashboard always reflects what was persisted.
+        // Relying on gameplay catalogs can lag behind after publishing because those catalogs cache data.
         ObjectNode data = objectMapper.createObjectNode();
-        data.set("cards", objectMapper.valueToTree(ManualSieglingCatalog.buildOverrideFile(cardDefinitionService.getDeckBuilderCatalog()).cards()));
-        data.set("decks", objectMapper.valueToTree(buildDeckEditorData()));
-        data.set("trainers", objectMapper.valueToTree(cardDefinitionService.getStoredTrainerDefinitions()));
+        JsonNode cards = cardSnapshot == null ? null : cardSnapshot.data().get("cards");
+        JsonNode decks = deckSnapshot == null ? null : deckSnapshot.data().get("decks");
+        JsonNode trainers = trainerSnapshot == null ? null : trainerSnapshot.data().get("trainers");
+        data.set("cards", cards == null ? objectMapper.createArrayNode() : cards.deepCopy());
+        data.set("decks", decks == null ? objectMapper.createArrayNode() : decks.deepCopy());
+        data.set("trainers", trainers == null ? objectMapper.createArrayNode() : trainers.deepCopy());
         return data;
     }
 
