@@ -748,29 +748,33 @@
 
     async function saveToProjectFile() {
         const errors = state.validation.filter((issue) => issue.severity === "error");
-        if (errors.length > 0) {
-            setStatus(`Fix validation errors before you ${state.liveEditingEnabled ? "publish live changes" : "save to the project file"}.`, "error");
+        const alerts = state.validation.filter((issue) => issue.severity === "warn");
+        const verb = state.liveEditingEnabled ? "publish live changes" : "save to the project file";
+
+        if (!state.liveEditingEnabled && errors.length > 0) {
+            setStatus(`Fix validation errors before you ${verb}.`, "error");
             renderStatus();
             renderValidation();
             return;
         }
 
-        const alerts = state.validation.filter((issue) => issue.severity === "warn");
-        if (alerts.length > 0) {
-            const verb = state.liveEditingEnabled ? "publish live changes" : "save to the project file";
-            const summary = alerts
+        const blockers = state.liveEditingEnabled
+            ? state.validation.filter((issue) => issue.severity === "error" || issue.severity === "warn")
+            : alerts;
+        if (blockers.length > 0) {
+            const summary = blockers
                 .slice(0, 5)
-                .map((issue) => `- ${issue.message}`)
+                .map((issue) => `- [${issue.severity}] ${issue.message}`)
                 .join("\n");
-            const extra = alerts.length > 5 ? `\n- ...and ${alerts.length - 5} more` : "";
-            const firstPrompt = `There are ${alerts.length} alert(s). Do you want to ${verb} anyway?\n\n${summary}${extra}`;
+            const extra = blockers.length > 5 ? `\n- ...and ${blockers.length - 5} more` : "";
+            const firstPrompt = `There are ${blockers.length} validation issue(s). Do you want to ${verb} anyway?\n\n${summary}${extra}`;
             if (!window.confirm(firstPrompt)) {
-                setStatus(`Cancelled — review the ${alerts.length} alert(s) and try again.`, "warning");
+                setStatus(`Cancelled — review the ${blockers.length} validation issue(s) and try again.`, "warning");
                 renderStatus();
                 renderValidation();
                 return;
             }
-            const secondPrompt = `Confirm again to ${verb}. This will proceed even with alerts.`;
+            const secondPrompt = `Confirm again to ${verb}. This will proceed even with validation issues.`;
             if (!window.confirm(secondPrompt)) {
                 setStatus(`Cancelled — no changes were ${state.liveEditingEnabled ? "published" : "saved"}.`, "warning");
                 renderStatus();
@@ -2448,7 +2452,7 @@
         refs.deleteDeckBtn.disabled = !hasDeck;
         refs.clearDeckCardsBtn.disabled = !hasDeck;
         refs.duplicateTrainerBtn.disabled = !hasTrainer;
-        refs.saveProjectBtn.disabled = !canSaveCurrentData() || hasErrors || !state.dirty;
+        refs.saveProjectBtn.disabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
     }
 
     function renderCardIdOptions() {
