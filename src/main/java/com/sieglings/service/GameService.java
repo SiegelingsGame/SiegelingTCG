@@ -472,6 +472,9 @@ public class GameService {
 
         Player player = new Player(playerName, true);
         Player enemy = new Player(enemyName, enemyHumanControlled);
+        // Ensure any reused Player instances (e.g. future persistence hooks) begin at match-start HP.
+        player.setHealth(50);
+        enemy.setHealth(50);
 
         ResolvedLoadout playerLoadout = resolveLoadout(playerOptions, "deck_fire_earth", "trainer05");
         ResolvedLoadout enemyLoadout = enemyHumanControlled

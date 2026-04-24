@@ -60,6 +60,29 @@ class EnergyServiceTest {
     }
 
     @Test
+    void playerBackRowOuterNotchActivatesExternalSocket() {
+        SieglingCard outerFire = new SieglingCard(
+                "outer-fire",
+                "Outer Fire",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(new Notch(NotchDirection.BOTTOM, Element.FIRE)),
+                Row.BACK
+        );
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI Opponent", false));
+        state.setAt(true, 0, 1, new CardInstance(outerFire.copy(), 0, 1, true));
+
+        EnergyService.EnergyBreakdown breakdown = energyService.getBreakdown(state, true);
+
+        assertEquals(1, breakdown.fireExternal());
+        assertEquals(1, breakdown.fireTotal());
+    }
+
+    @Test
     void movingAwayFromTheNetworkRemovesBrokenConnectionEnergy() {
         SieglingCard root = new SieglingCard(
                 "root-fire",
