@@ -5,6 +5,8 @@ let gameState = null;
  * keeps its color as a reference after the Siegling is removed. A new notch
  * connection to the same socket overwrites the stored element.
  */
+// External sockets are active only while a notch currently touches them.
+// We intentionally do NOT "remember" prior touches: otherwise exterior notches appear permanently active.
 let externalSocketElementMemory = { player: Object.create(null), enemy: Object.create(null) };
 
 function clearExternalSocketElementMemory() {
@@ -5355,9 +5357,12 @@ function renderLinkConnectors(gridId, board, isPlayer) {
     }
 
     const memorySide = isPlayer ? 'player' : 'enemy';
-    const socketMem = externalSocketElementMemory[memorySide];
+    // External sockets should reflect the current board state (not latched permanently).
+    // Clear any previously remembered socket elements before repopulating.
+    externalSocketElementMemory[memorySide] = Object.create(null);
+    const freshMem = externalSocketElementMemory[memorySide];
     activeExternalSockets.forEach((info, key) => {
-        socketMem[key] = info.element;
+        freshMem[key] = info.element;
     });
 
     for (const link of links) {
@@ -5512,9 +5517,7 @@ function renderLinkConnectors(gridId, board, isPlayer) {
             appendExternalLink(grid, anchor, point, getElementHex(activeSocket.element));
         }
 
-        const rememberedElement = socketMem[socket.key];
-        const displayElement = activeSocket?.element || rememberedElement || null;
-        appendExternalEnergyPoint(grid, point, displayElement);
+        appendExternalEnergyPoint(grid, point, activeSocket?.element || null);
     }
 }
 
