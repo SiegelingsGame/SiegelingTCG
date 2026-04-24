@@ -31,7 +31,10 @@ public class CardInstance {
     public CardInstance() {}
 
     public CardInstance(SieglingCard card, int row, int col, boolean owner) {
-        this.instanceId = UUID.randomUUID().toString().substring(0, 8);
+        // IDs must be globally unique: instanceId is used as a stable identity in battle queues,
+        // connected-network traversal, and UI diffing. Shortened UUIDs can collide and cause
+        // unrelated Sieglings to "disappear" when one is defeated.
+        this.instanceId = UUID.randomUUID().toString();
         this.card = card;
         this.currentHealth = card.getHealth();
         this.currentSpeed = card.getSpeed();
