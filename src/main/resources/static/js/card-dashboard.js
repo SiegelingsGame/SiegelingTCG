@@ -748,8 +748,11 @@
 
     async function saveToProjectFile() {
         const errors = state.validation.filter((issue) => issue.severity === "error");
-        if (errors.length > 0) {
-            setStatus(`Fix validation errors before you ${state.liveEditingEnabled ? "publish live changes" : "save to the project file"}.`, "error");
+        const alerts = state.validation.filter((issue) => issue.severity === "warn");
+        const verb = state.liveEditingEnabled ? "publish live changes" : "save to the project file";
+
+        if (!state.liveEditingEnabled && errors.length > 0) {
+            setStatus(`Fix validation errors before you ${verb}.`, "error");
             renderStatus();
             renderValidation();
             return;
@@ -2448,7 +2451,7 @@
         refs.deleteDeckBtn.disabled = !hasDeck;
         refs.clearDeckCardsBtn.disabled = !hasDeck;
         refs.duplicateTrainerBtn.disabled = !hasTrainer;
-        refs.saveProjectBtn.disabled = !canSaveCurrentData() || hasErrors || !state.dirty;
+        refs.saveProjectBtn.disabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
     }
 
     function renderCardIdOptions() {
