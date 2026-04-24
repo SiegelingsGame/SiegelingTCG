@@ -803,8 +803,8 @@
             applyDataSet(payload.data, false);
             setStatus(
                 state.liveEditingEnabled
-                    ? "Published the live card, Siegeknight, premade deck, and live element roster to Firestore."
-                    : "Saved the card, Siegeknight, premade deck, and live element JSON back to the project files.",
+                    ? "Published the live card, Siegeknight, premade deck, live element roster, and shared abilities to Firestore."
+                    : "Saved the card, Siegeknight, premade deck, live element, and shared ability JSON back to the project files.",
                 "success"
             );
             renderAll();
@@ -3312,8 +3312,8 @@
 
     function buildLoadedMessage() {
         return state.liveEditingEnabled
-            ? "Loaded the live Firestore card, Siegeknight, premade deck, and live element roster into the dashboard."
-            : "Loaded the current card, Siegeknight, premade deck, and live element roster into the dashboard.";
+            ? "Loaded the live Firestore card, Siegeknight, premade deck, live element roster, and shared abilities into the dashboard."
+            : "Loaded the current card, Siegeknight, premade deck, live element roster, and shared abilities into the dashboard.";
     }
 
     function buildStatusPathText() {
