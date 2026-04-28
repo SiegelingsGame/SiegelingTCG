@@ -709,8 +709,9 @@ function MulliganScreen({ hand, onKeep, onRedraw, selected, toggle, busy }) {
   );
 }
 
-function BoardPanel({ board, title, side, onCellTap, highlight }) {
+function BoardPanel({ board, title, side, onCellTap, highlight, goldHighlight }) {
   const hl = highlight instanceof Set ? highlight : new Set();
+  const gold = goldHighlight instanceof Set ? goldHighlight : new Set();
   return (
     <div style={{ flex: 1, padding: "8px", position: "relative" }}>
       <div style={{ position: "absolute", top: 4, left: 8, fontSize: 10, color: "var(--text-dim)", fontFamily: "'Rajdhani', sans-serif", letterSpacing: 1 }}>{title}</div>
@@ -729,7 +730,10 @@ function BoardPanel({ board, title, side, onCellTap, highlight }) {
           [0, 1, 2].map((col) => {
             const cell = board?.[row]?.[col];
             const key = `${row}-${col}`;
+            const isGold = gold.has(key);
             const isHl = hl.has(key);
+            const borderColor = isGold ? "#e8c547" : isHl ? "var(--accent-cyan)" : "var(--border-dim)";
+            const borderWidth = isGold ? 3 : isHl ? 2 : 1;
             return (
               <button
                 key={key}
@@ -738,7 +742,10 @@ function BoardPanel({ board, title, side, onCellTap, highlight }) {
                 style={{
                   aspectRatio: "1",
                   borderRadius: 8,
-                  border: `1px solid ${isHl ? "var(--accent-cyan)" : "var(--border-dim)"}`,
+                  border: `${borderWidth}px solid ${borderColor}`,
+                  boxShadow: isGold
+                    ? "0 0 0 1px rgba(232, 197, 71, 0.35), inset 0 0 14px rgba(232, 197, 71, 0.12)"
+                    : undefined,
                   background: cell ? "rgba(30,40,60,0.9)" : "rgba(12,18,32,0.5)",
                   padding: 4,
                   cursor: onCellTap ? "pointer" : "default",
@@ -774,6 +781,10 @@ function ArenaScreen({ gameState, setGameState, playerName, onError }) {
   const [placements, setPlacements] = useState([]);
   const [showLog, setShowLog] = useState(false);
   const [targetMode, setTargetMode] = useState(null);
+  /** First tap on a board cell during battle targeting — gold highlight; second tap confirms. */
+  const [pendingBattleCell, setPendingBattleCell] = useState(null);
+  /** First tap on a legal setup cell — gold highlight; second tap confirms placement. */
+  const [pendingPlacementCell, setPendingPlacementCell] = useState(null);
 
   const phase = gameState?.currentPhase;
   const playerActive = gameState?.activeSide === "PLAYER";
@@ -796,6 +807,20 @@ function ArenaScreen({ gameState, setGameState, playerName, onError }) {
   useEffect(() => {
     if (!gameState?.pendingBattle) setTargetMode(null);
   }, [gameState?.pendingBattle]);
+
+  useEffect(() => {
+    setPendingBattleCell(null);
+  }, [gameState?.pendingBattle]);
+
+  useEffect(() => {
+    if (targetMode == null) {
+      setPendingBattleCell(null);
+    }
+  }, [targetMode]);
+
+  useEffect(() => {
+    setPendingPlacementCell(null);
+  }, [phase, selectedHandIndex, selectedCard?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -825,6 +850,19 @@ function ArenaScreen({ gameState, setGameState, playerName, onError }) {
   const allyTargetHighlight = new Set();
   if (targetMode && (targetMode.targetType || "").includes("ALLY")) {
     for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) allyTargetHighlight.add(`${r}-${c}`);
+  }
+
+  const enemyGoldHighlight = new Set();
+  if (pendingBattleCell?.side === "enemy") {
+    enemyGoldHighlight.add(`${pendingBattleCell.row}-${pendingBattleCell.col}`);
+  }
+  const playerGoldHighlight = new Set();
+  if (pendingBattleCell?.side === "player") {
+    playerGoldHighlight.add(`${pendingBattleCell.row}-${pendingBattleCell.col}`);
+  }
+  const placementGoldHighlight = new Set();
+  if (pendingPlacementCell) {
+    placementGoldHighlight.add(`${pendingPlacementCell.row}-${pendingPlacementCell.col}`);
   }
 
   const mpOpts = { omitMultiplayerHeaders: gameState?.multiplayer !== true };
@@ -875,12 +913,35 @@ function ArenaScreen({ gameState, setGameState, playerName, onError }) {
       const ar = side === "player" ? row : -1;
       const ac = side === "player" ? col : -1;
       const tt = targetMode.targetType || "";
-      if (tt.includes("ENEMY") && side === "enemy") doBattleAction(targetMode.abilityIndex, tr, tc);
-      else if (tt.includes("ALLY") && side === "player") doBattleAction(targetMode.abilityIndex, ar, ac);
+      const canEnemy = tt.includes("ENEMY") && side === "enemy";
+      const canAlly = tt.includes("ALLY") && side === "player";
+      if (!canEnemy && !canAlly) {
+        return;
+      }
+      const pending = pendingBattleCell;
+      const samePending =
+        pending &&
+        pending.side === side &&
+        pending.row === row &&
+        pending.col === col;
+      if (samePending) {
+        if (canEnemy) doBattleAction(targetMode.abilityIndex, tr, tc);
+        else if (canAlly) doBattleAction(targetMode.abilityIndex, ar, ac);
+        setPendingBattleCell(null);
+        return;
+      }
+      setPendingBattleCell({ side, row, col });
       return;
     }
     if (phase === "SETUP" && playerActive && selectedCard && placementSet.has(`${row}-${col}`)) {
-      doPlace(row, col);
+      const pending = pendingPlacementCell;
+      const samePending = pending && pending.row === row && pending.col === col;
+      if (samePending) {
+        doPlace(row, col);
+        setPendingPlacementCell(null);
+        return;
+      }
+      setPendingPlacementCell({ row, col });
     }
   }
 
@@ -907,14 +968,30 @@ function ArenaScreen({ gameState, setGameState, playerName, onError }) {
         </div>
       </div>
       <div style={{ flex: 1, position: "relative", zIndex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
-        <BoardPanel title="ENEMY" board={gameState?.enemyBoard} side="enemy" onCellTap={onBoardTap} highlight={enemyTargetHighlight} />
+        <BoardPanel
+          title="ENEMY"
+          board={gameState?.enemyBoard}
+          side="enemy"
+          onCellTap={onBoardTap}
+          highlight={enemyTargetHighlight}
+          goldHighlight={enemyGoldHighlight}
+        />
         <div style={{ height: 1, background: "linear-gradient(90deg, transparent, var(--border-glow), transparent)", margin: "0 16px" }} />
         <BoardPanel
           title="YOU"
           board={gameState?.playerBoard}
           side="player"
           onCellTap={onBoardTap}
-          highlight={targetMode && (targetMode.targetType || "").includes("ALLY") ? allyTargetHighlight : phase === "SETUP" ? placementSet : new Set()}
+          highlight={
+            targetMode && (targetMode.targetType || "").includes("ALLY")
+              ? allyTargetHighlight
+              : phase === "SETUP"
+                ? placementSet
+                : new Set()
+          }
+          goldHighlight={
+            phase === "SETUP" && playerActive && selectedCard ? placementGoldHighlight : playerGoldHighlight
+          }
         />
       </div>
       {phase === "BATTLE" && pb && (
@@ -940,7 +1017,13 @@ function ArenaScreen({ gameState, setGameState, playerName, onError }) {
               {!ab.affordable && " (cost)"}
             </button>
           ))}
-          {targetMode && <div style={{ fontSize: 12, color: "var(--accent-cyan)", marginTop: 4 }}>Tap a board cell to target…</div>}
+          {targetMode && (
+            <div style={{ fontSize: 12, color: "var(--accent-cyan)", marginTop: 4 }}>
+              {pendingBattleCell
+                ? "Gold cell is selected — tap it again to confirm the ability."
+                : "Tap a board cell (it highlights gold), then tap again to confirm…"}
+            </div>
+          )}
         </div>
       )}
       <div style={{ position: "relative", zIndex: 2, background: "var(--bg-surface)", borderTop: "1px solid var(--border-dim)", padding: "8px 10px 4px" }}>
