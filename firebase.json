@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "source": "functions"
+  },
   "hosting": {
     "site": "siegelingstcgtesting",
     "public": "src/main/resources/static",
@@ -19,6 +22,20 @@
       }
     ],
     "rewrites": [
+      {
+        "source": "/api/cards/editor",
+        "function": {
+          "functionId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/cards/editor/**",
+        "function": {
+          "functionId": "api",
+          "region": "us-central1"
+        }
+      },
       {
         "source": "/api/**",
         "run": {

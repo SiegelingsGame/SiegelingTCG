@@ -1,0 +1,18 @@
+{
+  "name": "sieglings-firebase-functions",
+  "private": true,
+  "engines": {
+    "node": "22"
+  },
+  "main": "index.js",
+  "scripts": {
+    "lint": "node -e \"require('./index.js'); console.log('functions ok')\"",
+    "manifest": "node ./scripts/generate-manifest.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.3.2"
+  }
+}

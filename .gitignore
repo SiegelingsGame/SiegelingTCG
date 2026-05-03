@@ -8,6 +8,7 @@ spring-boot*.err
 .idea/
 .vscode/
 *.iml
+node_modules/
 
 multiplayer-tunnel.log
 data/
@@ -22,3 +23,4 @@ application-local.properties
 *service-account*.json
 # Project-specific key filename (matches CardOverrideStorageService default)
 siegelingstcgtesting-*.json
+functions/functions.yaml
