@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Ability;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.SpellCard;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Rarity;
@@ -73,6 +74,23 @@ final class GeneratedSpellCatalog {
         cards.addAll(createPairComboSpells());
         cards.addAll(createTripleComboSpells());
         cards.addAll(createQuadComboSpells());
+        cards.add(new SpellCard(
+                "spell_wind_forced_gust",
+                "Forced Gust",
+                Element.WIND,
+                Rarity.UNCOMMON,
+                1,
+                new Ability(
+                        "Forced Gust",
+                        "Move 1 enemy Siegling to any empty cell on the enemy board.",
+                        TargetType.SINGLE_ENEMY,
+                        null,
+                        1,
+                        AbilityEffectKeys.MOVE_LINK,
+                        0,
+                        false
+                )
+        ));
         return cards;
     }
 

@@ -10,6 +10,8 @@ import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.TargetType;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -30,6 +32,20 @@ import java.util.stream.Stream;
  */
 @Service
 public class CardDefinitionService {
+
+    @Autowired(required = false)
+    private PresetDeckCatalogService presetDeckCatalogService;
+
+    @Autowired(required = false)
+    private TrainerCatalogService trainerCatalogService;
+
+    @Autowired(required = false)
+    private LiveElementCatalogService liveElementCatalogService;
+
+    @Autowired(required = false)
+    private MovesPoolService movesPoolService;
+
+    private MovesPoolService fallbackMovesPool;
 
     public record DeckOption(
             String id,
@@ -53,50 +69,66 @@ public class CardDefinitionService {
     private static final List<Integer> TEN_CARD_COPY_PATTERN = List.of(3, 3, 2, 2);
 
     public List<SieglingCard> createFireSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.FIRE);
+        return GeneratedCreatureCatalog.createForElement(Element.FIRE, movesPool());
     }
 
     public List<SieglingCard> createWaterSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.WATER);
+        return GeneratedCreatureCatalog.createForElement(Element.WATER, movesPool());
     }
 
     public List<SieglingCard> createEarthSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.EARTH);
+        return GeneratedCreatureCatalog.createForElement(Element.EARTH, movesPool());
     }
 
     public List<SieglingCard> createWindSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.WIND);
+        return GeneratedCreatureCatalog.createForElement(Element.WIND, movesPool());
     }
 
     public List<SieglingCard> createShadowSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.SHADOW);
+        return GeneratedCreatureCatalog.createForElement(Element.SHADOW, movesPool());
     }
 
     public List<SieglingCard> createIceSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.ICE);
+        return GeneratedCreatureCatalog.createForElement(Element.ICE, movesPool());
     }
 
     public List<SieglingCard> createElectricSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.ELECTRIC);
+        return GeneratedCreatureCatalog.createForElement(Element.ELECTRIC, movesPool());
     }
 
     public List<SieglingCard> createMetalSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.METAL);
+        return GeneratedCreatureCatalog.createForElement(Element.METAL, movesPool());
     }
 
     public List<SieglingCard> createUndeadSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.UNDEAD);
+        return GeneratedCreatureCatalog.createForElement(Element.UNDEAD, movesPool());
     }
 
     public List<SieglingCard> createPsychicSieglings() {
-        return GeneratedCreatureCatalog.createForElement(Element.PSYCHIC);
+        return GeneratedCreatureCatalog.createForElement(Element.PSYCHIC, movesPool());
+    }
+
+    private MovesPoolService movesPool() {
+        if (movesPoolService != null) {
+            movesPoolService.syncFromSources();
+            return movesPoolService;
+        }
+        if (fallbackMovesPool == null) {
+            fallbackMovesPool = new MovesPoolService(new ObjectMapper(), null);
+        }
+        fallbackMovesPool.syncFromSources();
+        return fallbackMovesPool;
     }
 
     public List<SpellCard> createSpells() {
-        return GeneratedSpellCatalog.createSpells();
+        return ManualSieglingCatalog.applySpellOverrides(GeneratedSpellCatalog.createSpells());
     }
 
     public List<TrapCard> createTraps() {
+        return ManualSieglingCatalog.applyTrapOverrides(createBaseTraps());
+    }
+
+    static List<TrapCard> createBaseTraps() {
         List<TrapCard> cards = new ArrayList<>();
 
         cards.add(new TrapCard("trap01", "Backfire Sigil", Element.FIRE, Rarity.UNCOMMON,
@@ -170,173 +202,20 @@ public class CardDefinitionService {
     }
 
     public List<TrainerCard> createTrainers() {
-        return List.of(
-                trainer("trainer01", "Fire Marshal", Element.FIRE, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passiveRow("Vanguard Drill", "Front Row allies gain +1 attack damage", "damage_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
-                        Ability.damage("Kindle Shot", "Deal 2 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 2),
-                        false),
-                trainer("trainer02", "Flame Tactician", Element.FIRE, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Battle Focus", "All Fire allies gain +1 attack damage", "damage_boost", 1),
-                        new Ability("Ignite", "Grant +2 attack damage to 1 ally this turn", TargetType.SINGLE_ALLY, null, 1, "damage_boost", 2, false),
-                        false),
-                trainer("trainer10", "Inferno Lord", Element.FIRE, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Scorch Banner", "All Fire allies gain +2 attack damage", "damage_boost", 2),
-                        Ability.damage("Solar Break", "Deal 4 damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, 4),
-                        true),
-
-                trainer("trainer12", "Root Herald", Element.EARTH, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passiveRow("Stone Line", "Back Row allies gain +1 max Health", "health_boost", 1, Row.BACK, TargetType.ROW_ALLIES),
-                        new Ability("Mend Wall", "Grant +1 max Health to 1 ally this turn", TargetType.SINGLE_ALLY, null, 1, "health_boost", 1, false),
-                        false),
-                trainer("trainer05", "Stone Warden", Element.EARTH, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Roots of Resolve", "All Earth allies gain +1 max Health", "health_boost", 1),
-                        Ability.heal("Earthen Shelter", "Heal 1 ally for 4", TargetType.SINGLE_ALLY, null, 1, 4),
-                        false),
-                trainer("trainer13", "Mountain Regent", Element.EARTH, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Citadel Heart", "All Earth allies gain +2 max Health", "health_boost", 2),
-                        new Ability("Granite Oath", "All allies gain +2 max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", 2, false),
-                        true),
-
-                trainer("trainer14", "Gale Page", Element.WIND, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passiveRow("Wing Screen", "Front Row allies gain +1 Speed", "speed_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
-                        new Ability("Tailwind Mark", "Increase 1 ally's Speed by 2 this turn", TargetType.SINGLE_ALLY, null, 1, "speed_boost", 2, false),
-                        false),
-                trainer("trainer06", "Sky Caller", Element.WIND, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Gale Rhythm", "All Wind allies gain +2 Speed", "speed_boost", 2),
-                        new Ability("Downdraft", "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false),
-                        false),
-                trainer("trainer15", "Tempest Regent", Element.WIND, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Storm March", "All Wind allies gain +3 Speed", "speed_boost", 3),
-                        new Ability("Skyfall Decree", "Set all enemies in Front Row's Speed to 0 this turn", TargetType.ROW_ENEMIES, Row.FRONT, 0, "speed_zero", 1, false),
-                        true),
-
-                trainer("trainer03", "Tide Caller", Element.WATER, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passiveRow("Harbor Screen", "Back Row allies gain +1 max Health", "health_boost", 1, Row.BACK, TargetType.ROW_ALLIES),
-                        Ability.heal("Soothing Tide", "Heal 1 ally for 3", TargetType.SINGLE_ALLY, null, 1, 3),
-                        false),
-                trainer("trainer04", "Frost Sage", Element.WATER, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Frost Flow", "All Water allies gain +1 max Health", "health_boost", 1),
-                        Ability.freeze("Deep Freeze", "Freeze 1 enemy", TargetType.SINGLE_ENEMY, null, 1),
-                        false),
-                trainer("trainer11", "Abyss Sovereign", Element.WATER, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Tidal Bastion", "All Water allies gain +2 max Health", "health_boost", 2),
-                        new Ability("Royal Undertow", "Heal all allies for 4", TargetType.ALL_ALLIES, null, 0, "heal", 4, false),
-                        true),
-
-                trainer("trainer20", "Rime Scout", Element.ICE, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passiveRow("Cold Screen", "Back Row allies gain +1 max Health", "health_boost", 1, Row.BACK, TargetType.ROW_ALLIES),
-                        new Ability("Chill Order", "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false),
-                        false),
-                trainer("trainer09", "Rime Marshal", Element.ICE, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Winter Bulwark", "All Ice allies gain +1 max Health", "health_boost", 1),
-                        Ability.freeze("Whiteout Order", "Freeze 1 enemy", TargetType.SINGLE_ENEMY, null, 1),
-                        false),
-                trainer("trainer21", "Glacier Monarch", Element.ICE, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Permafrost Crown", "All Ice allies gain +2 max Health", "health_boost", 2),
-                        Ability.freeze("Absolute Zero", "Freeze all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0),
-                        true),
-
-                trainer("trainer16", "Dusk Acolyte", Element.SHADOW, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passiveRow("Veil Skirmish", "Front Row allies gain +1 attack damage", "damage_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
-                        Ability.damage("Needle Hex", "Deal 2 direct damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 2),
-                        false),
-                trainer("trainer07", "Night Regent", Element.SHADOW, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Veil of Hunger", "All Shadow allies gain +1 attack damage", "damage_boost", 1),
-                        Ability.damage("Soul Rend", "Deal 3 direct damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 3),
-                        false),
-                trainer("trainer17", "Void Sovereign", Element.SHADOW, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Crown of Hunger", "All Shadow allies gain +2 attack damage", "damage_boost", 2),
-                        new Ability("Eclipse Verdict", "Destroy 1 enemy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false),
-                        true),
-
-                trainer("trainer18", "Spark Courier", Element.ELECTRIC, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passive("Static Step", "All Electric allies gain +1 Speed", "speed_boost", 1),
-                        Ability.damage("Arc Jab", "Deal 2 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 2),
-                        false),
-                trainer("trainer08", "Volt Shepherd", Element.ELECTRIC, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Static Tempo", "All Electric allies gain +2 Speed", "speed_boost", 2),
-                        new Ability("Overcharge", "Increase 1 ally's Speed by 3 this turn", TargetType.SINGLE_ALLY, null, 1, "speed_boost", 3, false),
-                        false),
-                trainer("trainer19", "Storm Chancellor", Element.ELECTRIC, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Grid Dominion", "All Electric allies gain +3 Speed", "speed_boost", 3),
-                        Ability.damage("Chain Burst", "Deal 3 damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, 3),
-                        true),
-
-                // Metal trainers
-                trainer("trainer22", "Forge Apprentice", Element.METAL, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passiveRow("Plated Line", "Front Row allies gain +1 max Health", "health_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
-                        new Ability("Temper", "Grant +2 max Health to 1 ally this turn", TargetType.SINGLE_ALLY, null, 1, "health_boost", 2, false),
-                        false),
-                trainer("trainer23", "Iron Warden", Element.METAL, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Steel Resolve", "All Metal allies gain +1 max Health", "health_boost", 1),
-                        Ability.damage("Slag Hammer", "Deal 3 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 3),
-                        false),
-                trainer("trainer24", "Titan Forgemaster", Element.METAL, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Adamant Aegis", "All Metal allies gain +2 max Health", "health_boost", 2),
-                        new Ability("Fortress Protocol", "All allies gain +3 max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", 3, false),
-                        true),
-
-                // Undead trainers
-                trainer("trainer25", "Grave Initiate", Element.UNDEAD, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passiveRow("Death March", "Front Row allies gain +1 attack damage", "damage_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
-                        Ability.damage("Corpse Bolt", "Deal 2 direct damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 2),
-                        false),
-                trainer("trainer26", "Crypt Commander", Element.UNDEAD, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Undying Will", "All Undead allies gain +1 attack damage", "damage_boost", 1),
-                        Ability.damage("Soul Drain", "Deal 3 direct damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 3),
-                        false),
-                trainer("trainer27", "Lich Sovereign", Element.UNDEAD, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Deathless Crown", "All Undead allies gain +2 attack damage", "damage_boost", 2),
-                        new Ability("Mass Resurrect", "Heal all allies for 5", TargetType.ALL_ALLIES, null, 0, "heal", 5, false),
-                        true),
-
-                // Psychic trainers
-                trainer("trainer28", "Mind Acolyte", Element.PSYCHIC, Rarity.UNCOMMON, "SiegeSquire",
-                        Ability.passiveRow("Thought Shield", "Back Row allies gain +1 max Health", "health_boost", 1, Row.BACK, TargetType.ROW_ALLIES),
-                        new Ability("Confuse", "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false),
-                        false),
-                trainer("trainer29", "Astral Sage", Element.PSYCHIC, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Psychic Field", "All Psychic allies gain +1 attack damage", "damage_boost", 1),
-                        new Ability("Mind Crush", "Grant +3 attack damage to 1 ally this turn", TargetType.SINGLE_ALLY, null, 1, "damage_boost", 3, false),
-                        false),
-                trainer("trainer30", "Cosmic Overlord", Element.PSYCHIC, Rarity.LEGENDARY, "SiegeLord",
-                        Ability.passive("Third Eye", "All Psychic allies gain +2 attack damage", "damage_boost", 2),
-                        new Ability("Psychic Storm", "Deal 4 damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, "damage", 4, false),
-                        true)
-        );
+        return loadTrainerDefinitions().stream()
+                .map(this::toTrainerCard)
+                .toList();
     }
 
     public List<DeckOption> getDeckOptions() {
-        return List.of(
-                new DeckOption("deck_fire", "Blazing Core", "Pure Fire pressure with strong attack lines.", List.of(Element.FIRE), "trainer02"),
-                new DeckOption("deck_earth", "Stone Garden", "Pure Earth durability and healing.", List.of(Element.EARTH), "trainer05"),
-                new DeckOption("deck_wind", "Gale Talons", "Pure Wind speed and disruption.", List.of(Element.WIND), "trainer06"),
-                new DeckOption("deck_water", "Tidal Depths", "Pure Water control and sustain.", List.of(Element.WATER), "trainer04"),
-                new DeckOption("deck_ice", "Frostmarch", "Pure Ice lockdown with freezes, slows, and resilient board lines.", List.of(Element.ICE), "trainer09"),
-                new DeckOption("deck_shadow", "Night Bloom", "Pure Shadow pressure with ambushes and board picks.", List.of(Element.SHADOW), "trainer07"),
-                new DeckOption("deck_electric", "Storm Circuit", "Pure Electric tempo with charged bursts and fast lines.", List.of(Element.ELECTRIC), "trainer08"),
-                new DeckOption("deck_fire_earth", "Ashen Roots", "Fire damage backed by Earth bulk and combo payoffs.", List.of(Element.FIRE, Element.EARTH), "trainer05"),
-                new DeckOption("deck_water_wind", "Stormtide", "Water control mixed with Wind tempo.", List.of(Element.WATER, Element.WIND), "trainer06"),
-                new DeckOption("deck_fire_wind", "Skyflame", "Aggressive Fire and Wind with fast openers.", List.of(Element.FIRE, Element.WIND), "trainer02"),
-                new DeckOption("deck_fire_ice", "Cinderfrost", "Burn and freeze lines collide for explosive tempo swings.", List.of(Element.FIRE, Element.ICE), "trainer09"),
-                new DeckOption("deck_water_ice", "Glacier Current", "Layered freezes and healing make every lane hard to crack.", List.of(Element.WATER, Element.ICE), "trainer09"),
-                new DeckOption("deck_shadow_ice", "Blackfrost Court", "Shadow picks backed by chilling control and lock pieces.", List.of(Element.SHADOW, Element.ICE), "trainer09"),
-                new DeckOption("deck_electric_ice", "Cryovolt Array", "Fast charge openings backed by brittle freeze pressure.", List.of(Element.ELECTRIC, Element.ICE), "trainer08"),
-                new DeckOption("deck_water_electric", "Undercurrent Grid", "Water control and Electric tempo combine into relentless pressure.", List.of(Element.WATER, Element.ELECTRIC), "trainer08"),
-                new DeckOption("deck_quad", "Grand Crossroads", "All four primal elements with the widest combo ceiling.", List.of(Element.FIRE, Element.EARTH, Element.WIND, Element.WATER), "trainer01"),
+        return loadPlayablePresetDeckDefinitions().stream()
+                .map(this::toDeckOption)
+                .toList();
+    }
 
-                // New element pure decks
-                new DeckOption("deck_metal", "Iron Bastion", "Pure Metal fortification with armored board presence.", List.of(Element.METAL), "trainer23"),
-                new DeckOption("deck_undead", "Grave Dominion", "Pure Undead aggression with relentless pressure.", List.of(Element.UNDEAD), "trainer26"),
-                new DeckOption("deck_psychic", "Astral Nexus", "Pure Psychic control with mind-bending disruption.", List.of(Element.PSYCHIC), "trainer29"),
-
-                // Cross-element combo decks featuring new elements
-                new DeckOption("deck_metal_fire", "Molten Forge", "Metal durability fueled by Fire's raw power.", List.of(Element.METAL, Element.FIRE), "trainer23"),
-                new DeckOption("deck_undead_shadow", "Eternal Night", "Shadow picks paired with Undead resilience.", List.of(Element.UNDEAD, Element.SHADOW), "trainer26"),
-                new DeckOption("deck_psychic_ice", "Frozen Mind", "Psychic disruption backed by Ice lockdown.", List.of(Element.PSYCHIC, Element.ICE), "trainer29"),
-                new DeckOption("deck_metal_electric", "Charged Armor", "Metal defenses combined with Electric tempo.", List.of(Element.METAL, Element.ELECTRIC), "trainer23"),
-                new DeckOption("deck_undead_psychic", "Soul Eclipse", "Undead aggression meets Psychic manipulation.", List.of(Element.UNDEAD, Element.PSYCHIC), "trainer26")
-        );
+    /** Element names currently active for matchmaking / deck builder (from Firestore when configured). */
+    public List<String> getActiveLiveElementNames() {
+        return activeGameplayElements().stream().map(Enum::name).toList();
     }
 
     public int getDeckBuilderMinSize() {
@@ -347,11 +226,46 @@ public class CardDefinitionService {
         return 3;
     }
 
+    public List<TrainerCatalogService.TrainerDefinition> getStoredTrainerDefinitions() {
+        return loadTrainerDefinitions();
+    }
+
+    public boolean hasTrainer(String trainerId) {
+        String normalizedTrainerId = normalizeTrainerId(trainerId);
+        return normalizedTrainerId != null && loadTrainerDefinitions().stream()
+                .anyMatch(definition -> normalizedTrainerId.equals(definition.id()));
+    }
+
+    public boolean isTrainerActive(String trainerId) {
+        String normalizedTrainerId = normalizeTrainerId(trainerId);
+        return normalizedTrainerId != null && loadTrainerDefinitions().stream()
+                .anyMatch(definition -> normalizedTrainerId.equals(definition.id()) && isTrainerActive(definition));
+    }
+
+    public Optional<TrainerCard> getActiveTrainerById(String trainerId) {
+        String normalizedTrainerId = normalizeTrainerId(trainerId);
+        if (normalizedTrainerId == null) {
+            return Optional.empty();
+        }
+        return loadTrainerDefinitions().stream()
+                .filter(CardDefinitionService::isTrainerActive)
+                .filter(this::trainerElementIsLive)
+                .filter(definition -> normalizedTrainerId.equals(definition.id()))
+                .findFirst()
+                .map(this::toTrainerCard)
+                .map(TrainerCard::copy);
+    }
+
     public List<Card> getDeckBuilderCatalog() {
+        Set<Element> live = activeGameplayElements();
         return Stream.concat(
-                        Stream.of(Element.FIRE, Element.EARTH, Element.WIND, Element.WATER, Element.ICE, Element.SHADOW, Element.ELECTRIC, Element.METAL, Element.UNDEAD, Element.PSYCHIC)
+                        LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
+                                .filter(live::contains)
                                 .flatMap(element -> getSieglingsForElement(element).stream().map(this::copyCard)),
-                        Stream.concat(createSpells().stream().map(this::copyCard), createTraps().stream().map(this::copyCard))
+                        Stream.concat(
+                                createSpells().stream().filter(this::isSpellLiveForMeta).map(this::copyCard),
+                                createTraps().stream().filter(this::isTrapLiveForMeta).map(this::copyCard)
+                        )
                 )
                 .sorted(Comparator
                         .comparing((Card card) -> switch (card.getCardType().name()) {
@@ -366,12 +280,17 @@ public class CardDefinitionService {
                 .toList();
     }
 
+    /** Card editor / export sometimes appends {@code -copy} when duplicating rows; resolve to catalog ids. */
+    private static final String EDITOR_COPY_SUFFIX = "-copy";
+
     public List<Card> buildCustomDeck(List<String> cardIds) {
         if (cardIds == null || cardIds.size() < getDeckBuilderMinSize()) {
             throw new IllegalArgumentException("Custom decks must contain at least " + getDeckBuilderMinSize() + " cards.");
         }
 
-        Map<String, Long> counts = cardIds.stream()
+        List<String> canonicalIds = cardIds.stream().map(this::resolveToCatalogCardId).toList();
+
+        Map<String, Long> counts = canonicalIds.stream()
                 .collect(Collectors.groupingBy(id -> id, Collectors.counting()));
         for (Map.Entry<String, Long> entry : counts.entrySet()) {
             if (entry.getValue() > getDeckBuilderMaxCopies()) {
@@ -383,12 +302,29 @@ public class CardDefinitionService {
         }
 
         List<Card> deck = new ArrayList<>();
-        for (String cardId : cardIds) {
-            Card card = findCardDefinition(cardId)
-                    .orElseThrow(() -> new IllegalArgumentException("Unknown card id: " + cardId));
+        for (String canonicalId : canonicalIds) {
+            Card card = findCardDefinition(canonicalId)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown card id: " + canonicalId));
             deck.add(copyCard(card));
         }
         return deck;
+    }
+
+    private String resolveToCatalogCardId(String cardId) {
+        if (cardId == null || cardId.isBlank()) {
+            throw new IllegalArgumentException("Card id cannot be empty.");
+        }
+        String candidate = cardId.trim();
+        while (true) {
+            Optional<Card> found = findCardDefinition(candidate);
+            if (found.isPresent()) {
+                return found.get().getId();
+            }
+            if (!candidate.endsWith(EDITOR_COPY_SUFFIX)) {
+                throw new IllegalArgumentException("Unknown card id: " + cardId);
+            }
+            candidate = candidate.substring(0, candidate.length() - EDITOR_COPY_SUFFIX.length());
+        }
     }
 
     public List<Card> buildFireDeck() { return buildDeck(List.of(Element.FIRE)); }
@@ -405,33 +341,76 @@ public class CardDefinitionService {
     public List<Card> buildEnemyStarterDeck() { return buildDeck(List.of(Element.WATER, Element.WIND)); }
 
     public TrainerCard getTrainer(Element element) {
-        return createTrainers().stream()
+        List<TrainerCard> activeTrainers = getTrainerOptions();
+        if (activeTrainers.isEmpty()) {
+            return createTrainers().get(0).copy();
+        }
+        return activeTrainers.stream()
                 .filter(t -> t.getElement() == element)
                 .filter(t -> "SiegeKnight".equals(t.getTier()))
                 .findFirst()
                 .map(TrainerCard::copy)
-                .orElseGet(() -> createTrainers().stream()
+                .orElseGet(() -> activeTrainers.stream()
                         .filter(t -> t.getElement() == element)
                         .findFirst()
                         .map(TrainerCard::copy)
-                        .orElse(createTrainers().get(0).copy()));
+                        .orElse(activeTrainers.get(0).copy()));
     }
 
     public TrainerCard getTrainerById(String trainerId) {
-        return createTrainers().stream()
-                .filter(t -> t.getId().equals(trainerId))
+        String normalizedTrainerId = normalizeTrainerId(trainerId);
+        List<TrainerCard> allTrainers = createTrainers();
+        return allTrainers.stream()
+                .filter(t -> t.getId().equals(normalizedTrainerId))
                 .findFirst()
                 .map(TrainerCard::copy)
-                .orElse(createTrainers().get(0).copy());
+                .orElse(allTrainers.get(0).copy());
+    }
+
+    public List<TrainerCard> getTrainerOptions() {
+        return loadTrainerDefinitions().stream()
+                .filter(CardDefinitionService::isTrainerActive)
+                .filter(this::trainerElementIsLive)
+                .map(this::toTrainerCard)
+                .map(TrainerCard::copy)
+                .toList();
     }
 
     public Optional<DeckOption> getDeckOption(String deckId) {
-        return getDeckOptions().stream().filter(option -> option.id().equals(deckId)).findFirst();
+        return loadPlayablePresetDeckDefinitions().stream()
+                .filter(definition -> definition.id().equals(deckId))
+                .findFirst()
+                .map(this::toDeckOption);
+    }
+
+    public Optional<DeckOption> getDefaultDeckOption() {
+        List<DeckOption> options = getDeckOptions();
+        if (options.isEmpty()) {
+            return Optional.empty();
+        }
+        return options.stream()
+                .filter(option -> option.id().equals("deck_fire_earth"))
+                .findFirst()
+                .or(() -> Optional.of(options.get(0)));
     }
 
     public List<Card> buildDeckById(String deckId) {
-        DeckOption option = getDeckOption(deckId).orElse(getDeckOptions().get(0));
-        return buildDeck(option.elements());
+        List<PresetDeckCatalogService.PresetDeckDefinition> playable = loadPlayablePresetDeckDefinitions();
+        if (playable.isEmpty()) {
+            throw new IllegalStateException("No playable preset decks are available for the current live element roster.");
+        }
+        PresetDeckCatalogService.PresetDeckDefinition definition = playable.stream()
+                .filter(option -> option.id().equals(deckId))
+                .findFirst()
+                .orElseGet(() -> playable.stream()
+                        .filter(option -> option.id().equals("deck_fire_earth"))
+                        .findFirst()
+                        .orElseGet(() -> playable.stream().findFirst().orElseThrow()));
+        return buildDeck(definition);
+    }
+
+    public List<PresetDeckCatalogService.PresetDeckDefinition> getStoredDeckDefinitions() {
+        return loadPresetDeckDefinitions();
     }
 
     private List<Card> buildDeck(List<Element> orderedElements) {
@@ -446,6 +425,13 @@ public class CardDefinitionService {
         deck.addAll(buildPresetSpells(elementSet));
         deck.addAll(buildPresetTraps(elementSet));
         return deck;
+    }
+
+    private List<Card> buildDeck(PresetDeckCatalogService.PresetDeckDefinition definition) {
+        if (definition.cardIds() != null && !definition.cardIds().isEmpty()) {
+            return buildCustomDeck(definition.cardIds());
+        }
+        return buildDeck(definition.elements());
     }
 
     private List<Card> buildPresetSieglings(List<Element> orderedElements) {
@@ -474,6 +460,7 @@ public class CardDefinitionService {
     private List<Card> buildPresetSpells(Set<Element> deckElements) {
         boolean supportsMist = deckElements.contains(Element.FIRE) && deckElements.contains(Element.WATER);
         List<SpellCard> candidates = createSpells().stream()
+                .filter(this::isSpellLiveForMeta)
                 .filter(spell -> spellFitsDeck(spell, deckElements))
                 .filter(spell -> spell.getRequiredReaction() == null || supportsMist)
                 .sorted(Comparator
@@ -489,6 +476,7 @@ public class CardDefinitionService {
 
     private List<Card> buildPresetTraps(Set<Element> deckElements) {
         List<TrapCard> candidates = createTraps().stream()
+                .filter(this::isTrapLiveForMeta)
                 .sorted(Comparator
                         .comparingInt((TrapCard trap) -> deckElements.contains(trap.getElement()) ? 0 : 1)
                         .thenComparingInt(TrapCard::getCostAmount)
@@ -694,7 +682,110 @@ public class CardDefinitionService {
         }
     }
 
+    private Set<Element> activeGameplayElements() {
+        if (liveElementCatalogService == null) {
+            return EnumSet.copyOf(LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER);
+        }
+        return liveElementCatalogService.loadActiveElementsForGame();
+    }
+
+    private List<PresetDeckCatalogService.PresetDeckDefinition> loadPlayablePresetDeckDefinitions() {
+        return loadPresetDeckDefinitions().stream()
+                .filter(CardDefinitionService::isDeckActive)
+                .filter(this::presetDeckUsesOnlyLiveElements)
+                .toList();
+    }
+
+    private boolean presetDeckUsesOnlyLiveElements(PresetDeckCatalogService.PresetDeckDefinition definition) {
+        Set<Element> live = activeGameplayElements();
+        if (definition.elements() != null) {
+            for (Element element : definition.elements()) {
+                if (element == null || element == Element.NEUTRAL) {
+                    continue;
+                }
+                if (!live.contains(element)) {
+                    return false;
+                }
+            }
+        }
+        if (definition.cardIds() != null && !definition.cardIds().isEmpty()) {
+            for (String cardId : definition.cardIds()) {
+                Element cardElement = resolveCardElementIgnoringLiveFilter(cardId);
+                if (cardElement != null && cardElement != Element.NEUTRAL && !live.contains(cardElement)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private Element resolveCardElementIgnoringLiveFilter(String cardId) {
+        if (cardId == null || cardId.isBlank()) {
+            return null;
+        }
+        String normalized = cardId.trim().toLowerCase();
+        for (Element element : LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
+            for (SieglingCard card : loadSieglingsUnchecked(element)) {
+                if (card.getId().equalsIgnoreCase(normalized)) {
+                    return card.getElement();
+                }
+            }
+        }
+        for (SpellCard spell : createSpells()) {
+            if (spell.getId().equalsIgnoreCase(normalized)) {
+                return spell.getElement();
+            }
+        }
+        for (TrapCard trap : createTraps()) {
+            if (trap.getId().equalsIgnoreCase(normalized)) {
+                return trap.getElement();
+            }
+        }
+        return null;
+    }
+
+    private boolean isSpellLiveForMeta(SpellCard spell) {
+        Set<Element> live = activeGameplayElements();
+        if (spell.getElement() != Element.NEUTRAL) {
+            return live.contains(spell.getElement());
+        }
+        String signature = spell.getRequiredComboSignature();
+        if (signature == null || signature.isBlank()) {
+            return true;
+        }
+        for (String part : signature.split("\\+")) {
+            try {
+                Element required = Element.valueOf(part.trim());
+                if (!live.contains(required)) {
+                    return false;
+                }
+            } catch (IllegalArgumentException ex) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isTrapLiveForMeta(TrapCard trap) {
+        return activeGameplayElements().contains(trap.getElement());
+    }
+
+    private boolean trainerElementIsLive(TrainerCatalogService.TrainerDefinition definition) {
+        Element element = definition.element();
+        if (element == null || element == Element.NEUTRAL) {
+            return true;
+        }
+        return activeGameplayElements().contains(element);
+    }
+
     private List<SieglingCard> getSieglingsForElement(Element element) {
+        if (!activeGameplayElements().contains(element)) {
+            return List.of();
+        }
+        return loadSieglingsUnchecked(element);
+    }
+
+    private List<SieglingCard> loadSieglingsUnchecked(Element element) {
         return switch (element) {
             case FIRE -> createFireSieglings();
             case EARTH -> createEarthSieglings();
@@ -751,8 +842,90 @@ public class CardDefinitionService {
         };
     }
 
-    private TrainerCard trainer(String id, String name, Element element, Rarity rarity, String tier,
-                                Ability passiveAbility, Ability activeAbility, boolean oncePerGame) {
-        return new TrainerCard(id, name, element, rarity, tier, passiveAbility, activeAbility, oncePerGame);
+    private List<TrainerCatalogService.TrainerDefinition> loadTrainerDefinitions() {
+        if (trainerCatalogService == null) {
+            return TrainerCatalogService.defaultDefinitions();
+        }
+        List<TrainerCatalogService.TrainerDefinition> definitions = trainerCatalogService.loadDefinitionsForGame();
+        return definitions.isEmpty() ? TrainerCatalogService.defaultDefinitions() : definitions;
+    }
+
+    private TrainerCard toTrainerCard(TrainerCatalogService.TrainerDefinition definition) {
+        return new TrainerCard(
+                definition.id(),
+                definition.name(),
+                definition.element(),
+                definition.rarity(),
+                definition.tier(),
+                toAbility(definition.passiveAbility()),
+                toAbility(definition.activeAbility()),
+                definition.oncePerGame() != null && definition.oncePerGame()
+        );
+    }
+
+    private Ability toAbility(ManualSieglingCatalog.ManualAbilityDefinition definition) {
+        if (definition == null) {
+            return null;
+        }
+        Ability ability = new Ability(
+                definition.name(),
+                definition.description(),
+                definition.targetType(),
+                definition.targetRow(),
+                definition.targetCount() == null ? 0 : definition.targetCount(),
+                definition.effectType(),
+                definition.effectValue() == null ? 0 : definition.effectValue(),
+                definition.passive() != null && definition.passive()
+        );
+        ability.setRequiredElement(definition.requiredElement());
+        ability.setRequiredEnergy(definition.requiredEnergy() == null ? 0 : definition.requiredEnergy());
+        ability.setRequiredReaction(definition.requiredReaction());
+        return ability;
+    }
+
+    private String normalizeTrainerId(String trainerId) {
+        if (trainerId == null) {
+            return null;
+        }
+        String normalized = trainerId.trim().toLowerCase();
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private List<PresetDeckCatalogService.PresetDeckDefinition> loadPresetDeckDefinitions() {
+        if (presetDeckCatalogService == null) {
+            return PresetDeckCatalogService.defaultDefinitions();
+        }
+        List<PresetDeckCatalogService.PresetDeckDefinition> definitions = presetDeckCatalogService.loadDefinitionsForGame();
+        return definitions.isEmpty() ? PresetDeckCatalogService.defaultDefinitions() : definitions;
+    }
+
+    private DeckOption toDeckOption(PresetDeckCatalogService.PresetDeckDefinition definition) {
+        return new DeckOption(
+                definition.id(),
+                definition.name(),
+                definition.description(),
+                deckElements(definition),
+                definition.recommendedTrainerId()
+        );
+    }
+
+    private List<Element> deckElements(PresetDeckCatalogService.PresetDeckDefinition definition) {
+        if (definition.cardIds() == null || definition.cardIds().isEmpty()) {
+            return definition.elements();
+        }
+        List<Element> explicitElements = buildDeck(definition).stream()
+                .map(Card::getElement)
+                .filter(element -> element != Element.NEUTRAL)
+                .distinct()
+                .toList();
+        return explicitElements.isEmpty() ? definition.elements() : explicitElements;
+    }
+
+    private static boolean isDeckActive(PresetDeckCatalogService.PresetDeckDefinition definition) {
+        return definition.active() == null || definition.active();
+    }
+
+    private static boolean isTrainerActive(TrainerCatalogService.TrainerDefinition definition) {
+        return definition.active() == null || definition.active();
     }
 }

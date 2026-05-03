@@ -1,0 +1,9 @@
+# Copy to application-local.properties (gitignored) to override defaults.
+#
+# Recommended: leave service account path unset in that file and run once:
+#   ./scripts/firestore-adc-login.sh
+# That stores user credentials Application Default Credentials uses the same
+# access as your Google account on project siegelingstcgtesting (Owner/Editor = full Firestore).
+#
+# Optional — only if you prefer a service account JSON key file instead of ADC:
+# app.card-editor.firestore-service-account-path=./your-key.json

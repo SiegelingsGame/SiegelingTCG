@@ -5,6 +5,8 @@ import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Notch;
+import com.sieglings.model.SieglingCard;
+import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Reaction;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.StatusEffect;
@@ -21,6 +23,19 @@ import java.util.List;
 public class EffectService {
     private final PlacementService placementService = new PlacementService();
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private MovesPoolService movesPoolService;
+
+    /**
+     * Spells/traps with {@code move_link} on a single enemy require an explicit empty destination cell
+     * on that unit's board (no notch link required).
+     */
+    public static boolean isForcedBoardMoveSpell(Ability ability) {
+        return ability != null
+                && AbilityEffectKeys.MOVE_LINK.equals(ability.getEffectType())
+                && ability.getTargetType() == TargetType.SINGLE_ENEMY;
+    }
+
     /**
      * Resolve an ability, applying effects to appropriate targets.
      * @param ability the ability to resolve
@@ -28,9 +43,17 @@ public class EffectService {
      * @param isPlayerSource true if the source belongs to the player
      * @param targetRow specific target row (for targeted abilities), -1 if auto
      * @param targetCol specific target col, -1 if auto
+     * @param destRow destination row for forced enemy reposition spells, -1 if unused
+     * @param destCol destination col for forced enemy reposition spells, -1 if unused
      */
     public void resolveAbility(GameState state, Ability ability, CardInstance source,
                                 boolean isPlayerSource, int targetRow, int targetCol) {
+        resolveAbility(state, ability, source, isPlayerSource, targetRow, targetCol, -1, -1);
+    }
+
+    public void resolveAbility(GameState state, Ability ability, CardInstance source,
+                                boolean isPlayerSource, int targetRow, int targetCol,
+                                int destRow, int destCol) {
         if (ability == null) return;
         if (ability.isPassive()) return; // Passives are applied differently
 
@@ -49,13 +72,15 @@ public class EffectService {
         }
 
         List<CardInstance> targets = resolveTargets(state, ability, source, isPlayerSource, targetRow, targetCol);
+        targets = filterExplicitTargetElement(ability, targets);
+        targets = filterSameElementTeamBuffs(ability, source, targets);
 
         if (targets.isEmpty()) {
             state.log(ability.getName() + " found no valid targets.");
             return;
         }
 
-        applyEffect(state, ability, source, targets);
+        applyEffect(state, ability, source, targets, destRow, destCol);
     }
 
     private List<CardInstance> resolveTargets(GameState state, Ability ability, CardInstance source,
@@ -115,7 +140,44 @@ public class EffectService {
         return targets;
     }
 
-    private void applyEffect(GameState state, Ability ability, CardInstance source, List<CardInstance> targets) {
+    /**
+     * Siegling "all allies" damage/health/speed buffs are elemental auras (e.g. all Fire allies).
+     * Without filtering, {@link TargetType#ALL_ALLIES} would hit every ally on board.
+     */
+    private List<CardInstance> filterSameElementTeamBuffs(Ability ability, CardInstance source, List<CardInstance> targets) {
+        if (source == null || targets.isEmpty()) {
+            return targets;
+        }
+        if (ability.getTargetType() != TargetType.ALL_ALLIES) {
+            return targets;
+        }
+        String effectType = ability.getEffectType();
+        boolean teamStatBuff = AbilityEffectKeys.DAMAGE_BOOST.equals(effectType)
+                || AbilityEffectKeys.HEALTH_BOOST.equals(effectType)
+                || AbilityEffectKeys.SPEED_BOOST.equals(effectType);
+        if (!teamStatBuff) {
+            return targets;
+        }
+        Element el = ability.getTargetElement() != null ? ability.getTargetElement() : source.getElement();
+        if (el == null || el == Element.NEUTRAL) {
+            return targets;
+        }
+        return targets.stream().filter(t -> t.getElement() == el).toList();
+    }
+
+    private List<CardInstance> filterExplicitTargetElement(Ability ability, List<CardInstance> targets) {
+        if (ability == null || targets == null || targets.isEmpty()) {
+            return targets == null ? List.of() : targets;
+        }
+        Element el = ability.getTargetElement();
+        if (el == null || el == Element.NEUTRAL) {
+            return targets;
+        }
+        return targets.stream().filter(t -> t != null && t.isAlive() && t.getElement() == el).toList();
+    }
+
+    private void applyEffect(GameState state, Ability ability, CardInstance source, List<CardInstance> targets,
+                             int destRow, int destCol) {
         String effectType = ability.getEffectType();
         int value = ability.getEffectValue();
 
@@ -157,6 +219,7 @@ public class EffectService {
                     state.log(ability.getName() + " freezes " + target.getName() + "!");
                 }
                 case AbilityEffectKeys.SPEED_ZERO -> {
+                    target.setCurrentSpeed(0);
                     target.getStatusEffects().add(StatusEffect.SPEED_ZERO);
                     state.log(ability.getName() + " reduces " + target.getName() + "'s Speed to 0!");
                 }
@@ -171,6 +234,9 @@ public class EffectService {
                 }
                 case AbilityEffectKeys.SPEED_BOOST -> {
                     target.setCurrentSpeed(target.getCurrentSpeed() + value);
+                    if (target.getCurrentSpeed() > 0) {
+                        target.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
+                    }
                     state.log(ability.getName() + " increases " + target.getName() + "'s Speed by " + value + "!");
                 }
                 case AbilityEffectKeys.DESTROY -> {
@@ -178,7 +244,11 @@ public class EffectService {
                     state.log(ability.getName() + " destroys " + target.getName() + "!");
                 }
                 case AbilityEffectKeys.MOVE_LINK -> {
-                    if (!moveToLinkedPoint(state, target)) {
+                    if (source == null && isForcedBoardMoveSpell(ability)) {
+                        if (!moveUnitToAbsoluteCell(state, target, destRow, destCol)) {
+                            state.log(ability.getName() + " could not move the target to that cell.");
+                        }
+                    } else if (!moveToLinkedPoint(state, target)) {
                         state.log(ability.getName() + " cannot find an open linked point.");
                     }
                 }
@@ -263,6 +333,9 @@ public class EffectService {
 
         for (CardInstance ally : connectedAllies) {
             ally.setCurrentSpeed(ally.getCurrentSpeed() + value);
+            if (ally.getCurrentSpeed() > 0) {
+                ally.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
+            }
             state.log(ability.getName() + " raises " + ally.getName() + "'s Speed by " + value
                     + " through a live connection.");
         }
@@ -307,6 +380,30 @@ public class EffectService {
             case ELECTRIC -> defender == com.sieglings.model.enums.Element.WATER;
             default -> false;
         };
+    }
+
+    /**
+     * Move a board unit to any empty cell on its owner's board (used by forced-move spells on enemies).
+     */
+    private boolean moveUnitToAbsoluteCell(GameState state, CardInstance unit, int destRow, int destCol) {
+        if (unit == null || !unit.isAlive()) {
+            return false;
+        }
+        if (destRow < 0 || destRow > 2 || destCol < 0 || destCol > 2) {
+            return false;
+        }
+        boolean side = unit.isOwner();
+        if (state.getAt(side, destRow, destCol) != null) {
+            return false;
+        }
+        int fromRow = unit.getBoardRow();
+        int fromCol = unit.getBoardCol();
+        state.setAt(side, fromRow, fromCol, null);
+        unit.setBoardRow(destRow);
+        unit.setBoardCol(destCol);
+        state.setAt(side, destRow, destCol, unit);
+        state.log(unit.getName() + " is moved to " + rowName(destRow) + " row, col " + destCol + ".");
+        return true;
     }
 
     private boolean moveToLinkedPoint(GameState state, CardInstance source) {
@@ -358,5 +455,86 @@ public class EffectService {
             case 2 -> "Front";
             default -> "?";
         };
+    }
+
+    /**
+     * Recomputes attack-damage boosts from passive allied Siegling auras (e.g. Pylook Aura on the board).
+     * Trainer/actives use {@link CardInstance#addDamageBuff}; this only sets {@link CardInstance#setAuraDamageBoost}.
+     */
+    public void recalculateBoardAuraDamageBoosts(GameState state) {
+        if (state == null) {
+            return;
+        }
+        for (CardInstance ci : state.getBoardSieglings(true)) {
+            ci.setAuraDamageBoost(0);
+        }
+        for (CardInstance ci : state.getBoardSieglings(false)) {
+            ci.setAuraDamageBoost(0);
+        }
+        applySieglingAuraDamageForSide(state, true);
+        applySieglingAuraDamageForSide(state, false);
+    }
+
+    private void applySieglingAuraDamageForSide(GameState state, boolean isPlayerSide) {
+        List<CardInstance> allies = state.getBoardSieglings(isPlayerSide);
+        for (CardInstance source : allies) {
+            if (!source.isAlive()) {
+                continue;
+            }
+            SieglingCard card = source.getCard();
+            if (movesPoolService == null || card == null || !card.hasMoveLoadout()) {
+                continue;
+            }
+            List<Ability> printed = movesPoolService.resolvePrintedAbilities(card);
+            if (printed.isEmpty()) {
+                continue;
+            }
+            for (Ability ab : printed) {
+                if (ab == null || !ab.isPassive() || !AbilityEffectKeys.DAMAGE_BOOST.equals(ab.getEffectType())) {
+                    continue;
+                }
+                if (!isAlwaysOnTeamAuraDamagePassive(ab)) {
+                    continue;
+                }
+                List<CardInstance> targets = resolveAuraDamageTargets(state, source, isPlayerSide, ab);
+                int value = Math.max(1, ab.getEffectValue());
+                for (CardInstance t : targets) {
+                    t.setAuraDamageBoost(t.getAuraDamageBoost() + value);
+                }
+            }
+        }
+    }
+
+    private static boolean isAlwaysOnTeamAuraDamagePassive(Ability ab) {
+        TargetType tt = ab.getTargetType();
+        return tt == TargetType.ALL_ALLIES || tt == TargetType.ROW_ALLIES;
+    }
+
+    private List<CardInstance> resolveAuraDamageTargets(GameState state, CardInstance source,
+                                                        boolean isPlayerSide, Ability ab) {
+        List<CardInstance> targets = switch (ab.getTargetType()) {
+            case ALL_ALLIES -> new ArrayList<>(state.getBoardSieglings(isPlayerSide));
+            case ROW_ALLIES -> {
+                Row row = ab.getTargetRow();
+                if (row == null) {
+                    yield new ArrayList<>();
+                }
+                yield new ArrayList<>(getSieglingsInRow(state, isPlayerSide, row.getIndex()));
+            }
+            default -> new ArrayList<>();
+        };
+        targets = filterExplicitTargetElement(ab, targets);
+        return filterSameElementTeamBuffTargets(source, targets, ab);
+    }
+
+    private List<CardInstance> filterSameElementTeamBuffTargets(CardInstance source, List<CardInstance> targets, Ability ab) {
+        if (targets == null || targets.isEmpty()) {
+            return targets == null ? List.of() : targets;
+        }
+        Element el = (ab != null && ab.getTargetElement() != null) ? ab.getTargetElement() : source.getElement();
+        if (el == null || el == Element.NEUTRAL) {
+            return targets;
+        }
+        return targets.stream().filter(t -> t != null && t.isAlive() && t.getElement() == el).toList();
     }
 }

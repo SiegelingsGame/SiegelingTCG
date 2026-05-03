@@ -42,6 +42,16 @@ public class EnergyService {
             int size
     ) {}
 
+    /**
+     * Lattice intersection where 2–4 in-board notches meet (visual nexus tier = notchCount).
+     */
+    public record NexusPoint(
+            int x,
+            int y,
+            int notchCount,
+            List<Element> contributingElements
+    ) {}
+
     public record EnergyBreakdown(
             int fireTotal,
             int fireInternal,
@@ -77,35 +87,46 @@ public class EnergyService {
             int comboThreeCount,
             int comboFourCount,
             List<ComboPoint> comboPoints,
+            List<NexusPoint> nexusPoints,
             boolean mistActive
     ) {}
 
     public void recalculateEnergy(GameState state) {
         EnergyBreakdown playerEnergy = analyze(state, true);
-        state.getPlayer().setFireEnergy(playerEnergy.fireTotal());
-        state.getPlayer().setEarthEnergy(playerEnergy.earthTotal());
-        state.getPlayer().setWindEnergy(playerEnergy.windTotal());
-        state.getPlayer().setWaterEnergy(playerEnergy.waterTotal());
-        state.getPlayer().setIceEnergy(playerEnergy.iceTotal());
-        state.getPlayer().setShadowEnergy(playerEnergy.shadowTotal());
-        state.getPlayer().setElectricEnergy(playerEnergy.electricTotal());
-        state.getPlayer().setMetalEnergy(playerEnergy.metalTotal());
-        state.getPlayer().setUndeadEnergy(playerEnergy.undeadTotal());
-        state.getPlayer().setPsychicEnergy(playerEnergy.psychicTotal());
+        applyEnergyTotals(state.getPlayer(), playerEnergy);
         state.getPlayer().setMistActive(playerEnergy.mistActive());
 
         EnergyBreakdown enemyEnergy = analyze(state, false);
-        state.getEnemy().setFireEnergy(enemyEnergy.fireTotal());
-        state.getEnemy().setEarthEnergy(enemyEnergy.earthTotal());
-        state.getEnemy().setWindEnergy(enemyEnergy.windTotal());
-        state.getEnemy().setWaterEnergy(enemyEnergy.waterTotal());
-        state.getEnemy().setIceEnergy(enemyEnergy.iceTotal());
-        state.getEnemy().setShadowEnergy(enemyEnergy.shadowTotal());
-        state.getEnemy().setElectricEnergy(enemyEnergy.electricTotal());
-        state.getEnemy().setMetalEnergy(enemyEnergy.metalTotal());
-        state.getEnemy().setUndeadEnergy(enemyEnergy.undeadTotal());
-        state.getEnemy().setPsychicEnergy(enemyEnergy.psychicTotal());
+        applyEnergyTotals(state.getEnemy(), enemyEnergy);
         state.getEnemy().setMistActive(enemyEnergy.mistActive());
+    }
+
+    /**
+     * External sockets (board perimeter) contribute energy only while a Siegling is currently touching them.
+     * This must be derived from the live board state so sockets are not permanently active after links break
+     * or units are defeated/moved.
+     */
+    private Map<String, Element> collectExternalSocketTouches(GameState state, boolean isPlayer) {
+        Map<String, Element> detected = new LinkedHashMap<>();
+        for (CardInstance ci : state.getBoardSieglings(isPlayer)) {
+            for (Notch notch : ci.getNotches()) {
+                int adjRow = ci.getBoardRow() + getBoardRowDelta(notch, isPlayer);
+                int adjCol = ci.getBoardCol() + notch.direction().getDx();
+                if (adjRow >= 0 && adjRow <= 2 && adjCol >= 0 && adjCol <= 2) {
+                    continue;
+                }
+                String externalSocketKey = placementService.resolveExternalSocketKey(
+                        ci.getBoardRow(),
+                        ci.getBoardCol(),
+                        isPlayer,
+                        notch.direction()
+                );
+                if (externalSocketKey != null && notch.element() != Element.NEUTRAL) {
+                    detected.putIfAbsent(externalSocketKey, notch.element());
+                }
+            }
+        }
+        return detected;
     }
 
     public EnergyBreakdown getBreakdown(GameState state, boolean isPlayer) {
@@ -120,16 +141,16 @@ public class EnergyService {
         if (costElement == null || costAmount <= 0) return;
         var player = isPlayer ? state.getPlayer() : state.getEnemy();
         switch (costElement) {
-            case FIRE -> player.setFireEnergy(player.getFireEnergy() - costAmount);
-            case EARTH -> player.setEarthEnergy(player.getEarthEnergy() - costAmount);
-            case WIND -> player.setWindEnergy(player.getWindEnergy() - costAmount);
-            case WATER -> player.setWaterEnergy(player.getWaterEnergy() - costAmount);
-            case ICE -> player.setIceEnergy(player.getIceEnergy() - costAmount);
-            case SHADOW -> player.setShadowEnergy(player.getShadowEnergy() - costAmount);
-            case ELECTRIC -> player.setElectricEnergy(player.getElectricEnergy() - costAmount);
-            case METAL -> player.setMetalEnergy(player.getMetalEnergy() - costAmount);
-            case UNDEAD -> player.setUndeadEnergy(player.getUndeadEnergy() - costAmount);
-            case PSYCHIC -> player.setPsychicEnergy(player.getPsychicEnergy() - costAmount);
+            case FIRE -> consumeEnergy(player, Element.FIRE, costAmount);
+            case EARTH -> consumeEnergy(player, Element.EARTH, costAmount);
+            case WIND -> consumeEnergy(player, Element.WIND, costAmount);
+            case WATER -> consumeEnergy(player, Element.WATER, costAmount);
+            case ICE -> consumeEnergy(player, Element.ICE, costAmount);
+            case SHADOW -> consumeEnergy(player, Element.SHADOW, costAmount);
+            case ELECTRIC -> consumeEnergy(player, Element.ELECTRIC, costAmount);
+            case METAL -> consumeEnergy(player, Element.METAL, costAmount);
+            case UNDEAD -> consumeEnergy(player, Element.UNDEAD, costAmount);
+            case PSYCHIC -> consumeEnergy(player, Element.PSYCHIC, costAmount);
             case POISON, LIGHT -> { /* no energy pools — spells use NEUTRAL cost */ }
             case NEUTRAL -> spendNeutral(player, costAmount);
         }
@@ -154,19 +175,54 @@ public class EnergyService {
             if (player.getPsychicEnergy() > max) { max = player.getPsychicEnergy(); maxEl = "PSYCHIC"; }
             if (maxEl == null) break;
             switch (maxEl) {
-                case "FIRE" -> player.setFireEnergy(player.getFireEnergy() - 1);
-                case "EARTH" -> player.setEarthEnergy(player.getEarthEnergy() - 1);
-                case "WIND" -> player.setWindEnergy(player.getWindEnergy() - 1);
-                case "WATER" -> player.setWaterEnergy(player.getWaterEnergy() - 1);
-                case "ICE" -> player.setIceEnergy(player.getIceEnergy() - 1);
-                case "SHADOW" -> player.setShadowEnergy(player.getShadowEnergy() - 1);
-                case "ELECTRIC" -> player.setElectricEnergy(player.getElectricEnergy() - 1);
-                case "METAL" -> player.setMetalEnergy(player.getMetalEnergy() - 1);
-                case "UNDEAD" -> player.setUndeadEnergy(player.getUndeadEnergy() - 1);
-                case "PSYCHIC" -> player.setPsychicEnergy(player.getPsychicEnergy() - 1);
+                case "FIRE" -> consumeEnergy(player, Element.FIRE, 1);
+                case "EARTH" -> consumeEnergy(player, Element.EARTH, 1);
+                case "WIND" -> consumeEnergy(player, Element.WIND, 1);
+                case "WATER" -> consumeEnergy(player, Element.WATER, 1);
+                case "ICE" -> consumeEnergy(player, Element.ICE, 1);
+                case "SHADOW" -> consumeEnergy(player, Element.SHADOW, 1);
+                case "ELECTRIC" -> consumeEnergy(player, Element.ELECTRIC, 1);
+                case "METAL" -> consumeEnergy(player, Element.METAL, 1);
+                case "UNDEAD" -> consumeEnergy(player, Element.UNDEAD, 1);
+                case "PSYCHIC" -> consumeEnergy(player, Element.PSYCHIC, 1);
             }
             remaining--;
         }
+    }
+
+    private void applyEnergyTotals(com.sieglings.model.Player player, EnergyBreakdown breakdown) {
+        player.setFireEnergy(Math.max(0, breakdown.fireTotal() + player.getTemporaryEnergyAdjustment(Element.FIRE)));
+        player.setEarthEnergy(Math.max(0, breakdown.earthTotal() + player.getTemporaryEnergyAdjustment(Element.EARTH)));
+        player.setWindEnergy(Math.max(0, breakdown.windTotal() + player.getTemporaryEnergyAdjustment(Element.WIND)));
+        player.setWaterEnergy(Math.max(0, breakdown.waterTotal() + player.getTemporaryEnergyAdjustment(Element.WATER)));
+        player.setIceEnergy(Math.max(0, breakdown.iceTotal() + player.getTemporaryEnergyAdjustment(Element.ICE)));
+        player.setShadowEnergy(Math.max(0, breakdown.shadowTotal() + player.getTemporaryEnergyAdjustment(Element.SHADOW)));
+        player.setElectricEnergy(Math.max(0, breakdown.electricTotal() + player.getTemporaryEnergyAdjustment(Element.ELECTRIC)));
+        player.setMetalEnergy(Math.max(0, breakdown.metalTotal() + player.getTemporaryEnergyAdjustment(Element.METAL)));
+        player.setUndeadEnergy(Math.max(0, breakdown.undeadTotal() + player.getTemporaryEnergyAdjustment(Element.UNDEAD)));
+        player.setPsychicEnergy(Math.max(0, breakdown.psychicTotal() + player.getTemporaryEnergyAdjustment(Element.PSYCHIC)));
+    }
+
+    private void consumeEnergy(com.sieglings.model.Player player, Element element, int amount) {
+        if (player == null || element == null || amount <= 0) {
+            return;
+        }
+        switch (element) {
+            case FIRE -> player.setFireEnergy(Math.max(0, player.getFireEnergy() - amount));
+            case EARTH -> player.setEarthEnergy(Math.max(0, player.getEarthEnergy() - amount));
+            case WIND -> player.setWindEnergy(Math.max(0, player.getWindEnergy() - amount));
+            case WATER -> player.setWaterEnergy(Math.max(0, player.getWaterEnergy() - amount));
+            case ICE -> player.setIceEnergy(Math.max(0, player.getIceEnergy() - amount));
+            case SHADOW -> player.setShadowEnergy(Math.max(0, player.getShadowEnergy() - amount));
+            case ELECTRIC -> player.setElectricEnergy(Math.max(0, player.getElectricEnergy() - amount));
+            case METAL -> player.setMetalEnergy(Math.max(0, player.getMetalEnergy() - amount));
+            case UNDEAD -> player.setUndeadEnergy(Math.max(0, player.getUndeadEnergy() - amount));
+            case PSYCHIC -> player.setPsychicEnergy(Math.max(0, player.getPsychicEnergy() - amount));
+            case POISON, LIGHT, NEUTRAL -> {
+                return;
+            }
+        }
+        player.adjustTemporaryEnergy(element, -amount);
     }
 
     public boolean canAfford(GameState state, boolean isPlayer, Element costElement, int costAmount) {
@@ -218,6 +274,8 @@ public class EnergyService {
     }
 
     private EnergyBreakdown analyze(GameState state, boolean isPlayer) {
+        Map<String, Element> activeExternalSockets = collectExternalSocketTouches(state, isPlayer);
+
         int fireInternal = 0;
         int fireExternal = 0;
         int earthInternal = 0;
@@ -241,8 +299,7 @@ public class EnergyService {
 
         List<CardInstance> sieglings = placementService.getFoundationSieglings(state, isPlayer);
         Set<String> countedConnections = new HashSet<>();
-        Map<String, Element> activeExternalSockets = new LinkedHashMap<>();
-        Map<String, Set<Element>> pointElements = new HashMap<>();
+        Map<String, List<Element>> pointContributions = new HashMap<>();
 
         for (CardInstance ci : sieglings) {
             for (Notch notch : ci.getNotches()) {
@@ -251,21 +308,12 @@ public class EnergyService {
                 BoardPoint point = toBoardPoint(ci, notch, isPlayer);
 
                 if (adjRow < 0 || adjRow > 2 || adjCol < 0 || adjCol > 2) {
-                String externalSocketKey = placementService.resolveExternalSocketKey(
-                        ci.getBoardRow(),
-                        ci.getBoardCol(),
-                        isPlayer,
-                        notch.direction()
-                );
-                if (externalSocketKey != null && notch.element() != Element.NEUTRAL) {
-                    activeExternalSockets.putIfAbsent(externalSocketKey, notch.element());
-                }
                     continue;
                 }
 
                 if (point.x() > 0 && point.x() < 6 && point.y() > 0 && point.y() < 6) {
-                    pointElements
-                            .computeIfAbsent(point.key(), ignored -> new LinkedHashSet<>())
+                    pointContributions
+                            .computeIfAbsent(point.key(), ignored -> new ArrayList<>())
                             .add(notch.element());
                 }
 
@@ -323,9 +371,15 @@ public class EnergyService {
             }
         }
 
-        List<ComboPoint> comboPoints = pointElements.entrySet().stream()
+        List<NexusPoint> nexusPoints = pointContributions.entrySet().stream()
+                .filter(e -> e.getValue().size() >= 2)
+                .map(e -> toNexusPoint(e.getKey(), e.getValue()))
+                .sorted(Comparator.comparingInt(NexusPoint::y).thenComparingInt(NexusPoint::x))
+                .toList();
+
+        List<ComboPoint> comboPoints = pointContributions.entrySet().stream()
                 .map(entry -> toComboPoint(entry.getKey(), entry.getValue()))
-                .filter(comboPoint -> comboPoint.size() >= 2)
+                .filter(comboPoint -> comboPoint != null && comboPoint.size() >= 2)
                 .sorted(Comparator.comparingInt(ComboPoint::y).thenComparingInt(ComboPoint::x))
                 .toList();
 
@@ -370,6 +424,7 @@ public class EnergyService {
                 comboThreeCount,
                 comboFourCount,
                 comboPoints,
+                nexusPoints,
                 mistActive
         );
     }
@@ -391,9 +446,24 @@ public class EnergyService {
                         || point.signature().equals(requiredSignature)));
     }
 
-    private ComboPoint toComboPoint(String key, Set<Element> elements) {
+    private NexusPoint toNexusPoint(String key, List<Element> contributions) {
         String[] parts = key.split(":");
-        List<Element> sortedElements = elements.stream()
+        return new NexusPoint(
+                Integer.parseInt(parts[0]),
+                Integer.parseInt(parts[1]),
+                contributions.size(),
+                List.copyOf(contributions)
+        );
+    }
+
+    /** Combo typing uses distinct elements only (multiset collapse). */
+    private ComboPoint toComboPoint(String key, List<Element> contributions) {
+        Set<Element> distinct = new LinkedHashSet<>(contributions);
+        if (distinct.size() < 2) {
+            return null;
+        }
+        String[] parts = key.split(":");
+        List<Element> sortedElements = distinct.stream()
                 .sorted(Comparator.comparing(Enum::name))
                 .toList();
         return new ComboPoint(

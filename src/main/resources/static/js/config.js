@@ -2,6 +2,9 @@ window.SIEGLINGS_CONFIG = window.SIEGLINGS_CONFIG || {
     // Keep API calls same-origin so Firebase Hosting rewrites can reach
     // the stable Cloud Run backend even when temporary tunnels expire.
     apiBaseUrl: '',
+    renderer: {
+        mode: 'dom'
+    },
     firebase: {
         apiKey: "AIzaSyBHbW7Rgy2Q3odloOwekA77FZW4V5CBays",
         authDomain: "siegelingstcgtesting.firebaseapp.com",

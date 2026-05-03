@@ -1,15 +1,19 @@
 package com.sieglings.model;
 
+import com.sieglings.model.enums.Element;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents a player's state: deck, hand, discard, trainer, and energy.
  */
 public class Player {
-    private static final int STARTING_HEALTH = 100;
+    private static final int STARTING_HEALTH = 50;
 
     private String name;
     private boolean isHuman;
@@ -32,6 +36,12 @@ public class Player {
     private int undeadEnergy;
     private int psychicEnergy;
     private boolean mistActive;
+    private final Map<Element, Integer> temporaryEnergyAdjustments = new EnumMap<>(Element.class);
+
+    /** Counts for the current match; persisted to match_history for registered users. */
+    private int spellsCastThisMatch;
+    private int trapsSprungThisMatch;
+    private int opponentSieglingsDefeatedThisMatch;
 
     public Player() {}
 
@@ -100,6 +110,61 @@ public class Player {
         }
     }
 
+    public int getTemporaryEnergyAdjustment(Element element) {
+        if (element == null) {
+            return 0;
+        }
+        return temporaryEnergyAdjustments.getOrDefault(element, 0);
+    }
+
+    public void adjustTemporaryEnergy(Element element, int delta) {
+        if (element == null || delta == 0) {
+            return;
+        }
+        int next = temporaryEnergyAdjustments.getOrDefault(element, 0) + delta;
+        if (next == 0) {
+            temporaryEnergyAdjustments.remove(element);
+        } else {
+            temporaryEnergyAdjustments.put(element, next);
+        }
+    }
+
+    public void clearTemporaryEnergyAdjustments() {
+        temporaryEnergyAdjustments.clear();
+    }
+
+    /** Sum of all element pool totals (used for Siegling setup placement budget snapshot). */
+    public int sumPooledEnergy() {
+        return fireEnergy + earthEnergy + windEnergy + waterEnergy + iceEnergy + shadowEnergy
+                + electricEnergy + metalEnergy + undeadEnergy + psychicEnergy;
+    }
+
+    public int getSpellsCastThisMatch() {
+        return spellsCastThisMatch;
+    }
+
+    public int getTrapsSprungThisMatch() {
+        return trapsSprungThisMatch;
+    }
+
+    public int getOpponentSieglingsDefeatedThisMatch() {
+        return opponentSieglingsDefeatedThisMatch;
+    }
+
+    public void incrementSpellsCastThisMatch() {
+        spellsCastThisMatch++;
+    }
+
+    public void incrementTrapsSprungThisMatch() {
+        trapsSprungThisMatch++;
+    }
+
+    public void addOpponentSieglingsDefeatedThisMatch(int delta) {
+        if (delta > 0) {
+            opponentSieglingsDefeatedThisMatch += delta;
+        }
+    }
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public boolean isHuman() { return isHuman; }
@@ -132,7 +197,7 @@ public class Player {
     public boolean isMistActive() { return mistActive; }
     public void setMistActive(boolean mistActive) { this.mistActive = mistActive; }
     public int getHealth() { return health; }
-    public void setHealth(int health) { this.health = health; }
+    public void setHealth(int health) { this.health = Math.max(0, Math.min(STARTING_HEALTH, health)); }
     public Long getAccountUserId() { return accountUserId; }
     public void setAccountUserId(Long accountUserId) { this.accountUserId = accountUserId; }
     public String getLoadoutLabel() { return loadoutLabel; }

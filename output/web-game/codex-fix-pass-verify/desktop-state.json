@@ -1,0 +1,12 @@
+{
+  "phase": "DRAW",
+  "previewScrolls": false,
+  "previewSectionScrolls": true,
+  "handHasHorizontalOverflow": false,
+  "handOverflowX": "auto",
+  "selectedCardCount": 0,
+  "legalPlacementCount": 0,
+  "trainerPopupVisible": true,
+  "trainerButtonDisabled": false,
+  "logFirst": "[Turn 1 DRAW] Player's turn begins."
+}

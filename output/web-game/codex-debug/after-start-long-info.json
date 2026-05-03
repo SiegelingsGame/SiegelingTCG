@@ -1,0 +1,8 @@
+{
+  "loadoutVisible": false,
+  "startText": "Start Match",
+  "startBusy": "false",
+  "phase": "MULLIGAN",
+  "mulliganVisible": true,
+  "playerHandCount": 5
+}

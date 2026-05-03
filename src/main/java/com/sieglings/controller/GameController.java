@@ -1,10 +1,12 @@
 package com.sieglings.controller;
 
 import com.sieglings.model.Ability;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.BattleAbilityOption;
 import com.sieglings.model.Card;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
+import com.sieglings.model.Move;
 import com.sieglings.model.Notch;
 import com.sieglings.model.Player;
 import com.sieglings.model.SieglingCard;
@@ -14,7 +16,9 @@ import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.service.EnergyService;
+import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.GameService;
+import com.sieglings.service.MovesPoolService;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.MultiplayerRoom;
 import com.sieglings.service.MultiplayerService;
@@ -29,6 +33,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -53,11 +58,20 @@ public class GameController {
     @Autowired
     private AccountService accountService;
 
+    @Autowired
+    private MovesPoolService movesPoolService;
+
     @GetMapping("/api/game/options")
     @ResponseBody
     public Map<String, Object> getOptions() {
+        List<CardDefinitionService.DeckOption> deckOptions = gameService.getDeckOptions();
+        CardDefinitionService.DeckOption defaultDeck = deckOptions.stream()
+                .filter(deck -> deck.id().equals("deck_fire_earth"))
+                .findFirst()
+                .or(() -> deckOptions.stream().findFirst())
+                .orElse(null);
         Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("decks", gameService.getDeckOptions().stream().map(deck -> Map.of(
+        resp.put("decks", deckOptions.stream().map(deck -> Map.of(
                 "id", deck.id(),
                 "name", deck.name(),
                 "description", deck.description(),
@@ -70,8 +84,42 @@ public class GameController {
                 "maxCopies", gameService.getDeckBuilderMaxCopies()
         ));
         resp.put("cardCatalog", gameService.getDeckBuilderCatalog().stream().map(this::serializeCard).toList());
-        resp.put("defaultDeckId", "deck_fire_earth");
-        resp.put("defaultTrainerId", "trainer05");
+        resp.put("liveElements", gameService.getActiveLiveElementNames());
+        resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
+        resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
+        return resp;
+    }
+
+    /**
+     * Mobile/low-bandwidth option payload (no full deck-builder catalog).
+     * The full /api/game/options response can be very large and slow to generate
+     * on cold starts, which makes lightweight clients feel disconnected.
+     */
+    @GetMapping("/api/game/options-lite")
+    @ResponseBody
+    public Map<String, Object> getOptionsLite() {
+        List<CardDefinitionService.DeckOption> deckOptions = gameService.getDeckOptions();
+        CardDefinitionService.DeckOption defaultDeck = deckOptions.stream()
+                .filter(deck -> deck.id().equals("deck_fire_earth"))
+                .findFirst()
+                .or(() -> deckOptions.stream().findFirst())
+                .orElse(null);
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("decks", deckOptions.stream().map(deck -> Map.of(
+                "id", deck.id(),
+                "name", deck.name(),
+                "description", deck.description(),
+                "elements", deck.elements().stream().map(Enum::name).toList(),
+                "recommendedTrainerId", deck.recommendedTrainerId()
+        )).toList());
+        resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
+        resp.put("deckBuilder", Map.of(
+                "minDeckSize", gameService.getDeckBuilderMinSize(),
+                "maxCopies", gameService.getDeckBuilderMaxCopies()
+        ));
+        resp.put("liveElements", gameService.getActiveLiveElementNames());
+        resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
+        resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
         return resp;
     }
 
@@ -240,19 +288,42 @@ public class GameController {
                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
                                     @RequestBody Map<String, Object> req) {
         String cardId = (String) req.get("cardId");
-        int targetRow = req.containsKey("targetRow") ? (int) req.get("targetRow") : -1;
-        int targetCol = req.containsKey("targetCol") ? (int) req.get("targetCol") : -1;
+        int targetRow = req.containsKey("targetRow") ? ((Number) req.get("targetRow")).intValue() : -1;
+        int targetCol = req.containsKey("targetCol") ? ((Number) req.get("targetCol")).intValue() : -1;
+        int destRow = req.containsKey("destRow") ? ((Number) req.get("destRow")).intValue() : -1;
+        int destCol = req.containsKey("destCol") ? ((Number) req.get("destCol")).intValue() : -1;
 
         if (roomId != null && playerToken != null) {
             try {
-                GameState state = multiplayerService.castSpell(roomId, playerToken, cardId, targetRow, targetCol);
+                GameState state = multiplayerService.castSpell(roomId, playerToken, cardId, targetRow, targetCol, destRow, destCol);
                 return buildStateResponse(state, multiplayerService.viewerIsPlayer(roomId, playerToken), roomId);
             } catch (IllegalArgumentException ex) {
                 return Map.of("error", ex.getMessage());
             }
         }
 
-        gameService.castSpell(cardId, targetRow, targetCol);
+        gameService.castSpell(cardId, targetRow, targetCol, destRow, destCol);
+        return buildStateResponse(gameService.getState(), true, null);
+    }
+
+    @PostMapping("/api/game/claim")
+    @ResponseBody
+    public Map<String, Object> claim(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
+                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                     @RequestBody Map<String, Object> req) {
+        int row = (int) req.get("row");
+        int col = (int) req.get("col");
+
+        if (roomId != null && playerToken != null) {
+            try {
+                GameState state = multiplayerService.claimSiegling(roomId, playerToken, row, col);
+                return buildStateResponse(state, multiplayerService.viewerIsPlayer(roomId, playerToken), roomId);
+            } catch (IllegalArgumentException ex) {
+                return Map.of("error", ex.getMessage());
+            }
+        }
+
+        gameService.claimSiegling(row, col);
         return buildStateResponse(gameService.getState(), true, null);
     }
 
@@ -383,7 +454,9 @@ public class GameController {
         resp.put("playerBoard", serializeBoard(gs, viewerIsPlayer));
         resp.put("enemyBoard", serializeBoard(gs, !viewerIsPlayer));
         resp.put("legalPlacements", gameService.getLegalPlacements(gs, viewerIsPlayer));
-        resp.put("playerPlacementUsed", gs.hasPlacedSieglingThisTurn(viewerIsPlayer));
+        resp.put("playerPlacementUsed", gs.isSieglingSetupBudgetExhausted(viewerIsPlayer));
+        resp.put("setupSieglingActionsUsed", gs.getSieglingSetupActionsUsed(viewerIsPlayer));
+        resp.put("setupSieglingActionBudget", gs.getSieglingSetupActionBudget(viewerIsPlayer));
         resp.put("mulligan", Map.of(
                 "active", mulliganActive,
                 "youPending", viewerPendingMulligan,
@@ -402,7 +475,9 @@ public class GameController {
         }
 
         List<String> log = gs.getGameLog();
-        resp.put("gameLog", log.subList(Math.max(0, log.size() - 20), log.size()));
+        List<String> latestLog = new ArrayList<>(log.subList(Math.max(0, log.size() - 80), log.size()));
+        Collections.reverse(latestLog);
+        resp.put("gameLog", latestLog);
         return resp;
     }
 
@@ -468,13 +543,13 @@ public class GameController {
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("name", player.getName());
         info.put("health", player.getHealth());
-        info.put("fireEnergy", energy.fireTotal());
-        info.put("earthEnergy", energy.earthTotal());
-        info.put("windEnergy", energy.windTotal());
-        info.put("waterEnergy", energy.waterTotal());
-        info.put("iceEnergy", energy.iceTotal());
-        info.put("shadowEnergy", energy.shadowTotal());
-        info.put("electricEnergy", energy.electricTotal());
+        info.put("fireEnergy", player.getFireEnergy());
+        info.put("earthEnergy", player.getEarthEnergy());
+        info.put("windEnergy", player.getWindEnergy());
+        info.put("waterEnergy", player.getWaterEnergy());
+        info.put("iceEnergy", player.getIceEnergy());
+        info.put("shadowEnergy", player.getShadowEnergy());
+        info.put("electricEnergy", player.getElectricEnergy());
         info.put("mistActive", energy.mistActive());
         info.put("fireInternal", energy.fireInternal());
         info.put("fireExternal", energy.fireExternal());
@@ -500,11 +575,20 @@ public class GameController {
                 "size", point.size(),
                 "elements", point.elements().stream().map(Enum::name).toList()
         )).toList());
+        info.put("nexusPoints", energy.nexusPoints().stream().map(point -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("x", point.x());
+            row.put("y", point.y());
+            row.put("notchCount", point.notchCount());
+            row.put("contributingElements", point.contributingElements().stream().map(Enum::name).toList());
+            return row;
+        }).toList());
         info.put("deckSize", player.getDeck().size());
         info.put("trainer", serializeTrainer(player.getActiveTrainer()));
 
         if (includeHand) {
             info.put("hand", serializeHand(player));
+            info.put("remainingDeck", serializeCards(player.getDeck()));
         } else {
             info.put("handSize", player.getHand().size());
         }
@@ -513,11 +597,15 @@ public class GameController {
     }
 
     private List<Map<String, Object>> serializeHand(Player player) {
-        List<Map<String, Object>> hand = new ArrayList<>();
-        for (Card card : player.getHand()) {
-            hand.add(serializeCard(card));
+        return serializeCards(player.getHand());
+    }
+
+    private List<Map<String, Object>> serializeCards(List<Card> cards) {
+        List<Map<String, Object>> serialized = new ArrayList<>();
+        for (Card card : cards) {
+            serialized.add(serializeCard(card));
         }
-        return hand;
+        return serialized;
     }
 
     private Map<String, Object> serializeCard(Card card) {
@@ -534,13 +622,12 @@ public class GameController {
         }
 
         if (card instanceof SieglingCard s) {
-            if (s.getAbility() != null) {
-                m.put("ability", serializeAbility(s.getAbility()));
-            }
-            if (!s.getAbilities().isEmpty()) {
-                m.put("abilities", s.getAbilities().stream()
-                        .map(this::serializeAbility)
-                        .toList());
+            m.put("moveIds", new ArrayList<>(s.getMoveIds()));
+            m.put("moves", serializeSieglingMoves(s));
+            List<Ability> visibleAbilities = visibleSieglingAbilities(s);
+            if (!visibleAbilities.isEmpty()) {
+                m.put("abilities", visibleAbilities.stream().map(this::serializeAbility).toList());
+                m.put("ability", serializeAbility(visibleAbilities.get(0)));
             }
             m.put("health", s.getHealth());
             m.put("speed", s.getSpeed());
@@ -638,16 +725,20 @@ public class GameController {
                 m.put("rarity", ci.getCard().getRarity().name());
                 m.put("hp", ci.getCurrentHealth());
                 m.put("maxHp", ci.getEffectiveMaxHealth());
+                m.put("printedHealth", ci.getCard().getHealth());
+                m.put("printedSpeed", ci.getCard().getSpeed());
+                m.put("damageBoost", ci.getDamageBoost());
                 m.put("spd", ci.getEffectiveSpeed());
+                m.put("battlePhasesSeen", ci.getBattlePhasesSeen());
                 m.put("statuses", ci.getStatusEffects().stream().map(Enum::name).toList());
                 m.put("notches", serializeNotches(ci.getNotches()));
-                if (!ci.getCard().getAbilities().isEmpty()) {
-                    m.put("abilities", ci.getCard().getAbilities().stream()
-                            .map(this::serializeAbility)
+                List<Ability> visibleBoardAbilities = visibleSieglingAbilities(ci.getCard());
+                if (!visibleBoardAbilities.isEmpty()) {
+                    m.put("abilities", visibleBoardAbilities.stream()
+                            .map((ab) -> serializeAbilityForBoard(ci, ab))
                             .toList());
-                }
-                if (ci.getCard().getAbility() != null) {
-                    m.put("ability", ci.getCard().getAbility().getDescription());
+                    Ability first = visibleBoardAbilities.get(0);
+                    m.put("ability", describeBoardDamageAbility(ci, first));
                 }
                 board[r][c] = m;
             }
@@ -666,6 +757,31 @@ public class GameController {
         return serialized;
     }
 
+    private String describeBoardDamageAbility(CardInstance ci, Ability ability) {
+        if (ability == null) {
+            return "";
+        }
+        String desc = ability.getDescription();
+        if (AbilityEffectKeys.DAMAGE.equals(ability.getEffectType()) && desc != null && desc.startsWith("Deal ")) {
+            int boosted = Math.max(1, ability.getEffectValue() + ci.getDamageBoost());
+            return desc.replaceFirst("Deal \\d+", "Deal " + boosted);
+        }
+        return desc == null ? "" : desc;
+    }
+
+    private Map<String, Object> serializeAbilityForBoard(CardInstance ci, Ability ability) {
+        Map<String, Object> serialized = serializeAbility(ability);
+        if (AbilityEffectKeys.DAMAGE.equals(ability.getEffectType())) {
+            String desc = ability.getDescription();
+            int boosted = Math.max(1, ability.getEffectValue() + ci.getDamageBoost());
+            if (desc != null && desc.startsWith("Deal ")) {
+                serialized.put("description", desc.replaceFirst("Deal \\d+", "Deal " + boosted));
+                serialized.put("effectValue", boosted);
+            }
+        }
+        return serialized;
+    }
+
     private Map<String, Object> serializeAbility(Ability ability) {
         Map<String, Object> serialized = new LinkedHashMap<>();
         serialized.put("name", ability.getName());
@@ -680,6 +796,37 @@ public class GameController {
         serialized.put("requiredEnergy", ability.getRequiredEnergy());
         serialized.put("requiredReaction", ability.getRequiredReaction() == null ? null : ability.getRequiredReaction().name());
         return serialized;
+    }
+
+    private List<Map<String, Object>> serializeSieglingMoves(SieglingCard s) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        if (s == null || s.getMoveIds() == null) {
+            return rows;
+        }
+        for (String mid : s.getMoveIds()) {
+            Move move = movesPoolService.getMove(mid);
+            if (move == null) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", move.id());
+            row.put("name", move.name());
+            row.put("energyCost", move.energyCost());
+            row.put("description", move.description());
+            row.put("isPassive", move.isPassive());
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    /** Abilities shown on cards / board in the game client (printed passives are hidden). */
+    private List<Ability> visibleSieglingAbilities(SieglingCard s) {
+        if (s == null) {
+            return List.of();
+        }
+        return movesPoolService.resolvePrintedAbilities(s).stream()
+                .filter(a -> a != null && !a.isPassive())
+                .toList();
     }
 
     private Object serializePendingBattle(GameState gs) {
@@ -705,6 +852,7 @@ public class GameController {
             ability.put("requiredElement", option.getRequiredElement() == null ? null : option.getRequiredElement().name());
             ability.put("requiredEnergy", option.getRequiredEnergy());
             ability.put("affordable", option.isAffordable());
+            ability.put("fromPrintedPassive", option.getAbility().isBattleOptionFromPrintedPassive());
             abilities.add(ability);
         }
 
