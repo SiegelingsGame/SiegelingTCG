@@ -6,6 +6,29 @@
         "BOTTOM_LEFT", "BOTTOM", "BOTTOM_RIGHT"
     ];
 
+    /** Must match server live-element roster order (see LiveElementCatalogService). */
+    const DEFAULT_LIVE_ELEMENT_ORDER = [
+        "FIRE", "EARTH", "WIND", "WATER", "ICE", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
+    ];
+
+    function defaultLiveElements() {
+        return DEFAULT_LIVE_ELEMENT_ORDER.map((element) => ({ element, active: true }));
+    }
+
+    function normalizeLiveElements(rows) {
+        const map = new Map();
+        (rows || []).forEach((row) => {
+            const el = String(row?.element || "").trim().toUpperCase();
+            if (DEFAULT_LIVE_ELEMENT_ORDER.includes(el)) {
+                map.set(el, row?.active !== false);
+            }
+        });
+        return DEFAULT_LIVE_ELEMENT_ORDER.map((element) => ({
+            element,
+            active: map.has(element) ? map.get(element) : true
+        }));
+    }
+
     const DEFAULT_STATUS = {
         message: "Loading the current override file...",
         tone: "warning"
@@ -23,13 +46,42 @@
     const state = {
         metadata: null,
         cards: [],
+        decks: [],
+        trainers: [],
+        liveElements: defaultLiveElements(),
         selectedCardId: null,
+        selectedDeckId: null,
+        selectedTrainerId: null,
+        selectedMoveId: null,
+        movesPoolSearch: "",
+        movesPoolFilterElement: "ALL",
+        movesPoolFilterCategory: "ALL",
+        movesPoolFilterActivation: "ALL",
+        movesPoolFilterTarget: "ALL",
+        movesPoolFilterEnergy: "99",
+        movesPoolSort: "name-asc",
+        movesPoolIsNewDraft: false,
+        movesPoolFormEpoch: 0,
+        movesPoolFormEpochApplied: -1,
+        moveDraftEditingOriginalId: null,
         selectedAbilityIndex: 0,
+        editorPage: "SIEGLING",
+        actionTypeFilter: "ALL",
         search: "",
         elementFilter: "ALL",
+        deckSearch: "",
+        deckStatusFilter: "ALL",
+        trainerSearch: "",
+        trainerStatusFilter: "ALL",
+        deckCatalogSearch: "",
+        deckCatalogElementFilter: "ALL",
+        deckCatalogTypeFilter: "ALL",
         dirty: false,
         previewMode: "card",
         validation: [],
+        movesPool: [],
+        movePickerSlot: 0,
+        moveDraftSourceId: null,
         filePath: "",
         source: "Loading...",
         canSaveToProjectFile: false,
@@ -60,11 +112,29 @@
             "saveProjectBtn",
             "downloadJsonBtn",
             "copyJsonBtn",
-            "newCardBtn",
+            "showSieglingsBtn",
+            "showActionsBtn",
+            "showTrainersBtn",
+            "showDecksBtn",
+            "showLiveElementsBtn",
+            "showMovesPoolBtn",
+            "cardWorkspace",
+            "movesPoolWorkspace",
+            "deckWorkspace",
+            "trainerWorkspace",
+            "liveElementsWorkspace",
+            "liveElementToggles",
+            "liveElementValidationList",
+            "liveElementsJsonPreview",
+            "browserTitle",
+            "newSieglingBtn",
+            "newSpellBtn",
+            "newTrapBtn",
             "duplicateCardBtn",
             "deleteCardBtn",
             "cardSearchInput",
             "elementFilterSelect",
+            "actionTypeFilterSelect",
             "cardList",
             "cardEditorPanel",
             "authModePill",
@@ -90,20 +160,41 @@
             "emptyEditorState",
             "cardEditorContent",
             "cardIdInput",
+            "cardTypeSelect",
             "cardNameInput",
             "cardElementSelect",
             "cardRaritySelect",
+            "sieglingStatsSection",
             "cardHealthInput",
             "cardSpeedInput",
             "cardPreferredRowSelect",
             "cardEvolvesFromInput",
             "cardCostElementSelect",
             "cardCostAmountInput",
+            "actionCardSection",
+            "actionCardSectionTitle",
+            "actionCardHelpText",
+            "spellCostElementField",
+            "actionCostElementSelect",
+            "spellCostAmountField",
+            "actionCostAmountInput",
+            "trapBucketElementField",
+            "trapBucketElementSelect",
+            "trapBucketAmountField",
+            "trapBucketAmountInput",
+            "spellRequiredReactionField",
+            "cardRequiredReactionSelect",
+            "spellRequiredComboSizeField",
+            "cardRequiredComboSizeInput",
+            "spellRequiredComboSignatureField",
+            "cardRequiredComboSignatureInput",
+            "notchesSection",
             "notchGrid",
             "activeNotchList",
             "addAbilityBtn",
             "duplicateAbilityBtn",
             "deleteAbilityBtn",
+            "abilitySectionTitle",
             "abilityTabs",
             "abilityEditor",
             "abilityNameInput",
@@ -119,11 +210,125 @@
             "abilityRequiredReactionSelect",
             "abilityTargetHelper",
             "abilityEffectHelper",
+            "sieglingMovesSection",
+            "actionAbilitySection",
+            "sieglingAssignedMoves",
+            "newMoveBtn",
+            "openMovePickerBtn",
+            "moveDraftPanel",
+            "moveDraftIdInput",
+            "moveDraftNameInput",
+            "moveDraftElementSelect",
+            "moveDraftCategorySelect",
+            "moveDraftTargetSelect",
+            "moveDraftTargetElementWrap",
+            "moveDraftTargetElementSelect",
+            "moveDraftTargetRowWrap",
+            "moveDraftTargetRowSelect",
+            "moveDraftEffectSelect",
+            "moveDraftEffectValueInput",
+            "moveDraftEnergyInput",
+            "moveDraftDescInput",
+            "moveDraftPassiveSelect",
+            "saveMoveDraftBtn",
+            "cancelMoveDraftBtn",
+            "moveDraftPanelHostSiegling",
+            "moveDraftPanelHostPool",
+            "movesPoolEditorPanel",
+            "movesPoolEditorTitle",
+            "emptyMovesPoolEditorState",
+            "movesPoolEditorContent",
+            "movesPoolUsedBy",
+            "movesPoolList",
+            "movesPoolSearchInput",
+            "movesPoolElementFilter",
+            "movesPoolCategoryFilter",
+            "movesPoolActivationFilter",
+            "movesPoolTargetFilter",
+            "movesPoolEnergyFilter",
+            "movesPoolSortSelect",
+            "newPoolMoveBtn",
+            "deletePoolMoveBtn",
+            "movesPoolSummaryPanel",
+            "movesPoolJsonPreview",
+            "movesPoolValidationList",
+            "movePickerOverlay",
+            "movePickerSearch",
+            "movePickerElementFilter",
+            "movePickerEnergyFilter",
+            "movePickerCategoryFilter",
+            "movePickerList",
+            "movePickerCloseBtn",
             "cardSummary",
             "jsonPreviewMode",
             "jsonPreview",
             "validationList",
-            "cardIdOptions"
+            "cardIdOptions",
+            "deckList",
+            "newDeckBtn",
+            "duplicateDeckBtn",
+            "deleteDeckBtn",
+            "deckSearchInput",
+            "deckStatusFilterSelect",
+            "emptyDeckState",
+            "deckEditorContent",
+            "deckIdInput",
+            "deckNameInput",
+            "deckDescriptionInput",
+            "deckTrainerSelect",
+            "deckActiveCheckbox",
+            "deckSummaryChips",
+            "deckSummaryHelp",
+            "clearDeckCardsBtn",
+            "deckCompositionList",
+            "deckCatalogSearchInput",
+            "deckCatalogElementFilterSelect",
+            "deckCatalogTypeFilterSelect",
+            "deckCatalogList",
+            "deckSummaryPanel",
+            "deckJsonPreview",
+            "deckValidationList",
+            "trainerList",
+            "newTrainerBtn",
+            "duplicateTrainerBtn",
+            "trainerSearchInput",
+            "trainerStatusFilterSelect",
+            "emptyTrainerState",
+            "trainerEditorContent",
+            "trainerIdInput",
+            "trainerTierInput",
+            "trainerNameInput",
+            "trainerElementSelect",
+            "trainerRaritySelect",
+            "trainerActiveCheckbox",
+            "trainerOncePerGameCheckbox",
+            "trainerPassiveNameInput",
+            "trainerPassiveDescriptionInput",
+            "trainerPassiveTargetTypeSelect",
+            "trainerPassiveTargetRowField",
+            "trainerPassiveTargetRowSelect",
+            "trainerPassiveEffectTypeSelect",
+            "trainerPassiveEffectValueInput",
+            "trainerPassiveRequiredElementSelect",
+            "trainerPassiveRequiredEnergyInput",
+            "trainerPassiveRequiredReactionSelect",
+            "trainerPassiveTargetHelper",
+            "trainerPassiveEffectHelper",
+            "trainerActiveNameInput",
+            "trainerActiveDescriptionInput",
+            "trainerActiveTargetTypeSelect",
+            "trainerActiveTargetRowField",
+            "trainerActiveTargetRowSelect",
+            "trainerActiveEffectTypeSelect",
+            "trainerActiveEffectValueInput",
+            "trainerActiveRequiredElementSelect",
+            "trainerActiveRequiredEnergyInput",
+            "trainerActiveRequiredReactionSelect",
+            "trainerActiveTargetHelper",
+            "trainerActiveEffectHelper",
+            "trainerSummaryPanel",
+            "trainerJsonPreview",
+            "trainerValidationList"
         ].forEach((id) => {
             refs[id] = document.getElementById(id);
         });
@@ -138,7 +343,32 @@
         refs.bootstrapForm.addEventListener("submit", submitBootstrap);
         refs.loginForm.addEventListener("submit", submitLogin);
         refs.logoutBtn.addEventListener("click", logoutEditor);
-        refs.newCardBtn.addEventListener("click", createCard);
+        refs.showSieglingsBtn.addEventListener("click", () => setEditorPage("SIEGLING"));
+        refs.showActionsBtn.addEventListener("click", () => setEditorPage("ACTION"));
+        refs.showTrainersBtn.addEventListener("click", () => setEditorPage("TRAINERS"));
+        refs.showDecksBtn.addEventListener("click", () => setEditorPage("DECKS"));
+        refs.showLiveElementsBtn.addEventListener("click", () => setEditorPage("LIVE_ELEMENTS"));
+        refs.showMovesPoolBtn.addEventListener("click", () => setEditorPage("MOVES_POOL"));
+        refs.liveElementsWorkspace.addEventListener("change", (event) => {
+            const input = event.target.closest("input[data-live-element-index]");
+            if (!input || input.type !== "checkbox") {
+                return;
+            }
+            const index = Number(input.dataset.liveElementIndex);
+            if (!Number.isFinite(index) || !state.liveElements[index]) {
+                return;
+            }
+            state.liveElements[index].active = input.checked;
+            state.dirty = true;
+            state.validation = validateDashboard();
+            setStatus("You have unsaved changes in the dashboard.", "warning");
+            renderLiveElementsPanel();
+            renderValidation();
+            renderButtons();
+        });
+        refs.newSieglingBtn.addEventListener("click", () => createCard("SIEGLING"));
+        refs.newSpellBtn.addEventListener("click", () => createCard("SPELL"));
+        refs.newTrapBtn.addEventListener("click", () => createCard("TRAP"));
         refs.duplicateCardBtn.addEventListener("click", duplicateCard);
         refs.deleteCardBtn.addEventListener("click", deleteCard);
         refs.cardSearchInput.addEventListener("input", (event) => {
@@ -148,6 +378,11 @@
         refs.elementFilterSelect.addEventListener("change", (event) => {
             state.elementFilter = event.target.value || "ALL";
             renderCardList();
+        });
+        refs.actionTypeFilterSelect.addEventListener("change", (event) => {
+            state.actionTypeFilter = event.target.value || "ALL";
+            syncSelectionToEditorPage();
+            renderAll();
         });
         refs.jsonPreviewMode.addEventListener("change", (event) => {
             state.previewMode = event.target.value || "card";
@@ -205,6 +440,60 @@
         refs.duplicateAbilityBtn.addEventListener("click", duplicateAbility);
         refs.deleteAbilityBtn.addEventListener("click", deleteAbility);
 
+        refs.newMoveBtn?.addEventListener("click", startNewMoveDraft);
+        refs.openMovePickerBtn?.addEventListener("click", () => openMovePickerModal(-1));
+        refs.saveMoveDraftBtn?.addEventListener("click", saveMoveDraftToPool);
+        refs.cancelMoveDraftBtn?.addEventListener("click", onCancelMoveDraft);
+        refs.newPoolMoveBtn?.addEventListener("click", startNewPoolMoveDraft);
+        refs.deletePoolMoveBtn?.addEventListener("click", deleteSelectedPoolMove);
+        refs.movesPoolList?.addEventListener("click", onMovesPoolListClick);
+        refs.movesPoolSearchInput?.addEventListener("input", (event) => {
+            state.movesPoolSearch = event.target.value || "";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolElementFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterElement = event.target.value || "ALL";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolCategoryFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterCategory = event.target.value || "ALL";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolActivationFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterActivation = event.target.value || "ALL";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolTargetFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterTarget = event.target.value || "ALL";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolEnergyFilter?.addEventListener("change", (event) => {
+            state.movesPoolFilterEnergy = event.target.value || "99";
+            renderMovesPoolBrowser();
+        });
+        refs.movesPoolSortSelect?.addEventListener("change", (event) => {
+            state.movesPoolSort = event.target.value || "name-asc";
+            renderMovesPoolBrowser();
+        });
+        refs.moveDraftElementSelect?.addEventListener("change", () => {
+            if (state.editorPage === "MOVES_POOL") {
+                applyMovesPoolEditorPanelTheme();
+            }
+        });
+        refs.movePickerCloseBtn?.addEventListener("click", closeMovePickerModal);
+        refs.movePickerOverlay?.addEventListener("click", closeMovePickerModal);
+        refs.movePickerSearch?.addEventListener("input", renderMovePickerList);
+        refs.movePickerElementFilter?.addEventListener("change", renderMovePickerList);
+        refs.movePickerEnergyFilter?.addEventListener("change", renderMovePickerList);
+        refs.movePickerCategoryFilter?.addEventListener("change", renderMovePickerList);
+        refs.movePickerList?.addEventListener("click", onMovePickerListClick);
+        refs.sieglingAssignedMoves?.addEventListener("click", onSieglingAssignedMovesClick);
+        refs.moveDraftTargetSelect?.addEventListener("change", () => {
+            syncMoveDraftTargetRowUi();
+            syncMoveDraftTargetElementUi();
+        });
+        refs.moveDraftPassiveSelect?.addEventListener("change", onMoveDraftPassiveChange);
+
         refs.abilityTabs.addEventListener("click", (event) => {
             const tab = event.target.closest("[data-ability-index]");
             if (!tab) {
@@ -219,10 +508,13 @@
 
         bindCardFieldEvents();
         bindAbilityFieldEvents();
+        bindDeckFieldEvents();
+        bindTrainerFieldEvents();
     }
 
     function bindCardFieldEvents() {
         refs.cardIdInput.addEventListener("input", (event) => updateSelectedCardField("id", event.target.value));
+        refs.cardTypeSelect.addEventListener("change", (event) => changeSelectedCardType(event.target.value));
         refs.cardNameInput.addEventListener("input", (event) => updateSelectedCardField("name", event.target.value));
         refs.cardElementSelect.addEventListener("change", (event) => {
             mutateSelectedCard((card) => {
@@ -232,8 +524,11 @@
                         notch.element = card.element;
                     }
                 });
-                if (!card.costElement) {
+                if (!card.costElement && card.cardType !== "TRAP") {
                     card.costElement = card.element;
+                }
+                if (!card.trapBucketElement && card.cardType === "TRAP") {
+                    card.trapBucketElement = card.element;
                 }
             });
         });
@@ -244,6 +539,13 @@
         refs.cardEvolvesFromInput.addEventListener("input", (event) => updateSelectedCardField("evolvesFromId", event.target.value));
         refs.cardCostElementSelect.addEventListener("change", (event) => updateSelectedCardField("costElement", event.target.value));
         refs.cardCostAmountInput.addEventListener("input", (event) => updateSelectedCardField("costAmount", toNumber(event.target.value, 0)));
+        refs.actionCostElementSelect.addEventListener("change", (event) => updateSelectedCardField("costElement", event.target.value));
+        refs.actionCostAmountInput.addEventListener("input", (event) => updateSelectedCardField("costAmount", toNumber(event.target.value, 0)));
+        refs.trapBucketElementSelect.addEventListener("change", (event) => updateSelectedCardField("trapBucketElement", event.target.value));
+        refs.trapBucketAmountInput.addEventListener("input", (event) => updateSelectedCardField("trapBucketAmount", toNumber(event.target.value, 0)));
+        refs.cardRequiredReactionSelect.addEventListener("change", (event) => updateSelectedCardField("requiredReaction", event.target.value));
+        refs.cardRequiredComboSizeInput.addEventListener("input", (event) => updateSelectedCardField("requiredComboSize", toNumber(event.target.value, 0)));
+        refs.cardRequiredComboSignatureInput.addEventListener("input", (event) => updateSelectedCardField("requiredComboSignature", event.target.value));
     }
 
     function bindAbilityFieldEvents() {
@@ -262,6 +564,147 @@
         refs.abilityRequiredElementSelect.addEventListener("change", (event) => updateSelectedAbilityField("requiredElement", event.target.value));
         refs.abilityRequiredEnergyInput.addEventListener("input", (event) => updateSelectedAbilityField("requiredEnergy", toNumber(event.target.value, 0)));
         refs.abilityRequiredReactionSelect.addEventListener("change", (event) => updateSelectedAbilityField("requiredReaction", event.target.value));
+    }
+
+    function bindDeckFieldEvents() {
+        refs.newDeckBtn.addEventListener("click", createDeck);
+        refs.duplicateDeckBtn.addEventListener("click", duplicateDeck);
+        refs.deleteDeckBtn.addEventListener("click", deleteDeck);
+        refs.deckSearchInput.addEventListener("input", (event) => {
+            state.deckSearch = event.target.value || "";
+            renderDeckList();
+        });
+        refs.deckStatusFilterSelect.addEventListener("change", (event) => {
+            state.deckStatusFilter = event.target.value || "ALL";
+            renderDeckList();
+        });
+        refs.deckList.addEventListener("click", (event) => {
+            const row = event.target.closest("[data-deck-id]");
+            if (!row) {
+                return;
+            }
+            state.selectedDeckId = row.dataset.deckId;
+            renderAll();
+        });
+        refs.deckIdInput.addEventListener("input", (event) => updateSelectedDeckField("id", slugify(event.target.value)));
+        refs.deckNameInput.addEventListener("input", (event) => updateSelectedDeckField("name", event.target.value));
+        refs.deckDescriptionInput.addEventListener("input", (event) => updateSelectedDeckField("description", event.target.value));
+        refs.deckTrainerSelect.addEventListener("change", (event) => updateSelectedDeckField("recommendedTrainerId", event.target.value));
+        refs.deckActiveCheckbox.addEventListener("change", (event) => updateSelectedDeckField("active", Boolean(event.target.checked)));
+        refs.clearDeckCardsBtn.addEventListener("click", () => {
+            mutateSelectedDeck((deck) => {
+                deck.cardIds = [];
+            });
+        });
+        refs.deckCompositionList.addEventListener("click", (event) => {
+            const addButton = event.target.closest("[data-add-deck-card-id]");
+            if (addButton) {
+                addCardToSelectedDeck(addButton.dataset.addDeckCardId);
+                return;
+            }
+            const removeButton = event.target.closest("[data-remove-deck-card-id]");
+            if (removeButton) {
+                removeCardFromSelectedDeck(removeButton.dataset.removeDeckCardId);
+                return;
+            }
+        });
+        refs.deckCatalogSearchInput.addEventListener("input", (event) => {
+            state.deckCatalogSearch = event.target.value || "";
+            renderDeckCatalog();
+        });
+        refs.deckCatalogElementFilterSelect.addEventListener("change", (event) => {
+            state.deckCatalogElementFilter = event.target.value || "ALL";
+            renderDeckCatalog();
+        });
+        refs.deckCatalogTypeFilterSelect.addEventListener("change", (event) => {
+            state.deckCatalogTypeFilter = event.target.value || "ALL";
+            renderDeckCatalog();
+        });
+        refs.deckCatalogList.addEventListener("click", (event) => {
+            const addButton = event.target.closest("[data-add-catalog-card-id]");
+            if (!addButton) {
+                return;
+            }
+            addCardToSelectedDeck(addButton.dataset.addCatalogCardId);
+        });
+    }
+
+    function bindTrainerFieldEvents() {
+        refs.newTrainerBtn.addEventListener("click", createTrainer);
+        refs.duplicateTrainerBtn.addEventListener("click", duplicateTrainer);
+        refs.trainerSearchInput.addEventListener("input", (event) => {
+            state.trainerSearch = event.target.value || "";
+            renderTrainerList();
+        });
+        refs.trainerStatusFilterSelect.addEventListener("change", (event) => {
+            state.trainerStatusFilter = event.target.value || "ALL";
+            renderTrainerList();
+        });
+        refs.trainerList.addEventListener("click", (event) => {
+            const row = event.target.closest("[data-trainer-id]");
+            if (!row) {
+                return;
+            }
+            state.selectedTrainerId = row.dataset.trainerId;
+            renderAll();
+        });
+        refs.trainerIdInput.addEventListener("input", (event) => updateSelectedTrainerField("id", slugify(event.target.value)));
+        refs.trainerTierInput.addEventListener("input", (event) => updateSelectedTrainerField("tier", event.target.value));
+        refs.trainerNameInput.addEventListener("input", (event) => updateSelectedTrainerField("name", event.target.value));
+        refs.trainerElementSelect.addEventListener("change", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.element = event.target.value;
+                if (trainer.passiveAbility?.requiredEnergy > 0 && !trainer.passiveAbility.requiredElement) {
+                    trainer.passiveAbility.requiredElement = trainer.element;
+                }
+                if (trainer.activeAbility?.requiredEnergy > 0 && !trainer.activeAbility.requiredElement) {
+                    trainer.activeAbility.requiredElement = trainer.element;
+                }
+            });
+        });
+        refs.trainerRaritySelect.addEventListener("change", (event) => updateSelectedTrainerField("rarity", event.target.value));
+        refs.trainerActiveCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("active", Boolean(event.target.checked)));
+        refs.trainerOncePerGameCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("oncePerGame", Boolean(event.target.checked)));
+
+        bindTrainerAbilityFieldEvents("passive", {
+            nameInput: refs.trainerPassiveNameInput,
+            descriptionInput: refs.trainerPassiveDescriptionInput,
+            targetTypeSelect: refs.trainerPassiveTargetTypeSelect,
+            targetRowSelect: refs.trainerPassiveTargetRowSelect,
+            effectTypeSelect: refs.trainerPassiveEffectTypeSelect,
+            effectValueInput: refs.trainerPassiveEffectValueInput,
+            requiredElementSelect: refs.trainerPassiveRequiredElementSelect,
+            requiredEnergyInput: refs.trainerPassiveRequiredEnergyInput,
+            requiredReactionSelect: refs.trainerPassiveRequiredReactionSelect
+        });
+        bindTrainerAbilityFieldEvents("active", {
+            nameInput: refs.trainerActiveNameInput,
+            descriptionInput: refs.trainerActiveDescriptionInput,
+            targetTypeSelect: refs.trainerActiveTargetTypeSelect,
+            targetRowSelect: refs.trainerActiveTargetRowSelect,
+            effectTypeSelect: refs.trainerActiveEffectTypeSelect,
+            effectValueInput: refs.trainerActiveEffectValueInput,
+            requiredElementSelect: refs.trainerActiveRequiredElementSelect,
+            requiredEnergyInput: refs.trainerActiveRequiredEnergyInput,
+            requiredReactionSelect: refs.trainerActiveRequiredReactionSelect
+        });
+    }
+
+    function bindTrainerAbilityFieldEvents(kind, refsForAbility) {
+        refsForAbility.nameInput.addEventListener("input", (event) => updateSelectedTrainerAbilityField(kind, "name", event.target.value));
+        refsForAbility.descriptionInput.addEventListener("input", (event) => updateSelectedTrainerAbilityField(kind, "description", event.target.value));
+        refsForAbility.targetTypeSelect.addEventListener("change", (event) => {
+            mutateSelectedTrainerAbility(kind, (ability) => {
+                ability.targetType = event.target.value;
+                applyTargetRule(ability);
+            });
+        });
+        refsForAbility.targetRowSelect.addEventListener("change", (event) => updateSelectedTrainerAbilityField(kind, "targetRow", event.target.value));
+        refsForAbility.effectTypeSelect.addEventListener("change", (event) => updateSelectedTrainerAbilityField(kind, "effectType", event.target.value));
+        refsForAbility.effectValueInput.addEventListener("input", (event) => updateSelectedTrainerAbilityField(kind, "effectValue", toNumber(event.target.value, 0)));
+        refsForAbility.requiredElementSelect.addEventListener("change", (event) => updateSelectedTrainerAbilityField(kind, "requiredElement", event.target.value));
+        refsForAbility.requiredEnergyInput.addEventListener("input", (event) => updateSelectedTrainerAbilityField(kind, "requiredEnergy", toNumber(event.target.value, 0)));
+        refsForAbility.requiredReactionSelect.addEventListener("change", (event) => updateSelectedTrainerAbilityField(kind, "requiredReaction", event.target.value));
     }
 
     async function loadCurrentData() {
@@ -294,7 +737,7 @@
                 setStatus(`Imported ${file.name}. Review and save when ready.`, "warning");
                 renderAll();
             } catch (error) {
-                setStatus("That file could not be parsed as Sieglings override JSON.", "error");
+                setStatus("That file could not be parsed as card override JSON.", "error");
                 renderStatus();
             } finally {
                 refs.importFileInput.value = "";
@@ -305,11 +748,38 @@
 
     async function saveToProjectFile() {
         const errors = state.validation.filter((issue) => issue.severity === "error");
-        if (errors.length > 0) {
-            setStatus(`Fix validation errors before you ${state.liveEditingEnabled ? "publish live changes" : "save to the project file"}.`, "error");
+        const alerts = state.validation.filter((issue) => issue.severity === "warn");
+        const verb = state.liveEditingEnabled ? "publish live changes" : "save to the project file";
+
+        if (!state.liveEditingEnabled && errors.length > 0) {
+            setStatus(`Fix validation errors before you ${verb}.`, "error");
             renderStatus();
             renderValidation();
             return;
+        }
+
+        const blockers = state.liveEditingEnabled
+            ? state.validation.filter((issue) => issue.severity === "error" || issue.severity === "warn")
+            : alerts;
+        if (blockers.length > 0) {
+            const summary = blockers
+                .slice(0, 5)
+                .map((issue) => `- [${issue.severity}] ${issue.message}`)
+                .join("\n");
+            const extra = blockers.length > 5 ? `\n- ...and ${blockers.length - 5} more` : "";
+            const firstPrompt = `There are ${blockers.length} validation issue(s). Do you want to ${verb} anyway?\n\n${summary}${extra}`;
+            if (!window.confirm(firstPrompt)) {
+                setStatus(`Cancelled — review the ${blockers.length} validation issue(s) and try again.`, "warning");
+                renderStatus();
+                renderValidation();
+                return;
+            }
+            const typed = window.prompt(`Type PUBLISH to ${verb}. This will proceed even with validation issues.`);
+            if (String(typed || "").trim().toUpperCase() !== "PUBLISH") {
+                setStatus(`Cancelled — no changes were ${state.liveEditingEnabled ? "published" : "saved"}.`, "warning");
+                renderStatus();
+                return;
+            }
         }
 
         if (!canSaveCurrentData()) {
@@ -318,6 +788,8 @@
             return;
         }
 
+        setStatus(state.liveEditingEnabled ? "Publishing live changes..." : "Saving changes...", "warning");
+        renderStatus();
         try {
             const payload = await requestJson(apiUrl("/api/cards/editor"), {
                 method: "POST",
@@ -329,10 +801,23 @@
             }
             applyServerPayload(payload);
             applyDataSet(payload.data, false);
-            setStatus(state.liveEditingEnabled ? "Published the live card data to Firestore." : "Saved the override JSON back to the project file.", "success");
+            setStatus(
+                state.liveEditingEnabled
+                    ? "Published the live card, Siegeknight, premade deck, live element roster, and shared abilities to Firestore."
+                    : "Saved the card, Siegeknight, premade deck, live element, and shared ability JSON back to the project files.",
+                "success"
+            );
             renderAll();
         } catch (error) {
-            setStatus(error.message || "Unable to save the override file.", "error");
+            const message = error?.message || "Unable to save the override file.";
+            setStatus(message, "error");
+            if (state.liveEditingEnabled) {
+                try {
+                    window.alert(message);
+                } catch (ignored) {
+                    // Ignore alert failures and fall back to inline status.
+                }
+            }
             renderAll();
         }
     }
@@ -400,7 +885,7 @@
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
-        anchor.download = "siegling-overrides.json";
+        anchor.download = "sieglings-dashboard-export.json";
         anchor.click();
         URL.revokeObjectURL(url);
         setStatus("Downloaded the current dashboard data as JSON.", "success");
@@ -418,13 +903,17 @@
         renderStatus();
     }
 
-    function createCard() {
-        const card = createBlankCard();
+    function createCard(cardType) {
+        const card = createBlankCard(cardType);
         state.cards.unshift(card);
         state.selectedCardId = card.id;
         state.selectedAbilityIndex = 0;
+        state.editorPage = pageForCardType(card.cardType);
+        if (card.cardType !== "SIEGLING") {
+            state.actionTypeFilter = card.cardType;
+        }
         state.dirty = true;
-        setStatus("Created a new card draft.", "warning");
+        setStatus(`Created a new ${formatEnumLabel(card.cardType).toLowerCase()} draft.`, "warning");
         renderAll();
     }
 
@@ -441,6 +930,10 @@
         state.cards.unshift(copy);
         state.selectedCardId = copy.id;
         state.selectedAbilityIndex = 0;
+        state.editorPage = pageForCardType(copy.cardType);
+        if (copy.cardType !== "SIEGLING") {
+            state.actionTypeFilter = copy.cardType;
+        }
         state.dirty = true;
         setStatus(`Duplicated ${card.name || card.id || "the card"}.`, "warning");
         renderAll();
@@ -460,12 +953,16 @@
         state.selectedCardId = state.cards[Math.max(0, index - 1)]?.id || state.cards[0]?.id || null;
         state.selectedAbilityIndex = 0;
         state.dirty = true;
+        syncSelectionToEditorPage();
         setStatus(`Deleted ${label}.`, "warning");
         renderAll();
     }
 
     function addAbility() {
         mutateSelectedCard((card) => {
+            if (card.cardType !== "SIEGLING") {
+                return;
+            }
             card.abilities.push(createBlankAbility(card.element));
             state.selectedAbilityIndex = card.abilities.length - 1;
         });
@@ -478,6 +975,9 @@
             return;
         }
         mutateSelectedCard((selectedCard) => {
+            if (selectedCard.cardType !== "SIEGLING") {
+                return;
+            }
             const copy = normalizeAbility({
                 ...buildExportAbility(ability),
                 name: `${ability.name || "Ability"} Copy`
@@ -508,6 +1008,29 @@
     function updateSelectedCardField(field, value) {
         mutateSelectedCard((card) => {
             card[field] = typeof value === "string" ? value : value ?? "";
+            if (field === "requiredReaction") {
+                card.requiredReaction = value || "";
+            }
+            if (field === "requiredComboSignature") {
+                card.requiredComboSignature = String(value || "").trim().toUpperCase();
+            }
+        });
+    }
+
+    function changeSelectedCardType(nextType) {
+        const normalizedType = normalizeCardType(nextType);
+        mutateSelectedCard((card) => {
+            const converted = normalizeCard({
+                ...buildExportCard(card),
+                type: normalizedType
+            });
+            Object.keys(card).forEach((key) => delete card[key]);
+            Object.assign(card, converted);
+            state.selectedAbilityIndex = 0;
+            state.editorPage = pageForCardType(normalizedType);
+            if (normalizedType !== "SIEGLING") {
+                state.actionTypeFilter = normalizedType;
+            }
         });
     }
 
@@ -527,7 +1050,7 @@
         }
         mutator(card);
         state.dirty = true;
-        state.validation = validateCards();
+        state.validation = validateDashboard();
         setStatus("You have unsaved changes in the dashboard.", "warning");
         renderAll();
     }
@@ -539,26 +1062,140 @@
         }
         mutator(ability);
         state.dirty = true;
-        state.validation = validateCards();
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        renderAll();
+    }
+
+    function mutateSelectedDeck(mutator) {
+        const deck = getSelectedDeck();
+        if (!deck) {
+            return;
+        }
+        mutator(deck);
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        renderAll();
+    }
+
+    function updateSelectedTrainerField(field, value) {
+        mutateSelectedTrainer((trainer) => {
+            trainer[field] = typeof value === "string" ? value : value ?? "";
+        });
+    }
+
+    function updateSelectedTrainerAbilityField(kind, field, value) {
+        mutateSelectedTrainerAbility(kind, (ability) => {
+            ability[field] = typeof value === "string" ? value : value ?? "";
+            if (field === "requiredElement" || field === "requiredReaction") {
+                ability[field] = value || "";
+            }
+        });
+    }
+
+    function mutateSelectedTrainer(mutator) {
+        const trainer = getSelectedTrainer();
+        if (!trainer) {
+            return;
+        }
+        mutator(trainer);
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        renderAll();
+    }
+
+    function mutateSelectedTrainerAbility(kind, mutator) {
+        const ability = getSelectedTrainerAbility(kind);
+        if (!ability) {
+            return;
+        }
+        mutator(ability);
+        state.dirty = true;
+        state.validation = validateDashboard();
         setStatus("You have unsaved changes in the dashboard.", "warning");
         renderAll();
     }
 
     function applyDataSet(data, dirty) {
-        const cards = Array.isArray(data?.cards) ? data.cards.map((card) => normalizeCard(card)) : [];
+        const cards = Array.isArray(data?.cards)
+            ? data.cards.map((card) => normalizeCard(card))
+            : state.cards.map((card) => normalizeCard(buildExportCard(card)));
+        const decks = Array.isArray(data?.decks)
+            ? data.decks.map((deck) => normalizeDeck(deck))
+            : state.decks.map((deck) => normalizeDeck(buildExportDeck(deck)));
+        const trainers = Array.isArray(data?.trainers)
+            ? data.trainers.map((trainer) => normalizeTrainer(trainer))
+            : state.trainers.map((trainer) => normalizeTrainer(buildExportTrainer(trainer)));
+        let liveElements;
+        if (Array.isArray(data?.liveElements?.elements)) {
+            liveElements = normalizeLiveElements(data.liveElements.elements);
+        } else if (data && (Array.isArray(data.cards) || Array.isArray(data.decks) || Array.isArray(data.trainers))) {
+            liveElements = defaultLiveElements();
+        } else {
+            liveElements = state.liveElements.length
+                ? state.liveElements.map((row) => ({ element: row.element, active: row.active !== false }))
+                : defaultLiveElements();
+        }
         state.cards = cards;
+        state.decks = decks;
+        state.trainers = trainers;
+        state.liveElements = liveElements;
+        if (data && Object.prototype.hasOwnProperty.call(data, "moves")) {
+            state.movesPool = Array.isArray(data.moves)
+                ? data.moves.map((m) => normalizeMoveFromServer(m)).filter((m) => m && m.id)
+                : [];
+        }
         state.selectedCardId = cards.find((card) => card.id === state.selectedCardId)?.id || cards[0]?.id || null;
+        state.selectedDeckId = decks.find((deck) => deck.id === state.selectedDeckId)?.id || decks[0]?.id || null;
+        state.selectedTrainerId = trainers.find((trainer) => trainer.id === state.selectedTrainerId)?.id || trainers[0]?.id || null;
         state.selectedAbilityIndex = 0;
         state.dirty = dirty;
-        state.validation = validateCards();
+        state.validation = validateDashboard();
+        syncSelectionToEditorPage();
+        if (state.editorPage === "MOVES_POOL") {
+            state.movesPoolFormEpoch += 1;
+        }
     }
 
     function normalizeCard(card) {
+        const cardType = normalizeCardType(card?.type || card?.cardType || inferCardType(card));
         const baseElement = card?.element || firstMetaValue("elements", "FIRE");
+        if (cardType === "SIEGLING") {
+            let moveIds = Array.isArray(card?.moveIds)
+                ? card.moveIds.map((id) => String(id || "").trim()).filter(Boolean).slice(0, 5)
+                : [];
+            if (!moveIds.length && Array.isArray(card?.abilities) && card.abilities.length > 0) {
+                moveIds = [];
+            }
+            return {
+                cardType,
+                id: String(card?.id || ""),
+                name: String(card?.name || ""),
+                element: baseElement,
+                rarity: card?.rarity || firstMetaValue("rarities", "COMMON"),
+                health: toNumber(card?.health, 10),
+                speed: toNumber(card?.speed, 5),
+                preferredRow: card?.preferredRow || firstMetaValue("rows", "FRONT"),
+                evolvesFromId: String(card?.evolvesFromId || ""),
+                costElement: card?.costElement || "",
+                costAmount: toNumber(card?.costAmount, 0),
+                trapBucketElement: card?.trapBucketElement || card?.costElement || "",
+                trapBucketAmount: toNumber(card?.trapBucketAmount ?? card?.costAmount, 0),
+                requiredReaction: String(card?.requiredReaction || ""),
+                requiredComboSize: toNumber(card?.requiredComboSize, 0),
+                requiredComboSignature: String(card?.requiredComboSignature || "").trim().toUpperCase(),
+                notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
+                moveIds,
+                abilities: []
+            };
+        }
         const abilities = Array.isArray(card?.abilities) && card.abilities.length > 0
             ? card.abilities.map((ability) => normalizeAbility(ability, baseElement))
             : (card?.ability ? [normalizeAbility(card.ability, baseElement)] : [createBlankAbility(baseElement)]);
         return {
+            cardType,
             id: String(card?.id || ""),
             name: String(card?.name || ""),
             element: baseElement,
@@ -569,8 +1206,53 @@
             evolvesFromId: String(card?.evolvesFromId || ""),
             costElement: card?.costElement || "",
             costAmount: toNumber(card?.costAmount, 0),
+            trapBucketElement: card?.trapBucketElement || card?.costElement || "",
+            trapBucketAmount: toNumber(card?.trapBucketAmount ?? card?.costAmount, 0),
+            requiredReaction: String(card?.requiredReaction || ""),
+            requiredComboSize: toNumber(card?.requiredComboSize, 0),
+            requiredComboSignature: String(card?.requiredComboSignature || "").trim().toUpperCase(),
             notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
-            abilities
+            abilities: normalizeCardAbilities(cardType, abilities, baseElement)
+        };
+    }
+
+    function normalizeCardAbilities(cardType, abilities, baseElement) {
+        const safeAbilities = Array.isArray(abilities) && abilities.length > 0 ? abilities : [createBlankAbility(baseElement)];
+        if (cardType === "SIEGLING") {
+            return safeAbilities;
+        }
+        return [safeAbilities[0] || createBlankAbility(baseElement)];
+    }
+
+    function normalizeDeck(deck) {
+        return {
+            id: String(deck?.id || ""),
+            name: String(deck?.name || ""),
+            description: String(deck?.description || ""),
+            elements: Array.isArray(deck?.elements) ? deck.elements.filter(Boolean) : [],
+            recommendedTrainerId: String(deck?.recommendedTrainerId || ""),
+            active: deck?.active !== false,
+            cardIds: Array.isArray(deck?.cardIds) ? deck.cardIds.map((cardId) => String(cardId || "").trim()).filter(Boolean) : [],
+            usesGeneratedPreset: Boolean(deck?.usesGeneratedPreset)
+        };
+    }
+
+    function normalizeTrainer(trainer) {
+        const element = trainer?.element || firstMetaValue("elements", "FIRE");
+        const passiveAbility = normalizeAbility(trainer?.passiveAbility || createBlankTrainerPassiveAbility(element), element);
+        const activeAbility = normalizeAbility(trainer?.activeAbility || createBlankTrainerActiveAbility(element), element);
+        passiveAbility.passive = true;
+        activeAbility.passive = false;
+        return {
+            id: String(trainer?.id || ""),
+            name: String(trainer?.name || ""),
+            element,
+            rarity: trainer?.rarity || firstMetaValue("rarities", "RARE"),
+            tier: String(trainer?.tier || "SiegeKnight"),
+            active: trainer?.active !== false,
+            oncePerGame: Boolean(trainer?.oncePerGame),
+            passiveAbility,
+            activeAbility
         };
     }
 
@@ -602,9 +1284,21 @@
         };
     }
 
-    function createBlankCard() {
+    function createBlankCard(cardType = defaultNewCardType()) {
+        switch (normalizeCardType(cardType)) {
+            case "SPELL":
+                return createBlankSpellCard();
+            case "TRAP":
+                return createBlankTrapCard();
+            default:
+                return createBlankSieglingCard();
+        }
+    }
+
+    function createBlankSieglingCard() {
         const element = firstMetaValue("elements", "FIRE");
         return normalizeCard({
+            type: "SIEGLING",
             id: createUniqueCardId("new-siegling"),
             name: "New Siegling",
             element,
@@ -615,7 +1309,38 @@
             costElement: element,
             costAmount: 0,
             notches: [{ direction: "TOP", element }],
-            abilities: [createBlankAbility(element)]
+            moveIds: []
+        });
+    }
+
+    function createBlankSpellCard() {
+        const element = firstMetaValue("elements", "FIRE");
+        return normalizeCard({
+            type: "SPELL",
+            id: createUniqueCardId("new-spell"),
+            name: "New Spell",
+            element,
+            rarity: firstMetaValue("rarities", "COMMON"),
+            costElement: element,
+            costAmount: 0,
+            requiredReaction: "",
+            requiredComboSize: 0,
+            requiredComboSignature: "",
+            ability: createBlankAbility(element)
+        });
+    }
+
+    function createBlankTrapCard() {
+        const element = firstMetaValue("elements", "FIRE");
+        return normalizeCard({
+            type: "TRAP",
+            id: createUniqueCardId("new-trap"),
+            name: "New Trap",
+            element,
+            rarity: firstMetaValue("rarities", "UNCOMMON"),
+            trapBucketElement: element,
+            trapBucketAmount: 3,
+            ability: createBlankAbility(element)
         });
     }
 
@@ -631,6 +1356,252 @@
             requiredEnergy: 0,
             requiredReaction: ""
         }, element);
+    }
+
+    function createBlankDeck() {
+        return normalizeDeck({
+            id: createUniqueDeckId("new-deck"),
+            name: "New Premade Deck",
+            description: "",
+            elements: [],
+            recommendedTrainerId: state.trainers.find((trainer) => trainer.active)?.id || state.trainers[0]?.id || "",
+            active: false,
+            cardIds: []
+        });
+    }
+
+    function createBlankTrainer() {
+        const element = firstMetaValue("elements", "FIRE");
+        return normalizeTrainer({
+            id: createUniqueTrainerId("new-siegeknight"),
+            name: "New Siegeknight",
+            element,
+            rarity: firstMetaValue("rarities", "RARE"),
+            tier: "SiegeKnight",
+            active: false,
+            oncePerGame: false,
+            passiveAbility: createBlankTrainerPassiveAbility(element),
+            activeAbility: createBlankTrainerActiveAbility(element)
+        });
+    }
+
+    function createBlankTrainerPassiveAbility(element) {
+        return normalizeAbility({
+            name: "New Passive",
+            description: "",
+            targetType: "PASSIVE",
+            effectType: firstEffectKey(),
+            effectValue: 0,
+            passive: true,
+            requiredElement: "",
+            requiredEnergy: 0,
+            requiredReaction: ""
+        }, element);
+    }
+
+    function createBlankTrainerActiveAbility(element) {
+        return normalizeAbility({
+            name: "New Active",
+            description: "",
+            targetType: "SINGLE_ENEMY",
+            effectType: firstEffectKey(),
+            effectValue: 0,
+            passive: false,
+            requiredElement: "",
+            requiredEnergy: 0,
+            requiredReaction: ""
+        }, element);
+    }
+
+    function defaultNewCardType() {
+        if (state.editorPage === "ACTION") {
+            return state.actionTypeFilter === "TRAP" ? "TRAP" : "SPELL";
+        }
+        return "SIEGLING";
+    }
+
+    function normalizeCardType(value) {
+        const normalized = String(value || "SIEGLING").trim().toUpperCase();
+        return ["SIEGLING", "SPELL", "TRAP"].includes(normalized) ? normalized : "SIEGLING";
+    }
+
+    function inferCardType(card) {
+        if (card?.trapBucketElement != null || card?.trapBucketAmount != null) {
+            return "TRAP";
+        }
+        if (card?.requiredComboSize != null || card?.requiredComboSignature != null || card?.requiredReaction != null) {
+            return "SPELL";
+        }
+        return "SIEGLING";
+    }
+
+    function pageForCardType(cardType) {
+        return normalizeCardType(cardType) === "SIEGLING" ? "SIEGLING" : "ACTION";
+    }
+
+    function setEditorPage(page) {
+        if (page === "ACTION") {
+            state.editorPage = "ACTION";
+        } else if (page === "DECKS") {
+            state.editorPage = "DECKS";
+        } else if (page === "TRAINERS") {
+            state.editorPage = "TRAINERS";
+        } else if (page === "LIVE_ELEMENTS") {
+            state.editorPage = "LIVE_ELEMENTS";
+        } else if (page === "MOVES_POOL") {
+            const prev = state.editorPage;
+            state.editorPage = "MOVES_POOL";
+            if (prev !== "MOVES_POOL") {
+                state.movesPoolFormEpoch += 1;
+            }
+        } else {
+            state.editorPage = "SIEGLING";
+        }
+        syncSelectionToEditorPage();
+        renderAll();
+    }
+
+    function syncSelectionToEditorPage() {
+        if (state.editorPage === "TRAINERS") {
+            const selectedTrainer = state.trainers.find((trainer) => trainer.id === state.selectedTrainerId) || null;
+            if (selectedTrainer) {
+                return;
+            }
+            state.selectedTrainerId = state.trainers[0]?.id || null;
+            return;
+        }
+        if (state.editorPage === "DECKS") {
+            const selectedDeck = state.decks.find((deck) => deck.id === state.selectedDeckId) || null;
+            if (selectedDeck) {
+                return;
+            }
+            state.selectedDeckId = state.decks[0]?.id || null;
+            return;
+        }
+        if (state.editorPage === "MOVES_POOL") {
+            if (state.movesPoolIsNewDraft) {
+                return;
+            }
+            const selectedMove = findMoveById(state.selectedMoveId);
+            if (selectedMove) {
+                return;
+            }
+            state.selectedMoveId = state.movesPool[0]?.id || null;
+            state.movesPoolIsNewDraft = false;
+            state.moveDraftEditingOriginalId = null;
+            return;
+        }
+        const selectedCard = state.cards.find((card) => card.id === state.selectedCardId) || null;
+        if (selectedCard && matchesEditorPage(selectedCard)) {
+            return;
+        }
+        state.selectedCardId = getPageCards()[0]?.id || null;
+        state.selectedAbilityIndex = 0;
+    }
+
+    function createDeck() {
+        const deck = createBlankDeck();
+        state.decks.unshift(deck);
+        state.selectedDeckId = deck.id;
+        state.editorPage = "DECKS";
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("Created a new premade deck draft.", "warning");
+        renderAll();
+    }
+
+    function createTrainer() {
+        const trainer = createBlankTrainer();
+        state.trainers.unshift(trainer);
+        state.selectedTrainerId = trainer.id;
+        state.editorPage = "TRAINERS";
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("Created a new Siegeknight draft.", "warning");
+        renderAll();
+    }
+
+    function duplicateTrainer() {
+        const trainer = getSelectedTrainer();
+        if (!trainer) {
+            return;
+        }
+        const clone = normalizeTrainer({
+            ...buildExportTrainer(trainer),
+            id: createUniqueTrainerId(`${trainer.id}-copy`),
+            name: `${trainer.name} Copy`,
+            active: false
+        });
+        state.trainers.unshift(clone);
+        state.selectedTrainerId = clone.id;
+        state.editorPage = "TRAINERS";
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus(`Duplicated ${trainer.name || trainer.id}.`, "warning");
+        renderAll();
+    }
+
+    function duplicateDeck() {
+        const deck = getSelectedDeck();
+        if (!deck) {
+            return;
+        }
+        const clone = normalizeDeck({
+            ...buildExportDeck(deck),
+            id: createUniqueDeckId(`${deck.id}-copy`),
+            name: `${deck.name} Copy`,
+            active: false
+        });
+        state.decks.unshift(clone);
+        state.selectedDeckId = clone.id;
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus(`Duplicated ${deck.name || deck.id}.`, "warning");
+        renderAll();
+    }
+
+    function deleteDeck() {
+        const deck = getSelectedDeck();
+        if (!deck) {
+            return;
+        }
+        state.decks = state.decks.filter((entry) => entry.id !== deck.id);
+        state.selectedDeckId = state.decks[0]?.id || null;
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus(`Deleted ${deck.name || deck.id}.`, "warning");
+        renderAll();
+    }
+
+    function updateSelectedDeckField(field, value) {
+        mutateSelectedDeck((deck) => {
+            deck[field] = typeof value === "string" ? value : value ?? "";
+        });
+    }
+
+    function addCardToSelectedDeck(cardId) {
+        if (!cardId) {
+            return;
+        }
+        mutateSelectedDeck((deck) => {
+            deck.cardIds.push(cardId);
+            deck.elements = inferDeckElements(deck.cardIds);
+            deck.usesGeneratedPreset = false;
+        });
+    }
+
+    function removeCardFromSelectedDeck(cardId) {
+        if (!cardId) {
+            return;
+        }
+        mutateSelectedDeck((deck) => {
+            const index = deck.cardIds.findIndex((entry) => entry === cardId);
+            if (index >= 0) {
+                deck.cardIds.splice(index, 1);
+            }
+            deck.elements = inferDeckElements(deck.cardIds);
+            deck.usesGeneratedPreset = false;
+        });
     }
 
     function toggleNotch(card, direction) {
@@ -664,17 +1635,43 @@
     }
 
     function renderAll() {
-        state.validation = validateCards();
+        syncSelectionToEditorPage();
+        state.validation = validateDashboard();
         renderAuth();
         renderStatus();
         renderFilterOptions();
+        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL");
+        refs.movesPoolWorkspace.classList.toggle("hidden", state.editorPage !== "MOVES_POOL");
+        refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
+        refs.trainerWorkspace.classList.toggle("hidden", state.editorPage !== "TRAINERS");
+        refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
+        if (state.editorPage === "MOVES_POOL") {
+            mountMoveDraftPanel(refs.moveDraftPanelHostPool);
+            renderMovesPoolBrowser();
+            renderMovesPoolEditorShell();
+        } else {
+            mountMoveDraftPanel(refs.moveDraftPanelHostSiegling);
+        }
         renderCardList();
         renderEditor();
         renderSummary();
         renderPreview();
+        renderDeckList();
+        renderDeckEditor();
+        renderDeckSummary();
+        renderDeckCatalog();
+        renderDeckPreview();
+        renderTrainerList();
+        renderTrainerEditor();
+        renderTrainerSummary();
+        renderTrainerPreview();
+        renderLiveElementsPanel();
         renderValidation();
         renderButtons();
         renderCardIdOptions();
+        if (state.editorPage === "MOVES_POOL") {
+            renderMovesPoolSidePanels();
+        }
     }
 
     function renderAuth() {
@@ -718,7 +1715,15 @@
     function renderStatus() {
         refs.sourcePill.textContent = formatSourceLabel();
         refs.dirtyPill.textContent = state.dirty ? "Unsaved changes" : "Saved";
-        refs.cardCountPill.textContent = `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`;
+        refs.cardCountPill.textContent = state.editorPage === "DECKS"
+            ? `${state.decks.length} preset deck${state.decks.length === 1 ? "" : "s"}`
+            : (state.editorPage === "TRAINERS"
+                ? `${state.trainers.length} Siegeknight${state.trainers.length === 1 ? "" : "s"}`
+                : (state.editorPage === "LIVE_ELEMENTS"
+                    ? `${state.liveElements.filter((row) => row.active !== false).length} active element${state.liveElements.filter((row) => row.active !== false).length === 1 ? "" : "s"}`
+                    : (state.editorPage === "MOVES_POOL"
+                        ? `${state.movesPool.length} shared abilit${state.movesPool.length === 1 ? "y" : "ies"}`
+                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`)));
         refs.filePathLabel.textContent = buildStatusPathText();
         refs.statusMessage.textContent = state.status.message;
 
@@ -744,12 +1749,26 @@
             .join("");
         refs.elementFilterSelect.innerHTML = options;
         refs.elementFilterSelect.value = state.elementFilter;
+        refs.actionTypeFilterSelect.value = state.actionTypeFilter;
+        refs.actionTypeFilterSelect.classList.toggle("hidden", state.editorPage !== "ACTION");
+        refs.browserTitle.textContent = state.editorPage === "ACTION"
+            ? "Spells And Traps"
+            : (state.editorPage === "MOVES_POOL" ? "Shared Abilities" : "Sieglings");
+        refs.showSieglingsBtn.classList.toggle("active", state.editorPage === "SIEGLING");
+        refs.showActionsBtn.classList.toggle("active", state.editorPage === "ACTION");
+        refs.showTrainersBtn.classList.toggle("active", state.editorPage === "TRAINERS");
+        refs.showDecksBtn.classList.toggle("active", state.editorPage === "DECKS");
+        refs.showLiveElementsBtn.classList.toggle("active", state.editorPage === "LIVE_ELEMENTS");
+        refs.showMovesPoolBtn.classList.toggle("active", state.editorPage === "MOVES_POOL");
+        if (state.editorPage === "LIVE_ELEMENTS") {
+            refs.browserTitle.textContent = "Live Elements";
+        }
     }
 
     function renderCardList() {
         const cards = getFilteredCards();
         if (cards.length === 0) {
-            refs.cardList.innerHTML = `<div class="empty-browser">No cards match the current search and element filter.</div>`;
+            refs.cardList.innerHTML = `<div class="empty-browser">No cards match the current page, search, and filter settings.</div>`;
             return;
         }
         refs.cardList.innerHTML = cards.map((card) => {
@@ -759,9 +1778,9 @@
                 <div class="card-row ${elementTheme}${active}" data-card-id="${escapeHtml(card.id)}">
                     <div class="card-row-title">
                         <strong>${escapeHtml(card.name || "Unnamed Card")}</strong>
-                        <span class="summary-badge">${escapeHtml(formatEnumLabel(card.element))}</span>
+                        <span class="summary-badge">${escapeHtml(formatEnumLabel(card.cardType))} | ${escapeHtml(formatEnumLabel(card.element))}</span>
                     </div>
-                    <div class="card-meta">${escapeHtml(formatEnumLabel(card.rarity))} | ${card.abilities.length} ${card.abilities.length === 1 ? "ability" : "abilities"} | HP ${card.health} | SPD ${card.speed}</div>
+                    <div class="card-meta">${escapeHtml(formatCardMeta(card))}</div>
                     <div class="card-id">${escapeHtml(card.id || "missing-id")}</div>
                 </div>
             `;
@@ -782,10 +1801,18 @@
             return;
         }
 
+        const isSiegling = card.cardType === "SIEGLING";
+        const isSpell = card.cardType === "SPELL";
+        const isTrap = card.cardType === "TRAP";
+
+        populateSelect(refs.cardTypeSelect, state.metadata?.cardTypes || ["SIEGLING", "SPELL", "TRAP"], card.cardType);
         populateSelect(refs.cardElementSelect, state.metadata?.elements || [], card.element);
         populateSelect(refs.cardRaritySelect, state.metadata?.rarities || [], card.rarity);
         populateSelect(refs.cardPreferredRowSelect, state.metadata?.rows || [], card.preferredRow);
         populateSelect(refs.cardCostElementSelect, ["", ...(state.metadata?.elements || [])], card.costElement, true);
+        populateSelect(refs.actionCostElementSelect, ["", ...(state.metadata?.elements || [])], card.costElement, true);
+        populateSelect(refs.trapBucketElementSelect, ["", ...(state.metadata?.elements || [])], card.trapBucketElement, true);
+        populateSelect(refs.cardRequiredReactionSelect, ["", ...(state.metadata?.reactions || [])], card.requiredReaction, true);
 
         setInputValue(refs.cardIdInput, card.id);
         setInputValue(refs.cardNameInput, card.name);
@@ -793,8 +1820,44 @@
         setInputValue(refs.cardSpeedInput, card.speed);
         setInputValue(refs.cardEvolvesFromInput, card.evolvesFromId);
         setInputValue(refs.cardCostAmountInput, card.costAmount);
+        setInputValue(refs.actionCostAmountInput, card.costAmount);
+        setInputValue(refs.trapBucketAmountInput, card.trapBucketAmount);
+        setInputValue(refs.cardRequiredComboSizeInput, card.requiredComboSize);
+        setInputValue(refs.cardRequiredComboSignatureInput, card.requiredComboSignature);
+
+        refs.sieglingStatsSection.classList.toggle("hidden", !isSiegling);
+        refs.notchesSection.classList.toggle("hidden", !isSiegling);
+        refs.actionCardSection.classList.toggle("hidden", isSiegling);
+        refs.spellCostElementField.classList.toggle("hidden", !isSpell);
+        refs.spellCostAmountField.classList.toggle("hidden", !isSpell);
+        refs.spellRequiredReactionField.classList.toggle("hidden", !isSpell);
+        refs.spellRequiredComboSizeField.classList.toggle("hidden", !isSpell);
+        refs.spellRequiredComboSignatureField.classList.toggle("hidden", !isSpell);
+        refs.trapBucketElementField.classList.toggle("hidden", !isTrap);
+        refs.trapBucketAmountField.classList.toggle("hidden", !isTrap);
+        refs.actionCardSectionTitle.textContent = isTrap ? "Trap Trigger And Effect" : "Spell Cost And Requirements";
+        refs.actionCardHelpText.textContent = isTrap
+            ? "Trap cards trigger from the opponent's bucket, so choose the enemy element threshold that springs this effect."
+            : "Spell cards can use a normal energy cost, a reaction gate, or a combo signature to control when they can be cast.";
+        refs.abilitySectionTitle.textContent = isSiegling ? "Ability Editor" : (isTrap ? "Trap Effect" : "Spell Effect");
+
+        if (refs.sieglingMovesSection) {
+            refs.sieglingMovesSection.classList.toggle("hidden", !isSiegling);
+        }
+        if (refs.actionAbilitySection) {
+            refs.actionAbilitySection.classList.toggle("hidden", isSiegling);
+        }
 
         renderNotches(card);
+        if (isSiegling) {
+            renderSieglingMovesUI(card);
+            if (refs.saveMoveDraftBtn) {
+                refs.saveMoveDraftBtn.textContent = "Save to pool";
+            }
+            refs.abilityEditor.classList.add("hidden");
+            return;
+        }
+
         renderAbilityTabs(card);
 
         if (!ability) {
@@ -871,6 +1934,10 @@
             refs.cardSummary.innerHTML = `<div class="validation-empty">Select a card to see a summary.</div>`;
             return;
         }
+        if (card.cardType !== "SIEGLING") {
+            refs.cardSummary.innerHTML = renderActionCardSummary(card);
+            return;
+        }
         const summaryTags = [];
         if (card.evolvesFromId.trim()) {
             summaryTags.push(`Evolves from ${card.evolvesFromId.trim()}`);
@@ -910,15 +1977,394 @@
                 </div>
             </div>
             <div class="summary-ability-list">
+                ${(card.moveIds || []).length > 0
+                    ? (card.moveIds || []).map((mid) => {
+                        const mv = findMoveById(mid);
+                        const title = mv ? mv.name : mid;
+                        const desc = mv ? mv.description : "Unknown move id (add it to the moves pool).";
+                        const meta = mv ? describeMove(mv) : "";
+                        return `
+                    <div class="summary-ability">
+                        <strong>${escapeHtml(title)}</strong>
+                        <div class="card-summary-copy">${escapeHtml(desc)}</div>
+                        ${meta ? `<div class="card-summary-copy">${escapeHtml(meta)}</div>` : ""}
+                    </div>`;
+                    }).join("")
+                    : `<div class="summary-ability"><div class="card-summary-copy">No moves assigned yet.</div></div>`}
+            </div>
+        `;
+    }
+
+    function renderActionCardSummary(card) {
+        const summaryTags = [
+            `${formatEnumLabel(card.cardType)} card`,
+            card.cardType === "TRAP"
+                ? `Trigger ${card.trapBucketAmount || 0} ${formatEnumLabel(card.trapBucketElement || card.element)}`
+                : `Cost ${card.costAmount || 0} ${formatEnumLabel(card.costElement || card.element)}`
+        ];
+        if (card.cardType === "SPELL" && card.requiredComboSize > 0) {
+            summaryTags.push(`Combo ${card.requiredComboSize}${card.requiredComboSignature ? `: ${card.requiredComboSignature}` : ""}`);
+        }
+        if (card.cardType === "SPELL" && card.requiredReaction) {
+            summaryTags.push(`Needs ${formatEnumLabel(card.requiredReaction)}`);
+        }
+        return `
+            <div class="summary-card-shell">
+                <div class="summary-top">
+                    <div>
+                        <h3>${escapeHtml(card.name || "Unnamed Card")}</h3>
+                        <div class="card-summary-copy">${escapeHtml(card.id || "missing-id")}</div>
+                    </div>
+                    <span class="summary-badge">${escapeHtml(formatEnumLabel(card.element))}</span>
+                </div>
+                <div class="stat-strip">
+                    <span class="stat-chip">Type: ${escapeHtml(formatEnumLabel(card.cardType))}</span>
+                    <span class="stat-chip">Rarity: ${escapeHtml(formatEnumLabel(card.rarity))}</span>
+                    ${card.cardType === "TRAP"
+                        ? `<span class="stat-chip">Trigger: ${card.trapBucketAmount || 0} ${escapeHtml(formatEnumLabel(card.trapBucketElement || card.element))}</span>`
+                        : `<span class="stat-chip">Play Cost: ${card.costAmount || 0} ${escapeHtml(formatEnumLabel(card.costElement || card.element))}</span>`}
+                </div>
+                <div class="summary-tags">
+                    ${summaryTags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("")}
+                </div>
+            </div>
+            <div class="summary-ability-list">
                 ${card.abilities.map((ability, index) => `
                     <div class="summary-ability">
-                        <strong>${escapeHtml(ability.name || `Ability ${index + 1}`)}</strong>
+                        <strong>${escapeHtml(ability.name || `${formatEnumLabel(card.cardType)} Effect ${index + 1}`)}</strong>
                         <div class="card-summary-copy">${escapeHtml(ability.description || "No description yet.")}</div>
                         <div class="card-summary-copy">${escapeHtml(describeAbility(ability))}</div>
                     </div>
                 `).join("")}
             </div>
         `;
+    }
+
+    function renderDeckList() {
+        if (state.editorPage !== "DECKS") {
+            return;
+        }
+        const decks = getFilteredDecks();
+        if (decks.length === 0) {
+            refs.deckList.innerHTML = `<div class="empty-browser">No premade decks match the current search and status filter.</div>`;
+            return;
+        }
+        refs.deckList.innerHTML = decks.map((deck) => {
+            const active = deck.id === state.selectedDeckId ? " active" : "";
+            const theme = elementThemeClass(primaryDeckElement(deck));
+            const statusBadge = deck.active ? "Active" : "Inactive";
+            const counts = deckTypeCounts(deck.cardIds);
+            return `
+                <div class="card-row ${theme}${active}" data-deck-id="${escapeHtml(deck.id)}">
+                    <div class="card-row-title">
+                        <strong>${escapeHtml(deck.name || "Unnamed Deck")}</strong>
+                        <span class="summary-badge">${escapeHtml(statusBadge)} | ${deck.cardIds.length} cards</span>
+                    </div>
+                    <div class="card-meta">${escapeHtml(`${counts.sieglings} Sieglings | ${counts.spells} Spells | ${counts.traps} Traps`)}</div>
+                    <div class="card-id">${escapeHtml(deck.id || "missing-id")}</div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    function renderDeckEditor() {
+        if (state.editorPage !== "DECKS") {
+            return;
+        }
+        const deck = getSelectedDeck();
+        refs.emptyDeckState.classList.toggle("hidden", Boolean(deck));
+        refs.deckEditorContent.classList.toggle("hidden", !deck);
+        if (refs.deckEditorPanel) {
+            refs.deckEditorPanel.className = deck
+                ? `panel deck-editor-panel editor-panel ${elementThemeClass(primaryDeckElement(deck))}`
+                : "panel deck-editor-panel editor-panel el-neutral";
+        }
+        if (!deck) {
+            refs.deckCompositionList.innerHTML = "";
+            return;
+        }
+
+        populateSelect(
+            refs.deckTrainerSelect,
+            state.trainers.map((trainer) => trainer.id),
+            deck.recommendedTrainerId,
+            false,
+            Object.fromEntries(state.trainers.map((trainer) => [
+                trainer.id,
+                `${trainer.name} (${formatEnumLabel(trainer.element)})${trainer.active ? "" : " - Inactive"}`
+            ]))
+        );
+        setInputValue(refs.deckIdInput, deck.id);
+        setInputValue(refs.deckNameInput, deck.name);
+        setInputValue(refs.deckDescriptionInput, deck.description);
+        refs.deckActiveCheckbox.checked = Boolean(deck.active);
+        refs.deckSummaryChips.innerHTML = buildDeckSummaryChips(deck).map((chip) => `<span class="tag-chip">${escapeHtml(chip)}</span>`).join("");
+        refs.deckSummaryHelp.textContent = deck.usesGeneratedPreset
+            ? "This deck still mirrors the legacy generated preset list. The first composition change will convert it into an explicit premade deck."
+            : "The live game will use this exact card list whenever this premade deck is selected.";
+
+        const composition = getDeckCompositionEntries(deck);
+        if (composition.length === 0) {
+            refs.deckCompositionList.innerHTML = `<div class="validation-empty">This deck has no cards yet. Use the catalog on the right to start building it.</div>`;
+            return;
+        }
+        refs.deckCompositionList.innerHTML = composition.map((entry) => `
+            <div class="deck-card-row">
+                <div class="deck-card-main">
+                    <strong>${escapeHtml(entry.card?.name || entry.cardId)}</strong>
+                    <div class="card-meta">${escapeHtml(entry.card ? formatCardMeta(entry.card) : "Missing from the current card catalog")}</div>
+                </div>
+                <div class="deck-card-actions">
+                    <button class="btn btn-secondary" type="button" data-remove-deck-card-id="${escapeHtml(entry.cardId)}">-</button>
+                    <span class="deck-card-count">${entry.count}</span>
+                    <button class="btn btn-secondary" type="button" data-add-deck-card-id="${escapeHtml(entry.cardId)}">+</button>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    function renderDeckSummary() {
+        if (state.editorPage !== "DECKS") {
+            return;
+        }
+        const deck = getSelectedDeck();
+        if (!deck) {
+            refs.deckSummaryPanel.innerHTML = `<div class="validation-empty">Select a premade deck to review its live configuration.</div>`;
+            return;
+        }
+        const counts = deckTypeCounts(deck.cardIds);
+        const elementChips = inferDeckElements(deck.cardIds).length > 0 ? inferDeckElements(deck.cardIds) : deck.elements;
+        refs.deckSummaryPanel.innerHTML = `
+            <div class="summary-card-shell">
+                <div class="summary-top">
+                    <div>
+                        <h3>${escapeHtml(deck.name || "Unnamed Deck")}</h3>
+                        <div class="card-summary-copy">${escapeHtml(deck.id || "missing-id")}</div>
+                    </div>
+                    <span class="summary-badge">${deck.active ? "Active" : "Inactive"}</span>
+                </div>
+                <div class="stat-strip">
+                    <span class="stat-chip">${deck.cardIds.length} cards</span>
+                    <span class="stat-chip">${counts.sieglings} Sieglings</span>
+                    <span class="stat-chip">${counts.spells} Spells</span>
+                    <span class="stat-chip">${counts.traps} Traps</span>
+                </div>
+                <div class="summary-tags">
+                    ${(elementChips.length > 0
+                        ? elementChips.map((element) => `<span class="tag-chip">${escapeHtml(formatEnumLabel(element))}</span>`).join("")
+                        : `<span class="tag-chip">No element focus yet</span>`)}
+                </div>
+            </div>
+            <div class="summary-card-shell">
+                <div class="section-kicker">Description</div>
+                <div class="card-summary-copy">${escapeHtml(deck.description || "No description yet.")}</div>
+            </div>
+        `;
+    }
+
+    function renderDeckCatalog() {
+        if (state.editorPage !== "DECKS") {
+            return;
+        }
+        populateSelect(refs.deckCatalogElementFilterSelect, ["ALL", ...(state.metadata?.elements || [])], state.deckCatalogElementFilter, false, { ALL: "All Elements" });
+        const filteredCards = getFilteredDeckCatalogCards();
+        if (filteredCards.length === 0) {
+            refs.deckCatalogList.innerHTML = `<div class="empty-browser">No cards match the current deck-builder search and filters.</div>`;
+            return;
+        }
+        refs.deckCatalogList.innerHTML = filteredCards.map((card) => `
+            <div class="card-row ${elementThemeClass(card.element)}">
+                <div class="card-row-title">
+                    <strong>${escapeHtml(card.name || "Unnamed Card")}</strong>
+                    <span class="summary-badge">${escapeHtml(formatEnumLabel(card.cardType))}</span>
+                </div>
+                <div class="card-meta">${escapeHtml(formatCardMeta(card))}</div>
+                <div class="deck-catalog-row-footer">
+                    <span class="card-id">${escapeHtml(card.id || "missing-id")}</span>
+                    <button class="btn btn-secondary" type="button" data-add-catalog-card-id="${escapeHtml(card.id)}">Add</button>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    function renderDeckPreview() {
+        if (state.editorPage !== "DECKS") {
+            return;
+        }
+        const deck = getSelectedDeck();
+        refs.deckJsonPreview.value = deck ? JSON.stringify(buildExportDeck(deck), null, 2) : "";
+    }
+
+    function renderTrainerList() {
+        if (state.editorPage !== "TRAINERS") {
+            return;
+        }
+        const trainers = getFilteredTrainers();
+        if (trainers.length === 0) {
+            refs.trainerList.innerHTML = `<div class="empty-browser">No Siegeknights match the current search and status filter.</div>`;
+            return;
+        }
+        refs.trainerList.innerHTML = trainers.map((trainer) => {
+            const activeClass = trainer.id === state.selectedTrainerId ? " active" : "";
+            const statusBadge = trainer.active ? "Active" : "Inactive";
+            return `
+                <div class="card-row ${elementThemeClass(trainer.element)}${activeClass}" data-trainer-id="${escapeHtml(trainer.id)}">
+                    <div class="card-row-title">
+                        <strong>${escapeHtml(trainer.name || "Unnamed Siegeknight")}</strong>
+                        <span class="summary-badge">${escapeHtml(statusBadge)} | ${escapeHtml(trainer.tier || "Tier")}</span>
+                    </div>
+                    <div class="card-meta">${escapeHtml(`${formatEnumLabel(trainer.rarity)} | ${formatEnumLabel(trainer.element)}${trainer.oncePerGame ? " | Once Per Game" : ""}`)}</div>
+                    <div class="card-id">${escapeHtml(trainer.id || "missing-id")}</div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    function renderTrainerEditor() {
+        if (state.editorPage !== "TRAINERS") {
+            return;
+        }
+        const trainer = getSelectedTrainer();
+        refs.emptyTrainerState.classList.toggle("hidden", Boolean(trainer));
+        refs.trainerEditorContent.classList.toggle("hidden", !trainer);
+        if (!trainer) {
+            refs.trainerSummaryPanel.innerHTML = `<div class="validation-empty">Select a Siegeknight to review its live setup.</div>`;
+            refs.trainerJsonPreview.value = "";
+            return;
+        }
+
+        populateSelect(refs.trainerElementSelect, state.metadata?.elements || [], trainer.element);
+        populateSelect(refs.trainerRaritySelect, state.metadata?.rarities || [], trainer.rarity);
+
+        setInputValue(refs.trainerIdInput, trainer.id);
+        setInputValue(refs.trainerTierInput, trainer.tier);
+        setInputValue(refs.trainerNameInput, trainer.name);
+        refs.trainerActiveCheckbox.checked = Boolean(trainer.active);
+        refs.trainerOncePerGameCheckbox.checked = Boolean(trainer.oncePerGame);
+
+        renderTrainerAbilityEditor("passive", trainer.passiveAbility, {
+            nameInput: refs.trainerPassiveNameInput,
+            descriptionInput: refs.trainerPassiveDescriptionInput,
+            targetTypeSelect: refs.trainerPassiveTargetTypeSelect,
+            targetRowField: refs.trainerPassiveTargetRowField,
+            targetRowSelect: refs.trainerPassiveTargetRowSelect,
+            effectTypeSelect: refs.trainerPassiveEffectTypeSelect,
+            effectValueInput: refs.trainerPassiveEffectValueInput,
+            requiredElementSelect: refs.trainerPassiveRequiredElementSelect,
+            requiredEnergyInput: refs.trainerPassiveRequiredEnergyInput,
+            requiredReactionSelect: refs.trainerPassiveRequiredReactionSelect,
+            targetHelper: refs.trainerPassiveTargetHelper,
+            effectHelper: refs.trainerPassiveEffectHelper
+        });
+        renderTrainerAbilityEditor("active", trainer.activeAbility, {
+            nameInput: refs.trainerActiveNameInput,
+            descriptionInput: refs.trainerActiveDescriptionInput,
+            targetTypeSelect: refs.trainerActiveTargetTypeSelect,
+            targetRowField: refs.trainerActiveTargetRowField,
+            targetRowSelect: refs.trainerActiveTargetRowSelect,
+            effectTypeSelect: refs.trainerActiveEffectTypeSelect,
+            effectValueInput: refs.trainerActiveEffectValueInput,
+            requiredElementSelect: refs.trainerActiveRequiredElementSelect,
+            requiredEnergyInput: refs.trainerActiveRequiredEnergyInput,
+            requiredReactionSelect: refs.trainerActiveRequiredReactionSelect,
+            targetHelper: refs.trainerActiveTargetHelper,
+            effectHelper: refs.trainerActiveEffectHelper
+        });
+    }
+
+    function renderTrainerAbilityEditor(kind, ability, refsForAbility) {
+        populateSelect(refsForAbility.targetTypeSelect, state.metadata?.targetTypes || [], ability.targetType);
+        populateSelect(refsForAbility.targetRowSelect, state.metadata?.rows || [], ability.targetRow || firstMetaValue("rows", "FRONT"));
+        populateSelect(
+            refsForAbility.effectTypeSelect,
+            (state.metadata?.effectTypes || []).map((effect) => effect.key),
+            ability.effectType,
+            false,
+            effectLabelMap()
+        );
+        populateSelect(refsForAbility.requiredElementSelect, ["", ...(state.metadata?.elements || [])], ability.requiredElement, true);
+        populateSelect(refsForAbility.requiredReactionSelect, ["", ...(state.metadata?.reactions || [])], ability.requiredReaction, true);
+
+        setInputValue(refsForAbility.nameInput, ability.name);
+        setInputValue(refsForAbility.descriptionInput, ability.description);
+        setInputValue(refsForAbility.effectValueInput, ability.effectValue);
+        setInputValue(refsForAbility.requiredEnergyInput, ability.requiredEnergy);
+
+        const targetRule = getTargetRule(ability.targetType);
+        refsForAbility.targetRowField.classList.toggle("hidden", !targetRule.requiresRow);
+        refsForAbility.targetHelper.textContent = buildTargetHelperText(ability, targetRule);
+        refsForAbility.effectHelper.textContent = buildEffectHelperText(ability.effectType);
+    }
+
+    function renderTrainerSummary() {
+        if (state.editorPage !== "TRAINERS") {
+            return;
+        }
+        const trainer = getSelectedTrainer();
+        if (!trainer) {
+            refs.trainerSummaryPanel.innerHTML = `<div class="validation-empty">Select a Siegeknight to see its summary.</div>`;
+            return;
+        }
+        refs.trainerSummaryPanel.innerHTML = `
+            <div class="summary-card-shell">
+                <div class="summary-top">
+                    <div>
+                        <h3>${escapeHtml(trainer.name || "Unnamed Siegeknight")}</h3>
+                        <div class="card-summary-copy">${escapeHtml(trainer.id || "missing-id")}</div>
+                    </div>
+                    <span class="summary-badge">${trainer.active ? "Active" : "Inactive"}</span>
+                </div>
+                <div class="stat-strip">
+                    <span class="stat-chip">Tier: ${escapeHtml(trainer.tier || "SiegeKnight")}</span>
+                    <span class="stat-chip">Element: ${escapeHtml(formatEnumLabel(trainer.element))}</span>
+                    <span class="stat-chip">Rarity: ${escapeHtml(formatEnumLabel(trainer.rarity))}</span>
+                    <span class="stat-chip">${trainer.oncePerGame ? "Active is once per game" : "Active can be used each turn"}</span>
+                </div>
+            </div>
+            <div class="summary-ability-list">
+                <div class="summary-ability">
+                    <strong>Passive: ${escapeHtml(trainer.passiveAbility.name || "Unnamed Passive")}</strong>
+                    <div class="card-summary-copy">${escapeHtml(trainer.passiveAbility.description || "No description yet.")}</div>
+                    <div class="card-summary-copy">${escapeHtml(describeAbility(trainer.passiveAbility))}</div>
+                </div>
+                <div class="summary-ability">
+                    <strong>Active: ${escapeHtml(trainer.activeAbility.name || "Unnamed Active")}</strong>
+                    <div class="card-summary-copy">${escapeHtml(trainer.activeAbility.description || "No description yet.")}</div>
+                    <div class="card-summary-copy">${escapeHtml(describeAbility(trainer.activeAbility))}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderTrainerPreview() {
+        if (state.editorPage !== "TRAINERS") {
+            return;
+        }
+        const trainer = getSelectedTrainer();
+        refs.trainerJsonPreview.value = trainer ? JSON.stringify(buildExportTrainer(trainer), null, 2) : "";
+    }
+
+    function renderLiveElementsPanel() {
+        if (state.editorPage !== "LIVE_ELEMENTS") {
+            return;
+        }
+        if (!state.liveElements.length) {
+            state.liveElements = defaultLiveElements();
+        }
+        refs.liveElementToggles.innerHTML = state.liveElements.map((row, index) => `
+            <label class="toggle-field">
+                <input type="checkbox" data-live-element-index="${index}" ${row.active !== false ? "checked" : ""}>
+                <span>${escapeHtml(formatEnumLabel(row.element))} — ${escapeHtml(row.element)}</span>
+            </label>
+        `).join("");
+        refs.liveElementsJsonPreview.value = JSON.stringify({
+            liveElements: {
+                elements: state.liveElements.map((row) => ({
+                    element: row.element,
+                    active: row.active !== false
+                }))
+            }
+        }, null, 2);
     }
 
     function renderPreview() {
@@ -932,40 +2378,103 @@
     }
 
     function renderValidation() {
-        if (state.validation.length === 0) {
+        const cardIssues = state.validation.filter((issue) => issue.scope === "cards");
+        const deckIssues = state.validation.filter((issue) => issue.scope === "decks");
+        const trainerIssues = state.validation.filter((issue) => issue.scope === "trainers");
+
+        if (cardIssues.length === 0) {
             refs.validationList.innerHTML = `<div class="validation-empty">No validation issues right now.</div>`;
-            return;
+        } else {
+            refs.validationList.innerHTML = cardIssues.map((issue) => `
+                <div class="validation-item ${issue.severity}">
+                    <span class="validation-severity">${escapeHtml(issue.severity)}</span>
+                    <div>${escapeHtml(issue.message)}</div>
+                </div>
+            `).join("");
         }
-        refs.validationList.innerHTML = state.validation.map((issue) => `
-            <div class="validation-item ${issue.severity}">
-                <span class="validation-severity">${escapeHtml(issue.severity)}</span>
-                <div>${escapeHtml(issue.message)}</div>
-            </div>
-        `).join("");
+
+        if (deckIssues.length === 0) {
+            refs.deckValidationList.innerHTML = `<div class="validation-empty">No deck validation issues right now.</div>`;
+        } else {
+            refs.deckValidationList.innerHTML = deckIssues.map((issue) => `
+                <div class="validation-item ${issue.severity}">
+                    <span class="validation-severity">${escapeHtml(issue.severity)}</span>
+                    <div>${escapeHtml(issue.message)}</div>
+                </div>
+            `).join("");
+        }
+
+        if (trainerIssues.length === 0) {
+            refs.trainerValidationList.innerHTML = `<div class="validation-empty">No Siegeknight validation issues right now.</div>`;
+        } else {
+            refs.trainerValidationList.innerHTML = trainerIssues.map((issue) => `
+                <div class="validation-item ${issue.severity}">
+                    <span class="validation-severity">${escapeHtml(issue.severity)}</span>
+                    <div>${escapeHtml(issue.message)}</div>
+                </div>
+            `).join("");
+        }
+
+        const liveIssues = state.validation.filter((issue) => issue.scope === "liveElements");
+        if (liveIssues.length === 0) {
+            refs.liveElementValidationList.innerHTML = `<div class="validation-empty">No live roster issues.</div>`;
+        } else {
+            refs.liveElementValidationList.innerHTML = liveIssues.map((item) => `
+                <div class="validation-item ${item.severity}">
+                    <span class="validation-severity">${escapeHtml(item.severity)}</span>
+                    <div>${escapeHtml(item.message)}</div>
+                </div>
+            `).join("");
+        }
     }
 
     function renderButtons() {
         const hasCard = Boolean(getSelectedCard());
         const hasAbility = Boolean(getSelectedAbility());
+        const hasDeck = Boolean(getSelectedDeck());
+        const hasTrainer = Boolean(getSelectedTrainer());
         const hasErrors = state.validation.some((issue) => issue.severity === "error");
+        const selectedCard = getSelectedCard();
+        const canEditMultipleAbilities = selectedCard?.cardType !== "SIEGLING";
         refs.saveProjectBtn.textContent = state.liveEditingEnabled ? "Publish Live Changes" : "Save To Project File";
+        refs.newSieglingBtn.classList.toggle("hidden", state.editorPage !== "SIEGLING");
+        refs.newSpellBtn.classList.toggle("hidden", state.editorPage !== "ACTION");
+        refs.newTrapBtn.classList.toggle("hidden", state.editorPage !== "ACTION");
+        refs.newTrainerBtn.classList.toggle("hidden", state.editorPage !== "TRAINERS");
+        if (refs.deletePoolMoveBtn) {
+            const poolMove = findMoveById(state.selectedMoveId);
+            refs.deletePoolMoveBtn.disabled = state.editorPage !== "MOVES_POOL" || state.movesPoolIsNewDraft || !poolMove;
+        }
         refs.duplicateCardBtn.disabled = !hasCard;
         refs.deleteCardBtn.disabled = !hasCard;
-        refs.addAbilityBtn.disabled = !hasCard;
-        refs.duplicateAbilityBtn.disabled = !hasAbility;
-        refs.deleteAbilityBtn.disabled = !hasAbility || getSelectedCard()?.abilities.length <= 1;
-        refs.saveProjectBtn.disabled = !canSaveCurrentData() || hasErrors || !state.dirty;
+        refs.addAbilityBtn.disabled = !hasCard || !canEditMultipleAbilities;
+        refs.duplicateAbilityBtn.disabled = !hasAbility || !canEditMultipleAbilities;
+        refs.deleteAbilityBtn.disabled = !hasAbility || !canEditMultipleAbilities
+            || (getSelectedCard()?.abilities?.length ?? 0) <= 1;
+        const sieg = selectedCard?.cardType === "SIEGLING";
+        if (refs.newMoveBtn) {
+            refs.newMoveBtn.disabled = !sieg;
+        }
+        if (refs.openMovePickerBtn) {
+            refs.openMovePickerBtn.disabled = !sieg || (selectedCard?.moveIds?.length ?? 0) >= 5;
+        }
+        refs.duplicateDeckBtn.disabled = !hasDeck;
+        refs.deleteDeckBtn.disabled = !hasDeck;
+        refs.clearDeckCardsBtn.disabled = !hasDeck;
+        refs.duplicateTrainerBtn.disabled = !hasTrainer;
+        refs.saveProjectBtn.disabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
     }
 
     function renderCardIdOptions() {
         refs.cardIdOptions.innerHTML = state.cards
+            .filter((card) => card.cardType === "SIEGLING")
             .map((card) => `<option value="${escapeHtml(card.id)}">${escapeHtml(card.name)}</option>`)
             .join("");
     }
 
     function getFilteredCards() {
         const search = state.search.trim().toLowerCase();
-        return state.cards.filter((card) => {
+        return getPageCards().filter((card) => {
             const elementMatch = state.elementFilter === "ALL" || card.element === state.elementFilter;
             const searchMatch = !search
                 || card.name.toLowerCase().includes(search)
@@ -974,20 +2483,182 @@
         });
     }
 
+    function getPageCards() {
+        return state.cards.filter((card) => matchesEditorPage(card));
+    }
+
+    function matchesEditorPage(card) {
+        if (!card) {
+            return false;
+        }
+        if (state.editorPage === "SIEGLING") {
+            return card.cardType === "SIEGLING";
+        }
+        if (state.editorPage !== "ACTION") {
+            return false;
+        }
+        return card.cardType !== "SIEGLING"
+            && (state.actionTypeFilter === "ALL" || card.cardType === state.actionTypeFilter);
+    }
+
+    function getFilteredDecks() {
+        const search = state.deckSearch.trim().toLowerCase();
+        return state.decks.filter((deck) => {
+            const statusMatch = state.deckStatusFilter === "ALL"
+                || (state.deckStatusFilter === "ACTIVE" && deck.active)
+                || (state.deckStatusFilter === "INACTIVE" && !deck.active);
+            const searchMatch = !search
+                || deck.name.toLowerCase().includes(search)
+                || deck.id.toLowerCase().includes(search);
+            return statusMatch && searchMatch;
+        });
+    }
+
+    function getFilteredTrainers() {
+        const search = state.trainerSearch.trim().toLowerCase();
+        return state.trainers.filter((trainer) => {
+            const statusMatch = state.trainerStatusFilter === "ALL"
+                || (state.trainerStatusFilter === "ACTIVE" && trainer.active)
+                || (state.trainerStatusFilter === "INACTIVE" && !trainer.active);
+            const searchMatch = !search
+                || trainer.name.toLowerCase().includes(search)
+                || trainer.id.toLowerCase().includes(search);
+            return statusMatch && searchMatch;
+        });
+    }
+
+    function getFilteredDeckCatalogCards() {
+        const search = state.deckCatalogSearch.trim().toLowerCase();
+        return state.cards.filter((card) => {
+            const elementMatch = state.deckCatalogElementFilter === "ALL" || card.element === state.deckCatalogElementFilter;
+            const typeMatch = state.deckCatalogTypeFilter === "ALL" || card.cardType === state.deckCatalogTypeFilter;
+            const searchMatch = !search
+                || card.name.toLowerCase().includes(search)
+                || card.id.toLowerCase().includes(search);
+            return elementMatch && typeMatch && searchMatch;
+        });
+    }
+
     function getSelectedCard() {
         return state.cards.find((card) => card.id === state.selectedCardId) || null;
     }
 
+    function getSelectedDeck() {
+        return state.decks.find((deck) => deck.id === state.selectedDeckId) || null;
+    }
+
+    function getSelectedTrainer() {
+        return state.trainers.find((trainer) => trainer.id === state.selectedTrainerId) || null;
+    }
+
+    function getSelectedTrainerAbility(kind) {
+        const trainer = getSelectedTrainer();
+        if (!trainer) {
+            return null;
+        }
+        return kind === "active" ? trainer.activeAbility : trainer.passiveAbility;
+    }
+
     function getSelectedAbility() {
         const card = getSelectedCard();
-        if (!card || card.abilities.length === 0) {
+        if (!card || card.cardType === "SIEGLING") {
+            return null;
+        }
+        if (card.abilities.length === 0) {
             return null;
         }
         state.selectedAbilityIndex = Math.max(0, Math.min(state.selectedAbilityIndex, card.abilities.length - 1));
         return card.abilities[state.selectedAbilityIndex];
     }
 
-    function validateCards() {
+    function findCardById(cardId) {
+        return state.cards.find((card) => card.id === cardId) || null;
+    }
+
+    function findTrainerById(trainerId) {
+        return state.trainers.find((trainer) => trainer.id === trainerId) || null;
+    }
+
+    function countsById(cardIds) {
+        return (cardIds || []).reduce((counts, cardId) => {
+            counts[cardId] = (counts[cardId] || 0) + 1;
+            return counts;
+        }, {});
+    }
+
+    function getDeckCompositionEntries(deck) {
+        return Object.entries(countsById(deck?.cardIds || []))
+            .map(([cardId, count]) => ({
+                cardId,
+                count,
+                card: findCardById(cardId)
+            }))
+            .sort((left, right) => {
+                const leftName = left.card?.name || left.cardId;
+                const rightName = right.card?.name || right.cardId;
+                return leftName.localeCompare(rightName);
+            });
+    }
+
+    function deckTypeCounts(cardIds) {
+        return (cardIds || []).reduce((counts, cardId) => {
+            const card = findCardById(cardId);
+            if (!card) {
+                return counts;
+            }
+            if (card.cardType === "SIEGLING") {
+                counts.sieglings += 1;
+            } else if (card.cardType === "SPELL") {
+                counts.spells += 1;
+            } else if (card.cardType === "TRAP") {
+                counts.traps += 1;
+            }
+            return counts;
+        }, { sieglings: 0, spells: 0, traps: 0 });
+    }
+
+    function inferDeckElements(cardIds) {
+        return Array.from(new Set((cardIds || [])
+            .map((cardId) => findCardById(cardId)?.element || "")
+            .filter((element) => element && element !== "NEUTRAL")));
+    }
+
+    /** First element for theming: inferred from cards, then stored deck.elements, then recommended trainer. */
+    function primaryDeckElement(deck) {
+        if (!deck) {
+            return "NEUTRAL";
+        }
+        const inferred = inferDeckElements(deck.cardIds);
+        if (inferred.length > 0) {
+            return inferred[0];
+        }
+        const stored = Array.isArray(deck.elements) ? deck.elements.filter(Boolean) : [];
+        if (stored.length > 0) {
+            return stored[0];
+        }
+        if (deck.recommendedTrainerId) {
+            const tr = findTrainerById(deck.recommendedTrainerId);
+            if (tr?.element) {
+                return tr.element;
+            }
+        }
+        return "NEUTRAL";
+    }
+
+    function buildDeckSummaryChips(deck) {
+        const counts = deckTypeCounts(deck.cardIds);
+        const elements = inferDeckElements(deck.cardIds).length > 0 ? inferDeckElements(deck.cardIds) : deck.elements;
+        return [
+            deck.active ? "Active in loadout" : "Hidden from loadout",
+            `${deck.cardIds.length} cards`,
+            `${counts.sieglings} Sieglings`,
+            `${counts.spells} Spells`,
+            `${counts.traps} Traps`,
+            elements.length > 0 ? elements.map(formatEnumLabel).join(" / ") : "No element focus"
+        ];
+    }
+
+    function validateDashboard() {
         const issues = [];
         const ids = new Map();
         state.cards.forEach((card) => {
@@ -1006,51 +2677,110 @@
             if (!card.rarity) {
                 issues.push(issue("error", `${trimmedId || card.name || "A card"} is missing a rarity.`));
             }
-            if (card.health <= 0) {
-                issues.push(issue("error", `${trimmedId || card.name || "A card"} must have health above 0.`));
+            if (card.cardType === "SIEGLING") {
+                if (card.health <= 0) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A card"} must have health above 0.`));
+                }
+                if (card.speed < 0) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A card"} cannot have negative speed.`));
+                }
+                if (card.notches.length === 0) {
+                    issues.push(issue("warn", `${trimmedId || card.name || "A card"} has no notches yet.`));
+                }
+                if (card.evolvesFromId.trim() && card.costAmount <= 0) {
+                    issues.push(issue("warn", `${trimmedId || card.name || "A card"} evolves from another card but has no cost amount.`));
+                }
+                if (card.costAmount > 0 && !card.costElement) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A card"} needs a cost element when cost amount is above 0.`));
+                }
+                const mids = card.moveIds || [];
+                if (mids.length === 0) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} needs at least one move id from the shared moves pool.`));
+                }
+                const seenMid = new Set();
+                mids.forEach((mid) => {
+                    if (seenMid.has(mid)) {
+                        issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} lists move "${mid}" more than once.`));
+                    }
+                    seenMid.add(mid);
+                    if (!findMoveById(mid)) {
+                        issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} references unknown move id "${mid}".`));
+                    }
+                });
+            } else if (card.cardType === "SPELL") {
+                if (card.costAmount > 0 && !card.costElement) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A spell"} needs a play cost element when cost amount is above 0.`));
+                }
+                if (card.requiredComboSize < 0) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A spell"} cannot have a negative combo size.`));
+                }
+                if (card.requiredComboSize > 0 && !card.requiredComboSignature.trim()) {
+                    issues.push(issue("warn", `${trimmedId || card.name || "A spell"} has a combo size but no combo signature.`));
+                }
+            } else if (card.cardType === "TRAP") {
+                if (card.trapBucketAmount <= 0) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A trap"} needs a trigger amount above 0.`));
+                }
+                if (!card.trapBucketElement) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A trap"} needs a trigger element.`));
+                }
             }
-            if (card.speed < 0) {
-                issues.push(issue("error", `${trimmedId || card.name || "A card"} cannot have negative speed.`));
+            if (card.cardType !== "SIEGLING") {
+                if (!card.abilities.length) {
+                    issues.push(issue("error", `${trimmedId || card.name || "A card"} needs at least one ability.`));
+                }
+                if (card.abilities.length !== 1) {
+                    issues.push(issue("error", `${trimmedId || card.name || "An action card"} must have exactly one effect ability.`));
+                }
+                card.abilities.forEach((ability, index) => {
+                    const label = `${trimmedId || card.name || "A card"} ability ${index + 1}`;
+                    if (!ability.name.trim()) {
+                        issues.push(issue("error", `${label} is missing a name.`));
+                    }
+                    if (!ability.description.trim()) {
+                        issues.push(issue("warn", `${label} has no description yet.`));
+                    }
+                    if (!ability.targetType) {
+                        issues.push(issue("error", `${label} is missing a target type.`));
+                    }
+                    if (getTargetRule(ability.targetType).requiresRow && !ability.targetRow) {
+                        issues.push(issue("error", `${label} needs a target row because it targets a row.`));
+                    }
+                    if (!ability.effectType) {
+                        issues.push(issue("error", `${label} is missing an effect type.`));
+                    }
+                    if (!effectByKey()[ability.effectType]) {
+                        issues.push(issue("error", `${label} uses unsupported effect type ${ability.effectType}.`));
+                    }
+                    if (ability.requiredEnergy < 0) {
+                        issues.push(issue("error", `${label} cannot require negative energy.`));
+                    }
+                    if (ability.requiredEnergy > 0 && !ability.requiredElement && !ability.requiredReaction) {
+                        issues.push(issue("warn", `${label} spends energy but has no required element or reaction set.`));
+                    }
+                });
             }
-            if (card.notches.length === 0) {
-                issues.push(issue("warn", `${trimmedId || card.name || "A card"} has no notches yet.`));
+        });
+
+        const poolIdCounts = new Map();
+        (state.movesPool || []).forEach((m) => {
+            const moveId = String(m?.id || "").trim();
+            if (!moveId) {
+                issues.push(issue("error", "A move in the shared pool is missing an id."));
+                return;
             }
-            if (card.evolvesFromId.trim() && card.costAmount <= 0) {
-                issues.push(issue("warn", `${trimmedId || card.name || "A card"} evolves from another card but has no cost amount.`));
+            poolIdCounts.set(moveId, (poolIdCounts.get(moveId) || 0) + 1);
+            if (!String(m.name || "").trim()) {
+                issues.push(issue("error", `Move '${moveId}' needs a name.`));
             }
-            if (card.costAmount > 0 && !card.costElement) {
-                issues.push(issue("error", `${trimmedId || card.name || "A card"} needs a cost element when cost amount is above 0.`));
+            if (m.effectType && !effectByKey()[m.effectType]) {
+                issues.push(issue("error", `Move '${moveId}' uses unsupported effect type ${m.effectType}.`));
             }
-            if (!card.abilities.length) {
-                issues.push(issue("error", `${trimmedId || card.name || "A card"} needs at least one ability.`));
+        });
+        poolIdCounts.forEach((count, moveId) => {
+            if (count > 1) {
+                issues.push(issue("error", `Move id '${moveId}' is duplicated ${count} times in the moves pool.`));
             }
-            card.abilities.forEach((ability, index) => {
-                const label = `${trimmedId || card.name || "A card"} ability ${index + 1}`;
-                if (!ability.name.trim()) {
-                    issues.push(issue("error", `${label} is missing a name.`));
-                }
-                if (!ability.description.trim()) {
-                    issues.push(issue("warn", `${label} has no description yet.`));
-                }
-                if (!ability.targetType) {
-                    issues.push(issue("error", `${label} is missing a target type.`));
-                }
-                if (getTargetRule(ability.targetType).requiresRow && !ability.targetRow) {
-                    issues.push(issue("error", `${label} needs a target row because it targets a row.`));
-                }
-                if (!ability.effectType) {
-                    issues.push(issue("error", `${label} is missing an effect type.`));
-                }
-                if (!effectByKey()[ability.effectType]) {
-                    issues.push(issue("error", `${label} uses unsupported effect type ${ability.effectType}.`));
-                }
-                if (ability.requiredEnergy < 0) {
-                    issues.push(issue("error", `${label} cannot require negative energy.`));
-                }
-                if (ability.requiredEnergy > 0 && !ability.requiredElement && !ability.requiredReaction) {
-                    issues.push(issue("warn", `${label} spends energy but has no required element or reaction set.`));
-                }
-            });
         });
 
         ids.forEach((count, id) => {
@@ -1058,17 +2788,209 @@
                 issues.push(issue("error", `Card id '${id}' is duplicated ${count} times.`));
             }
         });
+
+        const trainerIds = new Map();
+        const activeTrainers = state.trainers.filter((trainer) => trainer.active);
+        state.trainers.forEach((trainer) => {
+            const trimmedId = trainer.id.trim();
+            if (!trimmedId) {
+                issues.push(issue("error", `${trainer.name || "A Siegeknight"} is missing an id.`, "trainers"));
+            } else {
+                trainerIds.set(trimmedId, (trainerIds.get(trimmedId) || 0) + 1);
+            }
+            if (!trainer.name.trim()) {
+                issues.push(issue("error", `${trimmedId || "A Siegeknight"} is missing a name.`, "trainers"));
+            }
+            if (!trainer.element) {
+                issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} is missing an element.`, "trainers"));
+            }
+            if (!trainer.rarity) {
+                issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} is missing a rarity.`, "trainers"));
+            }
+            if (!trainer.tier.trim()) {
+                issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} is missing a tier.`, "trainers"));
+            }
+            [
+                { label: "passive", ability: trainer.passiveAbility, shouldBePassive: true },
+                { label: "active", ability: trainer.activeAbility, shouldBePassive: false }
+            ].forEach(({ label, ability, shouldBePassive }) => {
+                if (!ability) {
+                    issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} needs a ${label} ability.`, "trainers"));
+                    return;
+                }
+                if (!ability.name.trim()) {
+                    issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} ${label} ability is missing a name.`, "trainers"));
+                }
+                if (!ability.description.trim()) {
+                    issues.push(issue("warn", `${trimmedId || trainer.name || "A Siegeknight"} ${label} ability has no description yet.`, "trainers"));
+                }
+                if (!ability.targetType) {
+                    issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} ${label} ability needs a target type.`, "trainers"));
+                }
+                if (getTargetRule(ability.targetType).requiresRow && !ability.targetRow) {
+                    issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} ${label} ability needs a target row.`, "trainers"));
+                }
+                if (!ability.effectType) {
+                    issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} ${label} ability needs an effect type.`, "trainers"));
+                }
+                if (!effectByKey()[ability.effectType]) {
+                    issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} ${label} ability uses unsupported effect type ${ability.effectType}.`, "trainers"));
+                }
+                if (ability.requiredEnergy < 0) {
+                    issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} ${label} ability cannot require negative energy.`, "trainers"));
+                }
+                if (Boolean(ability.passive) !== shouldBePassive) {
+                    issues.push(issue("error", `${trimmedId || trainer.name || "A Siegeknight"} ${label} ability has the wrong passive flag.`, "trainers"));
+                }
+            });
+        });
+
+        trainerIds.forEach((count, id) => {
+            if (count > 1) {
+                issues.push(issue("error", `Siegeknight id '${id}' is duplicated ${count} times.`, "trainers"));
+            }
+        });
+        if (state.trainers.length > 0 && activeTrainers.length === 0) {
+            issues.push(issue("error", "Keep at least one Siegeknight active so the live game has a selectable leader.", "trainers"));
+        }
+
+        const deckIds = new Map();
+        const activeDecks = state.decks.filter((deck) => deck.active);
+        state.decks.forEach((deck) => {
+            const trimmedId = deck.id.trim();
+            if (!trimmedId) {
+                issues.push(issue("error", `${deck.name || "A premade deck"} is missing an id.`, "decks"));
+            } else {
+                deckIds.set(trimmedId, (deckIds.get(trimmedId) || 0) + 1);
+            }
+            if (!deck.name.trim()) {
+                issues.push(issue("error", `${trimmedId || "A premade deck"} is missing a name.`, "decks"));
+            }
+            if (!deck.recommendedTrainerId) {
+                issues.push(issue("error", `${trimmedId || deck.name || "A premade deck"} needs a recommended trainer.`, "decks"));
+            } else if (!findTrainerById(deck.recommendedTrainerId)) {
+                issues.push(issue("error", `${trimmedId || deck.name || "A premade deck"} uses unknown recommended trainer '${deck.recommendedTrainerId}'.`, "decks"));
+            } else if (deck.active && !findTrainerById(deck.recommendedTrainerId)?.active) {
+                issues.push(issue("error", `${trimmedId || deck.name || "A premade deck"} is active but points at an inactive recommended Siegeknight.`, "decks"));
+            }
+            const counts = countsById(deck.cardIds);
+            Object.entries(counts).forEach(([cardId, count]) => {
+                if (!findCardById(cardId)) {
+                    issues.push(issue("error", `${trimmedId || deck.name || "A premade deck"} contains unknown card id '${cardId}'.`, "decks"));
+                }
+                if (count > (state.metadata?.deckRules?.maxCopies || 3)) {
+                    issues.push(issue("error", `${trimmedId || deck.name || "A premade deck"} uses ${count} copies of '${cardId}', above the live max copy limit.`, "decks"));
+                }
+            });
+            if (deck.active && deck.cardIds.length < (state.metadata?.deckRules?.minDeckSize || 30)) {
+                issues.push(issue("error", `${trimmedId || deck.name || "A premade deck"} is active but has fewer than ${state.metadata?.deckRules?.minDeckSize || 30} cards.`, "decks"));
+            }
+            if (deck.active && deck.cardIds.length > 0) {
+                const inferredElements = inferDeckElements(deck.cardIds);
+                if (inferredElements.length === 0) {
+                    issues.push(issue("warn", `${trimmedId || deck.name || "A premade deck"} is active but has no elemental identity yet.`, "decks"));
+                }
+            }
+            if (!deck.active && deck.cardIds.length === 0) {
+                issues.push(issue("warn", `${trimmedId || deck.name || "A premade deck"} is inactive and still empty.`, "decks"));
+            }
+        });
+
+        deckIds.forEach((count, id) => {
+            if (count > 1) {
+                issues.push(issue("error", `Premade deck id '${id}' is duplicated ${count} times.`, "decks"));
+            }
+        });
+        if (state.decks.length > 0 && activeDecks.length === 0) {
+            issues.push(issue("error", "Keep at least one premade deck active so the live game has a preset option.", "decks"));
+        }
+
+        const liveNames = new Set(state.liveElements.filter((row) => row.active !== false).map((row) => row.element));
+        const activeLiveCount = liveNames.size;
+        if (activeLiveCount === 0) {
+            issues.push(issue("error", "Keep at least one live element active for the game.", "liveElements"));
+        }
+        state.decks.forEach((deck) => {
+            if (!deck.active) {
+                return;
+            }
+            (deck.elements || []).forEach((el) => {
+                if (el && !liveNames.has(el)) {
+                    issues.push(issue("error", `Active premade deck '${deck.id.trim() || deck.name}' uses element ${el}, which is off in Live Elements.`, "decks"));
+                }
+            });
+        });
+        state.trainers.forEach((trainer) => {
+            if (!trainer.active || !trainer.element) {
+                return;
+            }
+            if (!liveNames.has(trainer.element)) {
+                issues.push(issue("error", `Active Siegeknight '${trainer.id.trim() || trainer.name}' uses element ${trainer.element}, which is off in Live Elements.`, "trainers"));
+            }
+        });
+
         return issues;
     }
 
     function buildExportData() {
         return {
-            cards: state.cards.map((card) => buildExportCard(card))
+            cards: state.cards.map((card) => buildExportCard(card)),
+            moves: state.movesPool.map((m) => buildExportMove(m)),
+            decks: state.decks.map((deck) => buildExportDeck(deck)),
+            trainers: state.trainers.map((trainer) => buildExportTrainer(trainer)),
+            liveElements: {
+                elements: state.liveElements.map((row) => ({
+                    element: row.element,
+                    active: row.active !== false
+                }))
+            }
         };
     }
 
     function buildExportCard(card) {
+        if (card.cardType === "SPELL") {
+            const exportedSpell = {
+                type: "SPELL",
+                id: card.id.trim(),
+                name: card.name.trim(),
+                element: card.element,
+                rarity: card.rarity,
+                ability: buildExportAbility(card.abilities[0] || createBlankAbility(card.element))
+            };
+            if (card.costAmount > 0) {
+                exportedSpell.costElement = card.costElement || card.element;
+                exportedSpell.costAmount = toNumber(card.costAmount, 0);
+            }
+            if (card.requiredReaction) {
+                exportedSpell.requiredReaction = card.requiredReaction;
+            }
+            if (card.requiredComboSize > 0) {
+                exportedSpell.requiredComboSize = toNumber(card.requiredComboSize, 0);
+            }
+            if (card.requiredComboSignature.trim()) {
+                exportedSpell.requiredComboSignature = card.requiredComboSignature.trim().toUpperCase();
+            }
+            return exportedSpell;
+        }
+
+        if (card.cardType === "TRAP") {
+            const exportedTrap = {
+                type: "TRAP",
+                id: card.id.trim(),
+                name: card.name.trim(),
+                element: card.element,
+                rarity: card.rarity,
+                ability: buildExportAbility(card.abilities[0] || createBlankAbility(card.element))
+            };
+            if (card.trapBucketAmount > 0) {
+                exportedTrap.trapBucketElement = card.trapBucketElement || card.element;
+                exportedTrap.trapBucketAmount = toNumber(card.trapBucketAmount, 0);
+            }
+            return exportedTrap;
+        }
+
         const exported = {
+            type: "SIEGLING",
             id: card.id.trim(),
             name: card.name.trim(),
             element: card.element,
@@ -1080,7 +3002,7 @@
                 element: notch.element || card.element
             })),
             preferredRow: card.preferredRow,
-            abilities: card.abilities.map((ability) => buildExportAbility(ability))
+            moveIds: (card.moveIds || []).map((id) => String(id || "").trim()).filter(Boolean).slice(0, 5)
         };
 
         if (card.evolvesFromId.trim()) {
@@ -1092,6 +3014,32 @@
         }
 
         return exported;
+    }
+
+    function buildExportDeck(deck) {
+        return {
+            id: deck.id.trim(),
+            name: deck.name.trim(),
+            description: deck.description.trim(),
+            elements: inferDeckElements(deck.cardIds).length > 0 ? inferDeckElements(deck.cardIds) : deck.elements,
+            recommendedTrainerId: deck.recommendedTrainerId,
+            active: Boolean(deck.active),
+            cardIds: deck.cardIds.map((cardId) => String(cardId || "").trim()).filter(Boolean)
+        };
+    }
+
+    function buildExportTrainer(trainer) {
+        return {
+            id: trainer.id.trim(),
+            name: trainer.name.trim(),
+            element: trainer.element,
+            rarity: trainer.rarity,
+            tier: trainer.tier.trim(),
+            active: Boolean(trainer.active),
+            oncePerGame: Boolean(trainer.oncePerGame),
+            passiveAbility: { ...buildExportAbility(trainer.passiveAbility || createBlankTrainerPassiveAbility(trainer.element)), passive: true },
+            activeAbility: { ...buildExportAbility(trainer.activeAbility || createBlankTrainerActiveAbility(trainer.element)), passive: false }
+        };
     }
 
     function buildExportAbility(ability) {
@@ -1201,6 +3149,43 @@
         return effectLabelMap()[key] || formatEnumLabel(key || "");
     }
 
+    function formatCardMeta(card) {
+        if (card.cardType === "SPELL") {
+            const details = [
+                formatEnumLabel(card.rarity),
+                card.requiredComboSize > 0
+                    ? `Combo ${card.requiredComboSize}${card.requiredComboSignature ? ` ${card.requiredComboSignature}` : ""}`
+                    : `Cost ${card.costAmount || 0} ${formatEnumLabel(card.costElement || card.element)}`
+            ];
+            if (card.requiredReaction) {
+                details.push(`Needs ${formatEnumLabel(card.requiredReaction)}`);
+            }
+            return details.join(" | ");
+        }
+        if (card.cardType === "TRAP") {
+            return [
+                formatEnumLabel(card.rarity),
+                `Trigger ${card.trapBucketAmount || 0} ${formatEnumLabel(card.trapBucketElement || card.element)}`,
+                `${card.abilities.length} effect`
+            ].join(" | ");
+        }
+        if (card.cardType === "SIEGLING") {
+            const n = (card.moveIds || []).length;
+            return [
+                formatEnumLabel(card.rarity),
+                `${n} move${n === 1 ? "" : "s"}`,
+                `HP ${card.health}`,
+                `SPD ${card.speed}`
+            ].join(" | ");
+        }
+        return [
+            formatEnumLabel(card.rarity),
+            `${card.abilities.length} ${card.abilities.length === 1 ? "ability" : "abilities"}`,
+            `HP ${card.health}`,
+            `SPD ${card.speed}`
+        ].join(" | ");
+    }
+
     function buildOptionMarkup(values, currentValue, customLabels) {
         return values.map((value) => {
             const selected = value === currentValue ? " selected" : "";
@@ -1251,13 +3236,39 @@
         return candidate;
     }
 
+    function createUniqueDeckId(base) {
+        const slugBase = slugify(base || "deck");
+        let candidate = slugBase;
+        let counter = 2;
+        const existingIds = new Set(state.decks.map((deck) => deck.id));
+        while (existingIds.has(candidate)) {
+            candidate = `${slugBase}-${counter}`;
+            counter += 1;
+        }
+        return candidate;
+    }
+
+    function createUniqueTrainerId(base) {
+        const slugBase = slugify(base || "siegeknight");
+        let candidate = slugBase;
+        let counter = 2;
+        const existingIds = new Set(state.trainers.map((trainer) => trainer.id));
+        while (existingIds.has(candidate)) {
+            candidate = `${slugBase}-${counter}`;
+            counter += 1;
+        }
+        return candidate;
+    }
+
     function elementThemeClass(element) {
         const token = String(element || "NEUTRAL").trim().toLowerCase();
         return `el-${token || "neutral"}`;
     }
 
     function applyServerPayload(payload) {
-        state.metadata = payload.metadata || state.metadata;
+        state.metadata = payload.metadata
+            ? { cardTypes: ["SIEGLING", "SPELL", "TRAP"], trainers: [], deckRules: {}, ...payload.metadata }
+            : state.metadata;
         state.filePath = payload.filePath || "";
         state.source = payload.source || "PROJECT_FILE";
         state.canSaveToProjectFile = Boolean(payload.canSaveToProjectFile);
@@ -1294,15 +3305,15 @@
         if (state.liveEditingEnabled) {
             return state.auth?.authenticated
                 ? "Your account cannot publish live changes right now."
-                : "Sign in to publish live card data from this dashboard.";
+                : "Sign in to publish live card, Siegeknight, premade deck, and live element data from this dashboard.";
         }
         return "This runtime cannot write to the project file. Download the JSON instead.";
     }
 
     function buildLoadedMessage() {
         return state.liveEditingEnabled
-            ? "Loaded the live Firestore card data into the dashboard."
-            : "Loaded the current override file into the dashboard.";
+            ? "Loaded the live Firestore card, Siegeknight, premade deck, live element roster, and shared abilities into the dashboard."
+            : "Loaded the current card, Siegeknight, premade deck, live element roster, and shared abilities into the dashboard.";
     }
 
     function buildStatusPathText() {
@@ -1392,8 +3403,8 @@
         state.status = { message, tone };
     }
 
-    function issue(severity, message) {
-        return { severity, message };
+    function issue(severity, message, scope = "cards") {
+        return { severity, message, scope };
     }
 
     function toNumber(value, fallback) {
@@ -1439,6 +3450,970 @@
             default:
                 return direction;
         }
+    }
+
+    function findMoveById(id) {
+        const key = String(id || "").trim();
+        if (!key) {
+            return null;
+        }
+        return state.movesPool.find((m) => m.id === key) || null;
+    }
+
+    function normalizeMoveFromServer(raw) {
+        if (!raw || typeof raw !== "object") {
+            return null;
+        }
+        const id = String(raw.id || "").trim();
+        if (!id) {
+            return null;
+        }
+        const targetType = String(raw.targetType || "SINGLE_ENEMY").trim();
+        const rule = getTargetRule(targetType);
+        const passiveFlag = Boolean(raw.isPassive) || targetType === "PASSIVE";
+        const targetRow = raw.targetRow != null && String(raw.targetRow).trim()
+            ? String(raw.targetRow).trim()
+            : (rule.requiresRow ? firstMetaValue("rows", "FRONT") : "");
+        const targetCount = raw.targetCount != null && raw.targetCount !== ""
+            ? toNumber(raw.targetCount, 0)
+            : rule.fixedTargetCount;
+        let energyCost = Math.max(0, Math.min(6, toNumber(raw.energyCost, 0)));
+        if (passiveFlag || targetType === "PASSIVE") {
+            energyCost = 0;
+        }
+        return {
+            id,
+            name: String(raw.name || "").trim() || "Unnamed Move",
+            element: String(raw.element || firstMetaValue("elements", "FIRE")).trim(),
+            category: String(raw.category || "STANDARD").trim(),
+            targetType,
+            targetElement: raw.targetElement ? String(raw.targetElement).trim() : "",
+            targetRow,
+            targetCount,
+            effectType: String(raw.effectType || firstEffectKey()).trim(),
+            effectValue: toNumber(raw.effectValue, 0),
+            energyCost,
+            description: String(raw.description || ""),
+            isPassive: passiveFlag,
+            requiredElement: raw.requiredElement ? String(raw.requiredElement).trim() : "",
+            requiredReaction: raw.requiredReaction ? String(raw.requiredReaction).trim() : ""
+        };
+    }
+
+    function buildExportMove(m) {
+        const rule = getTargetRule(m.targetType);
+        const rawTargetElement = m.targetElement != null ? String(m.targetElement).trim() : "";
+        const exportTargetElement = rawTargetElement && rawTargetElement !== "ALL" ? rawTargetElement : null;
+        return {
+            id: m.id.trim(),
+            name: m.name.trim(),
+            element: m.element,
+            category: m.category || "STANDARD",
+            targetType: m.targetType,
+            targetElement: exportTargetElement,
+            targetRow: m.targetRow && String(m.targetRow).trim() ? m.targetRow : null,
+            targetCount: m.targetCount != null ? toNumber(m.targetCount, rule.fixedTargetCount) : rule.fixedTargetCount,
+            effectType: m.effectType,
+            effectValue: toNumber(m.effectValue, 0),
+            energyCost: toNumber(m.energyCost, 0),
+            description: String(m.description || ""),
+            isPassive: Boolean(m.isPassive) || m.targetType === "PASSIVE",
+            requiredElement: m.requiredElement ? String(m.requiredElement).trim() : null,
+            requiredReaction: m.requiredReaction ? String(m.requiredReaction).trim() : null
+        };
+    }
+
+    function describeMove(move) {
+        const passive = Boolean(move.isPassive) || move.targetType === "PASSIVE";
+        const pieces = [
+            passive ? "Passive" : "Activated",
+            `${effectLabel(move.effectType)} -> ${formatEnumLabel(move.targetType)}`
+        ];
+        if (!passive && move.energyCost > 0) {
+            if (move.requiredElement) {
+                pieces.push(`Cost ${move.energyCost} ${formatEnumLabel(move.requiredElement)}`);
+            } else if (move.requiredReaction) {
+                pieces.push(`Needs ${move.requiredReaction}`);
+            } else {
+                pieces.push(`Energy ${move.energyCost}`);
+            }
+        }
+        return pieces.join(" · ");
+    }
+
+    function createBlankMoveFromElement(element) {
+        const tt = "SINGLE_ENEMY";
+        const rule = getTargetRule(tt);
+        return normalizeMoveFromServer({
+            id: "temp",
+            name: "New Move",
+            element: element || firstMetaValue("elements", "FIRE"),
+            category: "STANDARD",
+            targetType: tt,
+            targetElement: null,
+            targetRow: rule.requiresRow ? firstMetaValue("rows", "FRONT") : null,
+            targetCount: rule.fixedTargetCount,
+            effectType: firstEffectKey(),
+            effectValue: 0,
+            energyCost: 0,
+            description: "",
+            isPassive: false,
+            requiredElement: null,
+            requiredReaction: null
+        });
+    }
+
+    function createUniqueMoveId(base) {
+        let candidate = slugify(base) || "move";
+        if (!findMoveById(candidate)) {
+            return candidate;
+        }
+        let n = 2;
+        while (findMoveById(`${candidate}-${n}`)) {
+            n += 1;
+        }
+        return `${candidate}-${n}`;
+    }
+
+    function hideMoveDraft() {
+        state.moveDraftSourceId = null;
+        state.moveDraftEditingOriginalId = null;
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "none";
+        }
+    }
+
+    function onCancelMoveDraft() {
+        if (state.editorPage === "MOVES_POOL") {
+            state.movesPoolIsNewDraft = false;
+            state.selectedMoveId = state.movesPool[0]?.id || null;
+            state.moveDraftEditingOriginalId = null;
+            state.movesPoolFormEpoch += 1;
+            renderAll();
+            return;
+        }
+        hideMoveDraft();
+    }
+
+    function mountMoveDraftPanel(targetHost) {
+        if (!refs.moveDraftPanel || !targetHost) {
+            return;
+        }
+        if (refs.moveDraftPanel.parentElement !== targetHost) {
+            targetHost.appendChild(refs.moveDraftPanel);
+        }
+    }
+
+    function getSieglingsUsingMoveId(moveId) {
+        const key = String(moveId || "").trim();
+        if (!key) {
+            return [];
+        }
+        return state.cards.filter((card) => {
+            if (card.cardType !== "SIEGLING") {
+                return false;
+            }
+            return (card.moveIds || []).some((id) => String(id || "").trim() === key);
+        });
+    }
+
+    function migrateMoveIdOnAllCards(oldId, newId) {
+        const o = String(oldId || "").trim();
+        const n = String(newId || "").trim();
+        if (!o || !n || o === n) {
+            return;
+        }
+        state.cards.forEach((card) => {
+            if (card.cardType !== "SIEGLING" || !Array.isArray(card.moveIds)) {
+                return;
+            }
+            card.moveIds = card.moveIds.map((id) => (String(id || "").trim() === o ? n : id));
+        });
+    }
+
+    function isMovePassiveForFilter(m) {
+        return Boolean(m?.isPassive) || m?.targetType === "PASSIVE";
+    }
+
+    function moveEffectiveEnergyForFilter(m) {
+        return isMovePassiveForFilter(m) ? 0 : toNumber(m?.energyCost, 0);
+    }
+
+    function compareMovesPoolSort(a, b, sortKey) {
+        const enA = moveEffectiveEnergyForFilter(a);
+        const enB = moveEffectiveEnergyForFilter(b);
+        switch (sortKey) {
+            case "name-desc":
+                return b.name.localeCompare(a.name) || a.id.localeCompare(b.id);
+            case "element-asc":
+                return a.element.localeCompare(b.element) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "category-asc":
+                return String(a.category || "").localeCompare(String(b.category || "")) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "target-asc":
+                return String(a.targetType || "").localeCompare(String(b.targetType || "")) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "energy-asc":
+                if (enA !== enB) {
+                    return enA - enB;
+                }
+                return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "energy-desc":
+                if (enA !== enB) {
+                    return enB - enA;
+                }
+                return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+            case "name-asc":
+            default:
+                return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+        }
+    }
+
+    function syncMovesPoolFilterUi() {
+        if (state.editorPage !== "MOVES_POOL" || !refs.movesPoolElementFilter) {
+            return;
+        }
+        const elements = state.metadata?.elements || [];
+        const categories = state.metadata?.moveCategories || ["STANDARD", "SPECIALITY", "UTILITY"];
+        const targets = state.metadata?.targetTypes || [];
+
+        const optsHtml = (allLabel, values, formatLabel) => {
+            const rows = [`<option value="ALL">${escapeHtml(allLabel)}</option>`];
+            values.forEach((v) => {
+                rows.push(`<option value="${escapeHtml(v)}">${escapeHtml(formatLabel(v))}</option>`);
+            });
+            return rows.join("");
+        };
+
+        const elHtml = optsHtml("All elements", elements, formatEnumLabel);
+        if (refs.movesPoolElementFilter.dataset.opts !== elHtml) {
+            refs.movesPoolElementFilter.dataset.opts = elHtml;
+            refs.movesPoolElementFilter.innerHTML = elHtml;
+        }
+        refs.movesPoolElementFilter.value = state.movesPoolFilterElement;
+        if (refs.movesPoolElementFilter.value !== state.movesPoolFilterElement) {
+            state.movesPoolFilterElement = "ALL";
+            refs.movesPoolElementFilter.value = "ALL";
+        }
+
+        if (refs.movesPoolCategoryFilter) {
+            const catHtml = optsHtml("All categories", categories, formatEnumLabel);
+            if (refs.movesPoolCategoryFilter.dataset.opts !== catHtml) {
+                refs.movesPoolCategoryFilter.dataset.opts = catHtml;
+                refs.movesPoolCategoryFilter.innerHTML = catHtml;
+            }
+            refs.movesPoolCategoryFilter.value = state.movesPoolFilterCategory;
+            if (refs.movesPoolCategoryFilter.value !== state.movesPoolFilterCategory) {
+                state.movesPoolFilterCategory = "ALL";
+                refs.movesPoolCategoryFilter.value = "ALL";
+            }
+        }
+
+        if (refs.movesPoolTargetFilter) {
+            const tgtHtml = optsHtml("All targets", targets, formatEnumLabel);
+            if (refs.movesPoolTargetFilter.dataset.opts !== tgtHtml) {
+                refs.movesPoolTargetFilter.dataset.opts = tgtHtml;
+                refs.movesPoolTargetFilter.innerHTML = tgtHtml;
+            }
+            refs.movesPoolTargetFilter.value = state.movesPoolFilterTarget;
+            if (refs.movesPoolTargetFilter.value !== state.movesPoolFilterTarget) {
+                state.movesPoolFilterTarget = "ALL";
+                refs.movesPoolTargetFilter.value = "ALL";
+            }
+        }
+
+        if (refs.movesPoolActivationFilter) {
+            refs.movesPoolActivationFilter.value = state.movesPoolFilterActivation;
+            if (refs.movesPoolActivationFilter.value !== state.movesPoolFilterActivation) {
+                state.movesPoolFilterActivation = "ALL";
+                refs.movesPoolActivationFilter.value = "ALL";
+            }
+        }
+        if (refs.movesPoolEnergyFilter) {
+            refs.movesPoolEnergyFilter.value = state.movesPoolFilterEnergy;
+            if (!refs.movesPoolEnergyFilter.value) {
+                state.movesPoolFilterEnergy = "99";
+                refs.movesPoolEnergyFilter.value = "99";
+            }
+        }
+        if (refs.movesPoolSortSelect) {
+            refs.movesPoolSortSelect.value = state.movesPoolSort;
+            if (refs.movesPoolSortSelect.value !== state.movesPoolSort) {
+                state.movesPoolSort = "name-asc";
+                refs.movesPoolSortSelect.value = "name-asc";
+            }
+        }
+    }
+
+    function applyMovesPoolEditorPanelTheme() {
+        if (!refs.movesPoolEditorPanel || state.editorPage !== "MOVES_POOL") {
+            return;
+        }
+        const hasEditor = state.movesPoolIsNewDraft || Boolean(findMoveById(state.selectedMoveId));
+        if (!hasEditor) {
+            refs.movesPoolEditorPanel.className = "panel deck-editor-panel editor-panel el-neutral";
+            return;
+        }
+        let el = firstMetaValue("elements", "FIRE");
+        if (state.movesPoolIsNewDraft) {
+            const draft = readMoveDraftFromForm();
+            if (draft?.element) {
+                el = draft.element;
+            }
+        } else {
+            const move = findMoveById(state.selectedMoveId);
+            if (move?.element) {
+                el = move.element;
+            }
+        }
+        refs.movesPoolEditorPanel.className = `panel deck-editor-panel editor-panel ${elementThemeClass(el)}`;
+    }
+
+    function getFilteredMovesPoolRows() {
+        const q = state.movesPoolSearch.trim().toLowerCase();
+        const maxEn = toNumber(state.movesPoolFilterEnergy, 99);
+        const rows = (state.movesPool || []).filter((m) => {
+            if (!m || !m.id) {
+                return false;
+            }
+            if (state.movesPoolFilterElement !== "ALL" && m.element !== state.movesPoolFilterElement) {
+                return false;
+            }
+            if (state.movesPoolFilterCategory !== "ALL" && String(m.category || "STANDARD") !== state.movesPoolFilterCategory) {
+                return false;
+            }
+            const passive = isMovePassiveForFilter(m);
+            if (state.movesPoolFilterActivation === "PASSIVE" && !passive) {
+                return false;
+            }
+            if (state.movesPoolFilterActivation === "ACTIVATED" && passive) {
+                return false;
+            }
+            if (state.movesPoolFilterTarget !== "ALL" && String(m.targetType || "") !== state.movesPoolFilterTarget) {
+                return false;
+            }
+            const cost = moveEffectiveEnergyForFilter(m);
+            if (maxEn < 99 && cost > maxEn) {
+                return false;
+            }
+            if (q && !m.id.toLowerCase().includes(q) && !String(m.name || "").toLowerCase().includes(q)) {
+                return false;
+            }
+            return true;
+        });
+        rows.sort((a, b) => compareMovesPoolSort(a, b, state.movesPoolSort));
+        return rows;
+    }
+
+    function renderMovesPoolBrowser() {
+        if (!refs.movesPoolList) {
+            return;
+        }
+        syncMovesPoolFilterUi();
+        const rows = getFilteredMovesPoolRows();
+        if (rows.length === 0) {
+            const empty = (state.movesPool || []).length === 0
+                ? "The moves pool is empty. Create a new ability or reload data."
+                : "No abilities match the current search and filters.";
+            refs.movesPoolList.innerHTML = `<div class="empty-browser">${escapeHtml(empty)}</div>`;
+            if (refs.movesPoolSearchInput && refs.movesPoolSearchInput.value !== state.movesPoolSearch) {
+                refs.movesPoolSearchInput.value = state.movesPoolSearch;
+            }
+            applyMovesPoolEditorPanelTheme();
+            return;
+        }
+        refs.movesPoolList.innerHTML = rows.map((m) => {
+            const users = getSieglingsUsingMoveId(m.id);
+            const active = m.id === state.selectedMoveId && !state.movesPoolIsNewDraft ? " active" : "";
+            const useLabel = users.length === 0 ? "Unused" : `${users.length} Siegling${users.length === 1 ? "" : "s"}`;
+            const theme = elementThemeClass(m.element);
+            return `
+                <div class="card-row ${theme}${active}" data-pool-move-id="${escapeHtml(m.id)}">
+                    <div class="card-row-title">
+                        <strong>${escapeHtml(m.name || "Unnamed")}</strong>
+                        <span class="summary-badge">${escapeHtml(formatEnumLabel(m.element))} · ${escapeHtml(useLabel)}</span>
+                    </div>
+                    <div class="card-meta">${escapeHtml(describeMove(m))}</div>
+                    <div class="card-id">${escapeHtml(m.id)}</div>
+                </div>
+            `;
+        }).join("");
+        if (refs.movesPoolSearchInput && refs.movesPoolSearchInput.value !== state.movesPoolSearch) {
+            refs.movesPoolSearchInput.value = state.movesPoolSearch;
+        }
+        applyMovesPoolEditorPanelTheme();
+    }
+
+    function renderMovesPoolEditorShell() {
+        if (state.editorPage !== "MOVES_POOL" || !refs.emptyMovesPoolEditorState || !refs.movesPoolEditorContent) {
+            return;
+        }
+        const hasEditor = state.movesPoolIsNewDraft || Boolean(findMoveById(state.selectedMoveId));
+        refs.emptyMovesPoolEditorState.classList.toggle("hidden", hasEditor);
+        refs.movesPoolEditorContent.classList.toggle("hidden", !hasEditor);
+        if (refs.saveMoveDraftBtn) {
+            refs.saveMoveDraftBtn.textContent = "Save ability";
+        }
+        if (!hasEditor) {
+            if (refs.moveDraftPanel) {
+                refs.moveDraftPanel.style.display = "none";
+            }
+            applyMovesPoolEditorPanelTheme();
+            return;
+        }
+        if (state.movesPoolFormEpoch !== state.movesPoolFormEpochApplied) {
+            state.movesPoolFormEpochApplied = state.movesPoolFormEpoch;
+            if (state.movesPoolIsNewDraft) {
+                const draft = createBlankMoveFromElement(firstMetaValue("elements", "FIRE"));
+                draft.id = createUniqueMoveId("ability");
+                ensureMoveDraftPopulatedWith(draft, null);
+            } else {
+                const move = findMoveById(state.selectedMoveId);
+                if (move) {
+                    ensureMoveDraftPopulatedWith(move, move.id);
+                }
+            }
+        }
+        if (refs.movesPoolEditorTitle) {
+            refs.movesPoolEditorTitle.textContent = state.movesPoolIsNewDraft ? "New Shared Ability" : "Edit Shared Ability";
+        }
+        if (refs.movesPoolUsedBy) {
+            const idInForm = String(refs.moveDraftIdInput?.value || "").trim();
+            const storedId = state.movesPoolIsNewDraft ? "" : String(state.selectedMoveId || "").trim();
+            const list = storedId ? getSieglingsUsingMoveId(storedId) : [];
+            const renameNote = !state.movesPoolIsNewDraft && storedId && idInForm && idInForm !== storedId
+                ? `<p class="section-help">Move id changed in the form — saving will point every Siegling that used <strong>${escapeHtml(storedId)}</strong> at <strong>${escapeHtml(idInForm)}</strong> instead.</p>`
+                : "";
+            if (state.movesPoolIsNewDraft) {
+                refs.movesPoolUsedBy.innerHTML = `<p class="section-help">Save to add this ability to the pool, then assign it from any Siegling’s move list.</p>`;
+            } else if (list.length === 0) {
+                refs.movesPoolUsedBy.innerHTML = `${renameNote}<p class="section-help"><strong>Not assigned</strong> — no Siegling references this id yet.</p>`;
+            } else {
+                refs.movesPoolUsedBy.innerHTML = `
+                    ${renameNote}
+                    <p class="section-help"><strong>Used by ${list.length} Siegling${list.length === 1 ? "" : "s"}</strong> (by move id). Edits to name, effect, and cost apply to every assignment.</p>
+                    <ul class="moves-pool-used-list">${list.map((c) => `<li>${escapeHtml(c.name || c.id)} <span class="card-id-inline">${escapeHtml(c.id)}</span></li>`).join("")}</ul>
+                `;
+            }
+        }
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "grid";
+        }
+        applyMovesPoolEditorPanelTheme();
+    }
+
+    function renderMovesPoolSidePanels() {
+        if (state.editorPage !== "MOVES_POOL") {
+            return;
+        }
+        const move = state.movesPoolIsNewDraft ? readMoveDraftFromForm() : findMoveById(state.selectedMoveId);
+        if (refs.movesPoolSummaryPanel) {
+            if (!move) {
+                refs.movesPoolSummaryPanel.innerHTML = `<div class="validation-empty">Select an ability to preview.</div>`;
+            } else {
+                refs.movesPoolSummaryPanel.innerHTML = `
+                    <div class="summary-ability">
+                        <strong>${escapeHtml(move.name || move.id)}</strong>
+                        <div class="card-summary-copy">${escapeHtml(move.description || "No description.")}</div>
+                        <div class="card-summary-copy">${escapeHtml(describeMove(move))}</div>
+                        <div class="card-id">${escapeHtml(move.id)}</div>
+                    </div>
+                `;
+            }
+        }
+        if (refs.movesPoolJsonPreview) {
+            refs.movesPoolJsonPreview.value = JSON.stringify(state.movesPool.map((m) => buildExportMove(m)), null, 2);
+        }
+        if (refs.movesPoolValidationList) {
+            const cardIssues = state.validation.filter((issue) => issue.scope === "cards");
+            if (cardIssues.length === 0) {
+                refs.movesPoolValidationList.innerHTML = `<div class="validation-empty">No validation issues right now.</div>`;
+            } else {
+                refs.movesPoolValidationList.innerHTML = cardIssues.map((issue) => `
+                    <div class="validation-item ${issue.severity}">
+                        <span class="validation-severity">${escapeHtml(issue.severity)}</span>
+                        <div>${escapeHtml(issue.message)}</div>
+                    </div>
+                `).join("");
+            }
+        }
+    }
+
+    function onMovesPoolListClick(event) {
+        const row = event.target.closest("[data-pool-move-id]");
+        if (!row) {
+            return;
+        }
+        selectMovesPoolMove(row.dataset.poolMoveId);
+    }
+
+    function selectMovesPoolMove(moveId) {
+        const id = String(moveId || "").trim();
+        if (!id || !findMoveById(id)) {
+            return;
+        }
+        state.movesPoolIsNewDraft = false;
+        state.selectedMoveId = id;
+        state.moveDraftEditingOriginalId = id;
+        state.movesPoolFormEpoch += 1;
+        state.validation = validateDashboard();
+        renderAll();
+    }
+
+    function startNewPoolMoveDraft() {
+        state.editorPage = "MOVES_POOL";
+        state.movesPoolIsNewDraft = true;
+        state.selectedMoveId = null;
+        state.moveDraftEditingOriginalId = null;
+        state.movesPoolFormEpoch += 1;
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("New shared ability draft — set id and fields, then save.", "warning");
+        renderAll();
+    }
+
+    function deleteSelectedPoolMove() {
+        const id = String(state.selectedMoveId || "").trim();
+        if (!id || !findMoveById(id) || state.movesPoolIsNewDraft) {
+            return;
+        }
+        const users = getSieglingsUsingMoveId(id);
+        const warn = users.length > 0
+            ? `Delete "${id}" from the pool? It will be removed from ${users.length} Siegling deck list${users.length === 1 ? "" : "s"}.`
+            : `Delete "${id}" from the shared pool?`;
+        if (!window.confirm(warn)) {
+            return;
+        }
+        state.movesPool = state.movesPool.filter((m) => m.id !== id);
+        state.cards.forEach((card) => {
+            if (card.cardType === "SIEGLING" && Array.isArray(card.moveIds)) {
+                card.moveIds = card.moveIds.filter((x) => String(x || "").trim() !== id);
+            }
+        });
+        state.selectedMoveId = state.movesPool[0]?.id || null;
+        state.movesPoolIsNewDraft = false;
+        state.moveDraftEditingOriginalId = null;
+        state.movesPoolFormEpoch += 1;
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "none";
+        }
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus(`Removed "${id}" from the pool.`, "warning");
+        renderAll();
+    }
+
+    function ensureMoveDraftPopulatedWith(move, editingOriginalId = null) {
+        const categories = state.metadata?.moveCategories || ["STANDARD", "SPECIALITY", "UTILITY"];
+        populateSelect(refs.moveDraftElementSelect, state.metadata?.elements || [], move.element);
+        populateSelect(refs.moveDraftCategorySelect, categories, move.category || "STANDARD");
+        populateSelect(refs.moveDraftTargetSelect, state.metadata?.targetTypes || [], move.targetType);
+        populateMoveDraftTargetElementOptions();
+        if (refs.moveDraftTargetElementSelect) {
+            const chosen = move.targetElement && String(move.targetElement).trim() ? String(move.targetElement).trim() : "ALL";
+            refs.moveDraftTargetElementSelect.value = chosen;
+        }
+        populateSelect(refs.moveDraftTargetRowSelect, state.metadata?.rows || [], move.targetRow || firstMetaValue("rows", "FRONT"));
+        populateSelect(
+            refs.moveDraftEffectSelect,
+            (state.metadata?.effectTypes || []).map((effect) => effect.key),
+            move.effectType,
+            false,
+            effectLabelMap()
+        );
+        setInputValue(refs.moveDraftIdInput, move.id);
+        setInputValue(refs.moveDraftNameInput, move.name);
+        setInputValue(refs.moveDraftEffectValueInput, move.effectValue);
+        setInputValue(refs.moveDraftEnergyInput, move.energyCost);
+        setInputValue(refs.moveDraftDescInput, move.description);
+        refs.moveDraftPassiveSelect.value = move.isPassive || move.targetType === "PASSIVE" ? "true" : "false";
+        syncMoveDraftTargetRowUi();
+        syncMoveDraftTargetElementUi();
+        if (editingOriginalId != null && String(editingOriginalId).trim()) {
+            state.moveDraftEditingOriginalId = String(editingOriginalId).trim();
+        } else {
+            state.moveDraftEditingOriginalId = null;
+        }
+    }
+
+    function startNewMoveDraft() {
+        const card = getSelectedCard();
+        if (!card || card.cardType !== "SIEGLING") {
+            return;
+        }
+        state.moveDraftSourceId = null;
+        const draft = createBlankMoveFromElement(card.element);
+        draft.id = createUniqueMoveId(`${slugify(card.name)}-move`);
+        ensureMoveDraftPopulatedWith(draft);
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "grid";
+        }
+    }
+
+    function copyMoveToDraft(sourceMoveId) {
+        const src = findMoveById(sourceMoveId);
+        if (!src) {
+            setStatus(`Move "${sourceMoveId}" is not in the pool.`, "warning");
+            return;
+        }
+        state.moveDraftSourceId = sourceMoveId;
+        const exported = buildExportMove(src);
+        const draft = normalizeMoveFromServer({
+            ...exported,
+            id: createUniqueMoveId(`copy-of-${slugify(src.name)}`),
+            name: `${src.name.trim()} Copy`
+        });
+        ensureMoveDraftPopulatedWith(draft);
+        if (refs.moveDraftPanel) {
+            refs.moveDraftPanel.style.display = "grid";
+        }
+    }
+
+    function readMoveDraftFromForm() {
+        const id = String(refs.moveDraftIdInput?.value || "").trim();
+        const name = String(refs.moveDraftNameInput?.value || "").trim();
+        const targetType = String(refs.moveDraftTargetSelect?.value || "SINGLE_ENEMY").trim();
+        const rule = getTargetRule(targetType);
+        const rawTargetElement = String(refs.moveDraftTargetElementSelect?.value || "ALL").trim();
+        const targetElement = rawTargetElement && rawTargetElement !== "ALL" ? rawTargetElement : null;
+        let targetRow = String(refs.moveDraftTargetRowSelect?.value || "").trim();
+        if (!rule.requiresRow) {
+            targetRow = "";
+        }
+        let passive = refs.moveDraftPassiveSelect?.value === "true";
+        let energy = Math.max(0, Math.min(6, toNumber(refs.moveDraftEnergyInput?.value, 0)));
+        if (passive || targetType === "PASSIVE") {
+            passive = true;
+            energy = 0;
+        }
+        return normalizeMoveFromServer({
+            id: id || "missing-id",
+            name: name || "Unnamed Move",
+            element: refs.moveDraftElementSelect?.value || firstMetaValue("elements", "FIRE"),
+            category: refs.moveDraftCategorySelect?.value || "STANDARD",
+            targetType,
+            targetElement,
+            targetRow: targetRow || null,
+            targetCount: rule.fixedTargetCount,
+            effectType: refs.moveDraftEffectSelect?.value || firstEffectKey(),
+            effectValue: refs.moveDraftEffectValueInput?.value,
+            energyCost: energy,
+            description: refs.moveDraftDescInput?.value || "",
+            isPassive: passive,
+            requiredElement: null,
+            requiredReaction: null
+        });
+    }
+
+    function syncMoveDraftTargetRowUi() {
+        if (!refs.moveDraftTargetSelect || !refs.moveDraftTargetRowWrap) {
+            return;
+        }
+        const rule = getTargetRule(refs.moveDraftTargetSelect.value);
+        refs.moveDraftTargetRowWrap.classList.toggle("hidden", !rule.requiresRow);
+    }
+
+    function populateMoveDraftTargetElementOptions() {
+        if (!refs.moveDraftTargetElementSelect) {
+            return;
+        }
+        const elements = state.metadata?.elements || [];
+        const options = ["ALL", ...elements];
+        const prev = String(refs.moveDraftTargetElementSelect.value || "ALL").trim() || "ALL";
+        const markup = options.map((v) => {
+            const label = v === "ALL" ? "All" : formatEnumLabel(v);
+            const sel = v === prev ? " selected" : "";
+            return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
+        }).join("");
+        if (refs.moveDraftTargetElementSelect.dataset.options !== markup) {
+            refs.moveDraftTargetElementSelect.innerHTML = markup;
+            refs.moveDraftTargetElementSelect.dataset.options = markup;
+        }
+    }
+
+    function syncMoveDraftTargetElementUi() {
+        if (!refs.moveDraftTargetElementWrap || !refs.moveDraftPassiveSelect || !refs.moveDraftTargetSelect) {
+            return;
+        }
+        const passive = refs.moveDraftPassiveSelect.value === "true";
+        const tt = String(refs.moveDraftTargetSelect.value || "").trim();
+        const supportsElementFilter = tt.includes("ALLY") || tt.includes("ENEMY");
+        refs.moveDraftTargetElementWrap.classList.toggle("hidden", !(passive && supportsElementFilter));
+    }
+
+    function onMoveDraftPassiveChange() {
+        if (!refs.moveDraftPassiveSelect || !refs.moveDraftTargetSelect) {
+            return;
+        }
+        if (refs.moveDraftPassiveSelect.value === "true") {
+            // Passives can still have real targets (e.g. ALL_ALLIES) — don't force PASSIVE.
+            const current = String(refs.moveDraftTargetSelect.value || "").trim();
+            if (!current || current === "PASSIVE") {
+                populateSelect(refs.moveDraftTargetSelect, state.metadata?.targetTypes || [], "ALL_ALLIES");
+            } else {
+                populateSelect(refs.moveDraftTargetSelect, state.metadata?.targetTypes || [], current);
+            }
+            if (refs.moveDraftEnergyInput) {
+                refs.moveDraftEnergyInput.value = "0";
+            }
+        }
+        syncMoveDraftTargetRowUi();
+        populateMoveDraftTargetElementOptions();
+        syncMoveDraftTargetElementUi();
+    }
+
+    function saveMoveDraftToPool() {
+        const draftRaw = readMoveDraftFromForm();
+        const id = String(refs.moveDraftIdInput?.value || "").trim();
+        if (!id) {
+            setStatus("Give the move a non-empty id before saving to the pool.", "warning");
+            return;
+        }
+        if (!draftRaw.name.trim()) {
+            setStatus("Give the move a name before saving.", "warning");
+            return;
+        }
+        const next = normalizeMoveFromServer({ ...buildExportMove(draftRaw), id });
+        if (!next) {
+            setStatus("Could not normalize this move; check required fields.", "warning");
+            return;
+        }
+        const originalId = state.moveDraftEditingOriginalId
+            ? String(state.moveDraftEditingOriginalId).trim()
+            : null;
+        if (originalId && originalId !== next.id) {
+            const oldIdx = state.movesPool.findIndex((m) => m.id === originalId);
+            if (oldIdx >= 0) {
+                state.movesPool.splice(oldIdx, 1);
+                migrateMoveIdOnAllCards(originalId, next.id);
+            }
+        }
+        const idx = state.movesPool.findIndex((m) => m.id === next.id);
+        if (idx >= 0) {
+            state.movesPool.splice(idx, 1, next);
+        } else {
+            state.movesPool.push(next);
+        }
+        state.movesPool.sort((a, b) => {
+            const elCmp = a.element.localeCompare(b.element);
+            return elCmp !== 0 ? elCmp : a.name.localeCompare(b.name);
+        });
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus(`Saved move "${next.id}" to the shared pool.`, "warning");
+        state.moveDraftEditingOriginalId = next.id;
+        state.movesPoolIsNewDraft = false;
+        state.selectedMoveId = next.id;
+        state.movesPoolFormEpoch += 1;
+        if (state.editorPage === "MOVES_POOL") {
+            if (refs.moveDraftPanel) {
+                refs.moveDraftPanel.style.display = "grid";
+            }
+        } else {
+            hideMoveDraft();
+        }
+        renderAll();
+    }
+
+    function populateMovePickerElementFilterOptions() {
+        if (!refs.movePickerElementFilter) {
+            return;
+        }
+        const elements = state.metadata?.elements || [];
+        const options = ["ALL", ...elements];
+        const prev = refs.movePickerElementFilter.value;
+        const markup = options.map((v) => {
+            const label = v === "ALL" ? "All" : formatEnumLabel(v);
+            const sel = v === (prev || "ALL") ? " selected" : "";
+            return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
+        }).join("");
+        if (refs.movePickerElementFilter.dataset.options !== markup) {
+            refs.movePickerElementFilter.innerHTML = markup;
+            refs.movePickerElementFilter.dataset.options = markup;
+        }
+        if (options.includes(prev)) {
+            refs.movePickerElementFilter.value = prev;
+        }
+    }
+
+    function openMovePickerModal(slotIndex) {
+        const card = getSelectedCard();
+        if (!card || card.cardType !== "SIEGLING") {
+            return;
+        }
+        let slot = slotIndex;
+        if (slot < 0) {
+            slot = Math.min(4, (card.moveIds || []).length);
+        }
+        state.movePickerSlot = Math.max(0, Math.min(4, slot));
+        populateMovePickerElementFilterOptions();
+        refs.movePickerOverlay?.classList.remove("hidden");
+        document.body.classList.add("move-picker-open");
+        renderMovePickerList();
+    }
+
+    function closeMovePickerModal() {
+        refs.movePickerOverlay?.classList.add("hidden");
+        document.body.classList.remove("move-picker-open");
+    }
+
+    function renderMovePickerList() {
+        if (!refs.movePickerList) {
+            return;
+        }
+        const q = String(refs.movePickerSearch?.value || "").trim().toLowerCase();
+        const elFilter = refs.movePickerElementFilter?.value || "ALL";
+        const maxEn = toNumber(refs.movePickerEnergyFilter?.value, 99);
+        const catFilter = refs.movePickerCategoryFilter?.value || "ALL";
+        const list = (state.movesPool || []).filter((m) => {
+            if (elFilter !== "ALL" && m.element !== elFilter) {
+                return false;
+            }
+            if (catFilter !== "ALL" && m.category !== catFilter) {
+                return false;
+            }
+            const passive = m.isPassive || m.targetType === "PASSIVE";
+            const cost = passive ? 0 : toNumber(m.energyCost, 0);
+            if (maxEn < 99 && cost > maxEn) {
+                return false;
+            }
+            if (!q) {
+                return true;
+            }
+            return m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q);
+        });
+        if (list.length === 0) {
+            refs.movePickerList.innerHTML = `<div class="move-picker-empty">No moves match these filters.</div>`;
+            return;
+        }
+        refs.movePickerList.innerHTML = list.map((m) => {
+            const passive = m.isPassive || m.targetType === "PASSIVE";
+            const costLabel = passive ? "Passive" : `${m.energyCost} en`;
+            return `
+            <div class="move-picker-row">
+                <div class="move-picker-row-main">
+                    <strong>${escapeHtml(m.name)}</strong>
+                    <span class="move-picker-meta">${escapeHtml(formatEnumLabel(m.element))} · ${escapeHtml(costLabel)} · ${escapeHtml(m.category || "STANDARD")}</span>
+                    <div class="move-picker-desc">${escapeHtml(m.description || "")}</div>
+                    <div class="move-picker-id">${escapeHtml(m.id)}</div>
+                </div>
+                <div class="move-picker-row-actions">
+                    <button type="button" class="btn btn-primary btn-sm" data-pick-move-id="${escapeHtml(m.id)}">Assign</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-copy-pool-move-id="${escapeHtml(m.id)}">Copy to editor</button>
+                </div>
+            </div>`;
+        }).join("");
+    }
+
+    function pickMoveForSlot(moveId) {
+        const card = getSelectedCard();
+        if (!card || card.cardType !== "SIEGLING") {
+            return;
+        }
+        const mid = String(moveId || "").trim();
+        if (!mid || !findMoveById(mid)) {
+            return;
+        }
+        const slot = state.movePickerSlot ?? 0;
+        mutateSelectedCard((c) => {
+            const ids = [...(c.moveIds || [])].slice(0, 5);
+            if (slot < ids.length) {
+                ids[slot] = mid;
+            } else if (ids.length < 5) {
+                ids.push(mid);
+            }
+            c.moveIds = ids.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 5);
+        });
+        closeMovePickerModal();
+    }
+
+    function onMovePickerListClick(event) {
+        const pick = event.target.closest("[data-pick-move-id]");
+        if (pick) {
+            pickMoveForSlot(pick.dataset.pickMoveId);
+            return;
+        }
+        const copyBtn = event.target.closest("[data-copy-pool-move-id]");
+        if (copyBtn) {
+            copyMoveToDraft(copyBtn.dataset.copyPoolMoveId);
+            closeMovePickerModal();
+        }
+    }
+
+    function onSieglingAssignedMovesClick(event) {
+        const rm = event.target.closest("[data-remove-move-slot]");
+        if (rm) {
+            const slot = Number(rm.dataset.removeMoveSlot);
+            mutateSelectedCard((c) => {
+                const ids = [...(c.moveIds || [])];
+                if (!Number.isFinite(slot) || slot < 0 || slot >= ids.length) {
+                    return;
+                }
+                ids.splice(slot, 1);
+                c.moveIds = ids;
+            });
+            return;
+        }
+        const assign = event.target.closest("[data-assign-move-slot]");
+        if (assign && !assign.disabled) {
+            openMovePickerModal(Number(assign.dataset.assignMoveSlot));
+        }
+        const copyAssigned = event.target.closest("[data-copy-assigned-move]");
+        if (copyAssigned) {
+            copyMoveToDraft(copyAssigned.dataset.copyAssignedMove);
+        }
+    }
+
+    function renderSieglingMovesUI(card) {
+        if (state.editorPage === "SIEGLING") {
+            hideMoveDraft();
+        }
+        if (!refs.sieglingAssignedMoves) {
+            return;
+        }
+        const ids = (card.moveIds || []).slice(0, 5);
+        const rows = [];
+        for (let i = 0; i < 5; i += 1) {
+            if (i < ids.length) {
+                const mid = ids[i];
+                const mv = findMoveById(mid);
+                const title = mv ? mv.name : mid;
+                const passive = mv && (mv.isPassive || mv.targetType === "PASSIVE");
+                const costLabel = mv ? (passive ? "Passive" : `${mv.energyCost} energy`) : "?";
+                rows.push(`
+                <div class="move-assigned-row">
+                    <div class="move-assigned-body">
+                        <div class="move-assigned-title">${escapeHtml(title)}</div>
+                        <div class="move-assigned-meta">${escapeHtml(costLabel)}${mv ? ` · ${escapeHtml(formatEnumLabel(mv.element))}` : ""}${mv ? ` · ${escapeHtml(mv.category || "STANDARD")}` : ""}</div>
+                        <div class="move-assigned-desc">${escapeHtml(mv?.description || "Resolve this id in the moves pool.")}</div>
+                        <div class="move-assigned-id">${escapeHtml(mid)}</div>
+                    </div>
+                    <div class="move-assigned-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" data-assign-move-slot="${i}">Change</button>
+                        <button type="button" class="btn btn-secondary btn-sm" data-copy-assigned-move="${escapeHtml(mid)}">Copy</button>
+                        <button type="button" class="btn btn-danger btn-sm" data-remove-move-slot="${i}">Remove</button>
+                    </div>
+                </div>`);
+            } else if (i === ids.length && ids.length < 5) {
+                rows.push(`
+                <div class="move-assigned-row move-assigned-row-empty">
+                    <div class="move-assigned-body">
+                        <div class="move-assigned-title">Add move (${ids.length + 1} / 5)</div>
+                        <div class="move-assigned-desc">Pick from the pool or create a new move, then assign it here.</div>
+                    </div>
+                    <div class="move-assigned-actions">
+                        <button type="button" class="btn btn-primary btn-sm" data-assign-move-slot="${i}">Pick move</button>
+                    </div>
+                </div>`);
+            } else {
+                rows.push(`
+                <div class="move-assigned-row move-assigned-row-locked">
+                    <div class="move-assigned-body">
+                        <div class="move-assigned-title">Slot ${i + 1}</div>
+                        <div class="move-assigned-desc">Fill previous slots first.</div>
+                    </div>
+                </div>`);
+            }
+        }
+        refs.sieglingAssignedMoves.innerHTML = rows.join("");
     }
 
     function escapeHtml(value) {

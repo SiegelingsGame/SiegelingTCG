@@ -1,0 +1,8 @@
+{
+  "loadoutVisible": true,
+  "startText": "Starting Match...",
+  "startBusy": "true",
+  "phase": "DRAW",
+  "mulliganVisible": false,
+  "playerHandCount": 0
+}

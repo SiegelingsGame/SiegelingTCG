@@ -1,0 +1,33 @@
+{
+  "elements" : [ {
+    "element" : "FIRE",
+    "active" : true
+  }, {
+    "element" : "EARTH",
+    "active" : true
+  }, {
+    "element" : "WIND",
+    "active" : true
+  }, {
+    "element" : "WATER",
+    "active" : true
+  }, {
+    "element" : "ICE",
+    "active" : true
+  }, {
+    "element" : "SHADOW",
+    "active" : true
+  }, {
+    "element" : "ELECTRIC",
+    "active" : true
+  }, {
+    "element" : "METAL",
+    "active" : true
+  }, {
+    "element" : "UNDEAD",
+    "active" : true
+  }, {
+    "element" : "PSYCHIC",
+    "active" : true
+  } ]
+}

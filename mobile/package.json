@@ -1,0 +1,13 @@
+{
+  "name": "sieglings-mobile",
+  "private": true,
+  "version": "0.1.0",
+  "description": "API and domain contracts for SiegelingsTCG mobile clients (aligned with Spring Boot + H2 + Firestore)",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.0"
+  }
+}

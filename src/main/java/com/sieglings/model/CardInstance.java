@@ -19,16 +19,22 @@ public class CardInstance {
     private int currentSpeed;
     private int temporaryHealthBuff;
     private int temporaryDamageBuff;
+    /** Passive team-aura attack damage from allied Sieglings on the board (recomputed when the board changes). */
+    private int auraDamageBoost;
     private Set<StatusEffect> statusEffects = new HashSet<>();
     private int boardRow;
     private int boardCol;
     private int placementOrder;
+    private int battlePhasesSeen;
     private boolean owner; // true = player, false = enemy
 
     public CardInstance() {}
 
     public CardInstance(SieglingCard card, int row, int col, boolean owner) {
-        this.instanceId = UUID.randomUUID().toString().substring(0, 8);
+        // IDs must be globally unique: instanceId is used as a stable identity in battle queues,
+        // connected-network traversal, and UI diffing. Shortened UUIDs can collide and cause
+        // unrelated Sieglings to "disappear" when one is defeated.
+        this.instanceId = UUID.randomUUID().toString();
         this.card = card;
         this.currentHealth = card.getHealth();
         this.currentSpeed = card.getSpeed();
@@ -50,8 +56,7 @@ public class CardInstance {
     }
 
     public int getEffectiveSpeed() {
-        if (isSpeedZero()) return 0;
-        return currentSpeed;
+        return Math.max(0, currentSpeed);
     }
 
     public int getEffectiveMaxHealth() {
@@ -61,9 +66,19 @@ public class CardInstance {
     }
 
     public int getDamageBoost() {
-        int damageBoost = temporaryDamageBuff;
-        if (temporaryDamageBuff == 0 && statusEffects.contains(StatusEffect.DAMAGE_BOOST)) damageBoost += 1;
+        int damageBoost = temporaryDamageBuff + auraDamageBoost;
+        if (temporaryDamageBuff == 0 && auraDamageBoost == 0 && statusEffects.contains(StatusEffect.DAMAGE_BOOST)) {
+            damageBoost += 1;
+        }
         return damageBoost;
+    }
+
+    public int getAuraDamageBoost() {
+        return auraDamageBoost;
+    }
+
+    public void setAuraDamageBoost(int auraDamageBoost) {
+        this.auraDamageBoost = Math.max(0, auraDamageBoost);
     }
 
     public void addDamageBuff(int amount) {
@@ -95,13 +110,17 @@ public class CardInstance {
         currentHealth = Math.min(currentHealth, card.getHealth());
     }
 
+    public void recordBattlePhaseSeen() {
+        battlePhasesSeen++;
+    }
+
     // Getters and setters
     public String getInstanceId() { return instanceId; }
     public SieglingCard getCard() { return card; }
     public int getCurrentHealth() { return currentHealth; }
     public void setCurrentHealth(int currentHealth) { this.currentHealth = currentHealth; }
     public int getCurrentSpeed() { return currentSpeed; }
-    public void setCurrentSpeed(int currentSpeed) { this.currentSpeed = currentSpeed; }
+    public void setCurrentSpeed(int currentSpeed) { this.currentSpeed = Math.max(0, currentSpeed); }
     public int getTemporaryHealthBuff() { return temporaryHealthBuff; }
     public int getTemporaryDamageBuff() { return temporaryDamageBuff; }
     public Set<StatusEffect> getStatusEffects() { return statusEffects; }
@@ -111,6 +130,8 @@ public class CardInstance {
     public void setBoardCol(int boardCol) { this.boardCol = boardCol; }
     public int getPlacementOrder() { return placementOrder; }
     public void setPlacementOrder(int placementOrder) { this.placementOrder = placementOrder; }
+    public int getBattlePhasesSeen() { return battlePhasesSeen; }
+    public void setBattlePhasesSeen(int battlePhasesSeen) { this.battlePhasesSeen = battlePhasesSeen; }
     public boolean isOwner() { return owner; }
     public Element getElement() { return card.getElement(); }
     public String getName() { return card.getName(); }
