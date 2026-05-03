@@ -733,8 +733,11 @@
         reader.onload = () => {
             try {
                 const parsed = JSON.parse(reader.result);
-                applyDataSet(parsed, true);
-                setStatus(`Imported ${file.name}. Review and save when ready.`, "warning");
+                const importSummary = applyDataSet(parsed, true);
+                const conversionNote = importSummary.convertedLegacyMoves > 0
+                    ? ` and converted ${importSummary.convertedLegacyMoves} legacy Siegling ${importSummary.convertedLegacyMoves === 1 ? "ability" : "abilities"} into shared abilities`
+                    : "";
+                setStatus(`Imported ${file.name}${conversionNote}. Review and save when ready.`, "warning");
                 renderAll();
             } catch (error) {
                 setStatus("That file could not be parsed as card override JSON.", "error");
@@ -1119,19 +1122,21 @@
     }
 
     function applyDataSet(data, dirty) {
-        const cards = Array.isArray(data?.cards)
-            ? data.cards.map((card) => normalizeCard(card))
+        const preparedData = prepareImportedDataSet(data);
+        const resolvedData = preparedData.data;
+        const cards = Array.isArray(resolvedData?.cards)
+            ? resolvedData.cards.map((card) => normalizeCard(card))
             : state.cards.map((card) => normalizeCard(buildExportCard(card)));
-        const decks = Array.isArray(data?.decks)
-            ? data.decks.map((deck) => normalizeDeck(deck))
+        const decks = Array.isArray(resolvedData?.decks)
+            ? resolvedData.decks.map((deck) => normalizeDeck(deck))
             : state.decks.map((deck) => normalizeDeck(buildExportDeck(deck)));
-        const trainers = Array.isArray(data?.trainers)
-            ? data.trainers.map((trainer) => normalizeTrainer(trainer))
+        const trainers = Array.isArray(resolvedData?.trainers)
+            ? resolvedData.trainers.map((trainer) => normalizeTrainer(trainer))
             : state.trainers.map((trainer) => normalizeTrainer(buildExportTrainer(trainer)));
         let liveElements;
-        if (Array.isArray(data?.liveElements?.elements)) {
-            liveElements = normalizeLiveElements(data.liveElements.elements);
-        } else if (data && (Array.isArray(data.cards) || Array.isArray(data.decks) || Array.isArray(data.trainers))) {
+        if (Array.isArray(resolvedData?.liveElements?.elements)) {
+            liveElements = normalizeLiveElements(resolvedData.liveElements.elements);
+        } else if (resolvedData && (Array.isArray(resolvedData.cards) || Array.isArray(resolvedData.decks) || Array.isArray(resolvedData.trainers))) {
             liveElements = defaultLiveElements();
         } else {
             liveElements = state.liveElements.length
@@ -1142,9 +1147,9 @@
         state.decks = decks;
         state.trainers = trainers;
         state.liveElements = liveElements;
-        if (data && Object.prototype.hasOwnProperty.call(data, "moves")) {
-            state.movesPool = Array.isArray(data.moves)
-                ? data.moves.map((m) => normalizeMoveFromServer(m)).filter((m) => m && m.id)
+        if (resolvedData && Object.prototype.hasOwnProperty.call(resolvedData, "moves")) {
+            state.movesPool = Array.isArray(resolvedData.moves)
+                ? resolvedData.moves.map((m) => normalizeMoveFromServer(m)).filter((m) => m && m.id)
                 : [];
         }
         state.selectedCardId = cards.find((card) => card.id === state.selectedCardId)?.id || cards[0]?.id || null;
@@ -1157,6 +1162,111 @@
         if (state.editorPage === "MOVES_POOL") {
             state.movesPoolFormEpoch += 1;
         }
+        return preparedData;
+    }
+
+    function prepareImportedDataSet(data) {
+        if (!data || typeof data !== "object" || !Array.isArray(data.cards)) {
+            return { data, convertedLegacyMoves: 0 };
+        }
+        const explicitMoves = Array.isArray(data.moves) ? data.moves : null;
+        const usedMoveIds = new Set((explicitMoves || [])
+            .map((move) => String(move?.id || "").trim())
+            .filter(Boolean));
+        const generatedMoves = [];
+        let convertedLegacyMoves = 0;
+        let touchedLegacySiegling = false;
+
+        const cards = data.cards.map((card) => {
+            const cardType = normalizeCardType(card?.type || card?.cardType || inferCardType(card));
+            if (cardType !== "SIEGLING") {
+                return card;
+            }
+            const existingMoveIds = Array.isArray(card?.moveIds)
+                ? card.moveIds.map((id) => String(id || "").trim()).filter(Boolean).slice(0, 5)
+                : [];
+            if (existingMoveIds.length > 0) {
+                return { ...card, moveIds: existingMoveIds };
+            }
+            const legacyAbilities = legacySieglingAbilities(card);
+            if (!legacyAbilities.length) {
+                return card;
+            }
+            touchedLegacySiegling = true;
+            const element = String(card?.element || firstMetaValue("elements", "FIRE")).trim() || firstMetaValue("elements", "FIRE");
+            const moveIds = legacyAbilities.slice(0, 5).map((ability, index) => {
+                const move = buildLegacyImportedMove(card, ability, element, index, usedMoveIds);
+                if (!move) {
+                    return null;
+                }
+                generatedMoves.push(buildExportMove(move));
+                convertedLegacyMoves += 1;
+                return move.id;
+            }).filter(Boolean);
+            return { ...card, moveIds };
+        });
+
+        if (!touchedLegacySiegling) {
+            return { data, convertedLegacyMoves: 0 };
+        }
+
+        return {
+            data: {
+                ...data,
+                cards,
+                moves: [...(explicitMoves || []), ...generatedMoves]
+            },
+            convertedLegacyMoves
+        };
+    }
+
+    function legacySieglingAbilities(card) {
+        if (Array.isArray(card?.abilities) && card.abilities.length > 0) {
+            return card.abilities;
+        }
+        return card?.ability ? [card.ability] : [];
+    }
+
+    function buildLegacyImportedMove(card, ability, element, index, usedMoveIds) {
+        const normalizedAbility = normalizeAbility(ability, element);
+        const baseId = [
+            String(card?.id || "").trim() || String(card?.name || "").trim() || "imported-siegling",
+            normalizedAbility.name || `move-${index + 1}`
+        ].join("-");
+        const moveId = createImportedMoveId(baseId, usedMoveIds);
+        const move = normalizeMoveFromServer({
+            id: moveId,
+            name: normalizedAbility.name || `${String(card?.name || "Imported Siegling").trim()} Move ${index + 1}`,
+            element,
+            category: normalizedAbility.passive ? "UTILITY" : "STANDARD",
+            targetType: normalizedAbility.targetType,
+            targetElement: null,
+            targetRow: normalizedAbility.targetRow || null,
+            targetCount: normalizedAbility.targetCount,
+            effectType: normalizedAbility.effectType,
+            effectValue: normalizedAbility.effectValue,
+            energyCost: normalizedAbility.requiredEnergy,
+            description: normalizedAbility.description,
+            isPassive: normalizedAbility.passive,
+            requiredElement: normalizedAbility.requiredElement || null,
+            requiredReaction: normalizedAbility.requiredReaction || null
+        });
+        if (!move) {
+            return null;
+        }
+        usedMoveIds.add(move.id);
+        return move;
+    }
+
+    function createImportedMoveId(baseId, usedMoveIds) {
+        const seed = slugify(baseId) || "imported-move";
+        let candidate = seed;
+        let suffix = 2;
+        while (usedMoveIds.has(candidate)) {
+            candidate = `${seed}-${suffix}`;
+            suffix += 1;
+        }
+        return candidate;
     }
 
     function normalizeCard(card) {
