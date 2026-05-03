@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
@@ -24,7 +25,17 @@ const result = spawnSync(process.execPath, [generatorPath], {
 });
 
 if (typeof result.status === 'number') {
-  process.exit(result.status);
+  if (result.status !== 0) {
+    process.exit(result.status);
+  }
+
+  const raw = fs.readFileSync(outputPath, 'utf8');
+  const manifest = JSON.parse(raw);
+  if (manifest.extensions && Object.keys(manifest.extensions).length === 0) {
+    delete manifest.extensions;
+  }
+  fs.writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  process.exit(0);
 }
 
 process.exit(1);
