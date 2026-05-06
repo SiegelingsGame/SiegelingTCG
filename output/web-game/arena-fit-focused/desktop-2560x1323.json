@@ -1,0 +1,63 @@
+{
+  "viewport": {
+    "width": 2560,
+    "height": 1323
+  },
+  "phase": "DRAW",
+  "shell": {
+    "left": 0,
+    "top": 36,
+    "width": 2560,
+    "height": 1287,
+    "right": 2560,
+    "bottom": 1323
+  },
+  "battlefield": {
+    "left": 20,
+    "top": 56,
+    "width": 1736,
+    "height": 1247,
+    "right": 1756,
+    "bottom": 1303
+  },
+  "menu": {
+    "left": 1780,
+    "top": 56,
+    "width": 760,
+    "height": 1247,
+    "right": 2540,
+    "bottom": 1303
+  },
+  "enemyGrid": {
+    "left": 687.453125,
+    "top": 143.40625,
+    "width": 401.078125,
+    "height": 527.09375,
+    "right": 1088.53125,
+    "bottom": 670.5
+  },
+  "playerGrid": {
+    "left": 687.453125,
+    "top": 713.5,
+    "width": 401.078125,
+    "height": 557.09375,
+    "right": 1088.53125,
+    "bottom": 1270.59375
+  },
+  "minCellTop": 155.40625,
+  "maxCellBottom": 1228.59375,
+  "battlefieldOverflowY": "auto",
+  "battlefieldScrollHeight": 1675,
+  "battlefieldClientHeight": 1247,
+  "arenaHasVerticalOverflow": true,
+  "cellsFitInArena": true,
+  "bottomSlack": 74.41,
+  "cssVars": {
+    "boardMaxWidth": "580px",
+    "boardHeightOffset": "132px",
+    "boardHeightRatio": "1.38",
+    "sidebarWidth": "760px"
+  },
+  "styleHref": "http://127.0.0.1:8080/css/style.css?v=68",
+  "gameSrc": "http://127.0.0.1:8080/js/game.js?v=77"
+}

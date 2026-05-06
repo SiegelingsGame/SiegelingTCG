@@ -1,0 +1,42 @@
+{
+  "viewport": {
+    "width": 2560,
+    "height": 1323
+  },
+  "handSection": {
+    "left": 1801,
+    "top": 905.65625,
+    "width": 718,
+    "height": 272.328125,
+    "right": 2519,
+    "bottom": 1177.984375
+  },
+  "handRail": {
+    "left": 1814,
+    "top": 942.65625,
+    "width": 692,
+    "height": 222.328125,
+    "right": 2506,
+    "bottom": 1164.984375
+  },
+  "railClientHeight": 222,
+  "railContentHeight": 208,
+  "firstCard": {
+    "left": 1816,
+    "top": 944.65625,
+    "width": 149,
+    "height": 208.59375,
+    "right": 1965,
+    "bottom": 1153.25
+  },
+  "firstShell": {
+    "width": 135,
+    "height": 194.59375
+  },
+  "cardFillRatio": 1.003,
+  "cardAspectRatio": 0.714,
+  "cssHandWidth": "149px",
+  "cssHandPadding": "5px",
+  "styleHref": "http://127.0.0.1:8080/css/style.css?v=69",
+  "gameSrc": "http://127.0.0.1:8080/js/game.js?v=78"
+}

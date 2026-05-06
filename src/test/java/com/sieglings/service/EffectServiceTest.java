@@ -39,7 +39,8 @@ class EffectServiceTest {
         state.setAt(true, 1, 1, source);
 
         CardInstance linkedLeft = instance("linked-left", List.of(
-                new Notch(NotchDirection.RIGHT, Element.EARTH)
+                new Notch(NotchDirection.RIGHT, Element.EARTH),
+                new Notch(NotchDirection.TOP, Element.EARTH)
         ), 1, 0);
         linkedLeft.setPlacementOrder(2);
         state.setAt(true, 1, 0, linkedLeft);
@@ -56,6 +57,12 @@ class EffectServiceTest {
         isolated.setPlacementOrder(4);
         state.setAt(true, 0, 2, isolated);
 
+        CardInstance chained = instance("chained", List.of(
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+        ), 0, 0);
+        chained.setPlacementOrder(5);
+        state.setAt(true, 0, 0, chained);
+
         Ability aura = Ability.connectedAlliesHealthBoost(
                 "Root Circuit",
                 "Connected allies gain +2 max Health",
@@ -67,6 +74,7 @@ class EffectServiceTest {
         assertEquals(10, source.getEffectiveMaxHealth(), "Source card should not buff itself.");
         assertEquals(12, linkedLeft.getEffectiveMaxHealth(), "Linked ally should gain max Health.");
         assertEquals(12, linkedRight.getEffectiveMaxHealth(), "Linked ally should gain max Health.");
+        assertEquals(10, chained.getEffectiveMaxHealth(), "Indirect chain allies should stay unchanged.");
         assertEquals(10, isolated.getEffectiveMaxHealth(), "Unlinked ally should stay unchanged.");
     }
 
@@ -85,7 +93,8 @@ class EffectServiceTest {
         state.setAt(true, 1, 1, source);
 
         CardInstance linkedLeft = instance("linked-left", List.of(
-                new Notch(NotchDirection.RIGHT, Element.EARTH)
+                new Notch(NotchDirection.RIGHT, Element.EARTH),
+                new Notch(NotchDirection.TOP, Element.EARTH)
         ), 1, 0);
         linkedLeft.setPlacementOrder(2);
         state.setAt(true, 1, 0, linkedLeft);
@@ -102,6 +111,12 @@ class EffectServiceTest {
         isolated.setPlacementOrder(4);
         state.setAt(true, 0, 2, isolated);
 
+        CardInstance chained = instance("chained", List.of(
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+        ), 0, 0);
+        chained.setPlacementOrder(5);
+        state.setAt(true, 0, 0, chained);
+
         Ability aura = Ability.connectedAlliesDamageBoost(
                 "War Root",
                 "Connected allies gain +2 attack damage",
@@ -113,6 +128,7 @@ class EffectServiceTest {
         assertEquals(0, source.getDamageBoost(), "Source card should not buff itself.");
         assertEquals(2, linkedLeft.getDamageBoost(), "Linked ally should gain attack damage.");
         assertEquals(2, linkedRight.getDamageBoost(), "Linked ally should gain attack damage.");
+        assertEquals(0, chained.getDamageBoost(), "Indirect chain allies should stay unchanged.");
         assertEquals(0, isolated.getDamageBoost(), "Unlinked ally should stay unchanged.");
     }
 
@@ -131,7 +147,8 @@ class EffectServiceTest {
         state.setAt(true, 1, 1, source);
 
         CardInstance linkedLeft = instance("linked-left", List.of(
-                new Notch(NotchDirection.RIGHT, Element.EARTH)
+                new Notch(NotchDirection.RIGHT, Element.EARTH),
+                new Notch(NotchDirection.TOP, Element.EARTH)
         ), 1, 0);
         linkedLeft.setPlacementOrder(2);
         state.setAt(true, 1, 0, linkedLeft);
@@ -148,6 +165,12 @@ class EffectServiceTest {
         isolated.setPlacementOrder(4);
         state.setAt(true, 0, 2, isolated);
 
+        CardInstance chained = instance("chained", List.of(
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+        ), 0, 0);
+        chained.setPlacementOrder(5);
+        state.setAt(true, 0, 0, chained);
+
         Ability aura = Ability.connectedAlliesSpeedBoost(
                 "Rush Root",
                 "Connected allies gain +2 Speed",
@@ -159,6 +182,7 @@ class EffectServiceTest {
         assertEquals(4, source.getCurrentSpeed(), "Source card should not buff itself.");
         assertEquals(6, linkedLeft.getCurrentSpeed(), "Linked ally should gain Speed.");
         assertEquals(6, linkedRight.getCurrentSpeed(), "Linked ally should gain Speed.");
+        assertEquals(4, chained.getCurrentSpeed(), "Indirect chain allies should stay unchanged.");
         assertEquals(4, isolated.getCurrentSpeed(), "Unlinked ally should stay unchanged.");
     }
 

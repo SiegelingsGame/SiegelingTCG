@@ -34,7 +34,7 @@ public class PresetDeckCatalogService {
             String updatedAt
     ) {}
 
-    private record CacheEntry(LoadSnapshot snapshot, long loadedAtMillis) {}
+    private record CacheEntry(LoadSnapshot snapshot, long loadedAtMillis, long publishVersion) {}
 
     // Match startup consults preset decks several times in quick succession, so a short cache
     // window can force the UI flow back through remote config fetches between "load options"
@@ -121,14 +121,18 @@ public class PresetDeckCatalogService {
     private LoadSnapshot loadFirestoreSnapshot() {
         CacheEntry cached = cacheEntry;
         long now = System.currentTimeMillis();
-        if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS) {
+        Long publishVersion = cardOverrideStorageService.getCurrentPublishVersion();
+        if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS
+                && (publishVersion == null || cached.publishVersion() == publishVersion.longValue())) {
             return cached.snapshot();
         }
 
         synchronized (this) {
             cached = cacheEntry;
             now = System.currentTimeMillis();
-            if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS) {
+            publishVersion = cardOverrideStorageService.getCurrentPublishVersion();
+            if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS
+                    && (publishVersion == null || cached.publishVersion() == publishVersion.longValue())) {
                 return cached.snapshot();
             }
 
@@ -150,7 +154,11 @@ public class PresetDeckCatalogService {
                             resolveTimestamp(snapshot)
                     );
                 }
-                cacheEntry = new CacheEntry(cloneSnapshot(loadSnapshot), System.currentTimeMillis());
+                cacheEntry = new CacheEntry(
+                        cloneSnapshot(loadSnapshot),
+                        System.currentTimeMillis(),
+                        publishVersion == null ? 0L : publishVersion
+                );
                 return loadSnapshot;
             } catch (Exception ex) {
                 throw new IllegalStateException("Unable to load preset deck data from Firestore.", ex);
@@ -161,7 +169,12 @@ public class PresetDeckCatalogService {
     private LoadSnapshot saveToFirestore(PresetDeckFile file, String updatedByEmail) {
         try {
             LoadSnapshot snapshot = persistFirestoreData(fireStoreDocRef(), file, updatedByEmail);
-            cacheEntry = new CacheEntry(cloneSnapshot(snapshot), System.currentTimeMillis());
+            Long publishVersion = cardOverrideStorageService.getCurrentPublishVersion();
+            cacheEntry = new CacheEntry(
+                    cloneSnapshot(snapshot),
+                    System.currentTimeMillis(),
+                    publishVersion == null ? 0L : publishVersion
+            );
             return snapshot;
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to save preset deck data to Firestore.", ex);

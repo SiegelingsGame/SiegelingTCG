@@ -280,18 +280,16 @@ public class EffectService {
             return;
         }
 
-        List<CardInstance> connectedAllies = placementService.getConnectedAllies(state, source).stream()
-                .filter(CardInstance::isAlive)
-                .toList();
+        List<CardInstance> connectedAllies = placementService.getDirectlyConnectedAllies(state, source);
         if (connectedAllies.isEmpty()) {
-            state.log(ability.getName() + " found no connected allies.");
+            state.log(ability.getName() + " found no directly linked allies.");
             return;
         }
 
         for (CardInstance ally : connectedAllies) {
             ally.addHealthBuff(value);
             state.log(ability.getName() + " raises " + ally.getName() + "'s max Health by " + value
-                    + " through a live connection"
+                    + " through a direct link"
                     + " (HP: " + ally.getCurrentHealth() + "/" + ally.getEffectiveMaxHealth() + ")");
         }
     }
@@ -302,18 +300,16 @@ public class EffectService {
             return;
         }
 
-        List<CardInstance> connectedAllies = placementService.getConnectedAllies(state, source).stream()
-                .filter(CardInstance::isAlive)
-                .toList();
+        List<CardInstance> connectedAllies = placementService.getDirectlyConnectedAllies(state, source);
         if (connectedAllies.isEmpty()) {
-            state.log(ability.getName() + " found no connected allies.");
+            state.log(ability.getName() + " found no directly linked allies.");
             return;
         }
 
         for (CardInstance ally : connectedAllies) {
             ally.addDamageBuff(value);
             state.log(ability.getName() + " raises " + ally.getName() + "'s attack damage by " + value
-                    + " through a live connection.");
+                    + " through a direct link.");
         }
     }
 
@@ -323,11 +319,9 @@ public class EffectService {
             return;
         }
 
-        List<CardInstance> connectedAllies = placementService.getConnectedAllies(state, source).stream()
-                .filter(CardInstance::isAlive)
-                .toList();
+        List<CardInstance> connectedAllies = placementService.getDirectlyConnectedAllies(state, source);
         if (connectedAllies.isEmpty()) {
-            state.log(ability.getName() + " found no connected allies.");
+            state.log(ability.getName() + " found no directly linked allies.");
             return;
         }
 
@@ -337,7 +331,7 @@ public class EffectService {
                 ally.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
             }
             state.log(ability.getName() + " raises " + ally.getName() + "'s Speed by " + value
-                    + " through a live connection.");
+                    + " through a direct link.");
         }
     }
 

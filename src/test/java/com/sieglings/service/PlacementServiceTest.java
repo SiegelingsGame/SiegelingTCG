@@ -158,6 +158,43 @@ class PlacementServiceTest {
         );
     }
 
+    @Test
+    void directConnectedAlliesExcludeIndirectChainMembers() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+
+        CardInstance source = new CardInstance(siegling(
+                "source",
+                Element.EARTH,
+                List.of(new Notch(NotchDirection.LEFT, Element.EARTH))
+        ), 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        CardInstance direct = new CardInstance(siegling(
+                "direct",
+                Element.EARTH,
+                List.of(
+                        new Notch(NotchDirection.RIGHT, Element.EARTH),
+                        new Notch(NotchDirection.TOP, Element.EARTH)
+                )
+        ), 1, 0, true);
+        state.setAt(true, 1, 0, direct);
+
+        CardInstance chained = new CardInstance(siegling(
+                "chained",
+                Element.EARTH,
+                List.of(new Notch(NotchDirection.BOTTOM, Element.EARTH))
+        ), 0, 0, true);
+        state.setAt(true, 0, 0, chained);
+
+        List<CardInstance> directAllies = placementService.getDirectlyConnectedAllies(state, source);
+
+        assertEquals(1, directAllies.size());
+        assertTrue(directAllies.contains(direct));
+        assertFalse(directAllies.contains(chained));
+    }
+
     private SieglingCard siegling(String id, Element element, List<Notch> notches) {
         return new SieglingCard(
                 id,

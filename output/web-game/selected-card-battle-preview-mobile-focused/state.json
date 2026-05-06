@@ -1,0 +1,15 @@
+{
+  "metrics": {
+    "drawerVisible": true,
+    "selectedCard": true,
+    "sandSnap": true,
+    "buriedScale": true,
+    "costLabel": "Earth",
+    "title": "Preview selected card abilities",
+    "noDocumentScroll": true,
+    "cssHref": "http://127.0.0.1:8080/css/style.css?v=72",
+    "jsSrc": "http://127.0.0.1:8080/js/game.js?v=81",
+    "text": "STAND BY\nSelected card preview. Battle abilities and effects for the card in your hand.\nSELECTED\nSundile\nSIEGLING | Earth | COMMON | HP 12 | SPD 6 | Middle\nSIEGLING\nSand Snap\nEarth\nDeal 3 damage to 1 enemy.\n1 Earth\nTarget enemy\nDamage 3\nBuried Scale\nPassive\nGain 1 armor while linked to Earth.\nPassive\nArmor 1"
+  },
+  "errors": []
+}

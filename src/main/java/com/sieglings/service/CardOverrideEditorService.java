@@ -83,6 +83,9 @@ public class CardOverrideEditorService {
         PresetDeckCatalogService.LoadSnapshot deckSnapshot = presetDeckCatalogService.saveSnapshot(decksData, updatedByEmail);
         TrainerCatalogService.LoadSnapshot trainerSnapshot = trainerCatalogService.saveSnapshot(trainersData, updatedByEmail);
         LiveElementCatalogService.LoadSnapshot liveSnapshot = liveElementCatalogService.saveSnapshot(liveElementsData, updatedByEmail);
+        if (storageService.isFirestoreReady()) {
+            storageService.markLivePublish(updatedByEmail);
+        }
         return buildEditorState(cardSnapshot, deckSnapshot, trainerSnapshot, liveSnapshot, authService.describe(editorToken));
     }
 
@@ -232,10 +235,10 @@ public class CardOverrideEditorService {
                 effect(AbilityEffectKeys.SPEED_ZERO, "Speed Zero", "Sets effective Speed to 0 for the turn.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ALL_ENEMIES")),
                 effect(AbilityEffectKeys.DAMAGE_BOOST, "Damage Boost", "Adds temporary attack damage.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "PASSIVE")),
                 effect(AbilityEffectKeys.HEALTH_BOOST, "Health Boost", "Adds temporary max health and heals by the same amount.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "PASSIVE")),
-                effect(AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST, "Connected Allies Damage Boost", "Buffs every allied Siegling connected to the source card through active links.", List.of("SELF")),
-                effect(AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, "Connected Allies Health Boost", "Gives connected allied Sieglings extra max health.", List.of("SELF")),
+                effect(AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST, "Connected Allies Damage Boost", "Buffs allied Sieglings that share a direct active link with the source card.", List.of("SELF")),
+                effect(AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, "Connected Allies Health Boost", "Gives directly linked allied Sieglings extra max health.", List.of("SELF")),
                 effect(AbilityEffectKeys.SPEED_BOOST, "Speed Boost", "Adds temporary speed.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "PASSIVE")),
-                effect(AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST, "Connected Allies Speed Boost", "Gives connected allied Sieglings extra speed.", List.of("SELF")),
+                effect(AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST, "Connected Allies Speed Boost", "Gives directly linked allied Sieglings extra speed.", List.of("SELF")),
                 effect(AbilityEffectKeys.DESTROY, "Destroy", "Defeats the resolved target immediately.", List.of("SINGLE_ENEMY")),
                 effect(AbilityEffectKeys.MOVE_LINK, "Move Link", "SELF: move along links. Spell/trap + SINGLE_ENEMY: move that enemy to any empty cell on its board (client sends destRow/destCol).", List.of("SELF", "SINGLE_ENEMY"))
         );
