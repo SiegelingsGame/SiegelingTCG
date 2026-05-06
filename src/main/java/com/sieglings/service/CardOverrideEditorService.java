@@ -261,6 +261,8 @@ public class CardOverrideEditorService {
         rules.put(TargetType.SINGLE_ALLY.name(), targetRule(false, 1, "Pick one ally."));
         rules.put(TargetType.ALL_ALLIES.name(), targetRule(false, 0, "Affects every ally, so no target count is needed."));
         rules.put(TargetType.ROW_ALLIES.name(), targetRule(true, 0, "Choose which allied row the ability affects."));
+        rules.put(TargetType.ROW_SELECT_ENEMIES.name(), targetRule(false, 0, "Player selects which enemy row to hit at battle time. No pre-set row needed."));
+        rules.put(TargetType.ROW_SELECT_ALLIES.name(), targetRule(false, 0, "Player selects which allied row to affect at battle time. No pre-set row needed."));
         rules.put(TargetType.ENEMY_PLAYER.name(), targetRule(false, 0, "Targets the opposing player directly."));
         rules.put(TargetType.SELF.name(), targetRule(false, 0, "The card affects itself."));
         rules.put(TargetType.PASSIVE.name(), targetRule(false, 0, "Always active with no manual targeting."));
@@ -562,6 +564,7 @@ public class CardOverrideEditorService {
             case SINGLE_ENEMY -> new TargetRule(false, 1);
             case ALL_ENEMIES, ENEMY_PLAYER, SELF, PASSIVE, ALL_ALLIES -> new TargetRule(false, 0);
             case ROW_ENEMIES, ROW_ALLIES -> new TargetRule(true, 0);
+            case ROW_SELECT_ENEMIES, ROW_SELECT_ALLIES -> new TargetRule(false, 0);
             case SINGLE_ALLY -> new TargetRule(false, 1);
         };
     }

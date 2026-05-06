@@ -37,6 +37,7 @@ let mulliganHandSig = '';
 let loadoutErrorMessage = '';
 let loadoutStartPending = false;
 let lastInteractionCueKey = '';
+let transientMessageTimer = null;
 let hoveredHandIndex = null;
 let hoveredBoardCard = null;
 /** Persisted board selection for live preview / drawer ({ isPlayer, row, col, instanceId }). */
@@ -96,7 +97,9 @@ let pixiBoardHoldSnapshot = null;
 const ROW_NAMES = ['Back', 'Middle', 'Front'];
 const TARGET_TYPES = {
     SINGLE_ENEMY: 'enemy',
-    SINGLE_ALLY: 'ally'
+    SINGLE_ALLY: 'ally',
+    ROW_SELECT_ENEMIES: 'row-enemy',
+    ROW_SELECT_ALLIES: 'row-ally'
 };
 const ENERGY_ORDER = [
     ['fire', 'Fire'],
@@ -807,6 +810,10 @@ function formatAbilityTargetLabel(ability) {
             return 'All allies';
         case 'ROW_ALLIES':
             return ability?.targetRow ? `${formatElementLabel(ability.targetRow)} ally row` : 'Ally row';
+        case 'ROW_SELECT_ENEMIES':
+            return 'Select enemy row';
+        case 'ROW_SELECT_ALLIES':
+            return 'Select ally row';
         case 'ENEMY_PLAYER':
             return 'Enemy player';
         case 'SELF':
@@ -3115,6 +3122,23 @@ function renderInteractionBanner() {
     banner.innerHTML = `<span class="interaction-banner-label">${state.label}</span><span>${state.message}</span>`;
 }
 
+function showTransientMessage(message, durationMs = 1400) {
+    const context = targetContext;
+    if (!context) {
+        return;
+    }
+    const previousMessage = context.message;
+    context.message = message;
+    renderInteractionBanner();
+    window.clearTimeout(transientMessageTimer);
+    transientMessageTimer = window.setTimeout(() => {
+        if (targetContext === context && context.message === message) {
+            context.message = previousMessage;
+            renderInteractionBanner();
+        }
+    }, durationMs);
+}
+
 function getInteractionCueKey() {
     if (!gameState) {
         return '';
@@ -4432,6 +4456,15 @@ function getBoardCellMarkers(board, markers) {
 function getTargetableCellsForPixi() {
     const targetable = [];
     if (!gameState || !targetMode || !targetContext) {
+        return targetable;
+    }
+    if (targetContext.side === 'row-enemy' || targetContext.side === 'row-ally') {
+        const side = targetContext.side === 'row-ally' ? 'player' : 'enemy';
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                targetable.push({ row: r, col: c, side });
+            }
+        }
         return targetable;
     }
     const pb = gameState.playerBoard || [];
@@ -6537,7 +6570,11 @@ function chooseBattleAbility(index) {
         mode: 'battle',
         side: targetSide,
         abilityIndex: index,
-        message: `Queue a ${targetSide} target for ${ability.name}.`
+        message: targetSide === 'row-enemy'
+            ? 'Select an enemy row to target.'
+            : targetSide === 'row-ally'
+                ? 'Select a friendly row to target.'
+                : `Queue a ${targetSide} target for ${ability.name}.`
     };
     if (activeDrawer === 'battle') {
         closeDrawer(true);
@@ -6553,8 +6590,12 @@ function passBattleAction() {
 }
 
 function boardHasTargets(side) {
-    const board = side === 'enemy' ? gameState.enemyBoard : gameState.playerBoard;
-    return board.some(row => row.some(cell => cell));
+    const board = side === 'enemy' || side === 'row-enemy'
+        ? gameState.enemyBoard
+        : side === 'ally' || side === 'row-ally'
+            ? gameState.playerBoard
+            : null;
+    return (board || []).some(row => row.some(cell => cell));
 }
 
 function enemyBoardHasEmptyCell() {
@@ -6728,6 +6769,12 @@ function isTargetCell(isPlayer, cell) {
     if (targetContext.side === 'ally') {
         return isPlayer && Boolean(cell);
     }
+    if (targetContext.side === 'row-enemy') {
+        return !isPlayer;
+    }
+    if (targetContext.side === 'row-ally') {
+        return isPlayer;
+    }
     return false;
 }
 
@@ -6763,6 +6810,17 @@ function onTargetSelected(row, col, fromPlayerBoard) {
     }
 
     if (targetContext.mode === 'battle') {
+        if (targetContext.side === 'row-enemy' || targetContext.side === 'row-ally') {
+            const expectPlayer = targetContext.side === 'row-ally';
+            if (fromPlayerBoard !== expectPlayer) {
+                showTransientMessage(`Select a ${expectPlayer ? 'friendly' : 'enemy'} row.`);
+                return;
+            }
+            submitBattleAction(targetContext.abilityIndex, row, -1);
+            targetMode = false;
+            targetContext = null;
+            return;
+        }
         if (targetContext.side === 'enemy' && fromPlayerBoard) {
             return;
         }
