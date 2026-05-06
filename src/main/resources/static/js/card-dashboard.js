@@ -491,7 +491,30 @@
         refs.moveDraftTargetSelect?.addEventListener("change", () => {
             syncMoveDraftTargetRowUi();
             syncMoveDraftTargetElementUi();
+            syncMoveDraftAutoDescription();
+            renderMoveDraftLivePanels();
         });
+        refs.moveDraftTargetElementSelect?.addEventListener("change", () => {
+            syncMoveDraftAutoDescription();
+            renderMoveDraftLivePanels();
+        });
+        refs.moveDraftTargetRowSelect?.addEventListener("change", () => {
+            syncMoveDraftAutoDescription();
+            renderMoveDraftLivePanels();
+        });
+        refs.moveDraftEffectSelect?.addEventListener("change", () => {
+            syncMoveDraftAutoDescription();
+            renderMoveDraftLivePanels();
+        });
+        refs.moveDraftEffectValueInput?.addEventListener("input", () => {
+            syncMoveDraftAutoDescription();
+            renderMoveDraftLivePanels();
+        });
+        refs.moveDraftEnergyInput?.addEventListener("input", () => {
+            syncMoveDraftAutoDescription();
+            renderMoveDraftLivePanels();
+        });
+        refs.moveDraftDescInput?.addEventListener("input", renderMoveDraftLivePanels);
         refs.moveDraftPassiveSelect?.addEventListener("change", onMoveDraftPassiveChange);
 
         refs.abilityTabs.addEventListener("click", (event) => {
@@ -3231,6 +3254,10 @@
                 return "all allies";
             case "ROW_ALLIES":
                 return `all allies in ${formatEnumLabel(ability.targetRow || firstMetaValue("rows", "FRONT"))}`;
+            case "ROW_SELECT_ENEMIES":
+                return "player-selected enemy row";
+            case "ROW_SELECT_ALLIES":
+                return "player-selected allied row";
             case "ENEMY_PLAYER":
                 return "the enemy player";
             case "SELF":
@@ -3633,6 +3660,202 @@
         };
     }
 
+    function buildMoveDraftAutoDescription() {
+        return buildAutoMoveDescription({
+            targetType: String(refs.moveDraftTargetSelect?.value || "SINGLE_ENEMY").trim(),
+            targetElement: String(refs.moveDraftTargetElementSelect?.value || "").trim(),
+            targetRow: String(refs.moveDraftTargetRowSelect?.value || "").trim(),
+            effectType: String(refs.moveDraftEffectSelect?.value || firstEffectKey()).trim(),
+            effectValue: refs.moveDraftEffectValueInput?.value,
+            energyCost: refs.moveDraftEnergyInput?.value,
+            isPassive: refs.moveDraftPassiveSelect?.value === "true"
+        });
+    }
+
+    function syncMoveDraftAutoDescription() {
+        if (!refs.moveDraftDescInput) {
+            return;
+        }
+        const generated = buildMoveDraftAutoDescription();
+        const previousGenerated = refs.moveDraftDescInput.dataset.autoDescription || "";
+        const current = refs.moveDraftDescInput.value || "";
+        if (!generated) {
+            refs.moveDraftDescInput.dataset.autoDescription = "";
+            if (current === previousGenerated) {
+                setInputValue(refs.moveDraftDescInput, "");
+            }
+            return;
+        }
+        refs.moveDraftDescInput.dataset.autoDescription = generated;
+        if (!current.trim() || current === previousGenerated) {
+            setInputValue(refs.moveDraftDescInput, generated);
+        }
+    }
+
+    function renderMoveDraftLivePanels() {
+        if (state.editorPage === "MOVES_POOL") {
+            renderMovesPoolSidePanels();
+        }
+    }
+
+    function buildAutoMoveDescription(move) {
+        const effectType = String(move?.effectType || "").trim();
+        const targetType = String(move?.targetType || "").trim();
+        const isPassive = Boolean(move?.isPassive) || targetType === "PASSIVE";
+        const value = Math.max(0, toNumber(move?.effectValue, 0));
+        const signedValue = `+${value}`;
+        const targetElement = String(move?.targetElement || "").trim();
+        const elementPrefix = targetElement && targetElement !== "ALL" ? `${formatEnumLabel(targetElement)} ` : "";
+
+        switch (effectType) {
+            case "damage":
+                return buildDamageMoveDescription(value, targetType, elementPrefix);
+            case "player_damage":
+                return `Deal ${value} damage to the enemy player`;
+            case "heal":
+                return buildHealMoveDescription(value, targetType, elementPrefix);
+            case "freeze":
+                return buildFreezeMoveDescription(value, targetType, elementPrefix);
+            case "speed_zero":
+                return buildSpeedZeroMoveDescription(value, targetType, elementPrefix);
+            case "damage_boost":
+                return buildStatBoostMoveDescription(signedValue, "Attack Damage", targetType, elementPrefix, isPassive);
+            case "health_boost":
+                return buildStatBoostMoveDescription(signedValue, "max HP", targetType, elementPrefix, isPassive);
+            case "speed_boost":
+                return buildStatBoostMoveDescription(signedValue, "Speed", targetType, elementPrefix, isPassive);
+            case "connected_allies_damage_boost":
+                return `Connected allies gain ${signedValue} Attack Damage`;
+            case "connected_allies_health_boost":
+                return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_speed_boost":
+                return `Connected allies gain ${signedValue} Speed`;
+            case "destroy":
+                return buildDestroyMoveDescription(targetType, elementPrefix);
+            case "move_link":
+                return `Move to an open linked point (${Math.max(0, toNumber(move?.energyCost, 0))} Cost)`;
+            default:
+                return "";
+        }
+    }
+
+    function buildDamageMoveDescription(value, targetType, elementPrefix) {
+        switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `Deal ${value} damage to 1 ${elementPrefix}enemy`;
+            case "ROW_ENEMIES":
+                return elementPrefix
+                    ? `Deal ${value} damage to ${elementPrefix.toLowerCase()}row enemies`
+                    : `Deal ${value} damage to the row`;
+            case "ROW_SELECT_ENEMIES":
+                return `Deal ${value} damage to the selected ${elementPrefix.toLowerCase()}enemy row`;
+            case "ALL_ENEMIES":
+                return `Deal ${value} damage to all ${elementPrefix}enemies`;
+            case "ENEMY_PLAYER":
+                return `Deal ${value} damage to the enemy player`;
+            default:
+                return "";
+        }
+    }
+
+    function buildHealMoveDescription(value, targetType, elementPrefix) {
+        switch (targetType) {
+            case "SINGLE_ALLY":
+                return `Heal 1 ${elementPrefix}ally for ${value} HP`;
+            case "ROW_ALLIES":
+                return elementPrefix
+                    ? `Heal ${elementPrefix}row allies for ${value} HP`
+                    : `Heal Row allies for ${value} HP`;
+            case "ROW_SELECT_ALLIES":
+                return `Heal selected ${elementPrefix}allied row for ${value} HP`;
+            case "ALL_ALLIES":
+                return `Heal all ${elementPrefix}allies for ${value} HP`;
+            case "SELF":
+            case "PASSIVE":
+                return `Heal self for ${value} HP`;
+            default:
+                return "";
+        }
+    }
+
+    function buildFreezeMoveDescription(value, targetType, elementPrefix) {
+        const turns = turnText(value);
+        switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `Freeze 1 ${elementPrefix}enemy for ${turns}`;
+            case "ROW_ENEMIES":
+                return elementPrefix
+                    ? `Freeze ${elementPrefix}row enemies for ${turns}`
+                    : `Freeze Row enemies for ${turns}`;
+            case "ROW_SELECT_ENEMIES":
+                return `Freeze selected ${elementPrefix}enemy row for ${turns}`;
+            case "ALL_ENEMIES":
+                return `Freeze All ${elementPrefix}enemies for ${turns}`;
+            default:
+                return "";
+        }
+    }
+
+    function buildSpeedZeroMoveDescription(value, targetType, elementPrefix) {
+        const turns = turnText(value);
+        switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `Reduce 1 ${elementPrefix}enemy speed to 0 (${turns})`;
+            case "ROW_ENEMIES":
+                return elementPrefix
+                    ? `Nullify ${elementPrefix}row enemies' speed (${turns})`
+                    : `Nullify Row enemies' speed (${turns})`;
+            case "ROW_SELECT_ENEMIES":
+                return `Nullify selected ${elementPrefix}enemy row's speed (${turns})`;
+            case "ALL_ENEMIES":
+                return `Nullify All ${elementPrefix}enemies' speed (${turns})`;
+            default:
+                return "";
+        }
+    }
+
+    function buildStatBoostMoveDescription(signedValue, statLabel, targetType, elementPrefix, isPassive) {
+        if (targetType === "PASSIVE" || (isPassive && targetType === "SELF")) {
+            return `Passively gains ${signedValue} ${statLabel}`;
+        }
+        switch (targetType) {
+            case "SINGLE_ALLY":
+                return `1 ${elementPrefix}ally gains ${signedValue} ${statLabel}`;
+            case "ROW_ALLIES":
+                return elementPrefix
+                    ? `${elementPrefix}row allies gain ${signedValue} ${statLabel}`
+                    : `Row allies gain ${signedValue} ${statLabel}`;
+            case "ROW_SELECT_ALLIES":
+                return `Selected ${elementPrefix}allied row gains ${signedValue} ${statLabel}`;
+            case "ALL_ALLIES":
+                return `All ${elementPrefix}allies gain ${signedValue} ${statLabel}`;
+            case "SELF":
+                return `This Siegling gains ${signedValue} ${statLabel}`;
+            default:
+                return "";
+        }
+    }
+
+    function buildDestroyMoveDescription(targetType, elementPrefix) {
+        switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `Destroy 1 ${elementPrefix}enemy`;
+            case "ROW_ENEMIES":
+                return elementPrefix ? `Destroy ${elementPrefix}row enemies` : "Destroy Row enemies";
+            case "ROW_SELECT_ENEMIES":
+                return `Destroy selected ${elementPrefix}enemy row`;
+            case "ALL_ENEMIES":
+                return `Destroy all ${elementPrefix}enemies`;
+            default:
+                return "";
+        }
+    }
+
+    function turnText(value) {
+        const turns = Math.max(1, toNumber(value, 1));
+        return `${turns} turn${turns === 1 ? "" : "s"}`;
+    }
+
     function describeMove(move) {
         const passive = Boolean(move.isPassive) || move.targetType === "PASSIVE";
         const pieces = [
@@ -4014,7 +4237,8 @@
         if (state.editorPage !== "MOVES_POOL") {
             return;
         }
-        const move = state.movesPoolIsNewDraft ? readMoveDraftFromForm() : findMoveById(state.selectedMoveId);
+        const editingVisible = refs.moveDraftPanel && refs.moveDraftPanel.style.display !== "none";
+        const move = state.movesPoolIsNewDraft || editingVisible ? readMoveDraftFromForm() : findMoveById(state.selectedMoveId);
         if (refs.movesPoolSummaryPanel) {
             if (!move) {
                 refs.movesPoolSummaryPanel.innerHTML = `<div class="validation-empty">Select an ability to preview.</div>`;
@@ -4137,6 +4361,7 @@
         refs.moveDraftPassiveSelect.value = move.isPassive || move.targetType === "PASSIVE" ? "true" : "false";
         syncMoveDraftTargetRowUi();
         syncMoveDraftTargetElementUi();
+        syncMoveDraftAutoDescription();
         if (editingOriginalId != null && String(editingOriginalId).trim()) {
             state.moveDraftEditingOriginalId = String(editingOriginalId).trim();
         } else {
@@ -4268,6 +4493,8 @@
         syncMoveDraftTargetRowUi();
         populateMoveDraftTargetElementOptions();
         syncMoveDraftTargetElementUi();
+        syncMoveDraftAutoDescription();
+        renderMoveDraftLivePanels();
     }
 
     function saveMoveDraftToPool() {

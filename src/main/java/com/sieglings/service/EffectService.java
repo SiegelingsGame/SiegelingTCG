@@ -127,6 +127,16 @@ public class EffectService {
                     targets.addAll(getSieglingsInRow(state, isPlayerSource, row.getIndex()));
                 }
             }
+            case ROW_SELECT_ENEMIES -> {
+                if (targetRow >= 0) {
+                    targets.addAll(getSieglingsInRow(state, !isPlayerSource, targetRow));
+                }
+            }
+            case ROW_SELECT_ALLIES -> {
+                if (targetRow >= 0) {
+                    targets.addAll(getSieglingsInRow(state, isPlayerSource, targetRow));
+                }
+            }
             case SELF -> {
                 if (source != null && source.isAlive()) {
                     targets.add(source);
