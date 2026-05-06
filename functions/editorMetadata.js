@@ -112,6 +112,16 @@ const TARGET_RULES = {
     fixedTargetCount: 0,
     helperText: 'Choose which allied row the ability affects.'
   },
+  ROW_SELECT_ENEMIES: {
+    requiresRow: false,
+    fixedTargetCount: 0,
+    helperText: 'Player selects which enemy row to hit at battle time. No pre-set row needed.'
+  },
+  ROW_SELECT_ALLIES: {
+    requiresRow: false,
+    fixedTargetCount: 0,
+    helperText: 'Player selects which allied row to affect at battle time. No pre-set row needed.'
+  },
   ENEMY_PLAYER: {
     requiresRow: false,
     fixedTargetCount: 0,
@@ -135,7 +145,7 @@ function buildMetadata(trainers) {
     cardTypes: ['SIEGLING', 'SPELL', 'TRAP'],
     rarities: ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'],
     rows: ['BACK', 'MIDDLE', 'FRONT'],
-    targetTypes: ['SINGLE_ENEMY', 'ALL_ENEMIES', 'ROW_ENEMIES', 'SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ENEMY_PLAYER', 'SELF', 'PASSIVE'],
+    targetTypes: ['SINGLE_ENEMY', 'ALL_ENEMIES', 'ROW_ENEMIES', 'SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ENEMIES', 'ROW_SELECT_ALLIES', 'ENEMY_PLAYER', 'SELF', 'PASSIVE'],
     notchDirections: ['TOP', 'TOP_RIGHT', 'RIGHT', 'BOTTOM_RIGHT', 'BOTTOM', 'BOTTOM_LEFT', 'LEFT', 'TOP_LEFT'],
     reactions: ['MIST'],
     trainers: Array.isArray(trainers) ? trainers.map((trainer) => ({
