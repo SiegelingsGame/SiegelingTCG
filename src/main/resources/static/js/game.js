@@ -48,6 +48,8 @@ let handTouchGesture = null;
 let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
+let handSelectorScaleFrame = null;
+let previewCardScaleFrame = null;
 let handTouchSuppressHandIndex = null;
 let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
@@ -1035,27 +1037,50 @@ function updateResponsiveLayoutVars(force = false) {
     const compactLandscape = isCompactLandscapeLayout();
     const density = clampNumber(Math.min(viewportWidth / 1440, viewportHeight / 900), 0.72, 1.08);
     const cardAspectHeight = 7 / 5;
+    const desktopLayoutGutter = desktop
+        ? Math.round(clampNumber(viewportWidth * 0.008, 10, 22))
+        : 0;
+    const desktopLayoutGap = desktop
+        ? Math.round(clampNumber(viewportWidth * 0.01, 14, 24))
+        : 18;
+    const desktopAppMaxWidth = desktop
+        ? viewportWidth
+        : 1280;
     const sidebarWidth = desktop
-        ? Math.round(clampNumber(viewportWidth * 0.29, 360, Math.min(520, viewportWidth * 0.38)))
+        ? Math.round(clampNumber(
+            viewportWidth * 0.3,
+            Math.min(360, viewportWidth * 0.34),
+            Math.min(760, viewportWidth * 0.42)
+        ))
         : 420;
+    const desktopArenaColumnWidth = desktop
+        ? Math.max(0, viewportWidth - (desktopLayoutGutter * 2) - desktopLayoutGap - sidebarWidth)
+        : 0;
+    const boardMaxWidth = desktop
+        ? Math.round(clampNumber(Math.min(desktopArenaColumnWidth * 0.54, viewportHeight * 0.5), 360, 580))
+        : 420;
+    const boardHeightOffset = desktop
+        ? Math.round(clampNumber(viewportHeight * 0.1, 82, 148))
+        : 124;
+    const boardHeightRatio = desktop ? 1.38 : 2.72;
     const handWidth = desktop
-        ? Math.round(clampNumber(Math.min(sidebarWidth * 0.185, viewportHeight * 0.084), 66, 88))
+        ? Math.round(clampNumber(Math.min(sidebarWidth * 0.21, viewportHeight * 0.094), 78, 96))
         : compactLandscape
         ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
         : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
     const desktopHandSectionMinHeight = desktop
-        ? Math.round(clampNumber((handWidth * cardAspectHeight) + 60, 156, viewportHeight * 0.26))
+        ? Math.round(clampNumber((handWidth * cardAspectHeight) + 48, 148, viewportHeight * 0.22))
         : 176;
     let previewCardWidth = handWidth;
     let previewCardMaxHeight = Math.round(handWidth * cardAspectHeight);
     if (desktop) {
-        const sidebarGutter = 56;
-        const maxPreviewWidth = Math.max(120, Math.min(sidebarWidth - sidebarGutter, 236));
+        const sidebarGutter = 64;
+        const maxPreviewWidth = Math.max(148, Math.min(sidebarWidth - sidebarGutter, 272));
         previewCardWidth = Math.round(
-            clampNumber(sidebarWidth * 0.44, 132, maxPreviewWidth)
+            clampNumber(sidebarWidth * 0.46, 148, maxPreviewWidth)
         );
         previewCardMaxHeight = Math.round(previewCardWidth * cardAspectHeight);
-        const maxPreviewHeight = Math.round(viewportHeight * 0.38);
+        const maxPreviewHeight = Math.round(viewportHeight * 0.43);
         if (previewCardMaxHeight > maxPreviewHeight) {
             previewCardMaxHeight = maxPreviewHeight;
             previewCardWidth = Math.round(previewCardMaxHeight * (5 / 7));
@@ -1065,7 +1090,13 @@ function updateResponsiveLayoutVars(force = false) {
     const overlayPadding = Math.round(clampNumber(Math.min(viewportWidth, viewportHeight) * 0.026, 14, 28));
 
     root.style.setProperty('--card-scale', density.toFixed(3));
+    root.style.setProperty('--desktop-app-max-width', `${desktopAppMaxWidth}px`);
+    root.style.setProperty('--desktop-layout-gutter', `${desktopLayoutGutter}px`);
+    root.style.setProperty('--desktop-layout-gap', `${desktopLayoutGap}px`);
     root.style.setProperty('--desktop-sidebar-width', `${sidebarWidth}px`);
+    root.style.setProperty('--desktop-board-max-width', `${boardMaxWidth}px`);
+    root.style.setProperty('--desktop-board-height-offset', `${boardHeightOffset}px`);
+    root.style.setProperty('--desktop-board-height-ratio', `${boardHeightRatio}`);
     root.style.setProperty('--desktop-preview-card-width', `${previewCardWidth}px`);
     root.style.setProperty('--desktop-preview-card-max-height', `${previewCardMaxHeight}px`);
     root.style.setProperty('--desktop-hand-section-min-height', `${desktopHandSectionMinHeight}px`);
@@ -1660,6 +1691,9 @@ function syncDesktopInspectTabUi() {
             deckPane.removeAttribute('hidden');
         }
     }
+    if (isCard) {
+        scheduleDesktopPreviewCardScale();
+    }
 }
 
 function syncFocusedCardUi() {
@@ -1901,6 +1935,58 @@ function renderDesktopCardPreviewPanel() {
     html += '</div>';
 
     panel.innerHTML = html;
+    scheduleDesktopPreviewCardScale();
+}
+
+function scheduleDesktopPreviewCardScale() {
+    if (previewCardScaleFrame != null) {
+        window.cancelAnimationFrame(previewCardScaleFrame);
+    }
+    previewCardScaleFrame = window.requestAnimationFrame(() => {
+        previewCardScaleFrame = null;
+        syncDesktopPreviewCardScale();
+    });
+}
+
+function syncDesktopPreviewCardScale() {
+    if (!isDesktopSidebarLayout() || desktopInspectTab !== 'card') {
+        return;
+    }
+
+    const panel = document.getElementById('desktopCardPreviewPanel');
+    const layout = panel?.querySelector('.desktop-preview-layout');
+    const card = panel?.querySelector('.desktop-preview-card');
+    if (!panel || !layout || !card || panel.closest('[hidden]')) {
+        return;
+    }
+
+    const panelRect = panel.getBoundingClientRect();
+    if (panelRect.width <= 0 || panelRect.height <= 0) {
+        return;
+    }
+
+    const panelStyles = window.getComputedStyle(panel);
+    const paddingTop = parseFloat(panelStyles.paddingTop) || 0;
+    const paddingBottom = parseFloat(panelStyles.paddingBottom) || 0;
+    const paddingLeft = parseFloat(panelStyles.paddingLeft) || 0;
+    const paddingRight = parseFloat(panelStyles.paddingRight) || 0;
+    const contentHeight = panel.clientHeight - paddingTop - paddingBottom;
+    const contentWidth = panel.clientWidth - paddingLeft - paddingRight;
+    if (!Number.isFinite(contentHeight) || !Number.isFinite(contentWidth) || contentHeight <= 80 || contentWidth <= 160) {
+        return;
+    }
+
+    const layoutStyles = window.getComputedStyle(layout);
+    const columnGap = parseFloat(layoutStyles.columnGap) || parseFloat(layoutStyles.gap) || 0;
+    const copyColumnReserve = Math.round(clampNumber(contentWidth * 0.34, 170, 260));
+    const maxWidthFromPanel = Math.max(96, contentWidth - columnGap - copyColumnReserve);
+    const heightBasedWidth = contentHeight * (5 / 7);
+    const nextWidth = Math.round(clampNumber(heightBasedWidth, 128, maxWidthFromPanel));
+    const nextHeight = Math.round(nextWidth * (7 / 5));
+
+    const root = document.documentElement;
+    root.style.setProperty('--desktop-preview-card-width', `${nextWidth}px`);
+    root.style.setProperty('--desktop-preview-card-max-height', `${nextHeight}px`);
 }
 
 function summarizeDeckCards(cards) {
@@ -5824,6 +5910,7 @@ function renderHand() {
     }
     if (!gameState.player.hand || gameState.player.hand.length === 0) {
         container.innerHTML = '<div style="color:var(--text-dim);font-size:0.8em;">No cards in hand</div>';
+        scheduleDesktopHandSelectorCardScale();
         return;
     }
 
@@ -5886,6 +5973,50 @@ function renderHand() {
     }
 
     container.innerHTML = html;
+    scheduleDesktopHandSelectorCardScale();
+}
+
+function scheduleDesktopHandSelectorCardScale() {
+    if (handSelectorScaleFrame != null) {
+        window.cancelAnimationFrame(handSelectorScaleFrame);
+    }
+    handSelectorScaleFrame = window.requestAnimationFrame(() => {
+        handSelectorScaleFrame = null;
+        syncDesktopHandSelectorCardScale();
+    });
+}
+
+function syncDesktopHandSelectorCardScale() {
+    if (!isDesktopSidebarLayout() || isHandHiddenForPhase()) {
+        return;
+    }
+
+    const rail = document.getElementById('playerHand');
+    if (!rail || rail.classList.contains('hidden')) {
+        return;
+    }
+
+    const railRect = rail.getBoundingClientRect();
+    if (railRect.width <= 0 || railRect.height <= 0) {
+        return;
+    }
+
+    const styles = window.getComputedStyle(rail);
+    const paddingTop = parseFloat(styles.paddingTop) || 0;
+    const paddingBottom = parseFloat(styles.paddingBottom) || 0;
+    const contentHeight = rail.clientHeight - paddingTop - paddingBottom;
+    if (!Number.isFinite(contentHeight) || contentHeight <= 40) {
+        return;
+    }
+
+    const maxRailFriendlyWidth = Math.max(96, railRect.width * 0.55);
+    const measuredWidth = contentHeight * (5 / 7);
+    const nextWidth = Math.round(clampNumber(measuredWidth, 64, maxRailFriendlyWidth));
+    const nextPadding = Math.round(clampNumber(nextWidth * 0.035, 3, 8));
+
+    const root = document.documentElement;
+    root.style.setProperty('--hand-card-width', `${nextWidth}px`);
+    root.style.setProperty('--hand-card-padding', `${nextPadding}px`);
 }
 
 function handleHandCardPointerEnter(event, handIndex) {
@@ -6816,6 +6947,8 @@ document.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', () => {
     updateResponsiveLayoutVars(true);
+    scheduleDesktopHandSelectorCardScale();
+    scheduleDesktopPreviewCardScale();
     stopHandSelectorAutoScroll();
     hoveredBoardCard = null;
     syncMobileInfoTab();
@@ -6825,6 +6958,8 @@ window.addEventListener('resize', () => {
 
 window.addEventListener('resize', () => {
     updateResponsiveLayoutVars(true);
+    scheduleDesktopHandSelectorCardScale();
+    scheduleDesktopPreviewCardScale();
     const desktopBattleDrawerVisible = document.getElementById('desktopBattleDrawer')?.classList.contains('visible');
     const mobileBattleDrawerVisible = document.getElementById('drawerBattle')?.classList.contains('visible');
     if (!shouldUseDesktopBattleDrawer() && desktopBattleDrawerVisible) {
@@ -6841,6 +6976,8 @@ window.addEventListener('resize', () => {
 
 window.addEventListener('orientationchange', () => {
     updateResponsiveLayoutVars(true);
+    scheduleDesktopHandSelectorCardScale();
+    scheduleDesktopPreviewCardScale();
     syncFocusedCardUi();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
