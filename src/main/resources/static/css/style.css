@@ -5,6 +5,12 @@
     --desktop-preview-card-width: 138px;
     --desktop-preview-card-max-height: 193px;
     --desktop-hand-section-min-height: 176px;
+    --desktop-app-max-width: 1600px;
+    --desktop-layout-gutter: 18px;
+    --desktop-layout-gap: 18px;
+    --desktop-board-max-width: 430px;
+    --desktop-board-height-offset: 124px;
+    --desktop-board-height-ratio: 1.38;
     --hand-card-width: 138px;
     --hand-card-overlap: -34px;
     --hand-card-padding: 6px;
@@ -331,6 +337,7 @@ body.pixi-enabled > :not(.pixi-root):not(script) {
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
+    position: relative;
     max-width: 1280px;
     width: 100%;
     margin: 0 auto;
@@ -1642,19 +1649,20 @@ body.battle-phase-active .battlefield::after {
 @media (min-width: 980px) {
     .app-shell {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) var(--desktop-sidebar-width);
+        grid-template-columns: minmax(0, 1fr) minmax(0, var(--desktop-sidebar-width));
         align-items: stretch;
-        gap: 18px;
-        width: min(1600px, 100%);
-        max-width: 1600px;
-        padding: 18px;
+        gap: var(--desktop-layout-gap);
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: var(--desktop-layout-gutter);
     }
 
     .desktop-battle-drawer {
         position: absolute;
         top: 18px;
         bottom: 18px;
-        right: calc(var(--desktop-sidebar-width) + 18px);
+        right: calc(var(--desktop-sidebar-width) + var(--desktop-layout-gap) + var(--desktop-layout-gutter));
         width: clamp(380px, 33vw, 620px);
         display: flex;
         flex-direction: column;
@@ -1735,13 +1743,14 @@ body.battle-phase-active .battlefield::after {
         /* Enables cqw/cqh so board width scales from *actual* column height (flex), not 100dvh alone. */
         container-type: size;
         container-name: battlefield;
+        justify-self: stretch;
+        align-self: stretch;
+        width: 100%;
         flex-direction: column;
         align-items: stretch;
         justify-content: space-between;
         gap: clamp(10px, 1.6vh, 18px);
-        overflow-x: hidden;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
+        overflow: hidden;
         min-height: 0;
         height: 100%;
     }
@@ -1771,24 +1780,20 @@ body.battle-phase-active .battlefield::after {
     }
 
     .board-grid {
-        /*
-         * Fixed stack ratio: two 3×3 boards (aspect 5/6 cells) + labels + gaps + player socket padding
-         * consume ~2.45–2.65× the board width in height. Cap width from real arena height (cqh).
-         */
-        width: min(100%, calc((100dvh - 248px) / 2.95), 430px);
+        /* Size each 3x3 board from half the real arena height so desktop never needs vertical arena scrolling. */
         width: min(
             100cqw,
-            430px,
-            calc((100cqh - clamp(100px, 12cqh, 188px)) / 2.72)
+            var(--desktop-board-max-width),
+            calc(((100cqh - var(--desktop-board-height-offset)) / 2) / var(--desktop-board-height-ratio))
         );
         max-width: none;
-        gap: 6px;
-        padding: 8px 14px;
+        gap: clamp(6px, 0.45vw, 10px);
+        padding: clamp(8px, 0.75vw, 12px) clamp(12px, 0.9vw, 18px);
         margin: 0 auto;
     }
 
     #playerGrid.board-grid {
-        padding-bottom: clamp(30px, 4vh, 48px);
+        padding-bottom: clamp(24px, 3.2vh, 42px);
     }
 
     .board-cell {
@@ -1803,7 +1808,10 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-menu {
         display: grid;
-        grid-template-rows: auto minmax(0, 1.68fr) minmax(var(--desktop-hand-section-min-height), 1.1fr) auto;
+        grid-template-rows: auto minmax(0, 1.9fr) minmax(var(--desktop-hand-section-min-height), 0.84fr) auto;
+        justify-self: stretch;
+        align-self: stretch;
+        width: 100%;
         min-height: 0;
         z-index: 8;
         padding: clamp(14px, 1.4vw, 20px);
@@ -1816,7 +1824,7 @@ body.battle-phase-active .battlefield::after {
             inset 0 0 0 1px rgba(255, 255, 255, 0.04),
             0 16px 38px rgba(0, 0, 0, 0.24);
         overflow: hidden;
-        gap: 10px;
+        gap: 12px;
     }
 
     .desktop-menu-header,
@@ -1828,7 +1836,7 @@ body.battle-phase-active .battlefield::after {
     .desktop-menu-header {
         order: 0;
         display: grid;
-        gap: 10px;
+        gap: 8px;
         padding: 2px 0 4px;
     }
 
@@ -1840,8 +1848,8 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu-copy {
-        font-size: 0.86em;
-        line-height: 1.45;
+        font-size: 0.88em;
+        line-height: 1.5;
         color: rgba(220, 230, 255, 0.7);
     }
 
@@ -2025,8 +2033,8 @@ body.battle-phase-active .battlefield::after {
         display: flex;
         flex: 1 1 auto;
         min-height: 0;
-        overflow: auto;
-        padding-right: 4px;
+        overflow: hidden;
+        padding-right: 2px;
     }
 
     .desktop-inspect-pane .desktop-deck-preview {
@@ -2039,10 +2047,11 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-preview-layout {
         display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        gap: clamp(10px, 1vw, 14px);
-        align-items: start;
+        grid-template-columns: minmax(0, var(--desktop-preview-card-width)) minmax(0, 1fr);
+        gap: clamp(12px, 1.15vw, 18px);
+        align-items: stretch;
         width: 100%;
+        height: 100%;
         min-height: 0;
     }
 
@@ -2051,6 +2060,7 @@ body.battle-phase-active .battlefield::after {
         width: var(--desktop-preview-card-width) !important;
         min-width: 0 !important;
         max-width: var(--desktop-preview-card-width) !important;
+        height: var(--desktop-preview-card-max-height);
         min-height: 0;
         max-height: var(--desktop-preview-card-max-height);
         aspect-ratio: var(--card-aspect-ratio);
@@ -2107,13 +2117,16 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-preview-copy-panel {
         display: grid;
-        gap: 7px;
+        gap: 9px;
         align-content: start;
         min-width: 0;
+        min-height: 0;
+        padding-top: 2px;
+        overflow: auto;
     }
 
     .desktop-preview-kicker {
-        font-size: 0.74em;
+        font-size: 0.72em;
         font-weight: 800;
         letter-spacing: 0.14em;
         text-transform: uppercase;
@@ -2121,21 +2134,22 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-preview-title {
-        font-size: 0.92rem;
+        font-size: clamp(1.02rem, 1.2vw, 1.18rem);
         font-weight: 800;
-        line-height: 1.02;
+        line-height: 1.04;
         color: #f5f8ff;
     }
 
     .desktop-preview-meta,
     .desktop-preview-stats {
-        font-size: 0.82em;
+        font-size: 0.8em;
+        line-height: 1.38;
         color: rgba(223, 231, 255, 0.74);
     }
 
     .desktop-preview-description {
-        font-size: 0.76em;
-        line-height: 1.34;
+        font-size: 0.79em;
+        line-height: 1.42;
         color: rgba(245, 248, 255, 0.94);
     }
 
@@ -2159,8 +2173,8 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-preview-note {
         padding-top: 4px;
-        font-size: 0.62em;
-        line-height: 1.32;
+        font-size: 0.66em;
+        line-height: 1.42;
         color: rgba(167, 255, 203, 0.86);
     }
 
@@ -2186,16 +2200,16 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-menu .hand-cards {
         justify-content: flex-start;
-        gap: clamp(8px, 0.8vw, 12px);
-        padding: 2px 4px 12px;
+        align-items: flex-start;
+        gap: clamp(10px, 0.9vw, 14px);
+        padding: 2px 2px 12px;
         overflow-y: hidden;
         overflow-x: auto;
         flex-wrap: nowrap;
-        align-items: stretch;
         flex: 1 1 0%;
         min-height: 0;
         height: 100%;
-        scroll-padding-inline: 4px;
+        scroll-padding-inline: 2px;
         scrollbar-width: thin;
         scrollbar-color: rgba(90, 156, 255, 0.72) rgba(10, 18, 33, 0.52);
     }
@@ -2216,20 +2230,21 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu .hand-card {
-        /* Stretch to full row height; width follows --card-aspect-ratio (5/7). Avoid height:100% — it can fall back to intrinsic height when the % base is indefinite. */
+        /* JS derives this width from the live rail height so cards fill the selector while keeping 5:7 proportions. */
         box-sizing: border-box;
         height: auto;
-        width: auto;
-        min-width: 0;
-        max-width: none;
+        width: var(--hand-card-width);
+        min-width: var(--hand-card-width);
+        max-width: var(--hand-card-width);
         min-height: 0;
         max-height: none;
-        align-self: stretch;
+        align-self: flex-start;
         aspect-ratio: var(--card-aspect-ratio);
         padding: var(--hand-card-padding);
         margin-left: 0;
         filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.22));
         flex: 0 0 auto;
+        transform-origin: center bottom;
     }
 
     .desktop-menu .hand-card:hover {
