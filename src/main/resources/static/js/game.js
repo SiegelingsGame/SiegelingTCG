@@ -793,9 +793,49 @@ function formatBattleAbilityCost(ability) {
     return `${energy} energy`;
 }
 
+function formatAbilityTargetLabel(ability) {
+    switch (ability?.targetType) {
+        case 'SINGLE_ENEMY':
+            return 'Target enemy';
+        case 'ALL_ENEMIES':
+            return 'All enemies';
+        case 'ROW_ENEMIES':
+            return ability?.targetRow ? `${formatElementLabel(ability.targetRow)} enemy row` : 'Enemy row';
+        case 'SINGLE_ALLY':
+            return 'Target ally';
+        case 'ALL_ALLIES':
+            return 'All allies';
+        case 'ROW_ALLIES':
+            return ability?.targetRow ? `${formatElementLabel(ability.targetRow)} ally row` : 'Ally row';
+        case 'ENEMY_PLAYER':
+            return 'Enemy player';
+        case 'SELF':
+            return 'Self';
+        case 'PASSIVE':
+            return 'Passive';
+        default:
+            return '';
+    }
+}
+
+function formatAbilityEffectLabel(ability) {
+    const effectType = String(ability?.effectType || '').trim();
+    if (!effectType) {
+        return '';
+    }
+    const label = effectType
+        .split(/[_\s-]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+    const value = Number(ability?.effectValue);
+    return Number.isFinite(value) && value > 0 ? `${label} ${value}` : label;
+}
+
 function renderBattleAbilityCostEmblems(ability) {
     const energy = getAbilityRequiredEnergy(ability);
-    const element = String(ability?.requiredElement || ability?.costElement || '').toLowerCase();
+    const rawElement = ability?.requiredElement || ability?.costElement || '';
+    const element = String(rawElement).toLowerCase();
     if (energy <= 0) {
         return '<span class="battle-cost-free">Free</span>';
     }
@@ -810,7 +850,7 @@ function renderBattleAbilityCostEmblems(ability) {
     if (energy > tokensToDraw) {
         html += `<span class="battle-cost-count">x${energy}</span>`;
     }
-    html += `</span><span class="battle-cost-label">${formatElementLabel(element)}</span>`;
+    html += `</span><span class="battle-cost-label">${formatElementLabel(rawElement || element)}</span>`;
     return html;
 }
 
@@ -4298,7 +4338,11 @@ function renderDomLegacy() {
     btnBattle.setAttribute('aria-label', battleTitle);
     btnBattle.classList.toggle('ab-urgent', playerBattlePending);
     if (btnBattlePanel) {
-        const panelTitle = 'Battle Action';
+        const panelTitle = phase === 'BATTLE'
+            ? 'Battle Action'
+            : getSelectedBattlePreviewCard()
+            ? 'Preview selected card abilities'
+            : 'Preview Siegling battle abilities';
         btnBattlePanel.title = panelTitle;
         btnBattlePanel.setAttribute('aria-label', panelTitle);
     }
@@ -6157,6 +6201,229 @@ function renderLog() {
     renderDesktopActionHistory();
 }
 
+function getStandbyBattlePreviewCards() {
+    const entries = [];
+    const board = gameState?.playerBoard || [];
+    for (let row = 0; row < 3; row += 1) {
+        for (let col = 0; col < 3; col += 1) {
+            const cell = board?.[row]?.[col];
+            if (!cell) {
+                continue;
+            }
+            const card = boardCellToPreviewCard(cell);
+            entries.push({ card, row, col });
+        }
+    }
+    return entries.sort((left, right) => {
+        const speedDiff = Number(right.card?.spd ?? right.card?.speed ?? 0) - Number(left.card?.spd ?? left.card?.speed ?? 0);
+        if (speedDiff !== 0) {
+            return speedDiff;
+        }
+        return String(left.card?.name || '').localeCompare(String(right.card?.name || ''));
+    });
+}
+
+function getSelectedBattlePreviewCard() {
+    if (!gameState || gameState.currentPhase !== 'SETUP') {
+        return null;
+    }
+    const hand = gameState.player?.hand || [];
+    if (selectedHandIndex != null && hand[selectedHandIndex]) {
+        return hand[selectedHandIndex];
+    }
+    if (selectedCard && hand.some((card) => card === selectedCard || (selectedCard.id && card.id === selectedCard.id))) {
+        return selectedCard;
+    }
+    return null;
+}
+
+function findMatchingAbilityForMove(move, abilities) {
+    const moveName = String(move?.name || '').trim().toLowerCase();
+    if (!moveName) {
+        return null;
+    }
+    return abilities.find((ability) => String(ability?.name || '').trim().toLowerCase() === moveName) || null;
+}
+
+function buildStandbyAbilityEntryFromAbility(ability) {
+    const passive = Boolean(ability?.passive || ability?.targetType === 'PASSIVE');
+    return {
+        name: String(ability?.name || 'Ability').trim(),
+        description: String(ability?.description || formatAbilitySummaryText(ability) || 'Effect details appear when this card resolves.').trim(),
+        costLabel: passive ? 'Passive' : formatBattleAbilityCost(ability),
+        costHtml: passive ? '<span class="battle-cost-free">Passive</span>' : renderBattleAbilityCostEmblems(ability),
+        targetLabel: passive ? '' : formatAbilityTargetLabel(ability),
+        effectLabel: formatAbilityEffectLabel(ability)
+    };
+}
+
+function buildStandbyAbilityEntryFromMove(move, matchingAbility) {
+    const passive = Boolean(move?.isPassive || matchingAbility?.passive || matchingAbility?.targetType === 'PASSIVE');
+    const energy = Number(move?.energyCost ?? getAbilityRequiredEnergy(matchingAbility));
+    const safeEnergy = Number.isFinite(energy) ? energy : 0;
+    const element = matchingAbility?.requiredElement || matchingAbility?.costElement || '';
+    const costLabel = passive
+        ? 'Passive'
+        : safeEnergy <= 0
+        ? 'Free'
+        : element
+        ? `${safeEnergy} ${formatElementLabel(element)}`
+        : `${safeEnergy} energy`;
+    const costHtml = passive
+        ? '<span class="battle-cost-free">Passive</span>'
+        : matchingAbility
+        ? renderBattleAbilityCostEmblems(matchingAbility)
+        : safeEnergy <= 0
+        ? '<span class="battle-cost-free">Free</span>'
+        : `<span class="battle-cost-energy">${escapeHtml(String(safeEnergy))} energy</span>`;
+
+    return {
+        name: String(move?.name || matchingAbility?.name || 'Ability').trim(),
+        description: String(move?.description || matchingAbility?.description || formatAbilitySummaryText(matchingAbility) || 'Effect details appear when this card resolves.').trim(),
+        costLabel,
+        costHtml,
+        targetLabel: passive ? '' : formatAbilityTargetLabel(matchingAbility),
+        effectLabel: formatAbilityEffectLabel(matchingAbility)
+    };
+}
+
+function getSelectedCardBattlePreviewAbilities(card) {
+    const abilities = getCardAbilities(card).filter((ability) => !ability?.fromPrintedPassive);
+    if (card?.type === 'SIEGLING') {
+        const moves = getSieglingMovesForDisplay(card).filter(Boolean);
+        if (moves.length > 0) {
+            return moves.map((move) => buildStandbyAbilityEntryFromMove(move, findMatchingAbilityForMove(move, abilities)));
+        }
+    }
+    return getSortedBattleAbilities(abilities).map(buildStandbyAbilityEntryFromAbility);
+}
+
+function renderStandbyAbilityRows(abilityEntries, fallbackText) {
+    if (!abilityEntries || abilityEntries.length === 0) {
+        return `<div class="battle-standby-no-ability">${escapeHtml(fallbackText)}</div>`;
+    }
+    let html = '<div class="battle-standby-abilities">';
+    for (const ability of abilityEntries) {
+        const chips = [
+            ability.costLabel,
+            ability.targetLabel,
+            ability.effectLabel
+        ].filter(Boolean);
+        html += '<div class="battle-standby-ability">';
+        html += '<div class="battle-standby-ability-top">';
+        html += `<span class="battle-standby-ability-name">${escapeHtml(ability.name)}</span>`;
+        html += `<span class="battle-standby-ability-cost">${ability.costHtml}</span>`;
+        html += '</div>';
+        html += `<div class="battle-standby-ability-desc">${escapeHtml(ability.description)}</div>`;
+        if (chips.length > 0) {
+            html += '<div class="battle-standby-chip-row">';
+            chips.forEach((chip) => {
+                html += `<span class="battle-standby-chip">${escapeHtml(chip)}</span>`;
+            });
+            html += '</div>';
+        }
+        html += '</div>';
+    }
+    html += '</div>';
+    return html;
+}
+
+function getSelectedCardBattlePreviewMeta(card) {
+    const parts = [
+        card?.type || 'CARD',
+        formatElementLabel(card?.element),
+        card?.rarity
+    ].filter(Boolean);
+    if (card?.type === 'SIEGLING') {
+        const hp = card?.hp ?? card?.health ?? '?';
+        const speed = card?.spd ?? card?.speed ?? '?';
+        const row = card?.preferredRow ? formatElementLabel(card.preferredRow) : '';
+        parts.push(`HP ${hp}`);
+        parts.push(`SPD ${speed}`);
+        if (row) {
+            parts.push(row);
+        }
+    } else if (card?.type === 'TRAP' && card.trapBucketElement) {
+        parts.push(`Trigger ${card.trapBucketAmount || 0} ${formatElementLabel(card.trapBucketElement)}`);
+    } else if (card?.costElement && card?.costAmount > 0) {
+        parts.push(`Cost ${card.costAmount} ${formatElementLabel(card.costElement)}`);
+    }
+    if (card?.requiredComboSize) {
+        parts.push(card.requiredComboSignature
+            ? `Combo ${card.requiredComboSignature.split('+').map(formatElementLabel).join(' + ')}`
+            : `Combo ${card.requiredComboSize}`);
+    }
+    if (card?.requiredReaction) {
+        parts.push(`Requires ${formatElementLabel(card.requiredReaction)}`);
+    }
+    if (card?.evolvesFromName) {
+        parts.push(`Evolves from ${card.evolvesFromName}`);
+    }
+    return parts.join(' | ');
+}
+
+function renderSelectedCardBattlePreview(card) {
+    const elementClass = String(card?.element || 'neutral').toLowerCase();
+    const abilities = getSelectedCardBattlePreviewAbilities(card);
+    const lockReason = getHandCardLockReason(card);
+    const fallback = card?.type === 'SIEGLING'
+        ? 'Basic strike only. No printed battle ability is available for this Siegling.'
+        : 'No printed ability text is available for this card.';
+
+    let html = '<div class="battle-standby-preview battle-selected-preview">';
+    html += '<div class="battle-attacker"><strong>Selected card preview.</strong> Battle abilities and effects for the card in your hand.</div>';
+    html += `<article class="battle-standby-card battle-selected-card ${elementClass}">`;
+    html += '<div class="battle-standby-card-head">';
+    html += `<div><div class="battle-standby-selected-label">Selected</div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Card')}</div><div class="battle-standby-card-meta">${escapeHtml(getSelectedCardBattlePreviewMeta(card))}</div></div>`;
+    html += `<div class="battle-standby-order">${escapeHtml(String(card?.type || 'Card'))}</div>`;
+    html += '</div>';
+    if (lockReason) {
+        html += `<div class="battle-standby-selected-note">${escapeHtml(lockReason)}</div>`;
+    }
+    html += renderStandbyAbilityRows(abilities, fallback);
+    html += '</article>';
+    html += '</div>';
+    return html;
+}
+
+function renderStandbyBattleAbilityPreview() {
+    const selectedPreviewCard = getSelectedBattlePreviewCard();
+    if (selectedPreviewCard) {
+        return renderSelectedCardBattlePreview(selectedPreviewCard);
+    }
+
+    const entries = getStandbyBattlePreviewCards();
+    if (entries.length === 0) {
+        return '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Place a Siegling to preview its battle abilities here.</div><div class="battle-hint">When battle begins, this panel becomes the live speed-order action queue.</div>';
+    }
+
+    let html = '<div class="battle-standby-preview">';
+    html += '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Review your board abilities before ending setup.</div>';
+    html += '<div class="battle-hint">Listed in projected speed order. Energy availability is checked again when each Siegling acts.</div>';
+    html += '<div class="battle-standby-list">';
+    for (const entry of entries) {
+        const card = entry.card;
+        const elementClass = String(card?.element || 'neutral').toLowerCase();
+        const hp = card?.hp ?? card?.health ?? '?';
+        const maxHp = card?.maxHp ?? card?.health ?? '?';
+        const speed = card?.spd ?? card?.speed ?? '?';
+        const rowLabel = ROW_NAMES[entry.row] || `Row ${entry.row + 1}`;
+        const abilities = getSortedBattleAbilities(getCardAbilities(card))
+            .filter((ability) => !ability?.fromPrintedPassive)
+            .map(buildStandbyAbilityEntryFromAbility);
+        html += `<article class="battle-standby-card ${elementClass}">`;
+        html += '<div class="battle-standby-card-head">';
+        html += `<div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Siegling')}</div><div class="battle-standby-card-meta">HP ${escapeHtml(String(hp))}/${escapeHtml(String(maxHp))} | SPD ${escapeHtml(String(speed))} | ${escapeHtml(rowLabel)}</div></div>`;
+        html += `<div class="battle-standby-order">#${entries.indexOf(entry) + 1}</div>`;
+        html += '</div>';
+        html += renderStandbyAbilityRows(abilities, 'Basic strike only. No printed battle ability is available for this Siegling.');
+        html += '</article>';
+    }
+    html += '</div>';
+    html += '</div>';
+    return html;
+}
+
 function renderBattlePanel() {
     const panels = [
         document.getElementById('battleActionPanel'),
@@ -6213,7 +6480,7 @@ function renderBattlePanel() {
         setPanelHtml(buildQueueShell(
             'Stand By',
             'waiting',
-            '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Finish setup to send Sieglings into speed order.</div><div class="battle-hint">When battle begins, the hand HUD transforms into this queue prompt so you can act without leaving the bottom command area.</div>'
+            renderStandbyBattleAbilityPreview()
         ));
         return;
     }

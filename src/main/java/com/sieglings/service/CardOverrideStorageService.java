@@ -8,8 +8,11 @@ import com.google.cloud.ServiceOptions;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.FirestoreOptions;
+import com.google.cloud.firestore.SetOptions;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -44,12 +47,14 @@ public class CardOverrideStorageService {
             String updatedAt
     ) {}
 
-    private record CacheEntry(LoadSnapshot snapshot, long loadedAtMillis) {}
+    private record CacheEntry(LoadSnapshot snapshot, long loadedAtMillis, long publishVersion) {}
+    private record PublishVersionEntry(long version, long loadedAtMillis) {}
 
     // Gameplay can hit the live card catalog multiple times in the same short session.
     // Keep the cached snapshot warm long enough that opening the loadout screen and then
     // starting a match does not trigger another remote config round-trip.
     private static final long CACHE_TTL_MILLIS = 5 * 60_000L;
+    private static final long PUBLISH_VERSION_CACHE_TTL_MILLIS = 1_000L;
     private static volatile CardOverrideStorageService INSTANCE;
 
     private final ObjectMapper objectMapper;
@@ -59,11 +64,14 @@ public class CardOverrideStorageService {
     private final String firestoreDatabaseId;
     private final String firestoreCollection;
     private final String firestoreDocument;
+    private final String firestorePublishSignalDocument;
 
     private volatile Firestore firestore;
     private volatile String firestoreInitializationError;
     private volatile CacheEntry cacheEntry;
+    private volatile PublishVersionEntry publishVersionEntry;
 
+    @Autowired
     public CardOverrideStorageService(
             ObjectMapper objectMapper,
             @Value("${app.card-editor.firestore-enabled:true}") boolean firestoreEnabled,
@@ -71,7 +79,8 @@ public class CardOverrideStorageService {
             @Value("${app.card-editor.firestore-service-account-path:}") String firestoreServiceAccountPath,
             @Value("${app.card-editor.firestore-database-id:(default)}") String firestoreDatabaseId,
             @Value("${app.card-editor.firestore-collection:appConfig}") String firestoreCollection,
-            @Value("${app.card-editor.firestore-document:cardOverrides}") String firestoreDocument
+            @Value("${app.card-editor.firestore-document:cardOverrides}") String firestoreDocument,
+            @Value("${app.card-editor.firestore-publish-signal-document:livePublishState}") String firestorePublishSignalDocument
     ) {
         this.objectMapper = objectMapper;
         this.firestoreEnabled = firestoreEnabled;
@@ -82,6 +91,30 @@ public class CardOverrideStorageService {
                 : firestoreDatabaseId.trim();
         this.firestoreCollection = firestoreCollection;
         this.firestoreDocument = firestoreDocument;
+        this.firestorePublishSignalDocument = firestorePublishSignalDocument == null || firestorePublishSignalDocument.isBlank()
+                ? "livePublishState"
+                : firestorePublishSignalDocument.trim();
+    }
+
+    CardOverrideStorageService(
+            ObjectMapper objectMapper,
+            boolean firestoreEnabled,
+            String firestoreProjectId,
+            String firestoreServiceAccountPath,
+            String firestoreDatabaseId,
+            String firestoreCollection,
+            String firestoreDocument
+    ) {
+        this(
+                objectMapper,
+                firestoreEnabled,
+                firestoreProjectId,
+                firestoreServiceAccountPath,
+                firestoreDatabaseId,
+                firestoreCollection,
+                firestoreDocument,
+                "livePublishState"
+        );
     }
 
     @PostConstruct
@@ -164,14 +197,18 @@ public class CardOverrideStorageService {
     private LoadSnapshot loadFirestoreSnapshot() {
         CacheEntry cached = cacheEntry;
         long now = System.currentTimeMillis();
-        if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS) {
+        Long publishVersion = getCurrentPublishVersion();
+        if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS
+                && (publishVersion == null || cached.publishVersion() == publishVersion.longValue())) {
             return cached.snapshot();
         }
 
         synchronized (this) {
             cached = cacheEntry;
             now = System.currentTimeMillis();
-            if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS) {
+            publishVersion = getCurrentPublishVersion();
+            if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS
+                    && (publishVersion == null || cached.publishVersion() == publishVersion.longValue())) {
                 return cached.snapshot();
             }
 
@@ -197,7 +234,11 @@ public class CardOverrideStorageService {
                             resolveTimestamp(snapshot)
                     );
                 }
-                cacheEntry = new CacheEntry(cloneSnapshot(loadSnapshot), System.currentTimeMillis());
+                cacheEntry = new CacheEntry(
+                        cloneSnapshot(loadSnapshot),
+                        System.currentTimeMillis(),
+                        publishVersion == null ? 0L : publishVersion
+                );
                 return loadSnapshot;
             } catch (Exception ex) {
                 throw new IllegalStateException("Unable to load live card data from Firestore.", ex);
@@ -208,7 +249,12 @@ public class CardOverrideStorageService {
     private LoadSnapshot saveToFirestore(ManualSieglingCatalog.OverrideFile file, String updatedByEmail) {
         try {
             LoadSnapshot snapshot = persistFirestoreData(fireStoreDocRef(), file, updatedByEmail);
-            cacheEntry = new CacheEntry(cloneSnapshot(snapshot), System.currentTimeMillis());
+            Long publishVersion = getCurrentPublishVersion();
+            cacheEntry = new CacheEntry(
+                    cloneSnapshot(snapshot),
+                    System.currentTimeMillis(),
+                    publishVersion == null ? 0L : publishVersion
+            );
             return snapshot;
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to save live card data to Firestore.", ex);
@@ -313,6 +359,10 @@ public class CardOverrideStorageService {
 
     private DocumentReference fireStoreDocRef() {
         return firestore.collection(firestoreCollection).document(firestoreDocument);
+    }
+
+    private DocumentReference fireStorePublishSignalDocRef() {
+        return firestore.collection(firestoreCollection).document(firestorePublishSignalDocument);
     }
 
     private JsonNode readLocalData() {
@@ -443,6 +493,64 @@ public class CardOverrideStorageService {
             throw new IllegalStateException("Firestore is not available in this runtime.");
         }
         return firestore;
+    }
+
+    public Long getCurrentPublishVersion() {
+        ensureFirestoreInitialized();
+        if (!isFirestoreReady()) {
+            return null;
+        }
+
+        PublishVersionEntry cached = publishVersionEntry;
+        long now = System.currentTimeMillis();
+        if (cached != null && now - cached.loadedAtMillis() < PUBLISH_VERSION_CACHE_TTL_MILLIS) {
+            return cached.version();
+        }
+
+        synchronized (this) {
+            cached = publishVersionEntry;
+            now = System.currentTimeMillis();
+            if (cached != null && now - cached.loadedAtMillis() < PUBLISH_VERSION_CACHE_TTL_MILLIS) {
+                return cached.version();
+            }
+            try {
+                DocumentSnapshot snapshot = fireStorePublishSignalDocRef().get().get(5, TimeUnit.SECONDS);
+                long version = resolvePublishVersion(snapshot);
+                publishVersionEntry = new PublishVersionEntry(version, System.currentTimeMillis());
+                return version;
+            } catch (Exception ex) {
+                return null;
+            }
+        }
+    }
+
+    public void markLivePublish(String updatedByEmail) {
+        ensureFirestoreInitialized();
+        if (!isFirestoreReady()) {
+            return;
+        }
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("version", FieldValue.increment(1L));
+            payload.put("updatedBy", updatedByEmail == null || updatedByEmail.isBlank() ? "unknown" : updatedByEmail.trim().toLowerCase());
+            payload.put("updatedAt", Timestamp.now());
+            fireStorePublishSignalDocRef().set(payload, SetOptions.merge()).get(10, TimeUnit.SECONDS);
+            publishVersionEntry = null;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to bump the live publish signal in Firestore.", ex);
+        }
+    }
+
+    private long resolvePublishVersion(DocumentSnapshot snapshot) {
+        Object version = snapshot == null ? null : snapshot.get("version");
+        if (version instanceof Number number) {
+            return number.longValue();
+        }
+        if (snapshot != null && snapshot.getUpdateTime() != null) {
+            Timestamp ts = snapshot.getUpdateTime();
+            return ts.getSeconds() * 1_000_000_000L + ts.getNanos();
+        }
+        return 0L;
     }
 
     private record FirestoreClientContext(Firestore client, String projectId) {}

@@ -1,0 +1,52 @@
+{
+  "viewport": {
+    "width": 2048,
+    "height": 1055
+  },
+  "phase": "DRAW",
+  "viewportMode": "Desktop Dock 2048x1055",
+  "app": {
+    "left": 0,
+    "top": 36,
+    "width": 2048,
+    "height": 1019,
+    "right": 2048,
+    "bottom": 1055
+  },
+  "battlefield": {
+    "left": 16,
+    "top": 52,
+    "width": 1382,
+    "height": 987,
+    "right": 1398,
+    "bottom": 1039
+  },
+  "menu": {
+    "left": 1418,
+    "top": 52,
+    "width": 614,
+    "height": 987,
+    "right": 2032,
+    "bottom": 1039
+  },
+  "board": {
+    "left": 511.421875,
+    "top": 80.484375,
+    "width": 391.140625,
+    "height": 513.828125,
+    "right": 902.5625,
+    "bottom": 594.3125
+  },
+  "cssVars": {
+    "sidebarWidth": "614px",
+    "layoutGap": "20px",
+    "layoutGutter": "16px",
+    "boardMaxWidth": "528px"
+  },
+  "rightSlack": 16,
+  "leftSlack": 16,
+  "boardCenterDeltaFromArena": -0.01,
+  "mulliganVisible": false,
+  "loadoutVisible": false,
+  "welcomeVisible": false
+}

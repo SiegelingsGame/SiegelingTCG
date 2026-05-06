@@ -204,6 +204,18 @@ public class PlacementService {
                 .toList();
     }
 
+    public List<CardInstance> getDirectlyConnectedAllies(GameState state, CardInstance source) {
+        if (state == null || source == null || !source.isAlive()) {
+            return List.of();
+        }
+
+        return state.getBoardSieglings(source.isOwner()).stream()
+                .filter(candidate -> candidate != source)
+                .filter(CardInstance::isAlive)
+                .filter(candidate -> hasReciprocalLink(source, candidate, source.isOwner()))
+                .toList();
+    }
+
     String resolveExternalSocketKey(int row, int col, boolean isPlayer, NotchDirection direction) {
         return switch (direction) {
             case LEFT -> col == 0 ? "left-" + row : null;

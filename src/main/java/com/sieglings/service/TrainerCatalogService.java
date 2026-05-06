@@ -39,7 +39,7 @@ public class TrainerCatalogService {
             String updatedAt
     ) {}
 
-    private record CacheEntry(LoadSnapshot snapshot, long loadedAtMillis) {}
+    private record CacheEntry(LoadSnapshot snapshot, long loadedAtMillis, long publishVersion) {}
 
     // Trainer definitions are consulted repeatedly during loadout + match start. A longer cache
     // avoids re-blocking gameplay on remote config while still allowing save actions to invalidate.
@@ -230,14 +230,18 @@ public class TrainerCatalogService {
     private LoadSnapshot loadFirestoreSnapshot() {
         CacheEntry cached = cacheEntry;
         long now = System.currentTimeMillis();
-        if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS) {
+        Long publishVersion = cardOverrideStorageService.getCurrentPublishVersion();
+        if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS
+                && (publishVersion == null || cached.publishVersion() == publishVersion.longValue())) {
             return cached.snapshot();
         }
 
         synchronized (this) {
             cached = cacheEntry;
             now = System.currentTimeMillis();
-            if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS) {
+            publishVersion = cardOverrideStorageService.getCurrentPublishVersion();
+            if (cached != null && now - cached.loadedAtMillis() < CACHE_TTL_MILLIS
+                    && (publishVersion == null || cached.publishVersion() == publishVersion.longValue())) {
                 return cached.snapshot();
             }
 
@@ -259,7 +263,11 @@ public class TrainerCatalogService {
                             resolveTimestamp(snapshot)
                     );
                 }
-                cacheEntry = new CacheEntry(cloneSnapshot(loadSnapshot), System.currentTimeMillis());
+                cacheEntry = new CacheEntry(
+                        cloneSnapshot(loadSnapshot),
+                        System.currentTimeMillis(),
+                        publishVersion == null ? 0L : publishVersion
+                );
                 return loadSnapshot;
             } catch (Exception ex) {
                 throw new IllegalStateException("Unable to load trainer data from Firestore.", ex);
@@ -270,7 +278,12 @@ public class TrainerCatalogService {
     private LoadSnapshot saveToFirestore(TrainerFile file, String updatedByEmail) {
         try {
             LoadSnapshot snapshot = persistFirestoreData(fireStoreDocRef(), file, updatedByEmail);
-            cacheEntry = new CacheEntry(cloneSnapshot(snapshot), System.currentTimeMillis());
+            Long publishVersion = cardOverrideStorageService.getCurrentPublishVersion();
+            cacheEntry = new CacheEntry(
+                    cloneSnapshot(snapshot),
+                    System.currentTimeMillis(),
+                    publishVersion == null ? 0L : publishVersion
+            );
             return snapshot;
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to save trainer data to Firestore.", ex);

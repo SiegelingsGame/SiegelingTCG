@@ -1311,6 +1311,159 @@ body.pixi-enabled > :not(.pixi-root):not(script) {
     color: #cfe4ff;
 }
 
+.battle-standby-preview {
+    display: grid;
+    gap: 9px;
+    min-height: 0;
+}
+
+.battle-standby-list {
+    display: grid;
+    gap: 8px;
+    min-height: 0;
+}
+
+.battle-standby-card {
+    display: grid;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(139, 194, 255, 0.18);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025)),
+        rgba(8, 16, 32, 0.58);
+    box-shadow: inset 3px 0 0 var(--element-accent, rgba(139, 194, 255, 0.78));
+}
+
+.battle-standby-card.fire { --element-accent: var(--fire); }
+.battle-standby-card.earth { --element-accent: var(--earth); }
+.battle-standby-card.wind { --element-accent: var(--wind); }
+.battle-standby-card.water { --element-accent: var(--water); }
+.battle-standby-card.ice { --element-accent: var(--ice); }
+.battle-standby-card.shadow { --element-accent: var(--shadow); }
+.battle-standby-card.electric { --element-accent: var(--electric); }
+.battle-standby-card.metal { --element-accent: var(--metal); }
+.battle-standby-card.undead { --element-accent: var(--undead); }
+.battle-standby-card.psychic { --element-accent: var(--psychic); }
+
+.battle-selected-preview {
+    align-content: start;
+}
+
+.battle-selected-card {
+    gap: 10px;
+    border-color: color-mix(in srgb, var(--element-accent, #8bc2ff) 52%, rgba(255, 255, 255, 0.12));
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.026)),
+        color-mix(in srgb, var(--element-accent, #8bc2ff) 14%, rgba(8, 16, 32, 0.76));
+}
+
+.battle-standby-selected-label {
+    margin-bottom: 3px;
+    color: color-mix(in srgb, var(--element-accent, #8bc2ff) 72%, #ffffff);
+    font-size: 0.58em;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.battle-standby-selected-note {
+    padding: 7px 8px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--element-accent, #8bc2ff) 36%, rgba(255, 255, 255, 0.1));
+    background: rgba(255, 255, 255, 0.055);
+    color: #eaf1ff;
+    font-size: 0.72em;
+    line-height: 1.35;
+}
+
+.battle-standby-card-head,
+.battle-standby-ability-top,
+.battle-standby-chip-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.battle-standby-card-head,
+.battle-standby-ability-top {
+    justify-content: space-between;
+}
+
+.battle-standby-card-name,
+.battle-standby-ability-name {
+    color: #f5f8ff;
+    font-weight: 800;
+    line-height: 1.18;
+}
+
+.battle-standby-card-meta,
+.battle-standby-ability-desc,
+.battle-standby-no-ability {
+    color: rgba(218, 228, 255, 0.72);
+    font-size: 0.72em;
+    line-height: 1.35;
+}
+
+.battle-standby-order {
+    flex-shrink: 0;
+    min-width: 28px;
+    padding: 4px 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(221, 232, 255, 0.82);
+    font-size: 0.68em;
+    font-weight: 800;
+    text-align: center;
+}
+
+.battle-standby-abilities {
+    display: grid;
+    gap: 7px;
+}
+
+.battle-standby-ability {
+    display: grid;
+    gap: 5px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.battle-standby-ability-cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.battle-standby-ability-cost .battle-cost-label,
+.battle-standby-ability-cost .battle-cost-count,
+.battle-standby-ability-cost .battle-cost-energy,
+.battle-standby-ability-cost .battle-cost-free {
+    color: rgba(229, 237, 255, 0.84);
+}
+
+.battle-standby-chip-row {
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.battle-standby-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 3px 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.055);
+    color: rgba(220, 230, 255, 0.82);
+    font-size: 0.62em;
+    font-weight: 700;
+}
+
 @keyframes desktop-queue-pop {
     from {
         opacity: 0;

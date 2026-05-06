@@ -19,7 +19,8 @@ const DOCS = {
   cards: { collection: 'appConfig', document: 'cardOverrides', field: 'cards' },
   decks: { collection: 'appConfig', document: 'presetDecks', field: 'decks' },
   trainers: { collection: 'appConfig', document: 'trainerCards', field: 'trainers' },
-  liveElements: { collection: 'appConfig', document: 'liveElements', field: 'elements' }
+  liveElements: { collection: 'appConfig', document: 'liveElements', field: 'elements' },
+  publishSignal: { collection: 'appConfig', document: 'livePublishState' }
 };
 
 const AUTH = {
@@ -67,7 +68,6 @@ app.get('/api/cards/editor', async (req, res) => {
 app.post('/api/cards/editor', async (req, res) => {
   try {
     const identity = await requireEditor(readEditorToken(req));
-    const now = FieldValue.serverTimestamp();
     const currentCards = await loadCardsSnapshot();
     const currentDecks = await loadSimpleSnapshot(DOCS.decks);
     const currentTrainers = await loadSimpleSnapshot(DOCS.trainers);
@@ -78,29 +78,21 @@ app.post('/api/cards/editor', async (req, res) => {
     const nextTrainers = resolveSimplePayload(req.body?.trainers, currentTrainers.data.trainers, 'trainers');
     const nextLiveElements = resolveLiveElementsPayload(req.body?.liveElements, currentLive.data.elements);
 
-    await Promise.all([
-      saveDocument(DOCS.cards, {
+    await saveEditorBundle({
+      cards: {
         cards: nextCards.cards,
         moves: nextCards.moves,
-        updatedBy: identity.email,
-        updatedAt: now
-      }),
-      saveDocument(DOCS.decks, {
+      },
+      decks: {
         decks: nextDecks,
-        updatedBy: identity.email,
-        updatedAt: now
-      }),
-      saveDocument(DOCS.trainers, {
+      },
+      trainers: {
         trainers: nextTrainers,
-        updatedBy: identity.email,
-        updatedAt: now
-      }),
-      saveDocument(DOCS.liveElements, {
+      },
+      liveElements: {
         elements: nextLiveElements,
-        updatedBy: identity.email,
-        updatedAt: now
-      })
-    ]);
+      }
+    }, identity.email);
 
     const updatedAt = new Date().toISOString();
     res.json({
@@ -258,6 +250,45 @@ function docRef(config) {
 
 function saveDocument(config, payload) {
   return docRef(config).set(payload, { merge: false });
+}
+
+async function saveEditorBundle(nextState, updatedByEmail) {
+  const batch = db.batch();
+  const now = FieldValue.serverTimestamp();
+  const updatedBy = normalizeUpdatedBy(updatedByEmail);
+
+  batch.set(docRef(DOCS.cards), {
+    cards: safeArray(nextState.cards?.cards),
+    moves: safeArray(nextState.cards?.moves),
+    updatedBy,
+    updatedAt: now
+  }, { merge: false });
+
+  batch.set(docRef(DOCS.decks), {
+    decks: safeArray(nextState.decks?.decks),
+    updatedBy,
+    updatedAt: now
+  }, { merge: false });
+
+  batch.set(docRef(DOCS.trainers), {
+    trainers: safeArray(nextState.trainers?.trainers),
+    updatedBy,
+    updatedAt: now
+  }, { merge: false });
+
+  batch.set(docRef(DOCS.liveElements), {
+    elements: safeArray(nextState.liveElements?.elements),
+    updatedBy,
+    updatedAt: now
+  }, { merge: false });
+
+  batch.set(docRef(DOCS.publishSignal), {
+    version: FieldValue.increment(1),
+    updatedBy,
+    updatedAt: now
+  }, { merge: true });
+
+  await batch.commit();
 }
 
 function readEditorToken(req) {
@@ -421,6 +452,11 @@ function safeArray(value) {
 
 function stringOrEmpty(value) {
   return typeof value === 'string' ? value : '';
+}
+
+function normalizeUpdatedBy(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized || 'unknown';
 }
 
 function timestampToIso(value, snapshot) {
