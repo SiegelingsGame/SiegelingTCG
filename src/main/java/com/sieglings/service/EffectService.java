@@ -21,6 +21,8 @@ import java.util.List;
  */
 @Service
 public class EffectService {
+    static final String NO_VALID_NOTCHES_MESSAGE = "No Valid Notches";
+
     private final PlacementService placementService = new PlacementService();
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -259,7 +261,7 @@ public class EffectService {
                             state.log(ability.getName() + " could not move the target to that cell.");
                         }
                     } else if (!moveToLinkedPoint(state, target)) {
-                        state.log(ability.getName() + " cannot find an open linked point.");
+                        state.log(NO_VALID_NOTCHES_MESSAGE);
                     }
                 }
                 default -> state.log("Unknown effect: " + effectType);
@@ -410,25 +412,12 @@ public class EffectService {
         return true;
     }
 
+    boolean hasValidMoveLinkDestination(GameState state, CardInstance source) {
+        return !getValidMoveLinkDestinations(state, source).isEmpty();
+    }
+
     private boolean moveToLinkedPoint(GameState state, CardInstance source) {
-        List<int[]> candidates = new ArrayList<>();
-
-        for (Notch notch : source.getNotches()) {
-            int nextRow = source.getBoardRow() + getBoardRowDelta(notch, source.isOwner());
-            int nextCol = source.getBoardCol() + notch.direction().getDx();
-            if (nextRow < 0 || nextRow > 2 || nextCol < 0 || nextCol > 2) {
-                continue;
-            }
-            if (state.getAt(source.isOwner(), nextRow, nextCol) != null) {
-                continue;
-            }
-
-            boolean alreadyListed = candidates.stream().anyMatch(pos -> pos[0] == nextRow && pos[1] == nextCol);
-            if (!alreadyListed) {
-                candidates.add(new int[] { nextRow, nextCol });
-            }
-        }
-
+        List<int[]> candidates = getValidMoveLinkDestinations(state, source);
         if (candidates.isEmpty()) {
             return false;
         }
@@ -446,6 +435,55 @@ public class EffectService {
         state.setAt(source.isOwner(), chosen[0], chosen[1], source);
         state.log(source.getName() + " moves to " + rowName(chosen[0]) + " row, col " + chosen[1] + ".");
         return true;
+    }
+
+    private List<int[]> getValidMoveLinkDestinations(GameState state, CardInstance source) {
+        if (state == null || source == null || !source.isAlive()) {
+            return List.of();
+        }
+
+        List<int[]> candidates = new ArrayList<>();
+        for (Notch notch : source.getNotches()) {
+            int nextRow = source.getBoardRow() + getBoardRowDelta(notch, source.isOwner());
+            int nextCol = source.getBoardCol() + notch.direction().getDx();
+            if (nextRow < 0 || nextRow > 2 || nextCol < 0 || nextCol > 2) {
+                continue;
+            }
+            if (state.getAt(source.isOwner(), nextRow, nextCol) != null) {
+                continue;
+            }
+            if (!hasActiveNotchConnectionAt(state, source, nextRow, nextCol)) {
+                continue;
+            }
+
+            boolean alreadyListed = candidates.stream().anyMatch(pos -> pos[0] == nextRow && pos[1] == nextCol);
+            if (!alreadyListed) {
+                candidates.add(new int[] { nextRow, nextCol });
+            }
+        }
+        return candidates;
+    }
+
+    private boolean hasActiveNotchConnectionAt(GameState state, CardInstance source, int row, int col) {
+        boolean side = source.isOwner();
+        for (Notch notch : source.getNotches()) {
+            int adjRow = row + getBoardRowDelta(notch, side);
+            int adjCol = col + notch.direction().getDx();
+            if (adjRow < 0 || adjRow > 2 || adjCol < 0 || adjCol > 2) {
+                continue;
+            }
+
+            CardInstance adjacent = state.getAt(side, adjRow, adjCol);
+            if (adjacent == null || adjacent == source) {
+                continue;
+            }
+            boolean reciprocal = adjacent.getNotches().stream()
+                    .anyMatch(adjacentNotch -> adjacentNotch.direction() == notch.direction().opposite());
+            if (reciprocal) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int getBoardRowDelta(Notch notch, boolean isPlayer) {

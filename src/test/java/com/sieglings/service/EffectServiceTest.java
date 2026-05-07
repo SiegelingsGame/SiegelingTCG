@@ -353,6 +353,65 @@ class EffectServiceTest {
     }
 
     @Test
+    void selfMoveLinkReturnsNoValidNotchesWhenMoveWouldLeaveUserDisconnected() {
+        GameState state = battleState();
+        CardInstance mover = instance("mover", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 1, 1);
+        state.setAt(true, 1, 1, mover);
+
+        Ability drift = new Ability(
+                "Drift",
+                "Move to an open linked point",
+                TargetType.SELF,
+                null,
+                1,
+                AbilityEffectKeys.MOVE_LINK,
+                0,
+                false
+        );
+
+        effectService.resolveAbility(state, drift, mover, true, -1, -1);
+
+        assertEquals(mover, state.getAt(true, 1, 1));
+        assertNull(state.getAt(true, 2, 1));
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains(EffectService.NO_VALID_NOTCHES_MESSAGE)));
+    }
+
+    @Test
+    void selfMoveLinkMovesOnlyToSpaceWithActiveNotchConnection() {
+        GameState state = battleState();
+        CardInstance mover = instance("mover", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH),
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 1);
+        state.setAt(true, 1, 1, mover);
+
+        CardInstance linkedAlly = instance("linked-ally", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 2, 0);
+        state.setAt(true, 2, 0, linkedAlly);
+
+        Ability drift = new Ability(
+                "Drift",
+                "Move to an open linked point",
+                TargetType.SELF,
+                null,
+                1,
+                AbilityEffectKeys.MOVE_LINK,
+                0,
+                false
+        );
+
+        effectService.resolveAbility(state, drift, mover, true, -1, -1);
+
+        assertNull(state.getAt(true, 1, 1));
+        assertEquals(mover, state.getAt(true, 2, 1));
+        assertEquals(2, mover.getBoardRow());
+        assertEquals(1, mover.getBoardCol());
+    }
+
+    @Test
     void speedBoostCanRestoreMovementAfterSpeedZero() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
