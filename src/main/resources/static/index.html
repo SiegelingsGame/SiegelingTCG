@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=77">
+    <link rel="stylesheet" href="/css/style.css?v=78">
 </head>
 <body>
 <div class="pixi-root" id="pixiRoot" aria-hidden="true">
@@ -37,6 +37,27 @@
         <span class="tb-label" id="playerHeading">Player</span>
     </div>
 </nav>
+
+<div class="mobile-hud" id="mobileHud" aria-label="Mobile match summary">
+    <div class="mobile-hud-side mobile-hud-enemy">
+        <div class="m-name" id="mobileEnemyName">AI</div>
+        <div class="m-hp-bar"><div class="m-hp-fill" id="mobileEnemyHpBar" style="width:100%"></div></div>
+        <div class="m-counts">H:<strong id="mobileEnemyHandSize">0</strong> D:<strong id="mobileEnemyDeckSize">0</strong></div>
+        <div class="m-elements" id="mobileEnemyElements"></div>
+    </div>
+
+    <div class="mobile-hud-center">
+        <div class="m-phase" id="mobilePhaseBadge">DRAW</div>
+        <div class="m-turn">T<span id="mobileTurnNumber">0</span></div>
+    </div>
+
+    <div class="mobile-hud-side right mobile-hud-player">
+        <div class="m-name" id="mobilePlayerName">Player</div>
+        <div class="m-hp-bar"><div class="m-hp-fill" id="mobilePlayerHpBar" style="width:100%"></div></div>
+        <div class="m-counts">H:<strong id="mobilePlayerHandSize">0</strong> D:<strong id="mobilePlayerDeckSize">0</strong></div>
+        <div class="m-elements" id="mobilePlayerElements"></div>
+    </div>
+</div>
 
 <div class="phase-transition-banner hidden" id="phaseTransitionBanner" aria-live="polite" aria-atomic="true">
     <div class="phase-transition-banner-inner">
@@ -246,6 +267,51 @@
 
     <div class="hand-lift-layer hidden" id="handLiftLayer" aria-hidden="true"></div>
 </div>
+
+<section class="mobile-stat-sheet" id="mobileStatSheet" aria-label="Mobile player details">
+    <div class="stat-sheet-tabs" role="tablist" aria-label="Player detail tabs">
+        <button class="stat-tab active-enemy" id="mobileStatEnemyTab" type="button" role="tab" aria-selected="true" aria-controls="mobileStatEnemySheet" onclick="setMobileHudSheetSide('enemy')">AI</button>
+        <button class="stat-tab" id="mobileStatPlayerTab" type="button" role="tab" aria-selected="false" aria-controls="mobileStatPlayerSheet" onclick="setMobileHudSheetSide('player')">Player</button>
+    </div>
+
+    <div class="stat-sheet-content" id="mobileStatEnemySheet" role="tabpanel" aria-labelledby="mobileStatEnemyTab">
+        <div class="m-knight-mini">
+            <span class="m-knight-icon" id="mobileEnemyKnightIcon">&#9876;</span>
+            <div>
+                <div class="m-knight-name" id="mobileEnemyKnightName">-</div>
+                <div class="m-knight-elem" id="mobileEnemyKnightInfo"></div>
+            </div>
+        </div>
+        <div class="m-count-box">
+            <div class="m-count-lbl">Hand</div>
+            <div class="m-count-val accent" id="mobileEnemyStatHandSize">0</div>
+        </div>
+        <div class="m-count-box">
+            <div class="m-count-lbl">Deck</div>
+            <div class="m-count-val" id="mobileEnemyStatDeckSize">0</div>
+        </div>
+        <div class="m-elem-list" id="mobileEnemyStatElements"></div>
+    </div>
+
+    <div class="stat-sheet-content" id="mobileStatPlayerSheet" role="tabpanel" aria-labelledby="mobileStatPlayerTab" hidden>
+        <div class="m-knight-mini">
+            <span class="m-knight-icon" id="mobilePlayerKnightIcon">&#128737;</span>
+            <div>
+                <div class="m-knight-name" id="mobilePlayerKnightName">-</div>
+                <div class="m-knight-elem" id="mobilePlayerKnightInfo"></div>
+            </div>
+        </div>
+        <div class="m-count-box">
+            <div class="m-count-lbl">Hand</div>
+            <div class="m-count-val accent" id="mobilePlayerStatHandSize">0</div>
+        </div>
+        <div class="m-count-box">
+            <div class="m-count-lbl">Deck</div>
+            <div class="m-count-val" id="mobilePlayerStatDeckSize">0</div>
+        </div>
+        <div class="m-elem-list" id="mobilePlayerStatElements"></div>
+    </div>
+</section>
 
 <!-- Drawer Overlays (slide-up) -->
 <div class="drawer-backdrop hidden" id="drawerBackdrop" onclick="closeDrawer()"></div>
@@ -489,7 +555,7 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=88"></script>
+    <script src="/js/game.js?v=89"></script>
     <script type="module" src="/js/pixi/app.js?v=8"></script>
 </body>
 </html>

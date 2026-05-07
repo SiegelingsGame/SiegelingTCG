@@ -32,6 +32,7 @@ let multiplayerSession = loadSavedMultiplayerSession();
 let roomPollHandle = null;
 let currentRoomStatus = null;
 let mobileInfoTab = 'battle';
+let mobileHudSheetSide = 'enemy';
 let mulliganSelectedIndices = new Set();
 let mulliganHandSig = '';
 let loadoutErrorMessage = '';
@@ -5277,6 +5278,7 @@ function renderDomLegacy() {
     renderEnergyTopBar('enemyEnergy', gameState.enemy);
     renderEnergyDetailPanel();
     updateHudRails(gameState);
+    updateMobileHud(gameState);
 
     document.getElementById('playerDeckSize').textContent = gameState.player.deckSize;
     document.getElementById('enemyDeckSize').textContent = gameState.enemy.deckSize;
@@ -5784,6 +5786,104 @@ function updateHudRails(state) {
     renderRailElements('railEnemyElements', e);
 }
 
+function setMobileHudSheetSide(side) {
+    mobileHudSheetSide = side === 'player' ? 'player' : 'enemy';
+    syncMobileHudSheetSide();
+}
+
+function syncMobileHudSheetSide() {
+    const enemyActive = mobileHudSheetSide !== 'player';
+    const enemyTab = document.getElementById('mobileStatEnemyTab');
+    const playerTab = document.getElementById('mobileStatPlayerTab');
+    const enemySheet = document.getElementById('mobileStatEnemySheet');
+    const playerSheet = document.getElementById('mobileStatPlayerSheet');
+
+    if (enemyTab) {
+        enemyTab.classList.toggle('active-enemy', enemyActive);
+        enemyTab.classList.toggle('active-player', false);
+        enemyTab.setAttribute('aria-selected', enemyActive ? 'true' : 'false');
+    }
+    if (playerTab) {
+        playerTab.classList.toggle('active-player', !enemyActive);
+        playerTab.classList.toggle('active-enemy', false);
+        playerTab.setAttribute('aria-selected', enemyActive ? 'false' : 'true');
+    }
+    if (enemySheet) enemySheet.hidden = !enemyActive;
+    if (playerSheet) playerSheet.hidden = enemyActive;
+}
+
+function updateMobileHud(state) {
+    if (!state) return;
+    const p = state.player || {};
+    const e = state.enemy || {};
+    const phase = state.currentPhase || 'DRAW';
+
+    setTextIfExists('mobilePhaseBadge', phase);
+    setTextIfExists('mobileTurnNumber', state.turnNumber ?? 0);
+
+    updateMobileHudSide('Player', p, {
+        name: state.playerName || p.name || 'Player',
+        hpBarId: 'mobilePlayerHpBar',
+        nameId: 'mobilePlayerName',
+        handId: 'mobilePlayerHandSize',
+        deckId: 'mobilePlayerDeckSize',
+        dotsId: 'mobilePlayerElements',
+        statHandId: 'mobilePlayerStatHandSize',
+        statDeckId: 'mobilePlayerStatDeckSize',
+        statElementsId: 'mobilePlayerStatElements',
+        knightIconId: 'mobilePlayerKnightIcon',
+        knightNameId: 'mobilePlayerKnightName',
+        knightInfoId: 'mobilePlayerKnightInfo'
+    });
+    updateMobileHudSide('Enemy', e, {
+        name: state.enemyName || e.name || 'AI',
+        hpBarId: 'mobileEnemyHpBar',
+        nameId: 'mobileEnemyName',
+        handId: 'mobileEnemyHandSize',
+        deckId: 'mobileEnemyDeckSize',
+        dotsId: 'mobileEnemyElements',
+        statHandId: 'mobileEnemyStatHandSize',
+        statDeckId: 'mobileEnemyStatDeckSize',
+        statElementsId: 'mobileEnemyStatElements',
+        knightIconId: 'mobileEnemyKnightIcon',
+        knightNameId: 'mobileEnemyKnightName',
+        knightInfoId: 'mobileEnemyKnightInfo'
+    });
+
+    setTextIfExists('mobileStatPlayerTab', state.playerName || p.name || 'Player');
+    setTextIfExists('mobileStatEnemyTab', state.enemyName || e.name || 'AI');
+    syncMobileHudSheetSide();
+}
+
+function updateMobileHudSide(label, playerData, ids) {
+    const health = Number(playerData?.health ?? 0);
+    const pct = Math.max(0, Math.min(100, Math.round((health / 50) * 100)));
+    const handSize = playerData?.handSize ?? (Array.isArray(playerData?.hand) ? playerData.hand.length : 0);
+    const deckSize = playerData?.deckSize ?? 0;
+    const trainer = playerData?.trainer;
+    const trainerAbility = getTrainerRailAbilityText(trainer);
+    const trainerInfo = [
+        trainer?.element ? formatElementLabel(trainer.element) : '',
+        trainerAbility
+    ].filter(Boolean).join(' - ');
+    const hpBar = document.getElementById(ids.hpBarId);
+
+    setTextIfExists(ids.nameId, ids.name || label);
+    setTextIfExists(ids.handId, handSize);
+    setTextIfExists(ids.deckId, deckSize);
+    setTextIfExists(ids.statHandId, handSize);
+    setTextIfExists(ids.statDeckId, deckSize);
+    setTextIfExists(ids.knightNameId, trainer?.name || '-');
+    setTextIfExists(ids.knightInfoId, trainerInfo);
+    if (hpBar) hpBar.style.width = `${pct}%`;
+
+    const icon = document.getElementById(ids.knightIconId);
+    if (icon) icon.innerHTML = elementEmoji(trainer?.element);
+
+    renderMobileHudElementDots(ids.dotsId, playerData);
+    renderMobileStatElements(ids.statElementsId, playerData);
+}
+
 function updateHudRailKnight(prefix, trainer) {
     setTextIfExists(`${prefix}KnightName`, trainer?.name || '-');
     setTextIfExists(`${prefix}KnightElement`, trainer?.element ? formatElementLabel(trainer.element) : '');
@@ -5814,16 +5914,20 @@ function getTrainerRailAbilityText(trainer) {
     return '';
 }
 
-function renderRailElements(containerId, playerData) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    const rows = ENERGY_ORDER
+function getEnergyRowsForPlayer(playerData) {
+    return ENERGY_ORDER
         .map(([key, label]) => {
             const val = Number(playerData?.[`${key}Energy`] ?? 0);
             return { key, label, val, color: getElementCssVar(label.toUpperCase()) };
         })
         .filter((entry) => entry.val > 0);
+}
+
+function renderRailElements(containerId, playerData) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const rows = getEnergyRowsForPlayer(playerData);
 
     if (rows.length === 0) {
         container.innerHTML = '<span class="hud-empty">None</span>';
@@ -5840,6 +5944,35 @@ function renderRailElements(containerId, playerData) {
                 <div class="hud-elem-fill" style="width:${pct}%;background:${entry.color}"></div>
             </div>
             <span class="hud-elem-num" style="color:${entry.color}">${escapeHtml(String(entry.val))}</span>
+        </div>`;
+    }).join('');
+}
+
+function renderMobileHudElementDots(containerId, playerData) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const rows = getEnergyRowsForPlayer(playerData).slice(0, 8);
+    container.innerHTML = rows.map((entry) => (
+        `<span class="m-elem-dot" title="${escapeHtml(entry.label)} ${escapeHtml(String(entry.val))}" style="background:${entry.color};color:${entry.color}"></span>`
+    )).join('');
+}
+
+function renderMobileStatElements(containerId, playerData) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const rows = getEnergyRowsForPlayer(playerData);
+    if (rows.length === 0) {
+        container.innerHTML = '<span class="m-empty">No elemental energy</span>';
+        return;
+    }
+    const maxVal = Math.max(1, ...rows.map((entry) => entry.val));
+    container.innerHTML = rows.map((entry) => {
+        const pct = Math.round((entry.val / maxVal) * 100);
+        return `<div class="m-elem-item">
+            <span class="m-elem-pip" style="background:${entry.color}"></span>
+            <span class="m-elem-lbl">${escapeHtml(entry.label)}</span>
+            <span class="m-elem-trk"><span class="m-elem-fl" style="width:${pct}%;background:${entry.color}"></span></span>
+            <span class="m-elem-num" style="color:${entry.color}">${escapeHtml(String(entry.val))}</span>
         </div>`;
     }).join('');
 }
