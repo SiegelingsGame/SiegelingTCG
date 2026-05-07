@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=75">
+    <link rel="stylesheet" href="/css/style.css?v=77">
 </head>
 <body>
 <div class="pixi-root" id="pixiRoot" aria-hidden="true">
@@ -66,6 +66,107 @@
         </div>
     </div>
 
+    <aside class="hud-rail hud-rail-enemy" id="hudRailEnemy" aria-label="Enemy player info">
+        <div class="hud-rail-stripe"></div>
+
+        <div class="hud-section">
+            <div class="hud-name-row">
+                <span class="hud-role-dot"></span>
+                <span class="hud-name" id="railEnemyHeading">AI</span>
+            </div>
+            <div class="hud-hp-row">
+                <span class="hud-hp-icon">&hearts;</span>
+                <div class="hud-hp-track">
+                    <div class="hud-hp-fill hud-hp-fill-enemy" id="railEnemyHpBar" style="width:100%"></div>
+                </div>
+                <span class="hud-hp-label"><strong id="railEnemyHealth">50</strong>/50</span>
+            </div>
+        </div>
+
+        <div class="hud-section">
+            <div class="hud-section-label">Knight</div>
+            <div class="hud-knight-card" id="railEnemyKnight">
+                <div class="hud-knight-portrait" id="railEnemyKnightPortrait">&#9876;</div>
+                <div class="hud-knight-info">
+                    <div class="hud-knight-kicker">Siege Knight</div>
+                    <div class="hud-knight-name" id="railEnemyKnightName">&mdash;</div>
+                    <div class="hud-knight-element" id="railEnemyKnightElement"></div>
+                    <div class="hud-knight-ability" id="railEnemyKnightAbility"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-section">
+            <div class="hud-section-label">Cards</div>
+            <div class="hud-counts-row">
+                <div class="hud-count-chip">
+                    <span class="hud-count-label">Hand</span>
+                    <span class="hud-count-value" id="railEnemyHandSize">0</span>
+                </div>
+                <div class="hud-count-chip">
+                    <span class="hud-count-label">Deck</span>
+                    <span class="hud-count-value hud-count-deck" id="railEnemyDeckSize">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-section hud-section-elements">
+            <div class="hud-section-label">Elements</div>
+            <div class="hud-elements-list" id="railEnemyElements"></div>
+        </div>
+    </aside>
+
+    <aside class="hud-rail hud-rail-player" id="hudRailPlayer" aria-label="Your player info">
+        <div class="hud-rail-stripe"></div>
+
+        <div class="hud-section">
+            <div class="hud-name-row">
+                <span class="hud-role-dot"></span>
+                <span class="hud-name" id="railPlayerHeading">Player</span>
+                <span class="hud-you-tag">You</span>
+            </div>
+            <div class="hud-hp-row">
+                <span class="hud-hp-icon">&hearts;</span>
+                <div class="hud-hp-track">
+                    <div class="hud-hp-fill hud-hp-fill-player" id="railPlayerHpBar" style="width:100%"></div>
+                </div>
+                <span class="hud-hp-label"><strong id="railPlayerHealth">50</strong>/50</span>
+            </div>
+        </div>
+
+        <div class="hud-section">
+            <div class="hud-section-label">Knight</div>
+            <div class="hud-knight-card" id="railPlayerKnight">
+                <div class="hud-knight-portrait" id="railPlayerKnightPortrait">&#128737;</div>
+                <div class="hud-knight-info">
+                    <div class="hud-knight-kicker">Siege Knight</div>
+                    <div class="hud-knight-name" id="railPlayerKnightName">&mdash;</div>
+                    <div class="hud-knight-element" id="railPlayerKnightElement"></div>
+                    <div class="hud-knight-ability" id="railPlayerKnightAbility"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-section">
+            <div class="hud-section-label">Cards</div>
+            <div class="hud-counts-row">
+                <div class="hud-count-chip">
+                    <span class="hud-count-label">Hand</span>
+                    <span class="hud-count-value" id="railPlayerHandSize">0</span>
+                </div>
+                <div class="hud-count-chip">
+                    <span class="hud-count-label">Deck</span>
+                    <span class="hud-count-value hud-count-deck" id="railPlayerDeckSize">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-section hud-section-elements">
+            <div class="hud-section-label">Elements</div>
+            <div class="hud-elements-list" id="railPlayerElements"></div>
+        </div>
+    </aside>
+
     <aside class="desktop-menu" id="desktopMenu">
         <div class="desktop-menu-header">
             <div class="desktop-menu-title">Menu &amp; Info</div>
@@ -83,9 +184,9 @@
         <!-- Action Bar: slim segmented control -->
         <div class="action-bar" id="actionBar">
             <div class="action-bar-btns" id="actionButtons">
-                <button class="ab-btn ab-draw" id="btnDraw" onclick="playerDraw()">Draw</button>
+                <button class="ab-btn ab-trainer ab-primary" id="btnTrainerAbility" onclick="openTrainerAbilityPopup()">&#9876; Knight</button>
+                <button class="ab-btn ab-draw ab-primary" id="btnDraw" onclick="playerDraw()">&#127183; Draw</button>
                 <button class="ab-btn ab-battle" id="btnBattle" onclick="executeBattle()" title="Battle starts automatically after both players finish Setup.">Auto Battle</button>
-                <button class="ab-btn ab-trainer" id="btnTrainerAbility" onclick="openTrainerAbilityPopup()">SiegeKnight</button>
                 <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
             </div>
             <div class="action-bar-aux">
@@ -388,7 +489,7 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=86"></script>
+    <script src="/js/game.js?v=88"></script>
     <script type="module" src="/js/pixi/app.js?v=8"></script>
 </body>
 </html>
