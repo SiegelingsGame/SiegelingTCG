@@ -216,6 +216,7 @@ public class BattleService {
             // Same damage as Option 1 ONLY if targeting is different (AOE/row vs single)
             Ability signature = buildSignatureAbility(attacker);
             boolean signatureIsAoe = signature.getTargetType() == TargetType.ROW_ENEMIES
+                    || signature.getTargetType() == TargetType.ROW_SELECT_ENEMIES
                     || signature.getTargetType() == TargetType.ALL_ENEMIES;
             int sigCost = signatureIsAoe ? 2 : 3;
             if (!signatureIsAoe && AbilityEffectKeys.DAMAGE.equals(signature.getEffectType())) {
@@ -420,7 +421,7 @@ public class BattleService {
         if (printed != null) {
             return switch (printed.getTargetType()) {
                 case ALL_ENEMIES -> Math.max(2, printed.getEffectValue() - 2);
-                case ROW_ENEMIES -> Math.max(2, printed.getEffectValue() - 1);
+                case ROW_ENEMIES, ROW_SELECT_ENEMIES -> Math.max(2, printed.getEffectValue() - 1);
                 default -> Math.max(2, printed.getEffectValue());
             };
         }

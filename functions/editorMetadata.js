@@ -5,7 +5,7 @@ const EFFECT_TYPES = [
     key: 'damage',
     label: 'Damage',
     description: 'Deals damage to the resolved target or targets.',
-    targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ALL_ENEMIES', 'ENEMY_PLAYER']
+    targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES', 'ENEMY_PLAYER']
   },
   {
     key: 'player_damage',
@@ -17,31 +17,31 @@ const EFFECT_TYPES = [
     key: 'heal',
     label: 'Heal',
     description: "Restores health up to the target's max health.",
-    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'SELF']
+    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'SELF']
   },
   {
     key: 'freeze',
     label: 'Freeze',
     description: 'Applies the freeze status.',
-    targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ALL_ENEMIES']
+    targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES']
   },
   {
     key: 'speed_zero',
     label: 'Speed Zero',
     description: 'Sets effective Speed to 0 for the turn.',
-    targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ALL_ENEMIES']
+    targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES']
   },
   {
     key: 'damage_boost',
     label: 'Damage Boost',
     description: 'Adds temporary attack damage.',
-    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'PASSIVE']
+    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'PASSIVE']
   },
   {
     key: 'health_boost',
     label: 'Health Boost',
     description: 'Adds temporary max health and heals by the same amount.',
-    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'PASSIVE']
+    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'PASSIVE']
   },
   {
     key: 'connected_allies_damage_boost',
@@ -59,7 +59,7 @@ const EFFECT_TYPES = [
     key: 'speed_boost',
     label: 'Speed Boost',
     description: 'Adds temporary speed.',
-    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'PASSIVE']
+    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'PASSIVE']
   },
   {
     key: 'connected_allies_speed_boost',
@@ -71,7 +71,7 @@ const EFFECT_TYPES = [
     key: 'destroy',
     label: 'Destroy',
     description: 'Defeats the resolved target immediately.',
-    targetHints: ['SINGLE_ENEMY']
+    targetHints: ['SINGLE_ENEMY', 'ROW_SELECT_ENEMIES']
   },
   {
     key: 'move_link',
