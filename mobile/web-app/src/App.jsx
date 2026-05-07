@@ -684,9 +684,30 @@ function LoadoutScreen({
 
 function MulliganScreen({ hand, onKeep, onRedraw, selected, toggle, busy }) {
   return (
-    <div className="screen" style={{ background: "radial-gradient(ellipse at 50% 60%, #0F1B3D, #060A12)", alignItems: "center", justifyContent: "center" }}>
+    <div
+      className="screen"
+      style={{
+        background: "radial-gradient(ellipse at 50% 60%, #0F1B3D, #060A12)",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+        overscrollBehavior: "contain",
+      }}
+    >
       <ParticleBG intensity={0.5} />
-      <div style={{ position: "relative", zIndex: 1, textAlign: "center", padding: "0 20px", width: "100%" }}>
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          textAlign: "center",
+          padding: "max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom))",
+          width: "100%",
+          minHeight: "100%",
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+        }}
+      >
         <h2 style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 18, fontWeight: 700, letterSpacing: 2, marginBottom: 4 }}>OPENING HAND</h2>
         <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 24 }}>Keep all, or tap cards to replace (server indices)</p>
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 32 }}>

@@ -6608,12 +6608,16 @@ body.placement-active .board-cell.legal {
     .mulligan-overlay {
         padding: 10px;
         align-items: flex-start;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
 
     .welcome-shell,
     .mulligan-box {
         border-radius: 18px;
         padding: 14px;
+        max-height: none;
     }
 
     .tutorial-visual {
