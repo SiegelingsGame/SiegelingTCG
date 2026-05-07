@@ -1924,6 +1924,9 @@ function updateResponsiveLayoutVars(force = false) {
     const compactLandscape = isCompactLandscapeLayout();
     const density = clampNumber(Math.min(viewportWidth / 1440, viewportHeight / 900), 0.72, 1.08);
     const cardAspectHeight = 7 / 5;
+    const desktopHandVisibleCards = 5;
+    const desktopHudRailWidth = 200;
+    const hideEnemyHudRail = desktop && viewportWidth <= 1200;
     const desktopLayoutGutter = desktop
         ? Math.round(clampNumber(viewportWidth * 0.008, 10, 22))
         : 0;
@@ -1933,15 +1936,24 @@ function updateResponsiveLayoutVars(force = false) {
     const desktopAppMaxWidth = desktop
         ? viewportWidth
         : 1280;
-    const sidebarWidth = desktop
-        ? Math.round(clampNumber(
-            viewportWidth * 0.3,
-            Math.min(360, viewportWidth * 0.34),
-            Math.min(760, viewportWidth * 0.42)
-        ))
-        : 420;
+    const desktopHandGap = desktop
+        ? Math.round(clampNumber(viewportWidth * 0.0045, 10, 16))
+        : 12;
+    const desktopHandTargetWidth = desktop
+        ? Math.round(clampNumber(viewportHeight * 0.1, 104, 218))
+        : 138;
+    const desktopHandHorizontalChrome = desktop
+        ? Math.round(clampNumber(viewportWidth * 0.018, 56, 84))
+        : 0;
+    const sidebarWidth = 420;
+    const visibleHudRailWidth = desktop
+        ? desktopHudRailWidth + (hideEnemyHudRail ? 0 : desktopHudRailWidth)
+        : 0;
+    const desktopGridGapCount = desktop
+        ? hideEnemyHudRail ? 2 : 3
+        : 0;
     const desktopArenaColumnWidth = desktop
-        ? Math.max(0, viewportWidth - (desktopLayoutGutter * 2) - desktopLayoutGap - sidebarWidth)
+        ? Math.max(0, viewportWidth - (desktopLayoutGutter * 2) - (desktopLayoutGap * desktopGridGapCount) - visibleHudRailWidth - sidebarWidth)
         : 0;
     const boardMaxWidth = desktop
         ? Math.round(clampNumber(Math.min(desktopArenaColumnWidth * 0.54, viewportHeight * 0.5), 360, 580))
@@ -1950,14 +1962,37 @@ function updateResponsiveLayoutVars(force = false) {
         ? Math.round(clampNumber(viewportHeight * 0.1, 82, 148))
         : 124;
     const boardHeightRatio = desktop ? 1.38 : 2.72;
+    const desktopHandAvailableWidth = desktop
+        ? Math.max(0, sidebarWidth - desktopHandHorizontalChrome)
+        : 0;
+    const desktopHandFiveCardFitWidth = desktop
+        ? Math.max(
+            48,
+            Math.floor((desktopHandAvailableWidth - (desktopHandGap * (desktopHandVisibleCards - 1))) / desktopHandVisibleCards)
+        )
+        : 0;
     const handWidth = desktop
-        ? Math.round(clampNumber(Math.min(sidebarWidth * 0.21, viewportHeight * 0.094), 78, 96))
+        ? Math.round(clampNumber(
+            Math.min(desktopHandTargetWidth, desktopHandFiveCardFitWidth),
+            Math.min(96, desktopHandFiveCardFitWidth),
+            Math.max(96, desktopHandFiveCardFitWidth)
+        ))
         : compactLandscape
         ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
         : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
-    const desktopHandSectionMinHeight = desktop
-        ? Math.round(clampNumber((handWidth * cardAspectHeight) + 48, 148, viewportHeight * 0.22))
+    const desktopHandSectionTargetHeight = desktop
+        ? Math.round((handWidth * cardAspectHeight) + 58)
         : 176;
+    const desktopHandSectionMinHeight = desktop
+        ? Math.round(clampNumber(desktopHandSectionTargetHeight, 170, viewportHeight * 0.28))
+        : 176;
+    const desktopHandSectionHeight = desktop
+        ? Math.round(clampNumber(
+            desktopHandSectionMinHeight + Math.round(clampNumber(viewportHeight * 0.012, 10, 28)),
+            desktopHandSectionMinHeight,
+            viewportHeight * 0.32
+        ))
+        : 208;
     let previewCardWidth = handWidth;
     let previewCardMaxHeight = Math.round(handWidth * cardAspectHeight);
     if (desktop) {
@@ -1981,14 +2016,17 @@ function updateResponsiveLayoutVars(force = false) {
     root.style.setProperty('--desktop-layout-gutter', `${desktopLayoutGutter}px`);
     root.style.setProperty('--desktop-layout-gap', `${desktopLayoutGap}px`);
     root.style.setProperty('--desktop-sidebar-width', `${sidebarWidth}px`);
+    root.style.setProperty('--hud-rail-width', `${desktopHudRailWidth}px`);
     root.style.setProperty('--desktop-board-max-width', `${boardMaxWidth}px`);
     root.style.setProperty('--desktop-board-height-offset', `${boardHeightOffset}px`);
     root.style.setProperty('--desktop-board-height-ratio', `${boardHeightRatio}`);
     root.style.setProperty('--desktop-preview-card-width', `${previewCardWidth}px`);
     root.style.setProperty('--desktop-preview-card-max-height', `${previewCardMaxHeight}px`);
     root.style.setProperty('--desktop-hand-section-min-height', `${desktopHandSectionMinHeight}px`);
+    root.style.setProperty('--desktop-hand-section-height', `${desktopHandSectionHeight}px`);
     root.style.setProperty('--hand-card-width', `${handWidth}px`);
     root.style.setProperty('--hand-card-overlap', desktop ? '0px' : `${-Math.round(handWidth * 0.25)}px`);
+    root.style.setProperty('--hand-card-gap', `${desktopHandGap}px`);
     root.style.setProperty('--hand-card-padding', desktop ? '4px' : `${clampNumber(Math.round(handWidth * 0.045), 2, 6)}px`);
     root.style.setProperty('--hand-card-hover-lift', desktop ? '-4px' : `${-Math.round(handWidth * 0.16)}px`);
     root.style.setProperty('--hand-card-selected-lift', desktop ? '-6px' : `${-Math.round(handWidth * 0.2)}px`);
@@ -5007,7 +5045,10 @@ function collectBuilderElements() {
 }
 
 async function playerDraw() {
-    await api('draw');
+    const data = await api('draw');
+    if (data) {
+        onDrawComplete();
+    }
 }
 
 function toggleMulliganCard(index) {
@@ -5079,7 +5120,10 @@ async function endTurn() {
     selectedHandIndex = null;
     closeClaimPopup();
     clearTargetMode();
-    await api('endturn');
+    const data = await api('endturn');
+    if (data) {
+        resetDrawButton();
+    }
 }
 
 async function placeCard(row, col) {
@@ -5177,7 +5221,13 @@ function renderDomLegacy() {
     const btnTrainerAbility = document.getElementById('btnTrainerAbility');
     const btnEndTurn = document.getElementById('btnEndTurn');
     const battlePhaseActive = phase === 'BATTLE' && !over;
-    btnDraw.disabled = over || !playerActive || phase !== 'DRAW';
+    const drawButtonActsAsEndTurn = phase === 'SETUP' && playerActive && !over;
+    if (drawButtonActsAsEndTurn) {
+        onDrawComplete();
+    } else {
+        resetDrawButton();
+    }
+    btnDraw.disabled = over || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
     btnEndTurn.disabled = over || !playerActive || phase !== 'SETUP';
     btnDraw.classList.toggle('hidden', battlePhaseActive);
     btnBattle.classList.toggle('hidden', !battlePhaseActive);
@@ -5216,7 +5266,7 @@ function renderDomLegacy() {
     }
 
     // Highlight the active phase button
-    btnDraw.classList.toggle('ab-active', phase === 'DRAW' && playerActive && !over);
+    btnDraw.classList.toggle('ab-active', (phase === 'DRAW' || drawButtonActsAsEndTurn) && playerActive && !over);
     btnBattle.classList.toggle('ab-active', phase === 'BATTLE' && !over);
     btnEndTurn.classList.toggle('ab-active', phase === 'SETUP' && playerActive && !over);
 
@@ -5226,6 +5276,7 @@ function renderDomLegacy() {
     renderEnergyTopBar('playerEnergy', gameState.player);
     renderEnergyTopBar('enemyEnergy', gameState.enemy);
     renderEnergyDetailPanel();
+    updateHudRails(gameState);
 
     document.getElementById('playerDeckSize').textContent = gameState.player.deckSize;
     document.getElementById('enemyDeckSize').textContent = gameState.enemy.deckSize;
@@ -5239,7 +5290,7 @@ function renderDomLegacy() {
         const canUse = canUseTrainerAbility(trainer);
         btnTrainerAbility.classList.toggle('hidden', !hasTrainer);
         btnTrainerAbility.disabled = !hasTrainer;
-        btnTrainerAbility.textContent = trainer?.tier === 'SiegeLord' ? 'Lord' : 'Knight';
+        btnTrainerAbility.innerHTML = trainer?.tier === 'SiegeLord' ? '&#9876; Lord' : '&#9876; Knight';
         btnTrainerAbility.title = trainer
             ? `${trainer.name}${trainer.active?.name ? `: ${trainer.active.name}` : ''}${canUse ? '' : ' (details only)'}`
             : 'No SiegeKnight selected';
@@ -5700,6 +5751,134 @@ function renderEnergyDetailPanel() {
     html += '</div>';
 
     panel.innerHTML = html;
+}
+
+function updateHudRails(state) {
+    if (!state) return;
+    const p = state.player || {};
+    const e = state.enemy || {};
+
+    setTextIfExists('railPlayerHeading', state.playerName || p.name || 'Player');
+    setTextIfExists('railEnemyHeading', state.enemyName || e.name || 'AI');
+
+    const pHealth = Number(p.health ?? 0);
+    const eHealth = Number(e.health ?? 0);
+    const pPct = Math.max(0, Math.min(100, Math.round((pHealth / 50) * 100)));
+    const ePct = Math.max(0, Math.min(100, Math.round((eHealth / 50) * 100)));
+    setTextIfExists('railPlayerHealth', pHealth);
+    setTextIfExists('railEnemyHealth', eHealth);
+
+    const pBar = document.getElementById('railPlayerHpBar');
+    const eBar = document.getElementById('railEnemyHpBar');
+    if (pBar) pBar.style.width = `${pPct}%`;
+    if (eBar) eBar.style.width = `${ePct}%`;
+
+    setTextIfExists('railPlayerHandSize', p.handSize ?? (Array.isArray(p.hand) ? p.hand.length : 0));
+    setTextIfExists('railPlayerDeckSize', p.deckSize ?? 0);
+    setTextIfExists('railEnemyHandSize', e.handSize ?? 0);
+    setTextIfExists('railEnemyDeckSize', e.deckSize ?? 0);
+
+    updateHudRailKnight('railPlayer', p.trainer);
+    updateHudRailKnight('railEnemy', e.trainer);
+    renderRailElements('railPlayerElements', p);
+    renderRailElements('railEnemyElements', e);
+}
+
+function updateHudRailKnight(prefix, trainer) {
+    setTextIfExists(`${prefix}KnightName`, trainer?.name || '-');
+    setTextIfExists(`${prefix}KnightElement`, trainer?.element ? formatElementLabel(trainer.element) : '');
+    setTextIfExists(`${prefix}KnightAbility`, getTrainerRailAbilityText(trainer));
+    const portrait = document.getElementById(`${prefix}KnightPortrait`);
+    if (portrait) {
+        portrait.innerHTML = elementEmoji(trainer?.element);
+    }
+}
+
+function getTrainerRailAbilityText(trainer) {
+    if (!trainer) return '';
+    if (typeof trainer.passiveDescription === 'string' && trainer.passiveDescription.trim()) {
+        return trainer.passiveDescription.trim();
+    }
+    if (typeof trainer.passive === 'string' && trainer.passive.trim()) {
+        return trainer.passive.trim();
+    }
+    if (trainer.passive?.description) {
+        return trainer.passive.description;
+    }
+    if (trainer.active?.description) {
+        return trainer.active.description;
+    }
+    if (trainer.active?.name) {
+        return trainer.active.name;
+    }
+    return '';
+}
+
+function renderRailElements(containerId, playerData) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const rows = ENERGY_ORDER
+        .map(([key, label]) => {
+            const val = Number(playerData?.[`${key}Energy`] ?? 0);
+            return { key, label, val, color: getElementCssVar(label.toUpperCase()) };
+        })
+        .filter((entry) => entry.val > 0);
+
+    if (rows.length === 0) {
+        container.innerHTML = '<span class="hud-empty">None</span>';
+        return;
+    }
+
+    const maxVal = Math.max(1, ...rows.map((entry) => entry.val));
+    container.innerHTML = rows.map((entry) => {
+        const pct = Math.round((entry.val / maxVal) * 100);
+        return `<div class="hud-elem-row">
+            <div class="hud-elem-dot" style="background:${entry.color}"></div>
+            <span class="hud-elem-name">${escapeHtml(entry.label)}</span>
+            <div class="hud-elem-track">
+                <div class="hud-elem-fill" style="width:${pct}%;background:${entry.color}"></div>
+            </div>
+            <span class="hud-elem-num" style="color:${entry.color}">${escapeHtml(String(entry.val))}</span>
+        </div>`;
+    }).join('');
+}
+
+function elementEmoji(element) {
+    const map = {
+        FIRE: '&#128293;',
+        WATER: '&#128167;',
+        WIND: '&#127788;',
+        EARTH: '&#9670;',
+        ICE: '&#10052;',
+        SHADOW: '&#127761;',
+        ELECTRIC: '&#9889;',
+        METAL: '&#9881;',
+        UNDEAD: '&#9760;',
+        PSYCHIC: '&#9679;'
+    };
+    return map[String(element || '').toUpperCase()] || '&#9876;';
+}
+
+function setTextIfExists(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val ?? '';
+}
+
+function onDrawComplete() {
+    const btn = document.getElementById('btnDraw');
+    if (!btn) return;
+    btn.classList.add('ab-drawn');
+    btn.innerHTML = '&#9197; End Turn';
+    btn.onclick = endTurn;
+}
+
+function resetDrawButton() {
+    const btn = document.getElementById('btnDraw');
+    if (!btn) return;
+    btn.classList.remove('ab-drawn');
+    btn.innerHTML = '&#127183; Draw';
+    btn.onclick = playerDraw;
 }
 
 function formatComboPoint(point) {
@@ -6942,14 +7121,26 @@ function syncDesktopHandSelectorCardScale() {
     const styles = window.getComputedStyle(rail);
     const paddingTop = parseFloat(styles.paddingTop) || 0;
     const paddingBottom = parseFloat(styles.paddingBottom) || 0;
+    const paddingLeft = parseFloat(styles.paddingLeft) || 0;
+    const paddingRight = parseFloat(styles.paddingRight) || 0;
+    const columnGap = parseFloat(styles.columnGap || styles.gap) || 0;
     const contentHeight = rail.clientHeight - paddingTop - paddingBottom;
+    const contentWidth = rail.clientWidth - paddingLeft - paddingRight;
     if (!Number.isFinite(contentHeight) || contentHeight <= 40) {
         return;
     }
 
-    const maxRailFriendlyWidth = Math.max(96, railRect.width * 0.55);
+    const visibleCards = 5;
+    const maxFiveCardWidth = Math.max(
+        48,
+        (contentWidth - (columnGap * (visibleCards - 1))) / visibleCards
+    );
     const measuredWidth = contentHeight * (5 / 7);
-    const nextWidth = Math.round(clampNumber(measuredWidth, 64, maxRailFriendlyWidth));
+    const nextWidth = Math.round(clampNumber(
+        Math.min(measuredWidth, maxFiveCardWidth),
+        Math.min(96, maxFiveCardWidth),
+        Math.max(96, maxFiveCardWidth)
+    ));
     const nextPadding = Math.round(clampNumber(nextWidth * 0.035, 3, 8));
 
     const root = document.documentElement;
