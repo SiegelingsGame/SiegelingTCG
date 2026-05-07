@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EffectServiceTest {
 
@@ -126,6 +127,29 @@ class EffectServiceTest {
         effectService.resolveAbility(state, tornado, null, true, -1, -1);
 
         assertEquals(10, enemy.getCurrentHealth());
+    }
+
+    @Test
+    void oneDamageAttackAppliesAndLogsWeaknessBonus() {
+        GameState state = battleState();
+        CardInstance source = instance("earth-source", Element.EARTH, 1, 1, true);
+        CardInstance target = instance("wind-target", Element.WIND, 1, 1, false);
+        state.setAt(true, 1, 1, source);
+        state.setAt(false, 1, 1, target);
+
+        Ability poke = Ability.damage(
+                "Sproutspray",
+                "Deal 1 damage to 1 enemy",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                1
+        );
+
+        effectService.resolveAbility(state, poke, source, true, 1, 1);
+
+        assertEquals(8, target.getCurrentHealth());
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("weakness +1")));
     }
 
     @Test
@@ -375,6 +399,11 @@ class EffectServiceTest {
 
     private CardInstance instance(String id, int row, int col, boolean owner) {
         SieglingCard card = new SieglingCard(id, id, Element.NEUTRAL, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE);
+        return new CardInstance(card, row, col, owner);
+    }
+
+    private CardInstance instance(String id, Element element, int row, int col, boolean owner) {
+        SieglingCard card = new SieglingCard(id, id, element, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE);
         return new CardInstance(card, row, col, owner);
     }
 

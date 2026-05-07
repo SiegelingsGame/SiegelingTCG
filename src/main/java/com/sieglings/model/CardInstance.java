@@ -19,6 +19,8 @@ public class CardInstance {
     private int currentSpeed;
     private int temporaryHealthBuff;
     private int temporaryDamageBuff;
+    private int trainerPassiveHealthBuff;
+    private int trainerPassiveDamageBuff;
     /** Passive team-aura attack damage from allied Sieglings on the board (recomputed when the board changes). */
     private int auraDamageBoost;
     private Set<StatusEffect> statusEffects = new HashSet<>();
@@ -60,14 +62,14 @@ public class CardInstance {
     }
 
     public int getEffectiveMaxHealth() {
-        int maxHealth = card.getHealth() + temporaryHealthBuff;
-        if (temporaryHealthBuff == 0 && statusEffects.contains(StatusEffect.HEALTH_BOOST)) maxHealth += 1;
+        int maxHealth = card.getHealth() + temporaryHealthBuff + trainerPassiveHealthBuff;
+        if (temporaryHealthBuff == 0 && trainerPassiveHealthBuff == 0 && statusEffects.contains(StatusEffect.HEALTH_BOOST)) maxHealth += 1;
         return maxHealth;
     }
 
     public int getDamageBoost() {
-        int damageBoost = temporaryDamageBuff + auraDamageBoost;
-        if (temporaryDamageBuff == 0 && auraDamageBoost == 0 && statusEffects.contains(StatusEffect.DAMAGE_BOOST)) {
+        int damageBoost = temporaryDamageBuff + trainerPassiveDamageBuff + auraDamageBoost;
+        if (temporaryDamageBuff == 0 && trainerPassiveDamageBuff == 0 && auraDamageBoost == 0 && statusEffects.contains(StatusEffect.DAMAGE_BOOST)) {
             damageBoost += 1;
         }
         return damageBoost;
@@ -94,6 +96,35 @@ public class CardInstance {
         statusEffects.add(StatusEffect.HEALTH_BOOST);
     }
 
+    public void setTrainerPassiveHealthBuff(int amount) {
+        int next = Math.max(0, amount);
+        int delta = next - trainerPassiveHealthBuff;
+        trainerPassiveHealthBuff = next;
+        if (delta > 0) {
+            currentHealth += delta;
+        }
+        currentHealth = Math.min(currentHealth, getEffectiveMaxHealth());
+        if (trainerPassiveHealthBuff > 0) {
+            statusEffects.add(StatusEffect.HEALTH_BOOST);
+        } else if (temporaryHealthBuff == 0) {
+            statusEffects.remove(StatusEffect.HEALTH_BOOST);
+        }
+    }
+
+    public void setTrainerPassiveDamageBuff(int amount) {
+        trainerPassiveDamageBuff = Math.max(0, amount);
+        if (trainerPassiveDamageBuff > 0) {
+            statusEffects.add(StatusEffect.DAMAGE_BOOST);
+        } else if (temporaryDamageBuff == 0 && auraDamageBoost == 0) {
+            statusEffects.remove(StatusEffect.DAMAGE_BOOST);
+        }
+    }
+
+    public void clearTrainerPassiveEffects() {
+        setTrainerPassiveHealthBuff(0);
+        setTrainerPassiveDamageBuff(0);
+    }
+
     public void takeRawDamage(int amount) {
         currentHealth = Math.max(0, currentHealth - amount);
     }
@@ -105,9 +136,13 @@ public class CardInstance {
     public void clearTemporaryEffects() {
         temporaryDamageBuff = 0;
         temporaryHealthBuff = 0;
-        statusEffects.remove(StatusEffect.HEALTH_BOOST);
-        statusEffects.remove(StatusEffect.DAMAGE_BOOST);
-        currentHealth = Math.min(currentHealth, card.getHealth());
+        if (trainerPassiveHealthBuff == 0) {
+            statusEffects.remove(StatusEffect.HEALTH_BOOST);
+        }
+        if (trainerPassiveDamageBuff == 0 && auraDamageBoost == 0) {
+            statusEffects.remove(StatusEffect.DAMAGE_BOOST);
+        }
+        currentHealth = Math.min(currentHealth, getEffectiveMaxHealth());
     }
 
     public void recordBattlePhaseSeen() {
@@ -123,6 +158,8 @@ public class CardInstance {
     public void setCurrentSpeed(int currentSpeed) { this.currentSpeed = Math.max(0, currentSpeed); }
     public int getTemporaryHealthBuff() { return temporaryHealthBuff; }
     public int getTemporaryDamageBuff() { return temporaryDamageBuff; }
+    public int getTrainerPassiveHealthBuff() { return trainerPassiveHealthBuff; }
+    public int getTrainerPassiveDamageBuff() { return trainerPassiveDamageBuff; }
     public Set<StatusEffect> getStatusEffects() { return statusEffects; }
     public int getBoardRow() { return boardRow; }
     public void setBoardRow(int boardRow) { this.boardRow = boardRow; }

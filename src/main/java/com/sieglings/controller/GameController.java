@@ -849,6 +849,9 @@ public class GameController {
             ability.put("name", option.getAbility().getName());
             ability.put("description", option.getAbility().getDescription());
             ability.put("targetType", option.getTargetType().name());
+            ability.put("targetRow", option.getAbility().getTargetRow() == null ? null : option.getAbility().getTargetRow().name());
+            ability.put("effectType", option.getAbility().getEffectType());
+            ability.put("effectValue", option.getAbility().getEffectValue());
             ability.put("requiredElement", option.getRequiredElement() == null ? null : option.getRequiredElement().name());
             ability.put("requiredEnergy", option.getRequiredEnergy());
             ability.put("affordable", option.isAffordable());

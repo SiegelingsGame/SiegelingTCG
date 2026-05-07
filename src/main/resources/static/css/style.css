@@ -421,6 +421,22 @@ body.pixi-enabled > :not(.pixi-root):not(script) {
     z-index: 1;
 }
 
+.target-arrow-dom-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+.target-arrow-dom-layer.is-active {
+    opacity: 1;
+}
+
 .battlefield::before,
 .battlefield::after {
     content: '';
@@ -1489,6 +1505,12 @@ body.pixi-enabled > :not(.pixi-root):not(script) {
     font-weight: bold;
 }
 
+.battle-ability-btn.long-pressing {
+    transform: scale(0.97);
+    box-shadow: 0 0 0 2px rgba(255, 170, 80, 0.55), 0 0 18px rgba(255, 120, 60, 0.3);
+    transition: transform 80ms ease, box-shadow 120ms ease;
+}
+
 .battle-ability-btn-inner {
     display: flex;
     align-items: center;
@@ -1497,8 +1519,23 @@ body.pixi-enabled > :not(.pixi-root):not(script) {
     width: 100%;
 }
 
+.battle-ability-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    text-align: left;
+}
+
 .battle-ability-name {
     text-align: left;
+    line-height: 1.15;
+}
+
+.battle-ability-weakness {
+    color: rgba(10, 18, 34, 0.78);
+    font-size: 0.78em;
+    font-weight: 800;
     line-height: 1.15;
 }
 
@@ -1549,6 +1586,13 @@ body.pixi-enabled > :not(.pixi-root):not(script) {
 
 .battle-pass-btn:not(:disabled):hover {
     background: rgba(255, 255, 255, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .battle-ability-btn.long-pressing {
+        transform: none;
+        box-shadow: 0 0 0 2px rgba(255, 170, 80, 0.55);
+    }
 }
 
 .battle-passive-strip {
@@ -3384,12 +3428,153 @@ body.placement-active .board-cell.legal {
 }
 
 .status-icons {
-    text-align: center;
-    font-size: 0.6em;
-    color: #5a3e8c;
-    z-index: 1;
-    white-space: nowrap;
-    padding: 1px 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 0;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.sb-badge {
+    --sb-color: #fff;
+    position: relative;
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    pointer-events: auto;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+    transition: transform 0.15s ease;
+}
+
+.sb-badge:hover {
+    transform: scale(1.18);
+    z-index: 3;
+}
+
+.sb-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+}
+
+.sb-num {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    background: linear-gradient(160deg, #2a1810, #1a0c08);
+    border: 1.5px solid var(--sb-color);
+    border-radius: 50%;
+    color: #fff;
+    font: 800 8px/1 'Segoe UI', system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 4px var(--sb-color);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+}
+
+@keyframes sb-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 0.85; transform: scale(1.06); }
+}
+@keyframes sb-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+@keyframes sb-spin-rev {
+    from { transform: rotate(360deg); }
+    to   { transform: rotate(0deg); }
+}
+@keyframes sb-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-1.5px); }
+}
+@keyframes sb-floatdn {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(1.5px); }
+}
+@keyframes sb-flicker {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.65; }
+}
+
+.sb-svg .sb-pulse {
+    animation: sb-pulse 2.2s ease-in-out infinite;
+    transform-origin: 42px 42px;
+    transform-box: fill-box;
+}
+.sb-svg .sb-spin {
+    animation: sb-spin 6s linear infinite;
+    transform-origin: 42px 42px;
+    transform-box: fill-box;
+}
+.sb-svg .sb-spin-rev {
+    animation: sb-spin-rev 8s linear infinite;
+    transform-origin: 42px 42px;
+    transform-box: fill-box;
+}
+.sb-svg .sb-float {
+    animation: sb-float 1.8s ease-in-out infinite;
+    transform-box: fill-box;
+}
+.sb-svg .sb-floatdn {
+    animation: sb-floatdn 1.8s ease-in-out infinite;
+    transform-box: fill-box;
+}
+.sb-svg .sb-flicker {
+    animation: sb-flicker 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sb-svg .sb-pulse,
+    .sb-svg .sb-spin,
+    .sb-svg .sb-spin-rev,
+    .sb-svg .sb-float,
+    .sb-svg .sb-floatdn,
+    .sb-svg .sb-flicker {
+        animation: none;
+    }
+}
+
+/* Matchup badge overlay shown on hovered enemy targets during attack targeting */
+.matchup-badge-overlay {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 4;
+    pointer-events: none;
+    animation: matchup-badge-in 220ms ease-out both;
+}
+
+.matchup-badge-overlay .sb-badge {
+    width: 36px;
+    height: 36px;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7));
+}
+
+.matchup-badge-overlay[data-kind="WEAK"] .sb-badge {
+    filter: drop-shadow(0 0 8px rgba(255, 96, 128, 0.55)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.matchup-badge-overlay[data-kind="STRONG"] .sb-badge {
+    filter: drop-shadow(0 0 8px rgba(255, 208, 96, 0.55)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+@keyframes matchup-badge-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.85); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .matchup-badge-overlay { animation: none; }
 }
 
 /* ── Board Notches (circles on card border) ──────── */

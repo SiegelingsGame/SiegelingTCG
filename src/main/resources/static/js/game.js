@@ -101,6 +101,138 @@ const TARGET_TYPES = {
     ROW_SELECT_ENEMIES: 'row-enemy',
     ROW_SELECT_ALLIES: 'row-ally'
 };
+const EFFECT_KIND_MAP = {
+    damage: 'damage',
+    player_damage: 'damage',
+    destroy: 'damage',
+    heal: 'heal',
+    damage_boost: 'buff',
+    health_boost: 'buff',
+    speed_boost: 'buff',
+    connected_allies_damage_boost: 'buff',
+    connected_allies_health_boost: 'buff',
+    connected_allies_speed_boost: 'buff',
+    freeze: 'freeze',
+    speed_zero: 'freeze',
+    move_link: 'move'
+};
+const TARGET_ARROW_PALETTES = {
+    damage: { source: '#ffaa55', target: '#ff3344', glow: '#ff6644' },
+    heal: { source: '#a8ffd2', target: '#3ce08a', glow: '#5bffae' },
+    buff: { source: '#9adfff', target: '#3a98ff', glow: '#5cbcff' },
+    freeze: { source: '#dff0ff', target: '#7adfff', glow: '#a6edff' },
+    move: { source: '#e2c2ff', target: '#9a55ff', glow: '#b985ff' },
+    default: { source: '#ffd28a', target: '#ffaa55', glow: '#ffbd70' }
+};
+
+const STATUS_BADGE_PALETTE = {
+    FREEZE:       '#7adfff',
+    SPEED_ZERO:   '#a0b0c0',
+    HEALTH_BOOST: '#3ce08a',
+    DAMAGE_BOOST: '#ff5544',
+    SPEED_BOOST:  '#7adfff',
+    WEAK:         '#ff6080',
+    STRONG:       '#ffd060'
+};
+
+const STATUS_BADGE_LABEL = {
+    FREEZE: 'Frozen — cannot act',
+    SPEED_ZERO: 'Speed Zero — acts last',
+    HEALTH_BOOST: 'Health Boost',
+    DAMAGE_BOOST: 'Damage Boost',
+    SPEED_BOOST: 'Speed Boost',
+    WEAK: 'Weak to Attack',
+    STRONG: 'Strong Against Enemy'
+};
+
+const STATUS_BADGE_SVG = {
+    FREEZE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-fz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff6ff"/><stop offset="50%" stop-color="#5fb8e8"/><stop offset="100%" stop-color="#1a4a7a"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#5fb8e8" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-fz-bg)" stroke="#dff6ff" stroke-width="2"/><g stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none" class="sb-spin"><line x1="42" y1="20" x2="42" y2="64"/><line x1="22" y1="42" x2="62" y2="42"/><line x1="27" y1="27" x2="57" y2="57"/><line x1="57" y1="27" x2="27" y2="57"/><path d="M42 20 L37 26 M42 20 L47 26 M42 64 L37 58 M42 64 L47 58 M22 42 L28 37 M22 42 L28 47 M62 42 L56 37 M62 42 L56 47"/></g><circle cx="42" cy="42" r="3" fill="#fff"/></svg>`,
+    SPEED_ZERO: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#a0b0c0"/><stop offset="50%" stop-color="#4a5a78"/><stop offset="100%" stop-color="#1a2030"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#4a5a78" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sz-bg)" stroke="#a0b0c0" stroke-width="2"/><g stroke="#5a6a80" stroke-width="2" stroke-linejoin="round" fill="#7a8aa0" opacity=".7"><path d="M48 18 L34 40 L42 40 L36 50"/><path d="M40 50 L48 38 L42 38 L48 28"/></g><circle cx="42" cy="46" r="14" fill="none" stroke="#fff" stroke-width="3.5"/><line x1="32" y1="36" x2="52" y2="56" stroke="#ff5544" stroke-width="3.5" stroke-linecap="round"/></svg>`,
+    HEALTH_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-hp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d5ffe8"/><stop offset="50%" stop-color="#3ce08a"/><stop offset="100%" stop-color="#1a5a3a"/></radialGradient><linearGradient id="sb-hp-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#a8ffd0"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ce08a" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-hp-bg)" stroke="#d5ffe8" stroke-width="2"/><path d="M42 60 C 42 60 22 48 22 36 C 22 28 28 23 33 23 C 37 23 41 26 42 30 C 43 26 47 23 51 23 C 56 23 62 28 62 36 C 62 48 42 60 42 60 Z" fill="url(#sb-hp-heart)" stroke="#fff" stroke-width="1.5" class="sb-float"/><ellipse cx="35" cy="32" rx="3" ry="5" fill="#fff" opacity=".7" transform="rotate(-25 35 32)"/></svg>`,
+    DAMAGE_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dmg-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffe0c0"/><stop offset="50%" stop-color="#ff6633"/><stop offset="100%" stop-color="#5a1a0a"/></radialGradient><linearGradient id="sb-dmg-sword" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#ffd8a0"/><stop offset="100%" stop-color="#c87040"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ff5533" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dmg-bg)" stroke="#ffe0c0" stroke-width="2"/><g stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><g transform="rotate(45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g><g transform="rotate(-45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g></g><circle cx="42" cy="42" r="4" fill="#fff8c0" class="sb-flicker"/></svg>`,
+    SPEED_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff8ff"/><stop offset="50%" stop-color="#3ad8ff"/><stop offset="100%" stop-color="#1a5a7a"/></radialGradient><linearGradient id="sb-sp-bolt" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#fff8c0"/><stop offset="100%" stop-color="#7adfff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad8ff" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sp-bg)" stroke="#dff8ff" stroke-width="2"/><g stroke="#dff8ff" stroke-width="1.5" stroke-linecap="round" opacity=".5"><line x1="22" y1="32" x2="30" y2="32"/><line x1="20" y1="42" x2="32" y2="42"/><line x1="22" y1="52" x2="30" y2="52"/></g><path d="M48 18 L32 44 L42 44 L36 64 L56 36 L46 36 Z" fill="url(#sb-sp-bolt)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
+    WEAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffd0d8"/><stop offset="50%" stop-color="#a02038"/><stop offset="100%" stop-color="#3a0a18"/></radialGradient><linearGradient id="sb-wk-shield" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ff6080"/><stop offset="100%" stop-color="#5a0a18"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a02038" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wk-bg)" stroke="#ffd0d8" stroke-width="2"/><g class="sb-floatdn"><path d="M42 22 L58 28 L58 44 C 58 54 50 60 42 64 C 34 60 26 54 26 44 L26 28 Z" fill="url(#sb-wk-shield)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M42 24 L38 34 L44 38 L36 48 L46 52 L40 62" stroke="#fff8c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g transform="translate(60 60)"><circle r="9" fill="#1a0a18" stroke="#ff6080" stroke-width="1.5"/><path d="M0 -4 L0 4 M-3 1 L0 4 L3 1" stroke="#ff6080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
+    STRONG: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-st-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff4c0"/><stop offset="50%" stop-color="#e8a020"/><stop offset="100%" stop-color="#5a3a08"/></radialGradient><linearGradient id="sb-st-star" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#ffe080"/><stop offset="100%" stop-color="#e8a020"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ffd060" opacity=".3" class="sb-pulse"/><g class="sb-spin-rev" opacity=".55"><line x1="42" y1="6" x2="42" y2="14" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="42" y1="70" x2="42" y2="78" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="42" x2="14" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="70" y1="42" x2="78" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/></g><circle cx="42" cy="42" r="34" fill="url(#sb-st-bg)" stroke="#fff4c0" stroke-width="2"/><polygon points="42,20 47,35 63,35 50,44 55,60 42,51 29,60 34,44 21,35 37,35" fill="url(#sb-st-star)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-float"/><g transform="translate(60 60)"><circle r="9" fill="#3a2008" stroke="#ffe080" stroke-width="1.5"/><path d="M0 4 L0 -4 M-3 -1 L0 -4 L3 -1" stroke="#ffe080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`
+};
+
+function renderStatusBadge(kind, amount) {
+    const svg = STATUS_BADGE_SVG[kind];
+    if (!svg) return '';
+    const color = STATUS_BADGE_PALETTE[kind] || '#fff';
+    const label = STATUS_BADGE_LABEL[kind] || kind;
+    const tooltip = amount > 0 ? `${label} +${amount}` : label;
+    const numHtml = amount > 0
+        ? `<span class="sb-num" style="--sb-color:${color}">+${amount}</span>`
+        : '';
+    return `<span class="sb-badge" style="--sb-color:${color}" title="${tooltip}" data-status="${kind}">${svg}${numHtml}</span>`;
+}
+
+function renderStatusBadgesForCell(cell) {
+    if (!cell) return '';
+    const statuses = Array.isArray(cell.statuses) ? cell.statuses : [];
+    const printedHp = Number(cell.printedHealth);
+    const printedSpd = Number(cell.printedSpeed);
+    const maxHp = Number(cell.maxHp);
+    const spd = Number(cell.spd);
+    const dmgBoost = Number(cell.damageBoost) || 0;
+
+    const items = [];
+    const seen = new Set();
+    const push = (kind, amount) => {
+        if (seen.has(kind)) return;
+        seen.add(kind);
+        items.push(renderStatusBadge(kind, amount));
+    };
+
+    statuses.forEach((raw) => {
+        const kind = String(raw || '').toUpperCase();
+        let amount = 0;
+        if (kind === 'HEALTH_BOOST' && Number.isFinite(maxHp) && Number.isFinite(printedHp)) {
+            amount = Math.max(0, maxHp - printedHp);
+        } else if (kind === 'DAMAGE_BOOST') {
+            amount = dmgBoost;
+        } else if (kind === 'SPEED_BOOST' && Number.isFinite(spd) && Number.isFinite(printedSpd)) {
+            amount = Math.max(0, spd - printedSpd);
+        }
+        push(kind, amount);
+    });
+
+    // Inferred SPEED_BOOST when speed is buffed but no explicit status flag (backend may not yet emit it)
+    if (!seen.has('SPEED_BOOST') && !seen.has('SPEED_ZERO') && Number.isFinite(spd) && Number.isFinite(printedSpd) && spd > printedSpd) {
+        push('SPEED_BOOST', spd - printedSpd);
+    }
+
+    if (items.length === 0) return '';
+    return `<div class="status-icons">${items.join('')}</div>`;
+}
+const TARGET_ARROW_STAGGER_MS = 40;
+const TARGET_ARROW_FADE_MS = 200;
+const TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
+const targetArrowPreviewState = {
+    active: false,
+    source: null,
+    targets: [],
+    kind: 'default',
+    startedAt: 0,
+    dashPhase: 0,
+    raf: 0,
+    reducedMotion: false
+};
+if (typeof window.matchMedia === 'function') {
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    targetArrowPreviewState.reducedMotion = Boolean(motionQuery.matches);
+    const handleMotionChange = () => {
+        targetArrowPreviewState.reducedMotion = Boolean(motionQuery.matches);
+        if (targetArrowPreviewState.active) {
+            drawDomTargetingPreview(performance.now());
+        }
+    };
+    if (typeof motionQuery.addEventListener === 'function') {
+        motionQuery.addEventListener('change', handleMotionChange);
+    } else if (typeof motionQuery.addListener === 'function') {
+        motionQuery.addListener(handleMotionChange);
+    }
+}
 const ENERGY_ORDER = [
     ['fire', 'Fire'],
     ['earth', 'Earth'],
@@ -837,6 +969,652 @@ function formatAbilityEffectLabel(ability) {
         .join(' ');
     const value = Number(ability?.effectValue);
     return Number.isFinite(value) && value > 0 ? `${label} ${value}` : label;
+}
+
+function rowNameToIndex(rowName) {
+    const normalized = String(rowName || '').trim().toUpperCase();
+    if (!normalized) {
+        return -1;
+    }
+    return ROW_NAMES.findIndex((name) => name.toUpperCase() === normalized);
+}
+
+function isElementWeakTo(attackerElement, defenderElement) {
+    const attacker = String(attackerElement || '').trim().toUpperCase();
+    const defender = String(defenderElement || '').trim().toUpperCase();
+    switch (attacker) {
+        case 'WATER':
+            return defender === 'FIRE' || defender === 'EARTH';
+        case 'EARTH':
+            return defender === 'WIND' || defender === 'ELECTRIC';
+        case 'WIND':
+            return defender === 'FIRE';
+        case 'ELECTRIC':
+            return defender === 'WATER';
+        default:
+            return false;
+    }
+}
+
+function getBattleAbilityBaseDamage(ability) {
+    const value = Number(ability?.effectValue);
+    if (Number.isFinite(value) && value > 0) {
+        return value;
+    }
+    const match = String(ability?.description || '').match(/\bDeal\s+(\d+)/i);
+    if (!match) {
+        return 0;
+    }
+    const parsed = Number(match[1]);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isBattleDamageAbility(ability) {
+    const effectType = String(ability?.effectType || '').trim().toLowerCase();
+    return effectType === 'damage' || getBattleAbilityBaseDamage(ability) > 0;
+}
+
+function getBattleAbilityEnemyTargets(ability, selectedRow = -1) {
+    const targetType = String(ability?.targetType || '').trim().toUpperCase();
+    const board = gameState?.enemyBoard || [];
+    const targets = [];
+    const pushRow = (rowIndex) => {
+        if (rowIndex < 0 || rowIndex > 2) {
+            return;
+        }
+        (board[rowIndex] || []).forEach((cell) => {
+            if (cell) {
+                targets.push(cell);
+            }
+        });
+    };
+    switch (targetType) {
+        case 'SINGLE_ENEMY':
+        case 'ALL_ENEMIES':
+            board.forEach((row) => (row || []).forEach((cell) => {
+                if (cell) {
+                    targets.push(cell);
+                }
+            }));
+            break;
+        case 'ROW_ENEMIES':
+            pushRow(rowNameToIndex(ability?.targetRow));
+            break;
+        case 'ROW_SELECT_ENEMIES':
+            if (selectedRow >= 0) {
+                pushRow(selectedRow);
+            } else {
+                board.forEach((row) => (row || []).forEach((cell) => {
+                    if (cell) {
+                        targets.push(cell);
+                    }
+                }));
+            }
+            break;
+    }
+    return targets;
+}
+
+function formatWeakTargetNames(targets) {
+    const names = [...new Set((targets || []).map((cell) => cell?.name).filter(Boolean))];
+    if (names.length === 0) {
+        return 'weak targets';
+    }
+    if (names.length <= 2) {
+        return names.join(', ');
+    }
+    return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
+}
+
+function formatBattleAbilityWeaknessPreview(ability, selectedRow = -1) {
+    const baseDamage = getBattleAbilityBaseDamage(ability);
+    if (!isBattleDamageAbility(ability) || baseDamage <= 0) {
+        return '';
+    }
+    const attackerElement = gameState?.pendingBattle?.element;
+    const weakTargets = getBattleAbilityEnemyTargets(ability, selectedRow)
+        .filter((cell) => isElementWeakTo(attackerElement, cell?.element));
+    if (weakTargets.length === 0) {
+        return '';
+    }
+    return `Weakness +1: ${formatWeakTargetNames(weakTargets)} take ${baseDamage + 1}.`;
+}
+
+function effectKindFor(ability) {
+    const effectType = String(ability?.effectType || '').trim().toLowerCase();
+    return EFFECT_KIND_MAP[effectType] || 'default';
+}
+
+function targetArrowClamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function targetArrowQuadPoint(source, control, target, u) {
+    const inv = 1 - u;
+    return {
+        x: (inv * inv * source.x) + (2 * inv * u * control.x) + (u * u * target.x),
+        y: (inv * inv * source.y) + (2 * inv * u * control.y) + (u * u * target.y)
+    };
+}
+
+function targetArrowControlPoint(source, target, sceneCenterY) {
+    const mx = (source.x + target.x) / 2;
+    const my = (source.y + target.y) / 2;
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const len = Math.hypot(dx, dy) || 1;
+    let px = -dy / len;
+    let py = dx / len;
+    const dirSign = my > sceneCenterY ? -1 : 1;
+    if (Math.abs(dy) < 8) {
+        px = 0;
+        py = -1;
+    }
+    const k = targetArrowClamp(len * 0.2, 24, 140);
+    return {
+        x: mx + (px * k * dirSign),
+        y: my + (py * k * dirSign)
+    };
+}
+
+function targetArrowPath(source, control, target) {
+    return `M ${source.x.toFixed(1)} ${source.y.toFixed(1)} Q ${control.x.toFixed(1)} ${control.y.toFixed(1)} ${target.x.toFixed(1)} ${target.y.toFixed(1)}`;
+}
+
+function targetArrowHexToRgb(hex) {
+    const normalized = String(hex || '').replace('#', '');
+    const value = Number.parseInt(normalized.length === 3
+        ? normalized.split('').map((ch) => ch + ch).join('')
+        : normalized, 16);
+    if (!Number.isFinite(value)) {
+        return { r: 255, g: 255, b: 255 };
+    }
+    return {
+        r: (value >> 16) & 255,
+        g: (value >> 8) & 255,
+        b: value & 255
+    };
+}
+
+function targetArrowMixColor(a, b, amount) {
+    const left = targetArrowHexToRgb(a);
+    const right = targetArrowHexToRgb(b);
+    const mix = (start, end) => Math.round(start + ((end - start) * amount));
+    return `rgb(${mix(left.r, right.r)}, ${mix(left.g, right.g)}, ${mix(left.b, right.b)})`;
+}
+
+function ensureDomTargetingPreviewLayer() {
+    const boardArea = document.getElementById('boardArea');
+    if (!boardArea) {
+        return null;
+    }
+    let svg = boardArea.querySelector(':scope > .target-arrow-dom-layer');
+    if (!svg) {
+        svg = document.createElementNS(TARGET_ARROW_SVG_NS, 'svg');
+        svg.classList.add('target-arrow-dom-layer');
+        svg.setAttribute('aria-hidden', 'true');
+        svg.setAttribute('focusable', 'false');
+        boardArea.appendChild(svg);
+    }
+    return svg;
+}
+
+function getDomCellCenter(isPlayer, row, col) {
+    const boardArea = document.getElementById('boardArea');
+    const grid = document.getElementById(isPlayer ? 'playerGrid' : 'enemyGrid');
+    const cell = grid?.querySelector(`.board-cell[data-row="${row}"][data-col="${col}"]`);
+    if (!boardArea || !cell) {
+        return null;
+    }
+    const areaRect = boardArea.getBoundingClientRect();
+    const cellRect = cell.getBoundingClientRect();
+    if (cellRect.width <= 0 || cellRect.height <= 0) {
+        return null;
+    }
+    return {
+        x: (cellRect.left - areaRect.left) + (cellRect.width / 2),
+        y: (cellRect.top - areaRect.top) + (cellRect.height / 2)
+    };
+}
+
+function drawDomTargetingPreview(timestamp) {
+    const state = targetArrowPreviewState;
+    if (!state.active || !state.source || state.targets.length === 0) {
+        return;
+    }
+    const svg = ensureDomTargetingPreviewLayer();
+    const boardArea = document.getElementById('boardArea');
+    if (!svg || !boardArea) {
+        clearDomTargetingPreview();
+        return;
+    }
+    const width = Math.max(1, boardArea.clientWidth || Math.round(boardArea.getBoundingClientRect().width));
+    const height = Math.max(1, boardArea.clientHeight || Math.round(boardArea.getBoundingClientRect().height));
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('width', String(width));
+    svg.setAttribute('height', String(height));
+
+    const elapsed = Math.max(0, timestamp - state.startedAt);
+    const palette = TARGET_ARROW_PALETTES[state.kind] || TARGET_ARROW_PALETTES.default;
+    const sceneCenterY = height / 2;
+    const defs = [];
+    const shapes = [];
+    state.dashPhase = state.reducedMotion ? 0 : (elapsed * 0.0006) % 1;
+
+    state.targets.forEach((target, index) => {
+        const alpha = state.reducedMotion ? 1 : targetArrowClamp((elapsed - target.appearedAt) / TARGET_ARROW_FADE_MS, 0, 1);
+        if (alpha <= 0) {
+            return;
+        }
+        const control = targetArrowControlPoint(state.source, target, sceneCenterY);
+        const path = targetArrowPath(state.source, control, target);
+        const gradId = `targetArrowGrad${index}`;
+        defs.push(`<linearGradient id="${gradId}" gradientUnits="userSpaceOnUse" x1="${state.source.x.toFixed(1)}" y1="${state.source.y.toFixed(1)}" x2="${target.x.toFixed(1)}" y2="${target.y.toFixed(1)}"><stop offset="0%" stop-color="${palette.source}"/><stop offset="100%" stop-color="${palette.target}"/></linearGradient>`);
+
+        shapes.push(`<path d="${path}" fill="none" stroke="${palette.glow}" stroke-width="10" stroke-linecap="round" opacity="${(0.18 * alpha).toFixed(3)}"/>`);
+        shapes.push(`<path d="${path}" fill="none" stroke="url(#${gradId})" stroke-width="2.5" stroke-linecap="round" opacity="${(0.94 * alpha).toFixed(3)}"/>`);
+
+        if (!state.reducedMotion) {
+            const dashOffset = -((state.dashPhase + (index * 0.04)) % 1);
+            const dashColor = targetArrowMixColor('#ffffff', palette.target, 0.28);
+            shapes.push(`<path d="${path}" fill="none" pathLength="1" stroke="${dashColor}" stroke-width="4" stroke-linecap="round" stroke-dasharray="0.06 0.106" stroke-dashoffset="${dashOffset.toFixed(3)}" opacity="${(0.72 * alpha).toFixed(3)}"/>`);
+        }
+
+        const tail = targetArrowQuadPoint(state.source, control, target, 0.965);
+        const angle = Math.atan2(target.y - tail.y, target.x - tail.x);
+        const size = 14;
+        const spread = 0.52;
+        const left = {
+            x: target.x - (Math.cos(angle - spread) * size),
+            y: target.y - (Math.sin(angle - spread) * size)
+        };
+        const right = {
+            x: target.x - (Math.cos(angle + spread) * size),
+            y: target.y - (Math.sin(angle + spread) * size)
+        };
+        shapes.push(`<polygon points="${target.x.toFixed(1)},${target.y.toFixed(1)} ${left.x.toFixed(1)},${left.y.toFixed(1)} ${right.x.toFixed(1)},${right.y.toFixed(1)}" fill="${palette.target}" opacity="${(0.92 * alpha).toFixed(3)}"/>`);
+
+        const pulse = state.reducedMotion ? 0 : Math.sin(elapsed * 0.01);
+        const ringRadius = state.reducedMotion ? 10 : 8 + (4 * ((pulse + 1) / 2));
+        const ringAlpha = state.reducedMotion ? 0.36 : 0.18 + (0.22 * ((pulse + 1) / 2));
+        shapes.push(`<circle cx="${target.x.toFixed(1)}" cy="${target.y.toFixed(1)}" r="${ringRadius.toFixed(1)}" fill="none" stroke="${palette.target}" stroke-width="2" opacity="${(ringAlpha * alpha).toFixed(3)}"/>`);
+    });
+
+    shapes.push(`<circle cx="${state.source.x.toFixed(1)}" cy="${state.source.y.toFixed(1)}" r="12" fill="${palette.source}" opacity="0.16"/>`);
+    shapes.push(`<circle cx="${state.source.x.toFixed(1)}" cy="${state.source.y.toFixed(1)}" r="5" fill="${palette.source}" opacity="0.5"/>`);
+    svg.innerHTML = `<defs>${defs.join('')}</defs>${shapes.join('')}`;
+    svg.classList.add('is-active');
+
+    if (state.active && !state.reducedMotion) {
+        state.raf = window.requestAnimationFrame(drawDomTargetingPreview);
+    }
+}
+
+function showDomTargetingPreview(source, targets, kind) {
+    if (!source || !Array.isArray(targets) || targets.length === 0) {
+        clearDomTargetingPreview();
+        return;
+    }
+    if (targetArrowPreviewState.raf) {
+        window.cancelAnimationFrame(targetArrowPreviewState.raf);
+    }
+    targetArrowPreviewState.active = true;
+    targetArrowPreviewState.source = { x: Number(source.x) || 0, y: Number(source.y) || 0 };
+    targetArrowPreviewState.targets = targets
+        .filter(Boolean)
+        .slice(0, 9)
+        .map((target, index) => ({
+            x: Number(target.x) || 0,
+            y: Number(target.y) || 0,
+            appearedAt: index * TARGET_ARROW_STAGGER_MS
+        }));
+    targetArrowPreviewState.kind = TARGET_ARROW_PALETTES[kind] ? kind : 'default';
+    targetArrowPreviewState.startedAt = performance.now();
+    targetArrowPreviewState.raf = 0;
+    drawDomTargetingPreview(targetArrowPreviewState.startedAt);
+}
+
+function clearDomTargetingPreview() {
+    if (targetArrowPreviewState.raf) {
+        window.cancelAnimationFrame(targetArrowPreviewState.raf);
+    }
+    targetArrowPreviewState.active = false;
+    targetArrowPreviewState.source = null;
+    targetArrowPreviewState.targets = [];
+    targetArrowPreviewState.raf = 0;
+    const svg = document.querySelector('.target-arrow-dom-layer');
+    if (svg) {
+        svg.classList.remove('is-active');
+        svg.innerHTML = '';
+    }
+}
+
+const targetPreviewController = {
+    pixiController: null,
+    setPixiController(controller) {
+        this.pixiController = controller || null;
+    },
+    show(source, targets, kind) {
+        if (usePixiRenderer && this.pixiController?.show) {
+            clearDomTargetingPreview();
+            this.pixiController.show(source, targets, kind);
+            return;
+        }
+        this.pixiController?.clear?.();
+        showDomTargetingPreview(source, targets, kind);
+    },
+    clear() {
+        this.pixiController?.clear?.();
+        clearDomTargetingPreview();
+    },
+    cellCenter(isPlayer, row, col) {
+        if (usePixiRenderer && this.pixiController?.cellCenter) {
+            return this.pixiController.cellCenter(isPlayer, row, col);
+        }
+        return getDomCellCenter(isPlayer, row, col);
+    }
+};
+
+function clearTargetingPreview() {
+    targetPreviewController.clear();
+    clearMatchupBadges();
+}
+
+function sourceCellCenter() {
+    const pending = gameState?.pendingBattle;
+    if (!pending || pending.row == null || pending.col == null) {
+        return null;
+    }
+    return targetPreviewController.cellCenter(true, pending.row, pending.col);
+}
+
+function collectPreviewCells(board, isPlayer) {
+    const out = [];
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+            if (board?.[row]?.[col]) {
+                out.push({ isPlayer, row, col });
+            }
+        }
+    }
+    return out;
+}
+
+function collectPreviewRowCells(board, isPlayer, row) {
+    const out = [];
+    if (row < 0 || row > 2) {
+        return out;
+    }
+    for (let col = 0; col < 3; col++) {
+        if (board?.[row]?.[col]) {
+            out.push({ isPlayer, row, col });
+        }
+    }
+    return out;
+}
+
+function firstPreviewCellByRows(board, isPlayer, rows) {
+    for (const row of rows) {
+        for (let col = 0; col < 3; col++) {
+            if (board?.[row]?.[col]) {
+                return [{ isPlayer, row, col }];
+            }
+        }
+    }
+    return [];
+}
+
+function previewTargetsFor(ability, selectedRow = -1) {
+    if (!ability || !gameState?.pendingBattle) {
+        return [];
+    }
+    const enemyBoard = gameState.enemyBoard || [];
+    const allyBoard = gameState.playerBoard || [];
+    const targetType = String(ability.targetType || '').trim().toUpperCase();
+    switch (targetType) {
+        case 'SINGLE_ENEMY': {
+            const preferredRow = rowNameToIndex(ability.targetRow);
+            if (preferredRow >= 0) {
+                const preferred = firstPreviewCellByRows(enemyBoard, false, [preferredRow]);
+                if (preferred.length > 0) {
+                    return preferred;
+                }
+            }
+            return firstPreviewCellByRows(enemyBoard, false, [2, 1, 0]);
+        }
+        case 'SINGLE_ALLY':
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    if (allyBoard?.[row]?.[col] && !(gameState.pendingBattle.row === row && gameState.pendingBattle.col === col)) {
+                        return [{ isPlayer: true, row, col }];
+                    }
+                }
+            }
+            return [];
+        case 'ALL_ENEMIES':
+            return collectPreviewCells(enemyBoard, false);
+        case 'ALL_ALLIES':
+            return collectPreviewCells(allyBoard, true);
+        case 'ROW_ENEMIES':
+            return collectPreviewRowCells(enemyBoard, false, rowNameToIndex(ability.targetRow));
+        case 'ROW_ALLIES':
+            return collectPreviewRowCells(allyBoard, true, rowNameToIndex(ability.targetRow));
+        case 'ROW_SELECT_ENEMIES':
+            return selectedRow >= 0
+                ? collectPreviewRowCells(enemyBoard, false, selectedRow)
+                : collectPreviewCells(enemyBoard, false);
+        case 'ROW_SELECT_ALLIES':
+            return selectedRow >= 0
+                ? collectPreviewRowCells(allyBoard, true, selectedRow)
+                : collectPreviewCells(allyBoard, true);
+        case 'SELF':
+            return [{ isPlayer: true, row: gameState.pendingBattle.row, col: gameState.pendingBattle.col }];
+        default:
+            return [];
+    }
+}
+
+function showBattleAbilityPreview(ability, selectedRow = -1) {
+    showBattleTargetCellsPreview(ability, previewTargetsFor(ability, selectedRow));
+}
+
+function showBattleTargetCellsPreview(ability, cells) {
+    const src = sourceCellCenter();
+    const targets = (cells || [])
+        .map((target) => targetPreviewController.cellCenter(target.isPlayer, target.row, target.col))
+        .filter(Boolean);
+    if (!src || targets.length === 0) {
+        clearTargetingPreview();
+        return;
+    }
+    targetPreviewController.show(src, targets, effectKindFor(ability));
+    applyMatchupBadgesForCells(ability, cells || []);
+}
+
+function getMatchupKindForTarget(attackerElement, defenderElement) {
+    if (!attackerElement || !defenderElement) return null;
+    if (isElementWeakTo(attackerElement, defenderElement)) return 'WEAK';
+    if (isElementWeakTo(defenderElement, attackerElement)) return 'STRONG';
+    return null;
+}
+
+function findBoardCellEl(isPlayer, row, col) {
+    const grid = document.getElementById(isPlayer ? 'playerGrid' : 'enemyGrid');
+    return grid?.querySelector(`.board-cell[data-row="${row}"][data-col="${col}"]`) || null;
+}
+
+function clearMatchupBadges() {
+    document.querySelectorAll('.matchup-badge-overlay').forEach((el) => el.remove());
+}
+
+function applyMatchupBadgesForCells(ability, cells) {
+    clearMatchupBadges();
+    if (!ability || !isBattleDamageAbility(ability)) return;
+    const attackerElement = gameState?.pendingBattle?.element;
+    if (!attackerElement) return;
+
+    (cells || []).forEach((target) => {
+        if (!target || target.isPlayer) return; // only enemy targets get matchup badges
+        const board = gameState?.enemyBoard;
+        const defender = board?.[target.row]?.[target.col];
+        if (!defender) return;
+        const kind = getMatchupKindForTarget(attackerElement, defender.element);
+        if (!kind) return;
+        const cellEl = findBoardCellEl(target.isPlayer, target.row, target.col);
+        if (!cellEl) return;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'matchup-badge-overlay';
+        overlay.dataset.kind = kind;
+        overlay.innerHTML = renderStatusBadge(kind, 0);
+        cellEl.appendChild(overlay);
+    });
+}
+
+function getBattleTargetingPreviewCells(ability) {
+    if (!ability || !targetMode || !targetContext || targetContext.mode !== 'battle') {
+        return [];
+    }
+    if (targetContext.side === 'row-enemy' || targetContext.side === 'row-ally') {
+        return previewTargetsFor(ability);
+    }
+    if (targetContext.side === 'enemy') {
+        return collectPreviewCells(gameState?.enemyBoard || [], false);
+    }
+    if (targetContext.side === 'ally') {
+        return collectPreviewCells(gameState?.playerBoard || [], true);
+    }
+    return previewTargetsFor(ability);
+}
+
+function scheduleBattleTargetingPreview(ability) {
+    window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+            if (!targetMode || !targetContext || targetContext.mode !== 'battle') {
+                return;
+            }
+            const activeAbility = gameState?.pendingBattle?.abilities?.find((a) => a.index === targetContext.abilityIndex);
+            if (!activeAbility || activeAbility.index !== ability.index) {
+                return;
+            }
+            showBattleTargetCellsPreview(activeAbility, getBattleTargetingPreviewCells(activeAbility));
+        });
+    });
+}
+
+function bindBattleAbilityHovers(rootEl) {
+    if (!rootEl) {
+        return;
+    }
+    rootEl.querySelectorAll('.battle-ability-btn[data-ability-index]').forEach((btn) => {
+        const idx = Number(btn.dataset.abilityIndex);
+        const ability = gameState?.pendingBattle?.abilities?.find((a) => a.index === idx);
+        if (!ability) {
+            return;
+        }
+        let hoverTimer = null;
+        let pressTimer = null;
+        let longPressTriggered = false;
+        let pointerDownInside = false;
+
+        const canPreview = () => ability.affordable !== false && !btn.disabled;
+        const showPreview = () => {
+            if (canPreview()) {
+                showBattleAbilityPreview(ability);
+            }
+        };
+        const hidePreview = () => {
+            window.clearTimeout(hoverTimer);
+            window.clearTimeout(pressTimer);
+            btn.classList.remove('long-pressing');
+            pointerDownInside = false;
+            clearTargetingPreview();
+        };
+
+        btn.addEventListener('mouseenter', () => {
+            if (!canPreview()) {
+                return;
+            }
+            window.clearTimeout(hoverTimer);
+            hoverTimer = window.setTimeout(showPreview, 80);
+        });
+        btn.addEventListener('mouseleave', hidePreview);
+        btn.addEventListener('click', () => {
+            if (longPressTriggered) {
+                longPressTriggered = false;
+                return;
+            }
+            if (!canPreview()) {
+                return;
+            }
+            clearTargetingPreview();
+            chooseBattleAbility(idx);
+        });
+        btn.addEventListener('pointerdown', (event) => {
+            if (event.pointerType !== 'touch' || !canPreview()) {
+                return;
+            }
+            pointerDownInside = true;
+            longPressTriggered = false;
+            btn.classList.add('long-pressing');
+            window.clearTimeout(pressTimer);
+            pressTimer = window.setTimeout(() => {
+                if (pointerDownInside && canPreview()) {
+                    longPressTriggered = true;
+                    showPreview();
+                }
+            }, 220);
+        });
+        btn.addEventListener('pointerup', (event) => {
+            if (event.pointerType !== 'touch') {
+                return;
+            }
+            window.clearTimeout(pressTimer);
+            btn.classList.remove('long-pressing');
+            const releaseTarget = document.elementFromPoint(event.clientX, event.clientY);
+            const releasedInside = Boolean(releaseTarget && btn.contains(releaseTarget));
+            if (longPressTriggered && pointerDownInside && releasedInside && canPreview()) {
+                clearTargetingPreview();
+                chooseBattleAbility(idx);
+            } else {
+                clearTargetingPreview();
+            }
+            pointerDownInside = false;
+        });
+        btn.addEventListener('pointerleave', hidePreview);
+        btn.addEventListener('pointercancel', hidePreview);
+    });
+}
+
+function previewCellHover(isPlayer, row, col) {
+    if (!targetMode || !targetContext || targetContext.mode !== 'battle') {
+        return;
+    }
+    const ability = gameState?.pendingBattle?.abilities?.find((a) => a.index === targetContext.abilityIndex);
+    if (!ability) {
+        return;
+    }
+    let cells = [];
+    if (targetContext.side === 'row-enemy' || targetContext.side === 'row-ally') {
+        const targetIsPlayer = targetContext.side === 'row-ally';
+        const board = targetIsPlayer ? gameState.playerBoard : gameState.enemyBoard;
+        cells = collectPreviewRowCells(board, targetIsPlayer, row);
+    } else if (targetContext.side === 'enemy' || targetContext.side === 'ally') {
+        cells = [{ isPlayer: targetContext.side === 'ally', row, col }];
+    }
+    showBattleTargetCellsPreview(ability, cells);
+}
+
+function buildBattleTargetMessage(targetSide, ability) {
+    const weakness = formatBattleAbilityWeaknessPreview(ability);
+    const suffix = weakness ? ` ${weakness}` : '';
+    if (targetSide === 'row-enemy') {
+        return `Select an enemy row to target.${suffix}`;
+    }
+    if (targetSide === 'row-ally') {
+        return 'Select a friendly row to target.';
+    }
+    return `Queue a ${targetSide} target for ${ability.name}.${suffix}`;
 }
 
 function renderBattleAbilityCostEmblems(ability) {
@@ -3189,6 +3967,9 @@ function applyInteractionState() {
 
     boardArea?.classList.toggle('targeting-active', targetingActive);
     boardArea?.classList.toggle('placement-active', placementActive);
+    if (!targetingActive) {
+        clearTargetingPreview();
+    }
 
     handArea?.classList.toggle('battle-hidden', handHidden);
     handArea?.classList.toggle('interaction-locked', targetingActive);
@@ -4294,6 +5075,7 @@ async function useTrainer(targetRow, targetCol) {
 }
 
 async function submitBattleAction(abilityIndex, targetRow = -1, targetCol = -1) {
+    clearTargetingPreview();
     const data = await api('battle/action', 'POST', { abilityIndex, targetRow, targetCol });
     if (!data) return;
     resetInteractionState();
@@ -4711,6 +5493,8 @@ function attachPixiDriver(driver) {
 }
 
 window.setSieglingsRendererMode = setRendererMode;
+window.previewCellHover = previewCellHover;
+window.clearTargetingPreview = clearTargetingPreview;
 window.__SIEGLINGS_PIXI_BRIDGE = {
     attachDriver: attachPixiDriver,
     isPixiEnabled: () => Boolean(usePixiRenderer && pixiDriver),
@@ -4718,6 +5502,7 @@ window.__SIEGLINGS_PIXI_BRIDGE = {
     battleBoardHoldMs: PIXI_BATTLE_BOARD_HOLD_MS,
     attackProjectileMs: PIXI_ATTACK_PROJECTILE_MS,
     extendBattleAnimHold: (extraMs) => extendPixiBoardHold(extraMs),
+    preview: targetPreviewController,
     actions: {
         selectCard: (cardId) => selectCard(cardId),
         placeCard: (row, col) => placeCard(row, col),
@@ -5230,7 +6015,7 @@ function renderBoard(gridId, board, isPlayer) {
             if (isLegal) {
                 events = `onclick="placeCard(${r}, ${c})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isTargetable) {
-                events = `onclick="onTargetSelected(${r}, ${c}, ${isPlayer})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
+                events = `onclick="onTargetSelected(${r}, ${c}, ${isPlayer})" onmouseenter="previewCellHover(${isPlayer}, ${r}, ${c})" ontouchstart="previewCellHover(${isPlayer}, ${r}, ${c})" onmouseleave="clearTargetingPreview()" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isClaimable) {
                 events = `onclick="onArenaCardClick(${isPlayer}, ${r}, ${c})" ontouchend="handleBoardCellInspectTouch(event, ${isPlayer}, ${r}, ${c})" onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
             } else if (cell) {
@@ -5255,9 +6040,7 @@ function renderBoard(gridId, board, isPlayer) {
                 html += renderCardArt(cell, 'board');
                 html += `<div class="bc-inner">`;
                 html += `<div class="bc-name-box"><span class="card-name">${cell.name}</span></div>`;
-                if (cell.statuses && cell.statuses.length > 0) {
-                    html += `<div class="status-icons">${cell.statuses.join(' ')}</div>`;
-                }
+                html += renderStatusBadgesForCell(cell);
                 html += `<div class="bc-stats-box">`;
                 html += `<div class="hp-bar"><div class="hp-fill" style="width:${(cell.hp / cell.maxHp) * 100}%"></div></div>`;
                 const combat = renderBoardCellCombatStatsInner(cell);
@@ -6469,6 +7252,7 @@ function renderBattlePanel() {
     const setPanelHtml = (html) => {
         panels.forEach(panel => {
             panel.innerHTML = html;
+            bindBattleAbilityHovers(panel);
         });
     };
     const pending = gameState.pendingBattle;
@@ -6533,10 +7317,11 @@ function renderBattlePanel() {
     for (const ability of sortedAbilities) {
         const disabled = ability.affordable ? '' : 'disabled';
         const desc = (ability.description && String(ability.description).trim()) || ability.name;
+        const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
         const tip = ability.description
-            ? `${ability.name} — ${ability.description}`
+            ? `${ability.name} - ${ability.description}${weaknessPreview ? ` ${weaknessPreview}` : ''}`
             : ability.name;
-        actionsHtml += `<button class="battle-ability-btn" ${disabled} onclick="chooseBattleAbility(${ability.index})" title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(desc)}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
+        actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-name">${escapeHtml(desc)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
     }
     const passDesc = 'Pass this turn without using an ability. No energy cost.';
     actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passDesc)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(passDesc)}</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
@@ -6556,6 +7341,7 @@ function chooseBattleAbility(index) {
 
     const ability = pending.abilities.find(a => a.index === index);
     if (!ability || !ability.affordable) return;
+    clearTargetingPreview();
 
     const targetSide = TARGET_TYPES[ability.targetType];
     const needsExplicitTarget = targetSide && boardHasTargets(targetSide);
@@ -6570,22 +7356,20 @@ function chooseBattleAbility(index) {
         mode: 'battle',
         side: targetSide,
         abilityIndex: index,
-        message: targetSide === 'row-enemy'
-            ? 'Select an enemy row to target.'
-            : targetSide === 'row-ally'
-                ? 'Select a friendly row to target.'
-                : `Queue a ${targetSide} target for ${ability.name}.`
+        message: buildBattleTargetMessage(targetSide, ability)
     };
     if (activeDrawer === 'battle') {
         closeDrawer(true);
     }
     render();
+    scheduleBattleTargetingPreview(ability);
 }
 
 function passBattleAction() {
     if (!gameState?.pendingBattle) {
         return;
     }
+    clearTargetingPreview();
     submitBattleAction(-1, -1, -1);
 }
 
@@ -7255,6 +8039,7 @@ function getElementCssVar(element) {
 function clearTargetMode() {
     targetMode = false;
     targetContext = null;
+    clearTargetingPreview();
 }
 
 document.addEventListener('keydown', (e) => {
