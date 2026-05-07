@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Ability;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Notch;
@@ -25,6 +26,52 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GameServiceTest {
+
+    @Test
+    void trainerHealthPassiveUpdatesPlacedSieglingDuringSetupWithoutRehealing() throws Exception {
+        GameService gameService = new GameService();
+        setField(gameService, "energyService", new EnergyService(new PlacementService()));
+        setField(gameService, "placementService", new PlacementService());
+        setField(gameService, "effectService", new EffectService());
+
+        TrainerCard trainer = new TrainerCard(
+                "trainer_earth",
+                "Stone Warden",
+                Element.EARTH,
+                Rarity.RARE,
+                Ability.passive("Roots of Resolve", "All Earth allies gain +1 max Health", AbilityEffectKeys.HEALTH_BOOST, 1),
+                null,
+                false
+        );
+
+        Player player = new Player("Player", true);
+        player.setActiveTrainer(trainer);
+        Player enemy = new Player("Enemy", false);
+
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        SieglingCard cacty = new SieglingCard("cacty", "Cacty", Element.EARTH, Rarity.COMMON, 15, 3, List.of(), Row.BACK);
+        player.getHand().add(cacty);
+
+        gameService.placeSiegling(state, true, "cacty", 0, 0);
+
+        CardInstance placed = state.getAt(true, 0, 0);
+        assertEquals(16, placed.getEffectiveMaxHealth());
+        assertEquals(16, placed.getCurrentHealth());
+
+        placed.takeRawDamage(4);
+        Method recalculate = GameService.class.getDeclaredMethod("recalculateTrainerPassiveStatBuffs", GameState.class);
+        recalculate.setAccessible(true);
+        recalculate.invoke(gameService, state);
+        recalculate.invoke(gameService, state);
+
+        assertEquals(12, placed.getCurrentHealth(), "Recalculating the passive should not repeatedly heal an already-buffed Siegling.");
+        assertEquals(16, placed.getEffectiveMaxHealth());
+    }
 
     @Test
     void trainerActivesResetOnlyAfterBattlePhaseCompletes() throws Exception {

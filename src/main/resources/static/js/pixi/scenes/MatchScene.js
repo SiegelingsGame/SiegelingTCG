@@ -1,4 +1,5 @@
 import { FxLayer } from "../fx/FxLayer.js";
+import { TargetArrowLayer } from "../fx/TargetArrowLayer.js";
 
 const CELL_SIZE = 120;
 const GRID_GAP = 14;
@@ -80,6 +81,9 @@ export class MatchScene {
         this.boardLayer = new PIXI.Container();
         this.camera.addChild(this.boardLayer);
 
+        this.targetArrowLayer = new TargetArrowLayer(this.PIXI);
+        this.camera.addChild(this.targetArrowLayer.container);
+
         this.handLayer = new PIXI.Container();
         this.camera.addChild(this.handLayer);
 
@@ -102,6 +106,14 @@ export class MatchScene {
         this.lastLogLength = 0;
         this.enemyOrigin = { x: 0, y: 0 };
         this.playerOrigin = { x: 0, y: 0 };
+
+        if (this.bridge?.preview?.setPixiController) {
+            this.bridge.preview.setPixiController({
+                show: (source, targets, kind) => this.showTargetingPreview(source, targets, kind),
+                clear: () => this.clearTargetingPreview(),
+                cellCenter: (isPlayer, row, col) => this.cellCenter(isPlayer, row, col)
+            });
+        }
     }
 
     show() {
@@ -120,6 +132,7 @@ export class MatchScene {
         const now = performance.now();
         const delta = now - this.lastFrameTs;
         this.lastFrameTs = now;
+        this.targetArrowLayer.update(delta);
         this.fx.update(delta);
     }
 
@@ -595,6 +608,37 @@ export class MatchScene {
             x: origin.x + (col * (CELL_SIZE + GRID_GAP)) + (CELL_SIZE / 2),
             y: origin.y + (row * (CELL_SIZE + GRID_GAP)) + (CELL_SIZE / 2)
         };
+    }
+
+    cellCenter(isPlayer, row, col) {
+        const origin = isPlayer ? this.playerOrigin : this.enemyOrigin;
+        if (!origin) {
+            return null;
+        }
+        return {
+            x: origin.x + (col * (CELL_SIZE + GRID_GAP)) + (CELL_SIZE / 2),
+            y: origin.y + (row * (CELL_SIZE + GRID_GAP)) + (CELL_SIZE / 2)
+        };
+    }
+
+    sceneCenterY() {
+        if (!this.playerOrigin || !this.enemyOrigin) {
+            return 0;
+        }
+        const boardHeight = (CELL_SIZE * 3) + (GRID_GAP * 2);
+        return (this.enemyOrigin.y + this.playerOrigin.y + boardHeight) / 2;
+    }
+
+    showTargetingPreview(sourceCoord, targetCoords, kind) {
+        if (!sourceCoord || !Array.isArray(targetCoords) || targetCoords.length === 0) {
+            this.targetArrowLayer.clear();
+            return;
+        }
+        this.targetArrowLayer.setPreview(sourceCoord, targetCoords, kind, this.sceneCenterY());
+    }
+
+    clearTargetingPreview() {
+        this.targetArrowLayer.clear();
     }
 
     getAttackOrigin(targetSide, width, height) {

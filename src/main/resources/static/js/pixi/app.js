@@ -1,7 +1,7 @@
 // Browser bundle: lib/index.mjs pulls bare "eventemitter3"/"earcut" (needs import map otherwise).
 import * as PIXI from "https://cdn.jsdelivr.net/npm/pixi.js@8.5.2/dist/pixi.mjs";
 import { SceneRouter } from "./SceneRouter.js";
-import { MatchScene } from "./scenes/MatchScene.js";
+import { MatchScene } from "./scenes/MatchScene.js?v=2";
 import { OverlayScene } from "./scenes/OverlayScene.js";
 
 function getBridge() {

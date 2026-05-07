@@ -214,6 +214,7 @@ public class GameService {
         }
 
         energyService.recalculateEnergy(state);
+        recalculateTrainerPassiveStatBuffs(state);
         effectService.recalculateBoardAuraDamageBoosts(state);
         return state;
     }
@@ -246,6 +247,7 @@ public class GameService {
         energyService.recalculateEnergy(state);
         state.log(sideName(state, isPlayerSide) + " claims " + claimed.getName()
                 + " and gains 1 temporary " + claimed.getElement().name().toLowerCase() + " energy.");
+        recalculateTrainerPassiveStatBuffs(state);
         effectService.recalculateBoardAuraDamageBoosts(state);
         return state;
     }
@@ -344,6 +346,7 @@ public class GameService {
         }
 
         state.removeDeadSieglings();
+        recalculateTrainerPassiveStatBuffs(state);
         checkWinCondition(state);
         return state;
     }
@@ -374,6 +377,7 @@ public class GameService {
         state.log(sideName(state, isPlayerSide) + " uses trainer ability: " + trainer.getActiveAbility().getName());
 
         state.removeDeadSieglings();
+        recalculateTrainerPassiveStatBuffs(state);
         // Don't recalculate energy here - pool persists until next phase restore
         checkWinCondition(state);
         return state;
@@ -390,6 +394,8 @@ public class GameService {
             return state;
         }
         battleService.advanceBattle(state);
+        recalculateTrainerPassiveStatBuffs(state);
+        effectService.recalculateBoardAuraDamageBoosts(state);
         completeBattleIfFinished(state);
         return state;
     }
@@ -409,6 +415,8 @@ public class GameService {
         }
 
         battleService.resolvePlayerAction(state, abilityIndex, targetRow, targetCol);
+        recalculateTrainerPassiveStatBuffs(state);
+        effectService.recalculateBoardAuraDamageBoosts(state);
         completeBattleIfFinished(state);
         return state;
     }
@@ -646,6 +654,7 @@ public class GameService {
 
         clearTempEffects(state);
         state.removeDeadSieglings();
+        recalculateTrainerPassiveStatBuffs(state);
         effectService.recalculateBoardAuraDamageBoosts(state);
         recordBattlePhaseSeen(state);
         energyService.recalculateEnergy(state);
@@ -695,11 +704,14 @@ public class GameService {
         // Full energy restore at start of battle phase
         energyService.recalculateEnergy(state);
         state.log("Both setup turns are complete. Entering battle phase. Energy restored!");
-        applyTrainerPassives(state, true);
-        applyTrainerPassives(state, false);
+        recalculateTrainerPassiveStatBuffs(state);
+        applyTrainerPassiveSpeedBoosts(state, true);
+        applyTrainerPassiveSpeedBoosts(state, false);
         effectService.recalculateBoardAuraDamageBoosts(state);
         battleService.initializeBattle(state);
         battleService.advanceBattle(state);
+        recalculateTrainerPassiveStatBuffs(state);
+        effectService.recalculateBoardAuraDamageBoosts(state);
         completeBattleIfFinished(state);
     }
 
@@ -728,24 +740,48 @@ public class GameService {
         }
     }
 
-    private void applyTrainerPassives(GameState state, boolean isPlayer) {
+    private void recalculateTrainerPassiveStatBuffs(GameState state) {
+        if (state == null) {
+            return;
+        }
+        recalculateTrainerPassiveStatBuffsForSide(state, true);
+        recalculateTrainerPassiveStatBuffsForSide(state, false);
+    }
+
+    private void recalculateTrainerPassiveStatBuffsForSide(GameState state, boolean isPlayer) {
+        Player player = getSidePlayer(state, isPlayer);
+        TrainerCard trainer = player.getActiveTrainer();
+        Ability passive = trainer == null ? null : trainer.getAbility();
+        List<CardInstance> sieglings = state.getBoardSieglings(isPlayer);
+        for (CardInstance ci : sieglings) {
+            int healthBuff = 0;
+            int damageBuff = 0;
+            if (passive != null && passive.isPassive() && passiveAppliesToCard(passive, trainer, ci)) {
+                int value = Math.max(1, passive.getEffectValue());
+                switch (passive.getEffectType()) {
+                    case AbilityEffectKeys.DAMAGE_BOOST -> damageBuff += value;
+                    case AbilityEffectKeys.HEALTH_BOOST -> healthBuff += value;
+                }
+            }
+            ci.setTrainerPassiveHealthBuff(healthBuff);
+            ci.setTrainerPassiveDamageBuff(damageBuff);
+        }
+    }
+
+    private void applyTrainerPassiveSpeedBoosts(GameState state, boolean isPlayer) {
         Player player = getSidePlayer(state, isPlayer);
         TrainerCard trainer = player.getActiveTrainer();
         if (trainer == null || trainer.getAbility() == null) return;
-
         Ability passive = trainer.getAbility();
         if (!passive.isPassive()) return;
+        if (!AbilityEffectKeys.SPEED_BOOST.equals(passive.getEffectType())) return;
 
         List<CardInstance> sieglings = state.getBoardSieglings(isPlayer);
         for (CardInstance ci : sieglings) {
             if (!passiveAppliesToCard(passive, trainer, ci)) {
                 continue;
             }
-            switch (passive.getEffectType()) {
-                case AbilityEffectKeys.DAMAGE_BOOST -> ci.addDamageBuff(Math.max(1, passive.getEffectValue()));
-                case AbilityEffectKeys.HEALTH_BOOST -> ci.addHealthBuff(Math.max(1, passive.getEffectValue()));
-                case AbilityEffectKeys.SPEED_BOOST -> ci.setCurrentSpeed(ci.getCurrentSpeed() + passive.getEffectValue());
-            }
+            ci.setCurrentSpeed(ci.getCurrentSpeed() + passive.getEffectValue());
         }
     }
 
