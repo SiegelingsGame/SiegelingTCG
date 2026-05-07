@@ -25,6 +25,110 @@ class EffectServiceTest {
     private final EffectService effectService = new EffectService();
 
     @Test
+    void allEnemiesDamageHitsEveryEnemyAndNoAllies() {
+        GameState state = battleState();
+        CardInstance enemyBack = instance("enemy-back", 0, 0, false);
+        CardInstance enemyMiddle = instance("enemy-middle", 1, 1, false);
+        CardInstance enemyFront = instance("enemy-front", 2, 2, false);
+        CardInstance ally = instance("ally", 1, 0, true);
+        state.setAt(false, 0, 0, enemyBack);
+        state.setAt(false, 1, 1, enemyMiddle);
+        state.setAt(false, 2, 2, enemyFront);
+        state.setAt(true, 1, 0, ally);
+
+        Ability quake = Ability.damage(
+                "Quake",
+                "Deal 3 damage to all enemies",
+                TargetType.ALL_ENEMIES,
+                null,
+                0,
+                3
+        );
+
+        effectService.resolveAbility(state, quake, null, true, -1, -1);
+
+        assertEquals(7, enemyBack.getCurrentHealth());
+        assertEquals(7, enemyMiddle.getCurrentHealth());
+        assertEquals(7, enemyFront.getCurrentHealth());
+        assertEquals(10, ally.getCurrentHealth());
+    }
+
+    @Test
+    void fixedEnemyRowDamageOnlyHitsConfiguredRow() {
+        GameState state = battleState();
+        CardInstance back = instance("back", 0, 0, false);
+        CardInstance middleLeft = instance("middle-left", 1, 0, false);
+        CardInstance middleRight = instance("middle-right", 1, 2, false);
+        CardInstance front = instance("front", 2, 1, false);
+        state.setAt(false, 0, 0, back);
+        state.setAt(false, 1, 0, middleLeft);
+        state.setAt(false, 1, 2, middleRight);
+        state.setAt(false, 2, 1, front);
+
+        Ability wave = Ability.damage(
+                "Wave",
+                "Deal 4 damage to all enemies in Middle Row",
+                TargetType.ROW_ENEMIES,
+                Row.MIDDLE,
+                0,
+                4
+        );
+
+        effectService.resolveAbility(state, wave, null, true, -1, -1);
+
+        assertEquals(10, back.getCurrentHealth());
+        assertEquals(6, middleLeft.getCurrentHealth());
+        assertEquals(6, middleRight.getCurrentHealth());
+        assertEquals(10, front.getCurrentHealth());
+    }
+
+    @Test
+    void selectedEnemyRowDamageUsesRuntimeRowAndIgnoresColumn() {
+        GameState state = battleState();
+        CardInstance selectedLeft = instance("selected-left", 1, 0, false);
+        CardInstance selectedRight = instance("selected-right", 1, 2, false);
+        CardInstance otherRow = instance("other-row", 2, 1, false);
+        state.setAt(false, 1, 0, selectedLeft);
+        state.setAt(false, 1, 2, selectedRight);
+        state.setAt(false, 2, 1, otherRow);
+
+        Ability tornado = Ability.damage(
+                "Tornado",
+                "Deal 5 damage to the selected enemy row",
+                TargetType.ROW_SELECT_ENEMIES,
+                null,
+                0,
+                5
+        );
+
+        effectService.resolveAbility(state, tornado, null, true, 1, -1);
+
+        assertEquals(5, selectedLeft.getCurrentHealth());
+        assertEquals(5, selectedRight.getCurrentHealth());
+        assertEquals(10, otherRow.getCurrentHealth());
+    }
+
+    @Test
+    void selectedEnemyRowDamageWithoutRuntimeRowFindsNoTargets() {
+        GameState state = battleState();
+        CardInstance enemy = instance("enemy", 1, 1, false);
+        state.setAt(false, 1, 1, enemy);
+
+        Ability tornado = Ability.damage(
+                "Tornado",
+                "Deal 5 damage to the selected enemy row",
+                TargetType.ROW_SELECT_ENEMIES,
+                null,
+                0,
+                5
+        );
+
+        effectService.resolveAbility(state, tornado, null, true, -1, -1);
+
+        assertEquals(10, enemy.getCurrentHealth());
+    }
+
+    @Test
     void connectedAlliesHealthBoostOnlyAffectsLinkedAllies() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
@@ -267,5 +371,18 @@ class EffectServiceTest {
     private CardInstance instance(String id, List<Notch> notches, int row, int col) {
         SieglingCard card = new SieglingCard(id, id, Element.EARTH, Rarity.COMMON, 10, 4, notches, Row.MIDDLE);
         return new CardInstance(card, row, col, true);
+    }
+
+    private CardInstance instance(String id, int row, int col, boolean owner) {
+        SieglingCard card = new SieglingCard(id, id, Element.NEUTRAL, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE);
+        return new CardInstance(card, row, col, owner);
+    }
+
+    private GameState battleState() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+        return state;
     }
 }

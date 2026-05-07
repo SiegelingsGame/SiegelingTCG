@@ -3706,24 +3706,26 @@
         const signedValue = `+${value}`;
         const targetElement = String(move?.targetElement || "").trim();
         const elementPrefix = targetElement && targetElement !== "ALL" ? `${formatEnumLabel(targetElement)} ` : "";
+        const selectedEnemyRow = selectedRowTargetPhrase("enemy", elementPrefix);
+        const selectedAlliedRow = selectedRowTargetPhrase("allied", elementPrefix);
 
         switch (effectType) {
             case "damage":
-                return buildDamageMoveDescription(value, targetType, elementPrefix);
+                return buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow);
             case "player_damage":
                 return `Deal ${value} damage to the enemy player`;
             case "heal":
-                return buildHealMoveDescription(value, targetType, elementPrefix);
+                return buildHealMoveDescription(value, targetType, elementPrefix, selectedAlliedRow);
             case "freeze":
-                return buildFreezeMoveDescription(value, targetType, elementPrefix);
+                return buildFreezeMoveDescription(value, targetType, elementPrefix, selectedEnemyRow);
             case "speed_zero":
-                return buildSpeedZeroMoveDescription(value, targetType, elementPrefix);
+                return buildSpeedZeroMoveDescription(value, targetType, elementPrefix, selectedEnemyRow);
             case "damage_boost":
-                return buildStatBoostMoveDescription(signedValue, "Attack Damage", targetType, elementPrefix, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "Attack Damage", targetType, elementPrefix, selectedAlliedRow, isPassive);
             case "health_boost":
-                return buildStatBoostMoveDescription(signedValue, "max HP", targetType, elementPrefix, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "max HP", targetType, elementPrefix, selectedAlliedRow, isPassive);
             case "speed_boost":
-                return buildStatBoostMoveDescription(signedValue, "Speed", targetType, elementPrefix, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "Speed", targetType, elementPrefix, selectedAlliedRow, isPassive);
             case "connected_allies_damage_boost":
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
@@ -3731,7 +3733,7 @@
             case "connected_allies_speed_boost":
                 return `Connected allies gain ${signedValue} Speed`;
             case "destroy":
-                return buildDestroyMoveDescription(targetType, elementPrefix);
+                return buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow);
             case "move_link":
                 return `Move to an open linked point (${Math.max(0, toNumber(move?.energyCost, 0))} Cost)`;
             default:
@@ -3739,7 +3741,12 @@
         }
     }
 
-    function buildDamageMoveDescription(value, targetType, elementPrefix) {
+    function selectedRowTargetPhrase(sideLabel, elementPrefix) {
+        const elementText = elementPrefix ? `${elementPrefix.toLowerCase()}` : "";
+        return `the selected ${elementText}${sideLabel} row`;
+    }
+
+    function buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow) {
         switch (targetType) {
             case "SINGLE_ENEMY":
                 return `Deal ${value} damage to 1 ${elementPrefix}enemy`;
@@ -3748,7 +3755,7 @@
                     ? `Deal ${value} damage to ${elementPrefix.toLowerCase()}row enemies`
                     : `Deal ${value} damage to the row`;
             case "ROW_SELECT_ENEMIES":
-                return `Deal ${value} damage to the selected ${elementPrefix.toLowerCase()}enemy row`;
+                return `Deal ${value} damage to ${selectedEnemyRow}`;
             case "ALL_ENEMIES":
                 return `Deal ${value} damage to all ${elementPrefix}enemies`;
             case "ENEMY_PLAYER":
@@ -3758,7 +3765,7 @@
         }
     }
 
-    function buildHealMoveDescription(value, targetType, elementPrefix) {
+    function buildHealMoveDescription(value, targetType, elementPrefix, selectedAlliedRow) {
         switch (targetType) {
             case "SINGLE_ALLY":
                 return `Heal 1 ${elementPrefix}ally for ${value} HP`;
@@ -3767,7 +3774,7 @@
                     ? `Heal ${elementPrefix}row allies for ${value} HP`
                     : `Heal Row allies for ${value} HP`;
             case "ROW_SELECT_ALLIES":
-                return `Heal selected ${elementPrefix}allied row for ${value} HP`;
+                return `Heal ${selectedAlliedRow} for ${value} HP`;
             case "ALL_ALLIES":
                 return `Heal all ${elementPrefix}allies for ${value} HP`;
             case "SELF":
@@ -3778,7 +3785,7 @@
         }
     }
 
-    function buildFreezeMoveDescription(value, targetType, elementPrefix) {
+    function buildFreezeMoveDescription(value, targetType, elementPrefix, selectedEnemyRow) {
         const turns = turnText(value);
         switch (targetType) {
             case "SINGLE_ENEMY":
@@ -3788,7 +3795,7 @@
                     ? `Freeze ${elementPrefix}row enemies for ${turns}`
                     : `Freeze Row enemies for ${turns}`;
             case "ROW_SELECT_ENEMIES":
-                return `Freeze selected ${elementPrefix}enemy row for ${turns}`;
+                return `Freeze ${selectedEnemyRow} for ${turns}`;
             case "ALL_ENEMIES":
                 return `Freeze All ${elementPrefix}enemies for ${turns}`;
             default:
@@ -3796,7 +3803,7 @@
         }
     }
 
-    function buildSpeedZeroMoveDescription(value, targetType, elementPrefix) {
+    function buildSpeedZeroMoveDescription(value, targetType, elementPrefix, selectedEnemyRow) {
         const turns = turnText(value);
         switch (targetType) {
             case "SINGLE_ENEMY":
@@ -3806,7 +3813,7 @@
                     ? `Nullify ${elementPrefix}row enemies' speed (${turns})`
                     : `Nullify Row enemies' speed (${turns})`;
             case "ROW_SELECT_ENEMIES":
-                return `Nullify selected ${elementPrefix}enemy row's speed (${turns})`;
+                return `Nullify ${selectedEnemyRow}'s speed (${turns})`;
             case "ALL_ENEMIES":
                 return `Nullify All ${elementPrefix}enemies' speed (${turns})`;
             default:
@@ -3814,7 +3821,7 @@
         }
     }
 
-    function buildStatBoostMoveDescription(signedValue, statLabel, targetType, elementPrefix, isPassive) {
+    function buildStatBoostMoveDescription(signedValue, statLabel, targetType, elementPrefix, selectedAlliedRow, isPassive) {
         if (targetType === "PASSIVE" || (isPassive && targetType === "SELF")) {
             return `Passively gains ${signedValue} ${statLabel}`;
         }
@@ -3826,7 +3833,7 @@
                     ? `${elementPrefix}row allies gain ${signedValue} ${statLabel}`
                     : `Row allies gain ${signedValue} ${statLabel}`;
             case "ROW_SELECT_ALLIES":
-                return `Selected ${elementPrefix}allied row gains ${signedValue} ${statLabel}`;
+                return `${sentenceCase(selectedAlliedRow)} gains ${signedValue} ${statLabel}`;
             case "ALL_ALLIES":
                 return `All ${elementPrefix}allies gain ${signedValue} ${statLabel}`;
             case "SELF":
@@ -3836,19 +3843,24 @@
         }
     }
 
-    function buildDestroyMoveDescription(targetType, elementPrefix) {
+    function buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow) {
         switch (targetType) {
             case "SINGLE_ENEMY":
                 return `Destroy 1 ${elementPrefix}enemy`;
             case "ROW_ENEMIES":
                 return elementPrefix ? `Destroy ${elementPrefix}row enemies` : "Destroy Row enemies";
             case "ROW_SELECT_ENEMIES":
-                return `Destroy selected ${elementPrefix}enemy row`;
+                return `Destroy ${selectedEnemyRow}`;
             case "ALL_ENEMIES":
                 return `Destroy all ${elementPrefix}enemies`;
             default:
                 return "";
         }
+    }
+
+    function sentenceCase(value) {
+        const text = String(value || "");
+        return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
     }
 
     function turnText(value) {

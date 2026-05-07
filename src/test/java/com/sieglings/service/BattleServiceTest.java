@@ -81,6 +81,46 @@ class BattleServiceTest {
         assertFalse(options.get(1).isAffordable());
     }
 
+    @Test
+    void rowSelectEnemyMoveLoadoutRemainsExplicitBattleTarget() throws Exception {
+        BattleService battleService = new BattleService();
+        setField(battleService, "effectService", new EffectService());
+        setField(battleService, "energyService", new EnergyService(new PlacementService()));
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+        setField(battleService, "movesPoolService", pool);
+
+        String moveId = "test:wind:row-select";
+        pool.registerLegacyManualMove(moveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Tornadus",
+                "Deal 3 damage to the selected enemy row",
+                TargetType.ROW_SELECT_ENEMIES,
+                null,
+                0,
+                "damage",
+                3,
+                false,
+                Element.WIND,
+                1,
+                null
+        ), Element.WIND);
+
+        SieglingCard card = new SieglingCard("cloudwisp", "Cloudwisp", Element.WIND, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE);
+        card.setMoveIds(List.of(moveId));
+        CardInstance attacker = new CardInstance(card, 1, 1, true);
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        player.setWindEnergy(1);
+        state.setPlayer(player);
+        state.setEnemy(new Player("AI", false));
+
+        List<BattleAbilityOption> options = battleService.getAvailableAbilities(state, attacker);
+
+        assertEquals(1, options.size());
+        assertEquals(TargetType.ROW_SELECT_ENEMIES, options.get(0).getTargetType());
+        assertTrue(options.get(0).isAffordable());
+    }
+
     private void setField(Object target, String fieldName, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
