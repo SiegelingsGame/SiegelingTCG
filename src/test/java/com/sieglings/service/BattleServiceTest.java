@@ -1,12 +1,15 @@
 package com.sieglings.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.BattleAbilityOption;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
+import com.sieglings.model.Notch;
 import com.sieglings.model.Player;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.TargetType;
@@ -119,6 +122,53 @@ class BattleServiceTest {
         assertEquals(1, options.size());
         assertEquals(TargetType.ROW_SELECT_ENEMIES, options.get(0).getTargetType());
         assertTrue(options.get(0).isAffordable());
+    }
+
+    @Test
+    void selfMoveLinkWithoutValidNotchDestinationIsUnavailable() throws Exception {
+        BattleService battleService = new BattleService();
+        setField(battleService, "effectService", new EffectService());
+        setField(battleService, "energyService", new EnergyService(new PlacementService()));
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+        setField(battleService, "movesPoolService", pool);
+
+        String moveId = "test:mover:drift";
+        pool.registerLegacyManualMove(moveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Drift",
+                "Move to an open linked point",
+                TargetType.SELF,
+                null,
+                1,
+                AbilityEffectKeys.MOVE_LINK,
+                0,
+                false,
+                null,
+                0,
+                null
+        ), Element.EARTH);
+
+        SieglingCard card = new SieglingCard(
+                "mover",
+                "Mover",
+                Element.EARTH,
+                Rarity.COMMON,
+                10,
+                4,
+                List.of(new Notch(NotchDirection.TOP, Element.EARTH)),
+                Row.MIDDLE
+        );
+        card.setMoveIds(List.of(moveId));
+        CardInstance attacker = new CardInstance(card, 1, 1, true);
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setAt(true, 1, 1, attacker);
+
+        List<BattleAbilityOption> options = battleService.getAvailableAbilities(state, attacker);
+
+        assertEquals(1, options.size());
+        assertFalse(options.get(0).isAffordable());
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

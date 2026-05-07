@@ -83,7 +83,7 @@ class EnergyServiceTest {
     }
 
     @Test
-    void movingAwayFromTheNetworkRemovesBrokenConnectionEnergy() {
+    void moveLinkCannotLeaveNetworkWithoutActiveNotchConnection() {
         SieglingCard root = new SieglingCard(
                 "root-fire",
                 "Root Fire",
@@ -135,10 +135,11 @@ class EnergyServiceTest {
         effectService.resolveAbility(state, move, moverInstance, true, -1, -1);
         energyService.recalculateEnergy(state);
 
-        assertTrue(state.getAt(true, 1, 1) == moverInstance, "Mover should relocate to the only open destination.");
+        assertTrue(state.getAt(true, 1, 0) == moverInstance, "Mover should stay put when the only open destination disconnects it.");
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains(EffectService.NO_VALID_NOTCHES_MESSAGE)));
         EnergyService.EnergyBreakdown afterMove = energyService.getBreakdown(state, true);
-        assertEquals(0, afterMove.fireInternal());
-        assertEquals(0, afterMove.fireTotal());
+        assertEquals(1, afterMove.fireInternal());
+        assertEquals(1, afterMove.fireTotal());
     }
 
     @Test

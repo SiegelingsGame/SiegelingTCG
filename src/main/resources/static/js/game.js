@@ -1475,8 +1475,8 @@ function getBattleTargetingPreviewCells(ability) {
     if (!ability || !targetMode || !targetContext || targetContext.mode !== 'battle') {
         return [];
     }
-    if (targetContext.side === 'row-enemy' || targetContext.side === 'row-ally') {
-        return previewTargetsFor(ability);
+    if (isRowSelectTargetSide(targetContext.side)) {
+        return previewTargetsFor(ability, getRowSelectSelectedRow());
     }
     if (targetContext.side === 'enemy') {
         return collectPreviewCells(gameState?.enemyBoard || [], false);
@@ -1586,6 +1586,58 @@ function bindBattleAbilityHovers(rootEl) {
     });
 }
 
+function isRowSelectTargetSide(side) {
+    return side === 'row-enemy' || side === 'row-ally';
+}
+
+function isRowSelectBattleTargetContext(context = targetContext) {
+    return Boolean(context && context.mode === 'battle' && isRowSelectTargetSide(context.side));
+}
+
+function getRowSelectSelectedRow(context = targetContext) {
+    const row = Number(context?.selectedRow);
+    return Number.isInteger(row) && row >= 0 && row <= 2 ? row : -1;
+}
+
+function getActiveBattleTargetAbility(context = targetContext) {
+    return gameState?.pendingBattle?.abilities?.find((a) => a.index === context?.abilityIndex) || null;
+}
+
+function getRowSelectBoard(context = targetContext) {
+    if (!isRowSelectBattleTargetContext(context)) {
+        return null;
+    }
+    return context.side === 'row-ally' ? gameState?.playerBoard : gameState?.enemyBoard;
+}
+
+function getRowSelectTargets(row, context = targetContext) {
+    const board = getRowSelectBoard(context);
+    if (!board || row < 0 || row > 2) {
+        return [];
+    }
+    return (board[row] || []).filter(Boolean);
+}
+
+function formatRowSelectConfirmText(context = targetContext) {
+    const row = getRowSelectSelectedRow(context);
+    const rowName = ROW_NAMES[row] || `Row ${row + 1}`;
+    const targetNames = getRowSelectTargets(row, context)
+        .map((cell, index) => cell?.name || `Target ${index + 1}`);
+    const targetText = targetNames.length > 0 ? targetNames.join(', ') : 'No targets';
+    return `Confirm: ${rowName} Row - ${targetText}`;
+}
+
+function handleTargetCellPointerLeave() {
+    if (isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0) {
+        const ability = getActiveBattleTargetAbility();
+        if (ability) {
+            showBattleAbilityPreview(ability, getRowSelectSelectedRow());
+        }
+        return;
+    }
+    clearTargetingPreview();
+}
+
 function previewCellHover(isPlayer, row, col) {
     if (!targetMode || !targetContext || targetContext.mode !== 'battle') {
         return;
@@ -1595,24 +1647,34 @@ function previewCellHover(isPlayer, row, col) {
         return;
     }
     let cells = [];
-    if (targetContext.side === 'row-enemy' || targetContext.side === 'row-ally') {
+    if (isRowSelectTargetSide(targetContext.side)) {
         const targetIsPlayer = targetContext.side === 'row-ally';
+        if (isPlayer !== targetIsPlayer) {
+            return;
+        }
         const board = targetIsPlayer ? gameState.playerBoard : gameState.enemyBoard;
-        cells = collectPreviewRowCells(board, targetIsPlayer, row);
+        const selectedRow = getRowSelectSelectedRow();
+        cells = collectPreviewRowCells(board, targetIsPlayer, selectedRow >= 0 ? selectedRow : row);
     } else if (targetContext.side === 'enemy' || targetContext.side === 'ally') {
         cells = [{ isPlayer: targetContext.side === 'ally', row, col }];
     }
     showBattleTargetCellsPreview(ability, cells);
 }
 
-function buildBattleTargetMessage(targetSide, ability) {
-    const weakness = formatBattleAbilityWeaknessPreview(ability);
+function buildBattleTargetMessage(targetSide, ability, selectedRow = -1) {
+    const weakness = formatBattleAbilityWeaknessPreview(ability, selectedRow);
     const suffix = weakness ? ` ${weakness}` : '';
     if (targetSide === 'row-enemy') {
-        return `Select an enemy row to target.${suffix}`;
+        if (selectedRow >= 0) {
+            return `${ROW_NAMES[selectedRow] || 'Selected'} enemy row selected. Confirm the row or change it.${suffix}`;
+        }
+        return `Select a card in an enemy row.${suffix}`;
     }
     if (targetSide === 'row-ally') {
-        return 'Select a friendly row to target.';
+        if (selectedRow >= 0) {
+            return `${ROW_NAMES[selectedRow] || 'Selected'} friendly row selected. Confirm the row or change it.`;
+        }
+        return 'Select a card in a friendly row.';
     }
     return `Queue a ${targetSide} target for ${ability.name}.${suffix}`;
 }
@@ -5195,6 +5257,7 @@ function renderDomLegacy() {
     renderMulliganOverlay();
     renderLog();
     renderBattlePanel();
+    renderRowSelectBattleOverlay();
     if (isDesktopSidebarLayout() && isHandHiddenForPhase() && activeDrawer === 'battle') {
         closeDrawer(true);
     }
@@ -5240,11 +5303,17 @@ function getTargetableCellsForPixi() {
     if (!gameState || !targetMode || !targetContext) {
         return targetable;
     }
-    if (targetContext.side === 'row-enemy' || targetContext.side === 'row-ally') {
+    if (isRowSelectTargetSide(targetContext.side)) {
         const side = targetContext.side === 'row-ally' ? 'player' : 'enemy';
-        for (let r = 0; r < 3; r++) {
+        const board = targetContext.side === 'row-ally' ? gameState.playerBoard : gameState.enemyBoard;
+        const selectedRow = getRowSelectSelectedRow();
+        const startRow = selectedRow >= 0 ? selectedRow : 0;
+        const endRow = selectedRow >= 0 ? selectedRow : 2;
+        for (let r = startRow; r <= endRow; r++) {
             for (let c = 0; c < 3; c++) {
-                targetable.push({ row: r, col: c, side });
+                if (selectedRow >= 0 || board?.[r]?.[c]) {
+                    targetable.push({ row: r, col: c, side });
+                }
             }
         }
         return targetable;
@@ -5254,11 +5323,11 @@ function getTargetableCellsForPixi() {
     for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 3; c++) {
             const pcell = pb?.[r]?.[c] || null;
-            if (isTargetCell(true, pcell)) {
+            if (isTargetCell(true, pcell, r)) {
                 targetable.push({ row: r, col: c, side: 'player' });
             }
             const ecell = eb?.[r]?.[c] || null;
-            if (isTargetCell(false, ecell)) {
+            if (isTargetCell(false, ecell, r)) {
                 targetable.push({ row: r, col: c, side: 'enemy' });
             }
         }
@@ -5390,6 +5459,7 @@ function buildPixiViewModel() {
         targetContext?.mode || '',
         targetContext?.side || '',
         targetContext?.step || '',
+        getRowSelectSelectedRow(),
         gameState?.player?.health || 0,
         gameState?.enemy?.health || 0,
         boardSignature(displayPlayerBoard),
@@ -5453,6 +5523,7 @@ function render() {
     }
     if (usePixiRenderer && pixiDriver) {
         renderPixi();
+        renderRowSelectBattleOverlay();
         syncEntryOverlays();
         return;
     }
@@ -5494,6 +5565,9 @@ function attachPixiDriver(driver) {
 
 window.setSieglingsRendererMode = setRendererMode;
 window.previewCellHover = previewCellHover;
+window.handleTargetCellPointerLeave = handleTargetCellPointerLeave;
+window.confirmRowSelectBattleTarget = confirmRowSelectBattleTarget;
+window.clearRowSelectBattleTarget = clearRowSelectBattleTarget;
 window.clearTargetingPreview = clearTargetingPreview;
 window.__SIEGLINGS_PIXI_BRIDGE = {
     attachDriver: attachPixiDriver,
@@ -5990,14 +6064,18 @@ function renderBoard(gridId, board, isPlayer) {
             const cell = board[r][c];
             const isLegal = isPlayer && !targetMode && selectedCard && selectedCard.type === 'SIEGLING'
                 && legalPlacements.some(p => p[0] === r && p[1] === c);
-            const isTargetable = isTargetCell(isPlayer, cell);
+            const isTargetable = isTargetCell(isPlayer, cell, r);
             const isActing = gameState.pendingBattle && cell && gameState.pendingBattle.instanceId === cell.instanceId;
             const isClaimable = isPlayer && cell && claimableSieglings.some(p => p[0] === r && p[1] === c);
+            const isRowSelected = isRowSelectBattleTargetContext()
+                && getRowSelectSelectedRow() === r
+                && ((targetContext.side === 'row-ally') === isPlayer);
 
             let classes = 'board-cell';
             if (isLegal) classes += ' legal';
             if (cell) classes += ' has-card';
             if (isTargetable) classes += ' targetable';
+            if (isRowSelected) classes += ' row-selected';
             if (isActing) classes += ' active-attacker';
             if (isClaimable) classes += ' claimable';
             if (
@@ -6015,7 +6093,7 @@ function renderBoard(gridId, board, isPlayer) {
             if (isLegal) {
                 events = `onclick="placeCard(${r}, ${c})" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isTargetable) {
-                events = `onclick="onTargetSelected(${r}, ${c}, ${isPlayer})" onmouseenter="previewCellHover(${isPlayer}, ${r}, ${c})" ontouchstart="previewCellHover(${isPlayer}, ${r}, ${c})" onmouseleave="clearTargetingPreview()" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
+                events = `onclick="onTargetSelected(${r}, ${c}, ${isPlayer})" onmouseenter="previewCellHover(${isPlayer}, ${r}, ${c})" ontouchstart="previewCellHover(${isPlayer}, ${r}, ${c})" onmouseleave="handleTargetCellPointerLeave()" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isClaimable) {
                 events = `onclick="onArenaCardClick(${isPlayer}, ${r}, ${c})" ontouchend="handleBoardCellInspectTouch(event, ${isPlayer}, ${r}, ${c})" onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
             } else if (cell) {
@@ -7240,6 +7318,40 @@ function renderStandbyBattleAbilityPreview() {
     return html;
 }
 
+function renderRowSelectBattleConfirm() {
+    if (!isRowSelectBattleTargetContext() || getRowSelectSelectedRow() < 0) {
+        return '';
+    }
+    const confirmText = formatRowSelectConfirmText();
+    const confirming = Boolean(targetContext?.confirming);
+    const disabled = confirming ? 'disabled' : '';
+    const primaryText = confirming ? 'Confirming row...' : confirmText;
+    return `<div class="battle-row-confirm" role="status">
+        <button class="battle-row-confirm-btn battle-row-confirm-primary" type="button" onclick="confirmRowSelectBattleTarget()" title="${escapeHtmlAttribute(confirmText)}" ${disabled}>${escapeHtml(primaryText)}</button>
+        <button class="battle-row-confirm-btn battle-row-confirm-secondary" type="button" onclick="clearRowSelectBattleTarget()" ${disabled}>Change Row</button>
+    </div>`;
+}
+
+function renderRowSelectBattleOverlay() {
+    const overlays = [
+        document.getElementById('battleRowConfirmOverlay'),
+        document.getElementById('pixiBattleRowConfirmOverlay')
+    ].filter(Boolean);
+    if (overlays.length === 0) {
+        return;
+    }
+    const html = renderRowSelectBattleConfirm();
+    overlays.forEach((overlay) => {
+        if (!html) {
+            overlay.className = 'battle-row-confirm-overlay hidden';
+            overlay.innerHTML = '';
+            return;
+        }
+        overlay.className = 'battle-row-confirm-overlay';
+        overlay.innerHTML = html;
+    });
+}
+
 function renderBattlePanel() {
     const panels = [
         document.getElementById('battleActionPanel'),
@@ -7356,6 +7468,7 @@ function chooseBattleAbility(index) {
         mode: 'battle',
         side: targetSide,
         abilityIndex: index,
+        selectedRow: -1,
         message: buildBattleTargetMessage(targetSide, ability)
     };
     if (activeDrawer === 'battle') {
@@ -7363,6 +7476,49 @@ function chooseBattleAbility(index) {
     }
     render();
     scheduleBattleTargetingPreview(ability);
+}
+
+function confirmRowSelectBattleTarget() {
+    if (!isRowSelectBattleTargetContext()) {
+        return;
+    }
+    const selectedRow = getRowSelectSelectedRow();
+    if (selectedRow < 0) {
+        showTransientMessage('Select a row before confirming.');
+        return;
+    }
+    if (targetContext.confirming) {
+        return;
+    }
+    const abilityIndex = targetContext.abilityIndex;
+    const context = targetContext;
+    context.confirming = true;
+    renderRowSelectBattleOverlay();
+    const action = submitBattleAction(abilityIndex, selectedRow, -1);
+    action?.finally?.(() => {
+        if (targetContext === context && context.confirming) {
+            context.confirming = false;
+            render();
+        }
+    });
+}
+
+function clearRowSelectBattleTarget() {
+    if (!isRowSelectBattleTargetContext()) {
+        return;
+    }
+    if (targetContext.confirming) {
+        return;
+    }
+    const ability = getActiveBattleTargetAbility();
+    targetContext.selectedRow = -1;
+    targetContext.selectedCol = -1;
+    targetContext.message = buildBattleTargetMessage(targetContext.side, ability);
+    clearTargetingPreview();
+    render();
+    if (ability) {
+        scheduleBattleTargetingPreview(ability);
+    }
 }
 
 function passBattleAction() {
@@ -7532,7 +7688,7 @@ function selectCard(handIndexOrCardId) {
     render();
 }
 
-function isTargetCell(isPlayer, cell) {
+function isTargetCell(isPlayer, cell, row = -1) {
     if (!targetMode || !targetContext) return false;
 
     if (targetContext.mode === 'spell-move-enemy') {
@@ -7553,11 +7709,13 @@ function isTargetCell(isPlayer, cell) {
     if (targetContext.side === 'ally') {
         return isPlayer && Boolean(cell);
     }
-    if (targetContext.side === 'row-enemy') {
-        return !isPlayer;
-    }
-    if (targetContext.side === 'row-ally') {
-        return isPlayer;
+    if (targetContext.side === 'row-enemy' || targetContext.side === 'row-ally') {
+        const expectPlayer = targetContext.side === 'row-ally';
+        if (isPlayer !== expectPlayer) {
+            return false;
+        }
+        const selectedRow = getRowSelectSelectedRow();
+        return selectedRow >= 0 ? row === selectedRow : Boolean(cell);
     }
     return false;
 }
@@ -7594,15 +7752,32 @@ function onTargetSelected(row, col, fromPlayerBoard) {
     }
 
     if (targetContext.mode === 'battle') {
-        if (targetContext.side === 'row-enemy' || targetContext.side === 'row-ally') {
-            const expectPlayer = targetContext.side === 'row-ally';
-            if (fromPlayerBoard !== expectPlayer) {
-                showTransientMessage(`Select a ${expectPlayer ? 'friendly' : 'enemy'} row.`);
+        if (isRowSelectTargetSide(targetContext.side)) {
+            if (targetContext.confirming) {
                 return;
             }
-            submitBattleAction(targetContext.abilityIndex, row, -1);
-            targetMode = false;
-            targetContext = null;
+            const expectPlayer = targetContext.side === 'row-ally';
+            if (fromPlayerBoard !== expectPlayer) {
+                showTransientMessage(`Select a card in a ${expectPlayer ? 'friendly' : 'enemy'} row.`);
+                return;
+            }
+            const board = expectPlayer ? gameState.playerBoard : gameState.enemyBoard;
+            const cell = board?.[row]?.[col] || null;
+            if (!cell) {
+                if (getRowSelectSelectedRow() < 0) {
+                    showTransientMessage(`Select a card in a ${expectPlayer ? 'friendly' : 'enemy'} row.`);
+                }
+                return;
+            }
+            const ability = getActiveBattleTargetAbility();
+            targetContext.selectedRow = row;
+            targetContext.selectedCol = col;
+            targetContext.message = buildBattleTargetMessage(targetContext.side, ability, row);
+            clearTargetingPreview();
+            render();
+            if (ability) {
+                scheduleBattleTargetingPreview(ability);
+            }
             return;
         }
         if (targetContext.side === 'enemy' && fromPlayerBoard) {
@@ -7736,7 +7911,7 @@ function handleBoardCellTouch(event, isPlayer, row, col) {
         && Boolean(selectedCard)
         && selectedCard.type === 'SIEGLING'
         && getSelectedLegalPlacements().some(pos => pos[0] === row && pos[1] === col);
-    const targetable = isTargetCell(isPlayer, cell);
+    const targetable = isTargetCell(isPlayer, cell, row);
     const claimable = isPlayer && isClaimableBoardCell(cell, true);
     if (cell && !legalPlacement && !targetable && !claimable) {
         event.preventDefault();

@@ -117,6 +117,9 @@ public class BattleService {
                     ability.getRequiredElement(),
                     ability.getRequiredEnergy()
             );
+            if (affordable && isSelfMoveLink(ability)) {
+                affordable = effectService.hasValidMoveLinkDestination(state, attacker);
+            }
             options.add(new BattleAbilityOption(i, ability, ability.getRequiredElement(), ability.getRequiredEnergy(), affordable));
         }
 
@@ -146,7 +149,19 @@ public class BattleService {
 
         BattleAbilityOption choice = options.get(abilityIndex);
         if (!choice.isAffordable()) {
-            state.log(attacker.getName() + " cannot afford " + choice.getAbility().getName() + ".");
+            Ability unavailableAbility = choice.getAbility();
+            boolean canPay = energyService.canAfford(
+                    state,
+                    attacker.isOwner(),
+                    unavailableAbility.getRequiredElement(),
+                    unavailableAbility.getRequiredEnergy()
+            );
+            if (canPay && isSelfMoveLink(unavailableAbility)
+                    && !effectService.hasValidMoveLinkDestination(state, attacker)) {
+                state.log(EffectService.NO_VALID_NOTCHES_MESSAGE);
+            } else {
+                state.log(attacker.getName() + " cannot afford " + unavailableAbility.getName() + ".");
+            }
             return;
         }
 
@@ -175,6 +190,12 @@ public class BattleService {
                 .filter(BattleAbilityOption::isAffordable)
                 .max(Comparator.comparingInt(o -> o.getRequiredEnergy() * 10 + o.getAbility().getEffectValue()))
                 .orElse(options.get(0));
+    }
+
+    private boolean isSelfMoveLink(Ability ability) {
+        return ability != null
+                && AbilityEffectKeys.MOVE_LINK.equals(ability.getEffectType())
+                && ability.getTargetType() == TargetType.SELF;
     }
 
     private List<Ability> buildBattleAbilities(CardInstance attacker) {

@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=74">
+    <link rel="stylesheet" href="/css/style.css?v=75">
 </head>
 <body>
-<div class="pixi-root" id="pixiRoot" aria-hidden="true"></div>
+<div class="pixi-root" id="pixiRoot" aria-hidden="true">
+    <div class="battle-row-confirm-overlay hidden" id="pixiBattleRowConfirmOverlay"></div>
+</div>
 
 <!-- Top Nav Bar: consolidated stats + actions -->
 <nav class="top-bar">
@@ -49,6 +51,7 @@
     <!-- Battlefield -->
     <div class="battlefield" id="boardArea">
         <div class="interaction-banner hidden" id="interactionBanner"></div>
+        <div class="battle-row-confirm-overlay hidden" id="battleRowConfirmOverlay"></div>
 
         <div class="bf-half bf-enemy">
             <div class="board-label">ENEMY</div>
@@ -385,7 +388,7 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=85"></script>
+    <script src="/js/game.js?v=86"></script>
     <script type="module" src="/js/pixi/app.js?v=8"></script>
 </body>
 </html>
