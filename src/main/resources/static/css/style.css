@@ -63,31 +63,6 @@ body {
     overflow: hidden;
 }
 
-.pixi-root {
-    position: fixed;
-    inset: 0;
-    display: none;
-    z-index: 2000;
-    background: var(--bg);
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-}
-
-body.pixi-enabled .pixi-root {
-    display: block;
-}
-
-body.pixi-enabled .pixi-root canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-body.pixi-enabled > :not(.pixi-root):not(script) {
-    display: none !important;
-}
-
 /* ============================================================
    TOP NAV BAR — slim consolidated header
    ============================================================ */
@@ -1601,10 +1576,6 @@ body.pixi-enabled > :not(.pixi-root):not(script) {
 .battle-row-confirm-overlay .battle-row-confirm {
     margin: 0;
     pointer-events: auto;
-}
-
-.pixi-root .battle-row-confirm-overlay {
-    bottom: clamp(78px, 12vh, 150px);
 }
 
 .battle-row-confirm-btn {

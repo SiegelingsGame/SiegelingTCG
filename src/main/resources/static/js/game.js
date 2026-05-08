@@ -86,16 +86,6 @@ let authState = {
 };
 let selectedSavedDeckId = null;
 let lastProfileRefreshKey = '';
-let pixiDriver = null;
-const PIXI_RENDERER_STORAGE_KEY = 'sieglingsRendererMode';
-let usePixiRenderer = false;
-let pixiLastFrameAt = performance.now();
-let pixiFps = 0;
-const PIXI_BATTLE_BOARD_HOLD_MS = 1000;
-const PIXI_ATTACK_PROJECTILE_MS = 1000;
-let pixiBoardHoldUntil = 0;
-let pixiBoardHoldSnapshot = null;
-
 const ROW_NAMES = ['Back', 'Middle', 'Front'];
 const TARGET_TYPES = {
     SINGLE_ENEMY: 'enemy',
@@ -528,40 +518,6 @@ const WELCOME_SLIDES = [
         `
     }
 ];
-
-function getRendererModeFromUrl() {
-    try {
-        const mode = new URLSearchParams(window.location.search).get('renderer');
-        return mode === 'pixi' || mode === 'dom' ? mode : '';
-    } catch (e) {
-        return '';
-    }
-}
-
-function getConfiguredRendererMode() {
-    const queryMode = getRendererModeFromUrl();
-    if (queryMode) {
-        return queryMode;
-    }
-    try {
-        const saved = localStorage.getItem(PIXI_RENDERER_STORAGE_KEY);
-        if (saved === 'pixi' || saved === 'dom') {
-            return saved;
-        }
-    } catch (e) {
-        // no-op
-    }
-    return window.SIEGLINGS_CONFIG?.renderer?.mode === 'pixi' ? 'pixi' : 'dom';
-}
-
-function syncPixiDomShell() {
-    const active = Boolean(usePixiRenderer && pixiDriver);
-    document.body.classList.toggle('pixi-enabled', active);
-    const pixiRoot = document.getElementById('pixiRoot');
-    if (pixiRoot) {
-        pixiRoot.setAttribute('aria-hidden', active ? 'false' : 'true');
-    }
-}
 
 function normalizeApiBaseUrl(baseUrl) {
     return (baseUrl || '').replace(/\/+$/, '');
@@ -1327,27 +1283,13 @@ function clearDomTargetingPreview() {
 }
 
 const targetPreviewController = {
-    pixiController: null,
-    setPixiController(controller) {
-        this.pixiController = controller || null;
-    },
     show(source, targets, kind) {
-        if (usePixiRenderer && this.pixiController?.show) {
-            clearDomTargetingPreview();
-            this.pixiController.show(source, targets, kind);
-            return;
-        }
-        this.pixiController?.clear?.();
         showDomTargetingPreview(source, targets, kind);
     },
     clear() {
-        this.pixiController?.clear?.();
         clearDomTargetingPreview();
     },
     cellCenter(isPlayer, row, col) {
-        if (usePixiRenderer && this.pixiController?.cellCenter) {
-            return this.pixiController.cellCenter(isPlayer, row, col);
-        }
         return getDomCellCenter(isPlayer, row, col);
     }
 };
@@ -4197,79 +4139,6 @@ function resetInteractionState(shouldRender = true) {
     }
 }
 
-function cloneBoardGridForPixi(board) {
-    return (board || []).map((row) => (row || []).map((cell) => (cell ? { ...cell } : null)));
-}
-
-function getBoardCellHpForPixiHold(cell) {
-    if (!cell) {
-        return 0;
-    }
-    const v = cell.hp ?? cell.health;
-    return Number(v) || 0;
-}
-
-function hasBattleBoardHpDelta(prevState, nextState) {
-    if (!prevState || !nextState) {
-        return false;
-    }
-    for (const key of ['playerBoard', 'enemyBoard']) {
-        const pb = prevState[key];
-        const nb = nextState[key];
-        for (let r = 0; r < 3; r += 1) {
-            for (let c = 0; c < 3; c += 1) {
-                const pc = pb?.[r]?.[c] || null;
-                const nc = nb?.[r]?.[c] || null;
-                if (!pc || !nc) {
-                    continue;
-                }
-                const sameCard = (pc.instanceId && nc.instanceId && pc.instanceId === nc.instanceId)
-                    || (pc.id && nc.id && pc.id === nc.id)
-                    || (String(pc.name || '') === String(nc.name || '') && String(pc.name || '').length > 0);
-                if (!sameCard) {
-                    continue;
-                }
-                if (getBoardCellHpForPixiHold(pc) !== getBoardCellHpForPixiHold(nc)) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-function clearPixiBoardHold() {
-    pixiBoardHoldUntil = 0;
-    pixiBoardHoldSnapshot = null;
-}
-
-function extendPixiBoardHold(extraMs) {
-    if (!pixiBoardHoldSnapshot || extraMs <= 0) {
-        return;
-    }
-    const target = performance.now() + extraMs;
-    if (target > pixiBoardHoldUntil) {
-        pixiBoardHoldUntil = target;
-    }
-}
-
-function maybeStartPixiBattleBoardHold(prevState, nextState) {
-    if (!usePixiRenderer || !prevState || !nextState) {
-        return;
-    }
-    if (nextState.currentPhase !== 'BATTLE' && prevState.currentPhase !== 'BATTLE') {
-        return;
-    }
-    if (!hasBattleBoardHpDelta(prevState, nextState)) {
-        return;
-    }
-    pixiBoardHoldUntil = performance.now() + PIXI_BATTLE_BOARD_HOLD_MS;
-    pixiBoardHoldSnapshot = {
-        playerBoard: cloneBoardGridForPixi(prevState.playerBoard),
-        enemyBoard: cloneBoardGridForPixi(prevState.enemyBoard)
-    };
-}
-
 async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
     const opts = { method, headers: getAuthHeaders({ 'Content-Type': 'application/json' }) };
     if (multiplayerSession?.roomId && multiplayerSession?.playerToken) {
@@ -4302,7 +4171,6 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
 
     const prevState = gameState;
     gameState = data;
-    maybeStartPixiBattleBoardHold(prevState, data);
     if (endpoint !== 'new' && prevState) {
         window.SieglingsFx?.onBoardUpdate(prevState, data);
     }
@@ -5452,301 +5320,18 @@ function getBoardCellMarkers(board, markers) {
     return result;
 }
 
-function getTargetableCellsForPixi() {
-    const targetable = [];
-    if (!gameState || !targetMode || !targetContext) {
-        return targetable;
-    }
-    if (isRowSelectTargetSide(targetContext.side)) {
-        const side = targetContext.side === 'row-ally' ? 'player' : 'enemy';
-        const board = targetContext.side === 'row-ally' ? gameState.playerBoard : gameState.enemyBoard;
-        const selectedRow = getRowSelectSelectedRow();
-        const startRow = selectedRow >= 0 ? selectedRow : 0;
-        const endRow = selectedRow >= 0 ? selectedRow : 2;
-        for (let r = startRow; r <= endRow; r++) {
-            for (let c = 0; c < 3; c++) {
-                if (selectedRow >= 0 || board?.[r]?.[c]) {
-                    targetable.push({ row: r, col: c, side });
-                }
-            }
-        }
-        return targetable;
-    }
-    const pb = gameState.playerBoard || [];
-    const eb = gameState.enemyBoard || [];
-    for (let r = 0; r < 3; r++) {
-        for (let c = 0; c < 3; c++) {
-            const pcell = pb?.[r]?.[c] || null;
-            if (isTargetCell(true, pcell, r)) {
-                targetable.push({ row: r, col: c, side: 'player' });
-            }
-            const ecell = eb?.[r]?.[c] || null;
-            if (isTargetCell(false, ecell, r)) {
-                targetable.push({ row: r, col: c, side: 'enemy' });
-            }
-        }
-    }
-    return targetable;
-}
-
-function getLoadoutSummaryText() {
-    const summary = document.getElementById('loadoutSummary');
-    return summary?.textContent || 'Choose your deck and SiegeKnight.';
-}
-
-function determinePixiScene() {
-    if (gameState?.gameOver) {
-        return 'gameover';
-    }
-    if (gameState?.mulligan?.active) {
-        return 'mulligan';
-    }
-    if (gameState) {
-        return 'match';
-    }
-    if (!welcomeDismissed) {
-        return 'welcome';
-    }
-    return 'loadout';
-}
-
-function buildPixiViewModel() {
-    const now = performance.now();
-    if (gameState) {
-        rebindSelectedHandSlotFromState();
-    }
-    if (pixiBoardHoldUntil > 0 && now >= pixiBoardHoldUntil) {
-        clearPixiBoardHold();
-    }
-    if (!gameState || gameState.gameOver || determinePixiScene() !== 'match') {
-        clearPixiBoardHold();
-    }
-
-    const scene = determinePixiScene();
-    if (scene !== 'match') {
-        pixiLastFrameAt = now;
-        const loadoutSummary = getLoadoutSummaryText();
-        const mulliganCopy = document.getElementById('mulliganCopy')?.textContent || '';
-        const winnerName = gameState?.winner || '';
-        const gameOverTitle = gameState?.gameOver
-            ? (winnerName === 'Draw'
-                ? 'DRAW'
-                : (winnerName === (gameState.playerName || 'Player') ? 'VICTORY!' : 'DEFEAT'))
-            : '';
-        const renderKey = [
-            scene,
-            loadoutSummary,
-            mulliganCopy,
-            gameState?.mulligan?.active ? '1' : '0',
-            gameState?.mulligan?.youPending ? '1' : '0',
-            gameOverTitle,
-            gameState?.gameOver ? '1' : '0'
-        ].join('\x1e');
-        const emptyBoard = [[], [], []];
-        return {
-            scene,
-            renderKey,
-            fps: 0,
-            phase: gameState?.currentPhase || 'LOADOUT',
-            turnNumber: gameState?.turnNumber || 0,
-            enemyName: gameState?.enemyName || 'AI Opponent',
-            playerName: gameState?.playerName || 'Player',
-            enemyHealth: gameState?.enemy?.health ?? 0,
-            playerHealth: gameState?.player?.health ?? 0,
-            truePlayerBoard: emptyBoard,
-            trueEnemyBoard: emptyBoard,
-            enemyBoard: emptyBoard,
-            playerBoard: emptyBoard,
-            playerHand: [],
-            selectedCardId: null,
-            selectedHandIndex: null,
-            targetMode: false,
-            legalPlacements: [],
-            claimableCells: [],
-            targetableCells: [],
-            gameLog: [],
-            loadoutSummary,
-            mulliganCopy,
-            gameOverTitle,
-            gameOverMessage: gameState?.gameOver
-                ? (winnerName === 'Draw' ? 'Both players were defeated.' : `${winnerName} wins!`)
-                : ''
-        };
-    }
-
-    const elapsed = Math.max(1, now - pixiLastFrameAt);
-    pixiLastFrameAt = now;
-    pixiFps = Math.round(1000 / elapsed);
-
-    const holdActive = Boolean(pixiBoardHoldSnapshot && pixiBoardHoldUntil > now);
-    const truePlayerBoard = gameState?.playerBoard || [[], [], []];
-    const trueEnemyBoard = gameState?.enemyBoard || [[], [], []];
-    const displayPlayerBoard = holdActive ? pixiBoardHoldSnapshot.playerBoard : truePlayerBoard;
-    const displayEnemyBoard = holdActive ? pixiBoardHoldSnapshot.enemyBoard : trueEnemyBoard;
-
-    const legalPlacements = gameState ? getBoardCellMarkers(gameState.playerBoard, getSelectedLegalPlacements()) : [];
-    const claimableCells = gameState ? getBoardCellMarkers(gameState.playerBoard, getClaimableSieglings(gameState.playerBoard)) : [];
-    const targetableCells = gameState ? getTargetableCellsForPixi() : [];
-    const winnerName = gameState?.winner || '';
-    const gameOverTitle = gameState?.gameOver
-        ? (winnerName === 'Draw'
-            ? 'DRAW'
-            : (winnerName === (gameState.playerName || 'Player') ? 'VICTORY!' : 'DEFEAT'))
-        : '';
-    const boardCellHp = (cell) => {
-        if (!cell) {
-            return 0;
-        }
-        const v = cell.hp ?? cell.health;
-        return Number(v) || 0;
-    };
-    const boardSignature = (board) => (board || [])
-        .flatMap((row) => row || [])
-        .map((cell) => (cell ? `${cell.instanceId || cell.id || cell.name}:${boardCellHp(cell)}` : '0'))
-        .join('|');
-    const renderKey = [
-        scene,
-        gameState?.turnNumber || 0,
-        gameState?.currentPhase || '',
-        `${selectedHandIndex ?? ''}:${selectedCard?.id || ''}`,
-        targetMode ? 'target' : 'idle',
-        targetContext?.mode || '',
-        targetContext?.side || '',
-        targetContext?.step || '',
-        getRowSelectSelectedRow(),
-        gameState?.player?.health || 0,
-        gameState?.enemy?.health || 0,
-        boardSignature(displayPlayerBoard),
-        boardSignature(displayEnemyBoard),
-        holdActive ? `hold:${Math.round(pixiBoardHoldUntil)}` : 'hold:off',
-        (gameState?.player?.hand || []).map((card) => card.id).join(','),
-        (gameState?.player?.hand || []).map((c) => getHandCardLockReason(c)).join('\x1f'),
-        arenaSelection
-            ? `${arenaSelection.isPlayer}:${arenaSelection.row}:${arenaSelection.col}:${arenaSelection.instanceId}`
-            : '',
-        legalPlacements.map((p) => `${p.row}:${p.col}`).join(','),
-        targetableCells.map((p) => `${p.side || 'player'}:${p.row}:${p.col}`).join(','),
-        gameState?.gameLog?.length || 0,
-        (gameState?.gameLog || []).slice(-1)[0] || '',
-        JSON.stringify(loadLogFilters())
-    ].join('~');
-
-    return {
-        scene,
-        renderKey,
-        fps: pixiFps,
-        phase: gameState?.currentPhase || 'LOADOUT',
-        turnNumber: gameState?.turnNumber || 0,
-        enemyName: gameState?.enemyName || 'AI Opponent',
-        playerName: gameState?.playerName || 'Player',
-        enemyHealth: gameState?.enemy?.health ?? 0,
-        playerHealth: gameState?.player?.health ?? 0,
-        truePlayerBoard,
-        trueEnemyBoard,
-        enemyBoard: displayEnemyBoard,
-        playerBoard: displayPlayerBoard,
-        playerHand: gameState?.player?.hand || [],
-        playerHandLockReasons: (gameState?.player?.hand || []).map((c) => getHandCardLockReason(c)),
-        selectedCardId: selectedCard?.id || null,
-        selectedHandIndex: selectedHandIndex != null ? selectedHandIndex : null,
-        targetMode: Boolean(targetMode),
-        legalPlacements,
-        claimableCells: claimableCells.map((p) => ({ row: p.row, col: p.col })),
-        targetableCells,
-        arenaHighlight: arenaSelection,
-        gameLog: getFilteredGameLog(gameState?.gameLog || []),
-        loadoutSummary: getLoadoutSummaryText(),
-        mulliganCopy: document.getElementById('mulliganCopy')?.textContent || '',
-        gameOverTitle,
-        gameOverMessage: gameState?.gameOver
-            ? (winnerName === 'Draw' ? 'Both players were defeated.' : `${winnerName} wins!`)
-            : ''
-    };
-}
-
-function renderPixi() {
-    if (!pixiDriver) {
-        return;
-    }
-    pixiDriver.render(buildPixiViewModel());
-}
-
 function render() {
     if (gameState) {
         pruneInvalidArenaSelection();
     }
-    if (usePixiRenderer && pixiDriver) {
-        renderPixi();
-        renderRowSelectBattleOverlay();
-        syncEntryOverlays();
-        return;
-    }
     renderDomLegacy();
 }
 
-function setRendererMode(mode) {
-    usePixiRenderer = mode === 'pixi';
-    syncPixiDomShell();
-    try {
-        localStorage.setItem(PIXI_RENDERER_STORAGE_KEY, usePixiRenderer ? 'pixi' : 'dom');
-    } catch (e) {
-        // no-op
-    }
-    render();
-}
-
-function attachPixiDriver(driver) {
-    pixiDriver = driver;
-    if (pixiDriver?.resize) {
-        pixiDriver.resize(window.innerWidth, window.innerHeight);
-    }
-    if (usePixiRenderer && pixiDriver) {
-        renderPixi();
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                syncPixiDomShell();
-                if (pixiDriver?.resize) {
-                    pixiDriver.resize(window.innerWidth, window.innerHeight);
-                }
-                renderPixi();
-            });
-        });
-        return;
-    }
-    syncPixiDomShell();
-    render();
-}
-
-window.setSieglingsRendererMode = setRendererMode;
 window.previewCellHover = previewCellHover;
 window.handleTargetCellPointerLeave = handleTargetCellPointerLeave;
 window.confirmRowSelectBattleTarget = confirmRowSelectBattleTarget;
 window.clearRowSelectBattleTarget = clearRowSelectBattleTarget;
 window.clearTargetingPreview = clearTargetingPreview;
-window.__SIEGLINGS_PIXI_BRIDGE = {
-    attachDriver: attachPixiDriver,
-    isPixiEnabled: () => Boolean(usePixiRenderer && pixiDriver),
-    getViewModel: buildPixiViewModel,
-    battleBoardHoldMs: PIXI_BATTLE_BOARD_HOLD_MS,
-    attackProjectileMs: PIXI_ATTACK_PROJECTILE_MS,
-    extendBattleAnimHold: (extraMs) => extendPixiBoardHold(extraMs),
-    preview: targetPreviewController,
-    actions: {
-        selectCard: (cardId) => selectCard(cardId),
-        placeCard: (row, col) => placeCard(row, col),
-        onTargetSelected: (row, col, fromPlayerBoard) => onTargetSelected(row, col, fromPlayerBoard),
-        openClaimPopup: (row, col) => openClaimPopup(row, col),
-        playerDraw: () => playerDraw(),
-        executeBattle: () => executeBattle(),
-        endTurn: () => endTurn(),
-        playAsGuest: () => playAsGuest(),
-        startSelectedGame: () => startSelectedGame(),
-        submitMulliganKeep: () => submitMulliganKeep(),
-        submitMulliganSelected: () => submitMulliganSelected(),
-        openLoadoutSelector: () => openLoadoutSelector(),
-        focusArenaCard: (isPlayer, row, col) => onArenaCardClick(isPlayer, row, col)
-    }
-};
 
 function renderEnergy(containerId, playerData) {
     const el = document.getElementById(containerId);
@@ -7806,8 +7391,7 @@ function renderRowSelectBattleConfirm() {
 
 function renderRowSelectBattleOverlay() {
     const overlays = [
-        document.getElementById('battleRowConfirmOverlay'),
-        document.getElementById('pixiBattleRowConfirmOverlay')
+        document.getElementById('battleRowConfirmOverlay')
     ].filter(Boolean);
     if (overlays.length === 0) {
         return;
@@ -8780,9 +8364,6 @@ window.addEventListener('orientationchange', () => {
     updateHandLiftLayer();
     scheduleBoardLinkConnectorRefresh();
 });
-
-usePixiRenderer = getConfiguredRendererMode() === 'pixi';
-syncPixiDomShell();
 
 updateResponsiveLayoutVars(true);
 syncDesktopInspectTabUi();
