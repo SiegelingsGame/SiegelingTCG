@@ -33,6 +33,7 @@ let roomPollHandle = null;
 let currentRoomStatus = null;
 let mobileInfoTab = 'battle';
 let mobileHudSheetSide = 'enemy';
+let mobileHudSheetOpen = false;
 let mulliganSelectedIndices = new Set();
 let mulliganHandSig = '';
 let loadoutErrorMessage = '';
@@ -1901,6 +1902,10 @@ function isMobileLayout() {
     return window.matchMedia('(max-width: 900px)').matches || isCompactLandscapeLayout();
 }
 
+function isPortraitMobileHudLayout() {
+    return window.matchMedia('(max-width: 767px) and (orientation: portrait)').matches;
+}
+
 function getViewportModeLabel() {
     if (isDesktopSidebarLayout()) {
         return 'Desktop Dock';
@@ -2085,6 +2090,7 @@ function setDesktopBattleDrawerOpen(open) {
 
 function openDrawer(name) {
     if (activeDrawer === name) return;
+    closeMobileHudSheet();
     // Cancel any pending close timers so they don't hide the new drawer
     _drawerCloseTimers.forEach(t => clearTimeout(t));
     _drawerCloseTimers = [];
@@ -5788,15 +5794,52 @@ function updateHudRails(state) {
 
 function setMobileHudSheetSide(side) {
     mobileHudSheetSide = side === 'player' ? 'player' : 'enemy';
+    mobileHudSheetOpen = true;
+    syncMobileHudSheetSide();
+}
+
+function toggleMobileHudSheet(side) {
+    const normalized = side === 'player' ? 'player' : 'enemy';
+    if (mobileHudSheetOpen && mobileHudSheetSide === normalized) {
+        closeMobileHudSheet();
+        return;
+    }
+    mobileHudSheetSide = normalized;
+    mobileHudSheetOpen = true;
+    syncMobileHudSheetSide();
+}
+
+function closeMobileHudSheet(event) {
+    if (event?.stopPropagation) {
+        event.stopPropagation();
+    }
+    mobileHudSheetOpen = false;
     syncMobileHudSheetSide();
 }
 
 function syncMobileHudSheetSide() {
     const enemyActive = mobileHudSheetSide !== 'player';
+    const sheetOpen = mobileHudSheetOpen && isPortraitMobileHudLayout();
+    const sheet = document.getElementById('mobileStatSheet');
     const enemyTab = document.getElementById('mobileStatEnemyTab');
     const playerTab = document.getElementById('mobileStatPlayerTab');
     const enemySheet = document.getElementById('mobileStatEnemySheet');
     const playerSheet = document.getElementById('mobileStatPlayerSheet');
+    const enemyHud = document.querySelector('.mobile-hud-enemy');
+    const playerHud = document.querySelector('.mobile-hud-player');
+
+    if (sheet) {
+        sheet.classList.toggle('is-open', sheetOpen);
+        sheet.setAttribute('aria-hidden', sheetOpen ? 'false' : 'true');
+    }
+    if (enemyHud) {
+        enemyHud.classList.toggle('sheet-open', sheetOpen && enemyActive);
+        enemyHud.setAttribute('aria-expanded', sheetOpen && enemyActive ? 'true' : 'false');
+    }
+    if (playerHud) {
+        playerHud.classList.toggle('sheet-open', sheetOpen && !enemyActive);
+        playerHud.setAttribute('aria-expanded', sheetOpen && !enemyActive ? 'true' : 'false');
+    }
 
     if (enemyTab) {
         enemyTab.classList.toggle('active-enemy', enemyActive);
@@ -5827,6 +5870,7 @@ function updateMobileHud(state) {
         nameId: 'mobilePlayerName',
         handId: 'mobilePlayerHandSize',
         deckId: 'mobilePlayerDeckSize',
+        energyId: 'mobilePlayerEnergyCount',
         dotsId: 'mobilePlayerElements',
         statHandId: 'mobilePlayerStatHandSize',
         statDeckId: 'mobilePlayerStatDeckSize',
@@ -5841,6 +5885,7 @@ function updateMobileHud(state) {
         nameId: 'mobileEnemyName',
         handId: 'mobileEnemyHandSize',
         deckId: 'mobileEnemyDeckSize',
+        energyId: 'mobileEnemyEnergyCount',
         dotsId: 'mobileEnemyElements',
         statHandId: 'mobileEnemyStatHandSize',
         statDeckId: 'mobileEnemyStatDeckSize',
@@ -5860,6 +5905,7 @@ function updateMobileHudSide(label, playerData, ids) {
     const pct = Math.max(0, Math.min(100, Math.round((health / 50) * 100)));
     const handSize = playerData?.handSize ?? (Array.isArray(playerData?.hand) ? playerData.hand.length : 0);
     const deckSize = playerData?.deckSize ?? 0;
+    const energyTotal = getEnergyRowsForPlayer(playerData).reduce((sum, entry) => sum + entry.val, 0);
     const trainer = playerData?.trainer;
     const trainerAbility = getTrainerRailAbilityText(trainer);
     const trainerInfo = [
@@ -5871,6 +5917,7 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.nameId, ids.name || label);
     setTextIfExists(ids.handId, handSize);
     setTextIfExists(ids.deckId, deckSize);
+    setTextIfExists(ids.energyId, energyTotal);
     setTextIfExists(ids.statHandId, handSize);
     setTextIfExists(ids.statDeckId, deckSize);
     setTextIfExists(ids.knightNameId, trainer?.name || '-');
@@ -8544,6 +8591,7 @@ function clearTargetMode() {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeDrawer(true);
+        closeMobileHudSheet();
         closeClaimPopup();
         closeTrainerAbilityPopup();
         selectedCard = null;
@@ -8561,6 +8609,7 @@ window.addEventListener('resize', () => {
     stopHandSelectorAutoScroll();
     hoveredBoardCard = null;
     syncMobileInfoTab();
+    syncMobileHudSheetSide();
     syncFocusedCardUi();
     scheduleBoardLinkConnectorRefresh();
 });
@@ -8578,6 +8627,7 @@ window.addEventListener('resize', () => {
         openDrawer('battle');
     }
     syncFocusedCardUi();
+    syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
     scheduleBoardLinkConnectorRefresh();
@@ -8588,6 +8638,7 @@ window.addEventListener('orientationchange', () => {
     scheduleDesktopHandSelectorCardScale();
     scheduleDesktopPreviewCardScale();
     syncFocusedCardUi();
+    syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
     scheduleBoardLinkConnectorRefresh();
