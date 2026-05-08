@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=79">
+    <link rel="stylesheet" href="/css/style.css?v=80">
 </head>
 <body>
 <div class="pixi-root" id="pixiRoot" aria-hidden="true">
@@ -217,6 +217,7 @@
                 <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
                 <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
+                <button class="ab-icon" id="btnMuteSound" onclick="toggleSieglingsMute()" title="Toggle Sound" aria-label="Toggle Sound">&#128266;</button>
                 <button class="ab-icon" onclick="openLoadoutSelector()" title="New Game">&#9654;</button>
             </div>
         </div>
@@ -552,9 +553,13 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.6.3/dist/floating-ui.dom.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=90"></script>
+    <script src="/js/game.js?v=92"></script>
+    <script src="/js/sounds.js?v=1"></script>
+    <script src="/js/fx.js?v=1"></script>
     <script type="module" src="/js/pixi/app.js?v=8"></script>
 </body>
 </html>

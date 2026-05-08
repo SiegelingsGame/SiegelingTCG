@@ -10,6 +10,7 @@
     --desktop-app-max-width: 1600px;
     --desktop-layout-gutter: 18px;
     --desktop-layout-gap: 18px;
+    --desktop-arena-width: 820px;
     --desktop-board-max-width: 430px;
     --desktop-board-height-offset: 124px;
     --desktop-board-height-ratio: 1.38;
@@ -2686,18 +2687,19 @@ body.battle-phase-active .battlefield::after {
         gap: 10px;
     }
 
-    .app-shell {
-        display: grid;
-        grid-template-columns:
-            var(--hud-rail-width)
-            minmax(0, 1fr)
-            var(--hud-rail-width)
-            minmax(0, var(--desktop-sidebar-width));
-        grid-template-rows: minmax(0, 1fr);
-        align-items: stretch;
-        gap: var(--desktop-layout-gap);
-        width: 100%;
-        max-width: none;
+  .app-shell {
+    display: grid;
+    grid-template-columns:
+      var(--hud-rail-width)
+      minmax(0, var(--desktop-arena-width))
+      var(--hud-rail-width)
+      minmax(0, var(--desktop-sidebar-width));
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    justify-content: center;
+    gap: var(--desktop-layout-gap);
+    width: 100%;
+    max-width: none;
         margin: 0;
         padding: var(--desktop-layout-gutter);
     }

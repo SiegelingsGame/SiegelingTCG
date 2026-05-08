@@ -2,10 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "sieglings-tcg",
-      "runtimeExecutable": "/bin/bash",
-      "runtimeArgs": ["-c", "export JAVA_HOME=~/java/jdk-21.0.10+7/Contents/Home && export PATH=$JAVA_HOME/bin:$PATH && ./mvnw spring-boot:run"],
-      "port": 8080
+      "name": "sieglings",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "mvnw.cmd", "spring-boot:run"],
+      "port": 8080,
+      "autoPort": false
     }
   ]
 }

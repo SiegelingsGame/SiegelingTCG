@@ -338,26 +338,7 @@ export class MatchScene {
                 slot.position.set(x, y);
                 this.boardLayer.addChild(slot);
 
-                const cardBody = new this.PIXI.Graphics();
-                cardBody.roundRect(8, 8, CELL_SIZE - 16, CELL_SIZE - 16, 12).fill(cardColor(cell.element));
-                cardBody.roundRect(8, 8, CELL_SIZE - 16, CELL_SIZE - 16, 12).stroke({ color: 0x0e1220, width: 2 });
-                slot.addChild(cardBody);
-
-                const name = new this.PIXI.Text({
-                    text: cell.name || "Siegling",
-                    style: { fill: 0x0f1628, fontSize: 14, fontWeight: "700" }
-                });
-                name.anchor.set(0.5, 0);
-                name.position.set(CELL_SIZE / 2, 14);
-                slot.addChild(name);
-
-                const stats = new this.PIXI.Text({
-                    text: `${cell.hp}/${cell.maxHp} HP  SPD ${cell.spd}`,
-                    style: { fill: 0xffffff, fontSize: 13, fontWeight: "700" }
-                });
-                stats.anchor.set(0.5, 1);
-                stats.position.set(CELL_SIZE / 2, CELL_SIZE - 12);
-                slot.addChild(stats);
+                this.drawBoardCard(slot, cell);
 
                 const slotKey = `${isPlayer ? "P" : "E"}:${row}:${col}`;
                 const slotSignature = `${cell.instanceId || cell.id || cell.name}:${cell.hp || 0}:${cell.maxHp || 0}`;
@@ -383,6 +364,91 @@ export class MatchScene {
         }
     }
 
+    drawBoardCard(slot, cell) {
+        const PAD = 8;
+        const inner = CELL_SIZE - PAD * 2;
+        const elColor = cardColor(cell.element);
+
+        // Card background
+        const bg = new this.PIXI.Graphics();
+        bg.roundRect(PAD, PAD, inner, inner, 10).fill(0x19253c);
+        bg.roundRect(PAD, PAD, inner, inner, 10).stroke({ color: 0x0e1220, width: 1.5 });
+        slot.addChild(bg);
+
+        // Element colour band across the top (6px strip)
+        const band = new this.PIXI.Graphics();
+        band.roundRect(PAD, PAD, inner, 6, { tl: 10, tr: 10, bl: 0, br: 0 }).fill(elColor);
+        slot.addChild(band);
+
+        // Card name
+        const name = new this.PIXI.Text({
+            text: cell.name || "Siegling",
+            style: {
+                fill: 0xf0f4ff,
+                fontSize: 12,
+                fontWeight: "700",
+                wordWrap: true,
+                wordWrapWidth: inner - 8
+            }
+        });
+        name.anchor.set(0.5, 0);
+        name.position.set(CELL_SIZE / 2, PAD + 10);
+        slot.addChild(name);
+
+        // HP bar background + fill
+        const hp = Math.max(0, cell.hp ?? 0);
+        const maxHp = Math.max(1, cell.maxHp ?? hp);
+        const hpRatio = hp / maxHp;
+        const barX = PAD + 6;
+        const barY = CELL_SIZE - PAD - 18;
+        const barW = inner - 12;
+        const barH = 6;
+
+        const barBg = new this.PIXI.Graphics();
+        barBg.roundRect(barX, barY, barW, barH, 3).fill(0x0a1020);
+        slot.addChild(barBg);
+
+        const hpColor = hpRatio > 0.5 ? 0x3de87a : hpRatio > 0.25 ? 0xffc940 : 0xff4444;
+        const barFill = new this.PIXI.Graphics();
+        barFill.roundRect(barX, barY, Math.max(4, barW * hpRatio), barH, 3).fill(hpColor);
+        slot.addChild(barFill);
+
+        // HP and SPD text below bar
+        const stats = new this.PIXI.Text({
+            text: `${hp}/${maxHp}  ⚡${cell.spd ?? "?"}`,
+            style: { fill: 0xb0c4de, fontSize: 10, fontWeight: "600" }
+        });
+        stats.anchor.set(0.5, 0);
+        stats.position.set(CELL_SIZE / 2, barY + barH + 2);
+        slot.addChild(stats);
+
+        // Notch dots — up to 4 cardinal positions shown as small coloured circles
+        if (Array.isArray(cell.notches) && cell.notches.length > 0) {
+            const notchPositions = {
+                TOP:    { dx: CELL_SIZE / 2, dy: PAD + 2 },
+                BOTTOM: { dx: CELL_SIZE / 2, dy: CELL_SIZE - PAD - 2 },
+                LEFT:   { dx: PAD + 2,       dy: CELL_SIZE / 2 },
+                RIGHT:  { dx: CELL_SIZE - PAD - 2, dy: CELL_SIZE / 2 }
+            };
+            const notchG = new this.PIXI.Graphics();
+            for (const notch of cell.notches) {
+                const pos = notchPositions[notch.direction];
+                if (!pos) continue;
+                const nc = cardColor(notch.element || cell.element);
+                notchG.circle(pos.dx, pos.dy, 4).fill(nc);
+                notchG.circle(pos.dx, pos.dy, 4).stroke({ color: 0x000000, width: 1 });
+            }
+            slot.addChild(notchG);
+        }
+
+        // Status tint — frozen cards get a blue overlay
+        if (Array.isArray(cell.statuses) && cell.statuses.some(s => String(s).toUpperCase() === "FREEZE")) {
+            const frost = new this.PIXI.Graphics();
+            frost.roundRect(PAD, PAD, inner, inner, 10).fill({ color: 0x7adfff, alpha: 0.22 });
+            slot.addChild(frost);
+        }
+    }
+
     createHandCardContainer(card, x, y, cardW, cardH, selected, lockReason) {
         const cardContainer = new this.PIXI.Container();
         cardContainer.position.set(x, y - (selected ? 22 : 0));
@@ -392,33 +458,98 @@ export class MatchScene {
         cardContainer.cardId = card.id;
         cardContainer.handLocked = Boolean(lockReason);
 
-        const borderColor = lockReason ? 0x4a5568 : cardColor(card.element);
+        const elColor = cardColor(card.element);
+        const borderColor = lockReason ? 0x3a4558 : (selected ? 0xffd76a : elColor);
+        const borderW = selected ? 3 : 1.5;
+
+        // Card body
         const bg = new this.PIXI.Graphics();
-        bg.roundRect(0, 0, cardW, cardH, 12).fill(lockReason ? 0x151d2e : 0x1f2e4f);
-        bg.roundRect(0, 0, cardW, cardH, 12).stroke({
-            color: selected ? 0xffd76a : borderColor,
-            width: selected ? 4 : 2
-        });
+        bg.roundRect(0, 0, cardW, cardH, 10).fill(lockReason ? 0x111825 : 0x18243c);
+        bg.roundRect(0, 0, cardW, cardH, 10).stroke({ color: borderColor, width: borderW });
         cardContainer.addChild(bg);
 
+        // Element band at top
+        const band = new this.PIXI.Graphics();
+        band.roundRect(0, 0, cardW, 5, { tl: 10, tr: 10, bl: 0, br: 0 }).fill(lockReason ? 0x3a4558 : elColor);
+        cardContainer.addChild(band);
+
+        // Selected glow
+        if (selected) {
+            const glow = new this.PIXI.Graphics();
+            glow.roundRect(-3, -3, cardW + 6, cardH + 6, 13).stroke({ color: 0xffd76a, width: 2, alpha: 0.45 });
+            cardContainer.addChild(glow);
+        }
+
+        // Card name
         const title = new this.PIXI.Text({
             text: card.name || card.type,
-            style: { fill: 0xf4f7ff, fontSize: 13, fontWeight: "700", wordWrap: true, wordWrapWidth: cardW - 12 }
+            style: {
+                fill: lockReason ? 0x6a7a94 : 0xf0f4ff,
+                fontSize: Math.max(10, Math.round(cardW * 0.105)),
+                fontWeight: "700",
+                wordWrap: true,
+                wordWrapWidth: cardW - 8
+            }
         });
         title.anchor.set(0.5, 0);
-        title.position.set(cardW / 2, 8);
+        title.position.set(cardW / 2, 9);
         cardContainer.addChild(title);
 
-        const meta = new this.PIXI.Text({
-            text: `${card.type} ${card.costAmount ? `| ${card.costAmount}` : ""}`,
-            style: { fill: 0xb7c8e8, fontSize: 11 }
+        // Type badge pill
+        const typeColors = { SIEGLING: 0x533483, SPELL: 0xa02038, TRAP: 0x1a5a7a };
+        const typeColor = typeColors[card.type] || 0x2a3755;
+        const badgeY = 9 + title.height + 3;
+        const badge = new this.PIXI.Graphics();
+        badge.roundRect(cardW / 2 - 26, badgeY, 52, 14, 4).fill(typeColor);
+        cardContainer.addChild(badge);
+
+        const badgeText = new this.PIXI.Text({
+            text: card.type,
+            style: { fill: 0xe8eeff, fontSize: 9, fontWeight: "700" }
         });
-        meta.anchor.set(0.5, 1);
-        meta.position.set(cardW / 2, cardH - 10);
-        cardContainer.addChild(meta);
-        if (lockReason) {
-            cardContainer.alpha = 0.55;
+        badgeText.anchor.set(0.5, 0.5);
+        badgeText.position.set(cardW / 2, badgeY + 7);
+        cardContainer.addChild(badgeText);
+
+        // Stats for Sieglings (HP / SPD)
+        if (card.type === "SIEGLING" && (card.health || card.speed)) {
+            const statsY = badgeY + 18;
+            const statsText = new this.PIXI.Text({
+                text: `HP ${card.health ?? "?"}  SPD ${card.speed ?? "?"}`,
+                style: { fill: 0x8aaccc, fontSize: 10, fontWeight: "600" }
+            });
+            statsText.anchor.set(0.5, 0);
+            statsText.position.set(cardW / 2, statsY);
+            cardContainer.addChild(statsText);
         }
+
+        // Cost or trigger line at bottom
+        let costLabel = "";
+        if (card.costAmount && card.costElement) {
+            costLabel = `${card.costAmount} ${card.costElement.charAt(0) + card.costElement.slice(1).toLowerCase()}`;
+        } else if (card.trapBucketAmount && card.trapBucketElement) {
+            costLabel = `Trigger: ${card.trapBucketAmount} ${card.trapBucketElement}`;
+        } else if (card.requiredComboSize) {
+            costLabel = `Combo ×${card.requiredComboSize}`;
+        }
+        if (costLabel) {
+            const costText = new this.PIXI.Text({
+                text: costLabel,
+                style: { fill: 0xe2b714, fontSize: 9, fontWeight: "600" }
+            });
+            costText.anchor.set(0.5, 1);
+            costText.position.set(cardW / 2, cardH - 6);
+            cardContainer.addChild(costText);
+        }
+
+        // Lock reason overlay
+        if (lockReason) {
+            const lockOverlay = new this.PIXI.Graphics();
+            lockOverlay.roundRect(0, 0, cardW, cardH, 10).fill({ color: 0x000000, alpha: 0.35 });
+            cardContainer.addChild(lockOverlay);
+            cardContainer.alpha = 0.65;
+        }
+
         return cardContainer;
     }
 

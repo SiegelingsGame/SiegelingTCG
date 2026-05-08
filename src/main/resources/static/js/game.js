@@ -770,6 +770,41 @@ function handleBoardCellInspectTouch(event, isPlayer, row, col) {
     onArenaCardClick(isPlayer, row, col);
 }
 
+let _boardLongPressTimer = null;
+let _boardLongPressTriggered = false;
+
+function handleBoardCardLongPressStart(event, row, col) {
+    if (!isMobileLayout()) return;
+    window.clearTimeout(_boardLongPressTimer);
+    _boardLongPressTriggered = false;
+    _boardLongPressTimer = window.setTimeout(() => {
+        _boardLongPressTriggered = true;
+        _boardLongPressTimer = null;
+        if (gameState?.currentPhase === 'BATTLE'
+            && gameState?.pendingBattle
+            && gameState?.battleWaitingOn === 'PLAYER') {
+            openBattlePanel(true);
+        }
+    }, 500);
+}
+
+function handleBoardCardLongPressEnd(event, row, col) {
+    window.clearTimeout(_boardLongPressTimer);
+    _boardLongPressTimer = null;
+    if (_boardLongPressTriggered) {
+        _boardLongPressTriggered = false;
+        event.preventDefault();
+        return;
+    }
+    handleBoardCellInspectTouch(event, true, row, col);
+}
+
+function cancelBoardCardLongPress() {
+    window.clearTimeout(_boardLongPressTimer);
+    _boardLongPressTimer = null;
+    _boardLongPressTriggered = false;
+}
+
 function openSelectedCardDrawer() {
     const card = getFocusedPreviewCard();
     updateSelectedInfo(card, card ? null : 'Hover, select a hand card, or click a Siegling on the board.');
@@ -1931,8 +1966,12 @@ function updateResponsiveLayoutVars(force = false) {
     const density = clampNumber(Math.min(viewportWidth / 1440, viewportHeight / 900), 0.72, 1.08);
     const cardAspectHeight = 7 / 5;
     const desktopHandVisibleCards = 5;
-    const desktopHudRailWidth = 200;
+    const baseDesktopHudRailWidth = 200;
+    const baseDesktopSidebarWidth = 420;
     const hideEnemyHudRail = desktop && viewportWidth <= 1200;
+    const desktopPanelScale = desktop
+        ? clampNumber((viewportWidth - 1600) / 1600, 0, 1)
+        : 0;
     const desktopLayoutGutter = desktop
         ? Math.round(clampNumber(viewportWidth * 0.008, 10, 22))
         : 0;
@@ -1946,28 +1985,68 @@ function updateResponsiveLayoutVars(force = false) {
         ? Math.round(clampNumber(viewportWidth * 0.0045, 10, 16))
         : 12;
     const desktopHandTargetWidth = desktop
-        ? Math.round(clampNumber(viewportHeight * 0.1, 104, 218))
+        ? Math.round(clampNumber(viewportHeight * 0.105, 112, 240))
         : 138;
-    const desktopHandHorizontalChrome = desktop
-        ? Math.round(clampNumber(viewportWidth * 0.018, 56, 84))
-        : 0;
-    const sidebarWidth = 420;
-    const visibleHudRailWidth = desktop
-        ? desktopHudRailWidth + (hideEnemyHudRail ? 0 : desktopHudRailWidth)
-        : 0;
+    let desktopHudRailWidth = desktop
+        ? Math.round(baseDesktopHudRailWidth * (1 + desktopPanelScale))
+        : baseDesktopHudRailWidth;
+    let sidebarWidth = desktop
+        ? Math.round(baseDesktopSidebarWidth * (1 + desktopPanelScale))
+        : baseDesktopSidebarWidth;
     const desktopGridGapCount = desktop
         ? hideEnemyHudRail ? 2 : 3
         : 0;
-    const desktopArenaColumnWidth = desktop
-        ? Math.max(0, viewportWidth - (desktopLayoutGutter * 2) - (desktopLayoutGap * desktopGridGapCount) - visibleHudRailWidth - sidebarWidth)
-        : 0;
     const boardMaxWidth = desktop
-        ? Math.round(clampNumber(Math.min(desktopArenaColumnWidth * 0.54, viewportHeight * 0.5), 360, 580))
+        ? Math.round(clampNumber(viewportHeight * 0.45, 360, 620))
         : 420;
     const boardHeightOffset = desktop
         ? Math.round(clampNumber(viewportHeight * 0.1, 82, 148))
         : 124;
     const boardHeightRatio = desktop ? 1.38 : 2.72;
+    const topBarHeight = desktop
+        ? Math.round(document.querySelector('.top-bar')?.getBoundingClientRect().height || 36)
+        : 0;
+    const desktopArenaHeight = desktop
+        ? Math.max(0, viewportHeight - topBarHeight - (desktopLayoutGutter * 2))
+        : 0;
+    const heightLimitedBoardWidth = desktop
+        ? Math.max(0, ((desktopArenaHeight - boardHeightOffset) / 2) / boardHeightRatio)
+        : boardMaxWidth;
+    const desktopBoardTargetWidth = desktop
+        ? Math.round(Math.min(boardMaxWidth, heightLimitedBoardWidth || boardMaxWidth))
+        : boardMaxWidth;
+    let desktopArenaColumnWidth = desktop
+        ? Math.round(clampNumber(
+            desktopBoardTargetWidth + clampNumber(desktopBoardTargetWidth * 0.85, 300, 560),
+            desktopBoardTargetWidth + 220,
+            Math.min(1240, Math.max(boardMaxWidth + 220, viewportWidth - 24))
+        ))
+        : 0;
+    if (desktop && !hideEnemyHudRail) {
+        const availableForColumns = viewportWidth - (desktopLayoutGutter * 2) - (desktopLayoutGap * desktopGridGapCount);
+        const minimumPanelWidth = baseDesktopSidebarWidth + baseDesktopHudRailWidth + (hideEnemyHudRail ? 0 : baseDesktopHudRailWidth);
+        const preferredPanelWidth = sidebarWidth + desktopHudRailWidth + (hideEnemyHudRail ? 0 : desktopHudRailWidth);
+        const maxArenaForPreferredPanels = availableForColumns - preferredPanelWidth;
+        if (maxArenaForPreferredPanels < desktopArenaColumnWidth) {
+            desktopArenaColumnWidth = Math.max(desktopBoardTargetWidth + 160, maxArenaForPreferredPanels);
+        }
+        if (desktopArenaColumnWidth + minimumPanelWidth > availableForColumns) {
+            const panelScaleDown = Math.max(0, (availableForColumns - desktopArenaColumnWidth) / minimumPanelWidth);
+            desktopHudRailWidth = Math.max(0, Math.round(baseDesktopHudRailWidth * panelScaleDown));
+            sidebarWidth = Math.max(320, Math.round(baseDesktopSidebarWidth * panelScaleDown));
+        } else {
+            const panelWidth = sidebarWidth + desktopHudRailWidth + desktopHudRailWidth;
+            const extraPanelWidth = Math.max(0, availableForColumns - desktopArenaColumnWidth - panelWidth);
+            if (extraPanelWidth > 0) {
+                const railBonus = Math.floor(extraPanelWidth * 0.25);
+                desktopHudRailWidth += railBonus;
+                sidebarWidth += extraPanelWidth - (railBonus * 2);
+            }
+        }
+    }
+    const desktopHandHorizontalChrome = desktop
+        ? Math.round(clampNumber(sidebarWidth * 0.09, 60, 112))
+        : 0;
     const desktopHandAvailableWidth = desktop
         ? Math.max(0, sidebarWidth - desktopHandHorizontalChrome)
         : 0;
@@ -2023,6 +2102,7 @@ function updateResponsiveLayoutVars(force = false) {
     root.style.setProperty('--desktop-layout-gap', `${desktopLayoutGap}px`);
     root.style.setProperty('--desktop-sidebar-width', `${sidebarWidth}px`);
     root.style.setProperty('--hud-rail-width', `${desktopHudRailWidth}px`);
+    root.style.setProperty('--desktop-arena-width', `${desktopArenaColumnWidth}px`);
     root.style.setProperty('--desktop-board-max-width', `${boardMaxWidth}px`);
     root.style.setProperty('--desktop-board-height-offset', `${boardHeightOffset}px`);
     root.style.setProperty('--desktop-board-height-ratio', `${boardHeightRatio}`);
@@ -2196,6 +2276,7 @@ function showPhaseTransitionBanner(phase, activeSide) {
     kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
     title.textContent = formatPhaseLabel(phase);
     banner.classList.remove('hidden');
+    window.SieglingsSounds?.play('phase', 0.5);
     requestAnimationFrame(() => banner.classList.add('visible'));
 
     phaseTransitionTimer = setTimeout(() => {
@@ -4222,6 +4303,9 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     const prevState = gameState;
     gameState = data;
     maybeStartPixiBattleBoardHold(prevState, data);
+    if (endpoint !== 'new' && prevState) {
+        window.SieglingsFx?.onBoardUpdate(prevState, data);
+    }
     try {
         render();
     } catch (e) {
@@ -4316,7 +4400,9 @@ async function newGame() {
     selectedCard = null;
     selectedHandIndex = null;
     clearTargetMode();
-    document.getElementById('gameOverOverlay').classList.remove('visible');
+    const _gov = document.getElementById('gameOverOverlay');
+    _gov.classList.remove('visible');
+    delete _gov.dataset.soundPlayed;
     const body = getSelectedLoadoutBody();
     const started = await api('new', 'POST', body, LOADOUT_ACTION_TIMEOUT_MS);
     if (!started) {
@@ -5054,6 +5140,7 @@ function collectBuilderElements() {
 async function playerDraw() {
     const data = await api('draw');
     if (data) {
+        window.SieglingsSounds?.play('draw');
         onDrawComplete();
     }
 }
@@ -5098,6 +5185,7 @@ async function executeBattle() {
     }
     selectedCard = null;
     selectedHandIndex = null;
+    window.SieglingsSounds?.play('hit', 0.6);
     closeClaimPopup();
     closeTrainerAbilityPopup();
     clearTargetMode();
@@ -5127,6 +5215,7 @@ async function endTurn() {
     selectedHandIndex = null;
     closeClaimPopup();
     clearTargetMode();
+    window.SieglingsSounds?.play('endturn');
     const data = await api('endturn');
     if (data) {
         resetDrawButton();
@@ -5135,6 +5224,7 @@ async function endTurn() {
 
 async function placeCard(row, col) {
     if (!selectedCard) return;
+    window.SieglingsSounds?.play('place');
     const data = await api('place', 'POST', { cardId: selectedCard.id, row, col });
     if (!data) return;
     resetInteractionState();
@@ -5148,6 +5238,7 @@ async function claimBoardCard(row, col) {
 }
 
 async function castSpell(cardId, targetRow, targetCol, destRow = -1, destCol = -1) {
+    window.SieglingsSounds?.play('spell');
     const body = { cardId, targetRow, targetCol };
     if (destRow >= 0 && destCol >= 0) {
         body.destRow = destRow;
@@ -5338,6 +5429,10 @@ function renderDomLegacy() {
         const title = gameState.winner === 'Draw'
             ? 'DRAW'
             : (gameState.winner === (gameState.playerName || 'Player') ? 'VICTORY!' : 'DEFEAT');
+        if (!document.getElementById('gameOverOverlay').dataset.soundPlayed) {
+            document.getElementById('gameOverOverlay').dataset.soundPlayed = '1';
+            window.SieglingsSounds?.play(title === 'VICTORY!' ? 'win' : 'lose');
+        }
         document.getElementById('gameOverTitle').textContent = title;
         document.getElementById('gameOverMsg').textContent = gameState.winner === 'Draw'
             ? 'Both players were defeated.'
@@ -6454,9 +6549,15 @@ function renderBoard(gridId, board, isPlayer) {
             } else if (isTargetable) {
                 events = `onclick="onTargetSelected(${r}, ${c}, ${isPlayer})" onmouseenter="previewCellHover(${isPlayer}, ${r}, ${c})" ontouchstart="previewCellHover(${isPlayer}, ${r}, ${c})" onmouseleave="handleTargetCellPointerLeave()" ontouchend="handleBoardCellTouch(event, ${isPlayer}, ${r}, ${c})"`;
             } else if (isClaimable) {
-                events = `onclick="onArenaCardClick(${isPlayer}, ${r}, ${c})" ontouchend="handleBoardCellInspectTouch(event, ${isPlayer}, ${r}, ${c})" onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
+                const claimTouch = isPlayer
+                    ? `ontouchstart="handleBoardCardLongPressStart(event,${r},${c})" ontouchend="handleBoardCardLongPressEnd(event,${r},${c})" ontouchcancel="cancelBoardCardLongPress()"`
+                    : `ontouchend="handleBoardCellInspectTouch(event,${isPlayer},${r},${c})"`;
+                events = `onclick="onArenaCardClick(${isPlayer}, ${r}, ${c})" ${claimTouch} onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
             } else if (cell) {
-                events = `onclick="onArenaCardClick(${isPlayer}, ${r}, ${c})" ontouchend="handleBoardCellInspectTouch(event, ${isPlayer}, ${r}, ${c})" onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
+                const cellTouch = isPlayer
+                    ? `ontouchstart="handleBoardCardLongPressStart(event,${r},${c})" ontouchend="handleBoardCardLongPressEnd(event,${r},${c})" ontouchcancel="cancelBoardCardLongPress()"`
+                    : `ontouchend="handleBoardCellInspectTouch(event,${isPlayer},${r},${c})"`;
+                events = `onclick="onArenaCardClick(${isPlayer}, ${r}, ${c})" ${cellTouch} onmouseenter="handleBoardCardPointerEnter(${isPlayer}, ${r}, ${c});showTooltipBoard(event, ${isPlayer}, ${r}, ${c})" onmouseleave="handleBoardCardPointerLeave(${isPlayer}, ${r}, ${c});hideTooltip()"`;
             }
 
             html += `<div class="${classes}" ${events} data-row="${r}" data-col="${c}">`;
@@ -8401,6 +8502,32 @@ function isClaimableBoardCell(cell, isPlayer) {
 }
 
 function positionTooltip(event, tt) {
+    if (window.FloatingUIDOM) {
+        const virtualEl = {
+            getBoundingClientRect() {
+                return {
+                    width: 0, height: 0,
+                    x: event.clientX, y: event.clientY,
+                    top: event.clientY, left: event.clientX,
+                    right: event.clientX, bottom: event.clientY
+                };
+            }
+        };
+        tt.style.position = 'fixed';
+        window.FloatingUIDOM.computePosition(virtualEl, tt, {
+            placement: 'top-start',
+            middleware: [
+                window.FloatingUIDOM.offset(12),
+                window.FloatingUIDOM.flip({ padding: 8 }),
+                window.FloatingUIDOM.shift({ padding: 8 })
+            ]
+        }).then(({ x, y }) => {
+            tt.style.left = `${x}px`;
+            tt.style.top = `${y}px`;
+        });
+        return;
+    }
+    // Fallback if Floating UI hasn't loaded yet
     let x = event.clientX + 15;
     let y = event.clientY + 15;
     if (x + 250 > window.innerWidth) x = event.clientX - 255;
@@ -8411,6 +8538,16 @@ function positionTooltip(event, tt) {
 
 function hideTooltip() {
     document.getElementById('cardTooltip').classList.remove('visible');
+}
+
+function toggleSieglingsMute() {
+    if (!window.SieglingsSounds) return;
+    const nowMuted = window.SieglingsSounds.toggleMute();
+    const btn = document.getElementById('btnMuteSound');
+    if (btn) {
+        btn.textContent = nowMuted ? '🔇' : '🔊';
+        btn.title = nowMuted ? 'Unmute Sound' : 'Mute Sound';
+    }
 }
 
 function getLiftedHandIndex() {
