@@ -3,7 +3,7 @@ window.SIEGLINGS_CONFIG = window.SIEGLINGS_CONFIG || {
     // the stable Cloud Run backend even when temporary tunnels expire.
     apiBaseUrl: '',
     renderer: {
-        mode: 'dom'
+        mode: 'pixi'
     },
     firebase: {
         apiKey: "AIzaSyBHbW7Rgy2Q3odloOwekA77FZW4V5CBays",
