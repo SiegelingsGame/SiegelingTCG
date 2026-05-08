@@ -783,6 +783,11 @@
         return `${cell.instanceId || cell.id || cell.name}:${cell.hp ?? 0}`;
     }
 
+    function normalizeElement(element) {
+        const value = String(element || '').trim().toUpperCase();
+        return value || null;
+    }
+
     function diffBoards(prev, next) {
         const damaged = [];
         if (!prev || !next) return damaged;
@@ -797,7 +802,14 @@
                     || (p.id && n.id && p.id === n.id)
                     || (String(p.name || '') === String(n.name || '') && p.name);
                 if (sameCard && nextHp < prevHp) {
-                    damaged.push({ row: r, col: c, amount: prevHp - nextHp, element: n.element });
+                    damaged.push({
+                        row: r,
+                        col: c,
+                        amount: prevHp - nextHp,
+                        element: normalizeElement(n.element || p.element),
+                        name: n.name || p.name || '',
+                        instanceId: n.instanceId || p.instanceId || n.id || p.id || ''
+                    });
                 }
             }
         }
@@ -853,27 +865,183 @@
     let _prevPlayer = null;
     let _prevEnemy = null;
 
-    function findAttackerCell(board, damagedCells) {
-        // Return the first cell on `board` whose element matches the damaged cells' element
-        // and that isn't itself in the damaged list — a rough heuristic for the attacker slot.
-        if (!board || !damagedCells.length) return null;
-        const el = damagedCells[0].element;
-        const damagedKeys = new Set(damagedCells.map(d => `${d.row}:${d.col}`));
+    function makeCellRef(board, row, col, fallbackElement = null) {
+        const cell = board?.[row]?.[col];
+        return {
+            row,
+            col,
+            cell,
+            element: normalizeElement(fallbackElement || cell?.element)
+        };
+    }
+
+    function findBoardCell(board, predicate) {
+        if (!board) return null;
         for (let r = 0; r < 3; r++) {
             for (let c = 0; c < 3; c++) {
                 const cell = board[r]?.[c];
-                if (cell && cell.element === el && !damagedKeys.has(`${r}:${c}`)) {
-                    return { row: r, col: c };
+                if (cell && predicate(cell, r, c)) {
+                    return makeCellRef(board, r, c);
                 }
             }
         }
-        // Fall back to any occupied cell not in the damaged list
-        for (let r = 0; r < 3; r++) {
-            for (let c = 0; c < 3; c++) {
-                if (board[r]?.[c] && !damagedKeys.has(`${r}:${c}`)) return { row: r, col: c };
+        return null;
+    }
+
+    function findFirstOccupiedCell(board) {
+        return findBoardCell(board, () => true);
+    }
+
+    function namesMatch(a, b) {
+        return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+    }
+
+    function findCellByName(board, name) {
+        if (!name) return null;
+        return findBoardCell(board, cell => namesMatch(cell.name, name));
+    }
+
+    function findCellByInstanceId(board, instanceId) {
+        if (!instanceId) return null;
+        return findBoardCell(board, cell => String(cell.instanceId || cell.id || '') === String(instanceId));
+    }
+
+    function findPendingAttacker(board, pending) {
+        if (!pending) return null;
+        const byId = findCellByInstanceId(board, pending.instanceId);
+        if (byId) return makeCellRef(board, byId.row, byId.col, pending.element || byId.element);
+        if (pending.row != null && pending.col != null) {
+            const row = Number(pending.row);
+            const col = Number(pending.col);
+            if (Number.isInteger(row) && Number.isInteger(col) && row >= 0 && row < 3 && col >= 0 && col < 3) {
+                return makeCellRef(board, row, col, pending.element);
+            }
+        }
+        const byName = findCellByName(board, pending.name);
+        return byName ? makeCellRef(board, byName.row, byName.col, pending.element || byName.element) : null;
+    }
+
+    function logCounts(logs) {
+        const counts = new Map();
+        (logs || []).forEach(line => {
+            const key = String(line || '');
+            counts.set(key, (counts.get(key) || 0) + 1);
+        });
+        return counts;
+    }
+
+    function getNewLogEntries(prevState, nextState) {
+        const prevCounts = logCounts(prevState?.gameLog);
+        const newEntries = [];
+        (nextState?.gameLog || []).forEach(line => {
+            const key = String(line || '');
+            const count = prevCounts.get(key) || 0;
+            if (count > 0) {
+                prevCounts.set(key, count - 1);
+            } else {
+                newEntries.push(key);
+            }
+        });
+        return newEntries;
+    }
+
+    function normalizeLogToken(value) {
+        return String(value || '').trim().replace(/[.!]+$/g, '').toLowerCase();
+    }
+
+    function findUserOfAbility(logs, abilityName) {
+        const wanted = normalizeLogToken(abilityName);
+        if (!wanted) return null;
+        for (const line of logs) {
+            const match = String(line || '').match(/^(.+?) uses (.+?)\.?$/i);
+            if (match && normalizeLogToken(match[2]) === wanted) {
+                return match[1].trim();
             }
         }
         return null;
+    }
+
+    function findCellFromAbilityName(board, abilityName) {
+        const ability = String(abilityName || '').trim().toLowerCase();
+        if (!ability) return null;
+        const matches = [];
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const cell = board?.[r]?.[c];
+                const name = String(cell?.name || '').trim().toLowerCase();
+                if (name && (ability === name || ability.startsWith(`${name} `) || ability.includes(name))) {
+                    matches.push(makeCellRef(board, r, c));
+                }
+            }
+        }
+        matches.sort((a, b) => String(b.cell?.name || '').length - String(a.cell?.name || '').length);
+        return matches[0] || null;
+    }
+
+    function findAttackerFromLogs(board, damagedCell, logs) {
+        const targetName = String(damagedCell?.name || '').trim().toLowerCase();
+        for (const line of logs) {
+            const text = String(line || '');
+            const lower = text.toLowerCase();
+            if (!lower.includes(' deals ') || !lower.includes(' damage to ')) continue;
+            if (targetName && !lower.includes(` damage to ${targetName}`) && !lower.includes(` to ${targetName}`)) continue;
+
+            const abilityName = text.slice(0, lower.indexOf(' deals ')).trim();
+            const sourceName = findUserOfAbility(logs, abilityName);
+            const byUser = findCellByName(board, sourceName);
+            if (byUser) return byUser;
+
+            const byAbility = findCellFromAbilityName(board, abilityName);
+            if (byAbility) return byAbility;
+        }
+        return null;
+    }
+
+    function resolveAttackSource(board, damagedCell, logs, sourceHint = null) {
+        return sourceHint
+            || findAttackerFromLogs(board, damagedCell, logs)
+            || findFirstOccupiedCell(board);
+    }
+
+    function launchDamageProjectiles({
+        sourceBoard,
+        sourceIsPlayer,
+        targetIsPlayer,
+        damagedCells,
+        logs,
+        sourceHint,
+        fallbackOrigin,
+        floaterSize,
+        shakeIntensity
+    }) {
+        const pattern = classifyTargets(damagedCells);
+        const stagger = pattern === 'single' ? 0 : STAGGER_ROW;
+        damagedCells.sort((a, b) => a.col - b.col).forEach((t, i) => {
+            const source = resolveAttackSource(sourceBoard, t, logs, sourceHint);
+            const from = source
+                ? getCellCenter(sourceIsPlayer, source.row, source.col)
+                : null;
+            const to = getCellCenter(targetIsPlayer, t.row, t.col);
+            const element = source?.element || t.element || 'NEUTRAL';
+            if (!to) return;
+            launchProjectile(from || fallbackOrigin, to, element, {
+                duration: 700,
+                delay: i * stagger,
+                onHit: (hx, hy) => {
+                    floaters.push({
+                        text: `-${t.amount}`,
+                        x: hx,
+                        y: hy - 10,
+                        color: getProfile(element).glow,
+                        size: floaterSize,
+                        bold: true,
+                        elapsed: 0,
+                        duration: 1100
+                    });
+                    cameraShake(shakeIntensity, 200);
+                }
+            });
+        });
     }
 
     function onBoardUpdate(prevState, nextState) {
@@ -886,65 +1054,35 @@
 
         const playerDamaged = diffBoards(prevPlayer, nextPlayer);
         const enemyDamaged  = diffBoards(prevEnemy,  nextEnemy);
+        const newLogs = getNewLogEntries(prevState, nextState);
 
-        // enemy attacks dealt damage to player cells — source = enemy board slot
+        // enemy attacks dealt damage to player cells; use the sender's element, not the target's.
         if (playerDamaged.length > 0) {
-            const el = playerDamaged[0].element;
-            const pending = prevState.pendingBattle;
-            let from;
-            // Check if enemy has a pendingBattle slot (server may expose it)
-            if (pending && !pending.isPlayer && pending.row != null) {
-                from = getCellCenter(false, pending.row, pending.col);
-            }
-            if (!from) {
-                const attacker = findAttackerCell(prevEnemy, playerDamaged);
-                if (attacker) from = getCellCenter(false, attacker.row, attacker.col);
-            }
-            if (!from) from = { x: canvas.width * 0.5, y: canvas.height * 0.15 };
-
-            const pattern = classifyTargets(playerDamaged);
-            const stagger = pattern === 'single' ? 0 : STAGGER_ROW;
-            playerDamaged.sort((a, b) => a.col - b.col).forEach((t, i) => {
-                const to = getCellCenter(true, t.row, t.col);
-                if (!to) return;
-                launchProjectile(from, to, el, {
-                    duration: 700,
-                    delay: i * stagger,
-                    onHit: (hx, hy) => {
-                        floaters.push({ text: `-${t.amount}`, x: hx, y: hy - 10, color: getProfile(el).glow, size: 28, bold: true, elapsed: 0, duration: 1100 });
-                        cameraShake(8, 220);
-                    }
-                });
+            launchDamageProjectiles({
+                sourceBoard: prevEnemy,
+                sourceIsPlayer: false,
+                targetIsPlayer: true,
+                damagedCells: playerDamaged,
+                logs: newLogs,
+                sourceHint: null,
+                fallbackOrigin: { x: canvas.width * 0.5, y: canvas.height * 0.15 },
+                floaterSize: 28,
+                shakeIntensity: 8
             });
         }
 
-        // player attacks dealt damage to enemy cells — source = player's pendingBattle slot
+        // player attacks dealt damage to enemy cells; pendingBattle tells us the active sender.
         if (enemyDamaged.length > 0) {
-            const el = enemyDamaged[0].element;
-            const pending = prevState.pendingBattle;
-            let from;
-            if (pending && pending.row != null && pending.col != null) {
-                from = getCellCenter(true, pending.row, pending.col);
-            }
-            if (!from) {
-                const attacker = findAttackerCell(prevPlayer, enemyDamaged);
-                if (attacker) from = getCellCenter(true, attacker.row, attacker.col);
-            }
-            if (!from) from = { x: canvas.width * 0.5, y: canvas.height * 0.82 };
-
-            const pattern = classifyTargets(enemyDamaged);
-            const stagger = pattern === 'single' ? 0 : STAGGER_ROW;
-            enemyDamaged.sort((a, b) => a.col - b.col).forEach((t, i) => {
-                const to = getCellCenter(false, t.row, t.col);
-                if (!to) return;
-                launchProjectile(from, to, el, {
-                    duration: 700,
-                    delay: i * stagger,
-                    onHit: (hx, hy) => {
-                        floaters.push({ text: `-${t.amount}`, x: hx, y: hy - 10, color: getProfile(el).glow, size: 24, bold: true, elapsed: 0, duration: 1100 });
-                        cameraShake(6, 180);
-                    }
-                });
+            launchDamageProjectiles({
+                sourceBoard: prevPlayer,
+                sourceIsPlayer: true,
+                targetIsPlayer: false,
+                damagedCells: enemyDamaged,
+                logs: newLogs,
+                sourceHint: findPendingAttacker(prevPlayer, prevState.pendingBattle),
+                fallbackOrigin: { x: canvas.width * 0.5, y: canvas.height * 0.82 },
+                floaterSize: 24,
+                shakeIntensity: 6
             });
         }
     }
@@ -990,5 +1128,17 @@
 
         // Called by game.js after each state-changing API response
         onBoardUpdate,
+
+        _debugSnapshot() {
+            return {
+                projectiles: projectiles.map(p => ({
+                    color: p.el?.color,
+                    trailStyle: p.el?.trailStyle,
+                    impactStyle: p.el?.impactStyle,
+                    from: p.from,
+                    to: p.to
+                }))
+            };
+        },
     };
 })();
