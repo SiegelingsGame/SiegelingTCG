@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=78">
+    <link rel="stylesheet" href="/css/style.css?v=79">
 </head>
 <body>
 <div class="pixi-root" id="pixiRoot" aria-hidden="true">
@@ -39,24 +39,22 @@
 </nav>
 
 <div class="mobile-hud" id="mobileHud" aria-label="Mobile match summary">
-    <div class="mobile-hud-side mobile-hud-enemy">
+    <button class="mobile-hud-side mobile-hud-enemy" type="button" onclick="toggleMobileHudSheet('enemy')" aria-controls="mobileStatSheet" aria-expanded="false">
         <div class="m-name" id="mobileEnemyName">AI</div>
         <div class="m-hp-bar"><div class="m-hp-fill" id="mobileEnemyHpBar" style="width:100%"></div></div>
-        <div class="m-counts">H:<strong id="mobileEnemyHandSize">0</strong> D:<strong id="mobileEnemyDeckSize">0</strong></div>
-        <div class="m-elements" id="mobileEnemyElements"></div>
-    </div>
+        <div class="m-counts">H:<strong id="mobileEnemyHandSize">0</strong> D:<strong id="mobileEnemyDeckSize">0</strong> E:<strong id="mobileEnemyEnergyCount">0</strong><span class="m-elements" id="mobileEnemyElements"></span></div>
+    </button>
 
     <div class="mobile-hud-center">
         <div class="m-phase" id="mobilePhaseBadge">DRAW</div>
         <div class="m-turn">T<span id="mobileTurnNumber">0</span></div>
     </div>
 
-    <div class="mobile-hud-side right mobile-hud-player">
+    <button class="mobile-hud-side right mobile-hud-player" type="button" onclick="toggleMobileHudSheet('player')" aria-controls="mobileStatSheet" aria-expanded="false">
         <div class="m-name" id="mobilePlayerName">Player</div>
         <div class="m-hp-bar"><div class="m-hp-fill" id="mobilePlayerHpBar" style="width:100%"></div></div>
-        <div class="m-counts">H:<strong id="mobilePlayerHandSize">0</strong> D:<strong id="mobilePlayerDeckSize">0</strong></div>
-        <div class="m-elements" id="mobilePlayerElements"></div>
-    </div>
+        <div class="m-counts">H:<strong id="mobilePlayerHandSize">0</strong> D:<strong id="mobilePlayerDeckSize">0</strong> E:<strong id="mobilePlayerEnergyCount">0</strong><span class="m-elements" id="mobilePlayerElements"></span></div>
+    </button>
 </div>
 
 <div class="phase-transition-banner hidden" id="phaseTransitionBanner" aria-live="polite" aria-atomic="true">
@@ -272,6 +270,7 @@
     <div class="stat-sheet-tabs" role="tablist" aria-label="Player detail tabs">
         <button class="stat-tab active-enemy" id="mobileStatEnemyTab" type="button" role="tab" aria-selected="true" aria-controls="mobileStatEnemySheet" onclick="setMobileHudSheetSide('enemy')">AI</button>
         <button class="stat-tab" id="mobileStatPlayerTab" type="button" role="tab" aria-selected="false" aria-controls="mobileStatPlayerSheet" onclick="setMobileHudSheetSide('player')">Player</button>
+        <button class="mobile-stat-close" type="button" onclick="closeMobileHudSheet()" aria-label="Close player details">&times;</button>
     </div>
 
     <div class="stat-sheet-content" id="mobileStatEnemySheet" role="tabpanel" aria-labelledby="mobileStatEnemyTab">
@@ -555,7 +554,7 @@
 
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=89"></script>
+    <script src="/js/game.js?v=90"></script>
     <script type="module" src="/js/pixi/app.js?v=8"></script>
 </body>
 </html>
