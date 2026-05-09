@@ -13,6 +13,7 @@ import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.StatusEffect;
 import com.sieglings.model.enums.TargetType;
 import org.junit.jupiter.api.Test;
 
@@ -250,6 +251,32 @@ class GameServiceTest {
         gameService.draw(state, true);
 
         assertEquals(1, state.getPlayer().getFireEnergy(), "Temporary claim energy should expire when that side starts its next draw phase.");
+    }
+
+    @Test
+    void freezeExpiresWhenBattleTempEffectsAreCleared() throws Exception {
+        GameService gameService = new GameService();
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard playerCard = new SieglingCard("frosty", "Frosty", Element.ICE, Rarity.COMMON, 13, 6, List.of(), Row.FRONT);
+        SieglingCard enemyCard = new SieglingCard("mossy", "Mossy", Element.EARTH, Rarity.COMMON, 18, 4, List.of(), Row.FRONT);
+        CardInstance playerFrozen = new CardInstance(playerCard, 0, 0, true);
+        CardInstance enemyFrozen = new CardInstance(enemyCard, 0, 0, false);
+        playerFrozen.getStatusEffects().add(StatusEffect.FREEZE);
+        enemyFrozen.getStatusEffects().add(StatusEffect.FREEZE);
+        state.setAt(true, 0, 0, playerFrozen);
+        state.setAt(false, 0, 0, enemyFrozen);
+
+        Method clearTempEffects = GameService.class.getDeclaredMethod("clearTempEffects", GameState.class);
+        clearTempEffects.setAccessible(true);
+        clearTempEffects.invoke(gameService, state);
+
+        assertFalse(playerFrozen.getStatusEffects().contains(StatusEffect.FREEZE), "Player Sieglings should thaw after battle ends.");
+        assertFalse(enemyFrozen.getStatusEffects().contains(StatusEffect.FREEZE), "Opponent Sieglings should thaw after battle ends.");
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

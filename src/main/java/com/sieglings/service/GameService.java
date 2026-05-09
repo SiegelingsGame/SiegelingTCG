@@ -795,11 +795,13 @@ public class GameService {
     private void clearTempEffects(GameState state) {
         for (CardInstance ci : state.getBoardSieglings(true)) {
             ci.clearTemporaryEffects();
+            ci.getStatusEffects().remove(StatusEffect.FREEZE);
             ci.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
             ci.setCurrentSpeed(ci.getCard().getSpeed());
         }
         for (CardInstance ci : state.getBoardSieglings(false)) {
             ci.clearTemporaryEffects();
+            ci.getStatusEffects().remove(StatusEffect.FREEZE);
             ci.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
             ci.setCurrentSpeed(ci.getCard().getSpeed());
         }
