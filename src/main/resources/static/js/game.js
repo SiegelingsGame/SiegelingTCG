@@ -193,6 +193,9 @@ function renderStatusBadgesForCell(cell) {
     if (!seen.has('SPEED_BOOST') && !seen.has('SPEED_ZERO') && Number.isFinite(spd) && Number.isFinite(printedSpd) && spd > printedSpd) {
         push('SPEED_BOOST', spd - printedSpd);
     }
+    if (!seen.has('DAMAGE_BOOST') && dmgBoost > 0) {
+        push('DAMAGE_BOOST', dmgBoost);
+    }
 
     if (items.length === 0) return '';
     return `<div class="status-icons">${items.join('')}</div>`;
@@ -881,10 +884,8 @@ function renderBoardCellCombatStatsInner(cell) {
     const maxHp = cell.maxHp;
     const hp = cell.hp;
     const spd = cell.spd;
-    const dmgBoost = Number(cell.damageBoost) || 0;
     const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
-    const color = getElementColorForCard(el);
 
     let hpInner = `${hp}/<span class="stat-hp-max">${maxHp}</span>`;
     if (hpBuffed) {
@@ -896,12 +897,7 @@ function renderBoardCellCombatStatsInner(cell) {
         spdInner += renderCardStatAsterisk(el);
     }
 
-    let dmgBlock = '';
-    if (dmgBoost > 0) {
-        dmgBlock = `<span class="stat stat-dmg" style="color:${color}" title="Bonus attack damage">+${dmgBoost} DMG${renderCardStatAsterisk(el)}</span>`;
-    }
-
-    return { hpInner, spdInner, dmgBlock };
+    return { hpInner, spdInner, dmgBlock: '' };
 }
 
 function getAbilityRequiredEnergy(ability) {
