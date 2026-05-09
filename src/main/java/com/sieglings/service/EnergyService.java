@@ -337,6 +337,29 @@ public class EnergyService {
                     continue;
                 }
 
+                // Register every cross-element reciprocal link as a combo point at the
+                // shared corner. Works uniformly for horizontal, vertical, and diagonal
+                // links: for horizontal/vertical the per-notch loop above already
+                // recorded both elements at the same lattice point, so we only need to
+                // bridge the diagonal case where the two notch points sit at opposite
+                // corners that the lattice-bounds check excludes.
+                BoardPoint adjPoint = toBoardPoint(adjacent, matchingNotch, isPlayer);
+                if (notch.element() != matchingNotch.element()) {
+                    int midX = (point.x() + adjPoint.x()) / 2;
+                    int midY = (point.y() + adjPoint.y()) / 2;
+                    if (midX > 0 && midX < 6 && midY > 0 && midY < 6) {
+                        String midKey = midX + ":" + midY;
+                        // Skip when the midpoint already coincides with one of the notch
+                        // points (horizontal/vertical) — the per-notch loop has already
+                        // tracked both elements there, and re-adding would inflate
+                        // NexusPoint contribution counts.
+                        if (!midKey.equals(point.key()) && !midKey.equals(adjPoint.key())) {
+                            pointContributions.computeIfAbsent(midKey, k -> new ArrayList<>()).add(notch.element());
+                            pointContributions.computeIfAbsent(midKey, k -> new ArrayList<>()).add(matchingNotch.element());
+                        }
+                    }
+                }
+
                 if (notch.element() == matchingNotch.element()) {
                     switch (notch.element()) {
                         case FIRE -> fireInternal++;
