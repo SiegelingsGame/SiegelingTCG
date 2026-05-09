@@ -7197,26 +7197,148 @@ body.placement-active .board-cell.legal {
 
     /* --- Hand Tray --- */
     .hand-tray {
-        --hand-card-width: 66px;
-        --hand-card-overlap: -10px;
-        --hand-card-padding: 3px;
-        --hand-card-hover-lift: -14px;
-        --hand-card-selected-lift: -16px;
+        --hand-card-width: 92px;
+        --hand-card-overlap: 6px;
+        --hand-card-padding: 4px;
+        --hand-card-hover-lift: -6px;
+        --hand-card-selected-lift: -8px;
         padding: 3px 6px;
         padding-bottom: calc(3px + env(safe-area-inset-bottom, 0px));
     }
 
+    .hand-tray .hand-cards {
+        justify-content: flex-start;
+        gap: var(--hand-card-overlap);
+    }
+
     .hand-tray .hand-card {
         max-width: var(--hand-card-width);
+        margin-left: 0;
     }
 
     .hand-tray .hand-card:first-child { margin-left: 0; }
+
+    .hand-tray .hand-card.selected {
+        transform: translateY(var(--hand-card-selected-lift)) scale(1.02);
+    }
 
     /* --- Drawer --- */
     .drawer {
         max-height: 50vh;
         padding: 10px 12px 16px;
         padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Card Preview drawer: only cover the bottom UI (action bar + hand) so
+       the arena placement area stays visible. Backdrop hidden so taps on
+       the arena go through to place the selected card. */
+    #drawerSelected {
+        max-height: calc(var(--mobile-action-bar-height) + 168px);
+        height: calc(var(--mobile-action-bar-height) + 168px);
+        padding: 6px 10px 10px;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        overflow: hidden;
+    }
+    body:has(#drawerSelected.visible) .drawer-backdrop {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /* Compact Card Preview content so the full card fits without scrolling.
+       Switch to a horizontal layout: art on the left, info column on the
+       right. Shrink fonts and chrome so a Siegling's notch markers and stats
+       are fully visible inside the bottom-UI-height drawer. */
+    #drawerSelected .drawer-handle {
+        margin: 0 auto 4px;
+    }
+    #drawerSelected h3 {
+        font-size: 0.66em;
+        margin-bottom: 4px;
+        padding-bottom: 2px;
+    }
+    #drawerSelected .drawer-content {
+        font-size: 0.78em;
+        height: calc(100% - 26px);
+        overflow: hidden;
+    }
+    /* Panel: card thumbnail on the left, description text on the right.
+       The card shell keeps its natural column layout (header → art → body)
+       so proportions are never distorted — it is simply constrained to a
+       fixed small footprint. */
+    #drawerSelected .selected-card-panel {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 8px;
+        height: 100%;
+    }
+    #drawerSelected .selected-preview-message {
+        font-size: 0.72em;
+        margin-bottom: 2px;
+    }
+    #drawerSelected .selected-preview-copy {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 0.72em;
+        line-height: 1.3;
+    }
+    #drawerSelected .selected-preview-card,
+    #drawerSelected .card-preview-card {
+        width: auto;
+        max-width: none;
+        min-height: 0;
+        flex-shrink: 0;
+    }
+    /* Card shell: natural column layout, fixed 88 × 142 px.
+       88px ≈ hand card width; 142px gives a 0.62 w/h ratio matching the
+       standard card format — art and stats scale proportionally. */
+    #drawerSelected .selected-preview-card .hand-card-shell,
+    #drawerSelected .card-preview-card .hand-card-shell {
+        flex-direction: column;
+        width: 88px;
+        height: 142px;
+        flex-shrink: 0;
+        overflow: hidden;
+    }
+    #drawerSelected .selected-preview-card .hand-card-header,
+    #drawerSelected .card-preview-card .hand-card-header {
+        gap: 1px;
+    }
+    #drawerSelected .selected-preview-card .card-title,
+    #drawerSelected .card-preview-card .card-title {
+        font-size: 0.72em;
+        line-height: 1.05;
+    }
+    /* Art fills all remaining vertical space inside the shell. */
+    #drawerSelected .selected-preview-card .card-art-selected,
+    #drawerSelected .card-preview-card .card-art-preview {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+        width: 100%;
+        max-width: none;
+        padding: 2px;
+    }
+    #drawerSelected .selected-preview-card .hand-card-body,
+    #drawerSelected .card-preview-card .hand-card-body {
+        flex-shrink: 0;
+        padding: 2px 4px 3px;
+        gap: 1px;
+        font-size: 0.82em;
+    }
+    #drawerSelected .selected-preview-card .card-detail,
+    #drawerSelected .selected-preview-card .card-label,
+    #drawerSelected .selected-preview-card .card-cost,
+    #drawerSelected .card-preview-card .card-detail,
+    #drawerSelected .card-preview-card .card-label,
+    #drawerSelected .card-preview-card .card-cost {
+        font-size: 0.72em;
+        line-height: 1.15;
+    }
+    #drawerSelected .selected-preview-card .card-ability-area,
+    #drawerSelected .card-preview-card .card-ability-area {
+        font-size: 0.72em;
+        line-height: 1.18;
     }
 
     /* --- Card detail in drawers --- */
@@ -7597,12 +7719,14 @@ body.placement-active .board-cell.legal {
     }
 
     /* --- Hand Tray --- */
+    .hand-tray {
+        --hand-card-width: 84px;
+        --hand-card-overlap: 5px;
+        --hand-card-padding: 3px;
+        --hand-card-hover-lift: -4px;
+        --hand-card-selected-lift: -6px;
+    }
     .hand-tray .hand-card {
-        --hand-card-width: 58px;
-        --hand-card-overlap: -14px;
-        --hand-card-padding: 2px;
-        --hand-card-hover-lift: -10px;
-        --hand-card-selected-lift: -12px;
         max-width: var(--hand-card-width);
     }
 
@@ -7615,6 +7739,10 @@ body.placement-active .board-cell.legal {
     /* --- Drawer --- */
     .drawer {
         max-height: 60vh;
+    }
+    #drawerSelected {
+        max-height: calc(var(--mobile-action-bar-height) + 152px);
+        height: calc(var(--mobile-action-bar-height) + 152px);
     }
 
     .game-log {
@@ -7681,13 +7809,20 @@ body.placement-active .board-cell.legal {
         aspect-ratio: 5 / 7;
     }
 
+    .hand-tray {
+        --hand-card-width: 74px;
+        --hand-card-overlap: 4px;
+    }
     .hand-tray .hand-card {
-        --hand-card-width: 52px;
-        --hand-card-overlap: -16px;
         max-width: var(--hand-card-width);
     }
 
     .hand-tray .hand-card:first-child { margin-left: 0; }
+
+    #drawerSelected {
+        max-height: calc(var(--mobile-action-bar-height) + 132px);
+        height: calc(var(--mobile-action-bar-height) + 132px);
+    }
 }
 
 /* ============================================================

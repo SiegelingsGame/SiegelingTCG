@@ -7687,6 +7687,9 @@ function selectCard(handIndexOrCardId) {
         selectedHandIndex = null;
         clearTargetMode();
         updateSelectedInfo(null);
+        if (isMobileLayout() && activeDrawer === 'selected') {
+            closeDrawer();
+        }
         render();
         return;
     }
@@ -7697,8 +7700,15 @@ function selectCard(handIndexOrCardId) {
     selectedHandIndex = handIndex;
     clearTargetMode();
 
+    const autoOpenMobilePreview = () => {
+        if (isMobileLayout()) {
+            openDrawer('selected');
+        }
+    };
+
     if (lockReason) {
         updateSelectedInfo(card, lockReason);
+        autoOpenMobilePreview();
         render();
         return;
     }
@@ -7717,6 +7727,7 @@ function selectCard(handIndexOrCardId) {
                     message: `Select an enemy Siegling to move, then an empty enemy cell.`
                 };
                 updateSelectedInfo(card, targetContext.message);
+                autoOpenMobilePreview();
                 render();
                 return;
             }
@@ -7728,6 +7739,7 @@ function selectCard(handIndexOrCardId) {
                 callback: (row, col) => castSpell(card.id, row, col)
             };
             updateSelectedInfo(card, targetContext.message);
+            autoOpenMobilePreview();
             render();
             return;
         } else {
@@ -7737,6 +7749,7 @@ function selectCard(handIndexOrCardId) {
     }
 
     updateSelectedInfo(card);
+    autoOpenMobilePreview();
     render();
 }
 
