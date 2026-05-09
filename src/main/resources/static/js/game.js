@@ -7941,6 +7941,18 @@ function updateSelectedInfo(card, msg) {
                 ? `<span style="color:var(--accent)">${escapeHtml(sieglingPlacementLockMessage())}</span>`
                 : '<span style="color:var(--accent)">Highlighted bubbles show where this card can expand next.</span>';
         }
+        // Stat line and ability/move details in the right panel (body hidden inside compact card).
+        const statLine = getCardSummaryStatLine(card);
+        if (statLine) {
+            html += `<div class="selected-copy-stats">${escapeHtml(statLine)}</div>`;
+        }
+        getCardPreviewEntries(card).forEach(entry => {
+            if (entry.html) {
+                html += `<div class="selected-copy-detail">${entry.html}</div>`;
+            } else {
+                html += `<div class="selected-copy-detail">${escapeHtml(entry.text)}</div>`;
+            }
+        });
         html += `</div>`;
         html += `</div>`;
     }
