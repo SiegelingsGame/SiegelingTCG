@@ -6987,51 +6987,89 @@ body.placement-active .board-cell.legal {
 
 .mulligan-hand-preview {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
     margin: 18px 0;
+    align-items: stretch;
+    justify-items: stretch;
 }
 
-.mulligan-card {
-    min-height: 132px;
-    padding: 12px;
-    border-radius: 16px;
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
-        rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+.mulligan-card-slot {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    padding: 6px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
-.mulligan-card[role="button"] {
+.mulligan-card-slot.is-interactive {
     cursor: pointer;
 }
 
-.mulligan-card-selected {
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55), 0 0 0 2px rgba(120, 200, 255, 0.5);
+.mulligan-card-slot.is-interactive:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.05);
 }
 
-.mulligan-card.fire:not(.mulligan-card-selected) { box-shadow: inset 0 0 0 1px rgba(255, 80, 30, 0.18); }
-.mulligan-card.earth:not(.mulligan-card-selected) { box-shadow: inset 0 0 0 1px rgba(180, 140, 80, 0.18); }
-.mulligan-card.wind:not(.mulligan-card-selected) { box-shadow: inset 0 0 0 1px rgba(150, 255, 180, 0.18); }
-.mulligan-card.water:not(.mulligan-card-selected) { box-shadow: inset 0 0 0 1px rgba(50, 150, 255, 0.18); }
-.mulligan-card.ice:not(.mulligan-card-selected) { box-shadow: inset 0 0 0 1px rgba(118, 230, 255, 0.22); }
-.mulligan-card.shadow:not(.mulligan-card-selected) { box-shadow: inset 0 0 0 1px rgba(120, 50, 180, 0.18); }
-.mulligan-card.electric:not(.mulligan-card-selected) { box-shadow: inset 0 0 0 1px rgba(255, 230, 60, 0.18); }
-
-.mulligan-card-name {
-    font-weight: bold;
-    margin-bottom: 6px;
+.mulligan-card-slot.is-interactive:focus-visible {
+    outline: 2px solid rgba(120, 200, 255, 0.85);
+    outline-offset: 2px;
 }
 
-.mulligan-card-type,
-.mulligan-card-text {
-    font-size: 0.78em;
-    color: var(--text-dim);
+.mulligan-card-slot.fire { box-shadow: inset 0 0 0 1px rgba(255, 80, 30, 0.22); }
+.mulligan-card-slot.earth { box-shadow: inset 0 0 0 1px rgba(180, 140, 80, 0.22); }
+.mulligan-card-slot.wind { box-shadow: inset 0 0 0 1px rgba(150, 255, 180, 0.22); }
+.mulligan-card-slot.water { box-shadow: inset 0 0 0 1px rgba(50, 150, 255, 0.22); }
+.mulligan-card-slot.ice { box-shadow: inset 0 0 0 1px rgba(118, 230, 255, 0.26); }
+.mulligan-card-slot.shadow { box-shadow: inset 0 0 0 1px rgba(160, 80, 220, 0.24); }
+.mulligan-card-slot.electric { box-shadow: inset 0 0 0 1px rgba(255, 230, 60, 0.22); }
+
+.mulligan-card-slot.is-selected {
+    background: rgba(220, 70, 70, 0.10);
+    border-color: rgba(255, 110, 110, 0.55);
+    box-shadow:
+        0 0 0 2px rgba(255, 110, 110, 0.65),
+        0 0 22px rgba(255, 90, 90, 0.28);
 }
 
-.mulligan-card-text {
-    margin-top: 8px;
-    line-height: 1.35;
+.mulligan-card-slot.is-selected .hand-card {
+    filter: grayscale(0.25) brightness(0.85);
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    aspect-ratio: auto;
+    min-height: 100%;
+    cursor: inherit;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase:hover {
+    transform: none;
+}
+
+.mulligan-redraw-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 6;
+    background: linear-gradient(180deg, rgba(255, 110, 110, 0.96), rgba(200, 50, 50, 0.96));
+    color: #fff;
+    font-size: 0.66em;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
 }
 
 @media (max-width: 900px) {
@@ -7070,7 +7108,8 @@ body.placement-active .board-cell.legal {
     }
 
     .mulligan-hand-preview {
-        grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
     }
 
     .builder-layout {
@@ -7582,7 +7621,7 @@ body.placement-active .board-cell.legal {
 
     .mulligan-hand-preview {
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        gap: 10px;
     }
 
     .trainer-ability-overlay {
@@ -7596,9 +7635,32 @@ body.placement-active .board-cell.legal {
         padding: 18px 16px 16px;
     }
 
-    .mulligan-card {
-        min-height: 112px;
-        padding: 10px;
+    .mulligan-card-slot {
+        padding: 4px;
+        border-radius: 14px;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase {
+        padding: 6px;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-title {
+        font-size: 0.9em;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview {
+        min-height: 96px;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview img {
+        max-height: 110px;
+    }
+
+    .mulligan-redraw-badge {
+        top: 6px;
+        right: 6px;
+        font-size: 0.58em;
+        padding: 3px 7px;
     }
 
     /* --- Top Bar shrink further --- */
@@ -8184,25 +8246,52 @@ body.placement-active .board-cell.legal {
     .mulligan-box { padding: 14px; }
 
     .mulligan-hand-preview {
-        grid-template-columns: repeat(5, minmax(96px, 1fr));
+        grid-template-columns: 1fr 1fr;
         gap: 8px;
         margin: 12px 0;
     }
 
-    .mulligan-card {
-        min-height: 92px;
-        padding: 8px;
+    .mulligan-card-slot {
+        padding: 3px;
+        border-radius: 12px;
     }
 
-    .mulligan-card-type,
-    .mulligan-card-text { font-size: 0.66em; }
+    .mulligan-card-slot .hand-card.mulligan-showcase {
+        padding: 5px;
+        gap: 4px;
+    }
 
-    .mulligan-card-text {
-        margin-top: 4px;
-        display: -webkit-box;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-        overflow: hidden;
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-title {
+        font-size: 0.82em;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-label,
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-detail,
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-cost,
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-ability-flavor {
+        font-size: 0.66em;
+        line-height: 1.25;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview {
+        min-height: 78px;
+        padding: 4px;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview img {
+        max-height: 96px;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .hand-card-body {
+        padding: 1px 1px 10px;
+        gap: 3px;
+    }
+
+    .mulligan-redraw-badge {
+        top: 5px;
+        right: 5px;
+        font-size: 0.54em;
+        padding: 2px 6px;
     }
 
     .mulligan-actions { justify-content: flex-end; }
