@@ -1,0 +1,60 @@
+{
+  "bootResult": {
+    "phase": "BATTLE",
+    "latestLogs": [
+      "[Turn 1 BATTLE] Pylook cannot find an ability it can afford.",
+      "[Turn 1 BATTLE] === BATTLE PHASE ===",
+      "[Turn 1 BATTLE] Both setup turns are complete. Entering battle phase. Energy restored!",
+      "[Turn 1 SETUP] AI casts Cinder Surge!",
+      "[Turn 1 SETUP] Cinder Surge deals 3 direct damage to Player!",
+      "[Turn 1 SETUP] AI places Pylook at row Middle col 0",
+      "[Turn 1 SETUP] AI Setup phase.",
+      "[Turn 1 DRAW] AI draws a card. (Hand: 6)"
+    ]
+  },
+  "battleEntry": {
+    "phase": "BATTLE",
+    "handHidden": false,
+    "handCards": 5,
+    "handTitle": "Hand Selector",
+    "battleButtonTitle": "View Hand",
+    "battleButtonText": "🃏",
+    "activeDrawer": null,
+    "pending": false,
+    "battleWaitingOn": null,
+    "latestLogs": [
+      "[Turn 1 BATTLE] Pylook cannot find an ability it can afford.",
+      "[Turn 1 BATTLE] === BATTLE PHASE ===",
+      "[Turn 1 BATTLE] Both setup turns are complete. Entering battle phase. Energy restored!",
+      "[Turn 1 SETUP] AI casts Cinder Surge!",
+      "[Turn 1 SETUP] Cinder Surge deals 3 direct damage to Player!",
+      "[Turn 1 SETUP] AI places Pylook at row Middle col 0",
+      "[Turn 1 SETUP] AI Setup phase.",
+      "[Turn 1 DRAW] AI draws a card. (Hand: 6)"
+    ]
+  },
+  "drawerOpen": true,
+  "afterViewHand": {
+    "drawerOpen": false,
+    "handHidden": false,
+    "handCards": 5
+  },
+  "afterOneAutoStep": {
+    "phase": "BATTLE",
+    "pending": false,
+    "battleWaitingOn": null,
+    "handHidden": false,
+    "latestLogs": [
+      "[Turn 1 BATTLE] Pylook cannot find an ability it can afford.",
+      "[Turn 1 BATTLE] Pylook cannot find an ability it can afford.",
+      "[Turn 1 BATTLE] === BATTLE PHASE ===",
+      "[Turn 1 BATTLE] Both setup turns are complete. Entering battle phase. Energy restored!",
+      "[Turn 1 SETUP] AI casts Cinder Surge!",
+      "[Turn 1 SETUP] Cinder Surge deals 3 direct damage to Player!",
+      "[Turn 1 SETUP] AI places Pylook at row Middle col 0",
+      "[Turn 1 SETUP] AI Setup phase."
+    ]
+  },
+  "errors": [],
+  "outDir": "A:/New folder/OneDrive/Desktop/Sieglings/sieglings-tcg/output/web-game/battle-pacing-focused"
+}

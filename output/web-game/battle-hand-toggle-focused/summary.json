@@ -1,0 +1,120 @@
+{
+  "initial": {
+    "phase": "BATTLE",
+    "pendingName": "Sundile",
+    "waitingOn": null,
+    "handTitle": "Battle Action",
+    "handHidden": true,
+    "handCards": 0,
+    "battlePanelHidden": false,
+    "battleButtons": 2,
+    "battleButtonLabels": [
+      "Deal 2 damage to 1 enemy",
+      "Pass this turn without using an ability. No energy cost."
+    ],
+    "utilityTitle": "View Hand",
+    "utilityText": "🃏",
+    "bodyTargeting": false,
+    "targetableCells": 0,
+    "topLog": [
+      "[Turn 3 BATTLE] Echo Strike deals 4 damage to Sundile (HP: 2)",
+      "[Turn 3 BATTLE] Echo uses Echo Strike.",
+      "[Turn 3 BATTLE] === BATTLE PHASE ===",
+      "[Turn 3 BATTLE] Both setup turns are complete. Entering battle phase. Energy restored!"
+    ]
+  },
+  "hand": {
+    "phase": "BATTLE",
+    "pendingName": "Sundile",
+    "waitingOn": null,
+    "handTitle": "Hand Selector",
+    "handHidden": false,
+    "handCards": 7,
+    "battlePanelHidden": true,
+    "battleButtons": 2,
+    "battleButtonLabels": [
+      "Deal 2 damage to 1 enemy",
+      "Pass this turn without using an ability. No energy cost."
+    ],
+    "utilityTitle": "View Battle Action",
+    "utilityText": "⚔",
+    "bodyTargeting": false,
+    "targetableCells": 0,
+    "topLog": [
+      "[Turn 3 BATTLE] Echo Strike deals 4 damage to Sundile (HP: 2)",
+      "[Turn 3 BATTLE] Echo uses Echo Strike.",
+      "[Turn 3 BATTLE] === BATTLE PHASE ===",
+      "[Turn 3 BATTLE] Both setup turns are complete. Entering battle phase. Energy restored!"
+    ]
+  },
+  "restored": {
+    "phase": "BATTLE",
+    "pendingName": "Sundile",
+    "waitingOn": null,
+    "handTitle": "Battle Action",
+    "handHidden": true,
+    "handCards": 7,
+    "battlePanelHidden": false,
+    "battleButtons": 2,
+    "battleButtonLabels": [
+      "Deal 2 damage to 1 enemy",
+      "Pass this turn without using an ability. No energy cost."
+    ],
+    "utilityTitle": "View Hand",
+    "utilityText": "🃏",
+    "bodyTargeting": false,
+    "targetableCells": 0,
+    "topLog": [
+      "[Turn 3 BATTLE] Echo Strike deals 4 damage to Sundile (HP: 2)",
+      "[Turn 3 BATTLE] Echo uses Echo Strike.",
+      "[Turn 3 BATTLE] === BATTLE PHASE ===",
+      "[Turn 3 BATTLE] Both setup turns are complete. Entering battle phase. Energy restored!"
+    ]
+  },
+  "targeting": {
+    "phase": "BATTLE",
+    "pendingName": "Sundile",
+    "waitingOn": null,
+    "handTitle": "Battle Action",
+    "handHidden": true,
+    "handCards": 7,
+    "battlePanelHidden": false,
+    "battleButtons": 2,
+    "battleButtonLabels": [
+      "Deal 2 damage to 1 enemy",
+      "Pass this turn without using an ability. No energy cost."
+    ],
+    "utilityTitle": "View Hand",
+    "utilityText": "🃏",
+    "bodyTargeting": true,
+    "targetableCells": 3,
+    "topLog": [
+      "[Turn 3 BATTLE] Echo Strike deals 4 damage to Sundile (HP: 2)",
+      "[Turn 3 BATTLE] Echo uses Echo Strike.",
+      "[Turn 3 BATTLE] === BATTLE PHASE ===",
+      "[Turn 3 BATTLE] Both setup turns are complete. Entering battle phase. Energy restored!"
+    ]
+  },
+  "afterAttack": {
+    "phase": "BATTLE",
+    "pendingName": null,
+    "waitingOn": null,
+    "handTitle": "Battle Action",
+    "handHidden": true,
+    "handCards": 7,
+    "battlePanelHidden": false,
+    "battleButtons": 0,
+    "battleButtonLabels": [],
+    "utilityTitle": "View Hand",
+    "utilityText": "🃏",
+    "bodyTargeting": false,
+    "targetableCells": 0,
+    "topLog": [
+      "[Turn 3 BATTLE] Sundile Strike deals 2 damage to Fawny (HP: 10)",
+      "[Turn 3 BATTLE] Sundile uses Sundile Strike.",
+      "[Turn 3 BATTLE] Echo Strike deals 4 damage to Sundile (HP: 2)",
+      "[Turn 3 BATTLE] Echo uses Echo Strike."
+    ]
+  },
+  "errors": []
+}

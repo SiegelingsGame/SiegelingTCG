@@ -1,0 +1,44 @@
+{
+  "href": "http://127.0.0.1:8080/css/style.css?v=78",
+  "src": "http://127.0.0.1:8080/js/game.js?v=89",
+  "topEnemyDisplay": "none",
+  "topPlayerDisplay": "none",
+  "energyDetailDisplay": "none",
+  "mobileHudDisplay": "grid",
+  "mobileStatDisplay": "block",
+  "enemyRailDisplay": "none",
+  "playerRailDisplay": "none",
+  "desktopMenuWidth": 390,
+  "mobileHudRect": {
+    "top": 28,
+    "bottom": 88,
+    "width": 390,
+    "height": 60
+  },
+  "statRect": {
+    "top": 626,
+    "bottom": 844,
+    "width": 390,
+    "height": 218
+  },
+  "battlefieldRect": {
+    "top": 88,
+    "bottom": 455,
+    "width": 390,
+    "height": 367
+  },
+  "mobilePhase": "DRAW",
+  "mobileTurn": "T3",
+  "mobileEnemyName": "AI Opponent",
+  "mobilePlayerName": "Siegler_99",
+  "mobileEnemyCounts": "H:4 D:28",
+  "mobilePlayerCounts": "H:6 D:22",
+  "enemyTabClass": "stat-tab",
+  "playerTabClass": "stat-tab active-player",
+  "enemySheetHidden": true,
+  "playerSheetHidden": false,
+  "enemySheetText": "🔥 Pyro Warlord Fire - Blaze Aura +2 dmg Hand 4 Deck 28 Fire 3 Water 2 Shadow 1 Electric 1",
+  "playerSheetText": "🌬 Thornguard Rex Wind - Shield Wall passive Hand 6 Deck 22 Fire 5 Earth 2 Wind 1 Water 1",
+  "drawText": "🃏 Draw",
+  "knightText": "⚔ Knight"
+}

@@ -1,0 +1,6 @@
+[
+  {
+    "type": "pageerror",
+    "text": "Uncaught TypeError: Cannot read properties of undefined (reading 'autoPlacement')"
+  }
+]

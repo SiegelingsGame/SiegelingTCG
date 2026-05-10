@@ -1,0 +1,21 @@
+{
+  "phase": "BATTLE",
+  "pendingName": null,
+  "waitingOn": null,
+  "handTitle": "Battle Action",
+  "handHidden": true,
+  "handCards": 7,
+  "battlePanelHidden": false,
+  "battleButtons": 0,
+  "battleButtonLabels": [],
+  "utilityTitle": "View Hand",
+  "utilityText": "🃏",
+  "bodyTargeting": false,
+  "targetableCells": 0,
+  "topLog": [
+    "[Turn 3 BATTLE] Sundile Strike deals 2 damage to Fawny (HP: 10)",
+    "[Turn 3 BATTLE] Sundile uses Sundile Strike.",
+    "[Turn 3 BATTLE] Echo Strike deals 4 damage to Sundile (HP: 2)",
+    "[Turn 3 BATTLE] Echo uses Echo Strike."
+  ]
+}

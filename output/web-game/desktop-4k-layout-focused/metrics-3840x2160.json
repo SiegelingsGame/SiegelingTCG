@@ -1,0 +1,109 @@
+{
+  "metrics": {
+    "viewport": {
+      "width": 3840,
+      "height": 2160
+    },
+    "cssVars": {
+      "sidebar": "1309px",
+      "hudRail": "634px",
+      "arena": "1147px",
+      "boardMax": "620px",
+      "handCard": "235px",
+      "handSection": "400px"
+    },
+    "shell": {
+      "x": 0,
+      "y": 36,
+      "width": 3840,
+      "height": 2124,
+      "right": 3840,
+      "bottom": 2160
+    },
+    "enemyRail": {
+      "x": 22,
+      "y": 58,
+      "width": 634,
+      "height": 2080,
+      "right": 656,
+      "bottom": 2138
+    },
+    "battlefield": {
+      "x": 680,
+      "y": 58,
+      "width": 1147,
+      "height": 2080,
+      "right": 1827,
+      "bottom": 2138
+    },
+    "board": {
+      "x": 944,
+      "y": 255,
+      "width": 620,
+      "height": 834,
+      "right": 1564,
+      "bottom": 1089
+    },
+    "playerRail": {
+      "x": 1851,
+      "y": 58,
+      "width": 634,
+      "height": 2080,
+      "right": 2485,
+      "bottom": 2138
+    },
+    "desktopMenu": {
+      "x": 2509,
+      "y": 58,
+      "width": 1309,
+      "height": 2080,
+      "right": 3818,
+      "bottom": 2138
+    },
+    "handRail": {
+      "x": 2543,
+      "y": 1654,
+      "width": 1241,
+      "height": 350,
+      "right": 3784,
+      "bottom": 2004
+    },
+    "firstFiveCards": [
+      {
+        "x": 2545,
+        "width": 235,
+        "right": 2780,
+        "fullyVisible": true
+      },
+      {
+        "x": 2796,
+        "width": 235,
+        "right": 3031,
+        "fullyVisible": true
+      },
+      {
+        "x": 3047,
+        "width": 235,
+        "right": 3282,
+        "fullyVisible": true
+      },
+      {
+        "x": 3298,
+        "width": 235,
+        "right": 3533,
+        "fullyVisible": true
+      },
+      {
+        "x": 3549,
+        "width": 235,
+        "right": 3784,
+        "fullyVisible": true
+      }
+    ],
+    "firstFiveFullyVisible": true,
+    "errorsOnPage": []
+  },
+  "consoleEvents": [
+    "pageerror: Cannot read properties of undefined (reading 'autoPlacement')"
+  ]
+}
