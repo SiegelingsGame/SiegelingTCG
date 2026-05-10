@@ -4229,7 +4229,11 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     const prevState = gameState;
     gameState = data;
     if (endpoint !== 'new' && prevState) {
-        window.SieglingsFx?.onBoardUpdate(prevState, data);
+        if (window.SieglingsActionQueue) {
+            window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
+        } else {
+            window.SieglingsFx?.onBoardUpdate(prevState, data);
+        }
     }
     try {
         render();
@@ -4340,6 +4344,7 @@ function openLoadoutSelector() {
     clearMultiplayerSession();
     clearExternalSocketElementMemory();
     cancelBattleAutoAdvance();
+    window.SieglingsActionQueue?.clear();
     gameState = null;
     lastRenderedPhase = null;
     if (phaseTransitionTimer) {
