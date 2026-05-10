@@ -7218,14 +7218,24 @@ function renderMulliganOverlay() {
     }
 
     preview.innerHTML = hand.map((card, index) => {
-        const selected = mulliganSelectedIndices.has(index) ? ' mulligan-card-selected' : '';
-        const interactive = gameState.mulligan.youPending ? ' role="button" tabindex="0"' : '';
-        const click = gameState.mulligan.youPending ? ` onclick="toggleMulliganCard(${index})"` : '';
+        const isSelected = mulliganSelectedIndices.has(index);
+        const interactive = gameState.mulligan.youPending;
+        const slotClasses = [
+            'mulligan-card-slot',
+            (card.element || 'NEUTRAL').toLowerCase(),
+            isSelected ? 'is-selected' : '',
+            interactive ? 'is-interactive' : ''
+        ].filter(Boolean).join(' ');
+        const role = interactive ? ' role="button" tabindex="0" aria-pressed="' + (isSelected ? 'true' : 'false') + '"' : '';
+        const click = interactive ? ` onclick="toggleMulliganCard(${index})"` : '';
+        const showcase = renderShowcaseCard(card, { artVariant: 'preview', cardClass: 'mulligan-showcase' });
+        const badge = isSelected
+            ? `<div class="mulligan-redraw-badge" aria-hidden="true">Redraw</div>`
+            : '';
         return `
-        <div class="mulligan-card ${card.element.toLowerCase()}${selected}"${interactive}${click}>
-            <div class="mulligan-card-name">${escapeHtml(card.name)}</div>
-            <div class="mulligan-card-type">${escapeHtml(formatElementLabel(card.element))} ${escapeHtml(card.type)}</div>
-            <div class="mulligan-card-text">${escapeHtml(card.ability?.description || getBuilderCardSummaryText(card))}</div>
+        <div class="${slotClasses}" data-index="${index}"${role}${click}>
+            ${badge}
+            ${showcase}
         </div>`;
     }).join('');
 }
