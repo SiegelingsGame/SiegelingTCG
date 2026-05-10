@@ -60,6 +60,9 @@ const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
+const BATTLE_AUTO_ADVANCE_DELAY_MS = 1550;
+let battleAutoAdvanceTimer = null;
+let battleAutoAdvanceInFlight = false;
 let welcomeSlideIndex = 0;
 let welcomeDismissed = false;
 const LEADERBOARD_STORAGE_KEY = 'sieglings_leaderboards_v1';
@@ -2288,6 +2291,18 @@ function closeCardInspector(event) {
     if (overlay) overlay.classList.add('hidden');
 }
 
+function closeCardPreviewSurfaces() {
+    if (activeDrawer === 'selected') {
+        closeDrawer();
+    }
+    closeCardInspector();
+    const floatPreview = document.getElementById('cardPreviewFloat');
+    if (floatPreview) {
+        floatPreview.classList.add('hidden');
+        floatPreview.innerHTML = '';
+    }
+}
+
 function canUseTrainerAbility(trainer = gameState?.player?.trainer) {
     return Boolean(
         trainer
@@ -3754,7 +3769,7 @@ function isOpeningPlacementOnlyTurn() {
 }
 
 function isHandHiddenForPhase() {
-    return Boolean(gameState && gameState.currentPhase === 'BATTLE');
+    return false;
 }
 
 function isPlacementSelectionActive() {
@@ -4086,10 +4101,11 @@ function applyInteractionState() {
     const targetingActive = Boolean(targetMode && targetContext);
     const placementActive = isPlacementSelectionActive();
     const handHidden = isHandHiddenForPhase();
+    const battlePhaseActive = Boolean(gameState && gameState.currentPhase === 'BATTLE');
 
     body.classList.toggle('targeting-active', targetingActive);
     body.classList.toggle('placement-active', placementActive);
-    body.classList.toggle('battle-phase-active', handHidden);
+    body.classList.toggle('battle-phase-active', battlePhaseActive);
 
     boardArea?.classList.toggle('targeting-active', targetingActive);
     boardArea?.classList.toggle('placement-active', placementActive);
@@ -4133,6 +4149,50 @@ function resetInteractionState(shouldRender = true) {
     if (shouldRender) {
         render();
     }
+}
+
+function cancelBattleAutoAdvance() {
+    if (battleAutoAdvanceTimer != null) {
+        window.clearTimeout(battleAutoAdvanceTimer);
+        battleAutoAdvanceTimer = null;
+    }
+}
+
+function shouldAutoAdvanceBattle() {
+    return Boolean(
+        gameState
+        && gameState.currentPhase === 'BATTLE'
+        && !gameState.gameOver
+        && !gameState.pendingBattle
+        && !gameState.battleWaitingOn
+        && (!gameState.multiplayer || gameState.viewerSide === 'PLAYER')
+        && !isBattleTargetSelectionActive()
+    );
+}
+
+function scheduleBattleAutoAdvance() {
+    if (!shouldAutoAdvanceBattle()) {
+        cancelBattleAutoAdvance();
+        return;
+    }
+    if (battleAutoAdvanceTimer != null || battleAutoAdvanceInFlight) {
+        return;
+    }
+    battleAutoAdvanceTimer = window.setTimeout(async () => {
+        battleAutoAdvanceTimer = null;
+        if (!shouldAutoAdvanceBattle()) {
+            return;
+        }
+        battleAutoAdvanceInFlight = true;
+        try {
+            await api('battle');
+        } finally {
+            battleAutoAdvanceInFlight = false;
+            if (shouldAutoAdvanceBattle()) {
+                scheduleBattleAutoAdvance();
+            }
+        }
+    }, BATTLE_AUTO_ADVANCE_DELAY_MS);
 }
 
 async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
@@ -4261,6 +4321,7 @@ async function loadGameOptions() {
 
 async function newGame() {
     clearMultiplayerSession();
+    cancelBattleAutoAdvance();
     selectedCard = null;
     selectedHandIndex = null;
     clearTargetMode();
@@ -4277,6 +4338,7 @@ async function newGame() {
 function openLoadoutSelector() {
     clearMultiplayerSession();
     clearExternalSocketElementMemory();
+    cancelBattleAutoAdvance();
     gameState = null;
     lastRenderedPhase = null;
     if (phaseTransitionTimer) {
@@ -5074,6 +5136,13 @@ function openBattlePanel(forceOpen = false) {
     openDrawer('battle');
 }
 
+function viewHandDuringBattle() {
+    closeDrawer();
+    setDesktopBattleDrawerOpen(false);
+    stopHandSelectorAutoScroll();
+    document.getElementById('playerHand')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
 async function endTurn() {
     selectedCard = null;
     selectedHandIndex = null;
@@ -5091,6 +5160,7 @@ async function placeCard(row, col) {
     window.SieglingsSounds?.play('place');
     const data = await api('place', 'POST', { cardId: selectedCard.id, row, col });
     if (!data) return;
+    closeCardPreviewSurfaces();
     resetInteractionState();
 }
 
@@ -5219,12 +5289,16 @@ function renderDomLegacy() {
     btnBattle.classList.toggle('ab-urgent', playerBattlePending);
     if (btnBattlePanel) {
         const panelTitle = phase === 'BATTLE'
-            ? 'Battle Action'
+            ? 'View Hand'
             : getSelectedBattlePreviewCard()
-            ? 'Preview selected card abilities'
-            : 'Preview Siegling battle abilities';
+                ? 'Preview selected card abilities'
+                : 'Preview Siegling battle abilities';
+        btnBattlePanel.innerHTML = phase === 'BATTLE' ? '&#127183;' : '&#9876;';
         btnBattlePanel.title = panelTitle;
         btnBattlePanel.setAttribute('aria-label', panelTitle);
+        btnBattlePanel.onclick = phase === 'BATTLE'
+            ? viewHandDuringBattle
+            : () => openBattlePanel();
     }
 
     // Highlight the active phase button
@@ -5272,6 +5346,7 @@ function renderDomLegacy() {
     renderLog();
     renderBattlePanel();
     renderRowSelectBattleOverlay();
+    scheduleBattleAutoAdvance();
     if (isDesktopSidebarLayout() && isHandHiddenForPhase() && activeDrawer === 'battle') {
         closeDrawer(true);
     }
@@ -6864,19 +6939,7 @@ function renderHand() {
     const handTitle = document.getElementById('desktopHandSectionTitle');
     const battlePanel = document.getElementById('desktopHandBattlePanel');
     if (handTitle) {
-        handTitle.textContent = isHandHiddenForPhase() ? 'Battle Action' : 'Hand Selector';
-    }
-    if (isHandHiddenForPhase()) {
-        if (handTray) {
-            handTray.classList.add('battle-queue-mode');
-        }
-        if (container) {
-            container.classList.add('hidden');
-        }
-        if (battlePanel) {
-            battlePanel.classList.remove('hidden');
-        }
-        return;
+        handTitle.textContent = 'Hand Selector';
     }
     if (handTray) {
         handTray.classList.remove('battle-queue-mode');

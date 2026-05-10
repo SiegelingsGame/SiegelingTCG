@@ -645,6 +645,7 @@ public class GameService {
 
     private void completeBattleIfFinished(GameState state) {
         if (state == null) return;
+        if (state.isBattleActionPausePending()) return;
         if (state.isGameOver()) {
             state.clearBattleState();
             return;
