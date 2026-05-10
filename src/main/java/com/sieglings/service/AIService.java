@@ -84,9 +84,7 @@ public class AIService {
                     instance.setPlacementOrder(state.consumePlacementOrder());
                 }
                 state.setAt(false, chosen[0], chosen[1], instance);
-                if (!evolutionPlacement) {
-                    state.recordSieglingSetupActionConsumed(false);
-                }
+                state.recordSieglingSetupActionConsumed(false);
                 state.getEnemy().removeFromHand(card);
                 if (evolutionPlacement && existing != null) {
                     state.log("AI evolves " + existing.getName() + " into " + siegling.getName()

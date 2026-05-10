@@ -354,10 +354,7 @@ function sieglingPlacementLockMessage() {
 }
 
 function isPlacementBudgetLockedForCard(card) {
-    return Boolean(
-        gameState?.playerPlacementUsed
-        && !(card?.type === 'SIEGLING' && card?.evolvesFromId)
-    );
+    return Boolean(gameState?.playerPlacementUsed);
 }
 const CARD_ART_BY_KEY = Object.freeze({
     sundile: { url: '/assets/cards/sundile.svg' },
