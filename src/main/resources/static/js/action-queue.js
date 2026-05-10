@@ -190,6 +190,71 @@
         setTimeout(() => card.classList.remove('sgl-impact'), 360);
     }
 
+    function spawnGhost(isPlayer, row, col, cell, knightHex, elementHexValue) {
+        if (!cell) return null;
+        const cellEl = findCellEl(isPlayer, row, col);
+        if (!cellEl) return null;
+        const rect = cellEl.getBoundingClientRect();
+        if (!rect || rect.width === 0 || rect.height === 0) return null;
+        const elementKey = String(cell.element || 'NEUTRAL').toLowerCase();
+        const knight = knightHex || ELEMENT_HEX.NEUTRAL;
+        const elHex  = elementHexValue || knight;
+        const maxHp = Number(cell.maxHp) || 0;
+        const hp    = Math.max(0, Number(cell.hp) || 0);
+        const pct   = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 100;
+
+        const ghost = document.createElement('div');
+        ghost.className = `sgl-death-ghost el-${elementKey}`;
+        ghost.style.position = 'fixed';
+        ghost.style.left = `${rect.left}px`;
+        ghost.style.top = `${rect.top}px`;
+        ghost.style.width = `${rect.width}px`;
+        ghost.style.height = `${rect.height}px`;
+        ghost.style.setProperty('--sgl-knight', knight);
+        ghost.style.setProperty('--sgl-element', elHex);
+        ghost.style.setProperty('--sgl-knight-soft', hexWithAlpha(knight, 0.28));
+        ghost.style.setProperty('--sgl-knight-glow', hexWithAlpha(knight, 0.6));
+        ghost.innerHTML = `
+            <div class="sgl-ghost-inner">
+                <div class="sgl-ghost-name">${escapeHtml(cell.name || '')}</div>
+                <div class="sgl-ghost-hp"><div class="sgl-ghost-hp-fill" style="width:${pct}%"></div></div>
+                <div class="sgl-ghost-sigil">${elementSigil(cell.element)}</div>
+            </div>
+        `;
+        document.body.appendChild(ghost);
+
+        const reposition = () => {
+            const r = cellEl.getBoundingClientRect();
+            if (!r) return;
+            ghost.style.left = `${r.left}px`;
+            ghost.style.top = `${r.top}px`;
+            ghost.style.width = `${r.width}px`;
+            ghost.style.height = `${r.height}px`;
+        };
+        window.addEventListener('resize', reposition);
+        const scrollHandler = () => reposition();
+        window.addEventListener('scroll', scrollHandler, true);
+        ghost._cleanup = () => {
+            window.removeEventListener('resize', reposition);
+            window.removeEventListener('scroll', scrollHandler, true);
+        };
+        return ghost;
+    }
+
+    function destroyGhost(ghost, elementHexValue, durationMs) {
+        if (!ghost) return Promise.resolve();
+        ghost.style.setProperty('--sgl-impact-color', elementHexValue || ELEMENT_HEX.NEUTRAL);
+        ghost.classList.add('sgl-destroying');
+        const dur = Math.max(180, durationMs || 540);
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                try { ghost._cleanup && ghost._cleanup(); } catch (_) {}
+                if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+                resolve();
+            }, dur);
+        });
+    }
+
     // ── Diff helpers ──────────────────────────────────────────────────────────
     function normalizeElement(element) {
         const v = String(element || '').trim().toUpperCase();
@@ -274,6 +339,28 @@
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
                         instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                    });
+                }
+            }
+        }
+        return out;
+    }
+    function diffDestructions(prev, next, isPlayer) {
+        const out = [];
+        if (!prev) return out;
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const p = prev[r]?.[c];
+                if (!p) continue;
+                const n = next?.[r]?.[c];
+                const pid = String(p.instanceId || p.id || '');
+                const nid = String(n?.instanceId || n?.id || '');
+                if (!n || (pid && nid && pid !== nid)) {
+                    out.push({
+                        isPlayer, row: r, col: c, cell: p,
+                        instanceId: pid,
+                        element: normalizeElement(p.element),
+                        name: p.name || ''
                     });
                 }
             }
@@ -409,6 +496,19 @@
             const damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true);
             const damageOnEnemy  = diffDamage(prevEnemy,  nextEnemy,  false);
 
+            // Destruction events (cards that no longer exist). Paired with attacks
+            // below so the killed card stays visible until the projectile lands.
+            const destructionsOnPlayer = diffDestructions(prevPlayer, nextPlayer, true);
+            const destructionsOnEnemy  = diffDestructions(prevEnemy,  nextEnemy,  false);
+            const matchDestruction = (list, t) => {
+                const idx = list.findIndex((d) =>
+                    d.row === t.row && d.col === t.col
+                    && (!t.instanceId || !d.instanceId || d.instanceId === t.instanceId)
+                );
+                if (idx === -1) return null;
+                return list.splice(idx, 1)[0];
+            };
+
             for (const t of damageOnEnemy) {
                 const src = findCellOnBoard(prevPlayer, () => true);
                 const pending = prevState.pendingBattle;
@@ -418,6 +518,7 @@
                         : null)
                     || src;
                 const srcElement = normalizeElement(pending?.element || srcCell?.cell?.element) || playerKnight;
+                const destroyed = matchDestruction(destructionsOnEnemy, t);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side: 'PLAYER',
@@ -427,12 +528,15 @@
                     knightElement: playerKnight,
                     elementColor: srcElement,
                     source: srcCell ? { isPlayer: true, row: srcCell.row, col: srcCell.col } : null,
-                    target: { isPlayer: false, row: t.row, col: t.col, element: t.element || srcElement }
+                    target: { isPlayer: false, row: t.row, col: t.col, element: t.element || srcElement },
+                    destroysTarget: !!destroyed,
+                    ghostCell: destroyed?.cell || null
                 });
             }
             for (const t of damageOnPlayer) {
                 const src = findCellOnBoard(prevEnemy, () => true);
                 const srcElement = normalizeElement(src?.cell?.element) || enemyKnight;
+                const destroyed = matchDestruction(destructionsOnPlayer, t);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side: 'ENEMY',
@@ -442,9 +546,30 @@
                     knightElement: enemyKnight,
                     elementColor: srcElement,
                     source: src ? { isPlayer: false, row: src.row, col: src.col } : null,
-                    target: { isPlayer: true, row: t.row, col: t.col, element: t.element || srcElement }
+                    target: { isPlayer: true, row: t.row, col: t.col, element: t.element || srcElement },
+                    destroysTarget: !!destroyed,
+                    ghostCell: destroyed?.cell || null
                 });
             }
+
+            // Unpaired destructions (e.g. effect damage, end-of-turn cleanup) →
+            // standalone DESTROY action that shows a ghost + fade-out.
+            const queueDestruction = (d, side, knight) => {
+                const el = normalizeElement(d.cell?.element) || knight;
+                this.enqueueAction({
+                    kind: 'DESTROY',
+                    side,
+                    actorName: d.name || 'Card',
+                    knightElement: knight,
+                    elementColor: el,
+                    label: 'Destroyed',
+                    source: { isPlayer: d.isPlayer, row: d.row, col: d.col },
+                    target: { isPlayer: d.isPlayer, row: d.row, col: d.col, element: el },
+                    ghostCell: d.cell
+                });
+            };
+            for (const d of destructionsOnPlayer) queueDestruction(d, 'ENEMY', enemyKnight);
+            for (const d of destructionsOnEnemy)  queueDestruction(d, 'PLAYER', playerKnight);
 
             // Ability/use lines from the log → ABILITY toasts (skip ones already covered by damage)
             const newLogs = getNewLogEntries(prevState, nextState);
@@ -564,6 +689,17 @@
             const fireProjectile = action.kind === 'ATTACK' && action.source && action.target
                 && window.SieglingsFx?.attackCell;
             if (fireProjectile) {
+                // If this hit destroys the target, materialize a ghost copy so
+                // the now-empty cell still has something to be hit by the
+                // projectile + impact animation.
+                let ghost = null;
+                if (action.destroysTarget && action.ghostCell) {
+                    ghost = spawnGhost(
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        action.ghostCell, knight, elColor
+                    );
+                }
+
                 window.SieglingsFx.attackCell(
                     action.source.isPlayer,
                     action.source.row,
@@ -577,7 +713,11 @@
                 await sleep(t.projectileMs);
 
                 // 4. Impact: hit flash on target + floating damage + screen shake
-                if (action.target) {
+                if (ghost) {
+                    ghost.style.setProperty('--sgl-impact-color', elColor);
+                    ghost.classList.add('sgl-ghost-impact');
+                    setTimeout(() => ghost.classList.remove('sgl-ghost-impact'), 320);
+                } else if (action.target) {
                     flashImpact(action.target.isPlayer, action.target.row, action.target.col, elColor);
                 }
                 if (action.amount && window.SieglingsFx?.floatingDamage) {
@@ -591,6 +731,25 @@
                     window.SieglingsFx.cameraShake(shake, t.impactMs);
                 }
                 await sleep(t.impactMs);
+
+                if (ghost) {
+                    // Destruction animation, then remove the ghost.
+                    await destroyGhost(ghost, elColor, 520);
+                }
+            } else if (action.kind === 'DESTROY' && action.target && action.ghostCell) {
+                // Standalone destruction (no projectile / no attacker we can locate).
+                const ghost = spawnGhost(
+                    action.target.isPlayer, action.target.row, action.target.col,
+                    action.ghostCell, knight, elColor
+                );
+                if (window.SieglingsFx?.impactAt) {
+                    window.SieglingsFx.impactAt(
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        action.elementColor || action.knightElement
+                    );
+                }
+                await sleep(Math.round(t.impactMs * 0.6));
+                await destroyGhost(ghost, elColor, 520);
             } else if (action.kind === 'ABILITY' && action.source) {
                 // Ability without explicit target → small impact ring on caster
                 if (window.SieglingsFx?.impactAt) {
