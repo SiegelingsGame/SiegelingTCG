@@ -8461,3 +8461,241 @@ body.placement-active .board-cell.legal {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--surface-light); border-radius: 3px; }
+
+/* ============================================================
+   Real-time Playback System (action queue + toasts)
+   ============================================================ */
+.sgl-toast-stack {
+    position: fixed;
+    top: clamp(96px, 16vh, 168px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 740;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+    width: min(560px, 92vw);
+}
+
+.sgl-toast {
+    --sgl-knight: #95a5a6;
+    --sgl-knight-soft: rgba(149, 165, 166, 0.22);
+    --sgl-knight-glow: rgba(149, 165, 166, 0.55);
+    --sgl-element: #ffffff;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-radius: 14px;
+    border: 1px solid var(--sgl-knight);
+    background:
+        linear-gradient(180deg, rgba(8, 12, 22, 0.92), rgba(14, 20, 36, 0.96)),
+        radial-gradient(circle at 12% 50%, var(--sgl-knight-soft), transparent 60%);
+    box-shadow:
+        0 12px 30px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+        0 0 26px var(--sgl-knight-soft);
+    color: #f4f6fb;
+    opacity: 0;
+    transform: translateY(-12px) scale(0.97);
+    transition: opacity 0.22s ease, transform 0.24s ease;
+    pointer-events: none;
+}
+.sgl-toast.visible { opacity: 1; transform: translateY(0) scale(1); }
+.sgl-toast.leaving { opacity: 0; transform: translateY(-6px) scale(0.98); }
+
+.sgl-toast.sgl-toast-enemy { flex-direction: row-reverse; text-align: right; }
+
+.sgl-toast-portrait {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: radial-gradient(circle, var(--sgl-knight-soft), rgba(0, 0, 0, 0.4));
+    border: 1px solid var(--sgl-knight);
+    box-shadow: 0 0 14px var(--sgl-knight-glow);
+    font-size: 22px;
+}
+.sgl-toast-sigil {
+    filter: drop-shadow(0 0 6px var(--sgl-knight-glow));
+}
+.sgl-toast-body { flex: 1 1 auto; min-width: 0; }
+.sgl-toast-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 0.96rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+.sgl-toast.sgl-toast-enemy .sgl-toast-line { justify-content: flex-end; }
+.sgl-toast-actor {
+    color: var(--sgl-knight);
+    text-shadow: 0 0 10px var(--sgl-knight-glow);
+    font-weight: 800;
+}
+.sgl-toast-action {
+    color: rgba(220, 230, 248, 0.84);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+.sgl-toast-target {
+    color: #fff;
+    font-weight: 700;
+}
+.sgl-toast-damage {
+    margin-left: 6px;
+    font-size: 1.15rem;
+    font-weight: 900;
+    text-shadow:
+        0 0 10px var(--sgl-element),
+        0 0 18px var(--sgl-element);
+}
+.sgl-toast-sub {
+    font-size: 0.78rem;
+    color: rgba(220, 230, 248, 0.6);
+    margin-top: 2px;
+}
+
+@media (max-width: 720px) {
+    .sgl-toast-stack { top: calc(58px + env(safe-area-inset-top, 0px)); width: 96vw; }
+    .sgl-toast { padding: 8px 12px; gap: 9px; border-radius: 11px; }
+    .sgl-toast-portrait { width: 32px; height: 32px; flex-basis: 32px; font-size: 18px; }
+    .sgl-toast-line { font-size: 0.86rem; }
+    .sgl-toast-damage { font-size: 1rem; }
+}
+
+/* Card pulse / scale on action ----------------------------------------- */
+.board-card.sgl-acting {
+    --sgl-pulse-color: #ffffff;
+    --sgl-pulse-glow: rgba(255, 255, 255, 0.6);
+    transform: scale(1.08);
+    box-shadow:
+        0 0 0 2px var(--sgl-pulse-color),
+        0 0 22px 6px var(--sgl-pulse-glow),
+        0 0 44px 12px var(--sgl-pulse-glow);
+    transition: transform 240ms cubic-bezier(0.2, 0.8, 0.3, 1.4),
+                box-shadow 240ms ease;
+    z-index: 6;
+    position: relative;
+}
+.board-card {
+    transition: transform 220ms ease, box-shadow 220ms ease;
+}
+.board-card.sgl-acting-attack { animation: sgl-attack-lunge 360ms cubic-bezier(0.4, 0, 0.6, 1); }
+.board-card.sgl-acting-play   { animation: sgl-play-slide 420ms cubic-bezier(0.2, 0.8, 0.3, 1); }
+
+@keyframes sgl-attack-lunge {
+    0%   { transform: scale(1.02) translateY(0); }
+    35%  { transform: scale(1.1)  translateY(-6px); }
+    55%  { transform: scale(1.12) translateY(-3px); }
+    100% { transform: scale(1.08) translateY(0); }
+}
+@keyframes sgl-play-slide {
+    0%   { transform: scale(0.6) translateY(28px); opacity: 0.4; }
+    60%  { transform: scale(1.12) translateY(-2px); opacity: 1; }
+    100% { transform: scale(1.08) translateY(0); opacity: 1; }
+}
+
+/* Hit flash on impact -------------------------------------------------- */
+.board-card.sgl-impact {
+    --sgl-impact-color: #ffffff;
+    animation: sgl-impact-flash 320ms ease-out;
+}
+@keyframes sgl-impact-flash {
+    0%   { filter: brightness(1) drop-shadow(0 0 0 transparent); transform: translate(0, 0); }
+    20%  { filter: brightness(2.4) drop-shadow(0 0 14px var(--sgl-impact-color)); transform: translate(2px, -2px); }
+    40%  { filter: brightness(1.4) drop-shadow(0 0 10px var(--sgl-impact-color)); transform: translate(-3px, 1px); }
+    65%  { filter: brightness(1.2) drop-shadow(0 0 8px var(--sgl-impact-color));  transform: translate(2px, 2px); }
+    100% { filter: brightness(1)   drop-shadow(0 0 0 transparent); transform: translate(0, 0); }
+}
+
+/* Opponent "thinking" indicator --------------------------------------- */
+.sgl-thinking-indicator {
+    --sgl-knight: #c896ff;
+    position: fixed;
+    top: clamp(60px, 10vh, 110px);
+    right: 18px;
+    z-index: 735;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(10, 16, 28, 0.92), rgba(14, 20, 36, 0.96));
+    border: 1px solid var(--sgl-knight);
+    color: #f4f6fb;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42), 0 0 22px rgba(200, 150, 255, 0.18);
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.2s ease, transform 0.22s ease;
+    pointer-events: none;
+}
+.sgl-thinking-indicator.visible { opacity: 1; transform: translateY(0); }
+.sgl-thinking-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--sgl-knight);
+    box-shadow: 0 0 8px var(--sgl-knight);
+    animation: sgl-thinking-bounce 1.1s infinite ease-in-out;
+}
+.sgl-thinking-dot:nth-child(2) { animation-delay: 0.18s; }
+.sgl-thinking-dot:nth-child(3) { animation-delay: 0.36s; }
+@keyframes sgl-thinking-bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.55; }
+    40%           { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Lock player UI during opponent turn ---------------------------------- */
+body.sgl-opponent-turn .actions-bar,
+body.sgl-opponent-turn #playerHand,
+body.sgl-opponent-turn .battle-action-bar,
+body.sgl-opponent-turn .battle-cta-row {
+    filter: grayscale(0.45) brightness(0.75);
+    pointer-events: none;
+}
+
+/* Speed toggle button -------------------------------------------------- */
+.sgl-speed-toggle {
+    position: fixed;
+    bottom: 14px;
+    right: 14px;
+    z-index: 720;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(10, 14, 24, 0.78);
+    color: #d8e0ee;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.36);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.sgl-speed-toggle:hover { background: rgba(20, 30, 50, 0.9); border-color: rgba(255, 255, 255, 0.32); }
+.sgl-speed-toggle.fast {
+    background: linear-gradient(180deg, rgba(255, 215, 0, 0.18), rgba(255, 130, 40, 0.22));
+    border-color: rgba(255, 215, 0, 0.6);
+    color: #ffe080;
+}
+@media (max-width: 720px) {
+    .sgl-speed-toggle { bottom: 8px; right: 8px; font-size: 0.7rem; padding: 5px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .board-card.sgl-acting { transform: none; }
+    .board-card.sgl-acting-attack, .board-card.sgl-acting-play { animation: none; }
+    .board-card.sgl-impact { animation: none; }
+    .sgl-thinking-dot { animation: none; }
+}
