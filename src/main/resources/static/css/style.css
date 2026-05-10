@@ -927,6 +927,53 @@ body {
     color: rgba(220, 225, 235, 0.75);
 }
 
+.ab-action-counter.is-decrement {
+    animation: ab-action-counter-decrement 480ms ease-out;
+}
+
+.ab-action-counter.is-decrement .ab-action-counter-value {
+    animation: ab-action-counter-value-pop 480ms ease-out;
+}
+
+.ab-action-counter.is-increment {
+    animation: ab-action-counter-increment 480ms ease-out;
+}
+
+@keyframes ab-action-counter-decrement {
+    0% {
+        transform: scale(1);
+        box-shadow: inset 0 0 10px rgba(226, 183, 20, 0.14), 0 1px 4px rgba(0, 0, 0, 0.35);
+    }
+    35% {
+        transform: scale(1.12);
+        box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.28), 0 0 18px rgba(231, 76, 60, 0.45);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: inset 0 0 10px rgba(226, 183, 20, 0.14), 0 1px 4px rgba(0, 0, 0, 0.35);
+    }
+}
+
+@keyframes ab-action-counter-value-pop {
+    0% { color: var(--accent); transform: scale(1); }
+    35% { color: #ff7a6c; transform: scale(1.25); }
+    100% { color: var(--accent); transform: scale(1); }
+}
+
+@keyframes ab-action-counter-increment {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.1); box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.22), 0 0 14px rgba(46, 204, 113, 0.35); }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ab-action-counter.is-decrement,
+    .ab-action-counter.is-decrement .ab-action-counter-value,
+    .ab-action-counter.is-increment {
+        animation: none;
+    }
+}
+
 .ab-icon {
     width: 30px;
     height: 30px;
