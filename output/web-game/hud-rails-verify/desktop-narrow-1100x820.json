@@ -1,0 +1,39 @@
+{
+  "drawMetrics": {
+    "viewport": {
+      "width": 1100,
+      "height": 820
+    },
+    "cssSidebarWidth": "420px",
+    "cssHudRailWidth": "200px",
+    "enemyRailDisplay": "none",
+    "playerRailDisplay": "flex",
+    "topEnemyDisplay": "none",
+    "topPlayerDisplay": "none",
+    "energyDetailsDisplay": "none",
+    "menuWidth": 420,
+    "enemyRailWidth": 0,
+    "playerRailWidth": 200,
+    "battlefield": {
+      "left": 10,
+      "top": 46,
+      "width": 432,
+      "height": 764,
+      "right": 442,
+      "bottom": 810
+    },
+    "railPlayerHealth": "42",
+    "railEnemyHealth": "31",
+    "railPlayerElementsText": "Fire 3 Earth 1 Water 2",
+    "railEnemyElementsText": "Shadow 2 Electric 1",
+    "drawButtonText": "🃏 Draw",
+    "drawButtonDrawn": false,
+    "styleHref": "http://127.0.0.1:8080/css/style.css?v=77",
+    "gameSrc": "http://127.0.0.1:8080/js/game.js?v=88"
+  },
+  "setupMetrics": {
+    "drawButtonText": "⏭ End Turn",
+    "drawButtonDrawn": true,
+    "drawButtonDisabled": false
+  }
+}

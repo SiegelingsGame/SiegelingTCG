@@ -63,6 +63,7 @@ const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 const BATTLE_AUTO_ADVANCE_DELAY_MS = 1550;
 let battleAutoAdvanceTimer = null;
 let battleAutoAdvanceInFlight = false;
+let battleHandViewOpen = false;
 let welcomeSlideIndex = 0;
 let welcomeDismissed = false;
 const LEADERBOARD_STORAGE_KEY = 'sieglings_leaderboards_v1';
@@ -3769,7 +3770,7 @@ function isOpeningPlacementOnlyTurn() {
 }
 
 function isHandHiddenForPhase() {
-    return false;
+    return Boolean(gameState && gameState.currentPhase === 'BATTLE' && !battleHandViewOpen);
 }
 
 function isPlacementSelectionActive() {
@@ -5120,6 +5121,16 @@ async function executeBattle() {
 
 function openBattlePanel(forceOpen = false) {
     renderBattlePanel();
+    if (gameState?.currentPhase === 'BATTLE' && isDesktopSidebarLayout()) {
+        if (battleHandViewOpen || forceOpen) {
+            battleHandViewOpen = false;
+            render();
+        }
+        if (activeDrawer === 'battle') {
+            closeDrawer(true);
+        }
+        return;
+    }
     if (isDesktopSidebarLayout() && isHandHiddenForPhase()) {
         if (activeDrawer === 'battle') {
             closeDrawer(true);
@@ -5137,6 +5148,13 @@ function openBattlePanel(forceOpen = false) {
 }
 
 function viewHandDuringBattle() {
+    if (gameState?.currentPhase === 'BATTLE') {
+        battleHandViewOpen = true;
+        closeDrawer(true);
+        render();
+        document.getElementById('playerHand')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return;
+    }
     closeDrawer();
     setDesktopBattleDrawerOpen(false);
     stopHandSelectorAutoScroll();
@@ -5228,6 +5246,9 @@ function renderDomLegacy() {
     const previousPhase = lastRenderedPhase;
     const phaseChanged = Boolean(previousPhase && previousPhase !== phase);
     lastRenderedPhase = phase;
+    if (phase !== 'BATTLE' || (phaseChanged && phase === 'BATTLE')) {
+        battleHandViewOpen = false;
+    }
 
     document.getElementById('turnNumber').textContent = gameState.turnNumber;
     document.getElementById('phaseBadge').textContent = phase;
@@ -5289,15 +5310,17 @@ function renderDomLegacy() {
     btnBattle.classList.toggle('ab-urgent', playerBattlePending);
     if (btnBattlePanel) {
         const panelTitle = phase === 'BATTLE'
-            ? 'View Hand'
+            ? battleHandViewOpen ? 'View Battle Action' : 'View Hand'
             : getSelectedBattlePreviewCard()
                 ? 'Preview selected card abilities'
                 : 'Preview Siegling battle abilities';
-        btnBattlePanel.innerHTML = phase === 'BATTLE' ? '&#127183;' : '&#9876;';
+        btnBattlePanel.innerHTML = phase === 'BATTLE'
+            ? battleHandViewOpen ? '&#9876;' : '&#127183;'
+            : '&#9876;';
         btnBattlePanel.title = panelTitle;
         btnBattlePanel.setAttribute('aria-label', panelTitle);
         btnBattlePanel.onclick = phase === 'BATTLE'
-            ? viewHandDuringBattle
+            ? battleHandViewOpen ? () => openBattlePanel(true) : viewHandDuringBattle
             : () => openBattlePanel();
     }
 
@@ -6938,8 +6961,21 @@ function renderHand() {
     const handTray = document.getElementById('handTray');
     const handTitle = document.getElementById('desktopHandSectionTitle');
     const battlePanel = document.getElementById('desktopHandBattlePanel');
+    const handHidden = isHandHiddenForPhase();
     if (handTitle) {
-        handTitle.textContent = 'Hand Selector';
+        handTitle.textContent = handHidden ? 'Battle Action' : 'Hand Selector';
+    }
+    if (handHidden) {
+        if (handTray) {
+            handTray.classList.add('battle-queue-mode');
+        }
+        if (container) {
+            container.classList.add('hidden');
+        }
+        if (battlePanel) {
+            battlePanel.classList.remove('hidden');
+        }
+        return;
     }
     if (handTray) {
         handTray.classList.remove('battle-queue-mode');

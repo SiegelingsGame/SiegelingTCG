@@ -1,0 +1,104 @@
+{
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "cssVars": {
+    "sidebar": "615px",
+    "hudRail": "295px",
+    "arena": "628px",
+    "boardMax": "486px",
+    "handCard": "101px",
+    "handSection": "215px"
+  },
+  "shell": {
+    "x": 0,
+    "y": 36,
+    "width": 1920,
+    "height": 1044,
+    "right": 1920,
+    "bottom": 1080
+  },
+  "enemyRail": {
+    "x": 15,
+    "y": 51,
+    "width": 295,
+    "height": 1014,
+    "right": 310,
+    "bottom": 1065
+  },
+  "battlefield": {
+    "x": 329,
+    "y": 51,
+    "width": 628,
+    "height": 1014,
+    "right": 957,
+    "bottom": 1065
+  },
+  "board": {
+    "x": 480,
+    "y": 125,
+    "width": 325,
+    "height": 424,
+    "right": 806,
+    "bottom": 549
+  },
+  "playerRail": {
+    "x": 976,
+    "y": 51,
+    "width": 295,
+    "height": 1014,
+    "right": 1271,
+    "bottom": 1065
+  },
+  "desktopMenu": {
+    "x": 1290,
+    "y": 51,
+    "width": 615,
+    "height": 1014,
+    "right": 1905,
+    "bottom": 1065
+  },
+  "handRail": {
+    "x": 1324,
+    "y": 766,
+    "width": 547,
+    "height": 165,
+    "right": 1871,
+    "bottom": 931
+  },
+  "firstFiveCards": [
+    {
+      "x": 1326,
+      "width": 101,
+      "right": 1427,
+      "fullyVisible": true
+    },
+    {
+      "x": 1437,
+      "width": 101,
+      "right": 1538,
+      "fullyVisible": true
+    },
+    {
+      "x": 1548,
+      "width": 101,
+      "right": 1649,
+      "fullyVisible": true
+    },
+    {
+      "x": 1659,
+      "width": 101,
+      "right": 1760,
+      "fullyVisible": true
+    },
+    {
+      "x": 1770,
+      "width": 101,
+      "right": 1871,
+      "fullyVisible": true
+    }
+  ],
+  "firstFiveFullyVisible": true,
+  "errorsOnPage": []
+}

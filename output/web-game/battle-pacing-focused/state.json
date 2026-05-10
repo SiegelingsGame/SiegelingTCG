@@ -1,0 +1,56 @@
+{
+  "startMetrics": {
+    "phase": "DRAW",
+    "handHidden": false,
+    "handCards": 5,
+    "handTitle": "Hand Selector",
+    "battleButtonTitle": "Preview Siegling battle abilities",
+    "battleButtonText": "⚔",
+    "activeDrawer": null,
+    "pending": false,
+    "battleWaitingOn": null,
+    "latestLog": "[Turn 2 DRAW] Player's turn begins."
+  },
+  "drawerOpen": true,
+  "afterViewHand": {
+    "drawerOpen": false,
+    "handHidden": false,
+    "handCards": 5
+  },
+  "beforeActionLog": [
+    "[Turn 2 DRAW] Player's turn begins.",
+    "[Turn 2 DRAW] --- Round 2 ---",
+    "[Turn 1 BATTLE] === BATTLE PHASE END ===",
+    "[Turn 1 BATTLE] Squire Bud cannot find an ability it can afford.",
+    "[Turn 1 BATTLE] Pylook cannot find an ability it can afford.",
+    "[Turn 1 BATTLE] === BATTLE PHASE ===",
+    "[Turn 1 BATTLE] Both setup turns are complete. Entering battle phase. Energy restored!",
+    "[Turn 1 SETUP] AI places Squire Bud at row Middle col 0"
+  ],
+  "afterPlayerAction": {
+    "phase": "DRAW",
+    "pending": false,
+    "latestLog": "[Turn 2 DRAW] Player's turn begins.",
+    "projectiles": 0,
+    "handHidden": false
+  },
+  "afterAutoContinue": {
+    "phase": "DRAW",
+    "pending": false,
+    "battleWaitingOn": null,
+    "latestLogs": [
+      "[Turn 2 DRAW] Player's turn begins.",
+      "[Turn 2 DRAW] --- Round 2 ---",
+      "[Turn 1 BATTLE] === BATTLE PHASE END ===",
+      "[Turn 1 BATTLE] Squire Bud cannot find an ability it can afford.",
+      "[Turn 1 BATTLE] Pylook cannot find an ability it can afford.",
+      "[Turn 1 BATTLE] === BATTLE PHASE ===",
+      "[Turn 1 BATTLE] Both setup turns are complete. Entering battle phase. Energy restored!",
+      "[Turn 1 SETUP] AI places Squire Bud at row Middle col 0"
+    ],
+    "projectiles": 0,
+    "handHidden": false
+  },
+  "errors": [],
+  "outDir": "A:/New folder/OneDrive/Desktop/Sieglings/sieglings-tcg/output/web-game/battle-pacing-focused"
+}

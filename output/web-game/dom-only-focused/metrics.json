@@ -1,0 +1,45 @@
+{
+  "before": {
+    "hasPixiRoot": false,
+    "hasPixiBridge": false,
+    "hasRendererSetter": false,
+    "bodyClass": "",
+    "pixiScripts": [],
+    "configMode": "dom",
+    "storedRenderer": "pixi"
+  },
+  "after": {
+    "bodyClass": "",
+    "appDisplay": "grid",
+    "hasPixiRoot": false,
+    "hasPixiBridge": false,
+    "shell": {
+      "x": 0,
+      "y": 36,
+      "width": 1920,
+      "height": 1044,
+      "right": 1920,
+      "bottom": 1080
+    },
+    "battlefield": {
+      "x": 329,
+      "y": 51,
+      "width": 628,
+      "height": 1014,
+      "right": 957,
+      "bottom": 1065
+    },
+    "menu": {
+      "x": 1290,
+      "y": 51,
+      "width": 615,
+      "height": 1014,
+      "right": 1905,
+      "bottom": 1065
+    },
+    "cards": 5,
+    "canvasCount": 1,
+    "errorsOnPage": []
+  },
+  "consoleEvents": []
+}

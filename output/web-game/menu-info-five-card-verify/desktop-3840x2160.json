@@ -1,0 +1,55 @@
+{
+  "viewport": {
+    "width": 3840,
+    "height": 2160
+  },
+  "menu": {
+    "left": 2605,
+    "top": 58,
+    "width": 1213,
+    "height": 2080,
+    "right": 3818,
+    "bottom": 2138
+  },
+  "handSection": {
+    "left": 2626,
+    "top": 1627,
+    "width": 1171,
+    "height": 386,
+    "right": 3797,
+    "bottom": 2013
+  },
+  "rail": {
+    "left": 2639,
+    "top": 1664,
+    "width": 1145,
+    "height": 336,
+    "right": 3784,
+    "bottom": 2000
+  },
+  "firstCard": {
+    "left": 2641,
+    "top": 1666,
+    "width": 215,
+    "height": 301,
+    "right": 2856,
+    "bottom": 1967
+  },
+  "fifthCard": {
+    "left": 3565,
+    "top": 1666,
+    "width": 215,
+    "height": 301,
+    "right": 3780,
+    "bottom": 1967
+  },
+  "visibleFullCardsAtStart": 5,
+  "firstFiveFit": true,
+  "handCardCount": 8,
+  "cssSidebarWidth": "1213px",
+  "cssHandWidth": "215px",
+  "cssHandGap": "16px",
+  "cssHandSectionHeight": "386px",
+  "styleHref": "http://127.0.0.1:8080/css/style.css?v=76",
+  "gameSrc": "http://127.0.0.1:8080/js/game.js?v=87"
+}
