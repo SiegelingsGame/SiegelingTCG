@@ -354,10 +354,7 @@ function sieglingPlacementLockMessage() {
 }
 
 function isPlacementBudgetLockedForCard(card) {
-    return Boolean(
-        gameState?.playerPlacementUsed
-        && !(card?.type === 'SIEGLING' && card?.evolvesFromId)
-    );
+    return Boolean(gameState?.playerPlacementUsed);
 }
 const CARD_ART_BY_KEY = Object.freeze({
     sundile: { url: '/assets/cards/sundile.svg' },
@@ -2597,6 +2594,9 @@ function syncActionBarAttention() {
     syncSetupActionsCounter();
 }
 
+let lastSetupActionsRemaining = null;
+let setupActionsPulseTimer = null;
+
 function syncSetupActionsCounter() {
     const el = document.getElementById('setupActionsCounter');
     if (!el) {
@@ -2608,7 +2608,8 @@ function syncSetupActionsCounter() {
         el.hidden = true;
         if (valueEl) valueEl.textContent = '';
         el.removeAttribute('title');
-        el.classList.remove('is-zero');
+        el.classList.remove('is-zero', 'is-decrement', 'is-increment');
+        lastSetupActionsRemaining = null;
         return;
     }
     const budget = gs.setupSieglingActionBudget;
@@ -2616,6 +2617,7 @@ function syncSetupActionsCounter() {
     if (budget == null || used == null) {
         el.hidden = true;
         if (valueEl) valueEl.textContent = '';
+        lastSetupActionsRemaining = null;
         return;
     }
     const remaining = Math.max(0, budget - used);
@@ -2625,6 +2627,27 @@ function syncSetupActionsCounter() {
     }
     el.title = `${remaining} Siegling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used).`;
     el.classList.toggle('is-zero', remaining === 0);
+
+    const playerActive = gs.activeSide === 'PLAYER';
+    if (
+        playerActive
+        && lastSetupActionsRemaining !== null
+        && lastSetupActionsRemaining !== remaining
+    ) {
+        const direction = remaining < lastSetupActionsRemaining ? 'is-decrement' : 'is-increment';
+        el.classList.remove('is-decrement', 'is-increment');
+        // Force reflow so the class is reapplied even when consecutive actions hit the same direction.
+        void el.offsetWidth;
+        el.classList.add(direction);
+        if (setupActionsPulseTimer) {
+            clearTimeout(setupActionsPulseTimer);
+        }
+        setupActionsPulseTimer = setTimeout(() => {
+            el.classList.remove('is-decrement', 'is-increment');
+            setupActionsPulseTimer = null;
+        }, 520);
+    }
+    lastSetupActionsRemaining = remaining;
 }
 
 let desktopInspectTab = 'card';

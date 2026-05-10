@@ -188,21 +188,19 @@ public class GameService {
 
         CardInstance existing = state.getAt(isPlayerSide, row, col);
         boolean evolutionPlacement = placementService.isEvolutionPlacement(state, isPlayerSide, row, col, siegling);
-        if (!evolutionPlacement) {
-            energyService.recalculateEnergy(state);
-            if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
-                state.log("No Siegling setup actions left this turn (1 base + 1 per energy in your pool when you entered setup).");
-                return state;
-            }
+        energyService.recalculateEnergy(state);
+        if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
+            state.log(evolutionPlacement
+                    ? "No Siegling setup actions left this turn — evolutions still cost 1 action."
+                    : "No Siegling setup actions left this turn (1 base + 1 per energy in your pool when you entered setup).");
+            return state;
         }
         CardInstance instance = placementService.createPlacedInstance(existing, siegling, isPlayerSide, row, col);
         if (!evolutionPlacement) {
             instance.setPlacementOrder(state.consumePlacementOrder());
         }
         state.setAt(isPlayerSide, row, col, instance);
-        if (!evolutionPlacement) {
-            state.recordSieglingSetupActionConsumed(isPlayerSide);
-        }
+        state.recordSieglingSetupActionConsumed(isPlayerSide);
         actor.removeFromHand(card);
 
         if (evolutionPlacement && existing != null) {
