@@ -4182,17 +4182,29 @@ body.placement-active .board-cell.legal {
 
 .claim-prompt {
     position: absolute;
-    top: 6px;
-    right: 6px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: rgba(123, 255, 180, 0.92);
+    top: 4px;
+    right: 4px;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(123, 255, 180, 0.95);
     color: #092018;
-    font-size: 0.58em;
-    font-weight: bold;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
+    box-shadow: 0 0 0 1px rgba(9, 32, 24, 0.55), 0 0 6px rgba(123, 255, 180, 0.55);
+    cursor: pointer;
     z-index: 3;
+}
+
+.claim-prompt svg {
+    width: 11px;
+    height: 11px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 /* ── Board Card (TCG card template) ───────────────── */
