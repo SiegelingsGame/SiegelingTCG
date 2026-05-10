@@ -8676,6 +8676,93 @@ body.placement-active .board-cell.legal {
     100% { filter: brightness(1)   drop-shadow(0 0 0 transparent); transform: translate(0, 0); }
 }
 
+/* Death ghost — keeps the killed card visible until the projectile lands */
+.sgl-death-ghost {
+    --sgl-knight: #95a5a6;
+    --sgl-element: #ffffff;
+    --sgl-impact-color: #ffffff;
+    --sgl-knight-soft: rgba(149, 165, 166, 0.28);
+    --sgl-knight-glow: rgba(149, 165, 166, 0.6);
+    pointer-events: none;
+    z-index: 510;
+    border-radius: 12px;
+    border: 1px solid var(--sgl-knight);
+    background:
+        linear-gradient(180deg, rgba(8, 12, 22, 0.78), rgba(14, 20, 36, 0.86)),
+        radial-gradient(circle at 50% 30%, var(--sgl-knight-soft), transparent 70%);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+        0 0 20px var(--sgl-knight-soft),
+        0 8px 22px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    will-change: transform, opacity, filter;
+}
+.sgl-ghost-inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 8px 6px;
+    color: #f0f4fb;
+}
+.sgl-ghost-name {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    text-align: center;
+    line-height: 1.1;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sgl-ghost-sigil {
+    font-size: 1.6rem;
+    filter: drop-shadow(0 0 8px var(--sgl-knight-glow));
+    opacity: 0.9;
+}
+.sgl-ghost-hp {
+    width: 88%;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+.sgl-ghost-hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6644, #ff3322);
+    box-shadow: 0 0 8px rgba(255, 80, 50, 0.6);
+}
+.sgl-death-ghost.sgl-ghost-impact {
+    animation: sgl-ghost-impact-flash 320ms ease-out;
+}
+@keyframes sgl-ghost-impact-flash {
+    0%   { filter: brightness(1) drop-shadow(0 0 0 transparent); transform: translate(0, 0); }
+    20%  { filter: brightness(2.6) drop-shadow(0 0 18px var(--sgl-impact-color)); transform: translate(3px, -2px); }
+    45%  { filter: brightness(1.6) drop-shadow(0 0 12px var(--sgl-impact-color)); transform: translate(-3px, 2px); }
+    70%  { filter: brightness(1.3) drop-shadow(0 0 10px var(--sgl-impact-color)); transform: translate(2px, 1px); }
+    100% { filter: brightness(1)   drop-shadow(0 0 0 transparent); transform: translate(0, 0); }
+}
+.sgl-death-ghost.sgl-destroying {
+    animation: sgl-ghost-destroy 520ms cubic-bezier(0.55, 0, 0.85, 0.4) forwards;
+}
+@keyframes sgl-ghost-destroy {
+    0%   { transform: scale(1) rotate(0deg); opacity: 1;   filter: brightness(1.4) drop-shadow(0 0 12px var(--sgl-impact-color)); }
+    35%  { transform: scale(1.06) rotate(-3deg); opacity: 1; filter: brightness(2) drop-shadow(0 0 16px var(--sgl-impact-color)) blur(0.4px); }
+    70%  { transform: scale(0.86) rotate(4deg) translateY(6px); opacity: 0.55; filter: brightness(1) blur(1.2px); }
+    100% { transform: scale(0.55) rotate(10deg) translateY(18px); opacity: 0;   filter: brightness(0.5) blur(2.5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .sgl-death-ghost.sgl-destroying { animation: sgl-ghost-destroy-reduced 200ms ease-out forwards; }
+    @keyframes sgl-ghost-destroy-reduced {
+        0%   { opacity: 1; }
+        100% { opacity: 0; }
+    }
+}
+
 /* Opponent "thinking" indicator --------------------------------------- */
 .sgl-thinking-indicator {
     --sgl-knight: #c896ff;
