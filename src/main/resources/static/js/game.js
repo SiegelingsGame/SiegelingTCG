@@ -2602,10 +2602,11 @@ function syncSetupActionsCounter() {
     if (!el) {
         return;
     }
+    const valueEl = document.getElementById('setupActionsCounterValue');
     const gs = gameState;
     if (!gs || gs.gameOver || gs.currentPhase !== 'SETUP' || gs.mulligan?.active) {
         el.hidden = true;
-        el.textContent = '';
+        if (valueEl) valueEl.textContent = '';
         el.removeAttribute('title');
         el.classList.remove('is-zero');
         return;
@@ -2614,12 +2615,14 @@ function syncSetupActionsCounter() {
     const used = gs.setupSieglingActionsUsed;
     if (budget == null || used == null) {
         el.hidden = true;
-        el.textContent = '';
+        if (valueEl) valueEl.textContent = '';
         return;
     }
     const remaining = Math.max(0, budget - used);
     el.hidden = false;
-    el.textContent = String(remaining);
+    if (valueEl) {
+        valueEl.textContent = `${remaining}/${budget}`;
+    }
     el.title = `${remaining} Siegling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used).`;
     el.classList.toggle('is-zero', remaining === 0);
 }
