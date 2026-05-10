@@ -10,6 +10,7 @@ import com.sieglings.model.Player;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.NotchDirection;
+import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.TargetType;
@@ -25,12 +26,66 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BattleServiceTest {
 
     @Test
+    void automaticBattleActionPausesBeforeNextCreatureActs() throws Exception {
+        BattleService battleService = createBattleService();
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        Player enemy = new Player("AI", false);
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard playerCard = new SieglingCard("splashfin", "Splashfin", Element.WATER, Rarity.COMMON, 10, 2, List.of(), Row.FRONT);
+        SieglingCard enemyCard = new SieglingCard("emberfox", "Emberfox", Element.FIRE, Rarity.COMMON, 10, 6, List.of(), Row.FRONT);
+        CardInstance playerInstance = new CardInstance(playerCard, 1, 1, true);
+        CardInstance enemyInstance = new CardInstance(enemyCard, 1, 1, false);
+        state.setAt(true, 1, 1, playerInstance);
+        state.setAt(false, 1, 1, enemyInstance);
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+
+        assertTrue(state.isBattleActionPausePending(), "The AI action should pause so the client can animate it.");
+        assertEquals(1, state.getBattleCursor(), "Only one creature action should resolve in this step.");
+        assertEquals(null, state.getPendingBattleInstanceId(), "The next human action should not be queued until the pause is continued.");
+        assertEquals(9, playerInstance.getCurrentHealth(), "Emberfox's zero-cost poke should be visible as its own damage step.");
+
+        battleService.advanceBattle(state);
+
+        assertFalse(state.isBattleActionPausePending());
+        assertEquals(playerInstance.getInstanceId(), state.getPendingBattleInstanceId(), "Continuing after the pause should surface the player's next action.");
+    }
+
+    @Test
+    void lastAutomaticBattleActionPausesBeforeBattleFinishes() throws Exception {
+        BattleService battleService = createBattleService();
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard enemyCard = new SieglingCard("emberfox", "Emberfox", Element.FIRE, Rarity.COMMON, 10, 6, List.of(), Row.FRONT);
+        state.setAt(false, 1, 1, new CardInstance(enemyCard, 1, 1, false));
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+
+        assertTrue(state.isBattleActionPausePending(), "The final automatic action should still get a visual pause.");
+        assertEquals(1, state.getBattleCursor());
+        assertFalse(state.getBattleQueue().isEmpty(), "The battle queue should remain until the client advances after the visual pause.");
+
+        battleService.advanceBattle(state);
+
+        assertFalse(state.isBattleActionPausePending());
+        assertTrue(state.getBattleQueue().isEmpty(), "The follow-up advance should finish and clear the battle queue.");
+    }
+
+    @Test
     void explicitMoveLoadoutUsesConfiguredAbilitiesAndCosts() throws Exception {
-        BattleService battleService = new BattleService();
-        setField(battleService, "effectService", new EffectService());
-        setField(battleService, "energyService", new EnergyService(new PlacementService()));
-        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
-        setField(battleService, "movesPoolService", pool);
+        BattleService battleService = createBattleService();
+        MovesPoolService pool = getField(battleService, "movesPoolService");
 
         String m0 = "test:staticap:0";
         String m1 = "test:staticap:1";
@@ -175,5 +230,20 @@ class BattleServiceTest {
         Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
         field.set(target, value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getField(Object target, String fieldName) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return (T) field.get(target);
+    }
+
+    private BattleService createBattleService() throws Exception {
+        BattleService battleService = new BattleService();
+        setField(battleService, "effectService", new EffectService());
+        setField(battleService, "energyService", new EnergyService(new PlacementService()));
+        setField(battleService, "movesPoolService", new MovesPoolService(new ObjectMapper(), null));
+        return battleService;
     }
 }

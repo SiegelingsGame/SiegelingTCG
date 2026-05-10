@@ -28,6 +28,11 @@ public class GameState {
     private List<String> battleQueue = new ArrayList<>();
     private int battleCursor = 0;
     private String pendingBattleInstanceId;
+    /**
+     * Set after a battle action resolves so the client can show that action's
+     * visual result before the queue advances to the next creature or phase.
+     */
+    private boolean battleActionPausePending = false;
     /** Siegling setup actions consumed this turn (evolution does not consume). */
     private int playerPlacementsThisTurn = 0;
     private int enemyPlacementsThisTurn = 0;
@@ -142,6 +147,7 @@ public class GameState {
         battleQueue = new ArrayList<>();
         battleCursor = 0;
         pendingBattleInstanceId = null;
+        battleActionPausePending = false;
     }
 
     /**
@@ -270,6 +276,8 @@ public class GameState {
     public void setBattleCursor(int battleCursor) { this.battleCursor = battleCursor; }
     public String getPendingBattleInstanceId() { return pendingBattleInstanceId; }
     public void setPendingBattleInstanceId(String pendingBattleInstanceId) { this.pendingBattleInstanceId = pendingBattleInstanceId; }
+    public boolean isBattleActionPausePending() { return battleActionPausePending; }
+    public void setBattleActionPausePending(boolean battleActionPausePending) { this.battleActionPausePending = battleActionPausePending; }
     public List<String> getGameLog() { return gameLog; }
     public boolean isFirstTurn() { return firstTurn; }
     public void setFirstTurn(boolean firstTurn) { this.firstTurn = firstTurn; }

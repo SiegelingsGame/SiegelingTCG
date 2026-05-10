@@ -64,6 +64,13 @@ public class BattleService {
     }
 
     public void advanceBattle(GameState state) {
+        if (state.getPendingBattleInstanceId() != null) {
+            return;
+        }
+        if (state.isBattleActionPausePending()) {
+            state.setBattleActionPausePending(false);
+        }
+
         while (state.getBattleCursor() < state.getBattleQueue().size()) {
             String instanceId = state.getBattleQueue().get(state.getBattleCursor());
             state.setBattleCursor(state.getBattleCursor() + 1);
@@ -76,14 +83,16 @@ public class BattleService {
             if (attacker.isFrozen()) {
                 state.log(attacker.getName() + " is frozen and cannot act!");
                 attacker.getStatusEffects().remove(StatusEffect.FREEZE);
-                continue;
+                pauseAfterAction(state);
+                return;
             }
 
             List<BattleAbilityOption> abilities = getAvailableAbilities(state, attacker);
             boolean hasAffordableAbility = abilities.stream().anyMatch(BattleAbilityOption::isAffordable);
             if (!hasAffordableAbility) {
                 state.log(attacker.getName() + " cannot find an ability it can afford.");
-                continue;
+                pauseAfterAction(state);
+                return;
             }
 
             if (isHumanControlled(state, attacker.isOwner())) {
@@ -93,9 +102,8 @@ public class BattleService {
 
             BattleAbilityOption choice = pickAiAbility(abilities);
             resolveBattleAction(state, attacker, choice.getIndex(), -1, -1);
-            if (state.isGameOver()) {
-                return;
-            }
+            pauseAfterAction(state);
+            return;
         }
 
         finishBattle(state);
@@ -134,10 +142,11 @@ public class BattleService {
 
         resolveBattleAction(state, attacker, abilityIndex, targetRow, targetCol);
         state.setPendingBattleInstanceId(null);
+        pauseAfterAction(state);
+    }
 
-        if (!state.isGameOver()) {
-            advanceBattle(state);
-        }
+    private void pauseAfterAction(GameState state) {
+        state.setBattleActionPausePending(true);
     }
 
     private void resolveBattleAction(GameState state, CardInstance attacker, int abilityIndex, int targetRow, int targetCol) {
