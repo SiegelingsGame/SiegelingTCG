@@ -6082,9 +6082,12 @@ body.placement-active .board-cell.legal {
     inset: 0;
     z-index: 70;
     display: none;
-    align-items: center;
+    align-items: safe center;
     justify-content: center;
     padding: 22px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     background:
         radial-gradient(circle at top left, rgba(50, 150, 255, 0.18), transparent 28%),
         radial-gradient(circle at bottom right, rgba(226, 183, 20, 0.14), transparent 26%),
