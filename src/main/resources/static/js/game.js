@@ -6251,7 +6251,7 @@ function renderBoard(gridId, board, isPlayer) {
                     html += `<div class="acting-badge">Acting</div>`;
                 }
                 if (isClaimable) {
-                    html += `<div class="claim-prompt" onclick="event.stopPropagation(); openClaimPopup(${r}, ${c})">Claim</div>`;
+                    html += `<div class="claim-prompt" title="Claim" aria-label="Claim" onclick="event.stopPropagation(); openClaimPopup(${r}, ${c})"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.4 1.2v13.6M3.4 2.2h8.7L10.4 5.4l1.7 3.2H3.4"/></svg></div>`;
                 }
                 html += renderBoardNotches(cell.notches, { board, row: r, col: c, isPlayer, legalPlacements });
                 html += renderCardArt(cell, 'board');
