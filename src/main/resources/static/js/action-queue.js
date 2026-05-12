@@ -42,21 +42,22 @@
     };
 
     const ACTION_LABEL = {
-        PLAY:    'Plays',
-        ABILITY: 'Uses',
-        ATTACK:  'Attacks',
-        BLOCK:   'Blocks',
-        EFFECT:  'Effect',
-        PHASE:   'Phase'
+        PLAY:    'plays',
+        ABILITY: 'uses',
+        ATTACK:  'attacks',
+        BLOCK:   'blocks',
+        EFFECT:  'effect',
+        DESTROY: 'is destroyed',
+        PHASE:   'phase'
     };
 
     const TIMING_NORMAL = {
-        highlightMs: 300,
-        toastEnterMs: 200,
-        projectileMs: 600,
-        impactMs: 300,
-        gapMs: 200,
-        toastDismissMs: 2500
+        highlightMs: 400,
+        toastEnterMs: 300,
+        projectileMs: 850,
+        impactMs: 450,
+        gapMs: 300,
+        toastDismissMs: 3000
     };
     const FAST_SCALE = 0.4;
     function fastTimings(t) {
@@ -122,7 +123,9 @@
             node.style.setProperty('--sgl-knight-glow', hexWithAlpha(knightHex, 0.55));
             node.style.setProperty('--sgl-element', elHex);
 
-            const labelText = toast.label || ACTION_LABEL[toast.kind] || toast.kind || '';
+            const labelText = (toast.label != null)
+                ? toast.label
+                : (ACTION_LABEL[toast.kind] || toast.kind || '');
             const damagePart = (toast.amount > 0)
                 ? `<span class="sgl-toast-damage" style="color:${elHex}">-${toast.amount}</span>`
                 : '';
@@ -386,6 +389,46 @@
         return null;
     }
 
+    // "Fireball deals 5 damage to Sleaf" → { abilityOrSource, amount, target }
+    function parseDamageFromLog(line) {
+        const text = String(line || '').trim();
+        const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)\.?$/i);
+        if (!m) return null;
+        return {
+            abilityOrSource: m[1].trim(),
+            amount: parseInt(m[2], 10),
+            target: m[3].trim()
+        };
+    }
+
+    // Resolve the attacker for a given damaged cell from the new log entries.
+    // Returns { row, col, cell, isPlayer } or null when we can't decide.
+    function resolveAttackerFromLogs(prevPlayer, prevEnemy, damagedCell, newLogs) {
+        const wantedTarget = String(damagedCell?.name || '').trim().toLowerCase();
+        if (!wantedTarget) return null;
+        for (const line of newLogs) {
+            const m = parseDamageFromLog(line);
+            if (!m) continue;
+            if (m.target.toLowerCase() !== wantedTarget) continue;
+            // Find who used the ability whose name is m.abilityOrSource.
+            for (const usesLine of newLogs) {
+                const u = parseAbilityFromLog(usesLine);
+                if (!u || u.kind !== 'ABILITY') continue;
+                if (u.name.toLowerCase() !== m.abilityOrSource.toLowerCase()) continue;
+                const onPlayer = findCellByName(prevPlayer, u.actor);
+                if (onPlayer) return { ...onPlayer, isPlayer: true };
+                const onEnemy = findCellByName(prevEnemy, u.actor);
+                if (onEnemy) return { ...onEnemy, isPlayer: false };
+            }
+            // Fallback: the "ability" name may itself be the card name.
+            const directPlayer = findCellByName(prevPlayer, m.abilityOrSource);
+            if (directPlayer) return { ...directPlayer, isPlayer: true };
+            const directEnemy = findCellByName(prevEnemy, m.abilityOrSource);
+            if (directEnemy) return { ...directEnemy, isPlayer: false };
+        }
+        return null;
+    }
+
     // ── Action Queue ──────────────────────────────────────────────────────────
     class ActionQueue {
         constructor() {
@@ -441,54 +484,53 @@
 
             const playerKnight = getKnightElement(nextState, 'PLAYER');
             const enemyKnight  = getKnightElement(nextState, 'ENEMY');
+            const playerName   = nextState.playerName || prevState.playerName || 'Player';
+            const enemyName    = nextState.enemyName  || prevState.enemyName  || 'Opponent';
+            const newLogs      = getNewLogEntries(prevState, nextState);
 
-            // Phase change → enqueue a phase action
-            if (prevState.currentPhase && nextState.currentPhase
-                && prevState.currentPhase !== nextState.currentPhase) {
-                this.enqueueAction({
-                    kind: 'PHASE',
-                    side: nextState.activeSide || 'PLAYER',
-                    label: 'Phase',
-                    actorName: nextState.currentPhase,
-                    knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
-                    elementColor: 'NEUTRAL',
-                    holdMs: this.timings().toastDismissMs
-                });
+            // Phase changes are the sanctioned interrupt point. When a phase
+            // ends, drop any actions still queued from the previous phase so
+            // we don't show stale/misattributed battle animations after the
+            // game has visibly moved on. The new phase toast is enqueued at
+            // the *end* of this batch so any new-phase placements/events play
+            // out before the banner.
+            const phaseChanged = prevState.currentPhase && nextState.currentPhase
+                && prevState.currentPhase !== nextState.currentPhase;
+            if (phaseChanged) {
+                this.queue.length = 0;
+                if (this.activeToast) { this.activeToast.dismiss(); this.activeToast = null; }
             }
 
             // Opponent turn beginning → thinking indicator
             if (prevState.activeSide !== 'ENEMY' && nextState.activeSide === 'ENEMY' && !nextState.gameOver) {
                 this.markOpponentThinking(true, nextState);
             }
-            if (nextState.activeSide === 'PLAYER' || nextState.gameOver) {
-                // We'll auto-clear when queue drains.
-            }
 
-            // Placements
+            // Placements — actor is the player/opponent name, target is the card.
             const newPlayerPlacements = diffPlacements(prevPlayer, nextPlayer, true);
             const newEnemyPlacements  = diffPlacements(prevEnemy,  nextEnemy,  false);
             for (const p of newPlayerPlacements) {
                 this.enqueueAction({
                     kind: 'PLAY',
                     side: 'PLAYER',
-                    actorName: p.cell.name || 'Card',
+                    actorName: playerName,
+                    targetName: p.cell.name || 'Card',
                     knightElement: playerKnight,
                     elementColor: normalizeElement(p.cell.element) || playerKnight,
                     source: { isPlayer: true, row: p.row, col: p.col },
-                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    label: 'Plays'
+                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`
                 });
             }
             for (const p of newEnemyPlacements) {
                 this.enqueueAction({
                     kind: 'PLAY',
                     side: 'ENEMY',
-                    actorName: p.cell.name || 'Card',
+                    actorName: enemyName,
+                    targetName: p.cell.name || 'Card',
                     knightElement: enemyKnight,
                     elementColor: normalizeElement(p.cell.element) || enemyKnight,
                     source: { isPlayer: false, row: p.row, col: p.col },
-                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    label: 'Plays'
+                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`
                 });
             }
 
@@ -509,43 +551,66 @@
                 return list.splice(idx, 1)[0];
             };
 
-            for (const t of damageOnEnemy) {
-                const src = findCellOnBoard(prevPlayer, () => true);
+            // Resolve the source of a damage event. Order of preference:
+            //   1. prevState.pendingBattle (the player-confirmed attacker)
+            //   2. Log lines like "X uses Y" + "Y deals N damage to TARGET"
+            //   3. Direct "<CardName> deals N damage to TARGET" lines
+            // We deliberately do NOT fall back to "first cell on board" — that
+            // mis-pinned every effect-damage event onto whatever Siegling
+            // happened to be in row 0 / col 0 (e.g. Emberfin) and caused the
+            // "Emberfin attacks Sleaf" phantom toasts from the bug report.
+            const resolvePlayerSource = (t) => {
                 const pending = prevState.pendingBattle;
-                const srcCell = (pending && findCellByInstanceId(prevPlayer, pending.instanceId))
-                    || (pending && pending.row != null && pending.col != null
-                        ? { row: pending.row, col: pending.col, cell: prevPlayer?.[pending.row]?.[pending.col] }
-                        : null)
-                    || src;
-                const srcElement = normalizeElement(pending?.element || srcCell?.cell?.element) || playerKnight;
+                if (pending) {
+                    const byId = findCellByInstanceId(prevPlayer, pending.instanceId);
+                    if (byId) return { ...byId, isPlayer: true, pending };
+                    if (pending.row != null && pending.col != null) {
+                        const cell = prevPlayer?.[pending.row]?.[pending.col];
+                        if (cell) return { row: pending.row, col: pending.col, cell, isPlayer: true, pending };
+                    }
+                }
+                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs);
+                if (fromLogs && fromLogs.isPlayer) return fromLogs;
+                return null;
+            };
+            const resolveEnemySource = (t) => {
+                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs);
+                if (fromLogs && !fromLogs.isPlayer) return fromLogs;
+                return null;
+            };
+
+            for (const t of damageOnEnemy) {
+                const srcRef = resolvePlayerSource(t);
+                const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element)
+                    || playerKnight;
                 const destroyed = matchDestruction(destructionsOnEnemy, t);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side: 'PLAYER',
-                    actorName: srcCell?.cell?.name || pending?.name || 'Attacker',
+                    actorName: srcRef?.cell?.name || srcRef?.pending?.name || playerName,
                     targetName: t.name,
                     amount: t.amount,
                     knightElement: playerKnight,
                     elementColor: srcElement,
-                    source: srcCell ? { isPlayer: true, row: srcCell.row, col: srcCell.col } : null,
+                    source: srcRef ? { isPlayer: true, row: srcRef.row, col: srcRef.col } : null,
                     target: { isPlayer: false, row: t.row, col: t.col, element: t.element || srcElement },
                     destroysTarget: !!destroyed,
                     ghostCell: destroyed?.cell || null
                 });
             }
             for (const t of damageOnPlayer) {
-                const src = findCellOnBoard(prevEnemy, () => true);
-                const srcElement = normalizeElement(src?.cell?.element) || enemyKnight;
+                const srcRef = resolveEnemySource(t);
+                const srcElement = normalizeElement(srcRef?.cell?.element) || enemyKnight;
                 const destroyed = matchDestruction(destructionsOnPlayer, t);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side: 'ENEMY',
-                    actorName: src?.cell?.name || 'Attacker',
+                    actorName: srcRef?.cell?.name || enemyName,
                     targetName: t.name,
                     amount: t.amount,
                     knightElement: enemyKnight,
                     elementColor: srcElement,
-                    source: src ? { isPlayer: false, row: src.row, col: src.col } : null,
+                    source: srcRef ? { isPlayer: false, row: srcRef.row, col: srcRef.col } : null,
                     target: { isPlayer: true, row: t.row, col: t.col, element: t.element || srcElement },
                     destroysTarget: !!destroyed,
                     ghostCell: destroyed?.cell || null
@@ -560,9 +625,9 @@
                     kind: 'DESTROY',
                     side,
                     actorName: d.name || 'Card',
+                    targetName: '',
                     knightElement: knight,
                     elementColor: el,
-                    label: 'Destroyed',
                     source: { isPlayer: d.isPlayer, row: d.row, col: d.col },
                     target: { isPlayer: d.isPlayer, row: d.row, col: d.col, element: el },
                     ghostCell: d.cell
@@ -572,7 +637,6 @@
             for (const d of destructionsOnEnemy)  queueDestruction(d, 'PLAYER', playerKnight);
 
             // Ability/use lines from the log → ABILITY toasts (skip ones already covered by damage)
-            const newLogs = getNewLogEntries(prevState, nextState);
             const damageNames = new Set([...damageOnEnemy, ...damageOnPlayer].map((d) => d.name));
             for (const line of newLogs) {
                 const parsed = parseAbilityFromLog(line);
@@ -594,10 +658,25 @@
                         targetName: parsed.name,
                         knightElement: knight,
                         elementColor: elColor,
-                        source: { isPlayer: source.isPlayer, row: source.row, col: source.col },
-                        label: 'Uses'
+                        source: { isPlayer: source.isPlayer, row: source.row, col: source.col }
                     });
                 }
+            }
+
+            // Phase change toast is appended at the end so the previous
+            // phase's damage / destruction animations finish playing before
+            // we announce the new phase.
+            if (phaseChanged) {
+                const phaseLabel = String(nextState.currentPhase).charAt(0)
+                    + String(nextState.currentPhase).slice(1).toLowerCase();
+                this.enqueueAction({
+                    kind: 'PHASE',
+                    side: nextState.activeSide || 'PLAYER',
+                    actorName: `${phaseLabel} Phase`,
+                    knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
+                    elementColor: 'NEUTRAL',
+                    holdMs: this.timings().toastDismissMs
+                });
             }
         }
 
@@ -658,7 +737,7 @@
             if (action.kind === 'PHASE') {
                 this.activeToast = this.toasts.show({
                     ...action,
-                    label: 'Phase',
+                    label: '',
                     actorName: action.actorName,
                     targetName: ''
                 }, t.toastDismissMs);
@@ -736,6 +815,41 @@
                     // Destruction animation, then remove the ghost.
                     await destroyGhost(ghost, elColor, 520);
                 }
+            } else if (action.kind === 'ATTACK' && action.target) {
+                // Damage event without an identified source (effect tick,
+                // counterattack, etc.). Still show impact + ghost + floater so
+                // the player sees the consequence.
+                let ghost = null;
+                if (action.destroysTarget && action.ghostCell) {
+                    ghost = spawnGhost(
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        action.ghostCell, knight, elColor
+                    );
+                }
+                if (window.SieglingsFx?.impactAt) {
+                    window.SieglingsFx.impactAt(
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        action.elementColor || action.knightElement
+                    );
+                }
+                if (ghost) {
+                    ghost.classList.add('sgl-ghost-impact');
+                    setTimeout(() => ghost.classList.remove('sgl-ghost-impact'), 320);
+                } else {
+                    flashImpact(action.target.isPlayer, action.target.row, action.target.col, elColor);
+                }
+                if (action.amount && window.SieglingsFx?.floatingDamage) {
+                    window.SieglingsFx.floatingDamage(
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        action.amount, action.elementColor || action.knightElement
+                    );
+                }
+                if (window.SieglingsFx?.cameraShake) {
+                    const shake = Math.min(10, 3 + Math.round((action.amount || 0) * 0.5));
+                    window.SieglingsFx.cameraShake(shake, t.impactMs);
+                }
+                await sleep(t.impactMs);
+                if (ghost) await destroyGhost(ghost, elColor, 520);
             } else if (action.kind === 'DESTROY' && action.target && action.ghostCell) {
                 // Standalone destruction (no projectile / no attacker we can locate).
                 const ghost = spawnGhost(
