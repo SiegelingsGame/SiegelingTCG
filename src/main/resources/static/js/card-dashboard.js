@@ -205,8 +205,11 @@
             "abilityTargetRowSelect",
             "abilityEffectTypeSelect",
             "abilityEffectValueInput",
+            "abilityRequiredElementField",
             "abilityRequiredElementSelect",
+            "abilityRequiredEnergyField",
             "abilityRequiredEnergyInput",
+            "abilityRequiredReactionField",
             "abilityRequiredReactionSelect",
             "abilityTargetHelper",
             "abilityEffectHelper",
@@ -516,6 +519,8 @@
         });
         refs.moveDraftDescInput?.addEventListener("input", renderMoveDraftLivePanels);
         refs.moveDraftPassiveSelect?.addEventListener("change", onMoveDraftPassiveChange);
+        refs.moveDraftNameInput?.addEventListener("input", onMoveDraftNameInput);
+        refs.moveDraftIdInput?.addEventListener("input", onMoveDraftIdInput);
 
         refs.abilityTabs.addEventListener("click", (event) => {
             const tab = event.target.closest("[data-ability-index]");
@@ -538,7 +543,7 @@
     function bindCardFieldEvents() {
         refs.cardIdInput.addEventListener("input", (event) => updateSelectedCardField("id", event.target.value));
         refs.cardTypeSelect.addEventListener("change", (event) => changeSelectedCardType(event.target.value));
-        refs.cardNameInput.addEventListener("input", (event) => updateSelectedCardField("name", event.target.value));
+        refs.cardNameInput.addEventListener("input", (event) => onCardNameChanged(event.target.value));
         refs.cardElementSelect.addEventListener("change", (event) => {
             mutateSelectedCard((card) => {
                 card.element = event.target.value;
@@ -1043,6 +1048,65 @@
         });
     }
 
+    function onCardNameChanged(nextName) {
+        const card = getSelectedCard();
+        if (!card) {
+            return;
+        }
+        const previousAutoId = refs.cardIdInput.dataset.autoId || "";
+        const previousAbilityAutoName = refs.abilityNameInput.dataset.autoName || "";
+        const idIsAuto = (card.id || "") === previousAutoId;
+        mutateSelectedCard((c) => {
+            c.name = nextName;
+            if (idIsAuto) {
+                const nextId = computeAutoCardId(c, nextName);
+                if (nextId && nextId !== c.id) {
+                    migrateCardIdReferences(c.id, nextId);
+                    c.id = nextId;
+                }
+            }
+            if (c.cardType !== "SIEGLING" && Array.isArray(c.abilities) && c.abilities[0]) {
+                const ability = c.abilities[0];
+                if ((ability.name || "") === previousAbilityAutoName) {
+                    ability.name = nextName;
+                }
+            }
+        });
+    }
+
+    function computeAutoCardId(card, name) {
+        const slugBase = slugify(name) || "card";
+        let candidate = slugBase;
+        let counter = 2;
+        const otherIds = new Set(state.cards.filter((other) => other !== card).map((other) => other.id));
+        while (otherIds.has(candidate)) {
+            candidate = `${slugBase}-${counter}`;
+            counter += 1;
+        }
+        return candidate;
+    }
+
+    function migrateCardIdReferences(oldId, newId) {
+        const o = String(oldId || "").trim();
+        const n = String(newId || "").trim();
+        if (!o || !n || o === n) {
+            return;
+        }
+        if (state.selectedCardId === o) {
+            state.selectedCardId = n;
+        }
+        state.cards.forEach((card) => {
+            if (card.evolvesFromId && card.evolvesFromId.trim() === o) {
+                card.evolvesFromId = n;
+            }
+        });
+        state.decks.forEach((deck) => {
+            if (Array.isArray(deck.cardIds)) {
+                deck.cardIds = deck.cardIds.map((id) => (String(id || "").trim() === o ? n : id));
+            }
+        });
+    }
+
     function changeSelectedCardType(nextType) {
         const normalizedType = normalizeCardType(nextType);
         mutateSelectedCard((card) => {
@@ -1448,10 +1512,11 @@
 
     function createBlankSpellCard() {
         const element = firstMetaValue("elements", "FIRE");
+        const name = "New Spell";
         return normalizeCard({
             type: "SPELL",
             id: createUniqueCardId("new-spell"),
-            name: "New Spell",
+            name,
             element,
             rarity: firstMetaValue("rarities", "COMMON"),
             costElement: element,
@@ -1459,27 +1524,28 @@
             requiredReaction: "",
             requiredComboSize: 0,
             requiredComboSignature: "",
-            ability: createBlankAbility(element)
+            ability: createBlankAbility(element, name)
         });
     }
 
     function createBlankTrapCard() {
         const element = firstMetaValue("elements", "FIRE");
+        const name = "New Trap";
         return normalizeCard({
             type: "TRAP",
             id: createUniqueCardId("new-trap"),
-            name: "New Trap",
+            name,
             element,
             rarity: firstMetaValue("rarities", "UNCOMMON"),
             trapBucketElement: element,
             trapBucketAmount: 3,
-            ability: createBlankAbility(element)
+            ability: createBlankAbility(element, name)
         });
     }
 
-    function createBlankAbility(element) {
+    function createBlankAbility(element, name) {
         return normalizeAbility({
-            name: "New Ability",
+            name: name || "New Ability",
             description: "",
             targetType: "SINGLE_ENEMY",
             effectType: firstEffectKey(),
@@ -1949,6 +2015,7 @@
 
         setInputValue(refs.cardIdInput, card.id);
         setInputValue(refs.cardNameInput, card.name);
+        refs.cardIdInput.dataset.autoId = computeAutoCardId(card, card.name);
         setInputValue(refs.cardHealthInput, card.health);
         setInputValue(refs.cardSpeedInput, card.speed);
         setInputValue(refs.cardEvolvesFromInput, card.evolvesFromId);
@@ -2011,7 +2078,32 @@
         populateSelect(refs.abilityRequiredElementSelect, ["", ...(state.metadata?.elements || [])], ability.requiredElement, true);
         populateSelect(refs.abilityRequiredReactionSelect, ["", ...(state.metadata?.reactions || [])], ability.requiredReaction, true);
 
+        const isActionAbility = !isSiegling;
+        refs.abilityRequiredElementField.classList.toggle("hidden", isActionAbility);
+        refs.abilityRequiredEnergyField.classList.toggle("hidden", isActionAbility);
+        refs.abilityRequiredReactionField.classList.toggle("hidden", isActionAbility);
+
+        if (isActionAbility) {
+            const autoDescription = buildAutoAbilityDescription(ability);
+            const previousAutoDescription = refs.abilityDescriptionInput.dataset.autoDescription || "";
+            const currentDescription = ability.description || "";
+            if (!autoDescription) {
+                if (currentDescription === previousAutoDescription) {
+                    ability.description = "";
+                }
+                refs.abilityDescriptionInput.dataset.autoDescription = "";
+            } else {
+                if (!currentDescription.trim() || currentDescription === previousAutoDescription) {
+                    ability.description = autoDescription;
+                }
+                refs.abilityDescriptionInput.dataset.autoDescription = autoDescription;
+            }
+        } else {
+            refs.abilityDescriptionInput.dataset.autoDescription = "";
+        }
+
         setInputValue(refs.abilityNameInput, ability.name);
+        refs.abilityNameInput.dataset.autoName = isActionAbility ? (card.name || "") : "";
         refs.abilityPassiveSelect.value = ability.passive ? "true" : "false";
         setInputValue(refs.abilityDescriptionInput, ability.description);
         setInputValue(refs.abilityEffectValueInput, ability.effectValue);
@@ -2021,6 +2113,18 @@
         refs.abilityTargetRowField.classList.toggle("hidden", !targetRule.requiresRow);
         refs.abilityTargetHelper.textContent = buildTargetHelperText(ability, targetRule);
         refs.abilityEffectHelper.textContent = buildEffectHelperText(ability.effectType);
+    }
+
+    function buildAutoAbilityDescription(ability) {
+        return buildAutoMoveDescription({
+            targetType: ability?.targetType || "",
+            targetElement: "",
+            targetRow: ability?.targetRow || "",
+            effectType: ability?.effectType || "",
+            effectValue: ability?.effectValue,
+            energyCost: ability?.requiredEnergy,
+            isPassive: Boolean(ability?.passive)
+        });
     }
 
     function renderNotches(card) {
@@ -3698,6 +3802,42 @@
         }
     }
 
+    function onMoveDraftNameInput() {
+        if (refs.moveDraftIdInput && refs.moveDraftIdInput.dataset.idIsAuto !== "false") {
+            const name = String(refs.moveDraftNameInput?.value || "");
+            const editingId = state.moveDraftEditingOriginalId
+                ? String(state.moveDraftEditingOriginalId).trim()
+                : null;
+            const nextId = computeUniqueAutoMoveId(name, editingId);
+            if (refs.moveDraftIdInput.value !== nextId) {
+                refs.moveDraftIdInput.value = nextId;
+            }
+        }
+        renderMoveDraftLivePanels();
+    }
+
+    function onMoveDraftIdInput() {
+        if (refs.moveDraftIdInput) {
+            refs.moveDraftIdInput.dataset.idIsAuto = "false";
+        }
+        renderMoveDraftLivePanels();
+    }
+
+    function computeUniqueAutoMoveId(name, editingOriginalId) {
+        const base = slugify(name) || "ability";
+        let candidate = base;
+        let counter = 2;
+        while (moveIdConflicts(candidate, editingOriginalId)) {
+            candidate = `${base}-${counter}`;
+            counter += 1;
+        }
+        return candidate;
+    }
+
+    function moveIdConflicts(candidate, editingOriginalId) {
+        return state.movesPool.some((m) => m.id === candidate && m.id !== editingOriginalId);
+    }
+
     function buildAutoMoveDescription(move) {
         const effectType = String(move?.effectType || "").trim();
         const targetType = String(move?.targetType || "").trim();
@@ -4367,6 +4507,11 @@
         );
         setInputValue(refs.moveDraftIdInput, move.id);
         setInputValue(refs.moveDraftNameInput, move.name);
+        if (refs.moveDraftIdInput) {
+            const slugOfName = slugify(move.name || "");
+            const isFreshDraft = !editingOriginalId;
+            refs.moveDraftIdInput.dataset.idIsAuto = (isFreshDraft || move.id === slugOfName) ? "true" : "false";
+        }
         setInputValue(refs.moveDraftEffectValueInput, move.effectValue);
         setInputValue(refs.moveDraftEnergyInput, move.energyCost);
         setInputValue(refs.moveDraftDescInput, move.description);
