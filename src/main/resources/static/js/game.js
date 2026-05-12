@@ -2202,6 +2202,12 @@ function getPhaseTransitionKicker(phase, activeSide) {
 }
 
 function showPhaseTransitionBanner(phase, activeSide) {
+    // The real-time playback system shows phase changes via the action-queue
+    // toast. When it's available, suppress the old top-of-screen banner so we
+    // don't double up.
+    if (window.SieglingsActionQueue) {
+        return;
+    }
     const banner = document.getElementById('phaseTransitionBanner');
     const kicker = document.getElementById('phaseTransitionKicker');
     const title = document.getElementById('phaseTransitionTitle');

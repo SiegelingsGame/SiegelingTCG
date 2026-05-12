@@ -42,21 +42,22 @@
     };
 
     const ACTION_LABEL = {
-        PLAY:    'Plays',
-        ABILITY: 'Uses',
-        ATTACK:  'Attacks',
-        BLOCK:   'Blocks',
-        EFFECT:  'Effect',
-        PHASE:   'Phase'
+        PLAY:    'plays',
+        ABILITY: 'uses',
+        ATTACK:  'attacks',
+        BLOCK:   'blocks',
+        EFFECT:  'effect',
+        DESTROY: 'is destroyed',
+        PHASE:   'phase'
     };
 
     const TIMING_NORMAL = {
-        highlightMs: 300,
-        toastEnterMs: 200,
-        projectileMs: 600,
-        impactMs: 300,
-        gapMs: 200,
-        toastDismissMs: 2500
+        highlightMs: 400,
+        toastEnterMs: 300,
+        projectileMs: 850,
+        impactMs: 450,
+        gapMs: 300,
+        toastDismissMs: 3000
     };
     const FAST_SCALE = 0.4;
     function fastTimings(t) {
@@ -122,7 +123,9 @@
             node.style.setProperty('--sgl-knight-glow', hexWithAlpha(knightHex, 0.55));
             node.style.setProperty('--sgl-element', elHex);
 
-            const labelText = toast.label || ACTION_LABEL[toast.kind] || toast.kind || '';
+            const labelText = (toast.label != null)
+                ? toast.label
+                : (ACTION_LABEL[toast.kind] || toast.kind || '');
             const damagePart = (toast.amount > 0)
                 ? `<span class="sgl-toast-damage" style="color:${elHex}">-${toast.amount}</span>`
                 : '';
@@ -441,15 +444,19 @@
 
             const playerKnight = getKnightElement(nextState, 'PLAYER');
             const enemyKnight  = getKnightElement(nextState, 'ENEMY');
+            const playerName   = nextState.playerName || prevState.playerName || 'Player';
+            const enemyName    = nextState.enemyName  || prevState.enemyName  || 'Opponent';
 
-            // Phase change → enqueue a phase action
+            // Phase change → enqueue a phase action (uses the toast system; the
+            // old phase-transition banner is suppressed in game.js).
             if (prevState.currentPhase && nextState.currentPhase
                 && prevState.currentPhase !== nextState.currentPhase) {
+                const phaseLabel = String(nextState.currentPhase).charAt(0)
+                    + String(nextState.currentPhase).slice(1).toLowerCase();
                 this.enqueueAction({
                     kind: 'PHASE',
                     side: nextState.activeSide || 'PLAYER',
-                    label: 'Phase',
-                    actorName: nextState.currentPhase,
+                    actorName: `${phaseLabel} Phase`,
                     knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
                     elementColor: 'NEUTRAL',
                     holdMs: this.timings().toastDismissMs
@@ -460,35 +467,32 @@
             if (prevState.activeSide !== 'ENEMY' && nextState.activeSide === 'ENEMY' && !nextState.gameOver) {
                 this.markOpponentThinking(true, nextState);
             }
-            if (nextState.activeSide === 'PLAYER' || nextState.gameOver) {
-                // We'll auto-clear when queue drains.
-            }
 
-            // Placements
+            // Placements — actor is the player/opponent name, target is the card.
             const newPlayerPlacements = diffPlacements(prevPlayer, nextPlayer, true);
             const newEnemyPlacements  = diffPlacements(prevEnemy,  nextEnemy,  false);
             for (const p of newPlayerPlacements) {
                 this.enqueueAction({
                     kind: 'PLAY',
                     side: 'PLAYER',
-                    actorName: p.cell.name || 'Card',
+                    actorName: playerName,
+                    targetName: p.cell.name || 'Card',
                     knightElement: playerKnight,
                     elementColor: normalizeElement(p.cell.element) || playerKnight,
                     source: { isPlayer: true, row: p.row, col: p.col },
-                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    label: 'Plays'
+                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`
                 });
             }
             for (const p of newEnemyPlacements) {
                 this.enqueueAction({
                     kind: 'PLAY',
                     side: 'ENEMY',
-                    actorName: p.cell.name || 'Card',
+                    actorName: enemyName,
+                    targetName: p.cell.name || 'Card',
                     knightElement: enemyKnight,
                     elementColor: normalizeElement(p.cell.element) || enemyKnight,
                     source: { isPlayer: false, row: p.row, col: p.col },
-                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    label: 'Plays'
+                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`
                 });
             }
 
@@ -560,9 +564,9 @@
                     kind: 'DESTROY',
                     side,
                     actorName: d.name || 'Card',
+                    targetName: '',
                     knightElement: knight,
                     elementColor: el,
-                    label: 'Destroyed',
                     source: { isPlayer: d.isPlayer, row: d.row, col: d.col },
                     target: { isPlayer: d.isPlayer, row: d.row, col: d.col, element: el },
                     ghostCell: d.cell
@@ -658,7 +662,7 @@
             if (action.kind === 'PHASE') {
                 this.activeToast = this.toasts.show({
                     ...action,
-                    label: 'Phase',
+                    label: '',
                     actorName: action.actorName,
                     targetName: ''
                 }, t.toastDismissMs);
