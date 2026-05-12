@@ -1746,7 +1746,7 @@ function getCardPreviewEntries(card) {
 
     if (card.type === 'TRAP' && card.trapBucketElement) {
         entries.push({
-            text: `Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}`,
+            text: `Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy`,
             className: 'card-cost'
         });
     } else if (card.costElement && card.costAmount > 0) {
@@ -2258,7 +2258,7 @@ function openCardInspector(card) {
     }
 
     if (card.type === 'TRAP' && card.trapBucketElement) {
-        html += `<div class="ci-ability">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
+        html += `<div class="ci-ability">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
     } else if (card.costElement && card.costAmount > 0) {
         html += `<div class="ci-ability">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
     }
@@ -5043,7 +5043,7 @@ function renderBuilderPreviewCard(card) {
     }
     html += renderCardAbilitiesFlavorSection(card);
     if (card.type === 'TRAP' && card.trapBucketElement) {
-        html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
+        html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
     } else if (card.costElement) {
         html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
     } else if (card.requiredComboSize) {
@@ -7061,7 +7061,7 @@ function renderHand() {
         }
         html += renderCardAbilitiesFlavorSection(card);
         if (card.type === 'TRAP' && card.trapBucketElement) {
-            html += `<div class="card-cost">Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}</div>`;
+            html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
         } else if (card.costElement) {
             html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
         } else if (card.requiredComboSize) {
@@ -8208,7 +8208,7 @@ function showTooltipHand(event, handIndex) {
     let abilityHtml = renderCardAbilitiesFlavorSection(card);
     const extras = [];
     if (card.type === 'TRAP') {
-        extras.push(`Trigger: Opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)}`);
+        extras.push(`Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy`);
     } else if (card.costElement && card.costAmount > 0) {
         extras.push(`Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}`);
     }
