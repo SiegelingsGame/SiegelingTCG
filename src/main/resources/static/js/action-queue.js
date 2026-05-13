@@ -390,9 +390,12 @@
     }
 
     // "Fireball deals 5 damage to Sleaf" → { abilityOrSource, amount, target }
+    // Server lines look like "Embers deals 3 damage to Pylme (HP: 10)" — the
+    // trailing "(HP: N)" is informational and must not become part of the
+    // target name or attribution against the board state will fail.
     function parseDamageFromLog(line) {
         const text = String(line || '').trim();
-        const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)\.?$/i);
+        const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?\.?$/i);
         if (!m) return null;
         return {
             abilityOrSource: m[1].trim(),
