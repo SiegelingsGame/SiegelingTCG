@@ -5,10 +5,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.SavedDeckEntity;
-import com.sieglings.persistence.repo.SavedDeckRepository;
+import com.sieglings.persistence.firestore.SavedDeckStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -19,7 +18,7 @@ import java.util.UUID;
 public class SavedDeckService {
 
     @Autowired
-    private SavedDeckRepository savedDeckRepository;
+    private SavedDeckStore savedDeckStore;
 
     @Autowired
     private CardDefinitionService cardDefinitionService;
@@ -27,12 +26,10 @@ public class SavedDeckService {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Transactional(readOnly = true)
     public List<SavedDeckEntity> listDecks(AccountUser user) {
-        return savedDeckRepository.findByUser_IdOrderByUpdatedAtDesc(user.getId());
+        return savedDeckStore.findByUserOrderByUpdatedAtDesc(user.getId());
     }
 
-    @Transactional
     public SavedDeckEntity saveDeck(AccountUser user, String deckId, String trainerId,
                                     List<String> customDeckCards, String name, String existingId) {
         String normalizedName = normalizeName(name);
@@ -40,7 +37,7 @@ public class SavedDeckService {
 
         SavedDeckEntity deck = existingId == null || existingId.isBlank()
                 ? new SavedDeckEntity()
-                : savedDeckRepository.findByIdAndUser_Id(existingId, user.getId())
+                : savedDeckStore.findByIdAndUser(existingId, user.getId())
                         .orElseThrow(() -> new IllegalArgumentException("Saved deck not found."));
 
         if (deck.getId() == null) {
@@ -48,20 +45,19 @@ public class SavedDeckService {
             deck.setCreatedAt(Instant.now());
         }
 
-        deck.setUser(user);
+        deck.setUserId(user.getId());
         deck.setName(normalizedName);
         deck.setPresetDeckId(customDeckCards == null || customDeckCards.isEmpty() ? deckId : null);
         deck.setTrainerId(trainerId);
         deck.setCustomDeckCardsJson(serializeCards(customDeckCards));
         deck.setUpdatedAt(Instant.now());
-        return savedDeckRepository.save(deck);
+        return savedDeckStore.save(deck);
     }
 
-    @Transactional
     public void deleteDeck(AccountUser user, String deckId) {
-        SavedDeckEntity deck = savedDeckRepository.findByIdAndUser_Id(deckId, user.getId())
+        SavedDeckEntity deck = savedDeckStore.findByIdAndUser(deckId, user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Saved deck not found."));
-        savedDeckRepository.delete(deck);
+        savedDeckStore.delete(deck);
     }
 
     public List<String> readCustomDeckCards(SavedDeckEntity deck) {

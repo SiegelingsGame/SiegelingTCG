@@ -4,32 +4,28 @@ import com.sieglings.model.GameState;
 import com.sieglings.model.Player;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
-import com.sieglings.persistence.repo.AccountUserRepository;
-import com.sieglings.persistence.repo.MatchHistoryRepository;
+import com.sieglings.persistence.firestore.AccountUserStore;
+import com.sieglings.persistence.firestore.MatchHistoryStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 @Service
 public class MatchHistoryService {
 
     @Autowired
-    private MatchHistoryRepository matchHistoryRepository;
+    private MatchHistoryStore matchHistoryStore;
 
     @Autowired
-    private AccountUserRepository accountUserRepository;
+    private AccountUserStore accountUserStore;
 
-    @Transactional(readOnly = true)
     public List<MatchHistoryEntity> listRecent(AccountUser user) {
-        return matchHistoryRepository.findTop12ByUser_IdOrderByFinishedAtDesc(user.getId());
+        return matchHistoryStore.findTop12ByUserOrderByFinishedAtDesc(user.getId());
     }
 
-    @Transactional
     public void recordCompletedGame(GameState state) {
         if (state == null || !state.isGameOver() || state.isMatchHistoryRecorded()) {
             return;
@@ -43,18 +39,19 @@ public class MatchHistoryService {
     private void recordForSide(GameState state, boolean isPlayerSide) {
         Player player = isPlayerSide ? state.getPlayer() : state.getEnemy();
         Player opponent = isPlayerSide ? state.getEnemy() : state.getPlayer();
-        if (player.getAccountUserId() == null) {
+        if (player.getAccountUserId() == null || player.getAccountUserId().isBlank()) {
             return;
         }
 
-        AccountUser user = accountUserRepository.findById(player.getAccountUserId()).orElse(null);
+        AccountUser user = accountUserStore.findById(player.getAccountUserId()).orElse(null);
         if (user == null) {
             return;
         }
 
         MatchHistoryEntity history = new MatchHistoryEntity();
         history.setId(UUID.randomUUID().toString());
-        history.setUser(user);
+        history.setUserId(user.getId());
+        history.setUserDisplayName(user.getDisplayName());
         history.setFinishedAt(Instant.now());
         history.setResult(resolveResult(state, player.getName()));
         history.setMatchType(state.isEnemyHumanControlled() ? "ONLINE" : "SOLO");
@@ -67,7 +64,7 @@ public class MatchHistoryService {
         history.setSpellsCast(player.getSpellsCastThisMatch());
         history.setTrapsSprung(player.getTrapsSprungThisMatch());
         history.setSiegelingsDefeated(player.getOpponentSieglingsDefeatedThisMatch());
-        matchHistoryRepository.save(history);
+        matchHistoryStore.save(history);
     }
 
     private String resolveResult(GameState state, String playerName) {
