@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
-import com.sieglings.persistence.repo.MatchHistoryRepository;
+import com.sieglings.persistence.entity.MatchHistoryEntity;
+import com.sieglings.persistence.firestore.MatchHistoryStore;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -26,8 +29,10 @@ public class LeaderboardService {
     public static final String BOARD_SIEGELINGS_DEFEATED = "siegelingsDefeated";
     public static final String BOARD_PVP_WIN_RATE = "pvpWinRate";
 
+    private static final int TOP_N = 10;
+
     @Autowired
-    private MatchHistoryRepository matchHistoryRepository;
+    private MatchHistoryStore matchHistoryStore;
 
     @Value("${app.leaderboard.time-zone:UTC}")
     private String leaderboardTimeZoneId;
@@ -36,7 +41,11 @@ public class LeaderboardService {
 
     @PostConstruct
     public void warmOnStartup() {
-        refreshSnapshot();
+        try {
+            refreshSnapshot();
+        } catch (RuntimeException ignored) {
+            // Firestore may not be reachable at boot; the scheduled cron will retry.
+        }
     }
 
     @Scheduled(cron = "${app.leaderboard.refresh-cron:0 0 7 * * *}")
@@ -47,13 +56,15 @@ public class LeaderboardService {
     public void refreshSnapshot() {
         ZoneId zone = ZoneId.of(leaderboardTimeZoneId);
         Instant now = Instant.now();
+        List<MatchHistoryEntity> matches = matchHistoryStore.findAll();
+
         Map<String, List<Map<String, Object>>> boards = new LinkedHashMap<>();
-        boards.put(BOARD_WINS, mapCountRows(matchHistoryRepository.leaderboardWins()));
-        boards.put(BOARD_MATCHES_PLAYED, mapCountRows(matchHistoryRepository.leaderboardMatchesPlayed()));
-        boards.put(BOARD_SPELLS_CAST, mapCountRows(matchHistoryRepository.leaderboardSpellsCast()));
-        boards.put(BOARD_TRAPS_SPRUNG, mapCountRows(matchHistoryRepository.leaderboardTrapsSprung()));
-        boards.put(BOARD_SIEGELINGS_DEFEATED, mapCountRows(matchHistoryRepository.leaderboardSiegelingsDefeated()));
-        boards.put(BOARD_PVP_WIN_RATE, mapPvpRows(matchHistoryRepository.leaderboardPvpWinRate()));
+        boards.put(BOARD_WINS, buildCountBoard(matches, m -> "WIN".equalsIgnoreCase(m.getResult()) ? 1L : 0L, false));
+        boards.put(BOARD_MATCHES_PLAYED, buildCountBoard(matches, m -> 1L, false));
+        boards.put(BOARD_SPELLS_CAST, buildCountBoard(matches, m -> (long) m.getSpellsCast(), true));
+        boards.put(BOARD_TRAPS_SPRUNG, buildCountBoard(matches, m -> (long) m.getTrapsSprung(), true));
+        boards.put(BOARD_SIEGELINGS_DEFEATED, buildCountBoard(matches, m -> (long) m.getSiegelingsDefeated(), true));
+        boards.put(BOARD_PVP_WIN_RATE, buildPvpBoard(matches));
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("generatedAt", now.toString());
@@ -71,42 +82,103 @@ public class LeaderboardService {
         return current;
     }
 
-    private List<Map<String, Object>> mapCountRows(List<Object[]> rows) {
-        List<Map<String, Object>> out = new ArrayList<>();
-        int rank = 1;
-        for (Object[] row : rows) {
-            if (row == null || row.length < 2) {
+    @FunctionalInterface
+    private interface MatchValue {
+        long valueOf(MatchHistoryEntity match);
+    }
+
+    private List<Map<String, Object>> buildCountBoard(List<MatchHistoryEntity> matches,
+                                                     MatchValue extractor,
+                                                     boolean requirePositive) {
+        Map<String, long[]> totals = new HashMap<>();
+        Map<String, String> displayNames = new HashMap<>();
+        for (MatchHistoryEntity match : matches) {
+            if (match.getUserId() == null) {
                 continue;
             }
-            String displayName = row[0] == null ? "?" : String.valueOf(row[0]);
-            long value = ((Number) row[1]).longValue();
-            Map<String, Object> entry = new LinkedHashMap<>();
-            entry.put("rank", rank++);
-            entry.put("displayName", displayName);
-            entry.put("value", value);
-            entry.put("detail", null);
-            out.add(entry);
+            long delta = extractor.valueOf(match);
+            totals.computeIfAbsent(match.getUserId(), k -> new long[1])[0] += delta;
+            displayNames.putIfAbsent(match.getUserId(), match.getUserDisplayName());
+        }
+
+        List<Map.Entry<String, Long>> ranked = new ArrayList<>();
+        for (Map.Entry<String, long[]> entry : totals.entrySet()) {
+            long value = entry.getValue()[0];
+            if (requirePositive && value <= 0) {
+                continue;
+            }
+            ranked.add(Map.entry(entry.getKey(), value));
+        }
+        ranked.sort(Comparator.<Map.Entry<String, Long>>comparingLong(Map.Entry::getValue).reversed());
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        int rank = 1;
+        for (Map.Entry<String, Long> entry : ranked) {
+            if (rank > TOP_N) {
+                break;
+            }
+            String displayName = displayNames.getOrDefault(entry.getKey(), "?");
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("rank", rank++);
+            row.put("displayName", displayName == null ? "?" : displayName);
+            row.put("value", entry.getValue());
+            row.put("detail", null);
+            out.add(row);
         }
         return out;
     }
 
-    private List<Map<String, Object>> mapPvpRows(List<Object[]> rows) {
-        List<Map<String, Object>> out = new ArrayList<>();
-        int rank = 1;
-        for (Object[] row : rows) {
-            if (row == null || row.length < 3) {
+    private List<Map<String, Object>> buildPvpBoard(List<MatchHistoryEntity> matches) {
+        Map<String, long[]> tally = new HashMap<>();
+        Map<String, String> displayNames = new HashMap<>();
+        for (MatchHistoryEntity match : matches) {
+            if (match.getUserId() == null) {
                 continue;
             }
-            String displayName = row[0] == null ? "?" : String.valueOf(row[0]);
-            long wins = ((Number) row[1]).longValue();
-            long losses = ((Number) row[2]).longValue();
+            if (!"ONLINE".equalsIgnoreCase(match.getMatchType())) {
+                continue;
+            }
+            String result = match.getResult();
+            if (!"WIN".equalsIgnoreCase(result) && !"LOSS".equalsIgnoreCase(result)) {
+                continue;
+            }
+            long[] counts = tally.computeIfAbsent(match.getUserId(), k -> new long[2]);
+            if ("WIN".equalsIgnoreCase(result)) {
+                counts[0]++;
+            } else {
+                counts[1]++;
+            }
+            displayNames.putIfAbsent(match.getUserId(), match.getUserDisplayName());
+        }
+
+        record PvpRow(String userId, long wins, long losses, double rate) {}
+        List<PvpRow> rows = new ArrayList<>();
+        for (Map.Entry<String, long[]> entry : tally.entrySet()) {
+            long wins = entry.getValue()[0];
+            long losses = entry.getValue()[1];
             long decided = wins + losses;
-            double pct = decided == 0 ? 0.0 : (100.0 * wins) / decided;
-            String detail = String.format(Locale.US, "%d/%d %.2f%%", wins, losses, pct);
+            if (decided == 0) {
+                continue;
+            }
+            double rate = (double) wins / (double) decided;
+            rows.add(new PvpRow(entry.getKey(), wins, losses, rate));
+        }
+        rows.sort(Comparator.<PvpRow>comparingDouble(PvpRow::rate)
+                .thenComparingLong(PvpRow::wins)
+                .reversed());
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        int rank = 1;
+        for (PvpRow row : rows) {
+            if (rank > TOP_N) {
+                break;
+            }
+            String displayName = displayNames.getOrDefault(row.userId(), "?");
+            String detail = String.format(Locale.US, "%d/%d %.2f%%", row.wins(), row.losses(), row.rate() * 100.0);
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("rank", rank++);
-            entry.put("displayName", displayName);
-            entry.put("value", decided);
+            entry.put("displayName", displayName == null ? "?" : displayName);
+            entry.put("value", row.wins() + row.losses());
             entry.put("detail", detail);
             out.add(entry);
         }

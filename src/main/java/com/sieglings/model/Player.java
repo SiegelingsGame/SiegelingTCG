@@ -22,7 +22,7 @@ public class Player {
     private List<Card> discard = new ArrayList<>();
     private TrainerCard activeTrainer;
     private int health = STARTING_HEALTH;
-    private Long accountUserId;
+    private String accountUserId;
     private String loadoutLabel;
 
     private int fireEnergy;
@@ -198,8 +198,8 @@ public class Player {
     public void setMistActive(boolean mistActive) { this.mistActive = mistActive; }
     public int getHealth() { return health; }
     public void setHealth(int health) { this.health = Math.max(0, Math.min(STARTING_HEALTH, health)); }
-    public Long getAccountUserId() { return accountUserId; }
-    public void setAccountUserId(Long accountUserId) { this.accountUserId = accountUserId; }
+    public String getAccountUserId() { return accountUserId; }
+    public void setAccountUserId(String accountUserId) { this.accountUserId = accountUserId; }
     public String getLoadoutLabel() { return loadoutLabel; }
     public void setLoadoutLabel(String loadoutLabel) { this.loadoutLabel = loadoutLabel; }
 }

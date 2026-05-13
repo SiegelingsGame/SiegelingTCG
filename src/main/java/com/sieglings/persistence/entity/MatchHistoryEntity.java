@@ -1,55 +1,21 @@
 package com.sieglings.persistence.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-
 import java.time.Instant;
 
-@Entity
-@Table(name = "match_history")
 public class MatchHistoryEntity {
 
-    @Id
-    @Column(length = 40)
     private String id;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private AccountUser user;
-
-    @Column(nullable = false)
+    private String userId;
+    private String userDisplayName;
     private Instant finishedAt = Instant.now();
-
-    @Column(nullable = false, length = 16)
     private String result;
-
-    @Column(nullable = false, length = 24)
     private String matchType;
-
-    @Column(nullable = false, length = 60)
     private String opponentName;
-
-    @Column(nullable = false, length = 60)
     private String loadoutLabel;
-
-    @Column(nullable = false, length = 60)
     private String trainerName;
-
-    @Column
     private Integer turnNumber;
-
-    @Column(nullable = false)
     private int spellsCast;
-
-    @Column(nullable = false)
     private int trapsSprung;
-
-    @Column(nullable = false)
     private int siegelingsDefeated;
 
     public String getId() {
@@ -60,12 +26,20 @@ public class MatchHistoryEntity {
         this.id = id;
     }
 
-    public AccountUser getUser() {
-        return user;
+    public String getUserId() {
+        return userId;
     }
 
-    public void setUser(AccountUser user) {
-        this.user = user;
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    public String getUserDisplayName() {
+        return userDisplayName;
+    }
+
+    public void setUserDisplayName(String userDisplayName) {
+        this.userDisplayName = userDisplayName;
     }
 
     public Instant getFinishedAt() {
