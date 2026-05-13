@@ -4339,8 +4339,53 @@ async function newGame() {
     const _gov = document.getElementById('gameOverOverlay');
     _gov.classList.remove('visible');
     delete _gov.dataset.soundPlayed;
+    // Loading gate covers the request + first render. Opponent info is a
+    // placeholder here because the server picks the AI knight; we'll let
+    // the gate fade once the first state lands.
+    if (window.SieglingsLoadingGate) {
+        const trainer = gameOptions?.trainers?.find?.((t) => t.id === selectedTrainerId);
+        window.SieglingsLoadingGate.show({
+            player: {
+                name: getCurrentPlayerName() || 'Player',
+                element: trainer?.element || 'NEUTRAL',
+                trainerName: trainer?.name || 'SiegeKnight'
+            },
+            opponent: {
+                name: 'AI Opponent',
+                element: 'SHADOW',
+                trainerName: 'Mystery SiegeKnight'
+            },
+            minDurationMs: 2200
+        });
+    }
     const body = getSelectedLoadoutBody();
-    const started = await api('new', 'POST', body, LOADOUT_ACTION_TIMEOUT_MS);
+    let started = null;
+    try {
+        started = await api('new', 'POST', body, LOADOUT_ACTION_TIMEOUT_MS);
+    } finally {
+        // Update the gate with the real opponent info now that we know it,
+        // then fade. minDurationMs inside the gate ensures players see the
+        // splash even if the API came back instantly.
+        if (window.SieglingsLoadingGate?.isVisible()) {
+            const enemyTrainer = gameState?.enemy?.trainer;
+            if (enemyTrainer && started) {
+                window.SieglingsLoadingGate.show({
+                    player: {
+                        name: gameState?.playerName || getCurrentPlayerName() || 'Player',
+                        element: gameState?.player?.trainer?.element || 'NEUTRAL',
+                        trainerName: gameState?.player?.trainer?.name || 'SiegeKnight'
+                    },
+                    opponent: {
+                        name: gameState?.enemyName || 'AI Opponent',
+                        element: enemyTrainer.element || 'SHADOW',
+                        trainerName: enemyTrainer.name || 'Mystery SiegeKnight'
+                    },
+                    minDurationMs: 600
+                });
+            }
+            window.SieglingsLoadingGate.hide();
+        }
+    }
     if (!started) {
         return;
     }
