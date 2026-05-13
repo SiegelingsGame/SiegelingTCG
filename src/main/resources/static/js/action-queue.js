@@ -477,6 +477,10 @@
 
         enqueueFromStateDiff(prevState, nextState) {
             if (!prevState || !nextState) return;
+            // Treat each diff batch as one logical "turn step" for pacing
+            // purposes: the first placement in this batch waits the longer
+            // settle gap, subsequent placements use the tighter rhythm.
+            this._placementInProgress = false;
             const prevPlayer = prevState.playerBoard || prevState.player?.board;
             const prevEnemy  = prevState.enemyBoard  || prevState.enemy?.board;
             const nextPlayer = nextState.playerBoard || nextState.player?.board;
@@ -488,51 +492,29 @@
             const enemyName    = nextState.enemyName  || prevState.enemyName  || 'Opponent';
             const newLogs      = getNewLogEntries(prevState, nextState);
 
-            // Phase changes are the sanctioned interrupt point. When a phase
-            // ends, drop any actions still queued from the previous phase so
-            // we don't show stale/misattributed battle animations after the
-            // game has visibly moved on. The new phase toast is enqueued at
-            // the *end* of this batch so any new-phase placements/events play
-            // out before the banner.
+            // A state diff can span a whole battle resolution + the next phase's
+            // placements (e.g. player commits attack → server resolves battle →
+            // advances phase → AI plays cards → returns one combined state).
+            // To keep the BATTLE phase "one solid phase" we enqueue actions in
+            // their real temporal order:
+            //   1. damage / destruction / ability lines from the just-ended
+            //      phase, tightly paced
+            //   2. the PHASE transition toast
+            //   3. new-phase placements, individually paced (2s before the
+            //      first, 1s before each subsequent one) so the player can
+            //      register each placement as the AI makes it
             const phaseChanged = prevState.currentPhase && nextState.currentPhase
                 && prevState.currentPhase !== nextState.currentPhase;
-            if (phaseChanged) {
-                this.queue.length = 0;
-                if (this.activeToast) { this.activeToast.dismiss(); this.activeToast = null; }
-            }
 
             // Opponent turn beginning → thinking indicator
             if (prevState.activeSide !== 'ENEMY' && nextState.activeSide === 'ENEMY' && !nextState.gameOver) {
                 this.markOpponentThinking(true, nextState);
             }
 
-            // Placements — actor is the player/opponent name, target is the card.
+            // Collect placements and damage now but enqueue them in the right
+            // order at the end of this method.
             const newPlayerPlacements = diffPlacements(prevPlayer, nextPlayer, true);
             const newEnemyPlacements  = diffPlacements(prevEnemy,  nextEnemy,  false);
-            for (const p of newPlayerPlacements) {
-                this.enqueueAction({
-                    kind: 'PLAY',
-                    side: 'PLAYER',
-                    actorName: playerName,
-                    targetName: p.cell.name || 'Card',
-                    knightElement: playerKnight,
-                    elementColor: normalizeElement(p.cell.element) || playerKnight,
-                    source: { isPlayer: true, row: p.row, col: p.col },
-                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`
-                });
-            }
-            for (const p of newEnemyPlacements) {
-                this.enqueueAction({
-                    kind: 'PLAY',
-                    side: 'ENEMY',
-                    actorName: enemyName,
-                    targetName: p.cell.name || 'Card',
-                    knightElement: enemyKnight,
-                    elementColor: normalizeElement(p.cell.element) || enemyKnight,
-                    source: { isPlayer: false, row: p.row, col: p.col },
-                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`
-                });
-            }
 
             // Damage events (attacks / abilities that hit)
             const damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true);
@@ -579,6 +561,13 @@
                 return null;
             };
 
+            // Battle-phase pacing: damage, destruction and ability animations
+            // fire back-to-back as one solid block.
+            const BATTLE_GAP_MS  = 220;
+            const PHASE_GAP_MS   = 500;
+            const FIRST_PLAY_GAP = 1800; // ~2s before/after the first placement
+            const NEXT_PLAY_GAP  = 800;  // ~1s between each subsequent placement
+
             for (const t of damageOnEnemy) {
                 const srcRef = resolvePlayerSource(t);
                 const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element)
@@ -595,7 +584,8 @@
                     source: srcRef ? { isPlayer: true, row: srcRef.row, col: srcRef.col } : null,
                     target: { isPlayer: false, row: t.row, col: t.col, element: t.element || srcElement },
                     destroysTarget: !!destroyed,
-                    ghostCell: destroyed?.cell || null
+                    ghostCell: destroyed?.cell || null,
+                    gapAfterMs: BATTLE_GAP_MS
                 });
             }
             for (const t of damageOnPlayer) {
@@ -613,7 +603,8 @@
                     source: srcRef ? { isPlayer: false, row: srcRef.row, col: srcRef.col } : null,
                     target: { isPlayer: true, row: t.row, col: t.col, element: t.element || srcElement },
                     destroysTarget: !!destroyed,
-                    ghostCell: destroyed?.cell || null
+                    ghostCell: destroyed?.cell || null,
+                    gapAfterMs: BATTLE_GAP_MS
                 });
             }
 
@@ -630,7 +621,8 @@
                     elementColor: el,
                     source: { isPlayer: d.isPlayer, row: d.row, col: d.col },
                     target: { isPlayer: d.isPlayer, row: d.row, col: d.col, element: el },
-                    ghostCell: d.cell
+                    ghostCell: d.cell,
+                    gapAfterMs: BATTLE_GAP_MS
                 });
             };
             for (const d of destructionsOnPlayer) queueDestruction(d, 'ENEMY', enemyKnight);
@@ -658,14 +650,15 @@
                         targetName: parsed.name,
                         knightElement: knight,
                         elementColor: elColor,
-                        source: { isPlayer: source.isPlayer, row: source.row, col: source.col }
+                        source: { isPlayer: source.isPlayer, row: source.row, col: source.col },
+                        gapAfterMs: BATTLE_GAP_MS
                     });
                 }
             }
 
-            // Phase change toast is appended at the end so the previous
-            // phase's damage / destruction animations finish playing before
-            // we announce the new phase.
+            // Phase change toast — appended AFTER the just-ended phase's
+            // animations and BEFORE the new phase's placements, so the toast
+            // marks the boundary between the two blocks the player sees.
             if (phaseChanged) {
                 const phaseLabel = String(nextState.currentPhase).charAt(0)
                     + String(nextState.currentPhase).slice(1).toLowerCase();
@@ -675,9 +668,32 @@
                     actorName: `${phaseLabel} Phase`,
                     knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
                     elementColor: 'NEUTRAL',
-                    holdMs: this.timings().toastDismissMs
+                    holdMs: this.timings().toastDismissMs,
+                    gapAfterMs: PHASE_GAP_MS
                 });
             }
+
+            // Placements last — individually paced so the player can see each
+            // AI Siegling appear before the next one arrives. First placement
+            // in this batch gets the longer "settle" gap, subsequent ones
+            // step on a tighter beat.
+            const enqueuePlacement = (p, side, knight, actorName) => {
+                const isFirst = !this._placementInProgress;
+                this._placementInProgress = true;
+                this.enqueueAction({
+                    kind: 'PLAY',
+                    side,
+                    actorName,
+                    targetName: p.cell.name || 'Card',
+                    knightElement: knight,
+                    elementColor: normalizeElement(p.cell.element) || knight,
+                    source: { isPlayer: side === 'PLAYER', row: p.row, col: p.col },
+                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
+                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP
+                });
+            };
+            for (const p of newPlayerPlacements) enqueuePlacement(p, 'PLAYER', playerKnight, playerName);
+            for (const p of newEnemyPlacements)  enqueuePlacement(p, 'ENEMY',  enemyKnight,  enemyName);
         }
 
         markOpponentThinking(active, nextState) {
@@ -741,7 +757,8 @@
                     actorName: action.actorName,
                     targetName: ''
                 }, t.toastDismissMs);
-                await sleep(t.toastEnterMs + t.gapMs);
+                const phaseGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(t.toastEnterMs + phaseGap);
                 return;
             }
 
@@ -885,8 +902,11 @@
                 await sleep(Math.round(t.impactMs * 0.4));
             }
 
-            // 5. Inter-action gap
-            await sleep(t.gapMs);
+            // 5. Inter-action gap. Each action may carry its own
+            // gapAfterMs (battle actions tight, placements long, phase
+            // transitions medium); fall back to the speed-tier default.
+            const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+            await sleep(gap);
         }
     }
 
