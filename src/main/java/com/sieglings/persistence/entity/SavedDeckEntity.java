@@ -1,45 +1,16 @@
 package com.sieglings.persistence.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-
 import java.time.Instant;
 
-@Entity
-@Table(name = "saved_decks")
 public class SavedDeckEntity {
 
-    @Id
-    @Column(length = 40)
     private String id;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private AccountUser user;
-
-    @Column(nullable = false, length = 60)
+    private String userId;
     private String name;
-
-    @Column(length = 80)
     private String presetDeckId;
-
-    @Column(nullable = false, length = 80)
     private String trainerId;
-
-    @Lob
-    @Column(columnDefinition = "CLOB")
     private String customDeckCardsJson;
-
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
-
-    @Column(nullable = false)
     private Instant updatedAt = Instant.now();
 
     public String getId() {
@@ -50,12 +21,12 @@ public class SavedDeckEntity {
         this.id = id;
     }
 
-    public AccountUser getUser() {
-        return user;
+    public String getUserId() {
+        return userId;
     }
 
-    public void setUser(AccountUser user) {
-        this.user = user;
+    public void setUserId(String userId) {
+        this.userId = userId;
     }
 
     public String getName() {

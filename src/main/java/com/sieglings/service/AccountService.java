@@ -2,13 +2,12 @@ package com.sieglings.service;
 
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.AuthSession;
-import com.sieglings.persistence.repo.AccountUserRepository;
-import com.sieglings.persistence.repo.AuthSessionRepository;
+import com.sieglings.persistence.firestore.AccountUserStore;
+import com.sieglings.persistence.firestore.AuthSessionStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -23,33 +22,32 @@ public class AccountService {
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Autowired
-    private AccountUserRepository userRepository;
+    private AccountUserStore userStore;
 
     @Autowired
-    private AuthSessionRepository sessionRepository;
+    private AuthSessionStore sessionStore;
 
-    @Transactional
     public SessionView register(String email, String password, String displayName) {
         String normalizedEmail = normalizeEmail(email);
         validatePassword(password);
-        if (userRepository.findByEmail(normalizedEmail).isPresent()) {
+        if (userStore.findById(normalizedEmail).isPresent()) {
             throw new IllegalArgumentException("That email is already registered.");
         }
 
         AccountUser user = new AccountUser();
+        user.setId(normalizedEmail);
         user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setDisplayName(normalizeDisplayName(displayName, normalizedEmail));
         user.setCreatedAt(Instant.now());
-        userRepository.save(user);
+        userStore.save(user);
 
         return createSession(user);
     }
 
-    @Transactional
     public SessionView login(String email, String password) {
         String normalizedEmail = normalizeEmail(email);
-        AccountUser user = userRepository.findByEmail(normalizedEmail)
+        AccountUser user = userStore.findById(normalizedEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Email or password is incorrect."));
 
         if (!passwordEncoder.matches(password == null ? "" : password, user.getPasswordHash())) {
@@ -59,27 +57,25 @@ public class AccountService {
         return createSession(user);
     }
 
-    @Transactional(readOnly = true)
     public AccountUser findUser(String authorizationHeader) {
         String token = extractToken(authorizationHeader);
         if (token == null) {
             return null;
         }
 
-        AuthSession session = sessionRepository.findById(token).orElse(null);
+        AuthSession session = sessionStore.findById(token).orElse(null);
         if (session == null) {
             return null;
         }
         if (session.getExpiresAt() != null && session.getExpiresAt().isBefore(Instant.now())) {
             return null;
         }
-        AccountUser user = session.getUser();
-        user.getId();
-        user.getEmail();
-        return user;
+        if (session.getUserId() == null) {
+            return null;
+        }
+        return userStore.findById(session.getUserId()).orElse(null);
     }
 
-    @Transactional(readOnly = true)
     public AccountUser requireUser(String authorizationHeader) {
         AccountUser user = findUser(authorizationHeader);
         if (user == null) {
@@ -88,23 +84,22 @@ public class AccountService {
         return user;
     }
 
-    @Transactional
     public void logout(String authorizationHeader) {
         String token = extractToken(authorizationHeader);
         if (token == null) {
             return;
         }
-        sessionRepository.deleteById(token);
+        sessionStore.deleteById(token);
     }
 
     private SessionView createSession(AccountUser user) {
         AuthSession session = new AuthSession();
         session.setToken(UUID.randomUUID().toString().replace("-", ""));
-        session.setUser(user);
+        session.setUserId(user.getId());
         session.setCreatedAt(Instant.now());
         session.setLastUsedAt(Instant.now());
         session.setExpiresAt(Instant.now().plus(30, ChronoUnit.DAYS));
-        sessionRepository.save(session);
+        sessionStore.save(session);
         return new SessionView(user, session.getToken());
     }
 
