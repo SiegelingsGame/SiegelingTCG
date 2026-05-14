@@ -1170,11 +1170,38 @@
         getSpeed: () => queue.getSpeed(),
         clear: () => queue.clear(),
         isProcessing: () => queue.isProcessing(),
-        markOpponentThinking: (a, s) => queue.markOpponentThinking(a, s)
+        markOpponentThinking: (a, s) => queue.markOpponentThinking(a, s),
+        syncPendingPlacements: () => queue.syncPendingPlacements()
     };
+
+    // Wrap game.js's global render() so we can hide pending placements in
+    // the same synchronous task that builds the new board. Without this,
+    // there's a one-frame window between render() rebuilding cells and the
+    // post-render sync running, during which the browser can paint the
+    // newly-placed AI cards before our pending-placement hide takes effect.
+    function installRenderHook() {
+        if (window.__sglRenderHookInstalled) return true;
+        if (typeof window.render !== 'function') return false;
+        const orig = window.render;
+        window.render = function () {
+            const result = orig.apply(this, arguments);
+            try { queue.syncPendingPlacements(); } catch (_) {}
+            return result;
+        };
+        window.__sglRenderHookInstalled = true;
+        return true;
+    }
 
     function init() {
         ensureSpeedToggle(queue);
+        if (!installRenderHook()) {
+            // game.js loads before this script per index.html ordering, but
+            // be defensive: poll briefly in case load order changes.
+            let attempts = 0;
+            const timer = setInterval(() => {
+                if (installRenderHook() || ++attempts > 20) clearInterval(timer);
+            }, 100);
+        }
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
