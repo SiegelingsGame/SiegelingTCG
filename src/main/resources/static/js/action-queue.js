@@ -441,7 +441,15 @@
             this.activeToast = null;
             this.thinkingNode = null;
             this.opponentThinking = false;
+            // Map<key, { isPlayer, row, col, instanceId }> — placements
+            // waiting on their PLAY action. Each entry's matching board card
+            // is held invisible until the queue actually plays that PLAY, so
+            // the player can't see new cards appear before earlier battle
+            // animations finish.
+            this.pendingPlacements = new Map();
+            this._pendingSyncScheduled = false;
             this._loadSpeed();
+            this._installPlacementObserver();
         }
         _loadSpeed() {
             try {
@@ -470,6 +478,98 @@
             this.toasts.clear();
             this.processing = false;
             this.markOpponentThinking(false);
+            this.revealAllPendingPlacements();
+        }
+
+        // ── Pending-placement registry ────────────────────────────────────
+        _placementKey(isPlayer, row, col, instanceId) {
+            return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${instanceId || ''}`;
+        }
+        registerPendingPlacement(isPlayer, row, col, cell) {
+            const id = String(cell?.instanceId || cell?.id || '');
+            const key = this._placementKey(isPlayer, row, col, id);
+            this.pendingPlacements.set(key, { isPlayer, row, col, instanceId: id });
+            this.schedulePendingSync();
+            return key;
+        }
+        revealPendingPlacement(key) {
+            const entry = this.pendingPlacements.get(key);
+            if (!entry) return null;
+            this.pendingPlacements.delete(key);
+            const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+            const card = cellEl?.querySelector('.board-card');
+            if (card) {
+                card.style.removeProperty('visibility');
+                card.style.removeProperty('opacity');
+            }
+            return cellEl;
+        }
+        revealAllPendingPlacements() {
+            for (const key of Array.from(this.pendingPlacements.keys())) {
+                this.revealPendingPlacement(key);
+            }
+        }
+        schedulePendingSync() {
+            if (this._pendingSyncScheduled) return;
+            this._pendingSyncScheduled = true;
+            requestAnimationFrame(() => {
+                this._pendingSyncScheduled = false;
+                this.syncPendingPlacements();
+            });
+        }
+        syncPendingPlacements() {
+            // For every still-pending placement, re-apply the hidden style on
+            // its board-card. We re-apply (rather than rely on a CSS class)
+            // because game.js's render() rebuilds the cell innerHTML on each
+            // state change and would strip any classes we added previously.
+            for (const entry of this.pendingPlacements.values()) {
+                const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+                const card = cellEl?.querySelector('.board-card');
+                if (card && card.style.visibility !== 'hidden') {
+                    card.style.visibility = 'hidden';
+                    card.style.opacity = '0';
+                }
+            }
+        }
+        _installPlacementObserver() {
+            // Re-apply hidden state whenever the board grids are re-rendered.
+            const attach = () => {
+                const grids = [document.getElementById('playerGrid'), document.getElementById('enemyGrid')]
+                    .filter(Boolean);
+                if (!grids.length) return false;
+                for (const grid of grids) {
+                    if (grid.__sglObserved) continue;
+                    grid.__sglObserved = true;
+                    const obs = new MutationObserver(() => this.schedulePendingSync());
+                    obs.observe(grid, { childList: true, subtree: true });
+                }
+                return true;
+            };
+            if (!attach()) {
+                document.addEventListener('DOMContentLoaded', attach);
+            }
+        }
+
+        // ── Health-bar helpers (for direct-attack animations) ──────────────
+        _getHealthBarEl(isPlayer) {
+            const desktop = document.querySelector(isPlayer ? '.tb-hp-player' : '.tb-hp-enemy');
+            if (desktop && desktop.offsetParent !== null) return desktop;
+            const mobile = document.querySelector(isPlayer ? '.mobile-hud-player' : '.mobile-hud-enemy');
+            if (mobile && mobile.offsetParent !== null) return mobile;
+            return desktop || mobile || null;
+        }
+        _getHealthBarCenter(isPlayer) {
+            const el = this._getHealthBarEl(isPlayer);
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        }
+        _flashHealthBar(isPlayer, elementHexValue) {
+            const el = this._getHealthBarEl(isPlayer);
+            if (!el) return;
+            el.style.setProperty('--sgl-hp-impact', elementHexValue || ELEMENT_HEX.NEUTRAL);
+            el.classList.add('sgl-hp-impact');
+            setTimeout(() => el.classList.remove('sgl-hp-impact'), 720);
         }
 
         enqueueAction(action) {
@@ -683,6 +783,12 @@
             const enqueuePlacement = (p, side, knight, actorName) => {
                 const isFirst = !this._placementInProgress;
                 this._placementInProgress = true;
+                const placementIsPlayer = side === 'PLAYER';
+                // Register the placement BEFORE enqueueing so the post-render
+                // sync hides this card until we play its PLAY action.
+                const placementKey = this.registerPendingPlacement(
+                    placementIsPlayer, p.row, p.col, p.cell
+                );
                 this.enqueueAction({
                     kind: 'PLAY',
                     side,
@@ -690,13 +796,64 @@
                     targetName: p.cell.name || 'Card',
                     knightElement: knight,
                     elementColor: normalizeElement(p.cell.element) || knight,
-                    source: { isPlayer: side === 'PLAYER', row: p.row, col: p.col },
+                    source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
                     portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP
+                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP,
+                    placementKey
                 });
             };
             for (const p of newPlayerPlacements) enqueuePlacement(p, 'PLAYER', playerKnight, playerName);
             for (const p of newEnemyPlacements)  enqueuePlacement(p, 'ENEMY',  enemyKnight,  enemyName);
+
+            // Direct health-bar damage (attacker hits the enemy player when
+            // the enemy board is empty, or vice versa). Treated as an ATTACK
+            // whose target is the HP bar in the top HUD.
+            const prevPlayerHp = Number(prevState.player?.health ?? prevState.playerHealth);
+            const nextPlayerHp = Number(nextState.player?.health ?? nextState.playerHealth);
+            const prevEnemyHp  = Number(prevState.enemy?.health  ?? prevState.enemyHealth);
+            const nextEnemyHp  = Number(nextState.enemy?.health  ?? nextState.enemyHealth);
+
+            if (Number.isFinite(prevEnemyHp) && Number.isFinite(nextEnemyHp) && nextEnemyHp < prevEnemyHp) {
+                const dmg = prevEnemyHp - nextEnemyHp;
+                const srcRef = (() => {
+                    const pending = prevState.pendingBattle;
+                    if (pending) {
+                        const byId = findCellByInstanceId(prevPlayer, pending.instanceId);
+                        if (byId) return { ...byId, isPlayer: true, pending };
+                    }
+                    return findCellOnBoard(prevPlayer, () => true);
+                })();
+                const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || playerKnight;
+                this.enqueueAction({
+                    kind: 'ATTACK',
+                    side: 'PLAYER',
+                    actorName: srcRef?.cell?.name || srcRef?.pending?.name || playerName,
+                    targetName: enemyName,
+                    amount: dmg,
+                    knightElement: playerKnight,
+                    elementColor: srcElement,
+                    source: srcRef ? { isPlayer: true, row: srcRef.row, col: srcRef.col } : null,
+                    target: { healthBar: true, isPlayer: false, element: srcElement },
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            }
+            if (Number.isFinite(prevPlayerHp) && Number.isFinite(nextPlayerHp) && nextPlayerHp < prevPlayerHp) {
+                const dmg = prevPlayerHp - nextPlayerHp;
+                const srcRef = findCellOnBoard(prevEnemy, () => true);
+                const srcElement = normalizeElement(srcRef?.cell?.element) || enemyKnight;
+                this.enqueueAction({
+                    kind: 'ATTACK',
+                    side: 'ENEMY',
+                    actorName: srcRef?.cell?.name || enemyName,
+                    targetName: playerName,
+                    amount: dmg,
+                    knightElement: enemyKnight,
+                    elementColor: srcElement,
+                    source: srcRef ? { isPlayer: false, row: srcRef.row, col: srcRef.col } : null,
+                    target: { healthBar: true, isPlayer: true, element: srcElement },
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            }
         }
 
         markOpponentThinking(active, nextState) {
@@ -745,6 +902,9 @@
             } finally {
                 this.processing = false;
                 if (this.opponentThinking) this.markOpponentThinking(false);
+                // Defensive: never leave a card permanently hidden because no
+                // PLAY action was queued for it.
+                this.revealAllPendingPlacements();
             }
         }
 
@@ -752,6 +912,11 @@
             const t = this.timings();
             const knight = elementHex(action.knightElement);
             const elColor = elementHex(action.elementColor || action.knightElement);
+
+            // Re-apply hidden state for any placements still pending. Covers
+            // the case where game.js's render rebuilt the cell DOM while we
+            // were processing a previous action.
+            this.syncPendingPlacements();
 
             if (action.kind === 'PHASE') {
                 this.activeToast = this.toasts.show({
@@ -763,6 +928,12 @@
                 const phaseGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(t.toastEnterMs + phaseGap);
                 return;
+            }
+
+            // PLAY: reveal the held card before the pulse so the entrance
+            // animation has something to animate against.
+            if (action.kind === 'PLAY' && action.placementKey) {
+                this.revealPendingPlacement(action.placementKey);
             }
 
             // 1. Highlight source card
@@ -784,9 +955,47 @@
             this.activeToast = this.toasts.show(action, t.toastDismissMs);
             await sleep(t.toastEnterMs);
 
+            // 2b. Direct attack on the enemy/player HP bar — no cell target,
+            // so we fire the projectile to the bar's screen coordinates and
+            // shake/flash the bar on impact.
+            if (action.kind === 'ATTACK' && action.source && action.target?.healthBar
+                && window.SieglingsFx?.attackPoint) {
+                const barCenter = this._getHealthBarCenter(action.target.isPlayer);
+                if (barCenter) {
+                    window.SieglingsFx.attackPoint(
+                        action.source.isPlayer, action.source.row, action.source.col,
+                        barCenter.x, barCenter.y,
+                        action.elementColor || action.knightElement,
+                        { duration: t.projectileMs }
+                    );
+                    await sleep(t.projectileMs);
+                    this._flashHealthBar(action.target.isPlayer, elColor);
+                    if (window.SieglingsFx?.impactAtPoint) {
+                        window.SieglingsFx.impactAtPoint(
+                            barCenter.x, barCenter.y,
+                            action.elementColor || action.knightElement
+                        );
+                    }
+                    if (action.amount && window.SieglingsFx?.floatingText) {
+                        window.SieglingsFx.floatingText(
+                            barCenter.x, barCenter.y - 18,
+                            `-${action.amount}`, elColor, 32
+                        );
+                    }
+                    if (window.SieglingsFx?.cameraShake) {
+                        const shake = Math.min(14, 4 + Math.round((action.amount || 0) * 0.7));
+                        window.SieglingsFx.cameraShake(shake, t.impactMs);
+                    }
+                    await sleep(t.impactMs);
+                    const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                    await sleep(gap);
+                    return;
+                }
+            }
+
             // 3. Projectile + impact for attack-like actions
             const fireProjectile = action.kind === 'ATTACK' && action.source && action.target
-                && window.SieglingsFx?.attackCell;
+                && !action.target.healthBar && window.SieglingsFx?.attackCell;
             if (fireProjectile) {
                 // If this hit destroys the target, materialize a ghost copy so
                 // the now-empty cell still has something to be hit by the
@@ -835,6 +1044,31 @@
                     // Destruction animation, then remove the ghost.
                     await destroyGhost(ghost, elColor, 520);
                 }
+            } else if (action.kind === 'ATTACK' && action.target?.healthBar) {
+                // Sourceless health-bar damage — still flash the bar so the
+                // player registers the hit.
+                const barCenter = this._getHealthBarCenter(action.target.isPlayer);
+                this._flashHealthBar(action.target.isPlayer, elColor);
+                if (barCenter && window.SieglingsFx?.impactAtPoint) {
+                    window.SieglingsFx.impactAtPoint(
+                        barCenter.x, barCenter.y,
+                        action.elementColor || action.knightElement
+                    );
+                }
+                if (barCenter && action.amount && window.SieglingsFx?.floatingText) {
+                    window.SieglingsFx.floatingText(
+                        barCenter.x, barCenter.y - 18,
+                        `-${action.amount}`, elColor, 30
+                    );
+                }
+                if (window.SieglingsFx?.cameraShake) {
+                    const shake = Math.min(10, 3 + Math.round((action.amount || 0) * 0.5));
+                    window.SieglingsFx.cameraShake(shake, t.impactMs);
+                }
+                await sleep(t.impactMs);
+                const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(gap);
+                return;
             } else if (action.kind === 'ATTACK' && action.target) {
                 // Damage event without an identified source (effect tick,
                 // counterattack, etc.). Still show impact + ghost + floater so
