@@ -842,7 +842,6 @@ img { display: block; }
     display: flex; align-items: center; justify-content: center;
     background: radial-gradient(circle, var(--knight-glow), rgba(0, 0, 0, 0.4));
     border: 2px solid var(--knight-color);
-    font-size: 3rem;
     margin-bottom: 12px;
     filter: drop-shadow(0 0 16px var(--knight-glow));
 }
@@ -991,6 +990,28 @@ img { display: block; }
     letter-spacing: 0.12em;
 }
 
+/* ── Element SVG sigils — shared sizing contexts ────────────────────────── */
+
+/* Inside creature portrait on the landing showcase grid */
+.creature-portrait .sgl-element-svg {
+    width: 54%;
+    height: 54%;
+    display: block;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 10px var(--creature-glow, rgba(255,255,255,0.5)));
+    transition: filter 0.24s ease;
+}
+.creature-card:hover .creature-portrait .sgl-element-svg {
+    filter: drop-shadow(0 0 20px var(--creature-glow, rgba(255,255,255,0.6)));
+}
+
+/* Inside knight portrait on the loading gate */
+.sgl-knight-portrait .sgl-element-svg {
+    width: 52px;
+    height: 52px;
+    display: block;
+}
+
 /* ── Siegelings Logo Stage — Loading Gate ──────────────────────────────── */
 .sgl-logo-stage {
     position: relative;
@@ -1114,8 +1135,12 @@ img { display: block; }
 .sgl-knight-portrait {
     width: 72px;
     height: 72px;
-    font-size: 2.2rem;
     margin-bottom: 10px;
+}
+
+.sgl-knight-portrait .sgl-element-svg {
+    width: 40px;
+    height: 40px;
 }
 
 .sgl-knight-name {
@@ -1143,7 +1168,7 @@ img { display: block; }
     .hero { padding: 100px 18px 60px; min-height: 92vh; }
     .feature-strip-inner { grid-template-columns: 1fr; gap: 16px; }
     .creature-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
-    .creature-portrait { font-size: 2.3rem; }
+    .creature-portrait .sgl-element-svg { width: 46%; height: 46%; }
     .sgl-gate-vs { grid-template-columns: 1fr; gap: 14px; }
     .sgl-vs-emblem { width: 70px; height: 70px; }
     .sgl-vs-emblem-text { font-size: 1.8rem; }
