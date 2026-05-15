@@ -1110,6 +1110,19 @@
             spawnImpact(pos.x, pos.y, getProfile(element));
         },
 
+        // Fire from a board cell to an arbitrary screen point — used for
+        // direct attacks on the enemy/player health bar in the HUD.
+        attackPoint(fromIsPlayer, fr, fc, toX, toY, element, options = {}) {
+            const from = getCellCenter(fromIsPlayer, fr, fc);
+            if (!from) return;
+            launchProjectile(from, { x: toX, y: toY }, element, options);
+        },
+
+        // Spawn an impact burst at an arbitrary screen point.
+        impactAtPoint(x, y, element) {
+            spawnImpact(x, y, getProfile(element));
+        },
+
         // Floating damage number at a cell
         floatingDamage(isPlayer, row, col, amount, element) {
             const pos = getCellCenter(isPlayer, row, col);
