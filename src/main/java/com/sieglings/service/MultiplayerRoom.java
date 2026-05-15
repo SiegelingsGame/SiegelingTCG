@@ -10,8 +10,8 @@ public class MultiplayerRoom {
     private String guestToken;
     private String hostName;
     private String guestName;
-    private Long hostUserId;
-    private Long guestUserId;
+    private String hostUserId;
+    private String guestUserId;
     private GameService.StartOptions hostOptions;
     private GameService.StartOptions guestOptions;
     private GameState gameState;
@@ -32,10 +32,10 @@ public class MultiplayerRoom {
     public void setHostName(String hostName) { this.hostName = hostName; }
     public String getGuestName() { return guestName; }
     public void setGuestName(String guestName) { this.guestName = guestName; }
-    public Long getHostUserId() { return hostUserId; }
-    public void setHostUserId(Long hostUserId) { this.hostUserId = hostUserId; }
-    public Long getGuestUserId() { return guestUserId; }
-    public void setGuestUserId(Long guestUserId) { this.guestUserId = guestUserId; }
+    public String getHostUserId() { return hostUserId; }
+    public void setHostUserId(String hostUserId) { this.hostUserId = hostUserId; }
+    public String getGuestUserId() { return guestUserId; }
+    public void setGuestUserId(String guestUserId) { this.guestUserId = guestUserId; }
     public GameService.StartOptions getHostOptions() { return hostOptions; }
     public void setHostOptions(GameService.StartOptions hostOptions) { this.hostOptions = hostOptions; }
     public GameService.StartOptions getGuestOptions() { return guestOptions; }

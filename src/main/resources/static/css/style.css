@@ -887,37 +887,91 @@ body {
     align-items: center;
 }
 
-.ab-preview-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.ab-action-counter {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(226, 183, 20, 0.16), rgba(90, 163, 255, 0.16));
+    border: 1px solid rgba(226, 183, 20, 0.55);
+    color: var(--text);
+    box-shadow: inset 0 0 10px rgba(226, 183, 20, 0.14), 0 1px 4px rgba(0, 0, 0, 0.35);
+    line-height: 30px;
+    white-space: nowrap;
 }
 
-.ab-setup-actions-badge {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    min-width: 17px;
-    height: 17px;
-    padding: 0 4px;
-    border-radius: 9px;
-    background: linear-gradient(135deg, var(--accent) 0%, #5aa3ff 100%);
-    color: #0a1020;
-    font-size: 0.62em;
+.ab-action-counter-label {
+    font-size: 0.6em;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.ab-action-counter-value {
+    font-size: 0.9em;
     font-weight: 800;
-    line-height: 17px;
-    text-align: center;
-    pointer-events: none;
-    z-index: 3;
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
 }
 
-.ab-setup-actions-badge.is-zero {
-    background: rgba(120, 130, 155, 0.55);
-    color: rgba(255, 255, 255, 0.85);
-    border-color: rgba(255, 255, 255, 0.12);
+.ab-action-counter.is-zero {
+    border-color: rgba(120, 130, 155, 0.55);
+    background: rgba(120, 130, 155, 0.18);
+    box-shadow: none;
+}
+
+.ab-action-counter.is-zero .ab-action-counter-value {
+    color: rgba(220, 225, 235, 0.75);
+}
+
+.ab-action-counter.is-decrement {
+    animation: ab-action-counter-decrement 480ms ease-out;
+}
+
+.ab-action-counter.is-decrement .ab-action-counter-value {
+    animation: ab-action-counter-value-pop 480ms ease-out;
+}
+
+.ab-action-counter.is-increment {
+    animation: ab-action-counter-increment 480ms ease-out;
+}
+
+@keyframes ab-action-counter-decrement {
+    0% {
+        transform: scale(1);
+        box-shadow: inset 0 0 10px rgba(226, 183, 20, 0.14), 0 1px 4px rgba(0, 0, 0, 0.35);
+    }
+    35% {
+        transform: scale(1.12);
+        box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.28), 0 0 18px rgba(231, 76, 60, 0.45);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: inset 0 0 10px rgba(226, 183, 20, 0.14), 0 1px 4px rgba(0, 0, 0, 0.35);
+    }
+}
+
+@keyframes ab-action-counter-value-pop {
+    0% { color: var(--accent); transform: scale(1); }
+    35% { color: #ff7a6c; transform: scale(1.25); }
+    100% { color: var(--accent); transform: scale(1); }
+}
+
+@keyframes ab-action-counter-increment {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.1); box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.22), 0 0 14px rgba(46, 204, 113, 0.35); }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ab-action-counter.is-decrement,
+    .ab-action-counter.is-decrement .ab-action-counter-value,
+    .ab-action-counter.is-increment {
+        animation: none;
+    }
 }
 
 .ab-icon {
@@ -6028,9 +6082,12 @@ body.placement-active .board-cell.legal {
     inset: 0;
     z-index: 70;
     display: none;
-    align-items: center;
+    align-items: safe center;
     justify-content: center;
     padding: 22px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     background:
         radial-gradient(circle at top left, rgba(50, 150, 255, 0.18), transparent 28%),
         radial-gradient(circle at bottom right, rgba(226, 183, 20, 0.14), transparent 26%),
@@ -6987,15 +7044,17 @@ body.placement-active .board-cell.legal {
 
 .mulligan-hand-preview {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: 16px;
     margin: 18px 0;
-    align-items: stretch;
-    justify-items: stretch;
+    align-items: start;
+    justify-items: center;
 }
 
 .mulligan-card-slot {
     position: relative;
+    width: 100%;
+    max-width: 200px;
     display: flex;
     justify-content: center;
     align-items: stretch;
@@ -7045,13 +7104,61 @@ body.placement-active .board-cell.legal {
     width: 100%;
     min-width: 0;
     max-width: none;
-    aspect-ratio: auto;
-    min-height: 100%;
+    aspect-ratio: var(--card-aspect-ratio);
+    min-height: 0;
     cursor: inherit;
+    overflow: hidden;
 }
 
 .mulligan-card-slot .hand-card.mulligan-showcase:hover {
     transform: none;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase .hand-card-shell {
+    gap: 4px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview {
+    min-height: 0;
+    flex: 0 1 auto;
+    aspect-ratio: 5 / 4;
+    padding: 4px;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview img {
+    max-height: 100%;
+    max-width: 100%;
+    height: auto;
+    width: auto;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase .card-art-fallback span {
+    font-size: 0.62em;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase .hand-card-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding: 2px 2px 4px;
+    gap: 2px;
+    font-size: 0.72em;
+    line-height: 1.2;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase .card-stats-line {
+    font-size: 0.92em;
+    font-weight: 600;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase .card-ability-flavor {
+    line-height: 1.2;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase .card-label {
+    font-size: 0.78em;
 }
 
 .mulligan-redraw-badge {
@@ -7645,15 +7752,11 @@ body.placement-active .board-cell.legal {
     }
 
     .mulligan-card-slot .hand-card.mulligan-showcase .card-title {
-        font-size: 0.9em;
+        font-size: 0.88em;
     }
 
-    .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview {
-        min-height: 96px;
-    }
-
-    .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview img {
-        max-height: 110px;
+    .mulligan-card-slot .hand-card.mulligan-showcase .hand-card-body {
+        font-size: 0.64em;
     }
 
     .mulligan-redraw-badge {
@@ -8070,6 +8173,21 @@ body.placement-active .board-cell.legal {
         font-size: 0.62em;
     }
 
+    .ab-action-counter {
+        height: 24px;
+        padding: 0 8px;
+        gap: 4px;
+        line-height: 24px;
+    }
+
+    .ab-action-counter-label {
+        font-size: 0.52em;
+    }
+
+    .ab-action-counter-value {
+        font-size: 0.78em;
+    }
+
     /* Card inspector panel: simplified preview above the hand */
     .desktop-menu-inspect {
         display: flex;
@@ -8258,33 +8376,24 @@ body.placement-active .board-cell.legal {
 
     .mulligan-card-slot .hand-card.mulligan-showcase {
         padding: 5px;
-        gap: 4px;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .hand-card-shell {
+        gap: 3px;
     }
 
     .mulligan-card-slot .hand-card.mulligan-showcase .card-title {
-        font-size: 0.82em;
-    }
-
-    .mulligan-card-slot .hand-card.mulligan-showcase .card-label,
-    .mulligan-card-slot .hand-card.mulligan-showcase .card-detail,
-    .mulligan-card-slot .hand-card.mulligan-showcase .card-cost,
-    .mulligan-card-slot .hand-card.mulligan-showcase .card-ability-flavor {
-        font-size: 0.66em;
-        line-height: 1.25;
-    }
-
-    .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview {
-        min-height: 78px;
-        padding: 4px;
-    }
-
-    .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview img {
-        max-height: 96px;
+        font-size: 0.8em;
     }
 
     .mulligan-card-slot .hand-card.mulligan-showcase .hand-card-body {
-        padding: 1px 1px 10px;
-        gap: 3px;
+        padding: 1px 1px 4px;
+        gap: 2px;
+        font-size: 0.56em;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview {
+        padding: 3px;
     }
 
     .mulligan-redraw-badge {

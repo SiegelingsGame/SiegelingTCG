@@ -205,10 +205,11 @@
                 <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
             </div>
             <div class="action-bar-aux">
-                <div class="ab-preview-wrap">
-                    <span id="setupActionsCounter" class="ab-setup-actions-badge" hidden aria-live="polite"></span>
-                    <button class="ab-icon" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
-                </div>
+                <span id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" title="Setup actions remaining this turn">
+                    <span class="ab-action-counter-label">Act</span>
+                    <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
+                </span>
+                <button class="ab-icon" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
                 <button class="ab-icon" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
                 <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
@@ -552,7 +553,7 @@
 <script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=99"></script>
+    <script src="/js/game.js?v=100"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=3"></script>
     <script src="/js/action-queue.js?v=10"></script>

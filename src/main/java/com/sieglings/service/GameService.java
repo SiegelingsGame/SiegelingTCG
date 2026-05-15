@@ -188,21 +188,19 @@ public class GameService {
 
         CardInstance existing = state.getAt(isPlayerSide, row, col);
         boolean evolutionPlacement = placementService.isEvolutionPlacement(state, isPlayerSide, row, col, siegling);
-        if (!evolutionPlacement) {
-            energyService.recalculateEnergy(state);
-            if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
-                state.log("No Siegling setup actions left this turn (1 base + 1 per energy in your pool when you entered setup).");
-                return state;
-            }
+        energyService.recalculateEnergy(state);
+        if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
+            state.log(evolutionPlacement
+                    ? "No Siegling setup actions left this turn — evolutions still cost 1 action."
+                    : "No Siegling setup actions left this turn (1 base + 1 per energy in your pool when you entered setup).");
+            return state;
         }
         CardInstance instance = placementService.createPlacedInstance(existing, siegling, isPlayerSide, row, col);
         if (!evolutionPlacement) {
             instance.setPlacementOrder(state.consumePlacementOrder());
         }
         state.setAt(isPlayerSide, row, col, instance);
-        if (!evolutionPlacement) {
-            state.recordSieglingSetupActionConsumed(isPlayerSide);
-        }
+        state.recordSieglingSetupActionConsumed(isPlayerSide);
         actor.removeFromHand(card);
 
         if (evolutionPlacement && existing != null) {
@@ -706,8 +704,6 @@ public class GameService {
         energyService.recalculateEnergy(state);
         state.log("Both setup turns are complete. Entering battle phase. Energy restored!");
         recalculateTrainerPassiveStatBuffs(state);
-        applyTrainerPassiveSpeedBoosts(state, true);
-        applyTrainerPassiveSpeedBoosts(state, false);
         effectService.recalculateBoardAuraDamageBoosts(state);
         battleService.initializeBattle(state);
         battleService.advanceBattle(state);
@@ -757,32 +753,18 @@ public class GameService {
         for (CardInstance ci : sieglings) {
             int healthBuff = 0;
             int damageBuff = 0;
+            int speedBuff = 0;
             if (passive != null && passive.isPassive() && passiveAppliesToCard(passive, trainer, ci)) {
                 int value = Math.max(1, passive.getEffectValue());
                 switch (passive.getEffectType()) {
                     case AbilityEffectKeys.DAMAGE_BOOST -> damageBuff += value;
                     case AbilityEffectKeys.HEALTH_BOOST -> healthBuff += value;
+                    case AbilityEffectKeys.SPEED_BOOST -> speedBuff += value;
                 }
             }
             ci.setTrainerPassiveHealthBuff(healthBuff);
             ci.setTrainerPassiveDamageBuff(damageBuff);
-        }
-    }
-
-    private void applyTrainerPassiveSpeedBoosts(GameState state, boolean isPlayer) {
-        Player player = getSidePlayer(state, isPlayer);
-        TrainerCard trainer = player.getActiveTrainer();
-        if (trainer == null || trainer.getAbility() == null) return;
-        Ability passive = trainer.getAbility();
-        if (!passive.isPassive()) return;
-        if (!AbilityEffectKeys.SPEED_BOOST.equals(passive.getEffectType())) return;
-
-        List<CardInstance> sieglings = state.getBoardSieglings(isPlayer);
-        for (CardInstance ci : sieglings) {
-            if (!passiveAppliesToCard(passive, trainer, ci)) {
-                continue;
-            }
-            ci.setCurrentSpeed(ci.getCurrentSpeed() + passive.getEffectValue());
+            ci.setTrainerPassiveSpeedBuff(speedBuff);
         }
     }
 

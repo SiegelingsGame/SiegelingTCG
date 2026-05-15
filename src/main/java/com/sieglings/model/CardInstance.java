@@ -21,6 +21,7 @@ public class CardInstance {
     private int temporaryDamageBuff;
     private int trainerPassiveHealthBuff;
     private int trainerPassiveDamageBuff;
+    private int trainerPassiveSpeedBuff;
     /** Passive team-aura attack damage from allied Sieglings on the board (recomputed when the board changes). */
     private int auraDamageBoost;
     private Set<StatusEffect> statusEffects = new HashSet<>();
@@ -58,7 +59,7 @@ public class CardInstance {
     }
 
     public int getEffectiveSpeed() {
-        return Math.max(0, currentSpeed);
+        return Math.max(0, currentSpeed + trainerPassiveSpeedBuff);
     }
 
     public int getEffectiveMaxHealth() {
@@ -120,9 +121,19 @@ public class CardInstance {
         }
     }
 
+    public void setTrainerPassiveSpeedBuff(int amount) {
+        trainerPassiveSpeedBuff = Math.max(0, amount);
+        if (trainerPassiveSpeedBuff > 0) {
+            statusEffects.add(StatusEffect.SPEED_BOOST);
+        } else {
+            statusEffects.remove(StatusEffect.SPEED_BOOST);
+        }
+    }
+
     public void clearTrainerPassiveEffects() {
         setTrainerPassiveHealthBuff(0);
         setTrainerPassiveDamageBuff(0);
+        setTrainerPassiveSpeedBuff(0);
     }
 
     public void takeRawDamage(int amount) {
@@ -160,6 +171,7 @@ public class CardInstance {
     public int getTemporaryDamageBuff() { return temporaryDamageBuff; }
     public int getTrainerPassiveHealthBuff() { return trainerPassiveHealthBuff; }
     public int getTrainerPassiveDamageBuff() { return trainerPassiveDamageBuff; }
+    public int getTrainerPassiveSpeedBuff() { return trainerPassiveSpeedBuff; }
     public Set<StatusEffect> getStatusEffects() { return statusEffects; }
     public int getBoardRow() { return boardRow; }
     public void setBoardRow(int boardRow) { this.boardRow = boardRow; }

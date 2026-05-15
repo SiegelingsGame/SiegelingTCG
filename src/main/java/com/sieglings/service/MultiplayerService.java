@@ -26,7 +26,7 @@ public class MultiplayerService {
     @Autowired
     private GameService gameService;
 
-    public synchronized RoomSession createRoom(String playerName, GameService.StartOptions options, Long accountUserId) {
+    public synchronized RoomSession createRoom(String playerName, GameService.StartOptions options, String accountUserId) {
         String roomId = generateRoomId();
         String token = generateToken();
         MultiplayerRoom room = new MultiplayerRoom(roomId, token, safeName(playerName, "Host"), options);
@@ -35,7 +35,7 @@ public class MultiplayerService {
         return new RoomSession(roomId, token, true, false);
     }
 
-    public synchronized RoomSession joinRoom(String roomId, String playerName, GameService.StartOptions options, Long accountUserId) {
+    public synchronized RoomSession joinRoom(String roomId, String playerName, GameService.StartOptions options, String accountUserId) {
         MultiplayerRoom room = requireRoom(roomId);
         if (room.isStarted()) {
             throw new IllegalArgumentException("That room has already started.");
