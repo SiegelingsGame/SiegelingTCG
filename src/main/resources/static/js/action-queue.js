@@ -766,6 +766,31 @@
             setTimeout(() => el.classList.remove('sgl-hp-impact'), 720);
         }
 
+        // Where to launch a "sourceless" projectile from when we can't
+        // identify the attacking cell (e.g. an AI counter-attack whose log
+        // line shape doesn't match the parser). Picks a point on the
+        // attacker's side of the board so the projectile still flies the
+        // right direction toward the target.
+        _getFallbackProjectileOrigin(attackerIsPlayer) {
+            const grid = document.getElementById(attackerIsPlayer ? 'playerGrid' : 'enemyGrid');
+            if (grid) {
+                const r = grid.getBoundingClientRect();
+                if (r && r.width > 0 && r.height > 0) {
+                    return {
+                        x: r.left + r.width / 2,
+                        // Top edge of player grid / bottom edge of enemy grid
+                        // so the projectile starts "near the line" and flies
+                        // across the board rather than from inside the grid.
+                        y: attackerIsPlayer ? r.top + r.height * 0.15 : r.top + r.height * 0.85
+                    };
+                }
+            }
+            return {
+                x: window.innerWidth / 2,
+                y: attackerIsPlayer ? window.innerHeight * 0.75 : window.innerHeight * 0.25
+            };
+        }
+
         enqueueAction(action) {
             if (!action) return;
             this.queue.push(action);
@@ -1527,14 +1552,29 @@
                 return;
             } else if (action.kind === 'ATTACK' && action.target) {
                 // Damage event without an identified source (effect tick,
-                // counterattack, etc.). Still show impact + ghost + floater so
-                // the player sees the consequence.
+                // AI attack whose log shape the parser didn't recognize, etc.).
+                // We still fire a projectile from a fallback origin on the
+                // attacker's side so the user sees the element-colored
+                // particle trail flying across the board, and follow up with
+                // the usual impact + ghost + floater.
                 let ghost = null;
                 if (action.destroysTarget && action.ghostCell) {
                     ghost = spawnGhost(
                         action.target.isPlayer, action.target.row, action.target.col,
                         action.ghostCell, knight, elColor
                     );
+                }
+                const targetCellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
+                if (targetCellEl && window.SieglingsFx?.attackBetween) {
+                    const tr = targetCellEl.getBoundingClientRect();
+                    const origin = this._getFallbackProjectileOrigin(action.side === 'PLAYER');
+                    window.SieglingsFx.attackBetween(
+                        origin.x, origin.y,
+                        tr.left + tr.width / 2, tr.top + tr.height / 2,
+                        action.elementColor || action.knightElement,
+                        { duration: t.projectileMs }
+                    );
+                    await sleep(t.projectileMs);
                 }
                 if (window.SieglingsFx?.impactAt) {
                     window.SieglingsFx.impactAt(
