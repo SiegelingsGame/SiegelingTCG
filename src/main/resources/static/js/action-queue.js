@@ -671,45 +671,109 @@
             const FIRST_PLAY_GAP = 1800; // ~2s before/after the first placement
             const NEXT_PLAY_GAP  = 800;  // ~1s between each subsequent placement
 
-            for (const t of damageOnEnemy) {
-                const srcRef = resolvePlayerSource(t);
-                const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element)
-                    || playerKnight;
-                const destroyed = matchDestruction(destructionsOnEnemy, t);
+            // Multi-target label helper. Server damage events from the same
+            // attacker (e.g. AoE abilities, row sweeps) get grouped into a
+            // single ATTACK action whose toast announces the whole row /
+            // whole side rather than one of the hit cards.
+            const ROW_LABELS = ['Back', 'Middle', 'Front'];
+            const describeTargets = (targets, defenderLabel) => {
+                if (!targets || !targets.length) return '';
+                if (targets.length === 1) return targets[0].name || defenderLabel;
+                const rows = new Set(targets.map((tt) => tt.row));
+                const cols = new Set(targets.map((tt) => tt.col));
+                if (rows.size === 1) {
+                    const rowName = ROW_LABELS[targets[0].row] || 'Row';
+                    return `${rowName} row`;
+                }
+                if (cols.size === 1) {
+                    return `Column ${targets[0].col + 1}`;
+                }
+                if (targets.length >= 3) return `All ${defenderLabel}`;
+                return `${targets.length} ${defenderLabel}`;
+            };
+
+            // Group damage events by attacker cell. Same-source hits become
+            // one ATTACK action with a targets array so the projectiles fire
+            // simultaneously and the toast describes the group.
+            const groupDamage = (damageList, destructionList, resolveSource, sideKnight, defenderIsPlayer) => {
+                const groups = new Map();
+                for (const t of damageList) {
+                    const srcRef = resolveSource(t);
+                    const destroyed = matchDestruction(destructionList, t);
+                    const targetEntry = {
+                        isPlayer: defenderIsPlayer,
+                        row: t.row, col: t.col,
+                        amount: t.amount,
+                        element: t.element,
+                        name: t.name,
+                        destroysTarget: !!destroyed,
+                        ghostCell: destroyed?.cell || null
+                    };
+                    const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || sideKnight;
+                    const key = srcRef
+                        ? `S:${srcRef.row}:${srcRef.col}:${srcRef.cell?.instanceId || srcRef.cell?.id || ''}`
+                        : `N:${t.row}:${t.col}:${t.instanceId || ''}`;
+                    if (!groups.has(key)) {
+                        groups.set(key, { srcRef, srcElement, targets: [] });
+                    }
+                    groups.get(key).targets.push(targetEntry);
+                }
+                return groups;
+            };
+
+            const playerGroups = groupDamage(damageOnEnemy, destructionsOnEnemy, resolvePlayerSource, playerKnight, false);
+            const enemyGroups  = groupDamage(damageOnPlayer, destructionsOnPlayer, resolveEnemySource, enemyKnight,  true);
+
+            // Track attacker names that already have an ATTACK action queued
+            // so we can suppress the matching "X uses Y" ABILITY toast.
+            const enqueuedAttackerNames = new Set();
+
+            const enqueueAttackGroup = (group, side, knight, defaultActorName, defenderLabel) => {
+                const { srcRef, srcElement, targets } = group;
+                const actorName = srcRef?.cell?.name || srcRef?.pending?.name || defaultActorName;
+                if (actorName) enqueuedAttackerNames.add(actorName);
+                if (targets.length === 1) {
+                    const t = targets[0];
+                    this.enqueueAction({
+                        kind: 'ATTACK',
+                        side,
+                        actorName,
+                        targetName: t.name,
+                        amount: t.amount,
+                        knightElement: knight,
+                        elementColor: srcElement,
+                        source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                        target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || srcElement },
+                        destroysTarget: t.destroysTarget,
+                        ghostCell: t.ghostCell,
+                        gapAfterMs: BATTLE_GAP_MS
+                    });
+                    return;
+                }
+                // Multi-target: simultaneous barrage
+                const totalDmg = targets.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
                 this.enqueueAction({
                     kind: 'ATTACK',
-                    side: 'PLAYER',
-                    actorName: srcRef?.cell?.name || srcRef?.pending?.name || playerName,
-                    targetName: t.name,
-                    amount: t.amount,
-                    knightElement: playerKnight,
+                    side,
+                    actorName,
+                    targetName: describeTargets(targets, defenderLabel),
+                    amount: totalDmg,
+                    knightElement: knight,
                     elementColor: srcElement,
-                    source: srcRef ? { isPlayer: true, row: srcRef.row, col: srcRef.col } : null,
-                    target: { isPlayer: false, row: t.row, col: t.col, element: t.element || srcElement },
-                    destroysTarget: !!destroyed,
-                    ghostCell: destroyed?.cell || null,
+                    source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                    targets: targets.map((tt) => ({
+                        isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
+                        element: tt.element || srcElement,
+                        amount: tt.amount,
+                        destroysTarget: tt.destroysTarget,
+                        ghostCell: tt.ghostCell
+                    })),
                     gapAfterMs: BATTLE_GAP_MS
                 });
-            }
-            for (const t of damageOnPlayer) {
-                const srcRef = resolveEnemySource(t);
-                const srcElement = normalizeElement(srcRef?.cell?.element) || enemyKnight;
-                const destroyed = matchDestruction(destructionsOnPlayer, t);
-                this.enqueueAction({
-                    kind: 'ATTACK',
-                    side: 'ENEMY',
-                    actorName: srcRef?.cell?.name || enemyName,
-                    targetName: t.name,
-                    amount: t.amount,
-                    knightElement: enemyKnight,
-                    elementColor: srcElement,
-                    source: srcRef ? { isPlayer: false, row: srcRef.row, col: srcRef.col } : null,
-                    target: { isPlayer: true, row: t.row, col: t.col, element: t.element || srcElement },
-                    destroysTarget: !!destroyed,
-                    ghostCell: destroyed?.cell || null,
-                    gapAfterMs: BATTLE_GAP_MS
-                });
-            }
+            };
+
+            for (const group of playerGroups.values()) enqueueAttackGroup(group, 'PLAYER', playerKnight, playerName, 'enemies');
+            for (const group of enemyGroups.values())  enqueueAttackGroup(group, 'ENEMY',  enemyKnight,  enemyName,  'allies');
 
             // Unpaired destructions (e.g. effect damage, end-of-turn cleanup) →
             // standalone DESTROY action that shows a ghost + fade-out.
@@ -731,19 +795,19 @@
             for (const d of destructionsOnPlayer) queueDestruction(d, 'ENEMY', enemyKnight);
             for (const d of destructionsOnEnemy)  queueDestruction(d, 'PLAYER', playerKnight);
 
-            // Ability/use lines from the log → ABILITY toasts (skip ones already covered by damage)
-            const damageNames = new Set([...damageOnEnemy, ...damageOnPlayer].map((d) => d.name));
+            // Ability/use lines from the log → ABILITY toasts (skip ones already
+            // covered by a queued ATTACK from the same attacker).
             for (const line of newLogs) {
                 const parsed = parseAbilityFromLog(line);
                 if (!parsed) continue;
                 if (parsed.kind === 'ABILITY') {
+                    if (enqueuedAttackerNames.has(parsed.actor)) continue;
                     const playerHit = findCellByName(prevPlayer, parsed.actor) || findCellByName(nextPlayer, parsed.actor);
                     const enemyHit  = findCellByName(prevEnemy,  parsed.actor) || findCellByName(nextEnemy,  parsed.actor);
                     const source = playerHit ? { isPlayer: true, row: playerHit.row, col: playerHit.col, cell: playerHit.cell }
                                  : enemyHit  ? { isPlayer: false, row: enemyHit.row,  col: enemyHit.col,  cell: enemyHit.cell }
                                  : null;
                     if (!source) continue;
-                    if (damageNames.has(parsed.actor)) continue;
                     const knight = source.isPlayer ? playerKnight : enemyKnight;
                     const elColor = normalizeElement(source.cell?.element) || knight;
                     this.enqueueAction({
@@ -954,6 +1018,64 @@
             if (this.activeToast) this.activeToast.dismiss();
             this.activeToast = this.toasts.show(action, t.toastDismissMs);
             await sleep(t.toastEnterMs);
+
+            // 2a. Multi-target ATTACK — all projectiles fire simultaneously
+            // (no stagger). One coordinated impact + camera shake + per-target
+            // damage floater after the projectile duration.
+            if (action.kind === 'ATTACK' && Array.isArray(action.targets) && action.targets.length > 1
+                && action.source && window.SieglingsFx?.attackCell) {
+                const ghosts = [];
+                for (const tgt of action.targets) {
+                    if (tgt.destroysTarget && tgt.ghostCell) {
+                        const g = spawnGhost(
+                            tgt.isPlayer, tgt.row, tgt.col,
+                            tgt.ghostCell, knight, elementHex(tgt.element)
+                        );
+                        if (g) ghosts.push({ ghost: g, target: tgt });
+                    }
+                }
+                for (const tgt of action.targets) {
+                    window.SieglingsFx.attackCell(
+                        action.source.isPlayer, action.source.row, action.source.col,
+                        tgt.isPlayer, tgt.row, tgt.col,
+                        tgt.element || action.elementColor || action.knightElement,
+                        { duration: t.projectileMs }
+                    );
+                }
+                await sleep(t.projectileMs);
+
+                for (const tgt of action.targets) {
+                    const ghostEntry = ghosts.find((g) => g.target === tgt);
+                    const tgtColor = elementHex(tgt.element || action.elementColor || action.knightElement);
+                    if (ghostEntry) {
+                        ghostEntry.ghost.classList.add('sgl-ghost-impact');
+                        setTimeout(() => ghostEntry.ghost.classList.remove('sgl-ghost-impact'), 320);
+                    } else {
+                        flashImpact(tgt.isPlayer, tgt.row, tgt.col, tgtColor);
+                    }
+                    if (tgt.amount && window.SieglingsFx?.floatingDamage) {
+                        window.SieglingsFx.floatingDamage(
+                            tgt.isPlayer, tgt.row, tgt.col,
+                            tgt.amount,
+                            tgt.element || action.elementColor || action.knightElement
+                        );
+                    }
+                }
+                if (window.SieglingsFx?.cameraShake) {
+                    const shake = Math.min(16, 6 + Math.round((action.amount || 0) * 0.35));
+                    window.SieglingsFx.cameraShake(shake, t.impactMs);
+                }
+                await sleep(t.impactMs);
+
+                if (ghosts.length) {
+                    await Promise.all(ghosts.map(
+                        (g) => destroyGhost(g.ghost, elementHex(g.target.element), 520)
+                    ));
+                }
+                const multiGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(multiGap);
+                return;
+            }
 
             // 2b. Direct attack on the enemy/player HP bar — no cell target,
             // so we fire the projectile to the bar's screen coordinates and
