@@ -311,12 +311,6 @@ public class EnergyService {
                     continue;
                 }
 
-                if (point.x() > 0 && point.x() < 6 && point.y() > 0 && point.y() < 6) {
-                    pointContributions
-                            .computeIfAbsent(point.key(), ignored -> new ArrayList<>())
-                            .add(notch.element());
-                }
-
                 CardInstance adjacent = state.getAt(isPlayer, adjRow, adjCol);
                 if (adjacent == null) {
                     continue;
@@ -337,28 +331,10 @@ public class EnergyService {
                     continue;
                 }
 
-                // Register every cross-element reciprocal link as a combo point at the
-                // shared corner. Works uniformly for horizontal, vertical, and diagonal
-                // links: for horizontal/vertical the per-notch loop above already
-                // recorded both elements at the same lattice point, so we only need to
-                // bridge the diagonal case where the two notch points sit at opposite
-                // corners that the lattice-bounds check excludes.
+                // Nexus bubbles mirror actual reciprocal links. Two corner notches can
+                // touch the same visual point without pointing at each other.
                 BoardPoint adjPoint = toBoardPoint(adjacent, matchingNotch, isPlayer);
-                if (notch.element() != matchingNotch.element()) {
-                    int midX = (point.x() + adjPoint.x()) / 2;
-                    int midY = (point.y() + adjPoint.y()) / 2;
-                    if (midX > 0 && midX < 6 && midY > 0 && midY < 6) {
-                        String midKey = midX + ":" + midY;
-                        // Skip when the midpoint already coincides with one of the notch
-                        // points (horizontal/vertical) — the per-notch loop has already
-                        // tracked both elements there, and re-adding would inflate
-                        // NexusPoint contribution counts.
-                        if (!midKey.equals(point.key()) && !midKey.equals(adjPoint.key())) {
-                            pointContributions.computeIfAbsent(midKey, k -> new ArrayList<>()).add(notch.element());
-                            pointContributions.computeIfAbsent(midKey, k -> new ArrayList<>()).add(matchingNotch.element());
-                        }
-                    }
-                }
+                addReciprocalNexusContributions(pointContributions, point, notch.element(), adjPoint, matchingNotch.element());
 
                 if (notch.element() == matchingNotch.element()) {
                     switch (notch.element()) {
@@ -450,6 +426,34 @@ public class EnergyService {
                 nexusPoints,
                 mistActive
         );
+    }
+
+    private void addReciprocalNexusContributions(Map<String, List<Element>> pointContributions,
+                                                 BoardPoint point,
+                                                 Element element,
+                                                 BoardPoint adjacentPoint,
+                                                 Element adjacentElement) {
+        String key = null;
+        if (point.key().equals(adjacentPoint.key())) {
+            key = point.key();
+        } else if ((point.x() + adjacentPoint.x()) % 2 == 0 && (point.y() + adjacentPoint.y()) % 2 == 0) {
+            key = ((point.x() + adjacentPoint.x()) / 2) + ":" + ((point.y() + adjacentPoint.y()) / 2);
+        }
+        if (key == null || !isInteriorBoardPoint(key)) {
+            return;
+        }
+        pointContributions.computeIfAbsent(key, ignored -> new ArrayList<>()).add(element);
+        pointContributions.computeIfAbsent(key, ignored -> new ArrayList<>()).add(adjacentElement);
+    }
+
+    private boolean isInteriorBoardPoint(String key) {
+        String[] parts = key.split(":");
+        if (parts.length != 2) {
+            return false;
+        }
+        int x = Integer.parseInt(parts[0]);
+        int y = Integer.parseInt(parts[1]);
+        return x > 0 && x < 6 && y > 0 && y < 6;
     }
 
     private String buildConnectionKey(CardInstance a, CardInstance b) {

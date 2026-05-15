@@ -218,6 +218,46 @@ class EnergyServiceTest {
     }
 
     @Test
+    void sameCornerNotchesDoNotCreateNexusUnlessTheyAreReciprocal() {
+        SieglingCard left = new SieglingCard(
+                "corner-left",
+                "Corner Left",
+                Element.WIND,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(
+                        new Notch(NotchDirection.TOP_RIGHT, Element.WIND),
+                        new Notch(NotchDirection.BOTTOM, Element.WIND)
+                ),
+                Row.MIDDLE
+        );
+        SieglingCard right = new SieglingCard(
+                "corner-right",
+                "Corner Right",
+                Element.WIND,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(
+                        new Notch(NotchDirection.TOP_LEFT, Element.WIND),
+                        new Notch(NotchDirection.BOTTOM, Element.WIND)
+                ),
+                Row.MIDDLE
+        );
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI Opponent", false));
+        state.setAt(true, 0, 0, new CardInstance(left.copy(), 0, 0, true));
+        state.setAt(true, 0, 1, new CardInstance(right.copy(), 0, 1, true));
+
+        EnergyService.EnergyBreakdown b = energyService.getBreakdown(state, true);
+
+        assertTrue(b.nexusPoints().isEmpty());
+        assertTrue(b.comboPoints().isEmpty());
+    }
+
+    @Test
     void spellComboGateUsesDistinctComboSignatureNotNotchMultiplicity() {
         SieglingCard left = new SieglingCard(
                 "gate-ice",

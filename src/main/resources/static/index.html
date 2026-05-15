@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=87">
+    <link rel="stylesheet" href="/css/style.css?v=88">
 </head>
 <body>
 <!-- Top Nav Bar: consolidated stats + actions -->
@@ -451,9 +451,9 @@
     <div class="loadout-box">
         <div class="loadout-hero">
             <div class="loadout-hero-copy">
-                <div class="loadout-kicker" id="loadoutKicker">Before the Match</div>
-                <h2 id="loadoutTitle">Choose Your Loadout</h2>
-                <p class="loadout-copy" id="loadoutSubtitle">Pick a preset deck or build your own custom list from the full seven-element card pool, then choose a SiegeKnight.</p>
+                <div class="loadout-kicker" id="loadoutKicker">Battle Loadout</div>
+                <h2 id="loadoutTitle">Prepare for Battle</h2>
+                <p class="loadout-copy" id="loadoutSubtitle">Name yourself, choose your deck, then command a SiegeKnight.</p>
             </div>
             <div class="invite-room-badge hidden" id="inviteRoomBadge"></div>
         </div>
@@ -464,14 +464,17 @@
             </label>
             <div class="identity-note" id="playerIdentityNote">This name is shown in online matches and saved on this device.</div>
         </div>
-        <div class="match-mode-tabs">
-            <button class="loadout-tab active" id="soloMatchTab" onclick="setMatchMode('solo')">Solo Vs AI</button>
-            <button class="loadout-tab" id="onlineMatchTab" onclick="setMatchMode('online')">Online Match</button>
+        <div class="loadout-toggle-set">
+            <div class="loadout-toggle-label">Battle Mode</div>
+            <div class="match-mode-tabs" role="group" aria-label="Battle Mode">
+                <button class="loadout-tab active" id="soloMatchTab" type="button" onclick="setMatchMode('solo')" aria-pressed="true">Solo Vs AI</button>
+                <button class="loadout-tab" id="onlineMatchTab" type="button" onclick="setMatchMode('online')" aria-pressed="false">Online Match</button>
+            </div>
         </div>
         <div id="onlineMatchPanel" class="hidden loadout-online-panel">
-            <div class="loadout-tabs">
-                <button class="loadout-tab active" id="hostRoomTab" onclick="setOnlineRoomMode('create')">Host Room</button>
-                <button class="loadout-tab" id="joinRoomTab" onclick="setOnlineRoomMode('join')">Join Room</button>
+            <div class="loadout-tabs" role="group" aria-label="Online room mode">
+                <button class="loadout-tab active" id="hostRoomTab" type="button" onclick="setOnlineRoomMode('create')" aria-pressed="true">Host Room</button>
+                <button class="loadout-tab" id="joinRoomTab" type="button" onclick="setOnlineRoomMode('join')" aria-pressed="false">Join Room</button>
             </div>
             <div class="online-match-grid">
                 <label class="online-field" id="roomCodeField">
@@ -481,58 +484,76 @@
             </div>
             <div id="onlineStatus" class="loadout-summary"></div>
         </div>
-        <div class="loadout-tabs">
-            <button class="loadout-tab active" id="presetTab" onclick="switchLoadoutMode('preset')">Preset Decks</button>
-            <button class="loadout-tab" id="builderTab" onclick="switchLoadoutMode('builder')">Deck Builder</button>
-        </div>
-        <div id="presetLoadoutPanel" class="loadout-section">
-            <div>
-                <h3>Decks</h3>
-                <div id="deckOptions" class="loadout-options"></div>
+        <div class="loadout-toggle-set">
+            <div class="loadout-toggle-label">Deck Source</div>
+            <div class="loadout-tabs" role="group" aria-label="Deck Source">
+                <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Preset Decks</button>
+                <button class="loadout-tab" id="builderTab" type="button" onclick="switchLoadoutMode('builder')" aria-pressed="false">Deck Builder</button>
             </div>
         </div>
-        <div id="builderLoadoutPanel" class="loadout-section hidden">
-            <div class="builder-toolbar">
-                <div class="builder-filter-group" id="builderElementFilters"></div>
-                <div class="builder-filter-group" id="builderTypeFilters"></div>
+        <div class="loadout-core">
+            <div class="loadout-flow">
+                <div id="presetLoadoutPanel" class="loadout-section deck-section">
+                    <div class="loadout-section-title-row">
+                        <div>
+                            <div class="loadout-section-kicker">Faction Banner</div>
+                            <h3>Choose Your Deck</h3>
+                        </div>
+                    </div>
+                    <div id="deckOptions" class="loadout-options"></div>
+                </div>
+                <div id="builderLoadoutPanel" class="loadout-section hidden">
+                    <div class="builder-toolbar">
+                        <div class="builder-filter-group" id="builderElementFilters"></div>
+                        <div class="builder-filter-group" id="builderTypeFilters"></div>
+                    </div>
+                    <div class="builder-layout">
+                        <div>
+                            <h3>Card Pool</h3>
+                            <div id="builderCatalog" class="builder-catalog"></div>
+                        </div>
+                        <div>
+                            <h3>Deck List</h3>
+                            <div id="builderDeckList" class="builder-deck-list"></div>
+                        </div>
+                        <div>
+                            <h3>Card Preview</h3>
+                            <div id="builderCardPreview" class="builder-card-preview-panel"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="loadout-section trainer-section">
+                    <div class="loadout-section-title-row">
+                        <div>
+                            <div class="loadout-section-kicker">Commander</div>
+                            <h3>Choose Your SiegeKnight</h3>
+                        </div>
+                    </div>
+                    <div id="trainerOptions" class="loadout-options"></div>
+                </div>
+                <div class="loadout-section hidden" id="savedDecksSection">
+                    <div class="saved-decks-header">
+                        <div>
+                            <h3>Saved Decks</h3>
+                            <div class="identity-note">Save presets or custom builds to this account, then load them on any login.</div>
+                        </div>
+                        <div class="saved-decks-actions">
+                            <input type="text" id="saveDeckNameInput" maxlength="40" placeholder="Name this loadout">
+                            <button class="btn btn-primary" type="button" onclick="saveCurrentLoadout()">Save Current Loadout</button>
+                        </div>
+                    </div>
+                    <div id="savedDeckList" class="saved-deck-list"></div>
+                </div>
             </div>
-            <div class="builder-layout">
-                <div>
-                    <h3>Card Pool</h3>
-                    <div id="builderCatalog" class="builder-catalog"></div>
+            <aside class="selected-loadout-panel" id="selectedLoadoutPanel" aria-label="Selected Loadout">
+                <div id="selectedLoadoutPreview" class="selected-loadout-preview"></div>
+                <div id="loadoutSummary" class="loadout-summary"></div>
+                <div class="loadout-actions">
+                    <div class="loadout-actions-shell">
+                        <button class="btn btn-primary loadout-start-btn" type="button" id="btnStartLoadout" onclick="startSelectedGame()">Start Battle</button>
+                    </div>
                 </div>
-                <div>
-                    <h3>Deck List</h3>
-                    <div id="builderDeckList" class="builder-deck-list"></div>
-                </div>
-                <div>
-                    <h3>Card Preview</h3>
-                    <div id="builderCardPreview" class="builder-card-preview-panel"></div>
-                </div>
-            </div>
-        </div>
-        <div class="loadout-section trainer-section">
-            <h3>SiegeKnights</h3>
-            <div id="trainerOptions" class="loadout-options"></div>
-        </div>
-        <div class="loadout-section hidden" id="savedDecksSection">
-            <div class="saved-decks-header">
-                <div>
-                    <h3>Saved Decks</h3>
-                    <div class="identity-note">Save presets or custom builds to this account, then load them on any login.</div>
-                </div>
-                <div class="saved-decks-actions">
-                    <input type="text" id="saveDeckNameInput" maxlength="40" placeholder="Name this loadout">
-                    <button class="btn btn-primary" type="button" onclick="saveCurrentLoadout()">Save Current Loadout</button>
-                </div>
-            </div>
-            <div id="savedDeckList" class="saved-deck-list"></div>
-        </div>
-        <div id="loadoutSummary" class="loadout-summary"></div>
-        <div class="loadout-actions">
-            <div class="loadout-actions-shell">
-                <button class="btn btn-primary loadout-start-btn" type="button" id="btnStartLoadout" onclick="startSelectedGame()">Start Match</button>
-            </div>
+            </aside>
         </div>
     </div>
 </div>
@@ -553,10 +574,10 @@
 <script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=100"></script>
+    <script src="/js/game.js?v=101"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=3"></script>
-    <script src="/js/action-queue.js?v=10"></script>
+    <script src="/js/action-queue.js?v=12"></script>
     <script src="/js/loading-gate.js?v=1"></script>
 </body>
 </html>

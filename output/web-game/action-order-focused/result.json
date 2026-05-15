@@ -1,0 +1,14 @@
+{
+  "sequence": {
+    "seen": [
+      "AI\nplays\nFresh Attacker",
+      "AI\nplays\nFresh Attacker | Battle Phase",
+      "AI\nplays\nFresh Attacker | Battle Phase | AI\nattacks\nFielded Pup\n-3",
+      "AI\nplays\nFresh Attacker | AI\nattacks\nFielded Pup\n-3",
+      "AI\nattacks\nFielded Pup\n-3"
+    ],
+    "initialVisibility": "visible",
+    "stillProcessing": false
+  },
+  "errors": []
+}

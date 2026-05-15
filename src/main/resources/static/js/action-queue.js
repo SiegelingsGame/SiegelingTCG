@@ -93,6 +93,9 @@
     function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
+    function stripLogPrefix(line) {
+        return String(line || '').trim().replace(/^\[Turn\s+\d+\s+\w+\]\s*/i, '');
+    }
 
     // ── Toast Renderer ────────────────────────────────────────────────────────
     class ToastRenderer {
@@ -327,10 +330,35 @@
         const want = String(name).trim().toLowerCase();
         return findCellOnBoard(board, (c) => String(c?.name || '').trim().toLowerCase() === want);
     }
+    function findCellByAbilityName(board, abilityName) {
+        const ability = String(abilityName || '').trim().toLowerCase();
+        if (!ability) return null;
+        const matches = [];
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const cell = board?.[r]?.[c];
+                const name = String(cell?.name || '').trim().toLowerCase();
+                if (name && (ability === name || ability.startsWith(`${name} `) || ability.includes(name))) {
+                    matches.push({ row: r, col: c, cell });
+                }
+            }
+        }
+        matches.sort((a, b) => String(b.cell?.name || '').length - String(a.cell?.name || '').length);
+        return matches[0] || null;
+    }
     function findCellByInstanceId(board, id) {
         if (!id) return null;
         const want = String(id);
         return findCellOnBoard(board, (c) => String(c?.instanceId || c?.id || '') === want);
+    }
+    function namesMatch(a, b) {
+        return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+    }
+    function parseEvolutionFromLog(line) {
+        const text = stripLogPrefix(line);
+        const m = text.match(/^(.+?)\s+evolved\s+to\s+(.+?)!?$/i);
+        if (!m) return null;
+        return { from: m[1].trim(), to: m[2].trim() };
     }
     function diffPlacements(prev, next, isPlayer) {
         const out = [];
@@ -434,7 +462,7 @@
     // ── Log parser ────────────────────────────────────────────────────────────
     // Best-effort extraction of "X uses Y" / "X plays Y" lines for ABILITY/PLAY toasts.
     function parseAbilityFromLog(line) {
-        const text = String(line || '').trim();
+        const text = stripLogPrefix(line);
         let m = text.match(/^(.+?)\s+uses\s+(.+?)\.?$/i);
         if (m) return { kind: 'ABILITY', actor: m[1].trim(), name: m[2].trim() };
         m = text.match(/^(.+?)\s+plays\s+(.+?)\.?$/i);
@@ -449,7 +477,7 @@
     // trailing "(HP: N)" is informational and must not become part of the
     // target name or attribution against the board state will fail.
     function parseDamageFromLog(line) {
-        const text = String(line || '').trim();
+        const text = stripLogPrefix(line);
         const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?\.?$/i);
         if (!m) return null;
         return {
@@ -461,9 +489,49 @@
 
     // Resolve the attacker for a given damaged cell from the new log entries.
     // Returns { row, col, cell, isPlayer } or null when we can't decide.
-    function resolveAttackerFromLogs(prevPlayer, prevEnemy, damagedCell, newLogs) {
+    function resolveAttackerFromLogs(prevPlayer, prevEnemy, damagedCell, newLogs, preferredSourceIsPlayer = null) {
         const wantedTarget = String(damagedCell?.name || '').trim().toLowerCase();
         if (!wantedTarget) return null;
+        const preferPlayer = preferredSourceIsPlayer === true;
+        const preferEnemy = preferredSourceIsPlayer === false;
+        const findDirectSource = (name) => {
+            const preferred = preferPlayer
+                ? findCellByName(prevPlayer, name)
+                : preferEnemy
+                    ? findCellByName(prevEnemy, name)
+                    : null;
+            if (preferred) return { ...preferred, isPlayer: preferPlayer };
+            const other = preferPlayer
+                ? findCellByName(prevEnemy, name)
+                : preferEnemy
+                    ? findCellByName(prevPlayer, name)
+                    : null;
+            if (other) return { ...other, isPlayer: !preferPlayer };
+            const directPlayer = findCellByName(prevPlayer, name);
+            if (directPlayer) return { ...directPlayer, isPlayer: true };
+            const directEnemy = findCellByName(prevEnemy, name);
+            if (directEnemy) return { ...directEnemy, isPlayer: false };
+            return null;
+        };
+        const findAbilitySource = (abilityName) => {
+            const preferred = preferPlayer
+                ? findCellByAbilityName(prevPlayer, abilityName)
+                : preferEnemy
+                    ? findCellByAbilityName(prevEnemy, abilityName)
+                    : null;
+            if (preferred) return { ...preferred, isPlayer: preferPlayer };
+            const other = preferPlayer
+                ? findCellByAbilityName(prevEnemy, abilityName)
+                : preferEnemy
+                    ? findCellByAbilityName(prevPlayer, abilityName)
+                    : null;
+            if (other) return { ...other, isPlayer: !preferPlayer };
+            const directPlayer = findCellByAbilityName(prevPlayer, abilityName);
+            if (directPlayer) return { ...directPlayer, isPlayer: true };
+            const directEnemy = findCellByAbilityName(prevEnemy, abilityName);
+            if (directEnemy) return { ...directEnemy, isPlayer: false };
+            return null;
+        };
         for (const line of newLogs) {
             const m = parseDamageFromLog(line);
             if (!m) continue;
@@ -473,16 +541,14 @@
                 const u = parseAbilityFromLog(usesLine);
                 if (!u || u.kind !== 'ABILITY') continue;
                 if (u.name.toLowerCase() !== m.abilityOrSource.toLowerCase()) continue;
-                const onPlayer = findCellByName(prevPlayer, u.actor);
-                if (onPlayer) return { ...onPlayer, isPlayer: true };
-                const onEnemy = findCellByName(prevEnemy, u.actor);
-                if (onEnemy) return { ...onEnemy, isPlayer: false };
+                const byActor = findDirectSource(u.actor);
+                if (byActor) return byActor;
             }
             // Fallback: the "ability" name may itself be the card name.
-            const directPlayer = findCellByName(prevPlayer, m.abilityOrSource);
-            if (directPlayer) return { ...directPlayer, isPlayer: true };
-            const directEnemy = findCellByName(prevEnemy, m.abilityOrSource);
-            if (directEnemy) return { ...directEnemy, isPlayer: false };
+            const byDirectName = findDirectSource(m.abilityOrSource);
+            if (byDirectName) return byDirectName;
+            const byAbilityName = findAbilitySource(m.abilityOrSource);
+            if (byAbilityName) return byAbilityName;
         }
         return null;
     }
@@ -663,6 +729,9 @@
             //      register each placement as the AI makes it
             const phaseChanged = prevState.currentPhase && nextState.currentPhase
                 && prevState.currentPhase !== nextState.currentPhase;
+            const setupToBattle = phaseChanged
+                && prevState.currentPhase === 'SETUP'
+                && nextState.currentPhase === 'BATTLE';
 
             // Opponent turn beginning → thinking indicator
             if (prevState.activeSide !== 'ENEMY' && nextState.activeSide === 'ENEMY' && !nextState.gameOver) {
@@ -671,8 +740,17 @@
 
             // Collect placements and damage now but enqueue them in the right
             // order at the end of this method.
-            const newPlayerPlacements = diffPlacements(prevPlayer, nextPlayer, true);
-            const newEnemyPlacements  = diffPlacements(prevEnemy,  nextEnemy,  false);
+            const evolutionLogs = newLogs.map(parseEvolutionFromLog).filter(Boolean);
+            const tagEvolutionPlacements = (placements, prevBoard) => placements.map((p) => {
+                const previousCell = prevBoard?.[p.row]?.[p.col];
+                if (!previousCell) return p;
+                const loggedEvolution = evolutionLogs.find((e) =>
+                    namesMatch(e.from, previousCell.name) && namesMatch(e.to, p.cell?.name)
+                );
+                return loggedEvolution ? { ...p, evolutionFrom: previousCell } : p;
+            });
+            const newPlayerPlacements = tagEvolutionPlacements(diffPlacements(prevPlayer, nextPlayer, true), prevPlayer);
+            const newEnemyPlacements  = tagEvolutionPlacements(diffPlacements(prevEnemy,  nextEnemy,  false), prevEnemy);
 
             // Damage events (attacks / abilities that hit)
             const damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true);
@@ -680,8 +758,16 @@
 
             // Destruction events (cards that no longer exist). Paired with attacks
             // below so the killed card stays visible until the projectile lands.
-            const destructionsOnPlayer = diffDestructions(prevPlayer, nextPlayer, true);
-            const destructionsOnEnemy  = diffDestructions(prevEnemy,  nextEnemy,  false);
+            const isEvolutionDestruction = (d, placements) => placements.some((p) =>
+                p.evolutionFrom
+                && p.row === d.row
+                && p.col === d.col
+                && namesMatch(p.evolutionFrom.name, d.name)
+            );
+            const destructionsOnPlayer = diffDestructions(prevPlayer, nextPlayer, true)
+                .filter((d) => !isEvolutionDestruction(d, newPlayerPlacements));
+            const destructionsOnEnemy  = diffDestructions(prevEnemy,  nextEnemy,  false)
+                .filter((d) => !isEvolutionDestruction(d, newEnemyPlacements));
             const matchDestruction = (list, t) => {
                 const idx = list.findIndex((d) =>
                     d.row === t.row && d.col === t.col
@@ -709,12 +795,12 @@
                         if (cell) return { row: pending.row, col: pending.col, cell, isPlayer: true, pending };
                     }
                 }
-                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs);
+                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs, true);
                 if (fromLogs && fromLogs.isPlayer) return fromLogs;
                 return null;
             };
             const resolveEnemySource = (t) => {
-                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs);
+                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs, false);
                 if (fromLogs && !fromLogs.isPlayer) return fromLogs;
                 return null;
             };
@@ -722,9 +808,10 @@
             // Battle-phase pacing: damage, destruction and ability animations
             // fire back-to-back as one solid block.
             const BATTLE_GAP_MS  = 220;
-            const PHASE_GAP_MS   = 500;
-            const FIRST_PLAY_GAP = 1800; // ~2s before/after the first placement
-            const NEXT_PLAY_GAP  = 800;  // ~1s between each subsequent placement
+            const PHASE_GAP_MS   = 360;
+            const FIRST_PLAY_GAP = this.speed === 'fast' ? 120 : 360;
+            const NEXT_PLAY_GAP  = this.speed === 'fast' ? 80 : 160;
+            let phaseTransitionQueued = false;
 
             // Multi-target label helper. Server damage events from the same
             // attacker (e.g. AoE abilities, row sweeps) get grouped into a
@@ -746,6 +833,49 @@
                 if (targets.length >= 3) return `All ${defenderLabel}`;
                 return `${targets.length} ${defenderLabel}`;
             };
+
+            const enqueuePlacementAction = (p, side, knight, actorName) => {
+                const isFirst = !this._placementInProgress;
+                this._placementInProgress = true;
+                const placementIsPlayer = side === 'PLAYER';
+                const isEvolution = Boolean(p.evolutionFrom);
+                this.enqueueAction({
+                    kind: 'PLAY',
+                    side,
+                    actorName: isEvolution ? p.evolutionFrom.name : actorName,
+                    label: isEvolution ? 'evolved to' : undefined,
+                    targetName: p.cell.name || 'Card',
+                    knightElement: knight,
+                    elementColor: normalizeElement(p.cell.element) || knight,
+                    source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
+                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
+                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP
+                });
+            };
+
+            const enqueuePhaseTransitionAction = () => {
+                if (!phaseChanged || phaseTransitionQueued) return;
+                phaseTransitionQueued = true;
+                const phaseLabel = String(nextState.currentPhase).charAt(0)
+                    + String(nextState.currentPhase).slice(1).toLowerCase();
+                this.enqueueAction({
+                    kind: 'PHASE',
+                    side: nextState.activeSide || 'PLAYER',
+                    actorName: `${phaseLabel} Phase`,
+                    knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
+                    elementColor: 'NEUTRAL',
+                    holdMs: this.timings().toastDismissMs,
+                    gapAfterMs: PHASE_GAP_MS
+                });
+            };
+
+            if (setupToBattle) {
+                for (const p of newPlayerPlacements) enqueuePlacementAction(p, 'PLAYER', playerKnight, playerName);
+                for (const p of newEnemyPlacements)  enqueuePlacementAction(p, 'ENEMY',  enemyKnight,  enemyName);
+                newPlayerPlacements.length = 0;
+                newEnemyPlacements.length = 0;
+                enqueuePhaseTransitionAction();
+            }
 
             // Group damage events by attacker cell. Same-source hits become
             // one ATTACK action with a targets array so the projectiles fire
@@ -946,45 +1076,14 @@
             // Phase change toast — appended AFTER the just-ended phase's
             // animations and BEFORE the new phase's placements, so the toast
             // marks the boundary between the two blocks the player sees.
-            if (phaseChanged) {
-                const phaseLabel = String(nextState.currentPhase).charAt(0)
-                    + String(nextState.currentPhase).slice(1).toLowerCase();
-                this.enqueueAction({
-                    kind: 'PHASE',
-                    side: nextState.activeSide || 'PLAYER',
-                    actorName: `${phaseLabel} Phase`,
-                    knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
-                    elementColor: 'NEUTRAL',
-                    holdMs: this.timings().toastDismissMs,
-                    gapAfterMs: PHASE_GAP_MS
-                });
-            }
+            enqueuePhaseTransitionAction();
 
             // Placements last — individually paced so the player can see each
             // AI Siegling appear before the next one arrives. First placement
             // in this batch gets the longer "settle" gap, subsequent ones
             // step on a tighter beat.
             const enqueuePlacement = (p, side, knight, actorName) => {
-                const isFirst = !this._placementInProgress;
-                this._placementInProgress = true;
-                const placementIsPlayer = side === 'PLAYER';
-                // Register the placement BEFORE enqueueing so the post-render
-                // sync hides this card until we play its PLAY action.
-                const placementKey = this.registerPendingPlacement(
-                    placementIsPlayer, p.row, p.col, p.cell
-                );
-                this.enqueueAction({
-                    kind: 'PLAY',
-                    side,
-                    actorName,
-                    targetName: p.cell.name || 'Card',
-                    knightElement: knight,
-                    elementColor: normalizeElement(p.cell.element) || knight,
-                    source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
-                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP,
-                    placementKey
-                });
+                enqueuePlacementAction(p, side, knight, actorName);
             };
             for (const p of newPlayerPlacements) enqueuePlacement(p, 'PLAYER', playerKnight, playerName);
             for (const p of newEnemyPlacements)  enqueuePlacement(p, 'ENEMY',  enemyKnight,  enemyName);
@@ -1089,6 +1188,9 @@
                 // Defensive: never leave a card permanently hidden because no
                 // PLAY action was queued for it.
                 this.revealAllPendingPlacements();
+                if (typeof window.scheduleBattleAutoAdvance === 'function') {
+                    window.scheduleBattleAutoAdvance();
+                }
             }
         }
 
