@@ -161,8 +161,13 @@ public class CardOverrideEditorService {
 
     private JsonNode buildEditorData(CardOverrideStorageService.LoadSnapshot cardSnapshot) {
         ObjectNode data = objectMapper.createObjectNode();
-        data.set("cards", objectMapper.valueToTree(ManualSieglingCatalog.buildOverrideFile(cardDefinitionService.getDeckBuilderCatalog()).cards()));
         JsonNode snap = cardSnapshot == null ? null : cardSnapshot.data();
+        JsonNode cardsNode = snap == null ? null : snap.get("cards");
+        if (cardsNode != null && cardsNode.isArray()) {
+            data.set("cards", cardsNode.deepCopy());
+        } else {
+            data.set("cards", objectMapper.valueToTree(ManualSieglingCatalog.buildOverrideFile(cardDefinitionService.getDeckBuilderCatalog()).cards()));
+        }
         JsonNode movesNode = snap == null ? null : snap.get("moves");
         if (movesNode != null && movesNode.isArray()) {
             data.set("moves", movesNode.deepCopy());

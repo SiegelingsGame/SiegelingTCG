@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Siegelings — A PartyChatGaming Experience</title>
     <meta name="description" content="Collect Siegelings. Build your deck. Command SiegeKnights. The premier elemental TCG by PartyChatGaming.">
-    <link rel="stylesheet" href="/css/landing.css?v=1">
+    <link rel="stylesheet" href="/css/landing.css?v=3">
 </head>
 <body class="landing-body">
 
@@ -111,15 +111,7 @@
 <footer class="landing-footer" id="footer">
     <div class="footer-inner">
         <div class="footer-pcg-logo" aria-label="PartyChatGaming">
-            <div class="pcg-bubble-logo pcg-bubble-large" aria-hidden="true">
-                <span class="pcg-letter pcg-l-1">P</span><span class="pcg-letter pcg-l-2">A</span><span class="pcg-letter pcg-l-3">R</span><span class="pcg-letter pcg-l-4">T</span><span class="pcg-letter pcg-l-5">Y</span>
-                <span class="pcg-bubble-row">
-                    <span class="pcg-letter pcg-l-6">C</span><span class="pcg-letter pcg-l-7">H</span><span class="pcg-letter pcg-l-8">A</span><span class="pcg-letter pcg-l-9">T</span>
-                </span>
-                <span class="pcg-controller-dot" style="--x:90%;--y:18%;--c:var(--pcg-yellow)"></span>
-                <span class="pcg-controller-dot" style="--x:12%;--y:90%;--c:var(--element-storm)"></span>
-                <span class="pcg-controller-dot" style="--x:88%;--y:88%;--c:var(--pcg-pink)"></span>
-            </div>
+            <img class="footer-pcg-image" src="/img/pcg-logo.jpg" alt="PartyChatGaming logo">
             <span class="footer-tagline">A PartyChatGaming Experience</span>
         </div>
 
@@ -136,6 +128,18 @@
         <div class="footer-copy">© <span id="footerYear"></span> PartyChatGaming. Siegelings and SiegeKnights are trademarks of PartyChatGaming.</div>
     </div>
 </footer>
+
+<template id="pcgBubbleLogoTemplate">
+    <div class="pcg-bubble-logo pcg-bubble-large" aria-label="PartyChatGaming">
+        <span class="pcg-letter pcg-l-1">P</span><span class="pcg-letter pcg-l-2">A</span><span class="pcg-letter pcg-l-3">R</span><span class="pcg-letter pcg-l-4">T</span><span class="pcg-letter pcg-l-5">Y</span>
+        <span class="pcg-bubble-row">
+            <span class="pcg-letter pcg-l-6">C</span><span class="pcg-letter pcg-l-7">H</span><span class="pcg-letter pcg-l-8">A</span><span class="pcg-letter pcg-l-9">T</span>
+        </span>
+        <span class="pcg-controller-dot" style="--x:90%;--y:18%;--c:var(--pcg-yellow)"></span>
+        <span class="pcg-controller-dot" style="--x:12%;--y:90%;--c:var(--element-storm)"></span>
+        <span class="pcg-controller-dot" style="--x:88%;--y:88%;--c:var(--pcg-pink)"></span>
+    </div>
+</template>
 
 <!-- ── Trailer modal (placeholder) ──────────────────────────────────────── -->
 <div class="trailer-modal hidden" id="trailerModal" role="dialog" aria-modal="true" aria-labelledby="trailerModalTitle">

@@ -1,0 +1,27 @@
+{
+  "nonreciprocal": {
+    "kind": "nonreciprocal",
+    "overlays": 0,
+    "keys": [],
+    "gridBox": {
+      "x": 70,
+      "y": 73.90625,
+      "w": 620,
+      "h": 752.1875
+    }
+  },
+  "reciprocal": {
+    "kind": "reciprocal",
+    "overlays": 1,
+    "keys": [
+      "2:2"
+    ],
+    "gridBox": {
+      "x": 70,
+      "y": 73.90625,
+      "w": 620,
+      "h": 752.1875
+    }
+  },
+  "errors": []
+}

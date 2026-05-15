@@ -1,0 +1,323 @@
+{
+  "text": "AI\n50 HP\nH:0 D:0\nDRAW\nT0\nENERGY DETAIL\nD:0\n50 HP\nPLAYER\nENEMY\nYOU\n⚔ KNIGHT\n🃏 DRAW\n👁\n?\n⚔\n☰\n◈\n🔊\n▶\nBEFORE THE MATCH\nChoose Your Loadout\n\nPick a preset deck or build your own custom list from the full seven-element card pool, then choose a SiegeKnight.\n\nName on the battlefield\nThis name is shown in online matches and saved on this device.\nSOLO VS AI\nONLINE MATCH\nPRESET DECKS\nDECK BUILDER\nDecks\nSiegeKnights\nLoading deck and SiegeKnight choices...\nLOADING...",
+  "buttons": [
+    {
+      "i": 0,
+      "text": "AI\n        \n        H:0 D:0 E:0",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 1,
+      "text": "Player\n        \n        H:0 D:0 E:0",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 2,
+      "text": "⚔ Knight",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 3,
+      "text": "🃏 Draw",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 4,
+      "text": "Auto Battle",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 5,
+      "text": "End Turn",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 6,
+      "text": "👁",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 7,
+      "text": "?",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 8,
+      "text": "⚔",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 9,
+      "text": "☰",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 10,
+      "text": "◈",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 11,
+      "text": "🔊",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 12,
+      "text": "▶",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 13,
+      "text": "Card",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 14,
+      "text": "Deck",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 15,
+      "text": "×",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 16,
+      "text": "AI",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 17,
+      "text": "Player",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 18,
+      "text": "×",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 19,
+      "text": "×",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 20,
+      "text": "Close",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 21,
+      "text": "Use Ability",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 22,
+      "text": "×",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 23,
+      "text": "Cancel",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 24,
+      "text": "Claim",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 25,
+      "text": "Play Again",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 26,
+      "text": "Back",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 27,
+      "text": "",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 28,
+      "text": "",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 29,
+      "text": "",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 30,
+      "text": "",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 31,
+      "text": "Next",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 32,
+      "text": "Log In",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 33,
+      "text": "Register",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 34,
+      "text": "Log In",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 35,
+      "text": "Play as Guest",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 36,
+      "text": "Wins",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 37,
+      "text": "Matches",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 38,
+      "text": "Spells",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 39,
+      "text": "Traps",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 40,
+      "text": "Sieglings",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 41,
+      "text": "PVP W/L",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 42,
+      "text": "Play as Guest",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 43,
+      "text": "Solo Vs AI",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 44,
+      "text": "Online Match",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 45,
+      "text": "Host Room",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 46,
+      "text": "Join Room",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 47,
+      "text": "Preset Decks",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 48,
+      "text": "Deck Builder",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "i": 49,
+      "text": "Save Current Loadout",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 50,
+      "text": "Loading...",
+      "disabled": true,
+      "visible": true
+    },
+    {
+      "i": 51,
+      "text": "Keep hand",
+      "disabled": false,
+      "visible": false
+    },
+    {
+      "i": 52,
+      "text": "Redraw selected",
+      "disabled": false,
+      "visible": false
+    }
+  ]
+}

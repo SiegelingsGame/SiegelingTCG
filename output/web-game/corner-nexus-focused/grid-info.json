@@ -1,0 +1,83 @@
+{
+  "chain": [
+    {
+      "id": "playerGrid",
+      "cls": "board-grid",
+      "tag": "DIV",
+      "display": "grid",
+      "visibility": "visible",
+      "opacity": "1",
+      "x": 300,
+      "y": 68,
+      "w": 300,
+      "h": 23.796875,
+      "overflow": "visible"
+    },
+    {
+      "id": "",
+      "cls": "bf-half bf-player",
+      "tag": "DIV",
+      "display": "flex",
+      "visibility": "visible",
+      "opacity": "1",
+      "x": 4,
+      "y": 55,
+      "w": 892,
+      "h": 36.796875,
+      "overflow": "visible"
+    },
+    {
+      "id": "boardArea",
+      "cls": "battlefield",
+      "tag": "DIV",
+      "display": "flex",
+      "visibility": "visible",
+      "opacity": "1",
+      "x": 0,
+      "y": 32,
+      "w": 900,
+      "h": 817,
+      "overflow": "hidden auto"
+    },
+    {
+      "id": "",
+      "cls": "app-shell",
+      "tag": "DIV",
+      "display": "flex",
+      "visibility": "visible",
+      "opacity": "1",
+      "x": 0,
+      "y": 32,
+      "w": 900,
+      "h": 868,
+      "overflow": "hidden"
+    },
+    {
+      "id": "",
+      "cls": "",
+      "tag": "BODY",
+      "display": "flex",
+      "visibility": "visible",
+      "opacity": "1",
+      "x": 0,
+      "y": 0,
+      "w": 900,
+      "h": 900,
+      "overflow": "hidden"
+    },
+    {
+      "id": "",
+      "cls": "",
+      "tag": "HTML",
+      "display": "block",
+      "visibility": "visible",
+      "opacity": "1",
+      "x": 0,
+      "y": 0,
+      "w": 900,
+      "h": 900,
+      "overflow": "hidden"
+    }
+  ],
+  "bodyText": "AI\n50 HP\nH:0 D:0\nDRAW\nT0\nENERGY DETAIL\nD:0\n50 HP\nPLAYER\nENEMY\nYOU\n⚔ KNIGHT\n🃏 DRAW\n👁\n?\n⚔\n☰\n◈\n🔊\n▶\nBEFORE THE MATCH\nChoose Your Loadout\n\nPick a preset deck or build your own custom list from the full seven-element card pool, then choose a SiegeKnight.\n\nName on the battlefield\nThis name is shown in online matches and saved on this device.\nSOLO VS AI\nONLINE MATCH\nPRESET DECKS\nDECK BUILDER\nDecks\nSiegeKnights\nLoading deck and SiegeKnight choices...\nLOADING..."
+}
