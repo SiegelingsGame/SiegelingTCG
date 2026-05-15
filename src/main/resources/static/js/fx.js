@@ -1118,6 +1118,14 @@
             launchProjectile(from, { x: toX, y: toY }, element, options);
         },
 
+        // Fire a projectile between two arbitrary screen points — used when
+        // the originating cell can't be resolved (effect-damage, AI attack
+        // with a log shape the parser doesn't recognize, etc.) so the player
+        // still sees the element-colored particle trail.
+        attackBetween(fromX, fromY, toX, toY, element, options = {}) {
+            launchProjectile({ x: fromX, y: fromY }, { x: toX, y: toY }, element, options);
+        },
+
         // Spawn an impact burst at an arbitrary screen point.
         impactAtPoint(x, y, element) {
             spawnImpact(x, y, getProfile(element));
