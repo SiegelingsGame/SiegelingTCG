@@ -9414,6 +9414,78 @@ body.placement-active .board-cell.legal {
     .board-card.sgl-status-freeze { animation: none; }
 }
 
+/* Healing — glowing green "+" cross with outward particle burst. Anchored
+   as a fixed-position overlay so it survives re-renders of the cell. */
+.sgl-heal-cross {
+    pointer-events: none;
+    z-index: 540;
+    color: #5eff8e;
+    overflow: visible;
+}
+.sgl-heal-glow {
+    position: absolute;
+    inset: -25%;
+    background:
+        radial-gradient(circle at 50% 50%, rgba(168, 255, 208, 0.6), transparent 55%),
+        radial-gradient(circle at 50% 50%, rgba(94, 255, 142, 0.45), transparent 70%);
+    filter: blur(2px);
+    animation: sgl-heal-glow 1.4s ease-out forwards;
+}
+.sgl-heal-icon {
+    position: absolute;
+    left: 18%;
+    top: 18%;
+    width: 64%;
+    height: 64%;
+    filter:
+        drop-shadow(0 0 10px #5eff8e)
+        drop-shadow(0 0 22px rgba(94, 255, 142, 0.85));
+    transform-origin: 50% 50%;
+    animation: sgl-heal-cross-pop 1.4s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+.sgl-heal-particle {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffffff 0%, #a8ffd0 45%, #5eff8e 100%);
+    box-shadow:
+        0 0 6px #5eff8e,
+        0 0 14px rgba(94, 255, 142, 0.75);
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0;
+    animation: sgl-heal-particle 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+@keyframes sgl-heal-glow {
+    0%   { opacity: 0; transform: scale(0.7); }
+    35%  { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 0; transform: scale(1.25); }
+}
+@keyframes sgl-heal-cross-pop {
+    0%   { transform: scale(0.4) rotate(-12deg); opacity: 0;
+           filter: drop-shadow(0 0 0 transparent); }
+    25%  { transform: scale(1.25) rotate(0deg);  opacity: 1;
+           filter: drop-shadow(0 0 16px #5eff8e) drop-shadow(0 0 28px #5eff8e); }
+    45%  { transform: scale(1) rotate(0deg);     opacity: 1;
+           filter: drop-shadow(0 0 12px #5eff8e); }
+    100% { transform: scale(1.05) rotate(0deg);  opacity: 0;
+           filter: drop-shadow(0 0 6px transparent); }
+}
+@keyframes sgl-heal-particle {
+    0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+    15%  { opacity: 1; }
+    100% {
+        transform: translate(
+            calc(-50% + var(--p-dx, 0px)),
+            calc(-50% + var(--p-dy, -40px))
+        ) scale(0.2);
+        opacity: 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .sgl-heal-cross .sgl-heal-icon,
+    .sgl-heal-cross .sgl-heal-glow,
+    .sgl-heal-cross .sgl-heal-particle { animation-duration: 0.3s !important; }
+}
+
 /* Death ghost — keeps the killed card visible until the projectile lands */
 .sgl-death-ghost {
     --sgl-knight: #95a5a6;
