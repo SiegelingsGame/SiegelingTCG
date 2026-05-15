@@ -10,12 +10,10 @@
     'use strict';
 
     const FEATURED_SIEGELINGS = [
-        { name: 'Pyrocore',  element: 'FIRE',  sigil: '🔥' },
-        { name: 'Frostfang', element: 'ICE',   sigil: '❄'  },
-        { name: 'Voltari',   element: 'STORM', sigil: '⚡' },
+        { name: 'Pylord',  element: 'FIRE',  sigil: '🔥' },
+        { name: 'Glaciemperor', element: 'ICE',   sigil: '❄'  },
+        { name: 'Aerovane',   element: 'WIND', sigil: '🌬' },
         { name: 'Gymstone',  element: 'EARTH', sigil: '⛰'  },
-        { name: 'Sweetheart',element: 'LOVE',  sigil: '💗' },
-        { name: 'Cogspire',  element: 'MECH',  sigil: '⚙'  }
     ];
 
     const FLAVOR_LINES = [
