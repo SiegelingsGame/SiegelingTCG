@@ -991,6 +991,137 @@ img { display: block; }
     letter-spacing: 0.12em;
 }
 
+/* ── Siegelings Logo Stage — Loading Gate ──────────────────────────────── */
+.sgl-logo-stage {
+    position: relative;
+    width: min(240px, 46vw);
+    height: min(240px, 46vw);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Outer slow counter-rotating bloom */
+.sgl-logo-ring-outer {
+    position: absolute;
+    inset: -18px;
+    border-radius: 50%;
+    background: conic-gradient(
+        from 0deg,
+        rgba(255, 80, 30, 0.55),
+        rgba(245, 166, 35, 0.4),
+        rgba(118, 230, 255, 0.55),
+        rgba(150, 255, 180, 0.4),
+        rgba(180, 140, 80, 0.5),
+        rgba(255, 80, 30, 0.55)
+    );
+    mask: radial-gradient(circle at center,
+        transparent calc(50% - 12px),
+        black       calc(50% - 12px),
+        black       50%,
+        transparent 50%
+    );
+    -webkit-mask: radial-gradient(circle at center,
+        transparent calc(50% - 12px),
+        black       calc(50% - 12px),
+        black       50%,
+        transparent 50%
+    );
+    filter: blur(4px);
+    animation: sgl-ring-spin 9s linear infinite reverse;
+    pointer-events: none;
+}
+
+/* Inner tight crisp ring */
+.sgl-logo-ring-inner {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: conic-gradient(
+        from 0deg,
+        #ff501e,
+        #76e6ff,
+        #96ffb4,
+        #b48c50,
+        #F5A623,
+        #ff501e
+    );
+    mask: radial-gradient(circle at center,
+        transparent calc(50% - 3px),
+        black       calc(50% - 3px),
+        black       50%,
+        transparent 50%
+    );
+    -webkit-mask: radial-gradient(circle at center,
+        transparent calc(50% - 3px),
+        black       calc(50% - 3px),
+        black       50%,
+        transparent 50%
+    );
+    animation: sgl-ring-spin 6s linear infinite;
+    pointer-events: none;
+}
+
+/* Logo image */
+.sgl-game-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+    animation:
+        sgl-logo-float 3.6s ease-in-out infinite,
+        sgl-logo-element-glow 8s linear infinite;
+    will-change: transform, filter;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+@keyframes sgl-logo-float {
+    0%, 100% { transform: translateY(0)   scale(1);    }
+    50%       { transform: translateY(-9px) scale(1.03); }
+}
+
+@keyframes sgl-logo-element-glow {
+    0%   { filter: drop-shadow(0 0 28px rgba(255,  80, 30, 0.70)) drop-shadow(0 8px 20px rgba(0,0,0,0.5)); }
+    20%  { filter: drop-shadow(0 0 28px rgba(245, 166, 35, 0.65)) drop-shadow(0 8px 20px rgba(0,0,0,0.5)); }
+    40%  { filter: drop-shadow(0 0 28px rgba(118, 230,255, 0.70)) drop-shadow(0 8px 20px rgba(0,0,0,0.5)); }
+    60%  { filter: drop-shadow(0 0 28px rgba(150, 255,180, 0.60)) drop-shadow(0 8px 20px rgba(0,0,0,0.5)); }
+    80%  { filter: drop-shadow(0 0 28px rgba(180, 140, 80, 0.65)) drop-shadow(0 8px 20px rgba(0,0,0,0.5)); }
+    100% { filter: drop-shadow(0 0 28px rgba(255,  80, 30, 0.70)) drop-shadow(0 8px 20px rgba(0,0,0,0.5)); }
+}
+
+@keyframes sgl-ring-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* Adjust the VS section to sit closer under the logo */
+.sgl-gate-content {
+    gap: 20px;
+}
+
+.sgl-gate-vs {
+    gap: 16px;
+}
+
+.sgl-knight-card {
+    padding: 16px 14px 14px;
+}
+
+.sgl-knight-portrait {
+    width: 72px;
+    height: 72px;
+    font-size: 2.2rem;
+    margin-bottom: 10px;
+}
+
+.sgl-knight-name {
+    font-size: 0.88rem;
+}
+
 /* ── Reduced motion ──────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     .siegelings-logo,
@@ -1000,6 +1131,9 @@ img { display: block; }
     .pcg-controller-dot,
     .hero-scroll-hint,
     .sgl-gate-pcg,
+    .sgl-game-logo-img,
+    .sgl-logo-ring-inner,
+    .sgl-logo-ring-outer,
     .sgl-knight-card { animation: none !important; }
     .creature-card:hover { transform: none; }
 }

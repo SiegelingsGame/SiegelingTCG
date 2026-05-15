@@ -170,6 +170,12 @@
                     <span class="sgl-gate-pcg-text">PartyChatGaming presents</span>
                 </div>
 
+                <div class="sgl-logo-stage" aria-hidden="true">
+                    <div class="sgl-logo-ring-outer"></div>
+                    <div class="sgl-logo-ring-inner"></div>
+                    <img class="sgl-game-logo-img" src="/img/siegelings-logo.png" alt="Siegelings" draggable="false">
+                </div>
+
                 <div class="sgl-gate-vs" id="sglGateVs"></div>
 
                 <div class="sgl-gate-loading">
