@@ -415,14 +415,14 @@
     <div class="welcome-shell">
         <div class="welcome-main">
             <section class="welcome-hero">
-                <div class="loadout-kicker">Welcome to the Arena</div>
-                <h2>Build links, wake the sockets, and fight with real momentum.</h2>
-                <p class="loadout-copy">Sieglings is a board-first card battle game. You place one Siegling during setup, connect matching notches to grow your network, and use those links to generate elemental energy for spells, traps, and battle abilities.</p>
+                <div class="welcome-eyebrow">WELCOME TO THE ARENA</div>
+                <h2>Build links, wake the sockets, and command real momentum.</h2>
+                <p class="welcome-hero-copy">Sieglings is a board-first card battle game. Place one Siegling during setup, connect matching notches to grow your network, and use those links to generate elemental energy for spells, traps, and battle abilities.</p>
                 <div class="welcome-tutorial-stage" id="welcomeTutorialStage"></div>
                 <div class="welcome-tutorial-nav">
-                    <button class="btn" type="button" onclick="stepWelcomeSlide(-1)">Back</button>
+                    <button class="btn welcome-nav-btn" type="button" onclick="stepWelcomeSlide(-1)">&#8592; Back</button>
                     <div class="welcome-tutorial-dots" id="welcomeTutorialDots"></div>
-                    <button class="btn btn-primary" type="button" onclick="stepWelcomeSlide(1)">Next</button>
+                    <button class="btn btn-primary welcome-nav-btn" type="button" onclick="stepWelcomeSlide(1)">Next &#8594;</button>
                 </div>
             </section>
             <aside class="welcome-sidebar">
@@ -431,16 +431,19 @@
             </aside>
         </div>
         <section class="welcome-leaderboards" id="welcomeLeaderboardsSection" aria-label="Daily leaderboards">
-            <div class="welcome-card-kicker">Daily leaderboards</div>
-            <p class="welcome-leaderboards-intro">Top 10 registered players. Rankings refresh on the server once per day.</p>
-            <div class="welcome-lb-meta identity-note" id="welcomeLeaderboardsMeta"></div>
+            <div class="welcome-lb-header">
+                <div class="welcome-eyebrow">DAILY LEADERBOARDS</div>
+                <h3 class="welcome-section-heading">See who rules the arena today</h3>
+                <p class="welcome-leaderboards-intro">Top 10 registered players. Rankings refresh on the server once per day.</p>
+            </div>
+            <div class="welcome-lb-meta" id="welcomeLeaderboardsMeta"></div>
             <div class="welcome-lb-tabs" id="welcomeLeaderboardsTabs" role="tablist" aria-label="Leaderboard category"></div>
             <div class="welcome-lb-body" id="welcomeLeaderboardsBody"></div>
         </section>
         <div class="welcome-footer">
-            <div class="identity-note">Sign in to save progress, or jump in immediately as a guest.</div>
+            <div class="welcome-footer-note">Sign in to save progress, or jump in as a guest.</div>
             <div class="welcome-footer-actions">
-                <button class="btn btn-primary" type="button" onclick="playAsGuest()">Play as Guest</button>
+                <button class="btn welcome-guest-btn" type="button" onclick="playAsGuest()">Play as Guest</button>
                 <span class="crafted-by">Crafted By PartyChatGaming</span>
             </div>
         </div>

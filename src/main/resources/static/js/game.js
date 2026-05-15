@@ -3693,12 +3693,12 @@ function renderWelcomeAuth() {
     const draftPassword = document.getElementById('welcomePasswordInput')?.value || '';
 
     authCard.innerHTML = `
-        <div class="welcome-auth-tabs">
-            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" onclick="setAuthMode('login')">Log In</button>
-            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" onclick="setAuthMode('register')">Register</button>
-        </div>
-        <div class="welcome-card-kicker">Account</div>
+        <div class="welcome-eyebrow">ACCOUNT</div>
         <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+        <div class="welcome-auth-tabs">
+            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
+            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
+        </div>
         <label class="online-field">
             <span>Email</span>
             <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
@@ -3715,20 +3715,20 @@ function renderWelcomeAuth() {
         </label>
         ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
         <div class="welcome-auth-actions">
-            <button class="btn btn-primary" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
+            <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
                 ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
             </button>
-            <button class="btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
+            <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
         </div>
     `;
 
     historyCard.innerHTML = `
-        <div class="welcome-card-kicker">Why Sign In</div>
+        <div class="welcome-eyebrow">WHY SIGN IN</div>
         <h3>Keep your armory between sessions</h3>
         <div class="welcome-benefits">
-            <div class="welcome-benefit">Save custom decks and named preset loadouts.</div>
-            <div class="welcome-benefit">See your recent wins, losses, and deck history.</div>
-            <div class="welcome-benefit">Load the same builds again after you log back in.</div>
+            <div class="welcome-benefit">Save custom decks and named loadouts.</div>
+            <div class="welcome-benefit">Track your wins, matches, and deck history.</div>
+            <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
         </div>
     `;
 }
