@@ -258,6 +258,36 @@
         });
     }
 
+    // Apply a one-shot status-application visual on a board cell. The
+    // persistent badge is already rendered by game.js; this just animates
+    // the moment of application so the player can see the status land.
+    const STATUS_PROFILES = {
+        FREEZE:       { className: 'sgl-status-freeze',       element: 'ICE',      duration: 1100 },
+        SPEED_ZERO:   { className: 'sgl-status-speed-zero',   element: 'METAL',    duration: 700  },
+        WEAK:         { className: 'sgl-status-weak',         element: 'SHADOW',   duration: 700  },
+        STRONG:       { className: 'sgl-status-strong',       element: 'NEUTRAL',  duration: 700  },
+        HEALTH_BOOST: { className: 'sgl-status-health-boost', element: 'WIND',     duration: 700  },
+        DAMAGE_BOOST: { className: 'sgl-status-damage-boost', element: 'FIRE',     duration: 700  },
+        SPEED_BOOST:  { className: 'sgl-status-speed-boost',  element: 'ELECTRIC', duration: 700  }
+    };
+    function statusProfile(status) {
+        const k = String(status || '').toUpperCase();
+        return STATUS_PROFILES[k] || { className: 'sgl-status-generic', element: 'NEUTRAL', duration: 700 };
+    }
+    function applyStatusVisual(isPlayer, row, col, status) {
+        const cellEl = findCellEl(isPlayer, row, col);
+        const card = cellEl?.querySelector('.board-card');
+        if (!card) return;
+        const profile = statusProfile(status);
+        card.style.setProperty('--sgl-status-color', elementHex(profile.element));
+        card.classList.add(profile.className);
+        card.classList.add('sgl-status-applied');
+        setTimeout(() => {
+            card.classList.remove(profile.className);
+            card.classList.remove('sgl-status-applied');
+        }, profile.duration);
+    }
+
     // ── Diff helpers ──────────────────────────────────────────────────────────
     function normalizeElement(element) {
         const v = String(element || '').trim().toUpperCase();
@@ -316,6 +346,31 @@
                     const nid = String(n.instanceId || n.id || '');
                     if (pid && nid && pid !== nid) {
                         out.push({ isPlayer, row: r, col: c, cell: n });
+                    }
+                }
+            }
+        }
+        return out;
+    }
+    function diffStatuses(prev, next, isPlayer) {
+        const out = [];
+        if (!next) return out;
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const p = prev?.[r]?.[c];
+                const n = next?.[r]?.[c];
+                if (!n) continue;
+                const pStatuses = new Set((p?.statuses || []).map((s) => String(s).toUpperCase()));
+                const nStatuses = (n.statuses || []).map((s) => String(s).toUpperCase());
+                for (const s of nStatuses) {
+                    if (!pStatuses.has(s)) {
+                        out.push({
+                            isPlayer, row: r, col: c,
+                            status: s,
+                            name: n.name || '',
+                            element: n.element,
+                            instanceId: String(n.instanceId || n.id || '')
+                        });
                     }
                 }
             }
@@ -724,12 +779,75 @@
             const playerGroups = groupDamage(damageOnEnemy, destructionsOnEnemy, resolvePlayerSource, playerKnight, false);
             const enemyGroups  = groupDamage(damageOnPlayer, destructionsOnPlayer, resolveEnemySource, enemyKnight,  true);
 
+            // Status events (e.g. Freeze applied to a card without damage).
+            // Merge into an existing same-source damage group when the target
+            // cell already takes damage from that attacker, otherwise create a
+            // new group so the queue still fires a projectile and animates
+            // the status landing.
+            const newStatusesOnEnemy  = diffStatuses(prevEnemy,  nextEnemy,  false);
+            const newStatusesOnPlayer = diffStatuses(prevPlayer, nextPlayer, true);
+            const mergeStatusInto = (groups, statusList, resolveSource, sideKnight, defenderIsPlayer) => {
+                for (const s of statusList) {
+                    let merged = false;
+                    for (const group of groups.values()) {
+                        const existing = group.targets.find((tt) =>
+                            tt.row === s.row && tt.col === s.col && tt.isPlayer === defenderIsPlayer
+                        );
+                        if (existing) {
+                            existing.statuses = existing.statuses || [];
+                            if (!existing.statuses.includes(s.status)) existing.statuses.push(s.status);
+                            merged = true;
+                            break;
+                        }
+                    }
+                    if (merged) continue;
+                    // Standalone status: need to resolve a source and add a
+                    // new group (or attach to an empty source-keyed bucket
+                    // so multiple statuses from one attacker still group).
+                    const srcRef = resolveSource({
+                        name: s.name, row: s.row, col: s.col,
+                        instanceId: s.instanceId
+                    });
+                    const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || sideKnight;
+                    const key = srcRef
+                        ? `S:${srcRef.row}:${srcRef.col}:${srcRef.cell?.instanceId || srcRef.cell?.id || ''}`
+                        : `N:status:${s.row}:${s.col}:${s.instanceId || ''}`;
+                    if (!groups.has(key)) {
+                        groups.set(key, { srcRef, srcElement, targets: [] });
+                    }
+                    const bucket = groups.get(key);
+                    let existingTarget = bucket.targets.find((tt) =>
+                        tt.row === s.row && tt.col === s.col && tt.isPlayer === defenderIsPlayer
+                    );
+                    if (!existingTarget) {
+                        existingTarget = {
+                            isPlayer: defenderIsPlayer,
+                            row: s.row, col: s.col,
+                            amount: 0,
+                            element: s.element,
+                            name: s.name,
+                            destroysTarget: false,
+                            ghostCell: null,
+                            statuses: []
+                        };
+                        bucket.targets.push(existingTarget);
+                    }
+                    existingTarget.statuses = existingTarget.statuses || [];
+                    if (!existingTarget.statuses.includes(s.status)) {
+                        existingTarget.statuses.push(s.status);
+                    }
+                }
+            };
+            mergeStatusInto(playerGroups, newStatusesOnEnemy,  resolvePlayerSource, playerKnight, false);
+            mergeStatusInto(enemyGroups,  newStatusesOnPlayer, resolveEnemySource,  enemyKnight,  true);
+
             // Track attacker names that already have an ATTACK action queued
             // so we can suppress the matching "X uses Y" ABILITY toast.
             const enqueuedAttackerNames = new Set();
 
             const enqueueAttackGroup = (group, side, knight, defaultActorName, defenderLabel) => {
                 const { srcRef, srcElement, targets } = group;
+                if (!targets.length) return;
                 const actorName = srcRef?.cell?.name || srcRef?.pending?.name || defaultActorName;
                 if (actorName) enqueuedAttackerNames.add(actorName);
                 if (targets.length === 1) {
@@ -746,6 +864,7 @@
                         target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || srcElement },
                         destroysTarget: t.destroysTarget,
                         ghostCell: t.ghostCell,
+                        statuses: t.statuses && t.statuses.length ? t.statuses.slice() : null,
                         gapAfterMs: BATTLE_GAP_MS
                     });
                     return;
@@ -766,7 +885,8 @@
                         element: tt.element || srcElement,
                         amount: tt.amount,
                         destroysTarget: tt.destroysTarget,
-                        ghostCell: tt.ghostCell
+                        ghostCell: tt.ghostCell,
+                        statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null
                     })),
                     gapAfterMs: BATTLE_GAP_MS
                 });
@@ -1060,6 +1180,11 @@
                             tgt.element || action.elementColor || action.knightElement
                         );
                     }
+                    if (tgt.statuses && tgt.statuses.length) {
+                        for (const status of tgt.statuses) {
+                            applyStatusVisual(tgt.isPlayer, tgt.row, tgt.col, status);
+                        }
+                    }
                 }
                 if (window.SieglingsFx?.cameraShake) {
                     const shake = Math.min(16, 6 + Math.round((action.amount || 0) * 0.35));
@@ -1156,6 +1281,11 @@
                         action.amount, action.elementColor || action.knightElement
                     );
                 }
+                if (action.statuses && action.statuses.length) {
+                    for (const status of action.statuses) {
+                        applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, status);
+                    }
+                }
                 if (window.SieglingsFx?.cameraShake) {
                     const shake = Math.min(12, 3 + Math.round((action.amount || 0) * 0.6));
                     window.SieglingsFx.cameraShake(shake, t.impactMs);
@@ -1219,6 +1349,11 @@
                         action.target.isPlayer, action.target.row, action.target.col,
                         action.amount, action.elementColor || action.knightElement
                     );
+                }
+                if (action.statuses && action.statuses.length) {
+                    for (const status of action.statuses) {
+                        applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, status);
+                    }
                 }
                 if (window.SieglingsFx?.cameraShake) {
                     const shake = Math.min(10, 3 + Math.round((action.amount || 0) * 0.5));
