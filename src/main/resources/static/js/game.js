@@ -3581,14 +3581,18 @@ async function submitAuth(mode) {
     const email = document.getElementById('welcomeEmailInput')?.value?.trim() || '';
     const password = document.getElementById('welcomePasswordInput')?.value || '';
     const displayName = document.getElementById('welcomeDisplayNameInput')?.value?.trim() || '';
+    const resetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
     authState.loading = true;
     authState.error = '';
     renderWelcomeAuth();
 
     const body = mode === 'register'
         ? { email, password, displayName }
+        : mode === 'reset-password'
+        ? { email, password, resetCode }
         : { email, password };
-    const data = await fetchJson(apiUrls(`/api/auth/${mode}`), {
+    const endpoint = mode === 'reset-password' ? '/api/auth/reset-password' : `/api/auth/${mode}`;
+    const data = await fetchJson(apiUrls(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -3691,6 +3695,12 @@ function renderWelcomeAuth() {
     const draftEmail = document.getElementById('welcomeEmailInput')?.value || '';
     const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
     const draftPassword = document.getElementById('welcomePasswordInput')?.value || '';
+    const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
+    const authTitle = authMode === 'login'
+        ? 'Pick up where you left off'
+        : authMode === 'register'
+        ? 'Save decks with your email'
+        : 'Set a new password';
 
     authCard.innerHTML = `
         <div class="welcome-eyebrow">ACCOUNT</div>
@@ -3709,8 +3719,14 @@ function renderWelcomeAuth() {
                 <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}">
             </label>
         ` : ''}
+        ${authMode === 'reset-password' ? `
+            <label class="online-field">
+                <span>Reset Code</span>
+                <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
+            </label>
+        ` : ''}
         <label class="online-field">
-            <span>Password</span>
+            <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
             <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
         </label>
         ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}

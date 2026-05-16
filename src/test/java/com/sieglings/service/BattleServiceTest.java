@@ -83,6 +83,73 @@ class BattleServiceTest {
     }
 
     @Test
+    void speedChangesReorderUnactedBattleQueue() throws Exception {
+        BattleService battleService = createBattleService();
+        MovesPoolService pool = getField(battleService, "movesPoolService");
+
+        String uprootMoveId = "test:dracosleaf:uproot";
+        pool.registerLegacyManualMove(uprootMoveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Uproot",
+                "Set 1 enemy's Speed to 0",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.SPEED_ZERO,
+                1,
+                false,
+                null,
+                0,
+                null
+        ), Element.EARTH);
+        String pylmeMoveId = "test:pylme:strike";
+        pool.registerLegacyManualMove(pylmeMoveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Pylme Strike",
+                "Deal 1 damage to 1 enemy",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.DAMAGE,
+                1,
+                false,
+                null,
+                0,
+                null
+        ), Element.EARTH);
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        player.setEarthEnergy(1);
+        state.setPlayer(player);
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard dracosleafCard = new SieglingCard("dracosleaf", "Dracosleaf", Element.EARTH, Rarity.COMMON, 10, 12, List.of(), Row.BACK);
+        dracosleafCard.setMoveIds(List.of(uprootMoveId));
+        CardInstance dracosleaf = new CardInstance(dracosleafCard, 0, 1, false);
+        state.setAt(false, 0, 1, dracosleaf);
+
+        SieglingCard breezeeCard = new SieglingCard("breezee", "Breezee", Element.WIND, Rarity.COMMON, 10, 10, List.of(), Row.FRONT);
+        CardInstance breezee = new CardInstance(breezeeCard, 2, 1, true);
+        state.setAt(true, 2, 1, breezee);
+
+        SieglingCard pylmeCard = new SieglingCard("pylme", "Pylme", Element.EARTH, Rarity.COMMON, 10, 9, List.of(), Row.MIDDLE);
+        pylmeCard.setMoveIds(List.of(pylmeMoveId));
+        CardInstance pylme = new CardInstance(pylmeCard, 1, 1, true);
+        state.setAt(true, 1, 1, pylme);
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+
+        assertTrue(state.isBattleActionPausePending(), "The speed-zero action should pause before choosing the next actor.");
+        assertEquals(0, breezee.getEffectiveSpeed(), "The first AI action should reduce Breezee's speed.");
+
+        battleService.advanceBattle(state);
+
+        assertEquals(pylme.getInstanceId(), state.getPendingBattleInstanceId(),
+                "Remaining battle order should be rebuilt from current Speed before the next actor is selected.");
+    }
+
+    @Test
     void explicitMoveLoadoutUsesConfiguredAbilitiesAndCosts() throws Exception {
         BattleService battleService = createBattleService();
         MovesPoolService pool = getField(battleService, "movesPoolService");
