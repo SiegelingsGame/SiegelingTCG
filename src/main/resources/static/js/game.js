@@ -5887,8 +5887,20 @@ function updateHudRails(state) {
 
     const pBar = document.getElementById('railPlayerHpBar');
     const eBar = document.getElementById('railEnemyHpBar');
-    if (pBar) pBar.style.width = `${pPct}%`;
-    if (eBar) eBar.style.width = `${ePct}%`;
+    if (pBar) {
+        pBar.style.width = `${pPct}%`;
+        const pColor = p.trainer?.element ? getElementHex(p.trainer.element) : null;
+        pBar.style.background = pColor
+            ? `linear-gradient(90deg, ${hexToRgba(pColor, 0.55)}, ${pColor})`
+            : '';
+    }
+    if (eBar) {
+        eBar.style.width = `${ePct}%`;
+        const eColor = e.trainer?.element ? getElementHex(e.trainer.element) : null;
+        eBar.style.background = eColor
+            ? `linear-gradient(90deg, ${hexToRgba(eColor, 0.55)}, ${eColor})`
+            : '';
+    }
 
     setTextIfExists('railPlayerHandSize', p.handSize ?? (Array.isArray(p.hand) ? p.hand.length : 0));
     setTextIfExists('railPlayerDeckSize', p.deckSize ?? 0);
@@ -6022,6 +6034,7 @@ function updateMobileHudSide(label, playerData, ids) {
         trainerAbility
     ].filter(Boolean).join(' - ');
     const hpBar = document.getElementById(ids.hpBarId);
+    const trainerColor = trainer?.element ? getElementHex(trainer.element) : null;
 
     setTextIfExists(ids.nameId, ids.name || label);
     setTextIfExists(ids.handId, handSize);
@@ -6031,7 +6044,10 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.statDeckId, deckSize);
     setTextIfExists(ids.knightNameId, trainer?.name || '-');
     setTextIfExists(ids.knightInfoId, trainerInfo);
-    if (hpBar) hpBar.style.width = `${pct}%`;
+    if (hpBar) {
+        hpBar.style.width = `${pct}%`;
+        hpBar.style.background = trainerColor || '';
+    }
 
     const icon = document.getElementById(ids.knightIconId);
     if (icon) icon.innerHTML = elementEmoji(trainer?.element);
