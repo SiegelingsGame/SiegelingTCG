@@ -1012,19 +1012,29 @@
             const enqueueAttackGroup = (group, side, knight, defaultActorName, defenderLabel) => {
                 const { srcRef, srcElement, targets } = group;
                 if (!targets.length) return;
-                const actorName = srcRef?.cell?.name || srcRef?.pending?.name || defaultActorName;
-                if (actorName) enqueuedAttackerNames.add(actorName);
+                // Only treat the toast as an "active attack" when we
+                // actually identified a source cell. Without one (trap/aura
+                // damage, effect tick, unparseable AI log line), the toast
+                // becomes "<Target> takes -N" so it doesn't read as if the
+                // player just clicked an attack.
+                const realAttacker = srcRef?.cell?.name || srcRef?.pending?.name;
+                if (realAttacker) enqueuedAttackerNames.add(realAttacker);
+                const sourcePayload = srcRef
+                    ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col }
+                    : null;
+
                 if (targets.length === 1) {
                     const t = targets[0];
                     this.enqueueAction({
                         kind: 'ATTACK',
                         side,
-                        actorName,
-                        targetName: t.name,
+                        actorName: realAttacker || t.name,
+                        targetName: realAttacker ? t.name : '',
+                        label: realAttacker ? undefined : 'takes',
                         amount: t.amount,
                         knightElement: knight,
                         elementColor: srcElement,
-                        source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                        source: sourcePayload,
                         target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || srcElement },
                         destroysTarget: t.destroysTarget,
                         ghostCell: t.ghostCell,
@@ -1035,15 +1045,17 @@
                 }
                 // Multi-target: simultaneous barrage
                 const totalDmg = targets.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
+                const groupLabel = describeTargets(targets, defenderLabel);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side,
-                    actorName,
-                    targetName: describeTargets(targets, defenderLabel),
+                    actorName: realAttacker || groupLabel,
+                    targetName: realAttacker ? groupLabel : '',
+                    label: realAttacker ? undefined : 'takes',
                     amount: totalDmg,
                     knightElement: knight,
                     elementColor: srcElement,
-                    source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                    source: sourcePayload,
                     targets: targets.map((tt) => ({
                         isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
                         element: tt.element || srcElement,
