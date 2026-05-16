@@ -46,11 +46,30 @@
         ABILITY: 'uses',
         ATTACK:  'attacks',
         HEAL:    'heals',
+        STATUS_APPLY: 'gains',
         BLOCK:   'blocks',
         EFFECT:  'effect',
         DESTROY: 'is destroyed',
         PHASE:   'phase'
     };
+
+    // Friendly label for each status kind. Used in STATUS_APPLY toasts so
+    // status-only events read as "Pylme gains Frozen" instead of dropping
+    // into the misleading "Player attacks Pylme" path.
+    const STATUS_DISPLAY = {
+        FREEZE:       'Frozen',
+        SPEED_ZERO:   'Stunned',
+        WEAK:         'Weakened',
+        STRONG:       'Strengthened',
+        HEALTH_BOOST: 'HP Boost',
+        DAMAGE_BOOST: 'Damage Boost',
+        SPEED_BOOST:  'Speed Boost'
+    };
+    function formatStatusLabel(status) {
+        const k = String(status || '').toUpperCase();
+        if (STATUS_DISPLAY[k]) return STATUS_DISPLAY[k];
+        return k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, ' ');
+    }
 
     const TIMING_NORMAL = {
         highlightMs: 400,
@@ -1142,19 +1161,57 @@
             const enqueueAttackGroup = (group, side, knight, defaultActorName, defenderLabel) => {
                 const { srcRef, srcElement, targets } = group;
                 if (!targets.length) return;
-                const actorName = srcRef?.cell?.name || srcRef?.pending?.name || defaultActorName;
-                if (actorName) enqueuedAttackerNames.add(actorName);
+                // Only treat the toast as an "active attack" when we
+                // actually identified a source cell. Without one (trap/aura
+                // damage, effect tick, unparseable AI log line), the toast
+                // becomes "<Target> takes -N" so it doesn't read as if the
+                // player just clicked an attack.
+                const realAttacker = srcRef?.cell?.name || srcRef?.pending?.name;
+                if (realAttacker) enqueuedAttackerNames.add(realAttacker);
+                const sourcePayload = srcRef
+                    ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col }
+                    : null;
+
+                // Status-only group (e.g. an enemy aura applies Weak to a
+                // newly-placed player Siegling with no HP change). Don't
+                // route through the ATTACK path — that produces phantom
+                // "AI attacks X" toasts even though no attack happened.
+                // Emit a STATUS_APPLY action per affected target instead.
+                const hasDamage = targets.some((tt) => Number(tt.amount) > 0);
+                if (!hasDamage) {
+                    for (const t of targets) {
+                        if (!t.statuses || !t.statuses.length) continue;
+                        const primaryStatus = t.statuses[0];
+                        const statusEl = statusProfile(primaryStatus).element;
+                        const labelText = t.statuses.map(formatStatusLabel).join(', ');
+                        this.enqueueAction({
+                            kind: 'STATUS_APPLY',
+                            side,
+                            actorName: t.name,
+                            targetName: labelText,
+                            knightElement: knight,
+                            elementColor: statusEl,
+                            source: sourcePayload,
+                            target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || statusEl },
+                            statuses: t.statuses.slice(),
+                            gapAfterMs: BATTLE_GAP_MS
+                        });
+                    }
+                    return;
+                }
+
                 if (targets.length === 1) {
                     const t = targets[0];
                     this.enqueueAction({
                         kind: 'ATTACK',
                         side,
-                        actorName,
-                        targetName: t.name,
+                        actorName: realAttacker || t.name,
+                        targetName: realAttacker ? t.name : '',
+                        label: realAttacker ? undefined : 'takes',
                         amount: t.amount,
                         knightElement: knight,
                         elementColor: srcElement,
-                        source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                        source: sourcePayload,
                         target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || srcElement },
                         destroysTarget: t.destroysTarget,
                         ghostCell: t.ghostCell,
@@ -1165,15 +1222,17 @@
                 }
                 // Multi-target: simultaneous barrage
                 const totalDmg = targets.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
+                const groupLabel = describeTargets(targets, defenderLabel);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side,
-                    actorName,
-                    targetName: describeTargets(targets, defenderLabel),
+                    actorName: realAttacker || groupLabel,
+                    targetName: realAttacker ? groupLabel : '',
+                    label: realAttacker ? undefined : 'takes',
                     amount: totalDmg,
                     knightElement: knight,
                     elementColor: srcElement,
-                    source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                    source: sourcePayload,
                     targets: targets.map((tt) => ({
                         isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
                         element: tt.element || srcElement,
@@ -1497,6 +1556,36 @@
                 }
                 const multiGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(multiGap);
+                return;
+            }
+
+            // 2a-status. STATUS_APPLY — status-only events (aura debuffs,
+            // boost auras) that the queue used to mis-classify as attacks.
+            // Fires a short projectile from the caster (if one was
+            // identified) and lands the status-specific overlay on the
+            // target. Never shows the "X attacks Y" verb, never spawns a
+            // damage floater.
+            if (action.kind === 'STATUS_APPLY' && action.target) {
+                if (action.source && window.SieglingsFx?.attackCell) {
+                    window.SieglingsFx.attackCell(
+                        action.source.isPlayer, action.source.row, action.source.col,
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        action.elementColor || action.knightElement,
+                        { duration: t.projectileMs }
+                    );
+                    await sleep(t.projectileMs);
+                }
+                if (action.statuses && action.statuses.length) {
+                    for (const status of action.statuses) {
+                        applyStatusVisual(
+                            action.target.isPlayer, action.target.row, action.target.col,
+                            status
+                        );
+                    }
+                }
+                await sleep(t.impactMs);
+                const statusGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(statusGap);
                 return;
             }
 
