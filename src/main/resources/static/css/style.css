@@ -9414,6 +9414,78 @@ body.placement-active .board-cell.legal {
     .board-card.sgl-status-freeze { animation: none; }
 }
 
+/* Healing — glowing green "+" cross with outward particle burst. Anchored
+   as a fixed-position overlay so it survives re-renders of the cell. */
+.sgl-heal-cross {
+    pointer-events: none;
+    z-index: 540;
+    color: #5eff8e;
+    overflow: visible;
+}
+.sgl-heal-glow {
+    position: absolute;
+    inset: -25%;
+    background:
+        radial-gradient(circle at 50% 50%, rgba(168, 255, 208, 0.6), transparent 55%),
+        radial-gradient(circle at 50% 50%, rgba(94, 255, 142, 0.45), transparent 70%);
+    filter: blur(2px);
+    animation: sgl-heal-glow 1.4s ease-out forwards;
+}
+.sgl-heal-icon {
+    position: absolute;
+    left: 18%;
+    top: 18%;
+    width: 64%;
+    height: 64%;
+    filter:
+        drop-shadow(0 0 10px #5eff8e)
+        drop-shadow(0 0 22px rgba(94, 255, 142, 0.85));
+    transform-origin: 50% 50%;
+    animation: sgl-heal-cross-pop 1.4s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+.sgl-heal-particle {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffffff 0%, #a8ffd0 45%, #5eff8e 100%);
+    box-shadow:
+        0 0 6px #5eff8e,
+        0 0 14px rgba(94, 255, 142, 0.75);
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0;
+    animation: sgl-heal-particle 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+@keyframes sgl-heal-glow {
+    0%   { opacity: 0; transform: scale(0.7); }
+    35%  { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 0; transform: scale(1.25); }
+}
+@keyframes sgl-heal-cross-pop {
+    0%   { transform: scale(0.4) rotate(-12deg); opacity: 0;
+           filter: drop-shadow(0 0 0 transparent); }
+    25%  { transform: scale(1.25) rotate(0deg);  opacity: 1;
+           filter: drop-shadow(0 0 16px #5eff8e) drop-shadow(0 0 28px #5eff8e); }
+    45%  { transform: scale(1) rotate(0deg);     opacity: 1;
+           filter: drop-shadow(0 0 12px #5eff8e); }
+    100% { transform: scale(1.05) rotate(0deg);  opacity: 0;
+           filter: drop-shadow(0 0 6px transparent); }
+}
+@keyframes sgl-heal-particle {
+    0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+    15%  { opacity: 1; }
+    100% {
+        transform: translate(
+            calc(-50% + var(--p-dx, 0px)),
+            calc(-50% + var(--p-dy, -40px))
+        ) scale(0.2);
+        opacity: 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .sgl-heal-cross .sgl-heal-icon,
+    .sgl-heal-cross .sgl-heal-glow,
+    .sgl-heal-cross .sgl-heal-particle { animation-duration: 0.3s !important; }
+}
+
 /* Death ghost — keeps the killed card visible until the projectile lands */
 .sgl-death-ghost {
     --sgl-knight: #95a5a6;
@@ -9582,4 +9654,640 @@ body.sgl-opponent-turn .battle-cta-row {
     .board-card.sgl-acting-attack, .board-card.sgl-acting-play { animation: none; }
     .board-card.sgl-impact { animation: none; }
     .sgl-thinking-dot { animation: none; }
+}
+
+/* =============================================================
+   PREMIUM WELCOME OVERLAY — REDESIGN
+   Override the utilitarian defaults with a polished game lobby feel.
+   ============================================================= */
+
+/* Background */
+.welcome-overlay {
+    background:
+        radial-gradient(ellipse at 15% 20%, rgba(30, 80, 200, 0.24) 0%, transparent 45%),
+        radial-gradient(ellipse at 85% 80%, rgba(226, 183, 20, 0.18) 0%, transparent 40%),
+        radial-gradient(ellipse at 50% 110%, rgba(20, 40, 90, 0.35) 0%, transparent 55%),
+        rgba(3, 7, 18, 0.95);
+    backdrop-filter: blur(16px);
+}
+
+/* Main shell */
+.welcome-shell {
+    border-radius: 28px;
+    background:
+        linear-gradient(155deg, rgba(18, 32, 68, 0.97) 0%, rgba(7, 12, 26, 0.99) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+        0 36px 90px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(226, 183, 20, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Eyebrow labels */
+.welcome-eyebrow {
+    font-size: 0.63em;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+    opacity: 0.88;
+}
+
+/* Section heading */
+.welcome-section-heading {
+    font-size: 1.25em;
+    font-weight: 700;
+    color: #dce8f8;
+    margin-bottom: 8px;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+}
+
+/* Hero section */
+.welcome-hero {
+    background:
+        radial-gradient(ellipse at top left, rgba(30, 80, 180, 0.16) 0%, transparent 55%),
+        rgba(5, 10, 24, 0.74);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 22px;
+    padding: 28px 28px 22px;
+}
+
+.welcome-hero h2 {
+    font-size: 1.5em;
+    font-weight: 800;
+    line-height: 1.22;
+    color: #f0f4ff;
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+}
+
+.welcome-hero-copy {
+    font-size: 0.85em;
+    color: #7a90aa;
+    line-height: 1.65;
+    margin: 0;
+}
+
+/* Tutorial stage */
+.welcome-tutorial-stage {
+    margin-top: 22px;
+}
+
+.welcome-slide-card {
+    gap: 14px;
+}
+
+.welcome-slide-title {
+    font-size: 1.06em;
+    font-weight: 700;
+    color: #ccd8f0;
+    letter-spacing: -0.01em;
+}
+
+.welcome-slide-copy {
+    font-size: 0.85em;
+    color: #6c839e;
+    line-height: 1.65;
+}
+
+.tutorial-visual {
+    border-radius: 18px;
+    background:
+        radial-gradient(ellipse at top, rgba(40, 80, 180, 0.12) 0%, transparent 60%),
+        rgba(3, 7, 18, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 6px 24px rgba(0, 0, 0, 0.45);
+    min-height: 230px;
+}
+
+/* Tutorial nav buttons */
+.welcome-tutorial-nav {
+    margin-top: 20px;
+    padding-top: 2px;
+}
+
+.welcome-nav-btn {
+    border-radius: 10px !important;
+    padding: 9px 20px !important;
+    font-size: 0.76em !important;
+    letter-spacing: 0.07em !important;
+    transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease, color 180ms ease !important;
+}
+
+.welcome-nav-btn:not(.btn-primary) {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    color: #8fa0b8 !important;
+}
+
+.welcome-nav-btn:not(.btn-primary):hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #c0d0e4 !important;
+    transform: translateY(-2px);
+}
+
+.welcome-nav-btn.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(226, 183, 20, 0.38) !important;
+}
+
+/* Progress dots */
+.welcome-tutorial-dots {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+}
+
+.welcome-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 220ms ease;
+    padding: 0;
+}
+
+.welcome-dot.active {
+    width: 24px;
+    border-radius: 4px;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(226, 183, 20, 0.16), 0 0 12px rgba(226, 183, 20, 0.32);
+    border-color: transparent;
+}
+
+/* Sidebar */
+.welcome-sidebar {
+    gap: 14px;
+}
+
+/* Auth card */
+.welcome-auth-card {
+    background:
+        radial-gradient(ellipse at top right, rgba(226, 183, 20, 0.08) 0%, transparent 50%),
+        rgba(6, 12, 28, 0.84);
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 22px;
+    padding: 24px;
+}
+
+.welcome-auth-card h3 {
+    font-size: 1.15em;
+    font-weight: 700;
+    color: #dce8f8;
+    margin-bottom: 18px;
+    letter-spacing: -0.01em;
+}
+
+/* Auth tabs — pill segmented control */
+.welcome-auth-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+    padding: 3px;
+}
+
+.welcome-auth-tab {
+    flex: 1 1 0;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #5e7a94;
+    padding: 9px 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all 200ms ease;
+}
+
+.welcome-auth-tab:hover:not(.active) {
+    color: #8fa8c4;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.welcome-auth-tab.active {
+    background: rgba(226, 183, 20, 0.16);
+    color: var(--accent);
+    border-color: rgba(226, 183, 20, 0.34);
+    box-shadow: 0 2px 8px rgba(226, 183, 20, 0.14);
+}
+
+/* Inputs inside auth card */
+.welcome-auth-card .online-field {
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: 0.8em;
+    color: #5e7a94;
+}
+
+.welcome-auth-card .online-field input {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.32);
+    padding: 11px 14px;
+    color: #dce8f8;
+    font-size: 0.95em;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.welcome-auth-card .online-field input::placeholder {
+    color: rgba(255, 255, 255, 0.22);
+}
+
+.welcome-auth-card .online-field input:focus {
+    outline: none;
+    border-color: rgba(226, 183, 20, 0.5);
+    box-shadow: 0 0 0 3px rgba(226, 183, 20, 0.1), 0 0 16px rgba(226, 183, 20, 0.07);
+}
+
+/* Auth actions row */
+.welcome-auth-actions {
+    margin-top: 18px;
+    gap: 10px;
+    flex-wrap: nowrap;
+}
+
+.welcome-auth-submit {
+    flex: 1.2;
+    border-radius: 12px !important;
+    padding: 11px 16px !important;
+    font-size: 0.82em !important;
+    letter-spacing: 0.07em !important;
+    transition: transform 180ms ease, box-shadow 180ms ease !important;
+    box-shadow: 0 4px 16px rgba(226, 183, 20, 0.28) !important;
+}
+
+.welcome-auth-submit:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(226, 183, 20, 0.42) !important;
+}
+
+/* Guest button (secondary) */
+.welcome-guest-btn {
+    flex: 1;
+    border-radius: 10px !important;
+    padding: 9px 16px !important;
+    font-size: 0.78em !important;
+    letter-spacing: 0.05em !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.13) !important;
+    color: #6c839e !important;
+    transition: all 180ms ease !important;
+}
+
+.welcome-guest-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.09) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #a0b8d0 !important;
+    transform: translateY(-1px);
+}
+
+/* History / benefits card */
+.welcome-history-card {
+    background: rgba(5, 10, 22, 0.74);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 22px;
+}
+
+.welcome-history-card h3 {
+    font-size: 1em;
+    font-weight: 700;
+    color: #b8ccec;
+    margin-bottom: 14px;
+    letter-spacing: -0.01em;
+}
+
+/* Benefits list */
+.welcome-benefits {
+    gap: 8px;
+}
+
+.welcome-benefit {
+    padding: 11px 14px 11px 28px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.83em;
+    color: #6c849e;
+    line-height: 1.5;
+    position: relative;
+}
+
+.welcome-benefit::before {
+    content: '◆';
+    position: absolute;
+    left: 11px;
+    top: 12px;
+    font-size: 0.55em;
+    color: var(--accent);
+    opacity: 0.7;
+}
+
+/* Card kicker (upgraded) */
+.welcome-card-kicker {
+    font-size: 0.6em;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    margin-bottom: 10px;
+    font-weight: 700;
+    opacity: 0.85;
+}
+
+/* Leaderboard section */
+.welcome-leaderboards {
+    background:
+        radial-gradient(ellipse at bottom left, rgba(30, 70, 160, 0.1) 0%, transparent 55%),
+        rgba(5, 10, 22, 0.74);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 22px;
+    padding: 26px;
+    margin-top: 16px;
+}
+
+.welcome-lb-header {
+    margin-bottom: 18px;
+}
+
+.welcome-leaderboards-intro {
+    font-size: 0.83em;
+    color: #5e7a94;
+    margin-bottom: 0;
+    line-height: 1.55;
+}
+
+/* Leaderboard meta */
+.welcome-lb-meta {
+    font-size: 0.74em;
+    color: #4a6278;
+    margin-bottom: 14px;
+}
+
+/* Leaderboard tabs */
+.welcome-lb-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.welcome-lb-tab {
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: rgba(255, 255, 255, 0.04);
+    color: #5a7490;
+    padding: 7px 15px;
+    font-size: 0.71em;
+    font-weight: 600;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    transition: all 200ms ease;
+}
+
+.welcome-lb-tab:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #90aac4;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.welcome-lb-tab.active {
+    color: var(--accent);
+    border-color: rgba(226, 183, 20, 0.42);
+    background: rgba(226, 183, 20, 0.1);
+    box-shadow: 0 0 14px rgba(226, 183, 20, 0.14), inset 0 1px 0 rgba(226, 183, 20, 0.18);
+}
+
+/* LB table */
+.welcome-lb-table {
+    gap: 5px;
+}
+
+.welcome-lb-head {
+    font-size: 0.68em;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.32);
+    padding-bottom: 6px;
+}
+
+.welcome-lb-row {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    transition: background 180ms ease, border-color 180ms ease;
+    padding: 9px 10px;
+}
+
+.welcome-lb-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.welcome-lb-row .lb-rank {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.92em;
+}
+
+.welcome-lb-row .lb-name {
+    color: #b0c4dc;
+}
+
+.welcome-lb-row .lb-val {
+    color: #dce8f8;
+}
+
+/* Empty / loading states */
+.welcome-lb-empty,
+.welcome-lb-loading {
+    padding: 30px 16px;
+    text-align: center;
+    color: #4a6278;
+    font-size: 0.83em;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed rgba(255, 255, 255, 0.06);
+    letter-spacing: 0.03em;
+}
+
+/* Auth error */
+.welcome-auth-error {
+    margin-top: 12px;
+    padding: 11px 14px;
+    border-radius: 12px;
+    background: rgba(231, 76, 60, 0.12);
+    border: 1px solid rgba(231, 76, 60, 0.22);
+    color: #ffb4a9;
+    font-size: 0.8em;
+}
+
+/* Stat grid (logged-in state) */
+.welcome-stat-grid {
+    margin: 16px 0;
+    gap: 10px;
+}
+
+.welcome-stat {
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.welcome-stat strong {
+    display: block;
+    font-size: 1.5em;
+    color: var(--accent);
+    font-weight: 800;
+}
+
+.welcome-stat span {
+    display: block;
+    font-size: 0.78em;
+    color: #5a7490;
+    margin-top: 2px;
+}
+
+/* History rows */
+.welcome-history-row {
+    border-radius: 12px;
+    padding: 11px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.welcome-history-row span {
+    display: block;
+    font-size: 0.8em;
+    color: #5a7490;
+    margin-top: 2px;
+}
+
+/* Footer */
+.welcome-footer {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    justify-content: space-between;
+}
+
+.welcome-footer-note {
+    font-size: 0.8em;
+    color: #4a6278;
+    letter-spacing: 0.01em;
+}
+
+/* Auth meta */
+.welcome-auth-meta {
+    font-size: 0.8em;
+    color: #5a7490;
+    margin-bottom: 16px;
+}
+
+/* Auth actions for logged-in state */
+.welcome-auth-card .welcome-auth-actions .btn:not(.btn-primary) {
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 0.8em;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    color: #6c839e;
+    transition: all 180ms ease;
+}
+
+.welcome-auth-card .welcome-auth-actions .btn:not(.btn-primary):hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #a0b8d0;
+    transform: translateY(-1px);
+}
+
+/* Main grid layout */
+.welcome-main {
+    gap: 16px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+    .welcome-hero {
+        padding: 22px 20px 18px;
+    }
+    .welcome-hero h2 {
+        font-size: 1.28em;
+    }
+    .welcome-auth-card {
+        padding: 20px;
+    }
+    .welcome-auth-card h3 {
+        font-size: 1.05em;
+        margin-bottom: 14px;
+    }
+    .welcome-auth-actions {
+        flex-wrap: wrap;
+    }
+    .welcome-auth-submit,
+    .welcome-guest-btn {
+        flex: 1 1 auto;
+    }
+    .welcome-leaderboards {
+        padding: 20px;
+    }
+    .welcome-lb-tabs {
+        gap: 5px;
+    }
+    .welcome-lb-tab {
+        padding: 6px 11px;
+        font-size: 0.68em;
+    }
+}
+
+@media (max-width: 560px) {
+    .welcome-shell {
+        border-radius: 20px;
+    }
+    .welcome-hero {
+        border-radius: 18px;
+        padding: 18px 16px 16px;
+    }
+    .welcome-hero h2 {
+        font-size: 1.15em;
+    }
+    .welcome-auth-card {
+        border-radius: 18px;
+        padding: 18px 16px;
+    }
+    .welcome-history-card {
+        border-radius: 16px;
+        padding: 18px 16px;
+    }
+    .welcome-leaderboards {
+        border-radius: 18px;
+        padding: 18px 16px;
+    }
+    .welcome-section-heading {
+        font-size: 1.1em;
+    }
+    .welcome-lb-tabs {
+        gap: 4px;
+    }
+    .welcome-lb-tab {
+        padding: 6px 10px;
+        font-size: 0.66em;
+    }
+    .welcome-footer-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .welcome-guest-btn {
+        text-align: center;
+    }
 }

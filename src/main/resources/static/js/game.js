@@ -3703,13 +3703,12 @@ function renderWelcomeAuth() {
         : 'Set a new password';
 
     authCard.innerHTML = `
+        <div class="welcome-eyebrow">ACCOUNT</div>
+        <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
         <div class="welcome-auth-tabs">
-            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" onclick="setAuthMode('login')">Log In</button>
-            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" onclick="setAuthMode('register')">Register</button>
-            <button class="welcome-auth-tab${authMode === 'reset-password' ? ' active' : ''}" type="button" onclick="setAuthMode('reset-password')">Reset</button>
+            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
+            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
         </div>
-        <div class="welcome-card-kicker">Account</div>
-        <h3>${authTitle}</h3>
         <label class="online-field">
             <span>Email</span>
             <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
@@ -3732,20 +3731,20 @@ function renderWelcomeAuth() {
         </label>
         ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
         <div class="welcome-auth-actions">
-            <button class="btn btn-primary" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
-                ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : authMode === 'register' ? 'Create Account' : 'Reset Password')}
+            <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
+                ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
             </button>
-            <button class="btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
+            <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
         </div>
     `;
 
     historyCard.innerHTML = `
-        <div class="welcome-card-kicker">Why Sign In</div>
+        <div class="welcome-eyebrow">WHY SIGN IN</div>
         <h3>Keep your armory between sessions</h3>
         <div class="welcome-benefits">
-            <div class="welcome-benefit">Save custom decks and named preset loadouts.</div>
-            <div class="welcome-benefit">See your recent wins, losses, and deck history.</div>
-            <div class="welcome-benefit">Load the same builds again after you log back in.</div>
+            <div class="welcome-benefit">Save custom decks and named loadouts.</div>
+            <div class="welcome-benefit">Track your wins, matches, and deck history.</div>
+            <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
         </div>
     `;
 }
@@ -5904,8 +5903,20 @@ function updateHudRails(state) {
 
     const pBar = document.getElementById('railPlayerHpBar');
     const eBar = document.getElementById('railEnemyHpBar');
-    if (pBar) pBar.style.width = `${pPct}%`;
-    if (eBar) eBar.style.width = `${ePct}%`;
+    if (pBar) {
+        pBar.style.width = `${pPct}%`;
+        const pColor = p.trainer?.element ? getElementHex(p.trainer.element) : null;
+        pBar.style.background = pColor
+            ? `linear-gradient(90deg, ${hexToRgba(pColor, 0.55)}, ${pColor})`
+            : '';
+    }
+    if (eBar) {
+        eBar.style.width = `${ePct}%`;
+        const eColor = e.trainer?.element ? getElementHex(e.trainer.element) : null;
+        eBar.style.background = eColor
+            ? `linear-gradient(90deg, ${hexToRgba(eColor, 0.55)}, ${eColor})`
+            : '';
+    }
 
     setTextIfExists('railPlayerHandSize', p.handSize ?? (Array.isArray(p.hand) ? p.hand.length : 0));
     setTextIfExists('railPlayerDeckSize', p.deckSize ?? 0);
@@ -6039,6 +6050,7 @@ function updateMobileHudSide(label, playerData, ids) {
         trainerAbility
     ].filter(Boolean).join(' - ');
     const hpBar = document.getElementById(ids.hpBarId);
+    const trainerColor = trainer?.element ? getElementHex(trainer.element) : null;
 
     setTextIfExists(ids.nameId, ids.name || label);
     setTextIfExists(ids.handId, handSize);
@@ -6048,7 +6060,10 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.statDeckId, deckSize);
     setTextIfExists(ids.knightNameId, trainer?.name || '-');
     setTextIfExists(ids.knightInfoId, trainerInfo);
-    if (hpBar) hpBar.style.width = `${pct}%`;
+    if (hpBar) {
+        hpBar.style.width = `${pct}%`;
+        hpBar.style.background = trainerColor || '';
+    }
 
     const icon = document.getElementById(ids.knightIconId);
     if (icon) icon.innerHTML = elementEmoji(trainer?.element);
