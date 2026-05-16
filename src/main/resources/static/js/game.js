@@ -3581,14 +3581,18 @@ async function submitAuth(mode) {
     const email = document.getElementById('welcomeEmailInput')?.value?.trim() || '';
     const password = document.getElementById('welcomePasswordInput')?.value || '';
     const displayName = document.getElementById('welcomeDisplayNameInput')?.value?.trim() || '';
+    const resetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
     authState.loading = true;
     authState.error = '';
     renderWelcomeAuth();
 
     const body = mode === 'register'
         ? { email, password, displayName }
+        : mode === 'reset-password'
+        ? { email, password, resetCode }
         : { email, password };
-    const data = await fetchJson(apiUrls(`/api/auth/${mode}`), {
+    const endpoint = mode === 'reset-password' ? '/api/auth/reset-password' : `/api/auth/${mode}`;
+    const data = await fetchJson(apiUrls(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -3691,14 +3695,21 @@ function renderWelcomeAuth() {
     const draftEmail = document.getElementById('welcomeEmailInput')?.value || '';
     const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
     const draftPassword = document.getElementById('welcomePasswordInput')?.value || '';
+    const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
+    const authTitle = authMode === 'login'
+        ? 'Pick up where you left off'
+        : authMode === 'register'
+        ? 'Save decks with your email'
+        : 'Set a new password';
 
     authCard.innerHTML = `
         <div class="welcome-auth-tabs">
             <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" onclick="setAuthMode('login')">Log In</button>
             <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" onclick="setAuthMode('register')">Register</button>
+            <button class="welcome-auth-tab${authMode === 'reset-password' ? ' active' : ''}" type="button" onclick="setAuthMode('reset-password')">Reset</button>
         </div>
         <div class="welcome-card-kicker">Account</div>
-        <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+        <h3>${authTitle}</h3>
         <label class="online-field">
             <span>Email</span>
             <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
@@ -3709,14 +3720,20 @@ function renderWelcomeAuth() {
                 <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}">
             </label>
         ` : ''}
+        ${authMode === 'reset-password' ? `
+            <label class="online-field">
+                <span>Reset Code</span>
+                <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
+            </label>
+        ` : ''}
         <label class="online-field">
-            <span>Password</span>
+            <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
             <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
         </label>
         ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
         <div class="welcome-auth-actions">
             <button class="btn btn-primary" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
-                ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
+                ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : authMode === 'register' ? 'Create Account' : 'Reset Password')}
             </button>
             <button class="btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
         </div>

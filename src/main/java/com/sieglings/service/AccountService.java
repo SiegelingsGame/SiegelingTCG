@@ -5,6 +5,7 @@ import com.sieglings.persistence.entity.AuthSession;
 import com.sieglings.persistence.firestore.AccountUserStore;
 import com.sieglings.persistence.firestore.AuthSessionStore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,9 @@ public class AccountService {
 
     @Autowired
     private AuthSessionStore sessionStore;
+
+    @Value("${app.auth.password-reset-code:}")
+    private String passwordResetCode;
 
     public SessionView register(String email, String password, String displayName) {
         String normalizedEmail = normalizeEmail(email);
@@ -53,6 +57,25 @@ public class AccountService {
         if (!passwordEncoder.matches(password == null ? "" : password, user.getPasswordHash())) {
             throw new IllegalArgumentException("Email or password is incorrect.");
         }
+
+        return createSession(user);
+    }
+
+    public SessionView resetPassword(String email, String resetCode, String newPassword) {
+        String configuredCode = passwordResetCode == null ? "" : passwordResetCode.trim();
+        if (configuredCode.isBlank()) {
+            throw new IllegalArgumentException("Password reset is not configured on this server.");
+        }
+        if (!configuredCode.equals(resetCode == null ? "" : resetCode.trim())) {
+            throw new IllegalArgumentException("Reset code is incorrect.");
+        }
+
+        String normalizedEmail = normalizeEmail(email);
+        validatePassword(newPassword);
+        AccountUser user = userStore.findById(normalizedEmail)
+                .orElseThrow(() -> new IllegalArgumentException("No account exists for that email."));
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userStore.save(user);
 
         return createSession(user);
     }
