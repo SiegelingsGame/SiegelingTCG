@@ -86,13 +86,17 @@
 
     function ensureStylesheet() {
         if (stylesheetEnsured) return;
-        // landing.css holds the gate styles. Inject it lazily so callers in
-        // index.html don't need to remember to add the <link> tag.
-        const existing = document.querySelector('link[data-sgl-landing-css]');
-        if (!existing) {
+        // landing.css holds the gate styles. index.html now pre-loads it,
+        // but keep the lazy injection as a fallback so callers that include
+        // this script standalone still work. Skip if any <link> already
+        // points at landing.css to avoid a paint-blocking duplicate fetch.
+        const already = document.querySelector(
+            'link[data-sgl-landing-css], link[href*="landing.css"]'
+        );
+        if (!already) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = '/css/landing.css?v=1';
+            link.href = '/css/landing.css?v=4';
             link.dataset.sglLandingCss = '1';
             document.head.appendChild(link);
         }
@@ -270,12 +274,19 @@
     }
 
     function show(opts = {}) {
+        const wasVisible = visible;
         buildRoot();
         renderKnights(opts);
-        minDurationMs = Number.isFinite(opts.minDurationMs) ? opts.minDurationMs : 1800;
-        showStartedAt = performance.now();
-        startFlavorRotation();
-        startProgressSim();
+        // Only (re)start the minimum-visible timer on the first show. A
+        // subsequent show() — e.g. to swap in real opponent info once the
+        // server responds — should refresh the cards without truncating the
+        // splash the player was already watching.
+        if (!wasVisible) {
+            minDurationMs = Number.isFinite(opts.minDurationMs) ? opts.minDurationMs : 1800;
+            showStartedAt = performance.now();
+            startFlavorRotation();
+            startProgressSim();
+        }
         // Reset knight-card slide-in animations by toggling a class flicker.
         const cards = root.querySelectorAll('.sgl-knight-card');
         cards.forEach((c) => {
@@ -284,7 +295,10 @@
             void c.offsetWidth;
             c.style.animation = '';
         });
-        requestAnimationFrame(() => root.classList.add('visible'));
+        // Add .visible synchronously so the splash covers the loadout
+        // screen immediately — the rAF deferral was perceptible alongside
+        // the CSS fade-in.
+        root.classList.add('visible');
         visible = true;
         if (pendingHide) { clearTimeout(pendingHide); pendingHide = null; }
     }

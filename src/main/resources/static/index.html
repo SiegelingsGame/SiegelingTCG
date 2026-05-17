@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
     <link rel="stylesheet" href="/css/style.css?v=89">
+    <!-- Pre-load loading-gate styles so the splash covers the loadout
+         screen on the very first Start Battle press — the lazy-injected
+         link tag inside loading-gate.js was paint-blocking the gate. -->
+    <link rel="stylesheet" href="/css/landing.css?v=4">
 </head>
 <body>
 <!-- Top Nav Bar: consolidated stats + actions -->
@@ -581,6 +585,6 @@
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
     <script src="/js/action-queue.js?v=14"></script>
-    <script src="/js/loading-gate.js?v=1"></script>
+    <script src="/js/loading-gate.js?v=2"></script>
 </body>
 </html>
