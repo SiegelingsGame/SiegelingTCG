@@ -541,7 +541,12 @@
                         amount: prevHp - nextHp,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
-                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
+                        prevHp,
+                        nextHp,
+                        prevMaxHp: p.maxHp,
+                        nextMaxHp: n.maxHp,
+                        printedHealth: n.printedHealth ?? p.printedHealth
                     });
                 }
             }
@@ -726,6 +731,11 @@
             // the player can't see new cards appear before earlier battle
             // animations finish.
             this.pendingPlacements = new Map();
+            // Map<key, { isPlayer, row, col, displayHp, finalHp, maxHp, element }>
+            // Board renders receive the server's post-damage state immediately;
+            // these entries keep visible card HP at the pre-hit value until the
+            // matching attack animation reaches impact.
+            this.pendingHealthChanges = new Map();
             this._pendingSyncScheduled = false;
             this._loadSpeed();
             this._installPlacementObserver();
@@ -758,10 +768,14 @@
             this.processing = false;
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
+            this.settleAllPendingHealth();
         }
 
         // ── Pending-placement registry ────────────────────────────────────
         _placementKey(isPlayer, row, col, instanceId) {
+            return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${instanceId || ''}`;
+        }
+        _healthKey(isPlayer, row, col, instanceId) {
             return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${instanceId || ''}`;
         }
         registerPendingPlacement(isPlayer, row, col, cell) {
@@ -808,6 +822,79 @@
                     card.style.visibility = 'hidden';
                     card.style.opacity = '0';
                 }
+            }
+        }
+        renderHealthInner(entry, hp, maxHp) {
+            const safeHp = Math.max(0, Number.isFinite(Number(hp)) ? Number(hp) : 0);
+            const safeMax = Math.max(0, Number.isFinite(Number(maxHp)) ? Number(maxHp) : 0);
+            const printedHp = Number(entry?.printedHealth);
+            const hpBuffed = Number.isFinite(printedHp) && safeMax > printedHp;
+            const buff = hpBuffed
+                ? `<span class="card-stat-asterisk" style="color:${elementHex(entry.element)}" title="Buffed">*</span>`
+                : '';
+            return `${safeHp}/<span class="stat-hp-max">${safeMax}</span>${buff}`;
+        }
+        applyHealthToDom(entry, hp, maxHp) {
+            if (!entry) return;
+            const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+            const card = cellEl?.querySelector('.board-card');
+            if (!card) return;
+            const resolvedMax = Number.isFinite(Number(maxHp)) ? Number(maxHp) : Number(entry.maxHp);
+            const resolvedHp = Number.isFinite(Number(hp)) ? Number(hp) : Number(entry.finalHp);
+            const pct = resolvedMax > 0 ? Math.max(0, Math.min(100, (resolvedHp / resolvedMax) * 100)) : 0;
+            const fill = card.querySelector('.hp-fill');
+            if (fill) fill.style.width = `${pct}%`;
+            const hpStat = card.querySelector('.stat-hp');
+            if (hpStat) hpStat.innerHTML = this.renderHealthInner(entry, resolvedHp, resolvedMax);
+        }
+        registerPendingHealth(target) {
+            if (!target || target.destroysTarget) return null;
+            const prevHp = Number(target.prevHp);
+            const nextHp = Number(target.nextHp);
+            if (!Number.isFinite(prevHp) || !Number.isFinite(nextHp) || nextHp >= prevHp) {
+                return null;
+            }
+            const id = String(target.instanceId || '');
+            const key = this._healthKey(target.isPlayer, target.row, target.col, id);
+            const maxHp = Number.isFinite(Number(target.nextMaxHp))
+                ? Number(target.nextMaxHp)
+                : Number(target.prevMaxHp);
+            const existing = this.pendingHealthChanges.get(key);
+            this.pendingHealthChanges.set(key, {
+                isPlayer: target.isPlayer,
+                row: target.row,
+                col: target.col,
+                instanceId: id,
+                displayHp: existing ? existing.displayHp : prevHp,
+                finalHp: nextHp,
+                maxHp,
+                printedHealth: target.printedHealth,
+                element: target.element
+            });
+            this.syncPendingHealth();
+            return key;
+        }
+        releasePendingHealth(key) {
+            if (!key) return;
+            const entry = this.pendingHealthChanges.get(key);
+            if (!entry) return;
+            this.pendingHealthChanges.delete(key);
+            this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+        }
+        releasePendingHealthForTargets(targets) {
+            for (const target of targets || []) {
+                this.releasePendingHealth(target?.pendingHealthKey);
+            }
+        }
+        settleAllPendingHealth() {
+            for (const [key, entry] of Array.from(this.pendingHealthChanges.entries())) {
+                this.pendingHealthChanges.delete(key);
+                this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+            }
+        }
+        syncPendingHealth() {
+            for (const entry of this.pendingHealthChanges.values()) {
+                this.applyHealthToDom(entry, entry.displayHp, entry.maxHp);
             }
         }
         _installPlacementObserver() {
@@ -1075,8 +1162,15 @@
                         element: t.element,
                         name: t.name,
                         destroysTarget: !!destroyed,
-                        ghostCell: destroyed?.cell || null
+                        ghostCell: destroyed?.cell || null,
+                        instanceId: t.instanceId,
+                        prevHp: t.prevHp,
+                        nextHp: t.nextHp,
+                        prevMaxHp: t.prevMaxHp,
+                        nextMaxHp: t.nextMaxHp,
+                        printedHealth: t.printedHealth
                     };
+                    targetEntry.pendingHealthKey = this.registerPendingHealth(targetEntry);
                     const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || sideKnight;
                     const key = srcRef
                         ? `S:${srcRef.row}:${srcRef.col}:${srcRef.cell?.instanceId || srcRef.cell?.id || ''}`
@@ -1215,6 +1309,7 @@
                         target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || srcElement },
                         destroysTarget: t.destroysTarget,
                         ghostCell: t.ghostCell,
+                        pendingHealthKey: t.pendingHealthKey,
                         statuses: t.statuses && t.statuses.length ? t.statuses.slice() : null,
                         gapAfterMs: BATTLE_GAP_MS
                     });
@@ -1239,6 +1334,7 @@
                         amount: tt.amount,
                         destroysTarget: tt.destroysTarget,
                         ghostCell: tt.ghostCell,
+                        pendingHealthKey: tt.pendingHealthKey,
                         statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null
                     })),
                     gapAfterMs: BATTLE_GAP_MS
@@ -1521,6 +1617,7 @@
                 }
                 await sleep(t.projectileMs);
 
+                this.releasePendingHealthForTargets(action.targets);
                 for (const tgt of action.targets) {
                     const ghostEntry = ghosts.find((g) => g.target === tgt);
                     const tgtColor = elementHex(tgt.element || action.elementColor || action.knightElement);
@@ -1687,6 +1784,7 @@
                 );
                 await sleep(t.projectileMs);
 
+                this.releasePendingHealth(action.pendingHealthKey);
                 // 4. Impact: hit flash on target + floating damage + screen shake
                 if (ghost) {
                     ghost.style.setProperty('--sgl-impact-color', elColor);
@@ -1878,6 +1976,7 @@
         window.render = function () {
             const result = orig.apply(this, arguments);
             try { queue.syncPendingPlacements(); } catch (_) {}
+            try { queue.syncPendingHealth(); } catch (_) {}
             return result;
         };
         window.__sglRenderHookInstalled = true;
