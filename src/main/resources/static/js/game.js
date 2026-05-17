@@ -121,10 +121,106 @@ const TARGET_ARROW_PALETTES = {
     default: { source: '#ffd28a', target: '#ffaa55', glow: '#ffbd70' }
 };
 
+const LOADOUT_ELEMENT_THEMES = {
+    FIRE: {
+        element: 'FIRE',
+        playstyle: 'Aggressive',
+        traits: ['Burn', 'Pressure', 'Attack'],
+        description: 'Pressure your opponent with burn damage, fast attack lines, and aggressive tempo.',
+        recommendedTrainerIds: ['trainer01', 'trainer02', 'trainer10']
+    },
+    EARTH: {
+        element: 'EARTH',
+        playstyle: 'Defensive',
+        traits: ['Durability', 'Healing', 'Control'],
+        description: 'Outlast your opponent with high durability, healing, and defensive board control.',
+        recommendedTrainerIds: ['trainer12', 'trainer05', 'trainer13']
+    },
+    WIND: {
+        element: 'WIND',
+        playstyle: 'Tempo',
+        traits: ['Speed', 'Disruption', 'Mobility'],
+        description: 'Win through speed, disruption, and tempo manipulation.',
+        recommendedTrainerIds: ['trainer14', 'trainer06', 'trainer15']
+    },
+    ICE: {
+        element: 'ICE',
+        playstyle: 'Control',
+        traits: ['Freeze', 'Lockdown', 'Resist'],
+        description: 'Lock down the battlefield with freeze effects, resistance, and control.',
+        recommendedTrainerIds: ['trainer20', 'trainer09', 'trainer21']
+    },
+    WATER: {
+        element: 'WATER',
+        playstyle: 'Sustain',
+        traits: ['Control', 'Healing', 'Flow'],
+        description: 'Control the match with sustain, tempo denial, and steady board pressure.',
+        recommendedTrainerIds: ['trainer03', 'trainer04', 'trainer11']
+    },
+    SHADOW: {
+        element: 'SHADOW',
+        playstyle: 'Assassin',
+        traits: ['Ambush', 'Pressure', 'Picks'],
+        description: 'Pick apart key lanes with direct pressure and sharp removal windows.',
+        recommendedTrainerIds: ['trainer16', 'trainer07', 'trainer17']
+    },
+    ELECTRIC: {
+        element: 'ELECTRIC',
+        playstyle: 'Burst Tempo',
+        traits: ['Charge', 'Speed', 'Burst'],
+        description: 'Build fast openings with charged bursts and quick tempo swings.',
+        recommendedTrainerIds: ['trainer18', 'trainer08', 'trainer19']
+    },
+    METAL: {
+        element: 'METAL',
+        playstyle: 'Fortress',
+        traits: ['Armor', 'Durability', 'Stabilize'],
+        description: 'Anchor the battlefield with armored bodies and durable board presence.',
+        recommendedTrainerIds: ['trainer22', 'trainer23', 'trainer24']
+    },
+    UNDEAD: {
+        element: 'UNDEAD',
+        playstyle: 'Relentless',
+        traits: ['Pressure', 'Drain', 'Attrition'],
+        description: 'Keep the opponent under pressure with resilient threats and direct damage.',
+        recommendedTrainerIds: ['trainer25', 'trainer26', 'trainer27']
+    },
+    PSYCHIC: {
+        element: 'PSYCHIC',
+        playstyle: 'Manipulation',
+        traits: ['Disrupt', 'Boost', 'Control'],
+        description: 'Bend the flow of battle with disruptive timing and precision buffs.',
+        recommendedTrainerIds: ['trainer28', 'trainer29', 'trainer30']
+    }
+};
+
+const LOADOUT_DECK_THEMES = {
+    deck_fire: {
+        ...LOADOUT_ELEMENT_THEMES.FIRE,
+        label: 'Fire',
+        description: 'Pressure your opponent with burn damage, fast attack lines, and aggressive tempo.'
+    },
+    deck_earth: {
+        ...LOADOUT_ELEMENT_THEMES.EARTH,
+        label: 'Earth',
+        description: 'Outlast your opponent with high durability, healing, and defensive board control.'
+    },
+    deck_wind: {
+        ...LOADOUT_ELEMENT_THEMES.WIND,
+        label: 'Wind',
+        description: 'Win through speed, disruption, and tempo manipulation.'
+    },
+    deck_ice: {
+        ...LOADOUT_ELEMENT_THEMES.ICE,
+        label: 'Ice',
+        description: 'Lock down the battlefield with freeze effects, resistance, and control.'
+    }
+};
+
 const STATUS_BADGE_PALETTE = {
     FREEZE:       '#7adfff',
     SPEED_ZERO:   '#a0b0c0',
-    HEALTH_BOOST: '#3ce08a',
+    HEALTH_BOOST: '#a8b0ba',
     DAMAGE_BOOST: '#ff5544',
     SPEED_BOOST:  '#7adfff',
     WEAK:         '#ff6080',
@@ -134,7 +230,7 @@ const STATUS_BADGE_PALETTE = {
 const STATUS_BADGE_LABEL = {
     FREEZE: 'Frozen — cannot act',
     SPEED_ZERO: 'Speed Zero — acts last',
-    HEALTH_BOOST: 'Health Boost',
+    HEALTH_BOOST: 'Shield',
     DAMAGE_BOOST: 'Damage Boost',
     SPEED_BOOST: 'Speed Boost',
     WEAK: 'Weak to Attack',
@@ -144,7 +240,7 @@ const STATUS_BADGE_LABEL = {
 const STATUS_BADGE_SVG = {
     FREEZE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-fz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff6ff"/><stop offset="50%" stop-color="#5fb8e8"/><stop offset="100%" stop-color="#1a4a7a"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#5fb8e8" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-fz-bg)" stroke="#dff6ff" stroke-width="2"/><g stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none" class="sb-spin"><line x1="42" y1="20" x2="42" y2="64"/><line x1="22" y1="42" x2="62" y2="42"/><line x1="27" y1="27" x2="57" y2="57"/><line x1="57" y1="27" x2="27" y2="57"/><path d="M42 20 L37 26 M42 20 L47 26 M42 64 L37 58 M42 64 L47 58 M22 42 L28 37 M22 42 L28 47 M62 42 L56 37 M62 42 L56 47"/></g><circle cx="42" cy="42" r="3" fill="#fff"/></svg>`,
     SPEED_ZERO: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#a0b0c0"/><stop offset="50%" stop-color="#4a5a78"/><stop offset="100%" stop-color="#1a2030"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#4a5a78" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sz-bg)" stroke="#a0b0c0" stroke-width="2"/><g stroke="#5a6a80" stroke-width="2" stroke-linejoin="round" fill="#7a8aa0" opacity=".7"><path d="M48 18 L34 40 L42 40 L36 50"/><path d="M40 50 L48 38 L42 38 L48 28"/></g><circle cx="42" cy="46" r="14" fill="none" stroke="#fff" stroke-width="3.5"/><line x1="32" y1="36" x2="52" y2="56" stroke="#ff5544" stroke-width="3.5" stroke-linecap="round"/></svg>`,
-    HEALTH_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-hp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d5ffe8"/><stop offset="50%" stop-color="#3ce08a"/><stop offset="100%" stop-color="#1a5a3a"/></radialGradient><linearGradient id="sb-hp-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#a8ffd0"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ce08a" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-hp-bg)" stroke="#d5ffe8" stroke-width="2"/><path d="M42 60 C 42 60 22 48 22 36 C 22 28 28 23 33 23 C 37 23 41 26 42 30 C 43 26 47 23 51 23 C 56 23 62 28 62 36 C 62 48 42 60 42 60 Z" fill="url(#sb-hp-heart)" stroke="#fff" stroke-width="1.5" class="sb-float"/><ellipse cx="35" cy="32" rx="3" ry="5" fill="#fff" opacity=".7" transform="rotate(-25 35 32)"/></svg>`,
+    HEALTH_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sh-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f3f6fa"/><stop offset="55%" stop-color="#a8b0ba"/><stop offset="100%" stop-color="#4a5360"/></radialGradient><linearGradient id="sb-sh-face" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#b8c0ca"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a8b0ba" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sh-bg)" stroke="#f3f6fa" stroke-width="2"/><path d="M42 18 L62 26 L62 42 C 62 54 54 64 42 70 C 30 64 22 54 22 42 L22 26 Z" fill="url(#sb-sh-face)" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" class="sb-float"/><path d="M42 23 L42 64" stroke="#77808c" stroke-width="2" opacity=".55"/></svg>`,
     DAMAGE_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dmg-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffe0c0"/><stop offset="50%" stop-color="#ff6633"/><stop offset="100%" stop-color="#5a1a0a"/></radialGradient><linearGradient id="sb-dmg-sword" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#ffd8a0"/><stop offset="100%" stop-color="#c87040"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ff5533" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dmg-bg)" stroke="#ffe0c0" stroke-width="2"/><g stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><g transform="rotate(45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g><g transform="rotate(-45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g></g><circle cx="42" cy="42" r="4" fill="#fff8c0" class="sb-flicker"/></svg>`,
     SPEED_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff8ff"/><stop offset="50%" stop-color="#3ad8ff"/><stop offset="100%" stop-color="#1a5a7a"/></radialGradient><linearGradient id="sb-sp-bolt" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#fff8c0"/><stop offset="100%" stop-color="#7adfff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad8ff" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sp-bg)" stroke="#dff8ff" stroke-width="2"/><g stroke="#dff8ff" stroke-width="1.5" stroke-linecap="round" opacity=".5"><line x1="22" y1="32" x2="30" y2="32"/><line x1="20" y1="42" x2="32" y2="42"/><line x1="22" y1="52" x2="30" y2="52"/></g><path d="M48 18 L32 44 L42 44 L36 64 L56 36 L46 36 Z" fill="url(#sb-sp-bolt)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
     WEAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffd0d8"/><stop offset="50%" stop-color="#a02038"/><stop offset="100%" stop-color="#3a0a18"/></radialGradient><linearGradient id="sb-wk-shield" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ff6080"/><stop offset="100%" stop-color="#5a0a18"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a02038" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wk-bg)" stroke="#ffd0d8" stroke-width="2"/><g class="sb-floatdn"><path d="M42 22 L58 28 L58 44 C 58 54 50 60 42 64 C 34 60 26 54 26 44 L26 28 Z" fill="url(#sb-wk-shield)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M42 24 L38 34 L44 38 L36 48 L46 52 L40 62" stroke="#fff8c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g transform="translate(60 60)"><circle r="9" fill="#1a0a18" stroke="#ff6080" stroke-width="1.5"/><path d="M0 -4 L0 4 M-3 1 L0 4 L3 1" stroke="#ff6080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
@@ -889,7 +985,10 @@ function renderBoardCellCombatStatsInner(cell) {
     // HP that exceeds printedHealth is treated as a "shield" buffer: it
     // shows as its own chip ("+N Shield") instead of inflating the HP
     // numbers. Base HP is rendered against printedHealth so the card
-    // doesn't read as "16/15" when at full HP + 1 shield.
+    // doesn't read as "16/15" when at full HP + 1 shield. As damage lands
+    // the shield amount drops (hp comes down toward printedHealth), so the
+    // chip count decreases — which the action queue mirrors with the
+    // plate chip-off animation.
     const hasShield = Number.isFinite(printedHp) && hp > printedHp;
     const shieldAmount = hasShield ? hp - printedHp : 0;
     const visibleHp = hasShield ? printedHp : hp;
@@ -3504,14 +3603,18 @@ async function submitAuth(mode) {
     const email = document.getElementById('welcomeEmailInput')?.value?.trim() || '';
     const password = document.getElementById('welcomePasswordInput')?.value || '';
     const displayName = document.getElementById('welcomeDisplayNameInput')?.value?.trim() || '';
+    const resetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
     authState.loading = true;
     authState.error = '';
     renderWelcomeAuth();
 
     const body = mode === 'register'
         ? { email, password, displayName }
+        : mode === 'reset-password'
+        ? { email, password, resetCode }
         : { email, password };
-    const data = await fetchJson(apiUrls(`/api/auth/${mode}`), {
+    const endpoint = mode === 'reset-password' ? '/api/auth/reset-password' : `/api/auth/${mode}`;
+    const data = await fetchJson(apiUrls(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -3614,14 +3717,20 @@ function renderWelcomeAuth() {
     const draftEmail = document.getElementById('welcomeEmailInput')?.value || '';
     const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
     const draftPassword = document.getElementById('welcomePasswordInput')?.value || '';
+    const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
+    const authTitle = authMode === 'login'
+        ? 'Pick up where you left off'
+        : authMode === 'register'
+        ? 'Save decks with your email'
+        : 'Set a new password';
 
     authCard.innerHTML = `
-        <div class="welcome-auth-tabs">
-            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" onclick="setAuthMode('login')">Log In</button>
-            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" onclick="setAuthMode('register')">Register</button>
-        </div>
-        <div class="welcome-card-kicker">Account</div>
+        <div class="welcome-eyebrow">ACCOUNT</div>
         <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+        <div class="welcome-auth-tabs">
+            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
+            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
+        </div>
         <label class="online-field">
             <span>Email</span>
             <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
@@ -3632,26 +3741,32 @@ function renderWelcomeAuth() {
                 <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}">
             </label>
         ` : ''}
+        ${authMode === 'reset-password' ? `
+            <label class="online-field">
+                <span>Reset Code</span>
+                <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
+            </label>
+        ` : ''}
         <label class="online-field">
-            <span>Password</span>
+            <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
             <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
         </label>
         ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
         <div class="welcome-auth-actions">
-            <button class="btn btn-primary" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
+            <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
                 ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
             </button>
-            <button class="btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
+            <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
         </div>
     `;
 
     historyCard.innerHTML = `
-        <div class="welcome-card-kicker">Why Sign In</div>
+        <div class="welcome-eyebrow">WHY SIGN IN</div>
         <h3>Keep your armory between sessions</h3>
         <div class="welcome-benefits">
-            <div class="welcome-benefit">Save custom decks and named preset loadouts.</div>
-            <div class="welcome-benefit">See your recent wins, losses, and deck history.</div>
-            <div class="welcome-benefit">Load the same builds again after you log back in.</div>
+            <div class="welcome-benefit">Save custom decks and named loadouts.</div>
+            <div class="welcome-benefit">Track your wins, matches, and deck history.</div>
+            <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
         </div>
     `;
 }
@@ -4217,6 +4332,7 @@ function shouldAutoAdvanceBattle() {
         && !gameState.gameOver
         && !gameState.pendingBattle
         && !gameState.battleWaitingOn
+        && !window.SieglingsActionQueue?.isProcessing?.()
         && (!gameState.multiplayer || gameState.viewerSide === 'PLAYER')
         && !isBattleTargetSelectionActive()
     );
@@ -4634,12 +4750,19 @@ function renderLoadoutOptions() {
 
     hydrateSavedPlayerName();
 
+    const selectedDeck = gameOptions.decks.find(deck => deck.id === selectedDeckId);
+    const recommendedTrainerIds = new Set(getRecommendedTrainerIdsForDeck(selectedDeck));
+
     deckEl.innerHTML = gameOptions.decks.map(deck => {
         const selected = deck.id === selectedDeckId ? ' selected' : '';
         const bg = buildDeckBackground(deck.elements);
         const borderColor = buildDeckBorderColors(deck.elements);
         const elementLabels = deck.elements.map(formatElementLabel).join(' / ');
         const elClasses = deck.elements.map(e => 'el-' + e.toLowerCase()).join(' ');
+        const deckTheme = getDeckLoadoutTheme(deck);
+        const primaryElement = deckTheme.element || deck.elements?.[0] || 'NEUTRAL';
+        const primaryHex = getElementHex(primaryElement);
+        const traits = (deckTheme.traits || []).slice(0, 3);
 
         /* Build spine bands â€“ each element gets its own colored band with a sigil inside */
         const spineBands = deck.elements.map(el => {
@@ -4648,13 +4771,15 @@ function renderLoadoutOptions() {
         }).join('');
         const faceSigils = buildDeckFaceSigils(deck.elements);
 
-        return `<button class="deck-card${selected} ${elClasses}" style="--deck-bg:${bg};--deck-border:${borderColor}" onclick="selectDeckOption('${deck.id}')">
+        return `<button type="button" class="deck-card${selected} ${elClasses}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
             <div class="deck-card-spine">${spineBands}</div>
             ${faceSigils}
+            <span class="deck-card-state">${deck.id === selectedDeckId ? 'Selected' : escapeHtml(deckTheme.playstyle)}</span>
             <div class="deck-card-body">
-                <span class="deck-card-name">${deck.name}</span>
-                <span class="deck-card-elements">${elementLabels}</span>
-                <span class="deck-card-desc">${deck.description}</span>
+                <span class="deck-card-name">${escapeHtml(deck.name)}</span>
+                <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
+                <span class="deck-card-desc">${escapeHtml(deckTheme.description || deck.description)}</span>
+                <span class="deck-card-tags">${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}</span>
             </div>
         </button>`;
     }).join('');
@@ -4663,19 +4788,22 @@ function renderLoadoutOptions() {
         const selected = trainer.id === selectedTrainerId ? ' selected' : '';
         const elHex = getElementHex(trainer.element);
         const sigil = getTrainerSigil(trainer);
-        const rarityClass = (trainer.rarity || 'common').toLowerCase();
+        const rarityClass = getRarityClass(trainer.rarity);
         const tier = formatTrainerTier(trainer.tier);
         const activeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
-        return `<button class="knight-card${selected} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex}" onclick="selectTrainerOption('${trainer.id}')">
+        const recommended = recommendedTrainerIds.has(trainer.id) ? ' recommended' : '';
+        return `<button type="button" class="knight-card${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            ${trainer.id === selectedTrainerId ? '<span class="knight-selected-ribbon">Selected</span>' : ''}
+            ${recommended && trainer.id !== selectedTrainerId ? '<span class="knight-recommend-ribbon">Recommended</span>' : ''}
             <div class="knight-card-sigil">${sigil}</div>
             <div class="knight-card-portrait">
                 <div class="knight-card-icon">${getElementSigil(trainer.element)}</div>
             </div>
             <div class="knight-card-body">
-                <span class="knight-card-name">${trainer.name}</span>
-                <span class="knight-card-meta"><span class="knight-element">${formatElementLabel(trainer.element)}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${tier}</span> <span class="knight-rarity rarity-${rarityClass}">${trainer.rarity}</span></span>
-                <span class="knight-card-ability">Passive: ${trainer.passive || 'None'}</span>
-                <span class="knight-card-ability">${activeLabel}: ${trainer.active || 'None'}</span>
+                <span class="knight-card-name">${escapeHtml(trainer.name)}</span>
+                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(formatElementLabel(trainer.element))}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${rarityClass}">${escapeHtml(trainer.rarity)}</span></span>
+                <span class="knight-card-ability"><span>Passive</span>${escapeHtml(readTrainerAbilityText(trainer.passive))}</span>
+                <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(readTrainerAbilityText(trainer.active))}</span>
             </div>
         </button>`;
     }).join('');
@@ -4702,31 +4830,174 @@ function renderLoadoutOptions() {
         inviteRoomBadge.classList.add('hidden');
         playerIdentityNote.textContent = 'This name is shown in online matches and saved on this device.';
     } else {
-        loadoutKicker.textContent = 'Before the Match';
-        loadoutTitle.textContent = 'Choose Your Loadout';
-        loadoutSubtitle.textContent = 'Pick a preset deck or build your own custom list from the full seven-element card pool, then choose a SiegeKnight.';
+        loadoutKicker.textContent = 'Battle Loadout';
+        loadoutTitle.textContent = 'Prepare for Battle';
+        loadoutSubtitle.textContent = 'Name yourself, choose your deck, then command a SiegeKnight.';
         inviteRoomBadge.classList.add('hidden');
         playerIdentityNote.textContent = 'Set your online display name now so it is ready when you host or join later.';
     }
 
     soloMatchTab.classList.toggle('active', matchMode === 'solo');
     onlineMatchTab.classList.toggle('active', matchMode === 'online');
+    soloMatchTab.setAttribute('aria-pressed', matchMode === 'solo' ? 'true' : 'false');
+    onlineMatchTab.setAttribute('aria-pressed', matchMode === 'online' ? 'true' : 'false');
     soloMatchTab.classList.toggle('hidden', inviteFlow);
     onlineMatchTab.classList.toggle('hidden', inviteFlow);
     onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online');
     hostRoomTab.classList.toggle('active', onlineRoomMode === 'create');
     joinRoomTab.classList.toggle('active', onlineRoomMode === 'join');
+    hostRoomTab.setAttribute('aria-pressed', onlineRoomMode === 'create' ? 'true' : 'false');
+    joinRoomTab.setAttribute('aria-pressed', onlineRoomMode === 'join' ? 'true' : 'false');
     hostRoomTab.classList.toggle('hidden', inviteFlow);
     joinRoomTab.classList.toggle('hidden', inviteFlow);
     roomCodeField.classList.toggle('hidden', inviteFlow || onlineRoomMode !== 'join');
 
     presetTab.classList.toggle('active', loadoutMode === 'preset');
     builderTab.classList.toggle('active', loadoutMode === 'builder');
+    presetTab.setAttribute('aria-pressed', loadoutMode === 'preset' ? 'true' : 'false');
+    builderTab.setAttribute('aria-pressed', loadoutMode === 'builder' ? 'true' : 'false');
     presetPanel.classList.toggle('hidden', loadoutMode !== 'preset');
     builderPanel.classList.toggle('hidden', loadoutMode !== 'builder');
+    loadoutBox?.classList.toggle('loadout-mode-builder', loadoutMode === 'builder');
+    renderSelectedLoadoutPreview();
     renderDeckBuilder();
     renderOnlineStatus();
     renderSavedDecks();
+}
+
+function getDeckLoadoutTheme(deck) {
+    if (!deck) {
+        return {
+            element: 'NEUTRAL',
+            label: 'Custom',
+            playstyle: 'Flexible',
+            traits: ['Build', 'Adapt', 'Plan'],
+            description: 'Tune your list, choose a commander, and bring your preferred plan into battle.',
+            recommendedTrainerIds: []
+        };
+    }
+
+    const exact = LOADOUT_DECK_THEMES[deck.id];
+    if (exact) {
+        return exact;
+    }
+
+    const elements = Array.isArray(deck.elements) ? deck.elements : [];
+    const primaryElement = elements[0] || 'NEUTRAL';
+    const fallback = LOADOUT_ELEMENT_THEMES[primaryElement] || {
+        element: primaryElement,
+        playstyle: 'Balanced',
+        traits: elements.map(formatElementLabel).slice(0, 3),
+        description: deck.description,
+        recommendedTrainerIds: []
+    };
+
+    return {
+        ...fallback,
+        element: primaryElement,
+        label: elements.map(formatElementLabel).join(' / ') || formatElementLabel(primaryElement),
+        description: deck.description || fallback.description
+    };
+}
+
+function getRecommendedTrainerIdsForDeck(deck) {
+    if (!gameOptions || !deck) {
+        return [];
+    }
+
+    const theme = getDeckLoadoutTheme(deck);
+    const ids = new Set(theme.recommendedTrainerIds || []);
+    if (deck.recommendedTrainerId) {
+        ids.add(deck.recommendedTrainerId);
+    }
+
+    const elements = new Set(Array.isArray(deck.elements) ? deck.elements : []);
+    gameOptions.trainers
+        .filter(trainer => elements.has(trainer.element))
+        .slice(0, 3)
+        .forEach(trainer => ids.add(trainer.id));
+
+    return Array.from(ids);
+}
+
+function readTrainerAbilityText(ability) {
+    if (!ability) return 'None';
+    if (typeof ability === 'string') return ability;
+    return ability.description || ability.name || 'None';
+}
+
+function getRarityClass(rarity) {
+    return String(rarity || 'common').toLowerCase();
+}
+
+function renderSelectedLoadoutPreview() {
+    const previewEl = document.getElementById('selectedLoadoutPreview');
+    const panel = document.getElementById('selectedLoadoutPanel');
+    if (!previewEl || !panel) return;
+
+    if (!gameOptions) {
+        previewEl.innerHTML = `<div class="selected-loadout-kicker">Selected Loadout</div><div class="selected-loadout-empty">Loading deck and SiegeKnight choices...</div>`;
+        return;
+    }
+
+    const deck = gameOptions.decks.find(item => item.id === selectedDeckId);
+    const trainer = gameOptions.trainers.find(item => item.id === selectedTrainerId);
+    const theme = loadoutMode === 'builder' ? getDeckLoadoutTheme(null) : getDeckLoadoutTheme(deck);
+    const element = theme.element || deck?.elements?.[0] || trainer?.element || 'NEUTRAL';
+    const accent = getElementHex(element);
+    panel.style.setProperty('--loadout-accent', accent);
+    panel.style.setProperty('--loadout-accent-soft', hexToRgba(accent, 0.18));
+    panel.style.setProperty('--loadout-accent-glow', hexToRgba(accent, 0.32));
+
+    const deckName = loadoutMode === 'builder'
+        ? getActiveLoadoutLabel()
+        : (getActiveLoadoutLabel() || deck?.name || 'Choose a Deck');
+    const elementLabel = loadoutMode === 'builder'
+        ? (collectBuilderElements() || 'Custom Elements')
+        : (deck?.elements || []).map(formatElementLabel).join(' / ');
+    const traits = theme.traits?.length ? theme.traits : ['Build', 'Adapt', 'Plan'];
+    const recommendedIds = loadoutMode === 'builder' ? [] : getRecommendedTrainerIdsForDeck(deck);
+    const recommendedNames = recommendedIds
+        .map(id => gameOptions.trainers.find(item => item.id === id)?.name)
+        .filter(Boolean)
+        .slice(0, 4);
+
+    const trainerSummary = trainer
+        ? `<div class="preview-knight-card">
+                <div class="preview-knight-icon" style="color:${getElementHex(trainer.element)}">${getElementSigil(trainer.element)}</div>
+                <div>
+                    <div class="preview-knight-name">${escapeHtml(trainer.name)}</div>
+                    <div class="preview-knight-meta">${escapeHtml(formatElementLabel(trainer.element))} | ${escapeHtml(formatTrainerTier(trainer.tier))} | ${escapeHtml(trainer.rarity || 'Common')}</div>
+                    <div class="preview-knight-ability">${escapeHtml(readTrainerAbilityText(trainer.passive))}</div>
+                </div>
+            </div>`
+        : `<div class="selected-loadout-empty">Choose a SiegeKnight to complete the loadout.</div>`;
+
+    previewEl.innerHTML = `
+        <div class="selected-loadout-kicker">Selected Loadout</div>
+        <div class="selected-loadout-title-row">
+            <h3>${escapeHtml(deckName)}</h3>
+            <span>${escapeHtml(elementLabel || formatElementLabel(element))}</span>
+        </div>
+        <p class="selected-loadout-description">${escapeHtml(theme.description || deck?.description || 'Pick a deck to preview its battle plan.')}</p>
+        <div class="selected-loadout-playstyle">
+            <span>Playstyle</span>
+            <strong>${escapeHtml(theme.playstyle || 'Balanced')}</strong>
+        </div>
+        <div class="selected-loadout-traits">
+            ${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}
+        </div>
+        <div class="selected-loadout-section">
+            <div class="selected-loadout-label">Recommended SiegeKnights</div>
+            <div class="selected-loadout-recs">
+                ${recommendedNames.length ? recommendedNames.map(name => `<span>${escapeHtml(name)}</span>`).join('') : '<span>Any commander that matches your custom plan</span>'}
+            </div>
+        </div>
+        <div class="selected-loadout-section">
+            <div class="selected-loadout-label">Commander</div>
+            ${trainerSummary}
+        </div>
+    `;
 }
 
 function renderOnlineStatus() {
@@ -4832,14 +5103,14 @@ function getLoadoutStartButtonLabel() {
     if (matchMode === 'online') {
         return isInviteJoinFlow() ? 'Join Match' : (onlineRoomMode === 'create' ? 'Create Room' : 'Join Room');
     }
-    return 'Start Match';
+    return 'Start Battle';
 }
 
 function getLoadoutStartButtonBusyLabel() {
     if (matchMode === 'online') {
         return onlineRoomMode === 'create' ? 'Creating Room...' : (isInviteJoinFlow() ? 'Joining Match...' : 'Joining Room...');
     }
-    return 'Starting Match...';
+    return 'Starting Battle...';
 }
 
 function syncLoadoutStartButton(startBtn, disabled, label) {
@@ -4867,6 +5138,7 @@ function updateLoadoutSummary() {
         return;
     }
 
+    renderSelectedLoadoutPreview();
     const startButtonLabel = loadoutStartPending ? getLoadoutStartButtonBusyLabel() : getLoadoutStartButtonLabel();
     if (startBtn) {
         startBtn.onclick = startSelectedGame;
@@ -5653,8 +5925,20 @@ function updateHudRails(state) {
 
     const pBar = document.getElementById('railPlayerHpBar');
     const eBar = document.getElementById('railEnemyHpBar');
-    if (pBar) pBar.style.width = `${pPct}%`;
-    if (eBar) eBar.style.width = `${ePct}%`;
+    if (pBar) {
+        pBar.style.width = `${pPct}%`;
+        const pColor = p.trainer?.element ? getElementHex(p.trainer.element) : null;
+        pBar.style.background = pColor
+            ? `linear-gradient(90deg, ${hexToRgba(pColor, 0.55)}, ${pColor})`
+            : '';
+    }
+    if (eBar) {
+        eBar.style.width = `${ePct}%`;
+        const eColor = e.trainer?.element ? getElementHex(e.trainer.element) : null;
+        eBar.style.background = eColor
+            ? `linear-gradient(90deg, ${hexToRgba(eColor, 0.55)}, ${eColor})`
+            : '';
+    }
 
     setTextIfExists('railPlayerHandSize', p.handSize ?? (Array.isArray(p.hand) ? p.hand.length : 0));
     setTextIfExists('railPlayerDeckSize', p.deckSize ?? 0);
@@ -5788,6 +6072,7 @@ function updateMobileHudSide(label, playerData, ids) {
         trainerAbility
     ].filter(Boolean).join(' - ');
     const hpBar = document.getElementById(ids.hpBarId);
+    const trainerColor = trainer?.element ? getElementHex(trainer.element) : null;
 
     setTextIfExists(ids.nameId, ids.name || label);
     setTextIfExists(ids.handId, handSize);
@@ -5797,7 +6082,10 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.statDeckId, deckSize);
     setTextIfExists(ids.knightNameId, trainer?.name || '-');
     setTextIfExists(ids.knightInfoId, trainerInfo);
-    if (hpBar) hpBar.style.width = `${pct}%`;
+    if (hpBar) {
+        hpBar.style.width = `${pct}%`;
+        hpBar.style.background = trainerColor || '';
+    }
 
     const icon = document.getElementById(ids.knightIconId);
     if (icon) icon.innerHTML = elementEmoji(trainer?.element);
@@ -6448,6 +6736,7 @@ function notchLatticeKey(boardRow, boardCol, direction, isPlayer) {
 
 function collectLatticeNotchContributions(board, isPlayer) {
     const map = new Map();
+    const countedConnections = new Set();
     for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 3; c++) {
             const cell = board[r][c];
@@ -6457,18 +6746,55 @@ function collectLatticeNotchContributions(board, isPlayer) {
                 const nr = r + delta.dy;
                 const nc = c + delta.dx;
                 if (nr < 0 || nr > 2 || nc < 0 || nc > 2) continue;
-                const key = notchLatticeKey(r, c, notch.direction, isPlayer);
+                const neighbor = board[nr]?.[nc];
+                if (!neighbor?.notches) continue;
+                const opposite = getOppositeDirection(notch.direction);
+                const neighborNotch = neighbor.notches.find((n) => n.direction === opposite);
+                if (!neighborNotch) continue;
+
+                const fromCellKey = `${r}:${c}`;
+                const toCellKey = `${nr}:${nc}`;
+                const connectionKey = fromCellKey < toCellKey
+                    ? `${fromCellKey}|${toCellKey}`
+                    : `${toCellKey}|${fromCellKey}`;
+                if (countedConnections.has(connectionKey)) continue;
+                countedConnections.add(connectionKey);
+
+                const fromKey = notchLatticeKey(r, c, notch.direction, isPlayer);
+                const toKey = notchLatticeKey(nr, nc, neighborNotch.direction, isPlayer);
+                const key = resolveNexusContributionKey(fromKey, toKey);
                 if (!key) continue;
-                const parts = key.split(':').map(Number);
-                const lx = parts[0];
-                const ly = parts[1];
-                if (lx <= 0 || lx >= 6 || ly <= 0 || ly >= 6) continue;
                 if (!map.has(key)) map.set(key, []);
-                map.get(key).push({ r, c, direction: notch.direction, element: notch.element });
+                map.get(key).push(
+                    { r, c, direction: notch.direction, element: notch.element },
+                    { r: nr, c: nc, direction: neighborNotch.direction, element: neighborNotch.element }
+                );
             }
         }
     }
     return map;
+}
+
+function resolveNexusContributionKey(fromKey, toKey) {
+    if (!fromKey || !toKey) return null;
+    if (fromKey === toKey) {
+        return isInteriorLatticeKey(fromKey) ? fromKey : null;
+    }
+    const [fx, fy] = fromKey.split(':').map(Number);
+    const [tx, ty] = toKey.split(':').map(Number);
+    if (!Number.isFinite(fx) || !Number.isFinite(fy) || !Number.isFinite(tx) || !Number.isFinite(ty)) {
+        return null;
+    }
+    if ((fx + tx) % 2 !== 0 || (fy + ty) % 2 !== 0) {
+        return null;
+    }
+    const midKey = `${(fx + tx) / 2}:${(fy + ty) / 2}`;
+    return isInteriorLatticeKey(midKey) ? midKey : null;
+}
+
+function isInteriorLatticeKey(key) {
+    const [x, y] = String(key || '').split(':').map(Number);
+    return x > 0 && x < 6 && y > 0 && y < 6;
 }
 
 function getNotchOutgoingAnchor(grid, cellRefs, r, c, direction, _isPlayer) {
@@ -8477,6 +8803,76 @@ function handleHandSelectorPointerMove(event) {
         handAutoScrollFrame = window.requestAnimationFrame(tick);
     };
     handAutoScrollFrame = window.requestAnimationFrame(tick);
+}
+
+function normalizeWheelDelta(event, axis) {
+    const raw = axis === 'x' ? event.deltaX : event.deltaY;
+    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        return raw * 18;
+    }
+    if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        return raw * window.innerHeight;
+    }
+    return raw;
+}
+
+function getHandSelectorWheelScroller() {
+    const cards = document.getElementById('playerHand');
+    const tray = document.getElementById('handTray');
+    const candidates = [cards, tray].filter(Boolean);
+    for (const el of candidates) {
+        if (el.classList.contains('hidden')) {
+            continue;
+        }
+        const styles = window.getComputedStyle(el);
+        const canOverflowX = styles.overflowX === 'auto' || styles.overflowX === 'scroll' || styles.overflowX === 'overlay';
+        const canOverflowY = styles.overflowY === 'auto' || styles.overflowY === 'scroll' || styles.overflowY === 'overlay';
+        const canScrollX = canOverflowX && el.scrollWidth > el.clientWidth + 4;
+        const canScrollY = canOverflowY && el.scrollHeight > el.clientHeight + 4;
+        if (canScrollX || canScrollY) {
+            return { el, canScrollX, canScrollY };
+        }
+    }
+    return null;
+}
+
+function handleHandSelectorWheel(event) {
+    if (isHandHiddenForPhase()) {
+        return;
+    }
+
+    const scroller = getHandSelectorWheelScroller();
+    if (!scroller) {
+        return;
+    }
+
+    const { el, canScrollX, canScrollY } = scroller;
+    const rawDeltaX = normalizeWheelDelta(event, 'x');
+    const rawDeltaY = normalizeWheelDelta(event, 'y');
+    const preferHorizontal = canScrollX && (!canScrollY || Math.abs(rawDeltaX) >= Math.abs(rawDeltaY));
+    const axis = preferHorizontal ? 'x' : 'y';
+    let delta = axis === 'x' ? rawDeltaX : rawDeltaY;
+
+    if (axis === 'x' && Math.abs(delta) < 0.5) {
+        delta = rawDeltaY;
+    }
+    if (axis === 'y' && Math.abs(delta) < 0.5) {
+        delta = rawDeltaX;
+    }
+    if (Math.abs(delta) < 0.5) {
+        return;
+    }
+
+    const prop = axis === 'x' ? 'scrollLeft' : 'scrollTop';
+    const max = axis === 'x'
+        ? Math.max(0, el.scrollWidth - el.clientWidth)
+        : Math.max(0, el.scrollHeight - el.clientHeight);
+    const before = el[prop];
+    el[prop] = clampNumber(before + delta, 0, max);
+    if (Math.abs(el[prop] - before) > 0.5) {
+        stopHandSelectorAutoScroll();
+        event.preventDefault();
+    }
 }
 
 function stopHandSelectorAutoScroll() {

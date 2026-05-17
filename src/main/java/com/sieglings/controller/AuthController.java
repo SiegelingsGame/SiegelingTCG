@@ -60,6 +60,20 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/api/auth/reset-password")
+    public Map<String, Object> resetPassword(@RequestBody Map<String, Object> req) {
+        try {
+            AccountService.SessionView session = accountService.resetPassword(
+                    (String) req.get("email"),
+                    (String) req.get("resetCode"),
+                    (String) req.get("password")
+            );
+            return buildProfileResponse(session.user(), session.token());
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage(), "authenticated", false);
+        }
+    }
+
     @PostMapping("/api/auth/logout")
     public Map<String, Object> logout(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         accountService.logout(authorizationHeader);

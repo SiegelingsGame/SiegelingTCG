@@ -7,3 +7,7 @@
 #
 # Optional — only if you prefer a service account JSON key file instead of ADC:
 # app.card-editor.firestore-service-account-path=./your-key.json
+#
+# Optional account recovery. Set a private owner-only code, restart the server,
+# then use Reset Password from the login screen to set a new password.
+# app.auth.password-reset-code=change-me-to-a-long-private-code

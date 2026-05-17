@@ -46,6 +46,7 @@
         ABILITY: 'uses',
         ATTACK:  'attacks',
         HEAL:    'heals',
+        SHIELD:  'shields',
         STATUS_APPLY: 'gains',
         BLOCK:   'blocks',
         EFFECT:  'effect',
@@ -61,7 +62,7 @@
         SPEED_ZERO:   'Stunned',
         WEAK:         'Weakened',
         STRONG:       'Strengthened',
-        HEALTH_BOOST: 'HP Boost',
+        HEALTH_BOOST: 'Shield',
         DAMAGE_BOOST: 'Damage Boost',
         SPEED_BOOST:  'Speed Boost'
     };
@@ -113,6 +114,9 @@
     function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
+    function stripLogPrefix(line) {
+        return String(line || '').trim().replace(/^\[Turn\s+\d+\s+\w+\]\s*/i, '');
+    }
 
     // ── Toast Renderer ────────────────────────────────────────────────────────
     class ToastRenderer {
@@ -149,6 +153,11 @@
             const subtitle = toast.subtitle ? `<div class="sgl-toast-sub">${escapeHtml(toast.subtitle)}</div>` : '';
             const portraitHtml = toast.portraitHtml || `<span class="sgl-toast-sigil">${elementSigil(toast.elementColor || toast.knightElement)}</span>`;
 
+            // Default sign — heals and shields gain HP, everything else loses
+            // it. Callers can override via toast.amountSign.
+            const amountSign = toast.amountSign
+                || (toast.kind === 'HEAL' || toast.kind === 'SHIELD' ? '+' : '-');
+
             // Split the damage chip so the player can see what was absorbed
             // by a shield versus what reached HP. When the queue passes both
             // shieldBroken and hpLoss, those win over the raw amount.
@@ -166,7 +175,7 @@
                     + `</svg>-${shieldBroken}</span>`
                 : '';
             const damagePart = (visibleDamage > 0)
-                ? `<span class="sgl-toast-damage" style="color:${elHex}">-${visibleDamage}</span>`
+                ? `<span class="sgl-toast-damage" style="color:${elHex}">${escapeHtml(amountSign)}${visibleDamage}</span>`
                 : '';
 
             node.innerHTML = `
@@ -321,7 +330,7 @@
         SPEED_ZERO:   { className: 'sgl-status-speed-zero',   element: 'METAL',    duration: 700  },
         WEAK:         { className: 'sgl-status-weak',         element: 'SHADOW',   duration: 700  },
         STRONG:       { className: 'sgl-status-strong',       element: 'NEUTRAL',  duration: 700  },
-        HEALTH_BOOST: { className: 'sgl-status-health-boost', element: 'WIND',     duration: 700  },
+        HEALTH_BOOST: { className: 'sgl-status-health-boost', element: 'METAL',    duration: 700  },
         DAMAGE_BOOST: { className: 'sgl-status-damage-boost', element: 'FIRE',     duration: 700  },
         SPEED_BOOST:  { className: 'sgl-status-speed-boost',  element: 'ELECTRIC', duration: 700  }
     };
@@ -453,10 +462,35 @@
         const want = String(name).trim().toLowerCase();
         return findCellOnBoard(board, (c) => String(c?.name || '').trim().toLowerCase() === want);
     }
+    function findCellByAbilityName(board, abilityName) {
+        const ability = String(abilityName || '').trim().toLowerCase();
+        if (!ability) return null;
+        const matches = [];
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const cell = board?.[r]?.[c];
+                const name = String(cell?.name || '').trim().toLowerCase();
+                if (name && (ability === name || ability.startsWith(`${name} `) || ability.includes(name))) {
+                    matches.push({ row: r, col: c, cell });
+                }
+            }
+        }
+        matches.sort((a, b) => String(b.cell?.name || '').length - String(a.cell?.name || '').length);
+        return matches[0] || null;
+    }
     function findCellByInstanceId(board, id) {
         if (!id) return null;
         const want = String(id);
         return findCellOnBoard(board, (c) => String(c?.instanceId || c?.id || '') === want);
+    }
+    function namesMatch(a, b) {
+        return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+    }
+    function parseEvolutionFromLog(line) {
+        const text = stripLogPrefix(line);
+        const m = text.match(/^(?:(.+?)\s+)?evolved\s+(.+?)\s+into\s+(.+?)[.!]?$/i);
+        if (!m) return null;
+        return { actor: (m[1] || '').trim(), from: m[2].trim(), to: m[3].trim() };
     }
     function diffPlacements(prev, next, isPlayer) {
         const out = [];
@@ -491,10 +525,39 @@
                     || (String(p.name || '') === String(n.name || '') && p.name);
                 const prevHp = p.hp ?? 0;
                 const nextHp = n.hp ?? 0;
-                if (same && nextHp > prevHp) {
+                const prevMaxHp = Number(p.maxHp);
+                const nextMaxHp = Number(n.maxHp);
+                const shieldGained = Number.isFinite(prevMaxHp) && Number.isFinite(nextMaxHp) && nextMaxHp > prevMaxHp;
+                if (same && nextHp > prevHp && !shieldGained) {
                     out.push({
                         isPlayer, row: r, col: c,
                         amount: nextHp - prevHp,
+                        element: normalizeElement(n.element || p.element),
+                        name: n.name || p.name || '',
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                    });
+                }
+            }
+        }
+        return out;
+    }
+    function diffShields(prev, next, isPlayer) {
+        const out = [];
+        if (!prev || !next) return out;
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const p = prev[r]?.[c];
+                const n = next[r]?.[c];
+                if (!p || !n) continue;
+                const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
+                    || (p.id && n.id && p.id === n.id)
+                    || (String(p.name || '') === String(n.name || '') && p.name);
+                const prevMaxHp = Number(p.maxHp);
+                const nextMaxHp = Number(n.maxHp);
+                if (same && Number.isFinite(prevMaxHp) && Number.isFinite(nextMaxHp) && nextMaxHp > prevMaxHp) {
+                    out.push({
+                        isPlayer, row: r, col: c,
+                        amount: nextMaxHp - prevMaxHp,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
                         instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
@@ -515,6 +578,9 @@
                 const pStatuses = new Set((p?.statuses || []).map((s) => String(s).toUpperCase()));
                 const nStatuses = (n.statuses || []).map((s) => String(s).toUpperCase());
                 for (const s of nStatuses) {
+                    if (s === 'HEALTH_BOOST') {
+                        continue;
+                    }
                     if (!pStatuses.has(s)) {
                         out.push({
                             isPlayer, row: r, col: c,
@@ -562,7 +628,12 @@
                         shieldFullyBroken: prevShield > 0 && nextShield === 0,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
-                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
+                        prevHp,
+                        nextHp,
+                        prevMaxHp: p.maxHp,
+                        nextMaxHp: n.maxHp,
+                        printedHealth: n.printedHealth ?? p.printedHealth
                     });
                 }
             }
@@ -600,7 +671,7 @@
     // ── Log parser ────────────────────────────────────────────────────────────
     // Best-effort extraction of "X uses Y" / "X plays Y" lines for ABILITY/PLAY toasts.
     function parseAbilityFromLog(line) {
-        const text = String(line || '').trim();
+        const text = stripLogPrefix(line);
         let m = text.match(/^(.+?)\s+uses\s+(.+?)\.?$/i);
         if (m) return { kind: 'ABILITY', actor: m[1].trim(), name: m[2].trim() };
         m = text.match(/^(.+?)\s+plays\s+(.+?)\.?$/i);
@@ -615,7 +686,7 @@
     // trailing "(HP: N)" is informational and must not become part of the
     // target name or attribution against the board state will fail.
     function parseDamageFromLog(line) {
-        const text = String(line || '').trim();
+        const text = stripLogPrefix(line);
         const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?\.?$/i);
         if (!m) return null;
         return {
@@ -668,9 +739,49 @@
 
     // Resolve the attacker for a given damaged cell from the new log entries.
     // Returns { row, col, cell, isPlayer } or null when we can't decide.
-    function resolveAttackerFromLogs(prevPlayer, prevEnemy, damagedCell, newLogs) {
+    function resolveAttackerFromLogs(prevPlayer, prevEnemy, damagedCell, newLogs, preferredSourceIsPlayer = null) {
         const wantedTarget = String(damagedCell?.name || '').trim().toLowerCase();
         if (!wantedTarget) return null;
+        const preferPlayer = preferredSourceIsPlayer === true;
+        const preferEnemy = preferredSourceIsPlayer === false;
+        const findDirectSource = (name) => {
+            const preferred = preferPlayer
+                ? findCellByName(prevPlayer, name)
+                : preferEnemy
+                    ? findCellByName(prevEnemy, name)
+                    : null;
+            if (preferred) return { ...preferred, isPlayer: preferPlayer };
+            const other = preferPlayer
+                ? findCellByName(prevEnemy, name)
+                : preferEnemy
+                    ? findCellByName(prevPlayer, name)
+                    : null;
+            if (other) return { ...other, isPlayer: !preferPlayer };
+            const directPlayer = findCellByName(prevPlayer, name);
+            if (directPlayer) return { ...directPlayer, isPlayer: true };
+            const directEnemy = findCellByName(prevEnemy, name);
+            if (directEnemy) return { ...directEnemy, isPlayer: false };
+            return null;
+        };
+        const findAbilitySource = (abilityName) => {
+            const preferred = preferPlayer
+                ? findCellByAbilityName(prevPlayer, abilityName)
+                : preferEnemy
+                    ? findCellByAbilityName(prevEnemy, abilityName)
+                    : null;
+            if (preferred) return { ...preferred, isPlayer: preferPlayer };
+            const other = preferPlayer
+                ? findCellByAbilityName(prevEnemy, abilityName)
+                : preferEnemy
+                    ? findCellByAbilityName(prevPlayer, abilityName)
+                    : null;
+            if (other) return { ...other, isPlayer: !preferPlayer };
+            const directPlayer = findCellByAbilityName(prevPlayer, abilityName);
+            if (directPlayer) return { ...directPlayer, isPlayer: true };
+            const directEnemy = findCellByAbilityName(prevEnemy, abilityName);
+            if (directEnemy) return { ...directEnemy, isPlayer: false };
+            return null;
+        };
         for (const line of newLogs) {
             const m = parseDamageFromLog(line);
             if (!m) continue;
@@ -680,16 +791,14 @@
                 const u = parseAbilityFromLog(usesLine);
                 if (!u || u.kind !== 'ABILITY') continue;
                 if (u.name.toLowerCase() !== m.abilityOrSource.toLowerCase()) continue;
-                const onPlayer = findCellByName(prevPlayer, u.actor);
-                if (onPlayer) return { ...onPlayer, isPlayer: true };
-                const onEnemy = findCellByName(prevEnemy, u.actor);
-                if (onEnemy) return { ...onEnemy, isPlayer: false };
+                const byActor = findDirectSource(u.actor);
+                if (byActor) return byActor;
             }
             // Fallback: the "ability" name may itself be the card name.
-            const directPlayer = findCellByName(prevPlayer, m.abilityOrSource);
-            if (directPlayer) return { ...directPlayer, isPlayer: true };
-            const directEnemy = findCellByName(prevEnemy, m.abilityOrSource);
-            if (directEnemy) return { ...directEnemy, isPlayer: false };
+            const byDirectName = findDirectSource(m.abilityOrSource);
+            if (byDirectName) return byDirectName;
+            const byAbilityName = findAbilitySource(m.abilityOrSource);
+            if (byAbilityName) return byAbilityName;
         }
         return null;
     }
@@ -709,6 +818,11 @@
             // the player can't see new cards appear before earlier battle
             // animations finish.
             this.pendingPlacements = new Map();
+            // Map<key, { isPlayer, row, col, displayHp, finalHp, maxHp, element }>
+            // Board renders receive the server's post-damage state immediately;
+            // these entries keep visible card HP at the pre-hit value until the
+            // matching attack animation reaches impact.
+            this.pendingHealthChanges = new Map();
             this._pendingSyncScheduled = false;
             this._loadSpeed();
             this._installPlacementObserver();
@@ -741,10 +855,14 @@
             this.processing = false;
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
+            this.settleAllPendingHealth();
         }
 
         // ── Pending-placement registry ────────────────────────────────────
         _placementKey(isPlayer, row, col, instanceId) {
+            return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${instanceId || ''}`;
+        }
+        _healthKey(isPlayer, row, col, instanceId) {
             return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${instanceId || ''}`;
         }
         registerPendingPlacement(isPlayer, row, col, cell) {
@@ -791,6 +909,80 @@
                     card.style.visibility = 'hidden';
                     card.style.opacity = '0';
                 }
+            }
+        }
+        renderHealthInner(entry, hp, maxHp) {
+            const safeHp = Math.max(0, Number.isFinite(Number(hp)) ? Number(hp) : 0);
+            const safeMax = Math.max(0, Number.isFinite(Number(maxHp)) ? Number(maxHp) : 0);
+            const printedHp = Number(entry?.printedHealth);
+            const shield = Number.isFinite(printedHp) ? Math.max(0, safeMax - printedHp) : 0;
+            const baseMax = shield > 0 ? printedHp : safeMax;
+            const shieldHtml = shield > 0
+                ? `<span class="stat-shield" title="Shield">+${shield}</span>`
+                : '';
+            return `${safeHp}/<span class="stat-hp-max">${baseMax}</span>${shieldHtml}`;
+        }
+        applyHealthToDom(entry, hp, maxHp) {
+            if (!entry) return;
+            const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+            const card = cellEl?.querySelector('.board-card');
+            if (!card) return;
+            const resolvedMax = Number.isFinite(Number(maxHp)) ? Number(maxHp) : Number(entry.maxHp);
+            const resolvedHp = Number.isFinite(Number(hp)) ? Number(hp) : Number(entry.finalHp);
+            const pct = resolvedMax > 0 ? Math.max(0, Math.min(100, (resolvedHp / resolvedMax) * 100)) : 0;
+            const fill = card.querySelector('.hp-fill');
+            if (fill) fill.style.width = `${pct}%`;
+            const hpStat = card.querySelector('.stat-hp');
+            if (hpStat) hpStat.innerHTML = this.renderHealthInner(entry, resolvedHp, resolvedMax);
+        }
+        registerPendingHealth(target) {
+            if (!target || target.destroysTarget) return null;
+            const prevHp = Number(target.prevHp);
+            const nextHp = Number(target.nextHp);
+            if (!Number.isFinite(prevHp) || !Number.isFinite(nextHp) || nextHp >= prevHp) {
+                return null;
+            }
+            const id = String(target.instanceId || '');
+            const key = this._healthKey(target.isPlayer, target.row, target.col, id);
+            const maxHp = Number.isFinite(Number(target.nextMaxHp))
+                ? Number(target.nextMaxHp)
+                : Number(target.prevMaxHp);
+            const existing = this.pendingHealthChanges.get(key);
+            this.pendingHealthChanges.set(key, {
+                isPlayer: target.isPlayer,
+                row: target.row,
+                col: target.col,
+                instanceId: id,
+                displayHp: existing ? existing.displayHp : prevHp,
+                finalHp: nextHp,
+                maxHp,
+                printedHealth: target.printedHealth,
+                element: target.element
+            });
+            this.syncPendingHealth();
+            return key;
+        }
+        releasePendingHealth(key) {
+            if (!key) return;
+            const entry = this.pendingHealthChanges.get(key);
+            if (!entry) return;
+            this.pendingHealthChanges.delete(key);
+            this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+        }
+        releasePendingHealthForTargets(targets) {
+            for (const target of targets || []) {
+                this.releasePendingHealth(target?.pendingHealthKey);
+            }
+        }
+        settleAllPendingHealth() {
+            for (const [key, entry] of Array.from(this.pendingHealthChanges.entries())) {
+                this.pendingHealthChanges.delete(key);
+                this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+            }
+        }
+        syncPendingHealth() {
+            for (const entry of this.pendingHealthChanges.values()) {
+                this.applyHealthToDom(entry, entry.displayHp, entry.maxHp);
             }
         }
         _installPlacementObserver() {
@@ -895,6 +1087,9 @@
             //      register each placement as the AI makes it
             const phaseChanged = prevState.currentPhase && nextState.currentPhase
                 && prevState.currentPhase !== nextState.currentPhase;
+            const setupToBattle = phaseChanged
+                && prevState.currentPhase === 'SETUP'
+                && nextState.currentPhase === 'BATTLE';
 
             // Opponent turn beginning → thinking indicator
             if (prevState.activeSide !== 'ENEMY' && nextState.activeSide === 'ENEMY' && !nextState.gameOver) {
@@ -903,8 +1098,17 @@
 
             // Collect placements and damage now but enqueue them in the right
             // order at the end of this method.
-            const newPlayerPlacements = diffPlacements(prevPlayer, nextPlayer, true);
-            const newEnemyPlacements  = diffPlacements(prevEnemy,  nextEnemy,  false);
+            const evolutionLogs = newLogs.map(parseEvolutionFromLog).filter(Boolean);
+            const tagEvolutionPlacements = (placements, prevBoard) => placements.map((p) => {
+                const previousCell = prevBoard?.[p.row]?.[p.col];
+                if (!previousCell) return p;
+                const loggedEvolution = evolutionLogs.find((e) =>
+                    namesMatch(e.from, previousCell.name) && namesMatch(e.to, p.cell?.name)
+                );
+                return loggedEvolution ? { ...p, evolutionFrom: previousCell } : p;
+            });
+            const newPlayerPlacements = tagEvolutionPlacements(diffPlacements(prevPlayer, nextPlayer, true), prevPlayer);
+            const newEnemyPlacements  = tagEvolutionPlacements(diffPlacements(prevEnemy,  nextEnemy,  false), prevEnemy);
 
             // Damage events (attacks / abilities that hit)
             const damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true);
@@ -912,8 +1116,16 @@
 
             // Destruction events (cards that no longer exist). Paired with attacks
             // below so the killed card stays visible until the projectile lands.
-            const destructionsOnPlayer = diffDestructions(prevPlayer, nextPlayer, true);
-            const destructionsOnEnemy  = diffDestructions(prevEnemy,  nextEnemy,  false);
+            const isEvolutionDestruction = (d, placements) => placements.some((p) =>
+                p.evolutionFrom
+                && p.row === d.row
+                && p.col === d.col
+                && namesMatch(p.evolutionFrom.name, d.name)
+            );
+            const destructionsOnPlayer = diffDestructions(prevPlayer, nextPlayer, true)
+                .filter((d) => !isEvolutionDestruction(d, newPlayerPlacements));
+            const destructionsOnEnemy  = diffDestructions(prevEnemy,  nextEnemy,  false)
+                .filter((d) => !isEvolutionDestruction(d, newEnemyPlacements));
             const matchDestruction = (list, t) => {
                 const idx = list.findIndex((d) =>
                     d.row === t.row && d.col === t.col
@@ -941,12 +1153,12 @@
                         if (cell) return { row: pending.row, col: pending.col, cell, isPlayer: true, pending };
                     }
                 }
-                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs);
+                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs, true);
                 if (fromLogs && fromLogs.isPlayer) return fromLogs;
                 return null;
             };
             const resolveEnemySource = (t) => {
-                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs);
+                const fromLogs = resolveAttackerFromLogs(prevPlayer, prevEnemy, t, newLogs, false);
                 if (fromLogs && !fromLogs.isPlayer) return fromLogs;
                 return null;
             };
@@ -954,9 +1166,10 @@
             // Battle-phase pacing: damage, destruction and ability animations
             // fire back-to-back as one solid block.
             const BATTLE_GAP_MS  = 220;
-            const PHASE_GAP_MS   = 500;
-            const FIRST_PLAY_GAP = 1800; // ~2s before/after the first placement
-            const NEXT_PLAY_GAP  = 800;  // ~1s between each subsequent placement
+            const PHASE_GAP_MS   = 360;
+            const FIRST_PLAY_GAP = this.speed === 'fast' ? 120 : 360;
+            const NEXT_PLAY_GAP  = this.speed === 'fast' ? 80 : 160;
+            let phaseTransitionQueued = false;
 
             // Multi-target label helper. Server damage events from the same
             // attacker (e.g. AoE abilities, row sweeps) get grouped into a
@@ -979,6 +1192,49 @@
                 return `${targets.length} ${defenderLabel}`;
             };
 
+            const enqueuePlacementAction = (p, side, knight, actorName) => {
+                const isFirst = !this._placementInProgress;
+                this._placementInProgress = true;
+                const placementIsPlayer = side === 'PLAYER';
+                const isEvolution = Boolean(p.evolutionFrom);
+                this.enqueueAction({
+                    kind: 'PLAY',
+                    side,
+                    actorName: isEvolution ? p.evolutionFrom.name : actorName,
+                    label: isEvolution ? 'evolved to' : undefined,
+                    targetName: p.cell.name || 'Card',
+                    knightElement: knight,
+                    elementColor: normalizeElement(p.cell.element) || knight,
+                    source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
+                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
+                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP
+                });
+            };
+
+            const enqueuePhaseTransitionAction = () => {
+                if (!phaseChanged || phaseTransitionQueued) return;
+                phaseTransitionQueued = true;
+                const phaseLabel = String(nextState.currentPhase).charAt(0)
+                    + String(nextState.currentPhase).slice(1).toLowerCase();
+                this.enqueueAction({
+                    kind: 'PHASE',
+                    side: nextState.activeSide || 'PLAYER',
+                    actorName: `${phaseLabel} Phase`,
+                    knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
+                    elementColor: 'NEUTRAL',
+                    holdMs: this.timings().toastDismissMs,
+                    gapAfterMs: PHASE_GAP_MS
+                });
+            };
+
+            if (setupToBattle) {
+                for (const p of newPlayerPlacements) enqueuePlacementAction(p, 'PLAYER', playerKnight, playerName);
+                for (const p of newEnemyPlacements)  enqueuePlacementAction(p, 'ENEMY',  enemyKnight,  enemyName);
+                newPlayerPlacements.length = 0;
+                newEnemyPlacements.length = 0;
+                enqueuePhaseTransitionAction();
+            }
+
             // Group damage events by attacker cell. Same-source hits become
             // one ATTACK action with a targets array so the projectiles fire
             // simultaneously and the toast describes the group.
@@ -997,8 +1253,15 @@
                         element: t.element,
                         name: t.name,
                         destroysTarget: !!destroyed,
-                        ghostCell: destroyed?.cell || null
+                        ghostCell: destroyed?.cell || null,
+                        instanceId: t.instanceId,
+                        prevHp: t.prevHp,
+                        nextHp: t.nextHp,
+                        prevMaxHp: t.prevMaxHp,
+                        nextMaxHp: t.nextMaxHp,
+                        printedHealth: t.printedHealth
                     };
+                    targetEntry.pendingHealthKey = this.registerPendingHealth(targetEntry);
                     const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || sideKnight;
                     const key = srcRef
                         ? `S:${srcRef.row}:${srcRef.col}:${srcRef.cell?.instanceId || srcRef.cell?.id || ''}`
@@ -1149,6 +1412,7 @@
                         target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || srcElement },
                         destroysTarget: t.destroysTarget,
                         ghostCell: t.ghostCell,
+                        pendingHealthKey: t.pendingHealthKey,
                         statuses: t.statuses && t.statuses.length ? t.statuses.slice() : null,
                         gapAfterMs: BATTLE_GAP_MS
                     });
@@ -1180,6 +1444,7 @@
                         hpLoss: tt.hpLoss,
                         destroysTarget: tt.destroysTarget,
                         ghostCell: tt.ghostCell,
+                        pendingHealthKey: tt.pendingHealthKey,
                         statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null
                     })),
                     gapAfterMs: BATTLE_GAP_MS
@@ -1242,6 +1507,8 @@
             // BATTLE block but doesn't pre-empt attack animations.
             const healingOnPlayer = diffHealing(prevPlayer, nextPlayer, true);
             const healingOnEnemy  = diffHealing(prevEnemy,  nextEnemy,  false);
+            const shieldsOnPlayer = diffShields(prevPlayer, nextPlayer, true);
+            const shieldsOnEnemy  = diffShields(prevEnemy,  nextEnemy,  false);
             const queueHeal = (h) => {
                 const healerRef = resolveHealerFromLogs(prevPlayer, prevEnemy, h, newLogs);
                 const targetIsPlayer = h.isPlayer;
@@ -1266,51 +1533,39 @@
                     gapAfterMs: BATTLE_GAP_MS
                 });
             };
+            const queueShield = (h) => {
+                const targetIsPlayer = h.isPlayer;
+                const side = targetIsPlayer ? 'PLAYER' : 'ENEMY';
+                const knight = side === 'PLAYER' ? playerKnight : enemyKnight;
+                this.enqueueAction({
+                    kind: 'SHIELD',
+                    side,
+                    actorName: side === 'PLAYER' ? playerName : enemyName,
+                    targetName: h.name,
+                    amount: h.amount,
+                    amountSign: '+',
+                    knightElement: knight,
+                    elementColor: 'METAL',
+                    target: { isPlayer: h.isPlayer, row: h.row, col: h.col, element: 'METAL' },
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            };
             for (const h of healingOnPlayer) queueHeal(h);
             for (const h of healingOnEnemy)  queueHeal(h);
+            for (const h of shieldsOnPlayer) queueShield(h);
+            for (const h of shieldsOnEnemy)  queueShield(h);
 
             // Phase change toast — appended AFTER the just-ended phase's
             // animations and BEFORE the new phase's placements, so the toast
             // marks the boundary between the two blocks the player sees.
-            if (phaseChanged) {
-                const phaseLabel = String(nextState.currentPhase).charAt(0)
-                    + String(nextState.currentPhase).slice(1).toLowerCase();
-                this.enqueueAction({
-                    kind: 'PHASE',
-                    side: nextState.activeSide || 'PLAYER',
-                    actorName: `${phaseLabel} Phase`,
-                    knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
-                    elementColor: 'NEUTRAL',
-                    holdMs: this.timings().toastDismissMs,
-                    gapAfterMs: PHASE_GAP_MS
-                });
-            }
+            enqueuePhaseTransitionAction();
 
             // Placements last — individually paced so the player can see each
             // AI Siegling appear before the next one arrives. First placement
             // in this batch gets the longer "settle" gap, subsequent ones
             // step on a tighter beat.
             const enqueuePlacement = (p, side, knight, actorName) => {
-                const isFirst = !this._placementInProgress;
-                this._placementInProgress = true;
-                const placementIsPlayer = side === 'PLAYER';
-                // Register the placement BEFORE enqueueing so the post-render
-                // sync hides this card until we play its PLAY action.
-                const placementKey = this.registerPendingPlacement(
-                    placementIsPlayer, p.row, p.col, p.cell
-                );
-                this.enqueueAction({
-                    kind: 'PLAY',
-                    side,
-                    actorName,
-                    targetName: p.cell.name || 'Card',
-                    knightElement: knight,
-                    elementColor: normalizeElement(p.cell.element) || knight,
-                    source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
-                    portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP,
-                    placementKey
-                });
+                enqueuePlacementAction(p, side, knight, actorName);
             };
             for (const p of newPlayerPlacements) enqueuePlacement(p, 'PLAYER', playerKnight, playerName);
             for (const p of newEnemyPlacements)  enqueuePlacement(p, 'ENEMY',  enemyKnight,  enemyName);
@@ -1415,6 +1670,9 @@
                 // Defensive: never leave a card permanently hidden because no
                 // PLAY action was queued for it.
                 this.revealAllPendingPlacements();
+                if (typeof window.scheduleBattleAutoAdvance === 'function') {
+                    window.scheduleBattleAutoAdvance();
+                }
             }
         }
 
@@ -1490,6 +1748,7 @@
                 }
                 await sleep(t.projectileMs);
 
+                this.releasePendingHealthForTargets(action.targets);
                 for (const tgt of action.targets) {
                     const ghostEntry = ghosts.find((g) => g.target === tgt);
                     const tgtColor = elementHex(tgt.element || action.elementColor || action.knightElement);
@@ -1597,6 +1856,24 @@
             // 2b. Direct attack on the enemy/player HP bar — no cell target,
             // so we fire the projectile to the bar's screen coordinates and
             // shake/flash the bar on impact.
+            if (action.kind === 'SHIELD' && action.target) {
+                applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, 'HEALTH_BOOST');
+                const cellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
+                if (action.amount && cellEl && window.SieglingsFx?.floatingText) {
+                    const r = cellEl.getBoundingClientRect();
+                    window.SieglingsFx.floatingText(
+                        r.left + r.width / 2,
+                        r.top + r.height * 0.3,
+                        `+${action.amount}`,
+                        '#a8b0ba', 30
+                    );
+                }
+                await sleep(t.impactMs);
+                const shieldGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(shieldGap);
+                return;
+            }
+
             if (action.kind === 'ATTACK' && action.source && action.target?.healthBar
                 && window.SieglingsFx?.attackPoint) {
                 const barCenter = this._getHealthBarCenter(action.target.isPlayer);
@@ -1659,6 +1936,7 @@
                 );
                 await sleep(t.projectileMs);
 
+                this.releasePendingHealth(action.pendingHealthKey);
                 // 4. Impact: hit flash on target + floating damage + screen shake
                 if (ghost) {
                     ghost.style.setProperty('--sgl-impact-color', elColor);
@@ -1856,6 +2134,7 @@
         window.render = function () {
             const result = orig.apply(this, arguments);
             try { queue.syncPendingPlacements(); } catch (_) {}
+            try { queue.syncPendingHealth(); } catch (_) {}
             return result;
         };
         window.__sglRenderHookInstalled = true;

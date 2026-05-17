@@ -27,6 +27,7 @@ export const ApiRoutes = {
   auth: {
     register: "/api/auth/register",
     login: "/api/auth/login",
+    resetPassword: "/api/auth/reset-password",
     logout: "/api/auth/logout",
     me: "/api/auth/me",
   },
