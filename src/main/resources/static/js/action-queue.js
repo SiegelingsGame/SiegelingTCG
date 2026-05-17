@@ -45,11 +45,31 @@
         PLAY:    'plays',
         ABILITY: 'uses',
         ATTACK:  'attacks',
+        HEAL:    'heals',
+        STATUS_APPLY: 'gains',
         BLOCK:   'blocks',
         EFFECT:  'effect',
         DESTROY: 'is destroyed',
         PHASE:   'phase'
     };
+
+    // Friendly label for each status kind. Used in STATUS_APPLY toasts so
+    // status-only events read as "Pylme gains Frozen" instead of dropping
+    // into the misleading "Player attacks Pylme" path.
+    const STATUS_DISPLAY = {
+        FREEZE:       'Frozen',
+        SPEED_ZERO:   'Stunned',
+        WEAK:         'Weakened',
+        STRONG:       'Strengthened',
+        HEALTH_BOOST: 'HP Boost',
+        DAMAGE_BOOST: 'Damage Boost',
+        SPEED_BOOST:  'Speed Boost'
+    };
+    function formatStatusLabel(status) {
+        const k = String(status || '').toUpperCase();
+        if (STATUS_DISPLAY[k]) return STATUS_DISPLAY[k];
+        return k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, ' ');
+    }
 
     const TIMING_NORMAL = {
         highlightMs: 400,
@@ -291,6 +311,77 @@
         }, profile.duration);
     }
 
+    // Spawn a glowing green "+" cross overlay with outward particles on a
+    // board cell. Anchored as a fixed-position element so a re-render of
+    // the cell's innerHTML won't destroy the animation.
+    function spawnHealCross(isPlayer, row, col, durationMs) {
+        const cellEl = findCellEl(isPlayer, row, col);
+        if (!cellEl) return null;
+        const rect = cellEl.getBoundingClientRect();
+        if (!rect || rect.width === 0 || rect.height === 0) return null;
+        const overlay = document.createElement('div');
+        overlay.className = 'sgl-heal-cross';
+        overlay.style.position = 'fixed';
+        overlay.style.left = `${rect.left}px`;
+        overlay.style.top = `${rect.top}px`;
+        overlay.style.width = `${rect.width}px`;
+        overlay.style.height = `${rect.height}px`;
+
+        const PARTICLE_COUNT = 10;
+        const particles = [];
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            const angle = (Math.PI * 2 * i) / PARTICLE_COUNT + (Math.random() - 0.5) * 0.35;
+            const distance = 32 + Math.random() * 28;
+            const dx = Math.cos(angle) * distance;
+            const dy = Math.sin(angle) * distance - 12;
+            const size = 6 + Math.random() * 5;
+            const delay = Math.random() * 180;
+            particles.push(
+                `<span class="sgl-heal-particle"
+                    style="left:50%;top:50%;width:${size}px;height:${size}px;
+                           --p-dx:${dx.toFixed(1)}px;--p-dy:${dy.toFixed(1)}px;
+                           animation-delay:${delay}ms"></span>`
+            );
+        }
+
+        overlay.innerHTML = `
+            <div class="sgl-heal-glow" aria-hidden="true"></div>
+            <svg class="sgl-heal-icon" viewBox="0 0 100 100" aria-hidden="true">
+                <defs>
+                    <linearGradient id="sgl-heal-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#ecffe8" />
+                        <stop offset="55%" stop-color="#5eff8e" />
+                        <stop offset="100%" stop-color="#1faa55" />
+                    </linearGradient>
+                </defs>
+                <rect x="40" y="14" width="20" height="72" rx="6" fill="url(#sgl-heal-grad)" stroke="#ffffff" stroke-width="2" />
+                <rect x="14" y="40" width="72" height="20" rx="6" fill="url(#sgl-heal-grad)" stroke="#ffffff" stroke-width="2" />
+            </svg>
+            ${particles.join('')}
+        `;
+        document.body.appendChild(overlay);
+
+        const reposition = () => {
+            const r = cellEl.getBoundingClientRect();
+            if (!r) return;
+            overlay.style.left = `${r.left}px`;
+            overlay.style.top = `${r.top}px`;
+            overlay.style.width = `${r.width}px`;
+            overlay.style.height = `${r.height}px`;
+        };
+        window.addEventListener('resize', reposition);
+        const scrollHandler = () => reposition();
+        window.addEventListener('scroll', scrollHandler, true);
+
+        const total = Math.max(900, durationMs || 1400);
+        setTimeout(() => {
+            window.removeEventListener('resize', reposition);
+            window.removeEventListener('scroll', scrollHandler, true);
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }, total);
+        return overlay;
+    }
+
     // ── Diff helpers ──────────────────────────────────────────────────────────
     function normalizeElement(element) {
         const v = String(element || '').trim().toUpperCase();
@@ -375,6 +466,32 @@
                     if (pid && nid && pid !== nid) {
                         out.push({ isPlayer, row: r, col: c, cell: n });
                     }
+                }
+            }
+        }
+        return out;
+    }
+    function diffHealing(prev, next, isPlayer) {
+        const out = [];
+        if (!prev || !next) return out;
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const p = prev[r]?.[c];
+                const n = next[r]?.[c];
+                if (!p || !n) continue;
+                const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
+                    || (p.id && n.id && p.id === n.id)
+                    || (String(p.name || '') === String(n.name || '') && p.name);
+                const prevHp = p.hp ?? 0;
+                const nextHp = n.hp ?? 0;
+                if (same && nextHp > prevHp) {
+                    out.push({
+                        isPlayer, row: r, col: c,
+                        amount: nextHp - prevHp,
+                        element: normalizeElement(n.element || p.element),
+                        name: n.name || p.name || '',
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                    });
                 }
             }
         }
@@ -490,6 +607,47 @@
             amount: parseInt(m[2], 10),
             target: m[3].trim()
         };
+    }
+
+    // Healing log shapes:
+    //   "Cleansing Breath heals Sundile for 4 (HP: 12)"
+    //   "Cleansing Breath restores 4 HP to Sundile"
+    //   "Sundile is healed for 4"
+    function parseHealFromLog(line) {
+        const text = String(line || '').trim();
+        let m = text.match(/^(.+?)\s+heals\s+(.+?)\s+(?:for|by)\s+(\d+)(?:\s*\([^)]*\))?\.?$/i);
+        if (m) return { abilityOrSource: m[1].trim(), target: m[2].trim(), amount: parseInt(m[3], 10) };
+        m = text.match(/^(.+?)\s+restores\s+(\d+)\s+HP\s+to\s+(.+?)(?:\s*\([^)]*\))?\.?$/i);
+        if (m) return { abilityOrSource: m[1].trim(), target: m[3].trim(), amount: parseInt(m[2], 10) };
+        m = text.match(/^(.+?)\s+is\s+healed\s+for\s+(\d+)(?:\s*\([^)]*\))?\.?$/i);
+        if (m) return { abilityOrSource: '', target: m[1].trim(), amount: parseInt(m[2], 10) };
+        return null;
+    }
+
+    function resolveHealerFromLogs(prevPlayer, prevEnemy, healedCell, newLogs) {
+        const wantedTarget = String(healedCell?.name || '').trim().toLowerCase();
+        if (!wantedTarget) return null;
+        for (const line of newLogs) {
+            const m = parseHealFromLog(line);
+            if (!m) continue;
+            if (m.target.toLowerCase() !== wantedTarget) continue;
+            for (const usesLine of newLogs) {
+                const u = parseAbilityFromLog(usesLine);
+                if (!u || u.kind !== 'ABILITY') continue;
+                if (u.name.toLowerCase() !== m.abilityOrSource.toLowerCase()) continue;
+                const onPlayer = findCellByName(prevPlayer, u.actor);
+                if (onPlayer) return { ...onPlayer, isPlayer: true };
+                const onEnemy = findCellByName(prevEnemy, u.actor);
+                if (onEnemy) return { ...onEnemy, isPlayer: false };
+            }
+            if (m.abilityOrSource) {
+                const directPlayer = findCellByName(prevPlayer, m.abilityOrSource);
+                if (directPlayer) return { ...directPlayer, isPlayer: true };
+                const directEnemy = findCellByName(prevEnemy, m.abilityOrSource);
+                if (directEnemy) return { ...directEnemy, isPlayer: false };
+            }
+        }
+        return null;
     }
 
     // Resolve the attacker for a given damaged cell from the new log entries.
@@ -778,6 +936,31 @@
             el.style.setProperty('--sgl-hp-impact', elementHexValue || ELEMENT_HEX.NEUTRAL);
             el.classList.add('sgl-hp-impact');
             setTimeout(() => el.classList.remove('sgl-hp-impact'), 720);
+        }
+
+        // Where to launch a "sourceless" projectile from when we can't
+        // identify the attacking cell (e.g. an AI counter-attack whose log
+        // line shape doesn't match the parser). Picks a point on the
+        // attacker's side of the board so the projectile still flies the
+        // right direction toward the target.
+        _getFallbackProjectileOrigin(attackerIsPlayer) {
+            const grid = document.getElementById(attackerIsPlayer ? 'playerGrid' : 'enemyGrid');
+            if (grid) {
+                const r = grid.getBoundingClientRect();
+                if (r && r.width > 0 && r.height > 0) {
+                    return {
+                        x: r.left + r.width / 2,
+                        // Top edge of player grid / bottom edge of enemy grid
+                        // so the projectile starts "near the line" and flies
+                        // across the board rather than from inside the grid.
+                        y: attackerIsPlayer ? r.top + r.height * 0.15 : r.top + r.height * 0.85
+                    };
+                }
+            }
+            return {
+                x: window.innerWidth / 2,
+                y: attackerIsPlayer ? window.innerHeight * 0.75 : window.innerHeight * 0.25
+            };
         }
 
         enqueueAction(action) {
@@ -1072,19 +1255,57 @@
             const enqueueAttackGroup = (group, side, knight, defaultActorName, defenderLabel) => {
                 const { srcRef, srcElement, targets } = group;
                 if (!targets.length) return;
-                const actorName = srcRef?.cell?.name || srcRef?.pending?.name || defaultActorName;
-                if (actorName) enqueuedAttackerNames.add(actorName);
+                // Only treat the toast as an "active attack" when we
+                // actually identified a source cell. Without one (trap/aura
+                // damage, effect tick, unparseable AI log line), the toast
+                // becomes "<Target> takes -N" so it doesn't read as if the
+                // player just clicked an attack.
+                const realAttacker = srcRef?.cell?.name || srcRef?.pending?.name;
+                if (realAttacker) enqueuedAttackerNames.add(realAttacker);
+                const sourcePayload = srcRef
+                    ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col }
+                    : null;
+
+                // Status-only group (e.g. an enemy aura applies Weak to a
+                // newly-placed player Siegling with no HP change). Don't
+                // route through the ATTACK path — that produces phantom
+                // "AI attacks X" toasts even though no attack happened.
+                // Emit a STATUS_APPLY action per affected target instead.
+                const hasDamage = targets.some((tt) => Number(tt.amount) > 0);
+                if (!hasDamage) {
+                    for (const t of targets) {
+                        if (!t.statuses || !t.statuses.length) continue;
+                        const primaryStatus = t.statuses[0];
+                        const statusEl = statusProfile(primaryStatus).element;
+                        const labelText = t.statuses.map(formatStatusLabel).join(', ');
+                        this.enqueueAction({
+                            kind: 'STATUS_APPLY',
+                            side,
+                            actorName: t.name,
+                            targetName: labelText,
+                            knightElement: knight,
+                            elementColor: statusEl,
+                            source: sourcePayload,
+                            target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || statusEl },
+                            statuses: t.statuses.slice(),
+                            gapAfterMs: BATTLE_GAP_MS
+                        });
+                    }
+                    return;
+                }
+
                 if (targets.length === 1) {
                     const t = targets[0];
                     this.enqueueAction({
                         kind: 'ATTACK',
                         side,
-                        actorName,
-                        targetName: t.name,
+                        actorName: realAttacker || t.name,
+                        targetName: realAttacker ? t.name : '',
+                        label: realAttacker ? undefined : 'takes',
                         amount: t.amount,
                         knightElement: knight,
                         elementColor: srcElement,
-                        source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                        source: sourcePayload,
                         target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || srcElement },
                         destroysTarget: t.destroysTarget,
                         ghostCell: t.ghostCell,
@@ -1096,15 +1317,17 @@
                 }
                 // Multi-target: simultaneous barrage
                 const totalDmg = targets.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
+                const groupLabel = describeTargets(targets, defenderLabel);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side,
-                    actorName,
-                    targetName: describeTargets(targets, defenderLabel),
+                    actorName: realAttacker || groupLabel,
+                    targetName: realAttacker ? groupLabel : '',
+                    label: realAttacker ? undefined : 'takes',
                     amount: totalDmg,
                     knightElement: knight,
                     elementColor: srcElement,
-                    source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                    source: sourcePayload,
                     targets: targets.map((tt) => ({
                         isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
                         element: tt.element || srcElement,
@@ -1168,6 +1391,38 @@
                     });
                 }
             }
+
+            // Healing events — HP increases on cells that survived the diff.
+            // Queued after damage/destruction/ability so it plays during the
+            // BATTLE block but doesn't pre-empt attack animations.
+            const healingOnPlayer = diffHealing(prevPlayer, nextPlayer, true);
+            const healingOnEnemy  = diffHealing(prevEnemy,  nextEnemy,  false);
+            const queueHeal = (h) => {
+                const healerRef = resolveHealerFromLogs(prevPlayer, prevEnemy, h, newLogs);
+                const targetIsPlayer = h.isPlayer;
+                const ownerKnight = targetIsPlayer ? playerKnight : enemyKnight;
+                // The healer's side drives the toast side / knight color.
+                const side = healerRef ? (healerRef.isPlayer ? 'PLAYER' : 'ENEMY')
+                                       : (targetIsPlayer ? 'PLAYER' : 'ENEMY');
+                const knight = side === 'PLAYER' ? playerKnight : enemyKnight;
+                this.enqueueAction({
+                    kind: 'HEAL',
+                    side,
+                    actorName: healerRef?.cell?.name
+                        || (side === 'PLAYER' ? playerName : enemyName),
+                    targetName: h.name,
+                    amount: h.amount,
+                    knightElement: knight,
+                    elementColor: 'WIND', // green for the projectile + floater
+                    source: healerRef
+                        ? { isPlayer: healerRef.isPlayer, row: healerRef.row, col: healerRef.col }
+                        : null,
+                    target: { isPlayer: h.isPlayer, row: h.row, col: h.col, element: ownerKnight },
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            };
+            for (const h of healingOnPlayer) queueHeal(h);
+            for (const h of healingOnEnemy)  queueHeal(h);
 
             // Phase change toast — appended AFTER the just-ended phase's
             // animations and BEFORE the new phase's placements, so the toast
@@ -1401,6 +1656,69 @@
                 return;
             }
 
+            // 2a-status. STATUS_APPLY — status-only events (aura debuffs,
+            // boost auras) that the queue used to mis-classify as attacks.
+            // Fires a short projectile from the caster (if one was
+            // identified) and lands the status-specific overlay on the
+            // target. Never shows the "X attacks Y" verb, never spawns a
+            // damage floater.
+            if (action.kind === 'STATUS_APPLY' && action.target) {
+                if (action.source && window.SieglingsFx?.attackCell) {
+                    window.SieglingsFx.attackCell(
+                        action.source.isPlayer, action.source.row, action.source.col,
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        action.elementColor || action.knightElement,
+                        { duration: t.projectileMs }
+                    );
+                    await sleep(t.projectileMs);
+                }
+                if (action.statuses && action.statuses.length) {
+                    for (const status of action.statuses) {
+                        applyStatusVisual(
+                            action.target.isPlayer, action.target.row, action.target.col,
+                            status
+                        );
+                    }
+                }
+                await sleep(t.impactMs);
+                const statusGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(statusGap);
+                return;
+            }
+
+            // 2a-heal. HEAL — green projectile (when there's an identified
+            // healer) and a glowing green "+" cross with outward particles on
+            // the target. Damage floater is replaced with a green "+N" gain.
+            if (action.kind === 'HEAL' && action.target) {
+                if (action.source && window.SieglingsFx?.attackCell) {
+                    window.SieglingsFx.attackCell(
+                        action.source.isPlayer, action.source.row, action.source.col,
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        'WIND',
+                        { duration: t.projectileMs }
+                    );
+                    await sleep(t.projectileMs);
+                }
+                spawnHealCross(action.target.isPlayer, action.target.row, action.target.col, 1400);
+                if (action.amount && window.SieglingsFx?.floatingDamage) {
+                    // floatingDamage formats as "-N"; use floatingText for "+N"
+                    const cellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
+                    if (cellEl && window.SieglingsFx.floatingText) {
+                        const r = cellEl.getBoundingClientRect();
+                        window.SieglingsFx.floatingText(
+                            r.left + r.width / 2,
+                            r.top + r.height * 0.3,
+                            `+${action.amount}`,
+                            '#5eff8e', 30
+                        );
+                    }
+                }
+                await sleep(t.impactMs);
+                const healGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(healGap);
+                return;
+            }
+
             // 2b. Direct attack on the enemy/player HP bar — no cell target,
             // so we fire the projectile to the bar's screen coordinates and
             // shake/flash the bar on impact.
@@ -1523,8 +1841,11 @@
                 return;
             } else if (action.kind === 'ATTACK' && action.target) {
                 // Damage event without an identified source (effect tick,
-                // counterattack, etc.). Still show impact + ghost + floater so
-                // the player sees the consequence.
+                // AI attack whose log shape the parser didn't recognize, etc.).
+                // We still fire a projectile from a fallback origin on the
+                // attacker's side so the user sees the element-colored
+                // particle trail flying across the board, and follow up with
+                // the usual impact + ghost + floater.
                 let ghost = null;
                 if (action.destroysTarget && action.ghostCell) {
                     ghost = spawnGhost(
@@ -1532,7 +1853,18 @@
                         action.ghostCell, knight, elColor
                     );
                 }
-                this.releasePendingHealth(action.pendingHealthKey);
+                const targetCellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
+                if (targetCellEl && window.SieglingsFx?.attackBetween) {
+                    const tr = targetCellEl.getBoundingClientRect();
+                    const origin = this._getFallbackProjectileOrigin(action.side === 'PLAYER');
+                    window.SieglingsFx.attackBetween(
+                        origin.x, origin.y,
+                        tr.left + tr.width / 2, tr.top + tr.height / 2,
+                        action.elementColor || action.knightElement,
+                        { duration: t.projectileMs }
+                    );
+                    await sleep(t.projectileMs);
+                }
                 if (window.SieglingsFx?.impactAt) {
                     window.SieglingsFx.impactAt(
                         action.target.isPlayer, action.target.row, action.target.col,
