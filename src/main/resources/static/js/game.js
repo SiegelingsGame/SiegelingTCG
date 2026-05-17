@@ -6369,7 +6369,22 @@ function renderBoard(gridId, board, isPlayer) {
                     const _barMax = Number.isFinite(_printedHp) ? _printedHp : cell.maxHp;
                     const _barHp = Number.isFinite(_printedHp) ? Math.min(cell.hp, _printedHp) : cell.hp;
                     const _pct = _barMax > 0 ? Math.max(0, Math.min(100, (_barHp / _barMax) * 100)) : 0;
-                    html += `<div class="hp-bar"><div class="hp-fill" style="width:${_pct}%"></div></div>`;
+                    const _shield = Number.isFinite(_printedHp) ? Math.max(0, cell.hp - _printedHp) : 0;
+                    // When the card has an absorb shield, cover the green
+                    // HP bar with grey metal plates — one plate per shield
+                    // point. Plates animate off as the shield breaks; once
+                    // they're all gone the bar shows through normally.
+                    const _platesHtml = _shield > 0
+                        ? `<div class="shield-plates" data-shield="${_shield}">${
+                                Array.from({ length: _shield },
+                                    (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
+                                ).join('')
+                            }</div>`
+                        : '';
+                    html += `<div class="hp-bar${_shield > 0 ? ' is-shielded' : ''}">`
+                        + `<div class="hp-fill" style="width:${_pct}%"></div>`
+                        + _platesHtml
+                        + `</div>`;
                 }
                 const combat = renderBoardCellCombatStatsInner(cell);
                 html += `<div class="card-stats">`;

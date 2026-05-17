@@ -222,6 +222,23 @@
         }, Math.max(120, durationMs || 600));
     }
 
+    // Animate the right-most N shield plates on a board cell so the player
+    // sees the absorb buffer chipping away as a hit lands. The plates are
+    // rendered by game.js's render(); we just toggle the breaking class.
+    // Re-renders triggered by the queue/state update will replace the DOM
+    // with the new (smaller) plate count, picking up where this leaves off.
+    function breakShieldPlates(isPlayer, row, col, count) {
+        if (!count || count <= 0) return;
+        const cellEl = findCellEl(isPlayer, row, col);
+        if (!cellEl) return;
+        const plates = cellEl.querySelectorAll('.shield-plates .shield-plate');
+        if (!plates || !plates.length) return;
+        const start = Math.max(0, plates.length - count);
+        for (let i = start; i < plates.length; i++) {
+            plates[i].classList.add('sgl-plate-breaking');
+        }
+    }
+
     function flashImpact(isPlayer, row, col, elementHexValue) {
         const cell = findCellEl(isPlayer, row, col);
         if (!cell) return;
@@ -1489,6 +1506,9 @@
                             tgt.element || action.elementColor || action.knightElement
                         );
                     }
+                    if (tgt.shieldBroken > 0) {
+                        breakShieldPlates(tgt.isPlayer, tgt.row, tgt.col, tgt.shieldBroken);
+                    }
                     if (tgt.statuses && tgt.statuses.length) {
                         for (const status of tgt.statuses) {
                             applyStatusVisual(tgt.isPlayer, tgt.row, tgt.col, status);
@@ -1653,6 +1673,9 @@
                         action.amount, action.elementColor || action.knightElement
                     );
                 }
+                if (action.shieldBroken > 0) {
+                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
+                }
                 if (action.statuses && action.statuses.length) {
                     for (const status of action.statuses) {
                         applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, status);
@@ -1736,6 +1759,9 @@
                         action.target.isPlayer, action.target.row, action.target.col,
                         action.amount, action.elementColor || action.knightElement
                     );
+                }
+                if (action.shieldBroken > 0) {
+                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
                 }
                 if (action.statuses && action.statuses.length) {
                     for (const status of action.statuses) {
