@@ -276,17 +276,11 @@ img { display: block; }
     letter-spacing: 0.06em;
     /* All stops are vivid — no white that can go invisible */
     background: linear-gradient(100deg,
-        #ff5533  0%,
-        #ff2255 10%,
-        #ff8c00 20%,
-        #ffd700 30%,
-        #44e8ff 42%,
-        #2277ff 52%,
-        #33ffaa 62%,
-        #ffd700 72%,
-        #ff5533 82%,
-        #44e8ff 92%,
-        #33ffaa 100%);
+        var(--element-fire) 0%,
+        var(--element-ice) 25%,
+        var(--element-wind) 50%,
+        var(--element-earth) 75%,
+        var(--element-fire) 100%);
     background-size: 320% 100%;
     -webkit-background-clip: text;
     background-clip: text;
