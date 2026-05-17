@@ -241,7 +241,7 @@ public class EffectService {
                 }
                 case AbilityEffectKeys.HEALTH_BOOST -> {
                     target.addHealthBuff(Math.max(1, value));
-                    state.log(ability.getName() + " raises " + target.getName() + "'s max Health by " + Math.max(1, value)
+                    state.log(ability.getName() + " grants " + target.getName() + " " + Math.max(1, value) + " Shield"
                             + " (HP: " + target.getCurrentHealth() + "/" + target.getEffectiveMaxHealth() + ")");
                 }
                 case AbilityEffectKeys.SPEED_BOOST -> {

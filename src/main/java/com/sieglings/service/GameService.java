@@ -204,7 +204,8 @@ public class GameService {
         actor.removeFromHand(card);
 
         if (evolutionPlacement && existing != null) {
-            state.log(existing.getName() + " evolved to " + siegling.getName() + "!");
+            state.log(sideName(state, isPlayerSide) + " evolved " + existing.getName()
+                    + " into " + siegling.getName() + ".");
         } else {
             state.log(sideName(state, isPlayerSide) + " places " + siegling.getName()
                     + " at " + rowName(row) + " row, col " + col + ".");

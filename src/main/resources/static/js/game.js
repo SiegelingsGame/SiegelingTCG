@@ -220,7 +220,7 @@ const LOADOUT_DECK_THEMES = {
 const STATUS_BADGE_PALETTE = {
     FREEZE:       '#7adfff',
     SPEED_ZERO:   '#a0b0c0',
-    HEALTH_BOOST: '#3ce08a',
+    HEALTH_BOOST: '#a8b0ba',
     DAMAGE_BOOST: '#ff5544',
     SPEED_BOOST:  '#7adfff',
     WEAK:         '#ff6080',
@@ -230,7 +230,7 @@ const STATUS_BADGE_PALETTE = {
 const STATUS_BADGE_LABEL = {
     FREEZE: 'Frozen — cannot act',
     SPEED_ZERO: 'Speed Zero — acts last',
-    HEALTH_BOOST: 'Health Boost',
+    HEALTH_BOOST: 'Shield',
     DAMAGE_BOOST: 'Damage Boost',
     SPEED_BOOST: 'Speed Boost',
     WEAK: 'Weak to Attack',
@@ -240,7 +240,7 @@ const STATUS_BADGE_LABEL = {
 const STATUS_BADGE_SVG = {
     FREEZE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-fz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff6ff"/><stop offset="50%" stop-color="#5fb8e8"/><stop offset="100%" stop-color="#1a4a7a"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#5fb8e8" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-fz-bg)" stroke="#dff6ff" stroke-width="2"/><g stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none" class="sb-spin"><line x1="42" y1="20" x2="42" y2="64"/><line x1="22" y1="42" x2="62" y2="42"/><line x1="27" y1="27" x2="57" y2="57"/><line x1="57" y1="27" x2="27" y2="57"/><path d="M42 20 L37 26 M42 20 L47 26 M42 64 L37 58 M42 64 L47 58 M22 42 L28 37 M22 42 L28 47 M62 42 L56 37 M62 42 L56 47"/></g><circle cx="42" cy="42" r="3" fill="#fff"/></svg>`,
     SPEED_ZERO: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#a0b0c0"/><stop offset="50%" stop-color="#4a5a78"/><stop offset="100%" stop-color="#1a2030"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#4a5a78" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sz-bg)" stroke="#a0b0c0" stroke-width="2"/><g stroke="#5a6a80" stroke-width="2" stroke-linejoin="round" fill="#7a8aa0" opacity=".7"><path d="M48 18 L34 40 L42 40 L36 50"/><path d="M40 50 L48 38 L42 38 L48 28"/></g><circle cx="42" cy="46" r="14" fill="none" stroke="#fff" stroke-width="3.5"/><line x1="32" y1="36" x2="52" y2="56" stroke="#ff5544" stroke-width="3.5" stroke-linecap="round"/></svg>`,
-    HEALTH_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-hp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d5ffe8"/><stop offset="50%" stop-color="#3ce08a"/><stop offset="100%" stop-color="#1a5a3a"/></radialGradient><linearGradient id="sb-hp-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#a8ffd0"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ce08a" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-hp-bg)" stroke="#d5ffe8" stroke-width="2"/><path d="M42 60 C 42 60 22 48 22 36 C 22 28 28 23 33 23 C 37 23 41 26 42 30 C 43 26 47 23 51 23 C 56 23 62 28 62 36 C 62 48 42 60 42 60 Z" fill="url(#sb-hp-heart)" stroke="#fff" stroke-width="1.5" class="sb-float"/><ellipse cx="35" cy="32" rx="3" ry="5" fill="#fff" opacity=".7" transform="rotate(-25 35 32)"/></svg>`,
+    HEALTH_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sh-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f3f6fa"/><stop offset="55%" stop-color="#a8b0ba"/><stop offset="100%" stop-color="#4a5360"/></radialGradient><linearGradient id="sb-sh-face" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#b8c0ca"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a8b0ba" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sh-bg)" stroke="#f3f6fa" stroke-width="2"/><path d="M42 18 L62 26 L62 42 C 62 54 54 64 42 70 C 30 64 22 54 22 42 L22 26 Z" fill="url(#sb-sh-face)" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" class="sb-float"/><path d="M42 23 L42 64" stroke="#77808c" stroke-width="2" opacity=".55"/></svg>`,
     DAMAGE_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dmg-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffe0c0"/><stop offset="50%" stop-color="#ff6633"/><stop offset="100%" stop-color="#5a1a0a"/></radialGradient><linearGradient id="sb-dmg-sword" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#ffd8a0"/><stop offset="100%" stop-color="#c87040"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ff5533" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dmg-bg)" stroke="#ffe0c0" stroke-width="2"/><g stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><g transform="rotate(45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g><g transform="rotate(-45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g></g><circle cx="42" cy="42" r="4" fill="#fff8c0" class="sb-flicker"/></svg>`,
     SPEED_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff8ff"/><stop offset="50%" stop-color="#3ad8ff"/><stop offset="100%" stop-color="#1a5a7a"/></radialGradient><linearGradient id="sb-sp-bolt" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#fff8c0"/><stop offset="100%" stop-color="#7adfff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad8ff" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sp-bg)" stroke="#dff8ff" stroke-width="2"/><g stroke="#dff8ff" stroke-width="1.5" stroke-linecap="round" opacity=".5"><line x1="22" y1="32" x2="30" y2="32"/><line x1="20" y1="42" x2="32" y2="42"/><line x1="22" y1="52" x2="30" y2="52"/></g><path d="M48 18 L32 44 L42 44 L36 64 L56 36 L46 36 Z" fill="url(#sb-sp-bolt)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
     WEAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffd0d8"/><stop offset="50%" stop-color="#a02038"/><stop offset="100%" stop-color="#3a0a18"/></radialGradient><linearGradient id="sb-wk-shield" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ff6080"/><stop offset="100%" stop-color="#5a0a18"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a02038" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wk-bg)" stroke="#ffd0d8" stroke-width="2"/><g class="sb-floatdn"><path d="M42 22 L58 28 L58 44 C 58 54 50 60 42 64 C 34 60 26 54 26 44 L26 28 Z" fill="url(#sb-wk-shield)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M42 24 L38 34 L44 38 L36 48 L46 52 L40 62" stroke="#fff8c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g transform="translate(60 60)"><circle r="9" fill="#1a0a18" stroke="#ff6080" stroke-width="1.5"/><path d="M0 -4 L0 4 M-3 1 L0 4 L3 1" stroke="#ff6080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
@@ -981,12 +981,13 @@ function renderBoardCellCombatStatsInner(cell) {
     const maxHp = cell.maxHp;
     const hp = cell.hp;
     const spd = cell.spd;
-    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
+    const shield = Number.isFinite(printedHp) ? Math.max(0, Number(maxHp) - printedHp) : 0;
+    const baseMaxHp = shield > 0 ? printedHp : maxHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
-    let hpInner = `${hp}/<span class="stat-hp-max">${maxHp}</span>`;
-    if (hpBuffed) {
-        hpInner += renderCardStatAsterisk(el);
+    let hpInner = `${hp}/<span class="stat-hp-max">${baseMaxHp}</span>`;
+    if (shield > 0) {
+        hpInner += `<span class="stat-shield" title="Shield">+${shield}</span>`;
     }
 
     let spdInner = `${spd}`;
@@ -8756,6 +8757,76 @@ function handleHandSelectorPointerMove(event) {
         handAutoScrollFrame = window.requestAnimationFrame(tick);
     };
     handAutoScrollFrame = window.requestAnimationFrame(tick);
+}
+
+function normalizeWheelDelta(event, axis) {
+    const raw = axis === 'x' ? event.deltaX : event.deltaY;
+    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        return raw * 18;
+    }
+    if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        return raw * window.innerHeight;
+    }
+    return raw;
+}
+
+function getHandSelectorWheelScroller() {
+    const cards = document.getElementById('playerHand');
+    const tray = document.getElementById('handTray');
+    const candidates = [cards, tray].filter(Boolean);
+    for (const el of candidates) {
+        if (el.classList.contains('hidden')) {
+            continue;
+        }
+        const styles = window.getComputedStyle(el);
+        const canOverflowX = styles.overflowX === 'auto' || styles.overflowX === 'scroll' || styles.overflowX === 'overlay';
+        const canOverflowY = styles.overflowY === 'auto' || styles.overflowY === 'scroll' || styles.overflowY === 'overlay';
+        const canScrollX = canOverflowX && el.scrollWidth > el.clientWidth + 4;
+        const canScrollY = canOverflowY && el.scrollHeight > el.clientHeight + 4;
+        if (canScrollX || canScrollY) {
+            return { el, canScrollX, canScrollY };
+        }
+    }
+    return null;
+}
+
+function handleHandSelectorWheel(event) {
+    if (isHandHiddenForPhase()) {
+        return;
+    }
+
+    const scroller = getHandSelectorWheelScroller();
+    if (!scroller) {
+        return;
+    }
+
+    const { el, canScrollX, canScrollY } = scroller;
+    const rawDeltaX = normalizeWheelDelta(event, 'x');
+    const rawDeltaY = normalizeWheelDelta(event, 'y');
+    const preferHorizontal = canScrollX && (!canScrollY || Math.abs(rawDeltaX) >= Math.abs(rawDeltaY));
+    const axis = preferHorizontal ? 'x' : 'y';
+    let delta = axis === 'x' ? rawDeltaX : rawDeltaY;
+
+    if (axis === 'x' && Math.abs(delta) < 0.5) {
+        delta = rawDeltaY;
+    }
+    if (axis === 'y' && Math.abs(delta) < 0.5) {
+        delta = rawDeltaX;
+    }
+    if (Math.abs(delta) < 0.5) {
+        return;
+    }
+
+    const prop = axis === 'x' ? 'scrollLeft' : 'scrollTop';
+    const max = axis === 'x'
+        ? Math.max(0, el.scrollWidth - el.clientWidth)
+        : Math.max(0, el.scrollHeight - el.clientHeight);
+    const before = el[prop];
+    el[prop] = clampNumber(before + delta, 0, max);
+    if (Math.abs(el[prop] - before) > 0.5) {
+        stopHandSelectorAutoScroll();
+        event.preventDefault();
+    }
 }
 
 function stopHandSelectorAutoScroll() {

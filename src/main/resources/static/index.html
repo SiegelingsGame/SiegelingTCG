@@ -242,7 +242,7 @@
 
         <section class="desktop-menu-section desktop-menu-hand" id="desktopHandSection">
             <div class="desktop-section-title" id="desktopHandSectionTitle">Hand Selector</div>
-            <div class="hand-tray" id="handTray" onmousemove="handleHandSelectorPointerMove(event)" onmouseleave="stopHandSelectorAutoScroll()">
+            <div class="hand-tray" id="handTray" onmousemove="handleHandSelectorPointerMove(event)" onwheel="handleHandSelectorWheel(event)" onmouseleave="stopHandSelectorAutoScroll()">
                 <div class="hand-cards" id="playerHand" onmousemove="handleHandSelectorPointerMove(event)"></div>
                 <div class="desktop-hand-battle-panel hidden" id="desktopHandBattlePanel" aria-live="polite">
                     Queue actions appear here when battle begins.
