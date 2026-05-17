@@ -239,7 +239,7 @@ public class CardOverrideEditorService {
                 effect(AbilityEffectKeys.FREEZE, "Freeze", "Applies the freeze status.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),
                 effect(AbilityEffectKeys.SPEED_ZERO, "Speed Zero", "Sets effective Speed to 0 for the turn.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),
                 effect(AbilityEffectKeys.DAMAGE_BOOST, "Damage Boost", "Adds temporary attack damage.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
-                effect(AbilityEffectKeys.HEALTH_BOOST, "Health Boost", "Adds temporary max health and heals by the same amount.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
+                effect(AbilityEffectKeys.HEALTH_BOOST, "Shield", "Adds temporary shield health.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST, "Connected Allies Damage Boost", "Buffs allied Sieglings that share a direct active link with the source card.", List.of("SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, "Connected Allies Health Boost", "Gives directly linked allied Sieglings extra max health.", List.of("SELF")),
                 effect(AbilityEffectKeys.SPEED_BOOST, "Speed Boost", "Adds temporary speed.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),

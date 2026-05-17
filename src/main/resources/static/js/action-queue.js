@@ -46,6 +46,7 @@
         ABILITY: 'uses',
         ATTACK:  'attacks',
         HEAL:    'heals',
+        SHIELD:  'shields',
         STATUS_APPLY: 'gains',
         BLOCK:   'blocks',
         EFFECT:  'effect',
@@ -61,7 +62,7 @@
         SPEED_ZERO:   'Stunned',
         WEAK:         'Weakened',
         STRONG:       'Strengthened',
-        HEALTH_BOOST: 'HP Boost',
+        HEALTH_BOOST: 'Shield',
         DAMAGE_BOOST: 'Damage Boost',
         SPEED_BOOST:  'Speed Boost'
     };
@@ -149,8 +150,9 @@
             const labelText = (toast.label != null)
                 ? toast.label
                 : (ACTION_LABEL[toast.kind] || toast.kind || '');
-            const damagePart = (toast.amount > 0)
-                ? `<span class="sgl-toast-damage" style="color:${elHex}">-${toast.amount}</span>`
+            const amountSign = toast.amountSign || (toast.kind === 'HEAL' || toast.kind === 'SHIELD' ? '+' : '-');
+            const amountPart = (toast.amount > 0)
+                ? `<span class="sgl-toast-damage" style="color:${elHex}">${escapeHtml(amountSign)}${toast.amount}</span>`
                 : '';
             const subtitle = toast.subtitle ? `<div class="sgl-toast-sub">${escapeHtml(toast.subtitle)}</div>` : '';
             const portraitHtml = toast.portraitHtml || `<span class="sgl-toast-sigil">${elementSigil(toast.elementColor || toast.knightElement)}</span>`;
@@ -162,7 +164,7 @@
                         <span class="sgl-toast-actor">${escapeHtml(toast.actorName || '')}</span>
                         <span class="sgl-toast-action">${escapeHtml(labelText)}</span>
                         <span class="sgl-toast-target">${escapeHtml(toast.targetName || '')}</span>
-                        ${damagePart}
+                        ${amountPart}
                     </div>
                     ${subtitle}
                 </div>
@@ -289,7 +291,7 @@
         SPEED_ZERO:   { className: 'sgl-status-speed-zero',   element: 'METAL',    duration: 700  },
         WEAK:         { className: 'sgl-status-weak',         element: 'SHADOW',   duration: 700  },
         STRONG:       { className: 'sgl-status-strong',       element: 'NEUTRAL',  duration: 700  },
-        HEALTH_BOOST: { className: 'sgl-status-health-boost', element: 'WIND',     duration: 700  },
+        HEALTH_BOOST: { className: 'sgl-status-health-boost', element: 'METAL',    duration: 700  },
         DAMAGE_BOOST: { className: 'sgl-status-damage-boost', element: 'FIRE',     duration: 700  },
         SPEED_BOOST:  { className: 'sgl-status-speed-boost',  element: 'ELECTRIC', duration: 700  }
     };
@@ -447,9 +449,9 @@
     }
     function parseEvolutionFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(.+?)\s+evolved\s+to\s+(.+?)!?$/i);
+        const m = text.match(/^(?:(.+?)\s+)?evolved\s+(.+?)\s+into\s+(.+?)[.!]?$/i);
         if (!m) return null;
-        return { from: m[1].trim(), to: m[2].trim() };
+        return { actor: (m[1] || '').trim(), from: m[2].trim(), to: m[3].trim() };
     }
     function diffPlacements(prev, next, isPlayer) {
         const out = [];
@@ -484,10 +486,39 @@
                     || (String(p.name || '') === String(n.name || '') && p.name);
                 const prevHp = p.hp ?? 0;
                 const nextHp = n.hp ?? 0;
-                if (same && nextHp > prevHp) {
+                const prevMaxHp = Number(p.maxHp);
+                const nextMaxHp = Number(n.maxHp);
+                const shieldGained = Number.isFinite(prevMaxHp) && Number.isFinite(nextMaxHp) && nextMaxHp > prevMaxHp;
+                if (same && nextHp > prevHp && !shieldGained) {
                     out.push({
                         isPlayer, row: r, col: c,
                         amount: nextHp - prevHp,
+                        element: normalizeElement(n.element || p.element),
+                        name: n.name || p.name || '',
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                    });
+                }
+            }
+        }
+        return out;
+    }
+    function diffShields(prev, next, isPlayer) {
+        const out = [];
+        if (!prev || !next) return out;
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const p = prev[r]?.[c];
+                const n = next[r]?.[c];
+                if (!p || !n) continue;
+                const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
+                    || (p.id && n.id && p.id === n.id)
+                    || (String(p.name || '') === String(n.name || '') && p.name);
+                const prevMaxHp = Number(p.maxHp);
+                const nextMaxHp = Number(n.maxHp);
+                if (same && Number.isFinite(prevMaxHp) && Number.isFinite(nextMaxHp) && nextMaxHp > prevMaxHp) {
+                    out.push({
+                        isPlayer, row: r, col: c,
+                        amount: nextMaxHp - prevMaxHp,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
                         instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
@@ -508,6 +539,9 @@
                 const pStatuses = new Set((p?.statuses || []).map((s) => String(s).toUpperCase()));
                 const nStatuses = (n.statuses || []).map((s) => String(s).toUpperCase());
                 for (const s of nStatuses) {
+                    if (s === 'HEALTH_BOOST') {
+                        continue;
+                    }
                     if (!pStatuses.has(s)) {
                         out.push({
                             isPlayer, row: r, col: c,
@@ -828,11 +862,12 @@
             const safeHp = Math.max(0, Number.isFinite(Number(hp)) ? Number(hp) : 0);
             const safeMax = Math.max(0, Number.isFinite(Number(maxHp)) ? Number(maxHp) : 0);
             const printedHp = Number(entry?.printedHealth);
-            const hpBuffed = Number.isFinite(printedHp) && safeMax > printedHp;
-            const buff = hpBuffed
-                ? `<span class="card-stat-asterisk" style="color:${elementHex(entry.element)}" title="Buffed">*</span>`
+            const shield = Number.isFinite(printedHp) ? Math.max(0, safeMax - printedHp) : 0;
+            const baseMax = shield > 0 ? printedHp : safeMax;
+            const shieldHtml = shield > 0
+                ? `<span class="stat-shield" title="Shield">+${shield}</span>`
                 : '';
-            return `${safeHp}/<span class="stat-hp-max">${safeMax}</span>${buff}`;
+            return `${safeHp}/<span class="stat-hp-max">${baseMax}</span>${shieldHtml}`;
         }
         applyHealthToDom(entry, hp, maxHp) {
             if (!entry) return;
@@ -1397,6 +1432,8 @@
             // BATTLE block but doesn't pre-empt attack animations.
             const healingOnPlayer = diffHealing(prevPlayer, nextPlayer, true);
             const healingOnEnemy  = diffHealing(prevEnemy,  nextEnemy,  false);
+            const shieldsOnPlayer = diffShields(prevPlayer, nextPlayer, true);
+            const shieldsOnEnemy  = diffShields(prevEnemy,  nextEnemy,  false);
             const queueHeal = (h) => {
                 const healerRef = resolveHealerFromLogs(prevPlayer, prevEnemy, h, newLogs);
                 const targetIsPlayer = h.isPlayer;
@@ -1421,8 +1458,27 @@
                     gapAfterMs: BATTLE_GAP_MS
                 });
             };
+            const queueShield = (h) => {
+                const targetIsPlayer = h.isPlayer;
+                const side = targetIsPlayer ? 'PLAYER' : 'ENEMY';
+                const knight = side === 'PLAYER' ? playerKnight : enemyKnight;
+                this.enqueueAction({
+                    kind: 'SHIELD',
+                    side,
+                    actorName: side === 'PLAYER' ? playerName : enemyName,
+                    targetName: h.name,
+                    amount: h.amount,
+                    amountSign: '+',
+                    knightElement: knight,
+                    elementColor: 'METAL',
+                    target: { isPlayer: h.isPlayer, row: h.row, col: h.col, element: 'METAL' },
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            };
             for (const h of healingOnPlayer) queueHeal(h);
             for (const h of healingOnEnemy)  queueHeal(h);
+            for (const h of shieldsOnPlayer) queueShield(h);
+            for (const h of shieldsOnEnemy)  queueShield(h);
 
             // Phase change toast — appended AFTER the just-ended phase's
             // animations and BEFORE the new phase's placements, so the toast
@@ -1722,6 +1778,24 @@
             // 2b. Direct attack on the enemy/player HP bar — no cell target,
             // so we fire the projectile to the bar's screen coordinates and
             // shake/flash the bar on impact.
+            if (action.kind === 'SHIELD' && action.target) {
+                applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, 'HEALTH_BOOST');
+                const cellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
+                if (action.amount && cellEl && window.SieglingsFx?.floatingText) {
+                    const r = cellEl.getBoundingClientRect();
+                    window.SieglingsFx.floatingText(
+                        r.left + r.width / 2,
+                        r.top + r.height * 0.3,
+                        `+${action.amount}`,
+                        '#a8b0ba', 30
+                    );
+                }
+                await sleep(t.impactMs);
+                const shieldGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(shieldGap);
+                return;
+            }
+
             if (action.kind === 'ATTACK' && action.source && action.target?.healthBar
                 && window.SieglingsFx?.attackPoint) {
                 const barCenter = this._getHealthBarCenter(action.target.isPlayer);

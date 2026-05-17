@@ -4381,6 +4381,22 @@ body.placement-active .board-cell.legal {
 
 .stat-hp  { background: var(--success); color: var(--bg); }
 .stat-spd { background: var(--accent); color: var(--bg); }
+.stat-shield {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 2px;
+    padding: 0 2px;
+    border-radius: 2px;
+    background: #a8b0ba;
+    color: #18202a;
+    font-weight: 900;
+}
+.stat-shield::before {
+    content: "SH ";
+    font-size: 0.76em;
+    font-weight: 800;
+    text-transform: uppercase;
+}
 
 .hp-bar {
     width: 100%;
