@@ -274,20 +274,22 @@ img { display: block; }
     font-weight: 900;
     font-size: clamp(2.6rem, 7vw, 5.4rem);
     letter-spacing: 0.06em;
-    /* All stops are vivid — no white that can go invisible */
+    /* Solid element bands only: Fire, Ice, Wind, Earth. */
     background: linear-gradient(100deg,
         var(--element-fire) 0%,
+        var(--element-fire) 25%,
         var(--element-ice) 25%,
+        var(--element-ice) 50%,
         var(--element-wind) 50%,
+        var(--element-wind) 75%,
         var(--element-earth) 75%,
-        var(--element-fire) 100%);
-    background-size: 320% 100%;
+        var(--element-earth) 100%);
+    background-size: 100% 100%;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
     /* Stroke traces the letter edges so shape reads even mid-wave */
     -webkit-text-stroke: 1px rgba(255, 255, 255, 0.18);
-    animation: siegelings-color-wave 9s ease-in-out infinite;
     /* drop-shadow works with transparent fill; text-shadow alone doesn't */
     filter:
         drop-shadow(0 0 22px rgba(80, 180, 255, 0.65))
