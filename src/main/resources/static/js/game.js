@@ -247,16 +247,53 @@ const STATUS_BADGE_SVG = {
     STRONG: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-st-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff4c0"/><stop offset="50%" stop-color="#e8a020"/><stop offset="100%" stop-color="#5a3a08"/></radialGradient><linearGradient id="sb-st-star" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#ffe080"/><stop offset="100%" stop-color="#e8a020"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ffd060" opacity=".3" class="sb-pulse"/><g class="sb-spin-rev" opacity=".55"><line x1="42" y1="6" x2="42" y2="14" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="42" y1="70" x2="42" y2="78" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="42" x2="14" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="70" y1="42" x2="78" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/></g><circle cx="42" cy="42" r="34" fill="url(#sb-st-bg)" stroke="#fff4c0" stroke-width="2"/><polygon points="42,20 47,35 63,35 50,44 55,60 42,51 29,60 34,44 21,35 37,35" fill="url(#sb-st-star)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-float"/><g transform="translate(60 60)"><circle r="9" fill="#3a2008" stroke="#ffe080" stroke-width="1.5"/><path d="M0 4 L0 -4 M-3 -1 L0 -4 L3 -1" stroke="#ffe080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`
 };
 
-function renderStatusBadge(kind, amount) {
+function getShieldInfo(cell, hpOverride, maxHpOverride) {
+    const printedHp = Number(cell?.printedHealth);
+    const hp = Number(hpOverride ?? cell?.hp);
+    const maxHp = Number(maxHpOverride ?? cell?.maxHp);
+    if (!Number.isFinite(printedHp) || !Number.isFinite(maxHp)) {
+        return { active: false, total: 0, intact: 0, depleted: 0, state: 'none', intactPct: 0 };
+    }
+    const total = Math.max(0, maxHp - printedHp);
+    const intact = Number.isFinite(hp)
+        ? Math.max(0, Math.min(total, hp - printedHp))
+        : total;
+    const depleted = Math.max(0, total - intact);
+    const state = total <= 0
+        ? 'none'
+        : intact <= 0
+            ? 'depleted'
+            : depleted > 0
+                ? 'partial'
+                : 'intact';
+    const intactPct = total > 0 ? Math.round((intact / total) * 100) : 0;
+    return { active: total > 0, total, intact, depleted, state, intactPct };
+}
+
+function renderShieldChip(info) {
+    if (!info?.active) return '';
+    const stateClass = ` stat-shield--${info.state}`;
+    const title = info.depleted > 0
+        ? `Shield +${info.total}: ${info.intact} intact, ${info.depleted} depleted`
+        : `Shield +${info.total}: intact`;
+    return `<span class="stat-shield${stateClass}" title="${title}" data-shield-state="${info.state}" style="--shield-intact-pct:${info.intactPct}%">+${info.total}</span>`;
+}
+
+function renderStatusBadge(kind, amount, options = {}) {
     const svg = STATUS_BADGE_SVG[kind];
     if (!svg) return '';
     const color = STATUS_BADGE_PALETTE[kind] || '#fff';
     const label = STATUS_BADGE_LABEL[kind] || kind;
-    const tooltip = amount > 0 ? `${label} +${amount}` : label;
+    const shieldState = options.shieldState || '';
+    const shieldStateText = kind === 'HEALTH_BOOST' && shieldState && shieldState !== 'intact'
+        ? ` (${shieldState})`
+        : '';
+    const tooltip = amount > 0 ? `${label} +${amount}${shieldStateText}` : `${label}${shieldStateText}`;
     const numHtml = amount > 0
         ? `<span class="sb-num" style="--sb-color:${color}">+${amount}</span>`
         : '';
-    return `<span class="sb-badge" style="--sb-color:${color}" title="${tooltip}" data-status="${kind}">${svg}${numHtml}</span>`;
+    const shieldAttr = shieldState ? ` data-shield-state="${shieldState}"` : '';
+    return `<span class="sb-badge" style="--sb-color:${color}" title="${tooltip}" data-status="${kind}"${shieldAttr}>${svg}${numHtml}</span>`;
 }
 
 function renderStatusBadgesForCell(cell) {
@@ -267,28 +304,32 @@ function renderStatusBadgesForCell(cell) {
     const maxHp = Number(cell.maxHp);
     const spd = Number(cell.spd);
     const dmgBoost = Number(cell.damageBoost) || 0;
+    const shieldInfo = getShieldInfo(cell);
 
     const items = [];
     const seen = new Set();
-    const push = (kind, amount) => {
+    const push = (kind, amount, options = {}) => {
         if (seen.has(kind)) return;
         seen.add(kind);
-        items.push(renderStatusBadge(kind, amount));
+        items.push(renderStatusBadge(kind, amount, options));
     };
 
     statuses.forEach((raw) => {
         const kind = String(raw || '').toUpperCase();
         let amount = 0;
         if (kind === 'HEALTH_BOOST' && Number.isFinite(maxHp) && Number.isFinite(printedHp)) {
-            amount = Math.max(0, maxHp - printedHp);
+            amount = shieldInfo.total;
         } else if (kind === 'DAMAGE_BOOST') {
             amount = dmgBoost;
         } else if (kind === 'SPEED_BOOST' && Number.isFinite(spd) && Number.isFinite(printedSpd)) {
             amount = Math.max(0, spd - printedSpd);
         }
-        push(kind, amount);
+        push(kind, amount, kind === 'HEALTH_BOOST' ? { shieldState: shieldInfo.state } : {});
     });
 
+    if (!seen.has('HEALTH_BOOST') && shieldInfo.active) {
+        push('HEALTH_BOOST', shieldInfo.total, { shieldState: shieldInfo.state });
+    }
     // Inferred SPEED_BOOST when speed is buffed but no explicit status flag (backend may not yet emit it)
     if (!seen.has('SPEED_BOOST') && !seen.has('SPEED_ZERO') && Number.isFinite(spd) && Number.isFinite(printedSpd) && spd > printedSpd) {
         push('SPEED_BOOST', spd - printedSpd);

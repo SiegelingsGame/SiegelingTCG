@@ -4382,20 +4382,35 @@ body.placement-active .board-cell.legal {
 .stat-hp  { background: var(--success); color: var(--bg); }
 .stat-spd { background: var(--accent); color: var(--bg); }
 .stat-shield {
+    --shield-intact-pct: 100%;
     display: inline-flex;
     align-items: center;
     margin-left: 2px;
     padding: 0 2px;
     border-radius: 2px;
-    background: #a8b0ba;
+    border: 1px solid rgba(24, 32, 42, 0.28);
+    background: linear-gradient(90deg, #eef4f8 0 var(--shield-intact-pct), #79838e var(--shield-intact-pct) 100%);
     color: #18202a;
     font-weight: 900;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 .stat-shield::before {
     content: "SH ";
     font-size: 0.76em;
     font-weight: 800;
     text-transform: uppercase;
+}
+.stat-shield--partial {
+    color: #111820;
+    background: linear-gradient(90deg, #f7fbff 0 var(--shield-intact-pct), #6f7a86 var(--shield-intact-pct) 100%);
+}
+.stat-shield--depleted {
+    color: #f2f5f7;
+    background:
+        repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 2px, transparent 2px 5px),
+        linear-gradient(180deg, #6f7882, #444d58);
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(24, 32, 42, 0.28);
 }
 
 /* Shield buffer chip — appears inside the HP stat block when a card has
@@ -4516,6 +4531,15 @@ body.placement-active .board-cell.legal {
 .sb-badge:hover {
     transform: scale(1.18);
     z-index: 3;
+}
+
+.sb-badge[data-status="HEALTH_BOOST"][data-shield-state="depleted"] {
+    opacity: 0.76;
+    filter: grayscale(0.85) brightness(0.88) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.sb-badge[data-status="HEALTH_BOOST"][data-shield-state="partial"] {
+    filter: saturate(0.86) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
 }
 
 .sb-svg {
