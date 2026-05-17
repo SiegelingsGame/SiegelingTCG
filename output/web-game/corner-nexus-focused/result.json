@@ -1,0 +1,15 @@
+{
+  "nonreciprocal": {
+    "kind": "nonreciprocal",
+    "overlayCount": 0,
+    "contributionKeys": []
+  },
+  "reciprocal": {
+    "kind": "reciprocal",
+    "overlayCount": 1,
+    "contributionKeys": [
+      "2:2"
+    ]
+  },
+  "errors": []
+}

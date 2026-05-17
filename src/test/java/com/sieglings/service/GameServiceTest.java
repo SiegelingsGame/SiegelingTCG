@@ -75,6 +75,40 @@ class GameServiceTest {
     }
 
     @Test
+    void evolutionLogSaysBaseEvolvedToNewForm() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        setField(gameService, "energyService", new EnergyService(placementService));
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        SieglingCard base = new SieglingCard("emberpup", "Emberpup", Element.FIRE, Rarity.COMMON, 10, 3, List.of(), Row.FRONT);
+        SieglingCard evolved = new SieglingCard("pylook", "Pylook", Element.FIRE, Rarity.UNCOMMON, 14, 4, List.of(), Row.FRONT);
+        evolved.setEvolvesFromId("emberpup");
+        player.getHand().add(evolved);
+
+        CardInstance baseInstance = new CardInstance(base, 2, 1, true);
+        baseInstance.setBattlePhasesSeen(1);
+        state.setAt(true, 2, 1, baseInstance);
+
+        gameService.placeSiegling(state, true, "pylook", 2, 1);
+
+        assertTrue(
+                state.getGameLog().stream().anyMatch(entry -> entry.endsWith("Emberpup evolved to Pylook!")),
+                "Evolution should be logged as the base evolving into the new form."
+        );
+    }
+
+    @Test
     void trainerActivesResetOnlyAfterBattlePhaseCompletes() throws Exception {
         GameService gameService = new GameService();
         setField(gameService, "energyService", new EnergyService(new PlacementService()));
