@@ -6677,6 +6677,11 @@ body.placement-active .board-cell.legal {
     display: flex;
 }
 
+body:has(.welcome-overlay.visible) .top-bar,
+body:has(.welcome-overlay.visible) .mobile-hud {
+    display: none;
+}
+
 .welcome-shell {
     width: min(var(--overlay-shell-width), 100%);
     max-height: min(92vh, 980px);
