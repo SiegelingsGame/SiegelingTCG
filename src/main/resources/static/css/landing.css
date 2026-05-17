@@ -720,10 +720,17 @@ img { display: block; }
     color: #f4f6fb;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.36s ease, visibility 0.36s ease;
+    /* Fade-in is fast on appear (so the gate covers the loadout instantly
+       when Start Battle is pressed) and a touch longer on exit so the
+       hand-off into the arena feels less abrupt. */
+    transition: opacity 0.32s ease, visibility 0.32s ease;
     overflow: hidden;
 }
-.sgl-loading-gate.visible { opacity: 1; visibility: visible; }
+.sgl-loading-gate.visible {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.06s linear, visibility 0s;
+}
 
 .sgl-gate-bg {
     position: absolute;
