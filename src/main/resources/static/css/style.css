@@ -4382,6 +4382,29 @@ body.placement-active .board-cell.legal {
 .stat-hp  { background: var(--success); color: var(--bg); }
 .stat-spd { background: var(--accent); color: var(--bg); }
 
+/* Shield buffer chip — appears inside the HP stat block when a card has
+   HP exceeding its printed maximum (an absorb shield). The chip stacks
+   to the right of the HP numbers and reads "<icon> N". */
+.stat-shield {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+    padding: 0 4px 0 3px;
+    border-radius: 999px;
+    background: rgba(118, 230, 255, 0.18);
+    border: 1px solid rgba(118, 230, 255, 0.65);
+    color: #d8f6ff;
+    font-weight: 800;
+    text-shadow: 0 0 5px rgba(118, 230, 255, 0.7);
+}
+.stat-shield-icon {
+    width: 0.9em;
+    height: 0.9em;
+    color: #76e6ff;
+    filter: drop-shadow(0 0 3px rgba(118, 230, 255, 0.7));
+}
+
 .hp-bar {
     width: 100%;
     height: 4px;
@@ -8679,6 +8702,29 @@ body.placement-active .board-cell.legal {
     .sgl-toast-portrait { width: 32px; height: 32px; flex-basis: 32px; font-size: 18px; }
     .sgl-toast-line { font-size: 0.86rem; }
     .sgl-toast-damage { font-size: 1rem; }
+}
+
+/* Shield-break chip inside a battle toast — sits next to the damage chip
+   so the player can see how much was absorbed before HP took the rest. */
+.sgl-toast-shield {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 6px;
+    padding: 1px 8px 1px 6px;
+    border-radius: 999px;
+    background: rgba(118, 230, 255, 0.18);
+    border: 1px solid rgba(118, 230, 255, 0.65);
+    color: #d8f6ff;
+    font-weight: 900;
+    font-size: 0.95rem;
+    text-shadow: 0 0 6px rgba(118, 230, 255, 0.75);
+}
+.sgl-toast-shield svg {
+    width: 0.95em;
+    height: 0.95em;
+    color: #76e6ff;
+    filter: drop-shadow(0 0 4px rgba(118, 230, 255, 0.8));
 }
 
 /* Card pulse / scale on action ----------------------------------------- */

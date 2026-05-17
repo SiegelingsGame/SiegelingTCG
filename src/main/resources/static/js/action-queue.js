@@ -146,11 +146,28 @@
             const labelText = (toast.label != null)
                 ? toast.label
                 : (ACTION_LABEL[toast.kind] || toast.kind || '');
-            const damagePart = (toast.amount > 0)
-                ? `<span class="sgl-toast-damage" style="color:${elHex}">-${toast.amount}</span>`
-                : '';
             const subtitle = toast.subtitle ? `<div class="sgl-toast-sub">${escapeHtml(toast.subtitle)}</div>` : '';
             const portraitHtml = toast.portraitHtml || `<span class="sgl-toast-sigil">${elementSigil(toast.elementColor || toast.knightElement)}</span>`;
+
+            // Split the damage chip so the player can see what was absorbed
+            // by a shield versus what reached HP. When the queue passes both
+            // shieldBroken and hpLoss, those win over the raw amount.
+            const shieldBroken = Number(toast.shieldBroken) || 0;
+            const hpLoss = Number(toast.hpLoss);
+            const hasSplit = Number.isFinite(hpLoss) || shieldBroken > 0;
+            const visibleDamage = hasSplit
+                ? (Number.isFinite(hpLoss) ? hpLoss : (toast.amount - shieldBroken))
+                : (Number(toast.amount) || 0);
+            const shieldPart = shieldBroken > 0
+                ? `<span class="sgl-toast-shield" title="Shield absorbed ${shieldBroken}">`
+                    + `<svg viewBox="0 0 16 16" aria-hidden="true">`
+                    + `<path d="M8 1 L14 3.4 V8 C14 11.5 11 13.7 8 15 C5 13.7 2 11.5 2 8 V3.4 Z" `
+                    + `fill="currentColor" stroke="#ffffff" stroke-width="1" stroke-linejoin="round"/>`
+                    + `</svg>-${shieldBroken}</span>`
+                : '';
+            const damagePart = (visibleDamage > 0)
+                ? `<span class="sgl-toast-damage" style="color:${elHex}">-${visibleDamage}</span>`
+                : '';
 
             node.innerHTML = `
                 <div class="sgl-toast-portrait">${portraitHtml}</div>
@@ -159,6 +176,7 @@
                         <span class="sgl-toast-actor">${escapeHtml(toast.actorName || '')}</span>
                         <span class="sgl-toast-action">${escapeHtml(labelText)}</span>
                         <span class="sgl-toast-target">${escapeHtml(toast.targetName || '')}</span>
+                        ${shieldPart}
                         ${damagePart}
                     </div>
                     ${subtitle}
@@ -508,9 +526,23 @@
                 const prevHp = p.hp ?? 0;
                 const nextHp = n.hp ?? 0;
                 if (same && nextHp < prevHp) {
+                    // Split the hit into "shield absorbed" and "HP lost":
+                    //   shield = max(0, hp - printedHealth)
+                    // If the card was over its printed HP, that overflow is
+                    // an absorb buffer the player should see called out as
+                    // a shield break rather than rolled into the HP damage.
+                    const printedHp = Number(p.printedHealth);
+                    const ph = Number.isFinite(printedHp) ? printedHp : null;
+                    const prevShield = ph != null ? Math.max(0, prevHp - ph) : 0;
+                    const nextShield = ph != null ? Math.max(0, nextHp - ph) : 0;
+                    const shieldBroken = Math.max(0, prevShield - nextShield);
+                    const hpLoss = Math.max(0, (prevHp - nextHp) - shieldBroken);
                     out.push({
                         isPlayer, row: r, col: c,
                         amount: prevHp - nextHp,
+                        shieldBroken,
+                        hpLoss,
+                        shieldFullyBroken: prevShield > 0 && nextShield === 0,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
                         instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
@@ -942,6 +974,9 @@
                         isPlayer: defenderIsPlayer,
                         row: t.row, col: t.col,
                         amount: t.amount,
+                        shieldBroken: Number(t.shieldBroken) || 0,
+                        hpLoss: Number(t.hpLoss) || 0,
+                        shieldFullyBroken: !!t.shieldFullyBroken,
                         element: t.element,
                         name: t.name,
                         destroysTarget: !!destroyed,
@@ -1072,13 +1107,25 @@
 
                 if (targets.length === 1) {
                     const t = targets[0];
+                    // "Broke <Target>'s +N Shield - M Damage dealt" toast
+                    // when this hit fully consumed the shield buffer.
+                    const broke = t.shieldFullyBroken && t.shieldBroken > 0;
                     this.enqueueAction({
                         kind: 'ATTACK',
                         side,
-                        actorName: realAttacker || t.name,
-                        targetName: realAttacker ? t.name : '',
-                        label: realAttacker ? undefined : 'takes',
+                        actorName: broke
+                            ? `Broke ${t.name}'s`
+                            : (realAttacker || t.name),
+                        targetName: broke
+                            ? ''
+                            : (realAttacker ? t.name : ''),
+                        label: broke
+                            ? undefined
+                            : (realAttacker ? undefined : 'takes'),
                         amount: t.amount,
+                        shieldBroken: t.shieldBroken,
+                        hpLoss: t.hpLoss,
+                        shieldFullyBroken: t.shieldFullyBroken,
                         knightElement: knight,
                         elementColor: srcElement,
                         source: sourcePayload,
@@ -1090,8 +1137,11 @@
                     });
                     return;
                 }
-                // Multi-target: simultaneous barrage
+                // Multi-target: simultaneous barrage. Aggregate shield/HP
+                // damage across the targets so the toast can show the total.
                 const totalDmg = targets.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
+                const totalShieldBroken = targets.reduce((sum, tt) => sum + (Number(tt.shieldBroken) || 0), 0);
+                const totalHpLoss = targets.reduce((sum, tt) => sum + (Number(tt.hpLoss) || 0), 0);
                 const groupLabel = describeTargets(targets, defenderLabel);
                 this.enqueueAction({
                     kind: 'ATTACK',
@@ -1100,6 +1150,8 @@
                     targetName: realAttacker ? groupLabel : '',
                     label: realAttacker ? undefined : 'takes',
                     amount: totalDmg,
+                    shieldBroken: totalShieldBroken,
+                    hpLoss: totalHpLoss,
                     knightElement: knight,
                     elementColor: srcElement,
                     source: sourcePayload,
@@ -1107,6 +1159,8 @@
                         isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
                         element: tt.element || srcElement,
                         amount: tt.amount,
+                        shieldBroken: tt.shieldBroken,
+                        hpLoss: tt.hpLoss,
                         destroysTarget: tt.destroysTarget,
                         ghostCell: tt.ghostCell,
                         statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null
