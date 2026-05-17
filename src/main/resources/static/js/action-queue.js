@@ -150,12 +150,33 @@
             const labelText = (toast.label != null)
                 ? toast.label
                 : (ACTION_LABEL[toast.kind] || toast.kind || '');
-            const amountSign = toast.amountSign || (toast.kind === 'HEAL' || toast.kind === 'SHIELD' ? '+' : '-');
-            const amountPart = (toast.amount > 0)
-                ? `<span class="sgl-toast-damage" style="color:${elHex}">${escapeHtml(amountSign)}${toast.amount}</span>`
-                : '';
             const subtitle = toast.subtitle ? `<div class="sgl-toast-sub">${escapeHtml(toast.subtitle)}</div>` : '';
             const portraitHtml = toast.portraitHtml || `<span class="sgl-toast-sigil">${elementSigil(toast.elementColor || toast.knightElement)}</span>`;
+
+            // Default sign — heals and shields gain HP, everything else loses
+            // it. Callers can override via toast.amountSign.
+            const amountSign = toast.amountSign
+                || (toast.kind === 'HEAL' || toast.kind === 'SHIELD' ? '+' : '-');
+
+            // Split the damage chip so the player can see what was absorbed
+            // by a shield versus what reached HP. When the queue passes both
+            // shieldBroken and hpLoss, those win over the raw amount.
+            const shieldBroken = Number(toast.shieldBroken) || 0;
+            const hpLoss = Number(toast.hpLoss);
+            const hasSplit = Number.isFinite(hpLoss) || shieldBroken > 0;
+            const visibleDamage = hasSplit
+                ? (Number.isFinite(hpLoss) ? hpLoss : (toast.amount - shieldBroken))
+                : (Number(toast.amount) || 0);
+            const shieldPart = shieldBroken > 0
+                ? `<span class="sgl-toast-shield" title="Shield absorbed ${shieldBroken}">`
+                    + `<svg viewBox="0 0 16 16" aria-hidden="true">`
+                    + `<path d="M8 1 L14 3.4 V8 C14 11.5 11 13.7 8 15 C5 13.7 2 11.5 2 8 V3.4 Z" `
+                    + `fill="currentColor" stroke="#ffffff" stroke-width="1" stroke-linejoin="round"/>`
+                    + `</svg>-${shieldBroken}</span>`
+                : '';
+            const damagePart = (visibleDamage > 0)
+                ? `<span class="sgl-toast-damage" style="color:${elHex}">${escapeHtml(amountSign)}${visibleDamage}</span>`
+                : '';
 
             node.innerHTML = `
                 <div class="sgl-toast-portrait">${portraitHtml}</div>
@@ -164,7 +185,8 @@
                         <span class="sgl-toast-actor">${escapeHtml(toast.actorName || '')}</span>
                         <span class="sgl-toast-action">${escapeHtml(labelText)}</span>
                         <span class="sgl-toast-target">${escapeHtml(toast.targetName || '')}</span>
-                        ${amountPart}
+                        ${shieldPart}
+                        ${damagePart}
                     </div>
                     ${subtitle}
                 </div>
@@ -207,6 +229,23 @@
         setTimeout(() => {
             card.classList.remove('sgl-acting', 'sgl-acting-attack', 'sgl-acting-play');
         }, Math.max(120, durationMs || 600));
+    }
+
+    // Animate the right-most N shield plates on a board cell so the player
+    // sees the absorb buffer chipping away as a hit lands. The plates are
+    // rendered by game.js's render(); we just toggle the breaking class.
+    // Re-renders triggered by the queue/state update will replace the DOM
+    // with the new (smaller) plate count, picking up where this leaves off.
+    function breakShieldPlates(isPlayer, row, col, count) {
+        if (!count || count <= 0) return;
+        const cellEl = findCellEl(isPlayer, row, col);
+        if (!cellEl) return;
+        const plates = cellEl.querySelectorAll('.shield-plates .shield-plate');
+        if (!plates || !plates.length) return;
+        const start = Math.max(0, plates.length - count);
+        for (let i = start; i < plates.length; i++) {
+            plates[i].classList.add('sgl-plate-breaking');
+        }
     }
 
     function flashImpact(isPlayer, row, col, elementHexValue) {
@@ -570,9 +609,23 @@
                 const prevHp = p.hp ?? 0;
                 const nextHp = n.hp ?? 0;
                 if (same && nextHp < prevHp) {
+                    // Split the hit into "shield absorbed" and "HP lost":
+                    //   shield = max(0, hp - printedHealth)
+                    // If the card was over its printed HP, that overflow is
+                    // an absorb buffer the player should see called out as
+                    // a shield break rather than rolled into the HP damage.
+                    const printedHp = Number(p.printedHealth);
+                    const ph = Number.isFinite(printedHp) ? printedHp : null;
+                    const prevShield = ph != null ? Math.max(0, prevHp - ph) : 0;
+                    const nextShield = ph != null ? Math.max(0, nextHp - ph) : 0;
+                    const shieldBroken = Math.max(0, prevShield - nextShield);
+                    const hpLoss = Math.max(0, (prevHp - nextHp) - shieldBroken);
                     out.push({
                         isPlayer, row: r, col: c,
                         amount: prevHp - nextHp,
+                        shieldBroken,
+                        hpLoss,
+                        shieldFullyBroken: prevShield > 0 && nextShield === 0,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
                         instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
@@ -1207,6 +1260,9 @@
                         isPlayer: defenderIsPlayer,
                         row: t.row, col: t.col,
                         amount: t.amount,
+                        shieldBroken: Number(t.shieldBroken) || 0,
+                        hpLoss: Number(t.hpLoss) || 0,
+                        shieldFullyBroken: !!t.shieldFullyBroken,
                         element: t.element,
                         name: t.name,
                         destroysTarget: !!destroyed,
@@ -1344,13 +1400,25 @@
 
                 if (targets.length === 1) {
                     const t = targets[0];
+                    // "Broke <Target>'s +N Shield - M Damage dealt" toast
+                    // when this hit fully consumed the shield buffer.
+                    const broke = t.shieldFullyBroken && t.shieldBroken > 0;
                     this.enqueueAction({
                         kind: 'ATTACK',
                         side,
-                        actorName: realAttacker || t.name,
-                        targetName: realAttacker ? t.name : '',
-                        label: realAttacker ? undefined : 'takes',
+                        actorName: broke
+                            ? `Broke ${t.name}'s`
+                            : (realAttacker || t.name),
+                        targetName: broke
+                            ? ''
+                            : (realAttacker ? t.name : ''),
+                        label: broke
+                            ? undefined
+                            : (realAttacker ? undefined : 'takes'),
                         amount: t.amount,
+                        shieldBroken: t.shieldBroken,
+                        hpLoss: t.hpLoss,
+                        shieldFullyBroken: t.shieldFullyBroken,
                         knightElement: knight,
                         elementColor: srcElement,
                         source: sourcePayload,
@@ -1363,8 +1431,11 @@
                     });
                     return;
                 }
-                // Multi-target: simultaneous barrage
+                // Multi-target: simultaneous barrage. Aggregate shield/HP
+                // damage across the targets so the toast can show the total.
                 const totalDmg = targets.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
+                const totalShieldBroken = targets.reduce((sum, tt) => sum + (Number(tt.shieldBroken) || 0), 0);
+                const totalHpLoss = targets.reduce((sum, tt) => sum + (Number(tt.hpLoss) || 0), 0);
                 const groupLabel = describeTargets(targets, defenderLabel);
                 this.enqueueAction({
                     kind: 'ATTACK',
@@ -1373,6 +1444,8 @@
                     targetName: realAttacker ? groupLabel : '',
                     label: realAttacker ? undefined : 'takes',
                     amount: totalDmg,
+                    shieldBroken: totalShieldBroken,
+                    hpLoss: totalHpLoss,
                     knightElement: knight,
                     elementColor: srcElement,
                     source: sourcePayload,
@@ -1380,6 +1453,8 @@
                         isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
                         element: tt.element || srcElement,
                         amount: tt.amount,
+                        shieldBroken: tt.shieldBroken,
+                        hpLoss: tt.hpLoss,
                         destroysTarget: tt.destroysTarget,
                         ghostCell: tt.ghostCell,
                         pendingHealthKey: tt.pendingHealthKey,
@@ -1703,6 +1778,9 @@
                             tgt.element || action.elementColor || action.knightElement
                         );
                     }
+                    if (tgt.shieldBroken > 0) {
+                        breakShieldPlates(tgt.isPlayer, tgt.row, tgt.col, tgt.shieldBroken);
+                    }
                     if (tgt.statuses && tgt.statuses.length) {
                         for (const status of tgt.statuses) {
                             applyStatusVisual(tgt.isPlayer, tgt.row, tgt.col, status);
@@ -1886,6 +1964,9 @@
                         action.amount, action.elementColor || action.knightElement
                     );
                 }
+                if (action.shieldBroken > 0) {
+                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
+                }
                 if (action.statuses && action.statuses.length) {
                     for (const status of action.statuses) {
                         applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, status);
@@ -1969,6 +2050,9 @@
                         action.target.isPlayer, action.target.row, action.target.col,
                         action.amount, action.elementColor || action.knightElement
                     );
+                }
+                if (action.shieldBroken > 0) {
+                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
                 }
                 if (action.statuses && action.statuses.length) {
                     for (const status of action.statuses) {
