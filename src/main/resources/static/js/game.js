@@ -982,33 +982,34 @@ function renderBoardCellCombatStatsInner(cell) {
     const hp = cell.hp;
     const spd = cell.spd;
 
-    // HP that exceeds printedHealth is treated as a "shield" buffer: it
-    // shows as its own chip ("+N Shield") instead of inflating the HP
-    // numbers. Base HP is rendered against printedHealth so the card
-    // doesn't read as "16/15" when at full HP + 1 shield. As damage lands
-    // the shield amount drops (hp comes down toward printedHealth), so the
-    // chip count decreases — which the action queue mirrors with the
-    // plate chip-off animation.
-    const hasShield = Number.isFinite(printedHp) && hp > printedHp;
-    const shieldAmount = hasShield ? hp - printedHp : 0;
-    const visibleHp = hasShield ? printedHp : hp;
-    const visibleMax = Number.isFinite(printedHp) ? printedHp : maxHp;
-    // Only flag the asterisk for a "true" buff (max HP raised above the
-    // printed value) when the shield hasn't taken over the chip role.
-    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp && !hasShield;
+    // The shield visual is tied to the buff being *active* (maxHp raised
+    // above printedHealth), not just the remaining absorb buffer. That way
+    // a card that took damage through its shield still shows the chip +
+    // plates — the consumed plates render as "depleted" so the player
+    // knows the buff is on but partially used. Healing back above
+    // printedHealth re-charges those plates.
+    const hasShield = Number.isFinite(printedHp) && Number(maxHp) > printedHp;
+    const totalShield     = hasShield ? Math.max(0, Number(maxHp) - printedHp) : 0;
+    const remainingShield = hasShield ? Math.max(0, hp - printedHp)            : 0;
+    const visibleHp  = hasShield ? Math.min(hp, printedHp)                       : hp;
+    const visibleMax = Number.isFinite(printedHp) ? (hasShield ? printedHp : maxHp) : maxHp;
+    // Only flag the asterisk for a non-shield HP buff path (none today,
+    // but kept for backwards compat).
+    const hpBuffed = false;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
     let hpInner = `${visibleHp}/<span class="stat-hp-max">${visibleMax}</span>`;
     if (hpBuffed) {
         hpInner += renderCardStatAsterisk(el);
     }
-    if (shieldAmount > 0) {
-        hpInner += `<span class="stat-shield" title="${shieldAmount} Shield — absorbs damage before HP">`
+    if (hasShield) {
+        const chipTitle = `${remainingShield} of ${totalShield} Shield — absorbs damage before HP`;
+        hpInner += `<span class="stat-shield${remainingShield === 0 ? ' is-depleted' : ''}" title="${chipTitle}">`
             + `<svg viewBox="0 0 16 16" class="stat-shield-icon" aria-hidden="true">`
             + `<path d="M8 1 L14 3.4 V8 C14 11.5 11 13.7 8 15 C5 13.7 2 11.5 2 8 V3.4 Z" `
             + `fill="currentColor" stroke="#ffffff" stroke-width="1" stroke-linejoin="round"/>`
             + `</svg>`
-            + `${shieldAmount}</span>`;
+            + `${remainingShield}</span>`;
     }
 
     let spdInner = `${spd}`;
@@ -6650,26 +6651,25 @@ function renderBoard(gridId, board, isPlayer) {
                 html += `<div class="bc-stats-box">`;
                 {
                     // Render the HP bar against the printedHealth baseline so
-                    // a shield buff (hp > printedHealth) doesn't show as a
-                    // permanently-full bar. The shield chip in the stats
-                    // line tells the player about the absorb buffer.
+                    // a shield buff (maxHp > printedHealth) doesn't show as
+                    // a permanently-full bar. Plates are tied to the buff
+                    // being *active*, not just the remaining absorb, so a
+                    // partially-consumed shield still shows on the card and
+                    // re-charges when healed.
                     const _printedHp = Number(cell.printedHealth);
                     const _barMax = Number.isFinite(_printedHp) ? _printedHp : cell.maxHp;
                     const _barHp = Number.isFinite(_printedHp) ? Math.min(cell.hp, _printedHp) : cell.hp;
                     const _pct = _barMax > 0 ? Math.max(0, Math.min(100, (_barHp / _barMax) * 100)) : 0;
-                    const _shield = Number.isFinite(_printedHp) ? Math.max(0, cell.hp - _printedHp) : 0;
-                    // When the card has an absorb shield, cover the green
-                    // HP bar with grey metal plates — one plate per shield
-                    // point. Plates animate off as the shield breaks; once
-                    // they're all gone the bar shows through normally.
-                    const _platesHtml = _shield > 0
-                        ? `<div class="shield-plates" data-shield="${_shield}">${
-                                Array.from({ length: _shield },
-                                    (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
+                    const _totalShield     = Number.isFinite(_printedHp) ? Math.max(0, Number(cell.maxHp) - _printedHp) : 0;
+                    const _remainingShield = Number.isFinite(_printedHp) ? Math.max(0, cell.hp - _printedHp)            : 0;
+                    const _platesHtml = _totalShield > 0
+                        ? `<div class="shield-plates" data-total="${_totalShield}" data-remaining="${_remainingShield}">${
+                                Array.from({ length: _totalShield }, (_, i) =>
+                                    `<div class="shield-plate${i >= _remainingShield ? ' is-depleted' : ''}" data-plate-index="${i}"></div>`
                                 ).join('')
                             }</div>`
                         : '';
-                    html += `<div class="hp-bar${_shield > 0 ? ' is-shielded' : ''}">`
+                    html += `<div class="hp-bar${_totalShield > 0 ? ' is-shielded' : ''}">`
                         + `<div class="hp-fill" style="width:${_pct}%"></div>`
                         + _platesHtml
                         + `</div>`;
