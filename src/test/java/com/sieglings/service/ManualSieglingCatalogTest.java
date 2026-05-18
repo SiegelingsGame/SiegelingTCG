@@ -222,6 +222,51 @@ class ManualSieglingCatalogTest {
     }
 
     @Test
+    void manualSpellDefinitionsAreAuthoritativeWhenPresent() {
+        List<SpellCard> generated = GeneratedSpellCatalog.createSpells();
+
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ManualSieglingCatalog.ManualSieglingDefinition(
+                CardType.SPELL,
+                "spell_fire_01",
+                "Only Ember Bolt",
+                Element.FIRE,
+                Rarity.COMMON,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Element.FIRE,
+                1,
+                new ManualSieglingCatalog.ManualAbilityDefinition(
+                        "Only Ember Bolt",
+                        "Deal 3 damage to 1 enemy",
+                        TargetType.SINGLE_ENEMY,
+                        null,
+                        1,
+                        "damage",
+                        3,
+                        false,
+                        Element.FIRE,
+                        1,
+                        null
+                ),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of()
+        );
+
+        List<SpellCard> spells = ManualSieglingCatalog.applySpellOverrides(generated, List.of(definition));
+
+        assertEquals(List.of("spell_fire_01"), spells.stream().map(SpellCard::getId).toList());
+    }
+
+    @Test
     void manualDefinitionsCanOverrideGeneratedTrapFields() {
         List<TrapCard> generated = CardDefinitionService.createBaseTraps();
 
@@ -272,6 +317,51 @@ class ManualSieglingCatalogTest {
         assertEquals(4, trap.getCostAmount());
         assertEquals("Edited Stone Collapse", trap.getAbility().getName());
         assertEquals(9, trap.getAbility().getEffectValue());
+    }
+
+    @Test
+    void manualTrapDefinitionsAreAuthoritativeWhenPresent() {
+        List<TrapCard> generated = CardDefinitionService.createBaseTraps();
+
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ManualSieglingCatalog.ManualSieglingDefinition(
+                CardType.TRAP,
+                "trap03",
+                "Only Stone Collapse",
+                Element.EARTH,
+                Rarity.UNCOMMON,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new ManualSieglingCatalog.ManualAbilityDefinition(
+                        "Only Stone Collapse",
+                        "Deal 5 damage to 1 enemy if the opponent has 3 Earth energy",
+                        TargetType.SINGLE_ENEMY,
+                        null,
+                        1,
+                        "damage",
+                        5,
+                        false,
+                        null,
+                        0,
+                        null
+                ),
+                Element.EARTH,
+                3,
+                null,
+                null,
+                null,
+                null,
+                List.of()
+        );
+
+        List<TrapCard> traps = ManualSieglingCatalog.applyTrapOverrides(generated, List.of(definition));
+
+        assertEquals(List.of("trap03"), traps.stream().map(TrapCard::getId).toList());
     }
 
     @Test
