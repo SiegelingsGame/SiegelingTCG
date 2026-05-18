@@ -276,7 +276,7 @@ function renderShieldChip(info) {
     const title = info.depleted > 0
         ? `Shield +${info.total}: ${info.intact} intact, ${info.depleted} depleted`
         : `Shield +${info.total}: intact`;
-    return `<span class="stat-shield${stateClass}" title="${title}" data-shield-state="${info.state}" style="--shield-intact-pct:${info.intactPct}%">+${info.total}</span>`;
+    return `<span class="stat-shield${stateClass}" title="${title}" data-shield-state="${info.state}" style="--shield-intact-pct:${info.intactPct}%"><span class="stat-shield-icon" aria-hidden="true"></span><span class="stat-shield-value">+${info.total}</span></span>`;
 }
 
 function renderStatusBadge(kind, amount, options = {}) {
