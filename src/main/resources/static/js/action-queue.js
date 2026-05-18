@@ -931,7 +931,7 @@
                 ? `Shield +${shield}: ${intactShield} intact, ${depletedShield} depleted`
                 : `Shield +${shield}: intact`;
             const shieldHtml = shield > 0
-                ? `<span class="stat-shield stat-shield--${shieldState}" title="${shieldTitle}" data-shield-state="${shieldState}" style="--shield-intact-pct:${shieldIntactPct}%">+${shield}</span>`
+                ? `<span class="stat-shield stat-shield--${shieldState}" title="${shieldTitle}" data-shield-state="${shieldState}" style="--shield-intact-pct:${shieldIntactPct}%"><span class="stat-shield-icon" aria-hidden="true"></span><span class="stat-shield-value">+${shield}</span></span>`
                 : '';
             return `${safeHp}/<span class="stat-hp-max">${baseMax}</span>${shieldHtml}`;
         }

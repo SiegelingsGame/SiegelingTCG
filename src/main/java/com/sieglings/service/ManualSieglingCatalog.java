@@ -118,7 +118,7 @@ final class ManualSieglingCatalog {
 
     static List<SpellCard> applySpellOverrides(List<SpellCard> generatedCards,
                                                List<ManualSieglingDefinition> definitions) {
-        Map<String, SpellCard> cardsById = generatedCards.stream()
+        Map<String, SpellCard> generatedById = generatedCards.stream()
                 .map(SpellCard::copy)
                 .collect(Collectors.toMap(
                         SpellCard::getId,
@@ -126,14 +126,24 @@ final class ManualSieglingCatalog {
                         (left, right) -> right,
                         LinkedHashMap::new
                 ));
+        List<ManualSieglingDefinition> spellDefinitions = definitions.stream()
+                .filter(definition -> definitionType(definition) == CardType.SPELL)
+                .toList();
+        if (spellDefinitions.isEmpty()) {
+            return generatedById.values().stream()
+                    .sorted(Comparator
+                            .comparing(SpellCard::getElement)
+                            .thenComparing(SpellCard::getRarity, ManualSieglingCatalog::compareRarity)
+                            .thenComparing(SpellCard::getName))
+                    .toList();
+        }
 
-        for (ManualSieglingDefinition definition : definitions) {
-            if (definitionType(definition) != CardType.SPELL) {
-                continue;
-            }
+        Map<String, SpellCard> cardsById = new LinkedHashMap<>();
+
+        for (ManualSieglingDefinition definition : spellDefinitions) {
             String id = normalizeId(definition.id());
             requireField(id != null, "<unknown>", "id");
-            SpellCard merged = mergeSpellDefinition(cardsById.get(id), id, definition);
+            SpellCard merged = mergeSpellDefinition(generatedById.get(id), id, definition);
             cardsById.put(id, merged);
         }
 
@@ -147,7 +157,7 @@ final class ManualSieglingCatalog {
 
     static List<TrapCard> applyTrapOverrides(List<TrapCard> generatedCards,
                                              List<ManualSieglingDefinition> definitions) {
-        Map<String, TrapCard> cardsById = generatedCards.stream()
+        Map<String, TrapCard> generatedById = generatedCards.stream()
                 .map(TrapCard::copy)
                 .collect(Collectors.toMap(
                         TrapCard::getId,
@@ -155,14 +165,24 @@ final class ManualSieglingCatalog {
                         (left, right) -> right,
                         LinkedHashMap::new
                 ));
+        List<ManualSieglingDefinition> trapDefinitions = definitions.stream()
+                .filter(definition -> definitionType(definition) == CardType.TRAP)
+                .toList();
+        if (trapDefinitions.isEmpty()) {
+            return generatedById.values().stream()
+                    .sorted(Comparator
+                            .comparing(TrapCard::getElement)
+                            .thenComparing(TrapCard::getRarity, ManualSieglingCatalog::compareRarity)
+                            .thenComparing(TrapCard::getName))
+                    .toList();
+        }
 
-        for (ManualSieglingDefinition definition : definitions) {
-            if (definitionType(definition) != CardType.TRAP) {
-                continue;
-            }
+        Map<String, TrapCard> cardsById = new LinkedHashMap<>();
+
+        for (ManualSieglingDefinition definition : trapDefinitions) {
             String id = normalizeId(definition.id());
             requireField(id != null, "<unknown>", "id");
-            TrapCard merged = mergeTrapDefinition(cardsById.get(id), id, definition);
+            TrapCard merged = mergeTrapDefinition(generatedById.get(id), id, definition);
             cardsById.put(id, merged);
         }
 
