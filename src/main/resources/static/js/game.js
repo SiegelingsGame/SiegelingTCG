@@ -1022,6 +1022,10 @@ function renderBoardCellCombatStatsInner(cell) {
     const maxHp = cell.maxHp;
     const hp = cell.hp;
     const spd = cell.spd;
+    // "Shielded" here means the HEALTH_BOOST buff is on the card (maxHp
+    // raised above printedHealth). The buff is the same thing as the
+    // shield in this game, so the HP-stat background tints grey while
+    // it's up and reverts to green the moment the buff falls off.
     const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
@@ -1035,7 +1039,7 @@ function renderBoardCellCombatStatsInner(cell) {
         spdInner += renderCardStatAsterisk(el);
     }
 
-    return { hpInner, spdInner, dmgBlock: '' };
+    return { hpInner, spdInner, dmgBlock: '', hasShield: hpBuffed };
 }
 
 function getAbilityRequiredEnergy(ability) {
@@ -6694,7 +6698,7 @@ function renderBoard(gridId, board, isPlayer) {
                 }
                 const combat = renderBoardCellCombatStatsInner(cell);
                 html += `<div class="card-stats">`;
-                html += `<span class="stat stat-hp">${combat.hpInner}</span>`;
+                html += `<span class="stat stat-hp${combat.hasShield ? ' is-shielded' : ''}">${combat.hpInner}</span>`;
                 html += `<span class="stat stat-spd">${combat.spdInner}</span>`;
                 if (combat.dmgBlock) {
                     html += combat.dmgBlock;
@@ -8604,7 +8608,7 @@ function showTooltipBoard(event, isPlayer, row, col) {
     document.getElementById('ttName').style.color = getElementCssVar(cell.element);
     const combat = renderBoardCellCombatStatsInner(cell);
     document.getElementById('ttStats').innerHTML =
-        `<span class="stat stat-hp">HP: ${combat.hpInner}</span>` +
+        `<span class="stat stat-hp${combat.hasShield ? ' is-shielded' : ''}">HP: ${combat.hpInner}</span>` +
         `<span class="stat stat-spd">SPD: ${combat.spdInner}</span>` +
         (combat.dmgBlock || '');
     let abilityHtml = '';
