@@ -9538,7 +9538,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 .tb-hp, .mobile-hud-side {
     transition: filter 0.2s ease, box-shadow 0.2s ease;
 }
-.tb-hp.sgl-hp-impact, .mobile-hud-side.sgl-hp-impact {
+.tb-hp.sgl-hp-impact, .mobile-hud-side.sgl-hp-impact, .hud-hp-row.sgl-hp-impact {
     --sgl-hp-impact: #ffffff;
     animation: sgl-hp-impact-shake 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }

@@ -1019,11 +1019,29 @@
 
         // ── Health-bar helpers (for direct-attack animations) ──────────────
         _getHealthBarEl(isPlayer) {
-            const desktop = document.querySelector(isPlayer ? '.tb-hp-player' : '.tb-hp-enemy');
-            if (desktop && desktop.offsetParent !== null) return desktop;
-            const mobile = document.querySelector(isPlayer ? '.mobile-hud-player' : '.mobile-hud-enemy');
-            if (mobile && mobile.offsetParent !== null) return mobile;
-            return desktop || mobile || null;
+            const selectors = isPlayer
+                ? [
+                    '#hudRailPlayer .hud-hp-row',
+                    '.mobile-hud-player',
+                    '.tb-hp-player'
+                ]
+                : [
+                    '#hudRailEnemy .hud-hp-row',
+                    '.mobile-hud-enemy',
+                    '.tb-hp-enemy'
+                ];
+            const candidates = selectors
+                .map((selector) => document.querySelector(selector))
+                .filter(Boolean);
+            return candidates.find((el) => {
+                const r = el.getBoundingClientRect();
+                const style = window.getComputedStyle(el);
+                return r.width > 0
+                    && r.height > 0
+                    && style.visibility !== 'hidden'
+                    && style.display !== 'none'
+                    && style.opacity !== '0';
+            }) || candidates[0] || null;
         }
         _getHealthBarCenter(isPlayer) {
             const el = this._getHealthBarEl(isPlayer);
