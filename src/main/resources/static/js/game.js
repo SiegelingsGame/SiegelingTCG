@@ -1022,35 +1022,12 @@ function renderBoardCellCombatStatsInner(cell) {
     const maxHp = cell.maxHp;
     const hp = cell.hp;
     const spd = cell.spd;
-
-    // The shield visual is tied to the buff being *active* (maxHp raised
-    // above printedHealth), not just the remaining absorb buffer. That way
-    // a card that took damage through its shield still shows the chip +
-    // plates — the consumed plates render as "depleted" so the player
-    // knows the buff is on but partially used. Healing back above
-    // printedHealth re-charges those plates.
-    const hasShield = Number.isFinite(printedHp) && Number(maxHp) > printedHp;
-    const totalShield     = hasShield ? Math.max(0, Number(maxHp) - printedHp) : 0;
-    const remainingShield = hasShield ? Math.max(0, hp - printedHp)            : 0;
-    const visibleHp  = hasShield ? Math.min(hp, printedHp)                       : hp;
-    const visibleMax = Number.isFinite(printedHp) ? (hasShield ? printedHp : maxHp) : maxHp;
-    // Only flag the asterisk for a non-shield HP buff path (none today,
-    // but kept for backwards compat).
-    const hpBuffed = false;
+    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
-    let hpInner = `${visibleHp}/<span class="stat-hp-max">${visibleMax}</span>`;
+    let hpInner = `${hp}/<span class="stat-hp-max">${maxHp}</span>`;
     if (hpBuffed) {
         hpInner += renderCardStatAsterisk(el);
-    }
-    if (hasShield) {
-        const chipTitle = `${remainingShield} of ${totalShield} Shield — absorbs damage before HP`;
-        hpInner += `<span class="stat-shield${remainingShield === 0 ? ' is-depleted' : ''}" title="${chipTitle}">`
-            + `<svg viewBox="0 0 16 16" class="stat-shield-icon" aria-hidden="true">`
-            + `<path d="M8 1 L14 3.4 V8 C14 11.5 11 13.7 8 15 C5 13.7 2 11.5 2 8 V3.4 Z" `
-            + `fill="currentColor" stroke="#ffffff" stroke-width="1" stroke-linejoin="round"/>`
-            + `</svg>`
-            + `${remainingShield}</span>`;
     }
 
     let spdInner = `${spd}`;
