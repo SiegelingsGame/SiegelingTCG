@@ -2127,6 +2127,60 @@
         });
     }
 
+    function buildAutoTrainerPassiveDescription(ability, trainer) {
+        const effectType = String(ability?.effectType || "").trim();
+        const value = Math.max(0, toNumber(ability?.effectValue, 0));
+        const signedValue = `+${value}`;
+        const scope = trainerPassiveTargetScope(ability, trainer);
+        const gainVerb = trainerPassiveGainVerb(ability);
+        switch (effectType) {
+            case "damage_boost":
+                return `${scope} ${gainVerb} ${signedValue} Attack Damage`;
+            case "health_boost":
+                return `${scope} ${gainVerb} ${signedValue} max HP`;
+            case "speed_boost":
+                return `${scope} ${gainVerb} ${signedValue} Speed`;
+            case "connected_allies_damage_boost":
+                return `Connected allies gain ${signedValue} Attack Damage`;
+            case "connected_allies_health_boost":
+                return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_speed_boost":
+                return `Connected allies gain ${signedValue} Speed`;
+            default:
+                return buildAutoMoveDescription({
+                    targetType: ability?.targetType || "",
+                    targetElement: trainer?.element || "",
+                    targetRow: ability?.targetRow || "",
+                    effectType,
+                    effectValue: ability?.effectValue,
+                    energyCost: 0,
+                    isPassive: true
+                });
+        }
+    }
+
+    function trainerPassiveTargetScope(ability, trainer) {
+        const targetType = String(ability?.targetType || "").trim();
+        const element = String(trainer?.element || "").trim();
+        const elementPrefix = element && element !== "NEUTRAL" ? `${formatEnumLabel(element)} ` : "";
+        if (targetType === "ROW_ALLIES") {
+            const row = formatEnumLabel(ability?.targetRow || firstMetaValue("rows", "FRONT"));
+            return `${row} Row ${elementPrefix}allies`;
+        }
+        if (targetType === "SINGLE_ALLY") {
+            return `1 ${elementPrefix}ally`;
+        }
+        if (targetType === "SELF") {
+            return "This SiegeKnight";
+        }
+        return `All ${elementPrefix}allies`;
+    }
+
+    function trainerPassiveGainVerb(ability) {
+        const targetType = String(ability?.targetType || "").trim();
+        return targetType === "SINGLE_ALLY" || targetType === "SELF" ? "gains" : "gain";
+    }
+
     function renderNotches(card) {
         refs.notchGrid.innerHTML = NOTCH_LAYOUT.map((direction) => {
             if (direction === "CENTER") {
@@ -2522,6 +2576,8 @@
         populateSelect(refsForAbility.requiredElementSelect, ["", ...(state.metadata?.elements || [])], ability.requiredElement, true);
         populateSelect(refsForAbility.requiredReactionSelect, ["", ...(state.metadata?.reactions || [])], ability.requiredReaction, true);
 
+        syncTrainerAbilityAutoDescription(kind, ability, refsForAbility);
+
         setInputValue(refsForAbility.nameInput, ability.name);
         setInputValue(refsForAbility.descriptionInput, ability.description);
         setInputValue(refsForAbility.effectValueInput, ability.effectValue);
@@ -2531,6 +2587,30 @@
         refsForAbility.targetRowField.classList.toggle("hidden", !targetRule.requiresRow);
         refsForAbility.targetHelper.textContent = buildTargetHelperText(ability, targetRule);
         refsForAbility.effectHelper.textContent = buildEffectHelperText(ability.effectType);
+    }
+
+    function syncTrainerAbilityAutoDescription(kind, ability, refsForAbility) {
+        if (kind !== "passive" || !ability || !refsForAbility.descriptionInput) {
+            if (refsForAbility.descriptionInput) {
+                refsForAbility.descriptionInput.dataset.autoDescription = "";
+            }
+            return;
+        }
+        const trainer = getSelectedTrainer();
+        const generated = buildAutoTrainerPassiveDescription(ability, trainer);
+        const previousGenerated = refsForAbility.descriptionInput.dataset.autoDescription || "";
+        const current = ability.description || "";
+        if (!generated) {
+            refsForAbility.descriptionInput.dataset.autoDescription = "";
+            if (current === previousGenerated) {
+                ability.description = "";
+            }
+            return;
+        }
+        refsForAbility.descriptionInput.dataset.autoDescription = generated;
+        if (!current.trim() || current === previousGenerated) {
+            ability.description = generated;
+        }
     }
 
     function renderTrainerSummary() {
