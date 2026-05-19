@@ -1022,35 +1022,16 @@ function renderBoardCellCombatStatsInner(cell) {
     const maxHp = cell.maxHp;
     const hp = cell.hp;
     const spd = cell.spd;
-
-    // The shield visual is tied to the buff being *active* (maxHp raised
-    // above printedHealth), not just the remaining absorb buffer. That way
-    // a card that took damage through its shield still shows the chip +
-    // plates — the consumed plates render as "depleted" so the player
-    // knows the buff is on but partially used. Healing back above
-    // printedHealth re-charges those plates.
-    const hasShield = Number.isFinite(printedHp) && Number(maxHp) > printedHp;
-    const totalShield     = hasShield ? Math.max(0, Number(maxHp) - printedHp) : 0;
-    const remainingShield = hasShield ? Math.max(0, hp - printedHp)            : 0;
-    const visibleHp  = hasShield ? Math.min(hp, printedHp)                       : hp;
-    const visibleMax = Number.isFinite(printedHp) ? (hasShield ? printedHp : maxHp) : maxHp;
-    // Only flag the asterisk for a non-shield HP buff path (none today,
-    // but kept for backwards compat).
-    const hpBuffed = false;
+    // "Shielded" here means the HEALTH_BOOST buff is on the card (maxHp
+    // raised above printedHealth). The buff is the same thing as the
+    // shield in this game, so the HP-stat background tints grey while
+    // it's up and reverts to green the moment the buff falls off.
+    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
-    let hpInner = `${visibleHp}/<span class="stat-hp-max">${visibleMax}</span>`;
+    let hpInner = `${hp}/<span class="stat-hp-max">${maxHp}</span>`;
     if (hpBuffed) {
         hpInner += renderCardStatAsterisk(el);
-    }
-    if (hasShield) {
-        const chipTitle = `${remainingShield} of ${totalShield} Shield — absorbs damage before HP`;
-        hpInner += `<span class="stat-shield${remainingShield === 0 ? ' is-depleted' : ''}" title="${chipTitle}">`
-            + `<svg viewBox="0 0 16 16" class="stat-shield-icon" aria-hidden="true">`
-            + `<path d="M8 1 L14 3.4 V8 C14 11.5 11 13.7 8 15 C5 13.7 2 11.5 2 8 V3.4 Z" `
-            + `fill="currentColor" stroke="#ffffff" stroke-width="1" stroke-linejoin="round"/>`
-            + `</svg>`
-            + `${remainingShield}</span>`;
     }
 
     let spdInner = `${spd}`;
@@ -1058,7 +1039,7 @@ function renderBoardCellCombatStatsInner(cell) {
         spdInner += renderCardStatAsterisk(el);
     }
 
-    return { hpInner, spdInner, dmgBlock: '' };
+    return { hpInner, spdInner, dmgBlock: '', hasShield: hpBuffed };
 }
 
 function getAbilityRequiredEnergy(ability) {
@@ -6717,7 +6698,7 @@ function renderBoard(gridId, board, isPlayer) {
                 }
                 const combat = renderBoardCellCombatStatsInner(cell);
                 html += `<div class="card-stats">`;
-                html += `<span class="stat stat-hp">${combat.hpInner}</span>`;
+                html += `<span class="stat stat-hp${combat.hasShield ? ' is-shielded' : ''}">${combat.hpInner}</span>`;
                 html += `<span class="stat stat-spd">${combat.spdInner}</span>`;
                 if (combat.dmgBlock) {
                     html += combat.dmgBlock;
@@ -8627,7 +8608,7 @@ function showTooltipBoard(event, isPlayer, row, col) {
     document.getElementById('ttName').style.color = getElementCssVar(cell.element);
     const combat = renderBoardCellCombatStatsInner(cell);
     document.getElementById('ttStats').innerHTML =
-        `<span class="stat stat-hp">HP: ${combat.hpInner}</span>` +
+        `<span class="stat stat-hp${combat.hasShield ? ' is-shielded' : ''}">HP: ${combat.hpInner}</span>` +
         `<span class="stat stat-spd">SPD: ${combat.spdInner}</span>` +
         (combat.dmgBlock || '');
     let abilityHtml = '';

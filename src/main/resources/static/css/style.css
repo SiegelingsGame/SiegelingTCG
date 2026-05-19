@@ -4391,6 +4391,18 @@ body.placement-active .board-cell.legal {
     background: var(--success);
     color: var(--bg);
     gap: 2px;
+    transition: background 0.22s ease, color 0.22s ease;
+}
+/* While the HEALTH_BOOST buff (shield) is on the card, mute the HP
+   background to a metal grey so the HP block reads as "armored". The
+   shield badge above the card and the plate overlay on the HP bar
+   carry the count. The moment the buff falls off, the class drops and
+   the green background returns automatically. */
+.stat-hp.is-shielded {
+    background: linear-gradient(180deg, #c8d0d8 0%, #8a939e 100%);
+    color: #18202a;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.18);
 }
 .stat-spd { background: var(--accent); color: var(--bg); }
 .stat-shield {
