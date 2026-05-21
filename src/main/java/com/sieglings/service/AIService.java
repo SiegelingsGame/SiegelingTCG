@@ -51,8 +51,12 @@ public class AIService {
         state.log("AI Setup phase.");
         // Setup phase: try to place Sieglings and cast spells
         aiPlaceSieglings(state);
-        aiCastSpells(state);
-        aiUseTraps(state);
+        if (!state.isSieglingSetupBudgetExhausted(false)) {
+            aiCastSpells(state);
+        }
+        if (!state.isSieglingSetupBudgetExhausted(false)) {
+            aiUseTraps(state);
+        }
     }
 
     private void aiPlaceSieglings(GameState state) {
