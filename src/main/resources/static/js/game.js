@@ -4486,8 +4486,9 @@ async function loadGameOptions() {
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();
-        const [data] = await Promise.all([
+        const [data, editorState] = await Promise.all([
             fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS),
             syncAuthProfile(true)
         ]);
         if (!data) {
@@ -4495,7 +4496,7 @@ async function loadGameOptions() {
             syncEntryOverlays();
             return;
         }
-        gameOptions = data;
+        gameOptions = filterGameOptionsToDashboardCards(data, editorState);
         loadoutErrorMessage = '';
         selectedDeckId = data.defaultDeckId;
         selectedTrainerId = data.defaultTrainerId;
@@ -4516,6 +4517,40 @@ async function loadGameOptions() {
         showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
         syncEntryOverlays();
     }
+}
+
+function filterGameOptionsToDashboardCards(options, editorState) {
+    const catalog = Array.isArray(options?.cardCatalog) ? options.cardCatalog : [];
+    const dashboardCards = Array.isArray(editorState?.data?.cards) ? editorState.data.cards : [];
+    if (!catalog.length || !dashboardCards.length) {
+        return options;
+    }
+
+    const dashboardIds = new Set(
+        dashboardCards
+            .map(card => normalizeDashboardCardId(card?.id))
+            .filter(Boolean)
+    );
+    if (dashboardIds.size === 0) {
+        return options;
+    }
+
+    const filteredCatalog = catalog.filter(card => dashboardIds.has(normalizeDashboardCardId(card?.id)));
+    if (filteredCatalog.length === 0) {
+        return options;
+    }
+    if (filteredCatalog.length !== catalog.length) {
+        console.info(`Filtered ${catalog.length - filteredCatalog.length} deleted dashboard card(s) from deck builder catalog.`);
+    }
+    return {
+        ...options,
+        cardCatalog: filteredCatalog
+    };
+}
+
+function normalizeDashboardCardId(id) {
+    const normalized = String(id || '').trim().toLowerCase();
+    return normalized || null;
 }
 
 async function newGame() {
@@ -5435,7 +5470,11 @@ function renderBuilderPreviewCard(card) {
 
 function getBuilderSelectedCards() {
     const cards = [];
+    const availableIds = new Set((gameOptions?.cardCatalog || []).map(card => card.id));
     for (const [cardId, count] of Object.entries(builderCounts)) {
+        if (!availableIds.has(cardId)) {
+            continue;
+        }
         for (let i = 0; i < count; i++) {
             cards.push(cardId);
         }
