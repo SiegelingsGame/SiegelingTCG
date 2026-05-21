@@ -5179,6 +5179,21 @@ body.placement-active .board-cell.legal {
     font-weight: bold;
     letter-spacing: 0.25px;
 }
+/* Same brushed-metal HP background as the on-board .stat-hp.is-shielded
+   chip, so a preview of a card with an active shield mirrors the
+   in-board treatment. Clears alongside the badge the moment hp dips
+   to/below printedHealth (renderShowcaseCard drops the class). */
+.card-stats-line.is-shielded {
+    background: linear-gradient(180deg, #c8d0d8 0%, #8a939e 100%);
+    color: #18202a;
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin: 4px 0;
+    align-self: flex-start;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.45),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
 
 .actions {
     display: flex;

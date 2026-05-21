@@ -1937,7 +1937,14 @@ function renderShowcaseCard(card, options = {}) {
         : `${formatElementLabel(card.element)} ${card.type}`.trim();
     const labelText = options.labelText
         || [card.type, formatElementLabel(card.element)].filter(Boolean).join(' / ');
-    const classes = ['hand-card', elemClass, options.cardClass].filter(Boolean).join(' ');
+    // Shield treatment for previews of *board* cards — same rule as the
+    // board: visible only while there's remaining absorb. The badge,
+    // grey stats-line, and is-shielded class all clear together once
+    // the buffer is spent.
+    const showcaseShield = getShieldInfo(card);
+    const showcaseHasShield = showcaseShield.active && showcaseShield.intact > 0;
+    const classes = ['hand-card', elemClass, options.cardClass,
+        showcaseHasShield ? 'has-shield' : ''].filter(Boolean).join(' ');
     const detailEntries = getCardPreviewEntries(card);
     const statLine = getCardSummaryStatLine(card);
     const bodyMode = options.bodyMode || 'full';
@@ -1959,8 +1966,14 @@ function renderShowcaseCard(card, options = {}) {
     html += renderCardArt(card, options.artVariant || 'preview', fallbackArtLabel);
     if (bodyMode !== 'hidden') {
         html += `<div class="hand-card-body">`;
+        // Surface the shield badge (and any other active status badges)
+        // when this preview reflects a board card. Hand cards have no
+        // statuses array so this renders nothing for those.
+        if (Array.isArray(card.statuses) && card.statuses.length > 0) {
+            html += renderStatusBadgesForCell(card);
+        }
         if (statLine) {
-            html += `<div class="card-detail card-stats-line">${escapeHtml(statLine)}</div>`;
+            html += `<div class="card-detail card-stats-line${showcaseHasShield ? ' is-shielded' : ''}">${escapeHtml(statLine)}</div>`;
         }
         visibleDetailEntries.forEach((entry) => {
             if (entry.html) {
