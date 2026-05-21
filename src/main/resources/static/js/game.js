@@ -485,9 +485,9 @@ function sieglingPlacementLockMessage() {
     const used = gameState.setupSieglingActionsUsed;
     const budget = gameState.setupSieglingActionBudget;
     if (used != null && budget != null) {
-        return `No setup placements left (${used}/${budget}; 1 base + 1 per energy in your pool when you entered setup).`;
+        return `No setup actions left (${used}/${budget}; 1 base + 1 per energy in your pool when you entered setup). End the turn to continue.`;
     }
-    return 'No Siegling setup actions left this turn.';
+    return 'No setup actions left this turn. End the turn to continue.';
 }
 
 function isPlacementBudgetLockedForCard(card) {
@@ -4145,7 +4145,7 @@ function getHandCardLockReason(card) {
         const targetSide = getAbilityTargetSide(card.ability);
         return targetSide ? `No ${targetSide} targets are available right now.` : 'This card has no valid target right now.';
     }
-    if (isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING') {
+    if (isPlacementBudgetLockedForCard(card)) {
         return sieglingPlacementLockMessage();
     }
     if (card.type === 'SIEGLING' && card.evolvesFromId) {
@@ -4193,8 +4193,8 @@ function getInteractionBannerState() {
     if (gameState.currentPhase === 'SETUP' && gameState.playerPlacementUsed) {
         return {
             kind: 'locked',
-            label: 'Placements done',
-            message: 'No Siegling setup actions left this turn. Cast spells, set traps, use your SiegeKnight, or end setup.'
+            label: 'Setup actions done',
+            message: 'No setup actions left this turn. Use your SiegeKnight ability or end the setup phase.'
         };
     }
     if (gameState.currentPhase === 'SETUP' && getClaimableSieglings().length > 0) {
