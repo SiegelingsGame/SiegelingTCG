@@ -276,6 +276,10 @@ public class GameService {
             state.log("Player 1 cannot cast spells on turn 1.");
             return state;
         }
+        if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
+            state.log("No setup actions left this turn. End the turn to continue.");
+            return state;
+        }
 
         Player actor = getSidePlayer(state, isPlayerSide);
         Card card = findInHand(actor, cardId);
