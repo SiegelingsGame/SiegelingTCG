@@ -316,6 +316,11 @@ function renderStatusBadgesForCell(cell) {
 
     statuses.forEach((raw) => {
         const kind = String(raw || '').toUpperCase();
+        // HEALTH_BOOST is the shield buff. Skip it once the shield is
+        // spent (no remaining absorb) so the badge clears alongside the
+        // grey HP background and the plate overlay — even if the
+        // underlying status is still on the card server-side.
+        if (kind === 'HEALTH_BOOST' && shieldInfo.intact <= 0) return;
         let amount = 0;
         if (kind === 'HEALTH_BOOST' && Number.isFinite(maxHp) && Number.isFinite(printedHp)) {
             amount = shieldInfo.total;
@@ -327,7 +332,7 @@ function renderStatusBadgesForCell(cell) {
         push(kind, amount, kind === 'HEALTH_BOOST' ? { shieldState: shieldInfo.state } : {});
     });
 
-    if (!seen.has('HEALTH_BOOST') && shieldInfo.active) {
+    if (!seen.has('HEALTH_BOOST') && shieldInfo.active && shieldInfo.intact > 0) {
         push('HEALTH_BOOST', shieldInfo.total, { shieldState: shieldInfo.state });
     }
     // Inferred SPEED_BOOST when speed is buffed but no explicit status flag (backend may not yet emit it)
@@ -1022,11 +1027,13 @@ function renderBoardCellCombatStatsInner(cell) {
     const maxHp = cell.maxHp;
     const hp = cell.hp;
     const spd = cell.spd;
-    // "Shielded" here means the HEALTH_BOOST buff is on the card (maxHp
-    // raised above printedHealth). The buff is the same thing as the
-    // shield in this game, so the HP-stat background tints grey while
-    // it's up and reverts to green the moment the buff falls off.
-    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
+    // "Shielded" means the absorb buffer still has capacity — current hp
+    // sits above the printed max. The HP block tints grey while there's
+    // shield remaining, and the moment hp falls to (or below) the printed
+    // max the shield is spent and the grey wash reverts to green even
+    // though the underlying HEALTH_BOOST status may still technically be
+    // on the card.
+    const hpBuffed = Number.isFinite(printedHp) && hp > printedHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
     let hpInner = `${hp}/<span class="stat-hp-max">${maxHp}</span>`;
@@ -6684,14 +6691,19 @@ function renderBoard(gridId, board, isPlayer) {
                     const _pct = _barMax > 0 ? Math.max(0, Math.min(100, (_barHp / _barMax) * 100)) : 0;
                     const _totalShield     = Number.isFinite(_printedHp) ? Math.max(0, Number(cell.maxHp) - _printedHp) : 0;
                     const _remainingShield = Number.isFinite(_printedHp) ? Math.max(0, cell.hp - _printedHp)            : 0;
-                    const _platesHtml = _totalShield > 0
+                    // Plates only render while there's still absorb left.
+                    // Once HP dips below printedHealth the shield is
+                    // "spent" — the badge, grey bg and plates all clear
+                    // together even if HEALTH_BOOST is still in statuses.
+                    const _shieldVisible = _remainingShield > 0;
+                    const _platesHtml = _shieldVisible
                         ? `<div class="shield-plates" data-total="${_totalShield}" data-remaining="${_remainingShield}">${
                                 Array.from({ length: _totalShield }, (_, i) =>
                                     `<div class="shield-plate${i >= _remainingShield ? ' is-depleted' : ''}" data-plate-index="${i}"></div>`
                                 ).join('')
                             }</div>`
                         : '';
-                    html += `<div class="hp-bar${_totalShield > 0 ? ' is-shielded' : ''}">`
+                    html += `<div class="hp-bar${_shieldVisible ? ' is-shielded' : ''}">`
                         + `<div class="hp-fill" style="width:${_pct}%"></div>`
                         + _platesHtml
                         + `</div>`;
