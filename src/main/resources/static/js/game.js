@@ -1023,15 +1023,10 @@ function renderBoardCellCombatStatsInner(cell) {
     const hp = cell.hp;
     const spd = cell.spd;
 
-    // HP that exceeds printedHealth is treated as a "shield" buffer: it
-    // shows as its own chip ("+N Shield") instead of inflating the HP
-    // numbers. Base HP is rendered against printedHealth so the card
-    // doesn't read as "16/15" when at full HP + 1 shield. As damage lands
-    // the shield amount drops (hp comes down toward printedHealth), so the
-    // chip count decreases — which the action queue mirrors with the
-    // plate chip-off animation.
+    // HP that exceeds printedHealth is treated as a shield buffer. The
+    // status badge above the stats carries the shield amount, so the HP
+    // stat itself stays compact and aligned with unshielded cards.
     const hasShield = Number.isFinite(printedHp) && hp > printedHp;
-    const shieldAmount = hasShield ? hp - printedHp : 0;
     const visibleHp = hasShield ? printedHp : hp;
     const visibleMax = Number.isFinite(printedHp) ? printedHp : maxHp;
     // Only flag the asterisk for a "true" buff (max HP raised above the
@@ -1043,15 +1038,6 @@ function renderBoardCellCombatStatsInner(cell) {
     if (hpBuffed) {
         hpInner += renderCardStatAsterisk(el);
     }
-    if (shieldAmount > 0) {
-        hpInner += `<span class="stat-shield" title="${shieldAmount} Shield — absorbs damage before HP">`
-            + `<svg viewBox="0 0 16 16" class="stat-shield-icon" aria-hidden="true">`
-            + `<path d="M8 1 L14 3.4 V8 C14 11.5 11 13.7 8 15 C5 13.7 2 11.5 2 8 V3.4 Z" `
-            + `fill="currentColor" stroke="#ffffff" stroke-width="1" stroke-linejoin="round"/>`
-            + `</svg>`
-            + `${shieldAmount}</span>`;
-    }
-
     let spdInner = `${spd}`;
     if (spdBuffed) {
         spdInner += renderCardStatAsterisk(el);

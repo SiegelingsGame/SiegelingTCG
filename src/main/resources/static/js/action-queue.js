@@ -916,24 +916,9 @@
             const safeMax = Math.max(0, Number.isFinite(Number(maxHp)) ? Number(maxHp) : 0);
             const printedHp = Number(entry?.printedHealth);
             const shield = Number.isFinite(printedHp) ? Math.max(0, safeMax - printedHp) : 0;
-            const intactShield = shield > 0 ? Math.max(0, Math.min(shield, safeHp - printedHp)) : 0;
-            const depletedShield = Math.max(0, shield - intactShield);
-            const shieldState = shield <= 0
-                ? 'none'
-                : intactShield <= 0
-                    ? 'depleted'
-                    : depletedShield > 0
-                        ? 'partial'
-                        : 'intact';
-            const shieldIntactPct = shield > 0 ? Math.round((intactShield / shield) * 100) : 0;
             const baseMax = shield > 0 ? printedHp : safeMax;
-            const shieldTitle = depletedShield > 0
-                ? `Shield +${shield}: ${intactShield} intact, ${depletedShield} depleted`
-                : `Shield +${shield}: intact`;
-            const shieldHtml = shield > 0
-                ? `<span class="stat-shield stat-shield--${shieldState}" title="${shieldTitle}" data-shield-state="${shieldState}" style="--shield-intact-pct:${shieldIntactPct}%"><span class="stat-shield-icon" aria-hidden="true"></span><span class="stat-shield-value">+${shield}</span></span>`
-                : '';
-            return `${safeHp}/<span class="stat-hp-max">${baseMax}</span>${shieldHtml}`;
+            const visibleHp = shield > 0 ? Math.min(safeHp, printedHp) : safeHp;
+            return `${visibleHp}/<span class="stat-hp-max">${baseMax}</span>`;
         }
         applyHealthToDom(entry, hp, maxHp) {
             if (!entry) return;
