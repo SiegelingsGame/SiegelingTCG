@@ -3798,7 +3798,7 @@
         const targetCount = raw.targetCount != null && raw.targetCount !== ""
             ? toNumber(raw.targetCount, 0)
             : rule.fixedTargetCount;
-        let energyCost = Math.max(0, Math.min(6, toNumber(raw.energyCost, 0)));
+        let energyCost = Math.max(0, toNumber(raw.energyCost, 0));
         if (passiveFlag || targetType === "PASSIVE") {
             energyCost = 0;
         }
@@ -4721,7 +4721,7 @@
             targetRow = "";
         }
         let passive = refs.moveDraftPassiveSelect?.value === "true";
-        let energy = Math.max(0, Math.min(6, toNumber(refs.moveDraftEnergyInput?.value, 0)));
+        let energy = Math.max(0, toNumber(refs.moveDraftEnergyInput?.value, 0));
         if (passive || targetType === "PASSIVE") {
             passive = true;
             energy = 0;
