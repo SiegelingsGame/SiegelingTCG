@@ -5462,6 +5462,29 @@ body.placement-active .board-cell.legal {
     line-height: 1.45;
 }
 
+.loadout-local-dev {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    font-size: 0.82em;
+}
+
+.loadout-local-dev-link {
+    color: #8bc2ff;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.loadout-local-dev-link:hover {
+    text-decoration: underline;
+}
+
+.loadout-local-dev-sep {
+    color: var(--text-dim);
+}
+
 .hidden {
     display: none !important;
 }
