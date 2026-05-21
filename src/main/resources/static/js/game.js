@@ -316,6 +316,11 @@ function renderStatusBadgesForCell(cell) {
 
     statuses.forEach((raw) => {
         const kind = String(raw || '').toUpperCase();
+        // HEALTH_BOOST is the shield buff. Skip it once the shield is
+        // spent (no remaining absorb) so the badge clears alongside the
+        // grey HP background and the plate overlay — even if the
+        // underlying status is still on the card server-side.
+        if (kind === 'HEALTH_BOOST' && shieldInfo.intact <= 0) return;
         let amount = 0;
         if (kind === 'HEALTH_BOOST' && Number.isFinite(maxHp) && Number.isFinite(printedHp)) {
             amount = shieldInfo.total;
@@ -327,7 +332,7 @@ function renderStatusBadgesForCell(cell) {
         push(kind, amount, kind === 'HEALTH_BOOST' ? { shieldState: shieldInfo.state } : {});
     });
 
-    if (!seen.has('HEALTH_BOOST') && shieldInfo.active) {
+    if (!seen.has('HEALTH_BOOST') && shieldInfo.active && shieldInfo.intact > 0) {
         push('HEALTH_BOOST', shieldInfo.total, { shieldState: shieldInfo.state });
     }
     // Inferred SPEED_BOOST when speed is buffed but no explicit status flag (backend may not yet emit it)
@@ -485,9 +490,9 @@ function sieglingPlacementLockMessage() {
     const used = gameState.setupSieglingActionsUsed;
     const budget = gameState.setupSieglingActionBudget;
     if (used != null && budget != null) {
-        return `No setup placements left (${used}/${budget}; 1 base + 1 per energy in your pool when you entered setup).`;
+        return `No setup actions left (${used}/${budget}; 1 base + 1 per energy in your pool when you entered setup). End the turn to continue.`;
     }
-    return 'No Siegling setup actions left this turn.';
+    return 'No setup actions left this turn. End the turn to continue.';
 }
 
 function isPlacementBudgetLockedForCard(card) {
@@ -1022,11 +1027,13 @@ function renderBoardCellCombatStatsInner(cell) {
     const maxHp = cell.maxHp;
     const hp = cell.hp;
     const spd = cell.spd;
-    // "Shielded" here means the HEALTH_BOOST buff is on the card (maxHp
-    // raised above printedHealth). The buff is the same thing as the
-    // shield in this game, so the HP-stat background tints grey while
-    // it's up and reverts to green the moment the buff falls off.
-    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
+    // "Shielded" means the absorb buffer still has capacity — current hp
+    // sits above the printed max. The HP block tints grey while there's
+    // shield remaining, and the moment hp falls to (or below) the printed
+    // max the shield is spent and the grey wash reverts to green even
+    // though the underlying HEALTH_BOOST status may still technically be
+    // on the card.
+    const hpBuffed = Number.isFinite(printedHp) && hp > printedHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
     let hpInner = `${hp}/<span class="stat-hp-max">${maxHp}</span>`;
@@ -1930,7 +1937,14 @@ function renderShowcaseCard(card, options = {}) {
         : `${formatElementLabel(card.element)} ${card.type}`.trim();
     const labelText = options.labelText
         || [card.type, formatElementLabel(card.element)].filter(Boolean).join(' / ');
-    const classes = ['hand-card', elemClass, options.cardClass].filter(Boolean).join(' ');
+    // Shield treatment for previews of *board* cards — same rule as the
+    // board: visible only while there's remaining absorb. The badge,
+    // grey stats-line, and is-shielded class all clear together once
+    // the buffer is spent.
+    const showcaseShield = getShieldInfo(card);
+    const showcaseHasShield = showcaseShield.active && showcaseShield.intact > 0;
+    const classes = ['hand-card', elemClass, options.cardClass,
+        showcaseHasShield ? 'has-shield' : ''].filter(Boolean).join(' ');
     const detailEntries = getCardPreviewEntries(card);
     const statLine = getCardSummaryStatLine(card);
     const bodyMode = options.bodyMode || 'full';
@@ -1952,8 +1966,14 @@ function renderShowcaseCard(card, options = {}) {
     html += renderCardArt(card, options.artVariant || 'preview', fallbackArtLabel);
     if (bodyMode !== 'hidden') {
         html += `<div class="hand-card-body">`;
+        // Surface the shield badge (and any other active status badges)
+        // when this preview reflects a board card. Hand cards have no
+        // statuses array so this renders nothing for those.
+        if (Array.isArray(card.statuses) && card.statuses.length > 0) {
+            html += renderStatusBadgesForCell(card);
+        }
         if (statLine) {
-            html += `<div class="card-detail card-stats-line">${escapeHtml(statLine)}</div>`;
+            html += `<div class="card-detail card-stats-line${showcaseHasShield ? ' is-shielded' : ''}">${escapeHtml(statLine)}</div>`;
         }
         visibleDetailEntries.forEach((entry) => {
             if (entry.html) {
@@ -4145,7 +4165,7 @@ function getHandCardLockReason(card) {
         const targetSide = getAbilityTargetSide(card.ability);
         return targetSide ? `No ${targetSide} targets are available right now.` : 'This card has no valid target right now.';
     }
-    if (isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING') {
+    if (isPlacementBudgetLockedForCard(card)) {
         return sieglingPlacementLockMessage();
     }
     if (card.type === 'SIEGLING' && card.evolvesFromId) {
@@ -4193,8 +4213,8 @@ function getInteractionBannerState() {
     if (gameState.currentPhase === 'SETUP' && gameState.playerPlacementUsed) {
         return {
             kind: 'locked',
-            label: 'Placements done',
-            message: 'No Siegling setup actions left this turn. Cast spells, set traps, use your SiegeKnight, or end setup.'
+            label: 'Setup actions done',
+            message: 'No setup actions left this turn. Use your SiegeKnight ability or end the setup phase.'
         };
     }
     if (gameState.currentPhase === 'SETUP' && getClaimableSieglings().length > 0) {
@@ -6684,14 +6704,19 @@ function renderBoard(gridId, board, isPlayer) {
                     const _pct = _barMax > 0 ? Math.max(0, Math.min(100, (_barHp / _barMax) * 100)) : 0;
                     const _totalShield     = Number.isFinite(_printedHp) ? Math.max(0, Number(cell.maxHp) - _printedHp) : 0;
                     const _remainingShield = Number.isFinite(_printedHp) ? Math.max(0, cell.hp - _printedHp)            : 0;
-                    const _platesHtml = _totalShield > 0
+                    // Plates only render while there's still absorb left.
+                    // Once HP dips below printedHealth the shield is
+                    // "spent" — the badge, grey bg and plates all clear
+                    // together even if HEALTH_BOOST is still in statuses.
+                    const _shieldVisible = _remainingShield > 0;
+                    const _platesHtml = _shieldVisible
                         ? `<div class="shield-plates" data-total="${_totalShield}" data-remaining="${_remainingShield}">${
                                 Array.from({ length: _totalShield }, (_, i) =>
                                     `<div class="shield-plate${i >= _remainingShield ? ' is-depleted' : ''}" data-plate-index="${i}"></div>`
                                 ).join('')
                             }</div>`
                         : '';
-                    html += `<div class="hp-bar${_totalShield > 0 ? ' is-shielded' : ''}">`
+                    html += `<div class="hp-bar${_shieldVisible ? ' is-shielded' : ''}">`
                         + `<div class="hp-fill" style="width:${_pct}%"></div>`
                         + _platesHtml
                         + `</div>`;

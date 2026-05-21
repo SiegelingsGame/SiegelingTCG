@@ -606,36 +606,46 @@
                 const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
                     || (p.id && n.id && p.id === n.id)
                     || (String(p.name || '') === String(n.name || '') && p.name);
+                if (!same) continue;
                 const prevHp = p.hp ?? 0;
                 const nextHp = n.hp ?? 0;
-                if (same && nextHp < prevHp) {
-                    // Split the hit into "shield absorbed" and "HP lost":
-                    //   shield = max(0, hp - printedHealth)
-                    // If the card was over its printed HP, that overflow is
-                    // an absorb buffer the player should see called out as
-                    // a shield break rather than rolled into the HP damage.
-                    const printedHp = Number(p.printedHealth);
-                    const ph = Number.isFinite(printedHp) ? printedHp : null;
-                    const prevShield = ph != null ? Math.max(0, prevHp - ph) : 0;
-                    const nextShield = ph != null ? Math.max(0, nextHp - ph) : 0;
-                    const shieldBroken = Math.max(0, prevShield - nextShield);
-                    const hpLoss = Math.max(0, (prevHp - nextHp) - shieldBroken);
-                    out.push({
-                        isPlayer, row: r, col: c,
-                        amount: prevHp - nextHp,
-                        shieldBroken,
-                        hpLoss,
-                        shieldFullyBroken: prevShield > 0 && nextShield === 0,
-                        element: normalizeElement(n.element || p.element),
-                        name: n.name || p.name || '',
-                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
-                        prevHp,
-                        nextHp,
-                        prevMaxHp: p.maxHp,
-                        nextMaxHp: n.maxHp,
-                        printedHealth: n.printedHealth ?? p.printedHealth
-                    });
-                }
+                if (nextHp >= prevHp) continue;
+
+                // If the card's maxHp dropped between prev and next (the
+                // HEALTH_BOOST / shield buff expired at phase end), the
+                // engine clamps current hp down to the new max — that's
+                // not an attack, so it shouldn't queue a damage event.
+                // Subtract the "natural" clamp from the apparent drop and
+                // skip if nothing's left.
+                const nextMaxHp = Number(n.maxHp ?? prevHp);
+                const expectedHpAfterBuffDrop = Math.min(prevHp, nextMaxHp);
+                const actualDamage = expectedHpAfterBuffDrop - nextHp;
+                if (actualDamage <= 0) continue;
+
+                // Shield going into this damage is based on the post-buff-
+                // drop hp so the split doesn't double-count a buff that
+                // expired in the same diff.
+                const printedHp = Number(p.printedHealth);
+                const ph = Number.isFinite(printedHp) ? printedHp : null;
+                const preDamageShield = ph != null ? Math.max(0, expectedHpAfterBuffDrop - ph) : 0;
+                const nextShield      = ph != null ? Math.max(0, nextHp - ph)                  : 0;
+                const shieldBroken = Math.max(0, preDamageShield - nextShield);
+                const hpLoss = Math.max(0, actualDamage - shieldBroken);
+                out.push({
+                    isPlayer, row: r, col: c,
+                    amount: actualDamage,
+                    shieldBroken,
+                    hpLoss,
+                    shieldFullyBroken: preDamageShield > 0 && nextShield === 0,
+                    element: normalizeElement(n.element || p.element),
+                    name: n.name || p.name || '',
+                    instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
+                    prevHp,
+                    nextHp,
+                    prevMaxHp: p.maxHp,
+                    nextMaxHp: n.maxHp,
+                    printedHealth: n.printedHealth ?? p.printedHealth
+                });
             }
         }
         return out;
