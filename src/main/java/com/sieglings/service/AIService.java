@@ -153,6 +153,7 @@ public class AIService {
             effectService.resolveAbility(state, spell.getAbility(), null, false, tr, tc, dr, dc);
             state.getEnemy().removeFromHand(card);
             state.getEnemy().getDiscard().add(card);
+            state.recordSieglingSetupActionConsumed(false);
             state.log("AI casts " + spell.getName() + "!");
 
             // Spend energy from pool (restores at next phase)
@@ -207,6 +208,7 @@ public class AIService {
             effectService.resolveAbility(state, trap.getAbility(), null, false, ttr, ttc, tdr, tdc);
             state.getEnemy().removeFromHand(card);
             state.getEnemy().getDiscard().add(card);
+            state.recordSieglingSetupActionConsumed(false);
             state.log("AI springs trap " + trap.getName() + "!");
 
             // Spend energy from pool (restores at next phase)

@@ -2473,6 +2473,7 @@ function canUseTrainerAbility(trainer = gameState?.player?.trainer) {
         trainer
         && trainer.active
         && trainer.canUseActive
+        && gameState?.currentPhase === 'SETUP'
         && !isOpeningPlacementOnlyTurn()
         && abilityHasAvailableTarget(trainer.active)
     );

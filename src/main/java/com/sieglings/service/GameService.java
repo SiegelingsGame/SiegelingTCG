@@ -305,10 +305,16 @@ public class GameService {
                 }
             }
 
+            if (!hasValidAbilityTarget(state, spell.getAbility(), isPlayerSide, targetRow, targetCol)) {
+                state.log(spell.getName() + " has no valid targets.");
+                return state;
+            }
+
             effectService.resolveAbility(state, spell.getAbility(), null, isPlayerSide, targetRow, targetCol, destRow, destCol);
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
             actor.incrementSpellsCastThisMatch();
+            state.recordSieglingSetupActionConsumed(isPlayerSide);
             state.log(sideName(state, isPlayerSide) + " casts " + spell.getName() + "!");
             // Spend energy from pool instead of recalculating (pool restores at next phase)
             energyService.spendEnergy(state, isPlayerSide, spell.getCostElement(), spell.getCostAmount());
@@ -334,10 +340,16 @@ public class GameService {
                 }
             }
 
+            if (!hasValidAbilityTarget(state, trap.getAbility(), isPlayerSide, targetRow, targetCol)) {
+                state.log(trap.getName() + " has no valid targets.");
+                return state;
+            }
+
             effectService.resolveAbility(state, trap.getAbility(), null, isPlayerSide, targetRow, targetCol, destRow, destCol);
             actor.removeFromHand(card);
             actor.getDiscard().add(card);
             actor.incrementTrapsSprungThisMatch();
+            state.recordSieglingSetupActionConsumed(isPlayerSide);
             state.log(sideName(state, isPlayerSide) + " springs trap " + trap.getName() + "!");
             // Spend energy from pool instead of recalculating
             energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount());
@@ -362,6 +374,10 @@ public class GameService {
             state.log("Wait for your turn before using a SiegeKnight action.");
             return state;
         }
+        if (state.getCurrentPhase() != Phase.SETUP) {
+            state.log("SiegeKnight actions can only be used during Setup phase.");
+            return state;
+        }
         if (isOpeningTurnRestricted(state, isPlayerSide)) {
             state.log("Player 1 cannot use trainer actions on turn 1.");
             return state;
@@ -370,6 +386,11 @@ public class GameService {
         TrainerCard trainer = getSidePlayer(state, isPlayerSide).getActiveTrainer();
         if (trainer == null || !trainer.canUseActive()) {
             state.log("Trainer ability not available!");
+            return state;
+        }
+
+        if (!hasValidAbilityTarget(state, trainer.getActiveAbility(), isPlayerSide, targetRow, targetCol)) {
+            state.log(trainer.getActiveAbility().getName() + " has no valid targets.");
             return state;
         }
 
@@ -912,6 +933,62 @@ public class GameService {
                 .filter(c -> c.getId().equals(cardId))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private boolean hasValidAbilityTarget(GameState state, Ability ability, boolean isPlayerSide, int targetRow, int targetCol) {
+        if (state == null || ability == null || ability.isPassive() || ability.getTargetType() == null) {
+            return false;
+        }
+
+        return switch (ability.getTargetType()) {
+            case ENEMY_PLAYER -> true;
+            case SINGLE_ENEMY -> hasSingleTarget(state, ability, !isPlayerSide, targetRow, targetCol);
+            case ALL_ENEMIES -> hasAnyTarget(state.getBoardSieglings(!isPlayerSide), ability);
+            case ROW_ENEMIES -> ability.getTargetRow() != null
+                    && hasAnyTarget(sieglingsInRow(state, !isPlayerSide, ability.getTargetRow().getIndex()), ability);
+            case ROW_SELECT_ENEMIES -> targetRow >= 0
+                    && hasAnyTarget(sieglingsInRow(state, !isPlayerSide, targetRow), ability);
+            case SINGLE_ALLY -> hasSingleTarget(state, ability, isPlayerSide, targetRow, targetCol);
+            case ALL_ALLIES -> hasAnyTarget(state.getBoardSieglings(isPlayerSide), ability);
+            case ROW_ALLIES -> ability.getTargetRow() != null
+                    && hasAnyTarget(sieglingsInRow(state, isPlayerSide, ability.getTargetRow().getIndex()), ability);
+            case ROW_SELECT_ALLIES -> targetRow >= 0
+                    && hasAnyTarget(sieglingsInRow(state, isPlayerSide, targetRow), ability);
+            case SELF, PASSIVE -> false;
+        };
+    }
+
+    private boolean hasSingleTarget(GameState state, Ability ability, boolean targetPlayerSide, int targetRow, int targetCol) {
+        if (targetRow >= 0 && targetCol >= 0) {
+            return isValidAbilityTarget(ability, state.getAt(targetPlayerSide, targetRow, targetCol));
+        }
+        return hasAnyTarget(state.getBoardSieglings(targetPlayerSide), ability);
+    }
+
+    private boolean hasAnyTarget(List<CardInstance> targets, Ability ability) {
+        return targets.stream().anyMatch(target -> isValidAbilityTarget(ability, target));
+    }
+
+    private boolean isValidAbilityTarget(Ability ability, CardInstance target) {
+        if (target == null || !target.isAlive()) {
+            return false;
+        }
+        Element targetElement = ability.getTargetElement();
+        return targetElement == null || targetElement == Element.NEUTRAL || target.getElement() == targetElement;
+    }
+
+    private List<CardInstance> sieglingsInRow(GameState state, boolean isPlayerSide, int row) {
+        if (row < 0 || row > 2) {
+            return List.of();
+        }
+        List<CardInstance> result = new ArrayList<>();
+        for (int col = 0; col < 3; col++) {
+            CardInstance instance = state.getAt(isPlayerSide, row, col);
+            if (instance != null && instance.isAlive()) {
+                result.add(instance);
+            }
+        }
+        return result;
     }
 
     private String rowName(int row) {

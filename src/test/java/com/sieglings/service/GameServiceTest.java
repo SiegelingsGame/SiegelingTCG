@@ -159,6 +159,114 @@ class GameServiceTest {
     }
 
     @Test
+    void successfulActionCardConsumesSetupActionBudget() throws Exception {
+        GameService gameService = new GameService();
+        setField(gameService, "energyService", new EnergyService(new PlacementService()));
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+        state.setFirstTurn(false);
+
+        SpellCard first = new SpellCard(
+                "first-spell",
+                "First Spell",
+                Element.FIRE,
+                Rarity.COMMON,
+                0,
+                Ability.damage("First Spell", "Deal 4 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 4)
+        );
+        SpellCard second = new SpellCard(
+                "second-spell",
+                "Second Spell",
+                Element.FIRE,
+                Rarity.COMMON,
+                0,
+                Ability.damage("Second Spell", "Deal 4 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 4)
+        );
+        player.getHand().add(first);
+        player.getHand().add(second);
+
+        gameService.castSpell(state, true, "first-spell", -1, -1);
+        gameService.castSpell(state, true, "second-spell", -1, -1);
+
+        assertEquals(46, enemy.getHealth(), "Only the first setup action card should resolve with a one-action budget.");
+        assertEquals(1, state.getSieglingSetupActionsUsed(true));
+        assertTrue(player.getDiscard().contains(first));
+        assertTrue(player.getHand().contains(second), "The blocked second spell should remain in hand.");
+        assertFalse(player.getDiscard().contains(second));
+    }
+
+    @Test
+    void invalidTargetActionCardStaysInHandAndDoesNotConsumeBudget() throws Exception {
+        GameService gameService = new GameService();
+        setField(gameService, "energyService", new EnergyService(new PlacementService()));
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+        state.setFirstTurn(false);
+
+        SpellCard spell = new SpellCard(
+                "targeted-spell",
+                "Targeted Spell",
+                Element.FIRE,
+                Rarity.COMMON,
+                0,
+                Ability.damage("Targeted Spell", "Deal 4 damage to an enemy", TargetType.SINGLE_ENEMY, null, 0, 4)
+        );
+        player.getHand().add(spell);
+
+        gameService.castSpell(state, true, "targeted-spell", -1, -1);
+
+        assertTrue(player.getHand().contains(spell), "Cards that cannot resolve should stay in hand.");
+        assertTrue(player.getDiscard().isEmpty());
+        assertEquals(0, state.getSieglingSetupActionsUsed(true));
+        assertEquals(0, player.getSpellsCastThisMatch());
+    }
+
+    @Test
+    void trainerAbilityCannotResolveDuringBattle() throws Exception {
+        GameService gameService = new GameService();
+        setField(gameService, "energyService", new EnergyService(new PlacementService()));
+        setField(gameService, "effectService", new EffectService());
+
+        TrainerCard trainer = new TrainerCard(
+                "trainer_battle",
+                "Battle Trainer",
+                Element.FIRE,
+                Rarity.RARE,
+                null,
+                Ability.damage("Battle Burst", "Deal 5 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 5),
+                false
+        );
+        Player player = new Player("Player", true);
+        player.setActiveTrainer(trainer);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.BATTLE);
+        state.setPlayerTurn(true);
+        state.setFirstTurn(false);
+
+        gameService.useTrainerAbility(state, true, -1, -1);
+
+        assertEquals(50, enemy.getHealth(), "SiegeKnight actives should not resolve during battle.");
+        assertTrue(trainer.canUseActive(), "Blocked SiegeKnight actives should remain available for setup.");
+    }
+
+    @Test
     void aiDoesNotCastAfterUsingLastSetupAction() throws Exception {
         AIService aiService = new AIService();
         PlacementService placementService = new PlacementService();

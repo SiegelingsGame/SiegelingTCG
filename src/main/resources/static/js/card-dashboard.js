@@ -3531,8 +3531,11 @@
     }
 
     function setInputValue(input, value) {
+        if (!input) {
+            return;
+        }
         const desired = value == null ? "" : String(value);
-        if (document.activeElement !== input && input.value !== desired) {
+        if (input.value !== desired) {
             input.value = desired;
         }
     }
