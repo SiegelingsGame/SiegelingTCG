@@ -1283,6 +1283,43 @@ body {
     color: rgba(214, 255, 230, 0.82);
 }
 
+.dashboard-access-field {
+    display: grid;
+    gap: 6px;
+    margin: 14px 0 6px;
+    color: rgba(238, 244, 255, 0.82);
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.dashboard-access-field input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid rgba(140, 170, 220, 0.34);
+    border-radius: 8px;
+    background: rgba(5, 12, 26, 0.62);
+    color: var(--text);
+    padding: 0 12px;
+    font: inherit;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.dashboard-access-field input:focus {
+    outline: none;
+    border-color: rgba(226, 183, 20, 0.76);
+    box-shadow: 0 0 0 3px rgba(226, 183, 20, 0.16);
+}
+
+.dashboard-access-error {
+    min-height: 1.2em;
+    margin: 0 0 10px;
+    color: #ff9c8e;
+    font-weight: 800;
+}
+
 .trainer-ability-actions {
     display: flex;
     justify-content: flex-end;

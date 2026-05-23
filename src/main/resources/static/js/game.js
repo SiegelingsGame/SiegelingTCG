@@ -335,6 +335,8 @@ function renderStatusBadgesForCell(cell) {
 const TARGET_ARROW_STAGGER_MS = 40;
 const TARGET_ARROW_FADE_MS = 200;
 const TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
+const DASHBOARD_ACCESS_PASSWORD = 'Aviators4!';
+const DASHBOARD_ACCESS_KEY = 'sieglingsDashboardAccessGranted';
 const targetArrowPreviewState = {
     active: false,
     source: null,
@@ -2538,6 +2540,59 @@ function closeTrainerAbilityPopup(event) {
     if (overlay) {
         overlay.classList.add('hidden');
     }
+}
+
+function openDashboardAccess() {
+    const overlay = document.getElementById('dashboardAccessOverlay');
+    const input = document.getElementById('dashboardAccessPassword');
+    const error = document.getElementById('dashboardAccessError');
+    if (!overlay || !input) {
+        window.location.href = '/card-dashboard.html';
+        return;
+    }
+    if (window.sessionStorage?.getItem(DASHBOARD_ACCESS_KEY) === 'true') {
+        window.location.href = '/card-dashboard.html';
+        return;
+    }
+    if (error) {
+        error.textContent = '';
+    }
+    input.value = '';
+    overlay.classList.remove('hidden');
+    overlay.setAttribute('aria-hidden', 'false');
+    setTimeout(() => input.focus(), 0);
+}
+
+function closeDashboardAccess(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const overlay = document.getElementById('dashboardAccessOverlay');
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+}
+
+function submitDashboardAccess(event) {
+    event.preventDefault();
+    const input = document.getElementById('dashboardAccessPassword');
+    const error = document.getElementById('dashboardAccessError');
+    const password = input?.value || '';
+    if (password === DASHBOARD_ACCESS_PASSWORD) {
+        try {
+            window.sessionStorage?.setItem(DASHBOARD_ACCESS_KEY, 'true');
+        } catch (_) {
+            // Session storage may be unavailable in private browsing modes.
+        }
+        window.location.href = '/card-dashboard.html';
+        return;
+    }
+    if (error) {
+        error.textContent = 'Incorrect password.';
+    }
+    input?.select();
 }
 
 function activateTrainerAbilityFromPopup() {
