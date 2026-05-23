@@ -111,6 +111,7 @@ const EFFECT_KIND_MAP = {
     connected_allies_shield: 'buff',
     connected_allies_speed_boost: 'buff',
     freeze: 'freeze',
+    slow: 'freeze',
     speed_zero: 'freeze',
     move_link: 'move'
 };

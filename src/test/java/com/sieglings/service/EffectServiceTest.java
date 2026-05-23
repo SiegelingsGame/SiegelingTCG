@@ -12,6 +12,7 @@ import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.StatusEffect;
 import com.sieglings.model.enums.TargetType;
 import org.junit.jupiter.api.Test;
 
@@ -503,6 +504,50 @@ class EffectServiceTest {
         effectService.resolveAbility(state, speedBoost, null, true, 1, 1);
 
         assertEquals(2, target.getEffectiveSpeed(), "Later speed boosts should be able to lift a speed-zero target back above 0.");
+    }
+
+    @Test
+    void slowReducesCurrentSpeedByEffectValueAndClampsAtZero() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        CardInstance target = instance("fast", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 1, 1);
+        target.setCurrentSpeed(6);
+        state.setAt(false, 1, 1, target);
+
+        Ability slow = new Ability(
+                "Heavy Mist",
+                "Reduce 1 enemy speed by 2",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.SLOW,
+                2,
+                false
+        );
+        effectService.resolveAbility(state, slow, null, true, 1, 1);
+
+        assertEquals(4, target.getEffectiveSpeed(), "Slow should subtract exactly the effect value.");
+
+        Ability heavierSlow = new Ability(
+                "Deep Mist",
+                "Reduce 1 enemy speed by 8",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.SLOW,
+                8,
+                false
+        );
+        effectService.resolveAbility(state, heavierSlow, null, true, 1, 1);
+
+        assertEquals(0, target.getEffectiveSpeed(), "Slow should not reduce speed below zero.");
+        assertTrue(target.getStatusEffects().contains(StatusEffect.SPEED_ZERO),
+                "A slowed target that reaches zero speed should act like a speed-zero target.");
     }
 
     private CardInstance instance(String id, List<Notch> notches, int row, int col) {

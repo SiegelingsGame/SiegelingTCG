@@ -2142,6 +2142,8 @@
                 return `${scope} ${gainVerb} ${signedValue} Shield`;
             case "speed_boost":
                 return `${scope} ${gainVerb} ${signedValue} Speed`;
+            case "slow":
+                return `${scope} lose ${value} Speed`;
             case "connected_allies_damage_boost":
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
@@ -3944,6 +3946,8 @@
                 return buildFreezeMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "speed_zero":
                 return buildSpeedZeroMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
+            case "slow":
+                return buildSlowMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "damage_boost":
                 return buildStatBoostMoveDescription(signedValue, "Attack Damage", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
             case "health_boost":
@@ -4093,6 +4097,37 @@
             case "SELF":
             case "PASSIVE":
                 return `Nullify self speed (${turns})`;
+            default:
+                return "";
+        }
+    }
+
+    function buildSlowMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
+        const amount = Math.max(1, toNumber(value, 1));
+        switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `Reduce 1 ${elementPrefix}enemy speed by ${amount}`;
+            case "SINGLE_ALLY":
+                return `Reduce 1 ${elementPrefix}ally speed by ${amount}`;
+            case "ROW_ENEMIES":
+                return elementPrefix
+                    ? `Reduce ${elementPrefix}row enemies' speed by ${amount}`
+                    : `Reduce row enemies' speed by ${amount}`;
+            case "ROW_ALLIES":
+                return elementPrefix
+                    ? `Reduce ${elementPrefix}row allies' speed by ${amount}`
+                    : `Reduce row allies' speed by ${amount}`;
+            case "ROW_SELECT_ENEMIES":
+                return `Reduce ${selectedEnemyRow}'s speed by ${amount}`;
+            case "ROW_SELECT_ALLIES":
+                return `Reduce ${selectedAlliedRow}'s speed by ${amount}`;
+            case "ALL_ENEMIES":
+                return `Reduce all ${elementPrefix}enemies' speed by ${amount}`;
+            case "ALL_ALLIES":
+                return `Reduce all ${elementPrefix}allies' speed by ${amount}`;
+            case "SELF":
+            case "PASSIVE":
+                return `Reduce self speed by ${amount}`;
             default:
                 return "";
         }

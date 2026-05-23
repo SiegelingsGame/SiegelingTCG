@@ -13,6 +13,7 @@ public final class AbilityEffectKeys {
     public static final String SHIELD = "shield";
     public static final String FREEZE = "freeze";
     public static final String SPEED_ZERO = "speed_zero";
+    public static final String SLOW = "slow";
     public static final String DAMAGE_BOOST = "damage_boost";
     public static final String HEALTH_BOOST = "health_boost";
     public static final String CONNECTED_ALLIES_DAMAGE_BOOST = "connected_allies_damage_boost";
@@ -30,6 +31,7 @@ public final class AbilityEffectKeys {
             SHIELD,
             FREEZE,
             SPEED_ZERO,
+            SLOW,
             DAMAGE_BOOST,
             HEALTH_BOOST,
             CONNECTED_ALLIES_DAMAGE_BOOST,

@@ -245,6 +245,15 @@ public class EffectService {
                     target.getStatusEffects().add(StatusEffect.SPEED_ZERO);
                     state.log(ability.getName() + " reduces " + target.getName() + "'s Speed to 0!");
                 }
+                case AbilityEffectKeys.SLOW -> {
+                    int reduction = Math.max(1, value);
+                    target.setCurrentSpeed(target.getCurrentSpeed() - reduction);
+                    if (target.getCurrentSpeed() == 0) {
+                        target.getStatusEffects().add(StatusEffect.SPEED_ZERO);
+                    }
+                    state.log(ability.getName() + " reduces " + target.getName() + "'s Speed by " + reduction
+                            + " (SPD: " + target.getEffectiveSpeed() + ")");
+                }
                 case AbilityEffectKeys.DAMAGE_BOOST -> {
                     target.addDamageBuff(Math.max(1, value));
                     state.log(ability.getName() + " boosts " + target.getName() + "'s attack damage by " + Math.max(1, value) + "!");
