@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=93">
+    <link rel="stylesheet" href="/css/style.css?v=94">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -219,7 +219,6 @@
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
                 <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
                 <button class="ab-icon" id="btnMuteSound" onclick="toggleSieglingsMute()" title="Toggle Sound" aria-label="Toggle Sound">&#128266;</button>
-                <button class="ab-icon" id="btnDashboardAccess" onclick="openDashboardAccess()" title="Dashboard" aria-label="Dashboard">&#9881;</button>
                 <button class="ab-icon" onclick="openLoadoutSelector()" title="New Game">&#9654;</button>
             </div>
         </div>
@@ -467,6 +466,7 @@
             <div class="welcome-footer-note">Sign in to save progress, or jump in as a guest.</div>
             <div class="welcome-footer-actions">
                 <button class="btn welcome-guest-btn" type="button" onclick="playAsGuest()">Play as Guest</button>
+                <button class="btn welcome-dashboard-btn" id="btnDashboardAccess" type="button" onclick="openDashboardAccess()" title="Dashboard" aria-label="Dashboard">&#9881; Dashboard</button>
                 <span class="crafted-by">Crafted By PartyChatGaming</span>
             </div>
         </div>
