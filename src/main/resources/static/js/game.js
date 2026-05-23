@@ -101,14 +101,18 @@ const EFFECT_KIND_MAP = {
     damage: 'damage',
     player_damage: 'damage',
     destroy: 'damage',
+    draw: 'buff',
     heal: 'heal',
+    shield: 'buff',
     damage_boost: 'buff',
     health_boost: 'buff',
     speed_boost: 'buff',
     connected_allies_damage_boost: 'buff',
     connected_allies_health_boost: 'buff',
+    connected_allies_shield: 'buff',
     connected_allies_speed_boost: 'buff',
     freeze: 'freeze',
+    slow: 'freeze',
     speed_zero: 'freeze',
     move_link: 'move'
 };
@@ -248,30 +252,19 @@ const STATUS_BADGE_SVG = {
 };
 
 function getShieldInfo(cell, hpOverride, maxHpOverride) {
-    const printedHp = Number(cell?.printedHealth);
-    const hp = Number(hpOverride ?? cell?.hp);
-    const maxHp = Number(maxHpOverride ?? cell?.maxHp);
-    if (!Number.isFinite(printedHp) || !Number.isFinite(maxHp)) {
-        return { active: false, total: 0, intact: 0, depleted: 0, state: 'none', intactPct: 0 };
-    }
-    const total = Math.max(0, maxHp - printedHp);
-    const intact = Number.isFinite(hp)
-        ? Math.max(0, Math.min(total, hp - printedHp))
-        : total;
-    const depleted = Math.max(0, total - intact);
+    const shieldHp = Number(cell?.shieldHp);
+    const total = Number.isFinite(shieldHp) ? Math.max(0, shieldHp) : 0;
+    const intact = total;
+    const depleted = 0;
     const state = total <= 0
         ? 'none'
-        : intact <= 0
-            ? 'depleted'
-            : depleted > 0
-                ? 'partial'
-                : 'intact';
-    const intactPct = total > 0 ? Math.round((intact / total) * 100) : 0;
+        : 'intact';
+    const intactPct = total > 0 ? 100 : 0;
     return { active: total > 0, total, intact, depleted, state, intactPct };
 }
 
 function renderShieldChip(info) {
-    if (!info?.active) return '';
+    if (!info?.active || info.intact <= 0) return '';
     const stateClass = ` stat-shield--${info.state}`;
     const title = info.depleted > 0
         ? `Shield +${info.total}: ${info.intact} intact, ${info.depleted} depleted`
@@ -299,9 +292,7 @@ function renderStatusBadge(kind, amount, options = {}) {
 function renderStatusBadgesForCell(cell) {
     if (!cell) return '';
     const statuses = Array.isArray(cell.statuses) ? cell.statuses : [];
-    const printedHp = Number(cell.printedHealth);
     const printedSpd = Number(cell.printedSpeed);
-    const maxHp = Number(cell.maxHp);
     const spd = Number(cell.spd);
     const dmgBoost = Number(cell.damageBoost) || 0;
     const shieldInfo = getShieldInfo(cell);
@@ -322,7 +313,7 @@ function renderStatusBadgesForCell(cell) {
         // underlying status is still on the card server-side.
         if (kind === 'HEALTH_BOOST' && shieldInfo.intact <= 0) return;
         let amount = 0;
-        if (kind === 'HEALTH_BOOST' && Number.isFinite(maxHp) && Number.isFinite(printedHp)) {
+        if (kind === 'HEALTH_BOOST') {
             amount = shieldInfo.total;
         } else if (kind === 'DAMAGE_BOOST') {
             amount = dmgBoost;
@@ -349,6 +340,7 @@ function renderStatusBadgesForCell(cell) {
 const TARGET_ARROW_STAGGER_MS = 40;
 const TARGET_ARROW_FADE_MS = 200;
 const TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
+const DASHBOARD_ACCESS_PASSWORD = 'Aviators4!';
 const targetArrowPreviewState = {
     active: false,
     source: null,
@@ -1027,13 +1019,9 @@ function renderBoardCellCombatStatsInner(cell) {
     const maxHp = cell.maxHp;
     const hp = cell.hp;
     const spd = cell.spd;
-    // "Shielded" means the absorb buffer still has capacity — current hp
-    // sits above the printed max. The HP block tints grey while there's
-    // shield remaining, and the moment hp falls to (or below) the printed
-    // max the shield is spent and the grey wash reverts to green even
-    // though the underlying HEALTH_BOOST status may still technically be
-    // on the card.
-    const hpBuffed = Number.isFinite(printedHp) && hp > printedHp;
+    // Shield is tracked separately (shieldHp); the asterisk flags a
+    // permanent max-health boost (maxHp above the printed value).
+    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
     let hpInner = `${hp}/<span class="stat-hp-max">${maxHp}</span>`;
@@ -1046,7 +1034,7 @@ function renderBoardCellCombatStatsInner(cell) {
         spdInner += renderCardStatAsterisk(el);
     }
 
-    return { hpInner, spdInner, dmgBlock: '', hasShield: hpBuffed };
+    return { hpInner, spdInner, dmgBlock: '' };
 }
 
 function getAbilityRequiredEnergy(ability) {
@@ -2566,6 +2554,50 @@ function closeTrainerAbilityPopup(event) {
     if (overlay) {
         overlay.classList.add('hidden');
     }
+}
+
+function openDashboardAccess() {
+    const overlay = document.getElementById('dashboardAccessOverlay');
+    const input = document.getElementById('dashboardAccessPassword');
+    const error = document.getElementById('dashboardAccessError');
+    if (!overlay || !input) {
+        window.location.href = '/card-dashboard.html';
+        return;
+    }
+    if (error) {
+        error.textContent = '';
+    }
+    input.value = '';
+    overlay.classList.remove('hidden');
+    overlay.setAttribute('aria-hidden', 'false');
+    setTimeout(() => input.focus(), 0);
+}
+
+function closeDashboardAccess(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const overlay = document.getElementById('dashboardAccessOverlay');
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+}
+
+function submitDashboardAccess(event) {
+    event.preventDefault();
+    const input = document.getElementById('dashboardAccessPassword');
+    const error = document.getElementById('dashboardAccessError');
+    const password = input?.value || '';
+    if (password === DASHBOARD_ACCESS_PASSWORD) {
+        window.location.href = '/card-dashboard.html';
+        return;
+    }
+    if (error) {
+        error.textContent = 'Incorrect password.';
+    }
+    input?.select();
 }
 
 function activateTrainerAbilityFromPopup() {
@@ -4503,8 +4535,9 @@ async function loadGameOptions() {
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();
-        const [data] = await Promise.all([
+        const [data, editorState] = await Promise.all([
             fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS),
             syncAuthProfile(true)
         ]);
         if (!data) {
@@ -4512,7 +4545,7 @@ async function loadGameOptions() {
             syncEntryOverlays();
             return;
         }
-        gameOptions = data;
+        gameOptions = filterGameOptionsToDashboardCards(data, editorState);
         loadoutErrorMessage = '';
         selectedDeckId = data.defaultDeckId;
         selectedTrainerId = data.defaultTrainerId;
@@ -4533,6 +4566,40 @@ async function loadGameOptions() {
         showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
         syncEntryOverlays();
     }
+}
+
+function filterGameOptionsToDashboardCards(options, editorState) {
+    const catalog = Array.isArray(options?.cardCatalog) ? options.cardCatalog : [];
+    const dashboardCards = Array.isArray(editorState?.data?.cards) ? editorState.data.cards : [];
+    if (!catalog.length || !dashboardCards.length) {
+        return options;
+    }
+
+    const dashboardIds = new Set(
+        dashboardCards
+            .map(card => normalizeDashboardCardId(card?.id))
+            .filter(Boolean)
+    );
+    if (dashboardIds.size === 0) {
+        return options;
+    }
+
+    const filteredCatalog = catalog.filter(card => dashboardIds.has(normalizeDashboardCardId(card?.id)));
+    if (filteredCatalog.length === 0) {
+        return options;
+    }
+    if (filteredCatalog.length !== catalog.length) {
+        console.info(`Filtered ${catalog.length - filteredCatalog.length} deleted dashboard card(s) from deck builder catalog.`);
+    }
+    return {
+        ...options,
+        cardCatalog: filteredCatalog
+    };
+}
+
+function normalizeDashboardCardId(id) {
+    const normalized = String(id || '').trim().toLowerCase();
+    return normalized || null;
 }
 
 async function newGame() {
@@ -5452,7 +5519,11 @@ function renderBuilderPreviewCard(card) {
 
 function getBuilderSelectedCards() {
     const cards = [];
+    const availableIds = new Set((gameOptions?.cardCatalog || []).map(card => card.id));
     for (const [cardId, count] of Object.entries(builderCounts)) {
+        if (!availableIds.has(cardId)) {
+            continue;
+        }
         for (let i = 0; i < count; i++) {
             cards.push(cardId);
         }
@@ -6693,38 +6764,30 @@ function renderBoard(gridId, board, isPlayer) {
                 html += renderStatusBadgesForCell(cell);
                 html += `<div class="bc-stats-box">`;
                 {
-                    // Render the HP bar against the printedHealth baseline so
-                    // a shield buff (maxHp > printedHealth) doesn't show as
-                    // a permanently-full bar. Plates are tied to the buff
-                    // being *active*, not just the remaining absorb, so a
-                    // partially-consumed shield still shows on the card and
-                    // re-charges when healed.
-                    const _printedHp = Number(cell.printedHealth);
-                    const _barMax = Number.isFinite(_printedHp) ? _printedHp : cell.maxHp;
-                    const _barHp = Number.isFinite(_printedHp) ? Math.min(cell.hp, _printedHp) : cell.hp;
+                    // Temporary shields are tracked separately from max HP
+                    // (shieldHp), so the bar can show permanent max-health
+                    // boosts normally. Shield points overlay the green HP bar
+                    // with grey metal plates — one per shield point — that
+                    // animate off as the shield breaks.
+                    const _barMax = Number(cell.maxHp);
+                    const _barHp = Number(cell.hp);
                     const _pct = _barMax > 0 ? Math.max(0, Math.min(100, (_barHp / _barMax) * 100)) : 0;
-                    const _totalShield     = Number.isFinite(_printedHp) ? Math.max(0, Number(cell.maxHp) - _printedHp) : 0;
-                    const _remainingShield = Number.isFinite(_printedHp) ? Math.max(0, cell.hp - _printedHp)            : 0;
-                    // Plates only render while there's still absorb left.
-                    // Once HP dips below printedHealth the shield is
-                    // "spent" — the badge, grey bg and plates all clear
-                    // together even if HEALTH_BOOST is still in statuses.
-                    const _shieldVisible = _remainingShield > 0;
-                    const _platesHtml = _shieldVisible
-                        ? `<div class="shield-plates" data-total="${_totalShield}" data-remaining="${_remainingShield}">${
-                                Array.from({ length: _totalShield }, (_, i) =>
-                                    `<div class="shield-plate${i >= _remainingShield ? ' is-depleted' : ''}" data-plate-index="${i}"></div>`
+                    const _shield = Math.max(0, Number(cell.shieldHp) || 0);
+                    const _platesHtml = _shield > 0
+                        ? `<div class="shield-plates" data-shield="${_shield}">${
+                                Array.from({ length: _shield },
+                                    (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
                                 ).join('')
                             }</div>`
                         : '';
-                    html += `<div class="hp-bar${_shieldVisible ? ' is-shielded' : ''}">`
+                    html += `<div class="hp-bar${_shield > 0 ? ' is-shielded' : ''}">`
                         + `<div class="hp-fill" style="width:${_pct}%"></div>`
                         + _platesHtml
                         + `</div>`;
                 }
                 const combat = renderBoardCellCombatStatsInner(cell);
                 html += `<div class="card-stats">`;
-                html += `<span class="stat stat-hp${combat.hasShield ? ' is-shielded' : ''}">${combat.hpInner}</span>`;
+                html += `<span class="stat stat-hp">${combat.hpInner}</span>`;
                 html += `<span class="stat stat-spd">${combat.spdInner}</span>`;
                 if (combat.dmgBlock) {
                     html += combat.dmgBlock;
@@ -8634,7 +8697,7 @@ function showTooltipBoard(event, isPlayer, row, col) {
     document.getElementById('ttName').style.color = getElementCssVar(cell.element);
     const combat = renderBoardCellCombatStatsInner(cell);
     document.getElementById('ttStats').innerHTML =
-        `<span class="stat stat-hp${combat.hasShield ? ' is-shielded' : ''}">HP: ${combat.hpInner}</span>` +
+        `<span class="stat stat-hp">HP: ${combat.hpInner}</span>` +
         `<span class="stat stat-spd">SPD: ${combat.spdInner}</span>` +
         (combat.dmgBlock || '');
     let abilityHtml = '';
