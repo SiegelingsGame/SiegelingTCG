@@ -336,7 +336,6 @@ const TARGET_ARROW_STAGGER_MS = 40;
 const TARGET_ARROW_FADE_MS = 200;
 const TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
 const DASHBOARD_ACCESS_PASSWORD = 'Aviators4!';
-const DASHBOARD_ACCESS_KEY = 'sieglingsDashboardAccessGranted';
 const targetArrowPreviewState = {
     active: false,
     source: null,
@@ -2550,10 +2549,6 @@ function openDashboardAccess() {
         window.location.href = '/card-dashboard.html';
         return;
     }
-    if (window.sessionStorage?.getItem(DASHBOARD_ACCESS_KEY) === 'true') {
-        window.location.href = '/card-dashboard.html';
-        return;
-    }
     if (error) {
         error.textContent = '';
     }
@@ -2581,11 +2576,6 @@ function submitDashboardAccess(event) {
     const error = document.getElementById('dashboardAccessError');
     const password = input?.value || '';
     if (password === DASHBOARD_ACCESS_PASSWORD) {
-        try {
-            window.sessionStorage?.setItem(DASHBOARD_ACCESS_KEY, 'true');
-        } catch (_) {
-            // Session storage may be unavailable in private browsing modes.
-        }
         window.location.href = '/card-dashboard.html';
         return;
     }
