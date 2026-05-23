@@ -2138,6 +2138,8 @@
                 return `${scope} ${gainVerb} ${signedValue} Attack Damage`;
             case "health_boost":
                 return `${scope} ${gainVerb} ${signedValue} max HP`;
+            case "draw":
+                return `Draw ${value} ${value === 1 ? "card" : "cards"}`;
             case "shield":
                 return `${scope} ${gainVerb} ${signedValue} Shield`;
             case "speed_boost":
@@ -3940,6 +3942,8 @@
                 return buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "player_damage":
                 return `Deal ${value} damage to the enemy player`;
+            case "draw":
+                return `Draw ${value} ${value === 1 ? "card" : "cards"}`;
             case "heal":
                 return buildHealMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "freeze":

@@ -9,6 +9,7 @@ public final class AbilityEffectKeys {
 
     public static final String DAMAGE = "damage";
     public static final String PLAYER_DAMAGE = "player_damage";
+    public static final String DRAW = "draw";
     public static final String HEAL = "heal";
     public static final String SHIELD = "shield";
     public static final String FREEZE = "freeze";
@@ -27,6 +28,7 @@ public final class AbilityEffectKeys {
     private static final Set<String> ALL = Set.of(
             DAMAGE,
             PLAYER_DAMAGE,
+            DRAW,
             HEAL,
             SHIELD,
             FREEZE,

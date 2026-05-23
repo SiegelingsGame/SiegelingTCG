@@ -550,6 +550,34 @@ class EffectServiceTest {
                 "A slowed target that reaches zero speed should act like a speed-zero target.");
     }
 
+    @Test
+    void drawEffectDrawsEffectValueCardsForActingSide() {
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        state.setPlayer(player);
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+        player.getDeck().add(new SieglingCard("draw-a", "Draw A", Element.EARTH, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE));
+        player.getDeck().add(new SieglingCard("draw-b", "Draw B", Element.EARTH, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE));
+        player.getDeck().add(new SieglingCard("draw-c", "Draw C", Element.EARTH, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE));
+
+        Ability draw = new Ability(
+                "Fresh Plans",
+                "Draw 2 cards",
+                TargetType.SELF,
+                null,
+                0,
+                AbilityEffectKeys.DRAW,
+                2,
+                false
+        );
+
+        effectService.resolveAbility(state, draw, null, true, -1, -1);
+
+        assertEquals(2, player.getHand().size(), "Draw should move effect-value cards into hand.");
+        assertEquals(1, player.getDeck().size(), "Draw should remove the same number of cards from deck.");
+    }
+
     private CardInstance instance(String id, List<Notch> notches, int row, int col) {
         SieglingCard card = new SieglingCard(id, id, Element.EARTH, Rarity.COMMON, 10, 4, notches, Row.MIDDLE);
         return new CardInstance(card, row, col, true);

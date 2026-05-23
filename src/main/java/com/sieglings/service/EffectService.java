@@ -68,6 +68,11 @@ public class EffectService {
             }
         }
 
+        if (AbilityEffectKeys.DRAW.equals(ability.getEffectType())) {
+            applyDrawEffect(state, ability, isPlayerSource, Math.max(0, ability.getEffectValue()));
+            return;
+        }
+
         if (ability.getTargetType() == TargetType.ENEMY_PLAYER) {
             applyPlayerEffect(state, ability, isPlayerSource);
             return;
@@ -302,6 +307,25 @@ public class EffectService {
                 state.log(ability.getName() + " heals " + targetPlayer.getName() + " for " + value + ".");
             }
             default -> state.log("Unknown player effect: " + ability.getEffectType());
+        }
+    }
+
+    private void applyDrawEffect(GameState state, Ability ability, boolean isPlayerSource, int count) {
+        var actor = isPlayerSource ? state.getPlayer() : state.getEnemy();
+        int drawn = 0;
+        for (int i = 0; i < count; i++) {
+            if (actor.drawCard() != null) {
+                drawn++;
+            } else {
+                break;
+            }
+        }
+        if (drawn > 0) {
+            state.log(ability.getName() + " draws " + actor.getName() + " " + drawn + " card" + (drawn == 1 ? "" : "s") + ".");
+        } else if (count > 0) {
+            state.log(ability.getName() + " could not draw because " + actor.getName() + "'s deck is empty.");
+        } else {
+            state.log(ability.getName() + " draws no cards.");
         }
     }
 

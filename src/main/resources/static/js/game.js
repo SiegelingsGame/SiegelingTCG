@@ -101,6 +101,7 @@ const EFFECT_KIND_MAP = {
     damage: 'damage',
     player_damage: 'damage',
     destroy: 'damage',
+    draw: 'buff',
     heal: 'heal',
     shield: 'buff',
     damage_boost: 'buff',
