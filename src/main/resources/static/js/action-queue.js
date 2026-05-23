@@ -920,6 +920,45 @@
             const visibleHp = hasShield ? printedHp : safeHp;
             return `${visibleHp}/<span class="stat-hp-max">${baseMax}</span>`;
         }
+        syncShieldVisualsToHealth(card, entry, hp, maxHp) {
+            if (!card) return;
+            const printedHp = Number(entry?.printedHealth);
+            if (!Number.isFinite(printedHp)) return;
+            const safeHp = Number.isFinite(Number(hp)) ? Number(hp) : 0;
+            const safeMax = Number.isFinite(Number(maxHp)) ? Number(maxHp) : 0;
+            const totalShield = Math.max(0, safeMax - printedHp);
+            const intactShield = Math.max(0, Math.min(totalShield, safeHp - printedHp));
+            const shieldBadge = card.querySelector('.status-icons .sb-badge[data-status="HEALTH_BOOST"]');
+            if (intactShield <= 0) {
+                shieldBadge?.remove();
+                const statusIcons = card.querySelector('.status-icons');
+                if (statusIcons && !statusIcons.querySelector('.sb-badge')) {
+                    statusIcons.remove();
+                }
+            } else if (shieldBadge) {
+                shieldBadge.setAttribute('data-shield-state', intactShield < totalShield ? 'partial' : 'intact');
+                shieldBadge.title = `Shield +${totalShield}${intactShield < totalShield ? ' (partial)' : ''}`;
+                const num = shieldBadge.querySelector('.sb-num');
+                if (num) num.textContent = `+${totalShield}`;
+            }
+            const hpBar = card.querySelector('.hp-bar');
+            const plates = hpBar?.querySelector('.shield-plates');
+            if (!hpBar) return;
+            if (intactShield <= 0) {
+                hpBar.classList.remove('is-shielded');
+                plates?.remove();
+                return;
+            }
+            hpBar.classList.add('is-shielded');
+            if (!plates) return;
+            plates.dataset.shield = String(intactShield);
+            const current = plates.querySelectorAll('.shield-plate').length;
+            if (current === intactShield) return;
+            plates.innerHTML = Array.from(
+                { length: intactShield },
+                (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
+            ).join('');
+        }
         applyHealthToDom(entry, hp, maxHp) {
             if (!entry) return;
             const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
@@ -935,6 +974,7 @@
             if (fill) fill.style.width = `${pct}%`;
             const hpStat = card.querySelector('.stat-hp');
             if (hpStat) hpStat.innerHTML = this.renderHealthInner(entry, resolvedHp, resolvedMax);
+            this.syncShieldVisualsToHealth(card, entry, resolvedHp, resolvedMax);
         }
         registerPendingHealth(target) {
             if (!target || target.destroysTarget) return null;

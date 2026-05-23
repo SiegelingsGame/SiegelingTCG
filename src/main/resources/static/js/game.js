@@ -271,7 +271,7 @@ function getShieldInfo(cell, hpOverride, maxHpOverride) {
 }
 
 function renderShieldChip(info) {
-    if (!info?.active) return '';
+    if (!info?.active || info.intact <= 0) return '';
     const stateClass = ` stat-shield--${info.state}`;
     const title = info.depleted > 0
         ? `Shield +${info.total}: ${info.intact} intact, ${info.depleted} depleted`
@@ -318,6 +318,9 @@ function renderStatusBadgesForCell(cell) {
         const kind = String(raw || '').toUpperCase();
         let amount = 0;
         if (kind === 'HEALTH_BOOST' && Number.isFinite(maxHp) && Number.isFinite(printedHp)) {
+            if (shieldInfo.intact <= 0) {
+                return;
+            }
             amount = shieldInfo.total;
         } else if (kind === 'DAMAGE_BOOST') {
             amount = dmgBoost;
@@ -327,7 +330,7 @@ function renderStatusBadgesForCell(cell) {
         push(kind, amount, kind === 'HEALTH_BOOST' ? { shieldState: shieldInfo.state } : {});
     });
 
-    if (!seen.has('HEALTH_BOOST') && shieldInfo.active) {
+    if (!seen.has('HEALTH_BOOST') && shieldInfo.active && shieldInfo.intact > 0) {
         push('HEALTH_BOOST', shieldInfo.total, { shieldState: shieldInfo.state });
     }
     // Inferred SPEED_BOOST when speed is buffed but no explicit status flag (backend may not yet emit it)
