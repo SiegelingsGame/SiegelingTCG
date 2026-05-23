@@ -29,6 +29,37 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GameServiceTest {
 
     @Test
+    void maxHealthBoostStaysPermanentWhileShieldAbsorbsDamageSeparately() {
+        SieglingCard card = new SieglingCard("leaf", "Leaf", Element.EARTH, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance instance = new CardInstance(card, 0, 0, true);
+
+        instance.addMaxHealthBoost(3);
+
+        assertEquals(13, instance.getEffectiveMaxHealth());
+        assertEquals(13, instance.getCurrentHealth());
+        assertEquals(0, instance.getTemporaryShield());
+        assertFalse(instance.getStatusEffects().contains(StatusEffect.HEALTH_BOOST));
+
+        instance.clearTemporaryEffects();
+
+        assertEquals(13, instance.getEffectiveMaxHealth());
+        assertEquals(13, instance.getCurrentHealth());
+
+        instance.addShield(2);
+        instance.takeRawDamage(1);
+
+        assertEquals(1, instance.getTemporaryShield());
+        assertEquals(13, instance.getCurrentHealth());
+        assertTrue(instance.getStatusEffects().contains(StatusEffect.HEALTH_BOOST));
+
+        instance.takeRawDamage(3);
+
+        assertEquals(0, instance.getTemporaryShield());
+        assertEquals(11, instance.getCurrentHealth());
+        assertFalse(instance.getStatusEffects().contains(StatusEffect.HEALTH_BOOST));
+    }
+
+    @Test
     void trainerHealthPassiveUpdatesPlacedSieglingDuringSetupWithoutRehealing() throws Exception {
         GameService gameService = new GameService();
         setField(gameService, "energyService", new EnergyService(new PlacementService()));

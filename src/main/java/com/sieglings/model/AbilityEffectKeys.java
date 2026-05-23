@@ -10,6 +10,7 @@ public final class AbilityEffectKeys {
     public static final String DAMAGE = "damage";
     public static final String PLAYER_DAMAGE = "player_damage";
     public static final String HEAL = "heal";
+    public static final String SHIELD = "shield";
     public static final String FREEZE = "freeze";
     public static final String SPEED_ZERO = "speed_zero";
     public static final String DAMAGE_BOOST = "damage_boost";
@@ -25,6 +26,7 @@ public final class AbilityEffectKeys {
             DAMAGE,
             PLAYER_DAMAGE,
             HEAL,
+            SHIELD,
             FREEZE,
             SPEED_ZERO,
             DAMAGE_BOOST,

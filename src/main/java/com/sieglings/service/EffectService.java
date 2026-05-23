@@ -166,6 +166,7 @@ public class EffectService {
         String effectType = ability.getEffectType();
         boolean teamStatBuff = AbilityEffectKeys.DAMAGE_BOOST.equals(effectType)
                 || AbilityEffectKeys.HEALTH_BOOST.equals(effectType)
+                || AbilityEffectKeys.SHIELD.equals(effectType)
                 || AbilityEffectKeys.SPEED_BOOST.equals(effectType);
         if (!teamStatBuff) {
             return targets;
@@ -226,6 +227,11 @@ public class EffectService {
                     state.log(ability.getName() + " heals " + target.getName() + " for " + value
                             + " (HP: " + target.getCurrentHealth() + ")");
                 }
+                case AbilityEffectKeys.SHIELD -> {
+                    target.addShield(Math.max(1, value));
+                    state.log(ability.getName() + " grants " + target.getName() + " " + Math.max(1, value) + " Shield"
+                            + " (HP: " + target.getCurrentHealth() + "/" + target.getEffectiveMaxHealth() + ")");
+                }
                 case AbilityEffectKeys.FREEZE -> {
                     target.getStatusEffects().add(StatusEffect.FREEZE);
                     state.log(ability.getName() + " freezes " + target.getName() + "!");
@@ -240,8 +246,8 @@ public class EffectService {
                     state.log(ability.getName() + " boosts " + target.getName() + "'s attack damage by " + Math.max(1, value) + "!");
                 }
                 case AbilityEffectKeys.HEALTH_BOOST -> {
-                    target.addHealthBuff(Math.max(1, value));
-                    state.log(ability.getName() + " grants " + target.getName() + " " + Math.max(1, value) + " Shield"
+                    target.addMaxHealthBoost(Math.max(1, value));
+                    state.log(ability.getName() + " raises " + target.getName() + "'s max Health by " + Math.max(1, value)
                             + " (HP: " + target.getCurrentHealth() + "/" + target.getEffectiveMaxHealth() + ")");
                 }
                 case AbilityEffectKeys.SPEED_BOOST -> {
@@ -299,7 +305,7 @@ public class EffectService {
         }
 
         for (CardInstance ally : connectedAllies) {
-            ally.addHealthBuff(value);
+            ally.addMaxHealthBoost(value);
             state.log(ability.getName() + " raises " + ally.getName() + "'s max Health by " + value
                     + " through a direct link"
                     + " (HP: " + ally.getCurrentHealth() + "/" + ally.getEffectiveMaxHealth() + ")");

@@ -102,6 +102,7 @@ const EFFECT_KIND_MAP = {
     player_damage: 'damage',
     destroy: 'damage',
     heal: 'heal',
+    shield: 'buff',
     damage_boost: 'buff',
     health_boost: 'buff',
     speed_boost: 'buff',
@@ -248,25 +249,14 @@ const STATUS_BADGE_SVG = {
 };
 
 function getShieldInfo(cell, hpOverride, maxHpOverride) {
-    const printedHp = Number(cell?.printedHealth);
-    const hp = Number(hpOverride ?? cell?.hp);
-    const maxHp = Number(maxHpOverride ?? cell?.maxHp);
-    if (!Number.isFinite(printedHp) || !Number.isFinite(maxHp)) {
-        return { active: false, total: 0, intact: 0, depleted: 0, state: 'none', intactPct: 0 };
-    }
-    const total = Math.max(0, maxHp - printedHp);
-    const intact = Number.isFinite(hp)
-        ? Math.max(0, Math.min(total, hp - printedHp))
-        : total;
-    const depleted = Math.max(0, total - intact);
+    const shieldHp = Number(cell?.shieldHp);
+    const total = Number.isFinite(shieldHp) ? Math.max(0, shieldHp) : 0;
+    const intact = total;
+    const depleted = 0;
     const state = total <= 0
         ? 'none'
-        : intact <= 0
-            ? 'depleted'
-            : depleted > 0
-                ? 'partial'
-                : 'intact';
-    const intactPct = total > 0 ? Math.round((intact / total) * 100) : 0;
+        : 'intact';
+    const intactPct = total > 0 ? 100 : 0;
     return { active: total > 0, total, intact, depleted, state, intactPct };
 }
 
@@ -299,9 +289,7 @@ function renderStatusBadge(kind, amount, options = {}) {
 function renderStatusBadgesForCell(cell) {
     if (!cell) return '';
     const statuses = Array.isArray(cell.statuses) ? cell.statuses : [];
-    const printedHp = Number(cell.printedHealth);
     const printedSpd = Number(cell.printedSpeed);
-    const maxHp = Number(cell.maxHp);
     const spd = Number(cell.spd);
     const dmgBoost = Number(cell.damageBoost) || 0;
     const shieldInfo = getShieldInfo(cell);
@@ -317,7 +305,7 @@ function renderStatusBadgesForCell(cell) {
     statuses.forEach((raw) => {
         const kind = String(raw || '').toUpperCase();
         let amount = 0;
-        if (kind === 'HEALTH_BOOST' && Number.isFinite(maxHp) && Number.isFinite(printedHp)) {
+        if (kind === 'HEALTH_BOOST') {
             if (shieldInfo.intact <= 0) {
                 return;
             }
@@ -1029,12 +1017,9 @@ function renderBoardCellCombatStatsInner(cell) {
     // HP that exceeds printedHealth is treated as a shield buffer. The
     // status badge above the stats carries the shield amount, so the HP
     // stat itself stays compact and aligned with unshielded cards.
-    const hasShield = Number.isFinite(printedHp) && hp > printedHp;
-    const visibleHp = hasShield ? printedHp : hp;
-    const visibleMax = Number.isFinite(printedHp) ? printedHp : maxHp;
-    // Only flag the asterisk for a "true" buff (max HP raised above the
-    // printed value) when the shield hasn't taken over the chip role.
-    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp && !hasShield;
+    const visibleHp = hp;
+    const visibleMax = maxHp;
+    const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
     let hpInner = `${visibleHp}/<span class="stat-hp-max">${visibleMax}</span>`;
@@ -6718,19 +6703,15 @@ function renderBoard(gridId, board, isPlayer) {
                 html += renderStatusBadgesForCell(cell);
                 html += `<div class="bc-stats-box">`;
                 {
-                    // Render the HP bar against the printedHealth baseline so
-                    // a shield buff (hp > printedHealth) doesn't show as a
-                    // permanently-full bar. The shield chip in the stats
-                    // line tells the player about the absorb buffer.
-                    const _printedHp = Number(cell.printedHealth);
-                    const _barMax = Number.isFinite(_printedHp) ? _printedHp : cell.maxHp;
-                    const _barHp = Number.isFinite(_printedHp) ? Math.min(cell.hp, _printedHp) : cell.hp;
+                    // Temporary shields are tracked separately from max HP, so
+                    // the bar can show permanent max-health boosts normally.
+                    const _barMax = Number(cell.maxHp);
+                    const _barHp = Number(cell.hp);
                     const _pct = _barMax > 0 ? Math.max(0, Math.min(100, (_barHp / _barMax) * 100)) : 0;
-                    const _shield = Number.isFinite(_printedHp) ? Math.max(0, cell.hp - _printedHp) : 0;
-                    // When the card has an absorb shield, cover the green
+                    const _shield = Math.max(0, Number(cell.shieldHp) || 0);
+                    // Shield points cover the green HP bar with grey metal
                     // HP bar with grey metal plates — one plate per shield
-                    // point. Plates animate off as the shield breaks; once
-                    // they're all gone the bar shows through normally.
+                    // plates and animate off as the shield breaks.
                     const _platesHtml = _shield > 0
                         ? `<div class="shield-plates" data-shield="${_shield}">${
                                 Array.from({ length: _shield },

@@ -2138,6 +2138,8 @@
                 return `${scope} ${gainVerb} ${signedValue} Attack Damage`;
             case "health_boost":
                 return `${scope} ${gainVerb} ${signedValue} max HP`;
+            case "shield":
+                return `${scope} ${gainVerb} ${signedValue} Shield`;
             case "speed_boost":
                 return `${scope} ${gainVerb} ${signedValue} Speed`;
             case "connected_allies_damage_boost":
@@ -3944,6 +3946,8 @@
                 return buildStatBoostMoveDescription(signedValue, "Attack Damage", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
             case "health_boost":
                 return buildStatBoostMoveDescription(signedValue, "max HP", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
+            case "shield":
+                return buildStatBoostMoveDescription(signedValue, "Shield", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
             case "speed_boost":
                 return buildStatBoostMoveDescription(signedValue, "Speed", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
             case "connected_allies_damage_boost":
