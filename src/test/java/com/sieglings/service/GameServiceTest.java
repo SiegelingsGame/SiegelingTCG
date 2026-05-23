@@ -282,6 +282,17 @@ class GameServiceTest {
         GameState state = new GameState();
         state.setPlayer(player);
         state.setEnemy(enemy);
+        SieglingCard playerAnchor = new SieglingCard(
+                "player-anchor",
+                "Player Anchor",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                0,
+                List.of(),
+                Row.FRONT
+        );
+        state.setAt(true, 2, 0, new CardInstance(playerAnchor, 2, 0, true));
 
         SpellCard spell = new SpellCard(
                 "ai-budget-spell",
