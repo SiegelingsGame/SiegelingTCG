@@ -33,7 +33,7 @@ public class GameState {
      * visual result before the queue advances to the next creature or phase.
      */
     private boolean battleActionPausePending = false;
-    /** Siegling setup actions consumed this turn (evolution does not consume). */
+    /** Setup actions consumed this turn by Sieglings, spells, and traps. */
     private int playerPlacementsThisTurn = 0;
     private int enemyPlacementsThisTurn = 0;
     /** External board sockets that have ever been activated; persist even if Sieglinks break. */
@@ -151,7 +151,7 @@ public class GameState {
     }
 
     /**
-     * Siegling setup placements this turn = 1 base + total pooled energy when setup began (after draw).
+     * Setup action budget this turn = 1 base + total pooled energy when setup began (after draw).
      */
     public int getSieglingSetupActionBudget(boolean isPlayer) {
         int bonus = isPlayer ? playerSetupEnergyPlacementBonus : enemySetupEnergyPlacementBonus;

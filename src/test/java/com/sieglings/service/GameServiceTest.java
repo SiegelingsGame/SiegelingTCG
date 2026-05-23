@@ -159,6 +159,74 @@ class GameServiceTest {
     }
 
     @Test
+    void successfulActionCardsConsumeSetupActionBudget() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        setField(gameService, "energyService", new EnergyService(placementService));
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState spellState = new GameState();
+        spellState.setPlayer(player);
+        spellState.setEnemy(enemy);
+        spellState.setCurrentPhase(Phase.SETUP);
+        spellState.setPlayerTurn(true);
+        spellState.setFirstTurn(false);
+
+        SpellCard spell = new SpellCard(
+                "budget-spell",
+                "Budget Spell",
+                Element.FIRE,
+                Rarity.COMMON,
+                0,
+                Ability.damage("Budget Spell", "Deal 3 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 3)
+        );
+        SieglingCard followUp = new SieglingCard("follow-up", "Follow Up", Element.FIRE, Rarity.COMMON, 10, 0, List.of(), Row.FRONT);
+        player.getHand().add(spell);
+        player.getHand().add(followUp);
+
+        gameService.castSpell(spellState, true, "budget-spell", -1, -1);
+        gameService.placeSiegling(spellState, true, "follow-up", 2, 0);
+
+        assertEquals(47, enemy.getHealth(), "The spell should resolve.");
+        assertEquals(1, spellState.getSieglingSetupActionsUsed(true), "The spell should spend the only base setup action.");
+        assertNull(spellState.getAt(true, 2, 0), "No follow-up placement should be allowed after the action budget is spent.");
+        assertTrue(player.getHand().contains(followUp), "Blocked follow-up cards should remain in hand.");
+
+        Player trapPlayer = new Player("Trap Player", true);
+        Player trapEnemy = new Player("Trap Enemy", false);
+        GameState trapState = new GameState();
+        trapState.setPlayer(trapPlayer);
+        trapState.setEnemy(trapEnemy);
+        trapState.setCurrentPhase(Phase.SETUP);
+        trapState.setPlayerTurn(true);
+        trapState.setFirstTurn(false);
+
+        TrapCard trap = new TrapCard(
+                "budget-trap",
+                "Budget Trap",
+                Element.FIRE,
+                Rarity.COMMON,
+                Element.FIRE,
+                0,
+                Ability.damage("Budget Trap", "Deal 4 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 4)
+        );
+        SieglingCard trapFollowUp = new SieglingCard("trap-follow-up", "Trap Follow Up", Element.FIRE, Rarity.COMMON, 10, 0, List.of(), Row.FRONT);
+        trapPlayer.getHand().add(trap);
+        trapPlayer.getHand().add(trapFollowUp);
+
+        gameService.castSpell(trapState, true, "budget-trap", -1, -1);
+        gameService.placeSiegling(trapState, true, "trap-follow-up", 2, 0);
+
+        assertEquals(46, trapEnemy.getHealth(), "The trap should resolve.");
+        assertEquals(1, trapState.getSieglingSetupActionsUsed(true), "The trap should spend the only base setup action.");
+        assertNull(trapState.getAt(true, 2, 0), "No follow-up placement should be allowed after the trap spends the budget.");
+        assertTrue(trapPlayer.getHand().contains(trapFollowUp), "Blocked follow-up cards should remain in hand.");
+    }
+
+    @Test
     void aiDoesNotCastAfterUsingLastSetupAction() throws Exception {
         AIService aiService = new AIService();
         PlacementService placementService = new PlacementService();
@@ -199,6 +267,50 @@ class GameServiceTest {
         assertEquals(50, player.getHealth(), "AI should not cast after spending its last setup action.");
         assertTrue(enemy.getHand().contains(spell), "AI spell should remain in hand.");
         assertFalse(enemy.getDiscard().contains(spell), "AI spell should not be discarded.");
+    }
+
+    @Test
+    void aiActionCardsSpendSetupBudgetBeforeTryingTrap() throws Exception {
+        AIService aiService = new AIService();
+        PlacementService placementService = new PlacementService();
+        setField(aiService, "placementService", placementService);
+        setField(aiService, "energyService", new EnergyService(placementService));
+        setField(aiService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+
+        SpellCard spell = new SpellCard(
+                "ai-budget-spell",
+                "AI Budget Spell",
+                Element.FIRE,
+                Rarity.COMMON,
+                0,
+                Ability.damage("AI Budget Spell", "Deal 4 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 4)
+        );
+        TrapCard trap = new TrapCard(
+                "ai-budget-trap",
+                "AI Budget Trap",
+                Element.FIRE,
+                Rarity.COMMON,
+                Element.FIRE,
+                0,
+                Ability.damage("AI Budget Trap", "Deal 5 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 5)
+        );
+        enemy.getHand().add(spell);
+        enemy.getHand().add(trap);
+
+        aiService.executeAITurn(state);
+
+        assertEquals(1, state.getSieglingSetupActionsUsed(false), "The AI spell should spend the only base setup action.");
+        assertEquals(46, player.getHealth(), "The AI should cast the spell but not also spring the trap.");
+        assertFalse(enemy.getHand().contains(spell));
+        assertTrue(enemy.getDiscard().contains(spell));
+        assertTrue(enemy.getHand().contains(trap), "The AI trap should remain in hand once the setup budget is spent.");
+        assertFalse(enemy.getDiscard().contains(trap), "The AI trap should not be discarded without resolving.");
     }
 
     @Test

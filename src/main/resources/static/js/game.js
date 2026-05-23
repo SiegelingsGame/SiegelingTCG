@@ -4405,6 +4405,7 @@ function scheduleBattleAutoAdvance() {
         }
     }, BATTLE_AUTO_ADVANCE_DELAY_MS);
 }
+window.scheduleBattleAutoAdvance = scheduleBattleAutoAdvance;
 
 async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
     const opts = { method, headers: getAuthHeaders({ 'Content-Type': 'application/json' }) };
