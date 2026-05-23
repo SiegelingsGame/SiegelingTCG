@@ -2146,6 +2146,8 @@
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
                 return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_shield":
+                return `Connected allies gain ${signedValue} Shield`;
             case "connected_allies_speed_boost":
                 return `Connected allies gain ${signedValue} Speed`;
             default:
@@ -3954,6 +3956,8 @@
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
                 return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_shield":
+                return `Connected allies gain ${signedValue} Shield`;
             case "connected_allies_speed_boost":
                 return `Connected allies gain ${signedValue} Speed`;
             case "destroy":

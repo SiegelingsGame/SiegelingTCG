@@ -67,6 +67,10 @@ public class Ability {
         return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, value, false);
     }
 
+    public static Ability connectedAlliesShield(String name, String desc, int value) {
+        return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_SHIELD, value, false);
+    }
+
     public static Ability connectedAlliesDamageBoost(String name, String desc, int value) {
         return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST, value, false);
     }

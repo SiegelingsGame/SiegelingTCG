@@ -243,6 +243,7 @@ public class CardOverrideEditorService {
                 effect(AbilityEffectKeys.HEALTH_BOOST, "Max Health Boost", "Permanently raises current and max health.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST, "Connected Allies Damage Boost", "Buffs allied Sieglings that share a direct active link with the source card.", List.of("SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, "Connected Allies Health Boost", "Gives directly linked allied Sieglings extra max health.", List.of("SELF")),
+                effect(AbilityEffectKeys.CONNECTED_ALLIES_SHIELD, "Connected Allies Shield", "Grants temporary shield health to directly linked allied Sieglings.", List.of("SELF")),
                 effect(AbilityEffectKeys.SPEED_BOOST, "Speed Boost", "Adds temporary speed.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST, "Connected Allies Speed Boost", "Gives directly linked allied Sieglings extra speed.", List.of("SELF")),
                 effect(AbilityEffectKeys.DESTROY, "Destroy", "Defeats the resolved target immediately.", List.of("SINGLE_ENEMY", "ROW_SELECT_ENEMIES")),

@@ -202,6 +202,10 @@ public class EffectService {
             applyConnectedAlliesHealthBoost(state, ability, source, Math.max(1, value));
             return;
         }
+        if (AbilityEffectKeys.CONNECTED_ALLIES_SHIELD.equals(effectType)) {
+            applyConnectedAlliesShield(state, ability, source, Math.max(1, value));
+            return;
+        }
         if (AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST.equals(effectType)) {
             applyConnectedAlliesSpeedBoost(state, ability, source, Math.max(1, value));
             return;
@@ -328,6 +332,26 @@ public class EffectService {
             ally.addDamageBuff(value);
             state.log(ability.getName() + " raises " + ally.getName() + "'s attack damage by " + value
                     + " through a direct link.");
+        }
+    }
+
+    private void applyConnectedAlliesShield(GameState state, Ability ability, CardInstance source, int value) {
+        if (source == null) {
+            state.log(ability.getName() + " has no source card to trace connected allies.");
+            return;
+        }
+
+        List<CardInstance> connectedAllies = placementService.getDirectlyConnectedAllies(state, source);
+        if (connectedAllies.isEmpty()) {
+            state.log(ability.getName() + " found no directly linked allies.");
+            return;
+        }
+
+        for (CardInstance ally : connectedAllies) {
+            ally.addShield(value);
+            state.log(ability.getName() + " grants " + ally.getName() + " " + value + " Shield"
+                    + " through a direct link"
+                    + " (HP: " + ally.getCurrentHealth() + "/" + ally.getEffectiveMaxHealth() + ")");
         }
     }
 

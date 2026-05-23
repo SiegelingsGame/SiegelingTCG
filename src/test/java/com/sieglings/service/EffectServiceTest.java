@@ -261,6 +261,60 @@ class EffectServiceTest {
     }
 
     @Test
+    void connectedAlliesShieldOnlyAffectsLinkedAllies() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        CardInstance source = instance("source", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        source.setPlacementOrder(1);
+        state.setAt(true, 1, 1, source);
+
+        CardInstance linkedLeft = instance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH),
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 1, 0);
+        linkedLeft.setPlacementOrder(2);
+        state.setAt(true, 1, 0, linkedLeft);
+
+        CardInstance linkedRight = instance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        linkedRight.setPlacementOrder(3);
+        state.setAt(true, 1, 2, linkedRight);
+
+        CardInstance isolated = instance("isolated", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 0, 2);
+        isolated.setPlacementOrder(4);
+        state.setAt(true, 0, 2, isolated);
+
+        CardInstance chained = instance("chained", List.of(
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+        ), 0, 0);
+        chained.setPlacementOrder(5);
+        state.setAt(true, 0, 0, chained);
+
+        Ability shield = Ability.connectedAlliesShield(
+                "Ward Root",
+                "Connected allies gain +2 Shield",
+                2
+        );
+
+        effectService.resolveAbility(state, shield, source, true, source.getBoardRow(), source.getBoardCol());
+
+        assertEquals(0, source.getTemporaryShield(), "Source card should not shield itself.");
+        assertEquals(2, linkedLeft.getTemporaryShield(), "Linked ally should gain Shield.");
+        assertEquals(2, linkedRight.getTemporaryShield(), "Linked ally should gain Shield.");
+        assertEquals(0, chained.getTemporaryShield(), "Indirect chain allies should stay unchanged.");
+        assertEquals(0, isolated.getTemporaryShield(), "Unlinked ally should stay unchanged.");
+    }
+
+    @Test
     void connectedAlliesSpeedBoostOnlyAffectsLinkedAllies() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
