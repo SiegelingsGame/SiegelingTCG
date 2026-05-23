@@ -157,6 +157,7 @@ public class AIService {
 
             // Spend energy from pool (restores at next phase)
             energyService.spendEnergy(state, false, spell.getCostElement(), spell.getCostAmount());
+            state.recordSieglingSetupActionConsumed(false);
             state.removeDeadSieglings();
             break; // Cast 1 spell per turn max
         }
@@ -211,6 +212,7 @@ public class AIService {
 
             // Spend energy from pool (restores at next phase)
             energyService.spendEnergy(state, false, trap.getCostElement(), trap.getCostAmount());
+            state.recordSieglingSetupActionConsumed(false);
             state.removeDeadSieglings();
             break; // Spring 1 trap per turn max
         }

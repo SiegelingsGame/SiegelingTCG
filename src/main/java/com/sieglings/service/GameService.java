@@ -312,6 +312,7 @@ public class GameService {
             state.log(sideName(state, isPlayerSide) + " casts " + spell.getName() + "!");
             // Spend energy from pool instead of recalculating (pool restores at next phase)
             energyService.spendEnergy(state, isPlayerSide, spell.getCostElement(), spell.getCostAmount());
+            state.recordSieglingSetupActionConsumed(isPlayerSide);
         } else if (card instanceof TrapCard trap) {
             if (!energyService.canTriggerTrap(state, isPlayerSide, trap)) {
                 state.log("Opponent bucket does not meet the trigger for " + trap.getName() + "!");
@@ -341,6 +342,7 @@ public class GameService {
             state.log(sideName(state, isPlayerSide) + " springs trap " + trap.getName() + "!");
             // Spend energy from pool instead of recalculating
             energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount());
+            state.recordSieglingSetupActionConsumed(isPlayerSide);
         } else {
             state.log("Spell or trap not found in hand!");
             return state;
