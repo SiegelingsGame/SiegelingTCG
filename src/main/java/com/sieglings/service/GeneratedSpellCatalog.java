@@ -149,7 +149,7 @@ final class GeneratedSpellCatalog {
             };
             case EARTH -> switch (mode) {
                 case 0 -> new Ability(name, "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false);
-                case 1 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", Math.max(1, cost - 1), false);
+                case 1 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " max Health", TargetType.ALL_ALLIES, null, 0, "health_boost", Math.max(1, cost - 1), false);
                 case 2 -> Ability.damage(name, "Deal " + value + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value);
                 case 3 -> Ability.heal(name, "Heal 1 ally for " + (value + 1), TargetType.SINGLE_ALLY, null, 1, value + 1);
                 default -> new Ability(name, "Destroy 1 enemy", TargetType.SINGLE_ENEMY, null, 1, "destroy", 0, false);
@@ -170,7 +170,7 @@ final class GeneratedSpellCatalog {
             };
             case ICE -> switch (mode) {
                 case 0 -> Ability.freeze(name, "Freeze 1 enemy for 1 turn", TargetType.SINGLE_ENEMY, null, 1);
-                case 1 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", Math.max(1, cost - 1), false);
+                case 1 -> new Ability(name, "All allies gain +" + Math.max(1, cost - 1) + " max Health", TargetType.ALL_ALLIES, null, 0, "health_boost", Math.max(1, cost - 1), false);
                 case 2 -> Ability.damage(name, "Deal " + value + " damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, value);
                 case 3 -> new Ability(name, "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false);
                 default -> Ability.damage(name, "Deal " + value + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value);
@@ -190,7 +190,7 @@ final class GeneratedSpellCatalog {
                 default -> new Ability(name, "Set 1 enemy's Speed to 0 for this turn", TargetType.SINGLE_ENEMY, null, 1, "speed_zero", 1, false);
             };
             case METAL -> switch (mode) {
-                case 0 -> new Ability(name, "All allies gain +" + Math.max(1, cost) + " max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", Math.max(1, cost), false);
+                case 0 -> new Ability(name, "All allies gain +" + Math.max(1, cost) + " max Health", TargetType.ALL_ALLIES, null, 0, "health_boost", Math.max(1, cost), false);
                 case 1 -> Ability.damage(name, "Deal " + (value + 1) + " damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, value + 1);
                 case 2 -> Ability.heal(name, "Heal 1 ally for " + (value + 1), TargetType.SINGLE_ALLY, null, 1, value + 1);
                 case 3 -> Ability.damage(name, "Deal " + value + " damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, value);
@@ -290,7 +290,7 @@ final class GeneratedSpellCatalog {
 
             SpellCard covenant = new SpellCard("combo_triple_" + String.format(Locale.ROOT, "%02d", index++),
                     label + " Covenant", Element.NEUTRAL, Rarity.RARE, 0,
-                    new Ability(label + " Covenant", "All allies gain +2 max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", 2, false));
+                    new Ability(label + " Covenant", "All allies gain +2 max Health", TargetType.ALL_ALLIES, null, 0, "health_boost", 2, false));
             configureComboSpell(covenant, 3, triple);
             cards.add(covenant);
 

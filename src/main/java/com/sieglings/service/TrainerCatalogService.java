@@ -106,7 +106,7 @@ public class TrainerCatalogService {
 
                 definition("trainer12", "Root Herald", Element.EARTH, Rarity.UNCOMMON, "SiegeSquire",
                         Ability.passiveRow("Stone Line", "Back Row allies gain +1 max Health", "health_boost", 1, Row.BACK, TargetType.ROW_ALLIES),
-                        new Ability("Mend Wall", "Grant +1 max Health to 1 ally this turn", TargetType.SINGLE_ALLY, null, 1, "health_boost", 1, false),
+                        new Ability("Mend Wall", "Grant +1 max Health to 1 ally", TargetType.SINGLE_ALLY, null, 1, "health_boost", 1, false),
                         false),
                 definition("trainer05", "Stone Warden", Element.EARTH, Rarity.RARE, "SiegeKnight",
                         Ability.passive("Roots of Resolve", "All Earth allies gain +1 max Health", "health_boost", 1),
@@ -114,7 +114,7 @@ public class TrainerCatalogService {
                         false),
                 definition("trainer13", "Mountain Regent", Element.EARTH, Rarity.LEGENDARY, "SiegeLord",
                         Ability.passive("Citadel Heart", "All Earth allies gain +2 max Health", "health_boost", 2),
-                        new Ability("Granite Oath", "All allies gain +2 max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", 2, false),
+                        new Ability("Granite Oath", "All allies gain +2 max Health", TargetType.ALL_ALLIES, null, 0, "health_boost", 2, false),
                         true),
 
                 definition("trainer14", "Gale Page", Element.WIND, Rarity.UNCOMMON, "SiegeSquire",
@@ -184,7 +184,7 @@ public class TrainerCatalogService {
 
                 definition("trainer22", "Forge Apprentice", Element.METAL, Rarity.UNCOMMON, "SiegeSquire",
                         Ability.passiveRow("Plated Line", "Front Row allies gain +1 max Health", "health_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
-                        new Ability("Temper", "Grant +2 max Health to 1 ally this turn", TargetType.SINGLE_ALLY, null, 1, "health_boost", 2, false),
+                        new Ability("Temper", "Grant +2 max Health to 1 ally", TargetType.SINGLE_ALLY, null, 1, "health_boost", 2, false),
                         false),
                 definition("trainer23", "Iron Warden", Element.METAL, Rarity.RARE, "SiegeKnight",
                         Ability.passive("Steel Resolve", "All Metal allies gain +1 max Health", "health_boost", 1),
@@ -192,7 +192,7 @@ public class TrainerCatalogService {
                         false),
                 definition("trainer24", "Titan Forgemaster", Element.METAL, Rarity.LEGENDARY, "SiegeLord",
                         Ability.passive("Adamant Aegis", "All Metal allies gain +2 max Health", "health_boost", 2),
-                        new Ability("Fortress Protocol", "All allies gain +3 max Health this turn", TargetType.ALL_ALLIES, null, 0, "health_boost", 3, false),
+                        new Ability("Fortress Protocol", "All allies gain +3 max Health", TargetType.ALL_ALLIES, null, 0, "health_boost", 3, false),
                         true),
 
                 definition("trainer25", "Grave Initiate", Element.UNDEAD, Rarity.UNCOMMON, "SiegeSquire",

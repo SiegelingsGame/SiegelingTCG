@@ -725,6 +725,7 @@ public class GameController {
                 m.put("rarity", ci.getCard().getRarity().name());
                 m.put("hp", ci.getCurrentHealth());
                 m.put("maxHp", ci.getEffectiveMaxHealth());
+                m.put("shieldHp", ci.getTemporaryShield());
                 m.put("printedHealth", ci.getCard().getHealth());
                 m.put("printedSpeed", ci.getCard().getSpeed());
                 m.put("damageBoost", ci.getDamageBoost());
