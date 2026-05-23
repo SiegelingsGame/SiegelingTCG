@@ -820,8 +820,8 @@
             this.pendingPlacements = new Map();
             // Map<key, { isPlayer, row, col, displayHp, finalHp, maxHp, element }>
             // Board renders receive the server's post-damage state immediately;
-            // these entries keep visible card HP at the pre-hit value until the
-            // matching attack animation reaches impact.
+            // these entries keep that resolved HP visible while the matching
+            // attack animation finishes.
             this.pendingHealthChanges = new Map();
             this._pendingSyncScheduled = false;
             this._loadSpeed();
@@ -915,9 +915,9 @@
             const safeHp = Math.max(0, Number.isFinite(Number(hp)) ? Number(hp) : 0);
             const safeMax = Math.max(0, Number.isFinite(Number(maxHp)) ? Number(maxHp) : 0);
             const printedHp = Number(entry?.printedHealth);
-            const shield = Number.isFinite(printedHp) ? Math.max(0, safeMax - printedHp) : 0;
-            const baseMax = shield > 0 ? printedHp : safeMax;
-            const visibleHp = shield > 0 ? Math.min(safeHp, printedHp) : safeHp;
+            const hasShield = Number.isFinite(printedHp) && safeHp > printedHp;
+            const baseMax = Number.isFinite(printedHp) ? printedHp : safeMax;
+            const visibleHp = hasShield ? printedHp : safeHp;
             return `${visibleHp}/<span class="stat-hp-max">${baseMax}</span>`;
         }
         applyHealthToDom(entry, hp, maxHp) {
@@ -927,7 +927,10 @@
             if (!card) return;
             const resolvedMax = Number.isFinite(Number(maxHp)) ? Number(maxHp) : Number(entry.maxHp);
             const resolvedHp = Number.isFinite(Number(hp)) ? Number(hp) : Number(entry.finalHp);
-            const pct = resolvedMax > 0 ? Math.max(0, Math.min(100, (resolvedHp / resolvedMax) * 100)) : 0;
+            const printedHp = Number(entry?.printedHealth);
+            const barMax = Number.isFinite(printedHp) ? printedHp : resolvedMax;
+            const barHp = Number.isFinite(printedHp) ? Math.min(resolvedHp, printedHp) : resolvedHp;
+            const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
             const fill = card.querySelector('.hp-fill');
             if (fill) fill.style.width = `${pct}%`;
             const hpStat = card.querySelector('.stat-hp');
@@ -945,13 +948,12 @@
             const maxHp = Number.isFinite(Number(target.nextMaxHp))
                 ? Number(target.nextMaxHp)
                 : Number(target.prevMaxHp);
-            const existing = this.pendingHealthChanges.get(key);
             this.pendingHealthChanges.set(key, {
                 isPlayer: target.isPlayer,
                 row: target.row,
                 col: target.col,
                 instanceId: id,
-                displayHp: existing ? existing.displayHp : prevHp,
+                displayHp: nextHp,
                 finalHp: nextHp,
                 maxHp,
                 printedHealth: target.printedHealth,
