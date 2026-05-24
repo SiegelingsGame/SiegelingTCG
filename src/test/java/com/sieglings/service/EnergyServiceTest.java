@@ -297,6 +297,25 @@ class EnergyServiceTest {
         assertFalse(energyService.canCastSpell(state, true, spell));
     }
 
+    @Test
+    void neutralSpellCostCanUseAnyAvailableEnergyWhenNoComboSignatureIsRequired() {
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        player.setWindEnergy(1);
+        state.setPlayer(player);
+        state.setEnemy(new Player("AI Opponent", false));
+
+        SpellCard spell = new SpellCard("quartermaster", "Quartermaster", Element.NEUTRAL, Rarity.COMMON, 0, null);
+        spell.setCostElement(Element.NEUTRAL);
+        spell.setCostAmount(1);
+
+        assertTrue(energyService.canCastSpell(state, true, spell));
+
+        energyService.spendEnergy(state, true, spell.getCostElement(), spell.getCostAmount());
+
+        assertEquals(0, player.getWindEnergy());
+    }
+
     /**
      * Four diagonal notches meeting lattice (2,2): (0,0) TR, (0,1) TL, (1,0) BR, (1,1) BL — all same element.
      * Extra orthogonal notches form a cycle so all four Sieglings stay in {@link PlacementService#getFoundationSieglings}.
