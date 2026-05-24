@@ -4023,11 +4023,22 @@ function getPlayerEnergyAmount(element) {
     return Number(gameState.player[energyKey] || 0);
 }
 
+function getPlayerTotalSpendableEnergy() {
+    if (!gameState?.player) {
+        return 0;
+    }
+    return ENERGY_ORDER.reduce((total, [key]) => total + Number(gameState.player[`${key}Energy`] || 0), 0);
+}
+
 function canAffordCard(card) {
     if (!card?.costElement || !card.costAmount) {
         return true;
     }
-    return getPlayerEnergyAmount(card.costElement) >= Number(card.costAmount);
+    const costAmount = Number(card.costAmount);
+    if (String(card.costElement).toUpperCase() === 'NEUTRAL') {
+        return getPlayerTotalSpendableEnergy() >= costAmount;
+    }
+    return getPlayerEnergyAmount(card.costElement) >= costAmount;
 }
 
 function countBoardSieglings(board = gameState?.playerBoard || []) {
