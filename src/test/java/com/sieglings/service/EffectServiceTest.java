@@ -370,6 +370,56 @@ class EffectServiceTest {
     }
 
     @Test
+    void connectedAlliesSlowOnlyAffectsLinkedAllies() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        CardInstance source = instance("source", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        source.setPlacementOrder(1);
+        source.setCurrentSpeed(6);
+        state.setAt(true, 1, 1, source);
+
+        CardInstance linkedLeft = instance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 0);
+        linkedLeft.setPlacementOrder(2);
+        linkedLeft.setCurrentSpeed(6);
+        state.setAt(true, 1, 0, linkedLeft);
+
+        CardInstance linkedRight = instance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        linkedRight.setPlacementOrder(3);
+        linkedRight.setCurrentSpeed(6);
+        state.setAt(true, 1, 2, linkedRight);
+
+        CardInstance isolated = instance("isolated", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 0, 2);
+        isolated.setPlacementOrder(4);
+        isolated.setCurrentSpeed(6);
+        state.setAt(true, 0, 2, isolated);
+
+        Ability slow = Ability.connectedAlliesSlow(
+                "Mud Circuit",
+                "Connected allies lose 2 Speed",
+                2
+        );
+
+        effectService.resolveAbility(state, slow, source, true, source.getBoardRow(), source.getBoardCol());
+
+        assertEquals(6, source.getCurrentSpeed(), "Source card should not slow itself.");
+        assertEquals(4, linkedLeft.getCurrentSpeed(), "Linked ally should lose Speed.");
+        assertEquals(4, linkedRight.getCurrentSpeed(), "Linked ally should lose Speed.");
+        assertEquals(6, isolated.getCurrentSpeed(), "Unlinked ally should stay unchanged.");
+    }
+
+    @Test
     void spellForcedMoveRelocatesEnemyToAnyEmptyCell() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
