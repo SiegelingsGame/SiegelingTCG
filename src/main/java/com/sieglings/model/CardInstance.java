@@ -60,6 +60,9 @@ public class CardInstance {
     }
 
     public int getEffectiveSpeed() {
+        if (isSpeedZero()) {
+            return 0;
+        }
         return Math.max(0, currentSpeed + trainerPassiveSpeedBuff);
     }
 

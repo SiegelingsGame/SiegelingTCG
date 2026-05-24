@@ -154,6 +154,31 @@ class EffectServiceTest {
     }
 
     @Test
+    void speedZeroOverridesTrainerPassiveSpeedBuff() {
+        GameState state = battleState();
+        CardInstance target = instance("quick-target", 1, 1, false);
+        target.setTrainerPassiveSpeedBuff(3);
+        state.setAt(false, 1, 1, target);
+
+        Ability mudTrap = new Ability(
+                "Mud Trap",
+                "Sets effective Speed to 0",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.SPEED_ZERO,
+                0,
+                false
+        );
+
+        effectService.resolveAbility(state, mudTrap, null, true, 1, 1);
+
+        assertEquals(0, target.getCurrentSpeed());
+        assertTrue(target.getStatusEffects().contains(StatusEffect.SPEED_ZERO));
+        assertEquals(0, target.getEffectiveSpeed(), "Speed-zero effects must override passive speed bonuses.");
+    }
+
+    @Test
     void connectedAlliesHealthBoostOnlyAffectsLinkedAllies() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));

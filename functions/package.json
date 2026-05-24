@@ -7,6 +7,7 @@
   "main": "index.js",
   "scripts": {
     "lint": "node -e \"require('./index.js'); console.log('functions ok')\"",
+    "test": "node --test",
     "manifest": "node ./scripts/generate-manifest.js"
   },
   "dependencies": {

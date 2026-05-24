@@ -1631,7 +1631,19 @@
         if (card?.requiredComboSize != null || card?.requiredComboSignature != null || card?.requiredReaction != null) {
             return "SPELL";
         }
+        if (card?.ability != null && !looksLikeSiegling(card)) {
+            return "SPELL";
+        }
         return "SIEGLING";
+    }
+
+    function looksLikeSiegling(card) {
+        return card?.health != null
+            || card?.speed != null
+            || card?.preferredRow != null
+            || card?.evolvesFromId != null
+            || Array.isArray(card?.notches)
+            || Array.isArray(card?.moveIds);
     }
 
     function pageForCardType(cardType) {
