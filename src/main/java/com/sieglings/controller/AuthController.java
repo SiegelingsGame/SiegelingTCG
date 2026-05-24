@@ -7,6 +7,8 @@ import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
 import com.sieglings.service.SavedDeckService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +22,11 @@ import java.util.Map;
 
 @RestController
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
+    private static final String UNAVAILABLE_MESSAGE =
+            "The account service is temporarily unavailable. Please try again in a moment.";
 
     @Autowired
     private AccountService accountService;
@@ -44,6 +51,9 @@ public class AuthController {
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
+        } catch (RuntimeException ex) {
+            log.error("Registration failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE, "authenticated", false);
         }
     }
 
@@ -57,6 +67,9 @@ public class AuthController {
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
+        } catch (RuntimeException ex) {
+            log.error("Login failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE, "authenticated", false);
         }
     }
 
@@ -71,6 +84,9 @@ public class AuthController {
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
+        } catch (RuntimeException ex) {
+            log.error("Password reset failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE, "authenticated", false);
         }
     }
 
