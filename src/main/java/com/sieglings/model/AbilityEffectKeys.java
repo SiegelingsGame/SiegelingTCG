@@ -21,6 +21,7 @@ public final class AbilityEffectKeys {
     public static final String CONNECTED_ALLIES_HEALTH_BOOST = "connected_allies_health_boost";
     public static final String CONNECTED_ALLIES_SHIELD = "connected_allies_shield";
     public static final String SPEED_BOOST = "speed_boost";
+    public static final String CONNECTED_ALLIES_SLOW = "connected_allies_slow";
     public static final String CONNECTED_ALLIES_SPEED_BOOST = "connected_allies_speed_boost";
     public static final String DESTROY = "destroy";
     public static final String MOVE_LINK = "move_link";
@@ -40,6 +41,7 @@ public final class AbilityEffectKeys {
             CONNECTED_ALLIES_HEALTH_BOOST,
             CONNECTED_ALLIES_SHIELD,
             SPEED_BOOST,
+            CONNECTED_ALLIES_SLOW,
             CONNECTED_ALLIES_SPEED_BOOST,
             DESTROY,
             MOVE_LINK

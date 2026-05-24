@@ -79,6 +79,10 @@ public class Ability {
         return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST, value, false);
     }
 
+    public static Ability connectedAlliesSlow(String name, String desc, int value) {
+        return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_SLOW, value, false);
+    }
+
     public Ability copy() {
         Ability copy = new Ability(name, description, targetType, targetRow, targetCount, effectType, effectValue, passive);
         copy.setTargetElement(targetElement);

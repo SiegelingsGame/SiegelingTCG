@@ -211,6 +211,10 @@ public class EffectService {
             applyConnectedAlliesShield(state, ability, source, Math.max(1, value));
             return;
         }
+        if (AbilityEffectKeys.CONNECTED_ALLIES_SLOW.equals(effectType)) {
+            applyConnectedAlliesSlow(state, ability, source, Math.max(1, value));
+            return;
+        }
         if (AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST.equals(effectType)) {
             applyConnectedAlliesSpeedBoost(state, ability, source, Math.max(1, value));
             return;
@@ -407,6 +411,29 @@ public class EffectService {
             }
             state.log(ability.getName() + " raises " + ally.getName() + "'s Speed by " + value
                     + " through a direct link.");
+        }
+    }
+
+    private void applyConnectedAlliesSlow(GameState state, Ability ability, CardInstance source, int value) {
+        if (source == null) {
+            state.log(ability.getName() + " has no source card to trace connected allies.");
+            return;
+        }
+
+        List<CardInstance> connectedAllies = placementService.getDirectlyConnectedAllies(state, source);
+        if (connectedAllies.isEmpty()) {
+            state.log(ability.getName() + " found no directly linked allies.");
+            return;
+        }
+
+        for (CardInstance ally : connectedAllies) {
+            ally.setCurrentSpeed(ally.getCurrentSpeed() - value);
+            if (ally.getCurrentSpeed() == 0) {
+                ally.getStatusEffects().add(StatusEffect.SPEED_ZERO);
+            }
+            state.log(ability.getName() + " reduces " + ally.getName() + "'s Speed by " + value
+                    + " through a direct link"
+                    + " (SPD: " + ally.getEffectiveSpeed() + ")");
         }
     }
 
