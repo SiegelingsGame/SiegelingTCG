@@ -4,13 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sieglings TCG</title>
-    <link rel="stylesheet" href="/css/style.css?v=94">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+    <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0a1530">
+    <link rel="stylesheet" href="/css/style.css?v=95">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
     <link rel="stylesheet" href="/css/landing.css?v=4">
 </head>
 <body>
+<nav class="play-hub-nav" aria-label="Sieglings hub navigation">
+    <a class="play-hub-brand" href="/home">
+        <span class="play-hub-mark" aria-hidden="true">SG</span>
+        <span><strong>Sieglings TCG</strong><small>Battle Table</small></span>
+    </a>
+    <div class="play-hub-tabs">
+        <a href="/home">Home</a>
+        <a class="active" href="/play" aria-current="page">Play</a>
+        <a href="/cards">Cards</a>
+        <a href="/decks">Decks</a>
+        <a href="/lobbies">Lobbies</a>
+        <a href="/profile">Profile</a>
+        <a href="/shop">Shop</a>
+    </div>
+    <div class="play-hub-actions">
+        <a class="play-hub-ghost" href="/lobbies">Join by Code</a>
+        <a class="play-hub-primary" href="/home">Home Hub</a>
+        <a class="play-hub-pill" href="/profile">Sign In</a>
+    </div>
+</nav>
+
 <!-- Top Nav Bar: consolidated stats + actions -->
 <nav class="top-bar">
     <div class="top-bar-side top-bar-enemy">
