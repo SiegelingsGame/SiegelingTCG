@@ -276,6 +276,10 @@ public class GameService {
             state.log("Player 1 cannot cast spells on turn 1.");
             return state;
         }
+        if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
+            state.log("No setup actions left this turn. End the turn to continue.");
+            return state;
+        }
 
         Player actor = getSidePlayer(state, isPlayerSide);
         Card card = findInHand(actor, cardId);
@@ -308,6 +312,7 @@ public class GameService {
             state.log(sideName(state, isPlayerSide) + " casts " + spell.getName() + "!");
             // Spend energy from pool instead of recalculating (pool restores at next phase)
             energyService.spendEnergy(state, isPlayerSide, spell.getCostElement(), spell.getCostAmount());
+            state.recordSieglingSetupActionConsumed(isPlayerSide);
         } else if (card instanceof TrapCard trap) {
             if (!energyService.canTriggerTrap(state, isPlayerSide, trap)) {
                 state.log("Opponent bucket does not meet the trigger for " + trap.getName() + "!");
@@ -337,6 +342,7 @@ public class GameService {
             state.log(sideName(state, isPlayerSide) + " springs trap " + trap.getName() + "!");
             // Spend energy from pool instead of recalculating
             energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount());
+            state.recordSieglingSetupActionConsumed(isPlayerSide);
         } else {
             state.log("Spell or trap not found in hand!");
             return state;
@@ -644,6 +650,7 @@ public class GameService {
         if (state == null) return;
         if (state.isBattleActionPausePending()) return;
         if (state.isGameOver()) {
+            matchHistoryService.recordCompletedGame(state);
             state.clearBattleState();
             return;
         }

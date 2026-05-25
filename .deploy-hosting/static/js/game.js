@@ -509,7 +509,14 @@ async function syncAuthProfile(silent = false) {
 
     const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET' });
     authState.loading = false;
-    if (!data || !data.authenticated) {
+    if (!data) {
+        if (!silent) {
+            renderWelcomeAuth();
+            renderSavedDecks();
+        }
+        return false;
+    }
+    if (!data.authenticated) {
         clearAuthState();
         return false;
     }

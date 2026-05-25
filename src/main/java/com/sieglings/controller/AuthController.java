@@ -7,6 +7,8 @@ import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
 import com.sieglings.service.SavedDeckService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +22,11 @@ import java.util.Map;
 
 @RestController
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
+    private static final String UNAVAILABLE_MESSAGE =
+            "The account service is temporarily unavailable. Please try again in a moment.";
 
     @Autowired
     private AccountService accountService;
@@ -44,6 +51,9 @@ public class AuthController {
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
+        } catch (RuntimeException ex) {
+            log.error("Registration failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE, "authenticated", false);
         }
     }
 
@@ -57,6 +67,9 @@ public class AuthController {
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
+        } catch (RuntimeException ex) {
+            log.error("Login failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE, "authenticated", false);
         }
     }
 
@@ -71,6 +84,9 @@ public class AuthController {
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
+        } catch (RuntimeException ex) {
+            log.error("Password reset failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE, "authenticated", false);
         }
     }
 
@@ -134,9 +150,27 @@ public class AuthController {
                 "email", user.getEmail(),
                 "displayName", user.getDisplayName()
         ));
-        response.put("savedDecks", savedDeckService.listDecks(user).stream().map(this::serializeSavedDeck).toList());
-        response.put("matchHistory", matchHistoryService.listRecent(user).stream().map(this::serializeMatchHistory).toList());
+        response.put("savedDecks", loadSavedDecks(user));
+        response.put("matchHistory", loadMatchHistory(user));
         return response;
+    }
+
+    private List<Map<String, Object>> loadSavedDecks(AccountUser user) {
+        try {
+            return savedDeckService.listDecks(user).stream().map(this::serializeSavedDeck).toList();
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load saved decks for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> loadMatchHistory(AccountUser user) {
+        try {
+            return matchHistoryService.listRecent(user).stream().map(this::serializeMatchHistory).toList();
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load match history for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
     }
 
     private Map<String, Object> serializeSavedDeck(SavedDeckEntity deck) {

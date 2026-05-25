@@ -1631,7 +1631,19 @@
         if (card?.requiredComboSize != null || card?.requiredComboSignature != null || card?.requiredReaction != null) {
             return "SPELL";
         }
+        if (card?.ability != null && !looksLikeSiegling(card)) {
+            return "SPELL";
+        }
         return "SIEGLING";
+    }
+
+    function looksLikeSiegling(card) {
+        return card?.health != null
+            || card?.speed != null
+            || card?.preferredRow != null
+            || card?.evolvesFromId != null
+            || Array.isArray(card?.notches)
+            || Array.isArray(card?.moveIds);
     }
 
     function pageForCardType(cardType) {
@@ -2127,6 +2139,70 @@
         });
     }
 
+    function buildAutoTrainerPassiveDescription(ability, trainer) {
+        const effectType = String(ability?.effectType || "").trim();
+        const value = Math.max(0, toNumber(ability?.effectValue, 0));
+        const signedValue = `+${value}`;
+        const scope = trainerPassiveTargetScope(ability, trainer);
+        const gainVerb = trainerPassiveGainVerb(ability);
+        switch (effectType) {
+            case "damage_boost":
+                return `${scope} ${gainVerb} ${signedValue} Attack Damage`;
+            case "health_boost":
+                return `${scope} ${gainVerb} ${signedValue} max HP`;
+            case "draw":
+                return `Draw ${value} ${value === 1 ? "card" : "cards"}`;
+            case "shield":
+                return `${scope} ${gainVerb} ${signedValue} Shield`;
+            case "speed_boost":
+                return `${scope} ${gainVerb} ${signedValue} Speed`;
+            case "slow":
+                return `${scope} lose ${value} Speed`;
+            case "connected_allies_damage_boost":
+                return `Connected allies gain ${signedValue} Attack Damage`;
+            case "connected_allies_health_boost":
+                return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_shield":
+                return `Connected allies gain ${signedValue} Shield`;
+            case "connected_allies_slow":
+                return `Connected allies lose ${value} Speed`;
+            case "connected_allies_speed_boost":
+                return `Connected allies gain ${signedValue} Speed`;
+            default:
+                return buildAutoMoveDescription({
+                    targetType: ability?.targetType || "",
+                    targetElement: trainer?.element || "",
+                    targetRow: ability?.targetRow || "",
+                    effectType,
+                    effectValue: ability?.effectValue,
+                    energyCost: 0,
+                    isPassive: true
+                });
+        }
+    }
+
+    function trainerPassiveTargetScope(ability, trainer) {
+        const targetType = String(ability?.targetType || "").trim();
+        const element = String(trainer?.element || "").trim();
+        const elementPrefix = element && element !== "NEUTRAL" ? `${formatEnumLabel(element)} ` : "";
+        if (targetType === "ROW_ALLIES") {
+            const row = formatEnumLabel(ability?.targetRow || firstMetaValue("rows", "FRONT"));
+            return `${row} Row ${elementPrefix}allies`;
+        }
+        if (targetType === "SINGLE_ALLY") {
+            return `1 ${elementPrefix}ally`;
+        }
+        if (targetType === "SELF") {
+            return "This SiegeKnight";
+        }
+        return `All ${elementPrefix}allies`;
+    }
+
+    function trainerPassiveGainVerb(ability) {
+        const targetType = String(ability?.targetType || "").trim();
+        return targetType === "SINGLE_ALLY" || targetType === "SELF" ? "gains" : "gain";
+    }
+
     function renderNotches(card) {
         refs.notchGrid.innerHTML = NOTCH_LAYOUT.map((direction) => {
             if (direction === "CENTER") {
@@ -2522,6 +2598,8 @@
         populateSelect(refsForAbility.requiredElementSelect, ["", ...(state.metadata?.elements || [])], ability.requiredElement, true);
         populateSelect(refsForAbility.requiredReactionSelect, ["", ...(state.metadata?.reactions || [])], ability.requiredReaction, true);
 
+        syncTrainerAbilityAutoDescription(kind, ability, refsForAbility);
+
         setInputValue(refsForAbility.nameInput, ability.name);
         setInputValue(refsForAbility.descriptionInput, ability.description);
         setInputValue(refsForAbility.effectValueInput, ability.effectValue);
@@ -2531,6 +2609,30 @@
         refsForAbility.targetRowField.classList.toggle("hidden", !targetRule.requiresRow);
         refsForAbility.targetHelper.textContent = buildTargetHelperText(ability, targetRule);
         refsForAbility.effectHelper.textContent = buildEffectHelperText(ability.effectType);
+    }
+
+    function syncTrainerAbilityAutoDescription(kind, ability, refsForAbility) {
+        if (kind !== "passive" || !ability || !refsForAbility.descriptionInput) {
+            if (refsForAbility.descriptionInput) {
+                refsForAbility.descriptionInput.dataset.autoDescription = "";
+            }
+            return;
+        }
+        const trainer = getSelectedTrainer();
+        const generated = buildAutoTrainerPassiveDescription(ability, trainer);
+        const previousGenerated = refsForAbility.descriptionInput.dataset.autoDescription || "";
+        const current = ability.description || "";
+        if (!generated) {
+            refsForAbility.descriptionInput.dataset.autoDescription = "";
+            if (current === previousGenerated) {
+                ability.description = "";
+            }
+            return;
+        }
+        refsForAbility.descriptionInput.dataset.autoDescription = generated;
+        if (!current.trim() || current === previousGenerated) {
+            ability.description = generated;
+        }
     }
 
     function renderTrainerSummary() {
@@ -3718,7 +3820,7 @@
         const targetCount = raw.targetCount != null && raw.targetCount !== ""
             ? toNumber(raw.targetCount, 0)
             : rule.fixedTargetCount;
-        let energyCost = Math.max(0, Math.min(6, toNumber(raw.energyCost, 0)));
+        let energyCost = Math.max(0, toNumber(raw.energyCost, 0));
         if (passiveFlag || targetType === "PASSIVE") {
             energyCost = 0;
         }
@@ -3851,29 +3953,39 @@
 
         switch (effectType) {
             case "damage":
-                return buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow);
+                return buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "player_damage":
                 return `Deal ${value} damage to the enemy player`;
+            case "draw":
+                return `Draw ${value} ${value === 1 ? "card" : "cards"}`;
             case "heal":
-                return buildHealMoveDescription(value, targetType, elementPrefix, selectedAlliedRow);
+                return buildHealMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "freeze":
-                return buildFreezeMoveDescription(value, targetType, elementPrefix, selectedEnemyRow);
+                return buildFreezeMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "speed_zero":
-                return buildSpeedZeroMoveDescription(value, targetType, elementPrefix, selectedEnemyRow);
+                return buildSpeedZeroMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
+            case "slow":
+                return buildSlowMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "damage_boost":
-                return buildStatBoostMoveDescription(signedValue, "Attack Damage", targetType, elementPrefix, selectedAlliedRow, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "Attack Damage", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
             case "health_boost":
-                return buildStatBoostMoveDescription(signedValue, "max HP", targetType, elementPrefix, selectedAlliedRow, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "max HP", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
+            case "shield":
+                return buildStatBoostMoveDescription(signedValue, "Shield", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
             case "speed_boost":
-                return buildStatBoostMoveDescription(signedValue, "Speed", targetType, elementPrefix, selectedAlliedRow, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "Speed", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
             case "connected_allies_damage_boost":
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
                 return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_shield":
+                return `Connected allies gain ${signedValue} Shield`;
+            case "connected_allies_slow":
+                return `Connected allies lose ${value} Speed`;
             case "connected_allies_speed_boost":
                 return `Connected allies gain ${signedValue} Speed`;
             case "destroy":
-                return buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow);
+                return buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "move_link":
                 return `Move to an open linked point (${Math.max(0, toNumber(move?.energyCost, 0))} Cost)`;
             default:
@@ -3886,18 +3998,31 @@
         return `the selected ${elementText}${sideLabel} row`;
     }
 
-    function buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow) {
+    function buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
         switch (targetType) {
             case "SINGLE_ENEMY":
                 return `Deal ${value} damage to 1 ${elementPrefix}enemy`;
+            case "SINGLE_ALLY":
+                return `Deal ${value} damage to 1 ${elementPrefix}ally`;
             case "ROW_ENEMIES":
                 return elementPrefix
                     ? `Deal ${value} damage to ${elementPrefix.toLowerCase()}row enemies`
                     : `Deal ${value} damage to the row`;
+            case "ROW_ALLIES":
+                return elementPrefix
+                    ? `Deal ${value} damage to ${elementPrefix.toLowerCase()}row allies`
+                    : `Deal ${value} damage to row allies`;
             case "ROW_SELECT_ENEMIES":
                 return `Deal ${value} damage to ${selectedEnemyRow}`;
+            case "ROW_SELECT_ALLIES":
+                return `Deal ${value} damage to ${selectedAlliedRow}`;
             case "ALL_ENEMIES":
                 return `Deal ${value} damage to all ${elementPrefix}enemies`;
+            case "ALL_ALLIES":
+                return `Deal ${value} damage to all ${elementPrefix}allies`;
+            case "SELF":
+            case "PASSIVE":
+                return `Deal ${value} damage to self`;
             case "ENEMY_PLAYER":
                 return `Deal ${value} damage to the enemy player`;
             default:
@@ -3905,16 +4030,26 @@
         }
     }
 
-    function buildHealMoveDescription(value, targetType, elementPrefix, selectedAlliedRow) {
+    function buildHealMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
         switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `Heal 1 ${elementPrefix}enemy for ${value} HP`;
             case "SINGLE_ALLY":
                 return `Heal 1 ${elementPrefix}ally for ${value} HP`;
+            case "ROW_ENEMIES":
+                return elementPrefix
+                    ? `Heal ${elementPrefix}row enemies for ${value} HP`
+                    : `Heal row enemies for ${value} HP`;
             case "ROW_ALLIES":
                 return elementPrefix
                     ? `Heal ${elementPrefix}row allies for ${value} HP`
                     : `Heal Row allies for ${value} HP`;
+            case "ROW_SELECT_ENEMIES":
+                return `Heal ${selectedEnemyRow} for ${value} HP`;
             case "ROW_SELECT_ALLIES":
                 return `Heal ${selectedAlliedRow} for ${value} HP`;
+            case "ALL_ENEMIES":
+                return `Heal all ${elementPrefix}enemies for ${value} HP`;
             case "ALL_ALLIES":
                 return `Heal all ${elementPrefix}allies for ${value} HP`;
             case "SELF":
@@ -3925,55 +4060,122 @@
         }
     }
 
-    function buildFreezeMoveDescription(value, targetType, elementPrefix, selectedEnemyRow) {
+    function buildFreezeMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
         const turns = turnText(value);
         switch (targetType) {
             case "SINGLE_ENEMY":
                 return `Freeze 1 ${elementPrefix}enemy for ${turns}`;
+            case "SINGLE_ALLY":
+                return `Freeze 1 ${elementPrefix}ally for ${turns}`;
             case "ROW_ENEMIES":
                 return elementPrefix
                     ? `Freeze ${elementPrefix}row enemies for ${turns}`
                     : `Freeze Row enemies for ${turns}`;
+            case "ROW_ALLIES":
+                return elementPrefix
+                    ? `Freeze ${elementPrefix}row allies for ${turns}`
+                    : `Freeze row allies for ${turns}`;
             case "ROW_SELECT_ENEMIES":
                 return `Freeze ${selectedEnemyRow} for ${turns}`;
+            case "ROW_SELECT_ALLIES":
+                return `Freeze ${selectedAlliedRow} for ${turns}`;
             case "ALL_ENEMIES":
                 return `Freeze All ${elementPrefix}enemies for ${turns}`;
+            case "ALL_ALLIES":
+                return `Freeze all ${elementPrefix}allies for ${turns}`;
+            case "SELF":
+            case "PASSIVE":
+                return `Freeze self for ${turns}`;
             default:
                 return "";
         }
     }
 
-    function buildSpeedZeroMoveDescription(value, targetType, elementPrefix, selectedEnemyRow) {
+    function buildSpeedZeroMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
         const turns = turnText(value);
         switch (targetType) {
             case "SINGLE_ENEMY":
                 return `Reduce 1 ${elementPrefix}enemy speed to 0 (${turns})`;
+            case "SINGLE_ALLY":
+                return `Reduce 1 ${elementPrefix}ally speed to 0 (${turns})`;
             case "ROW_ENEMIES":
                 return elementPrefix
                     ? `Nullify ${elementPrefix}row enemies' speed (${turns})`
                     : `Nullify Row enemies' speed (${turns})`;
+            case "ROW_ALLIES":
+                return elementPrefix
+                    ? `Nullify ${elementPrefix}row allies' speed (${turns})`
+                    : `Nullify row allies' speed (${turns})`;
             case "ROW_SELECT_ENEMIES":
                 return `Nullify ${selectedEnemyRow}'s speed (${turns})`;
+            case "ROW_SELECT_ALLIES":
+                return `Nullify ${selectedAlliedRow}'s speed (${turns})`;
             case "ALL_ENEMIES":
                 return `Nullify All ${elementPrefix}enemies' speed (${turns})`;
+            case "ALL_ALLIES":
+                return `Nullify all ${elementPrefix}allies' speed (${turns})`;
+            case "SELF":
+            case "PASSIVE":
+                return `Nullify self speed (${turns})`;
             default:
                 return "";
         }
     }
 
-    function buildStatBoostMoveDescription(signedValue, statLabel, targetType, elementPrefix, selectedAlliedRow, isPassive) {
+    function buildSlowMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
+        const amount = Math.max(1, toNumber(value, 1));
+        switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `Reduce 1 ${elementPrefix}enemy speed by ${amount}`;
+            case "SINGLE_ALLY":
+                return `Reduce 1 ${elementPrefix}ally speed by ${amount}`;
+            case "ROW_ENEMIES":
+                return elementPrefix
+                    ? `Reduce ${elementPrefix}row enemies' speed by ${amount}`
+                    : `Reduce row enemies' speed by ${amount}`;
+            case "ROW_ALLIES":
+                return elementPrefix
+                    ? `Reduce ${elementPrefix}row allies' speed by ${amount}`
+                    : `Reduce row allies' speed by ${amount}`;
+            case "ROW_SELECT_ENEMIES":
+                return `Reduce ${selectedEnemyRow}'s speed by ${amount}`;
+            case "ROW_SELECT_ALLIES":
+                return `Reduce ${selectedAlliedRow}'s speed by ${amount}`;
+            case "ALL_ENEMIES":
+                return `Reduce all ${elementPrefix}enemies' speed by ${amount}`;
+            case "ALL_ALLIES":
+                return `Reduce all ${elementPrefix}allies' speed by ${amount}`;
+            case "SELF":
+            case "PASSIVE":
+                return `Reduce self speed by ${amount}`;
+            default:
+                return "";
+        }
+    }
+
+    function buildStatBoostMoveDescription(signedValue, statLabel, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive) {
         if (targetType === "PASSIVE" || (isPassive && targetType === "SELF")) {
             return `Passively gains ${signedValue} ${statLabel}`;
         }
         switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `1 ${elementPrefix}enemy gains ${signedValue} ${statLabel}`;
             case "SINGLE_ALLY":
                 return `1 ${elementPrefix}ally gains ${signedValue} ${statLabel}`;
+            case "ROW_ENEMIES":
+                return elementPrefix
+                    ? `${elementPrefix}row enemies gain ${signedValue} ${statLabel}`
+                    : `Row enemies gain ${signedValue} ${statLabel}`;
             case "ROW_ALLIES":
                 return elementPrefix
                     ? `${elementPrefix}row allies gain ${signedValue} ${statLabel}`
                     : `Row allies gain ${signedValue} ${statLabel}`;
+            case "ROW_SELECT_ENEMIES":
+                return `${sentenceCase(selectedEnemyRow)} gains ${signedValue} ${statLabel}`;
             case "ROW_SELECT_ALLIES":
                 return `${sentenceCase(selectedAlliedRow)} gains ${signedValue} ${statLabel}`;
+            case "ALL_ENEMIES":
+                return `All ${elementPrefix}enemies gain ${signedValue} ${statLabel}`;
             case "ALL_ALLIES":
                 return `All ${elementPrefix}allies gain ${signedValue} ${statLabel}`;
             case "SELF":
@@ -3983,16 +4185,27 @@
         }
     }
 
-    function buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow) {
+    function buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
         switch (targetType) {
             case "SINGLE_ENEMY":
                 return `Destroy 1 ${elementPrefix}enemy`;
+            case "SINGLE_ALLY":
+                return `Destroy 1 ${elementPrefix}ally`;
             case "ROW_ENEMIES":
                 return elementPrefix ? `Destroy ${elementPrefix}row enemies` : "Destroy Row enemies";
+            case "ROW_ALLIES":
+                return elementPrefix ? `Destroy ${elementPrefix}row allies` : "Destroy row allies";
             case "ROW_SELECT_ENEMIES":
                 return `Destroy ${selectedEnemyRow}`;
+            case "ROW_SELECT_ALLIES":
+                return `Destroy ${selectedAlliedRow}`;
             case "ALL_ENEMIES":
                 return `Destroy all ${elementPrefix}enemies`;
+            case "ALL_ALLIES":
+                return `Destroy all ${elementPrefix}allies`;
+            case "SELF":
+            case "PASSIVE":
+                return "Destroy self";
             default:
                 return "";
         }
@@ -4571,7 +4784,7 @@
             targetRow = "";
         }
         let passive = refs.moveDraftPassiveSelect?.value === "true";
-        let energy = Math.max(0, Math.min(6, toNumber(refs.moveDraftEnergyInput?.value, 0)));
+        let energy = Math.max(0, toNumber(refs.moveDraftEnergyInput?.value, 0));
         if (passive || targetType === "PASSIVE") {
             passive = true;
             energy = 0;

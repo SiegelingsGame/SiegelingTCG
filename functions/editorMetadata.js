@@ -14,9 +14,21 @@ const EFFECT_TYPES = [
     targetHints: ['ENEMY_PLAYER']
   },
   {
+    key: 'draw',
+    label: 'Draw',
+    description: "Draws cards from the user's deck equal to the effect value.",
+    targetHints: ['SELF']
+  },
+  {
     key: 'heal',
     label: 'Heal',
     description: "Restores health up to the target's max health.",
+    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'SELF']
+  },
+  {
+    key: 'shield',
+    label: 'Shield',
+    description: 'Grants temporary shield health that absorbs damage before HP.',
     targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'SELF']
   },
   {
@@ -32,6 +44,12 @@ const EFFECT_TYPES = [
     targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES']
   },
   {
+    key: 'slow',
+    label: 'Slow',
+    description: "Reduces the resolved target's Speed by the effect value for the turn.",
+    targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES']
+  },
+  {
     key: 'damage_boost',
     label: 'Damage Boost',
     description: 'Adds temporary attack damage.',
@@ -39,8 +57,8 @@ const EFFECT_TYPES = [
   },
   {
     key: 'health_boost',
-    label: 'Health Boost',
-    description: 'Adds temporary max health and heals by the same amount.',
+    label: 'Max Health Boost',
+    description: 'Permanently raises current and max health.',
     targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'PASSIVE']
   },
   {
@@ -52,7 +70,13 @@ const EFFECT_TYPES = [
   {
     key: 'connected_allies_health_boost',
     label: 'Connected Allies Health Boost',
-    description: 'Gives connected allied Sieglings extra max health.',
+    description: 'Gives directly linked allied Sieglings extra max health.',
+    targetHints: ['SELF']
+  },
+  {
+    key: 'connected_allies_shield',
+    label: 'Connected Allies Shield',
+    description: 'Grants temporary shield health to directly linked allied Sieglings.',
     targetHints: ['SELF']
   },
   {
@@ -60,6 +84,12 @@ const EFFECT_TYPES = [
     label: 'Speed Boost',
     description: 'Adds temporary speed.',
     targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'PASSIVE']
+  },
+  {
+    key: 'connected_allies_slow',
+    label: 'Connected Allies Slow',
+    description: "Reduces directly linked allied Sieglings' Speed by the effect value for the turn.",
+    targetHints: ['SELF']
   },
   {
     key: 'connected_allies_speed_boost',

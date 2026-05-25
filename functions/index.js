@@ -12,6 +12,14 @@ admin.initializeApp();
 const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || 'siegedb';
 const db = getFirestore(FIRESTORE_DATABASE_ID);
 const app = express();
+const EDITOR_METADATA = buildMetadata([]);
+const SUPPORTED_EFFECT_TYPES = new Set(EDITOR_METADATA.effectTypes.map((effect) => effect.key));
+const TARGET_RULES = EDITOR_METADATA.targetRules;
+const DECK_RULES = EDITOR_METADATA.deckRules;
+const CARD_TYPES = new Set(EDITOR_METADATA.cardTypes);
+const ELEMENTS = new Set(EDITOR_METADATA.elements);
+const RARITIES = new Set(EDITOR_METADATA.rarities);
+const ROWS = new Set(EDITOR_METADATA.rows);
 
 app.use(express.json({ limit: '4mb' }));
 
@@ -77,6 +85,14 @@ app.post('/api/cards/editor', async (req, res) => {
     const nextDecks = resolveSimplePayload(req.body?.decks, currentDecks.data.decks, 'decks');
     const nextTrainers = resolveSimplePayload(req.body?.trainers, currentTrainers.data.trainers, 'trainers');
     const nextLiveElements = resolveLiveElementsPayload(req.body?.liveElements, currentLive.data.elements);
+
+    validateEditorBundle({
+      cards: nextCards.cards,
+      moves: nextCards.moves,
+      decks: nextDecks,
+      trainers: nextTrainers,
+      liveElements: nextLiveElements
+    });
 
     await saveEditorBundle({
       cards: {
@@ -202,7 +218,12 @@ async function loadSimpleSnapshot(config) {
 }
 
 function resolveCardsPayload(body, currentData) {
-  const cards = Array.isArray(body?.cards) ? body.cards : safeArray(currentData.cards);
+  const submittedCards = body && Object.prototype.hasOwnProperty.call(body, 'cards') ? body.cards : undefined;
+  const currentCards = safeArray(currentData.cards);
+  let cards = Array.isArray(submittedCards) ? submittedCards : currentCards;
+  if (Array.isArray(submittedCards) && submittedCards.length === 0 && currentCards.length > 0) {
+    cards = currentCards;
+  }
   if (!Array.isArray(cards)) {
     throw badRequest("The JSON must contain a top-level 'cards' array.");
   }
@@ -216,7 +237,11 @@ function resolveCardsPayload(body, currentData) {
 }
 
 function resolveSimplePayload(submitted, fallback, fieldName) {
-  const value = Array.isArray(submitted) ? submitted : safeArray(fallback);
+  const fallbackArray = safeArray(fallback);
+  let value = Array.isArray(submitted) ? submitted : fallbackArray;
+  if (Array.isArray(submitted) && submitted.length === 0 && fallbackArray.length > 0) {
+    value = fallbackArray;
+  }
   if (!Array.isArray(value)) {
     throw badRequest(`The JSON must contain a top-level '${fieldName}' array.`);
   }
@@ -225,9 +250,210 @@ function resolveSimplePayload(submitted, fallback, fieldName) {
 
 function resolveLiveElementsPayload(submittedLiveElements, fallbackElements) {
   if (submittedLiveElements && Array.isArray(submittedLiveElements.elements)) {
+    if (submittedLiveElements.elements.length === 0 && safeArray(fallbackElements).length > 0) {
+      return safeArray(fallbackElements);
+    }
     return submittedLiveElements.elements;
   }
   return safeArray(fallbackElements);
+}
+
+function validateEditorBundle(bundle) {
+  const cards = requireArray(bundle.cards, 'cards');
+  const moves = requireArray(bundle.moves, 'moves');
+  const decks = requireArray(bundle.decks, 'decks');
+  const trainers = requireArray(bundle.trainers, 'trainers');
+  const liveElements = requireArray(bundle.liveElements, 'liveElements.elements');
+
+  const cardIds = validateCards(cards, moves);
+  const trainerState = validateTrainers(trainers);
+  const activeLiveElements = validateLiveElements(liveElements);
+  validateDecks(decks, cardIds, trainerState, activeLiveElements);
+}
+
+function validateCards(cards, moves) {
+  const cardIds = new Set();
+  const moveIds = new Set();
+  for (const move of moves) {
+    const moveId = normalizeLower(move?.id);
+    if (!moveId) {
+      throw badRequest('Every shared move needs a non-blank id.');
+    }
+    if (moveIds.has(moveId)) {
+      throw badRequest(`Duplicate shared move id '${moveId}'.`);
+    }
+    moveIds.add(moveId);
+    validateAbility(`Move '${moveId}'`, move, null);
+  }
+
+  for (const card of cards) {
+    const cardId = normalizeLower(card?.id);
+    if (!cardId) {
+      throw badRequest('Every card needs a non-blank id.');
+    }
+    if (cardIds.has(cardId)) {
+      throw badRequest(`Duplicate card id '${cardId}'.`);
+    }
+    cardIds.add(cardId);
+    if (!normalizeText(card?.name)) {
+      throw badRequest(`Card '${cardId}' needs a name.`);
+    }
+    validateEnum(card?.element, ELEMENTS, `Card '${cardId}' needs a valid element.`);
+    validateEnum(card?.rarity, RARITIES, `Card '${cardId}' needs a valid rarity.`);
+
+    const cardType = normalizeCardType(card?.type || card?.cardType || inferCardType(card));
+    if (cardType === 'SIEGLING') {
+      validateEnum(card?.preferredRow, ROWS, `Siegling '${cardId}' needs a valid preferred row.`);
+      const ids = Array.isArray(card?.moveIds) ? card.moveIds.map(normalizeLower).filter(Boolean) : [];
+      for (const moveId of ids) {
+        if (!moveIds.has(moveId)) {
+          throw badRequest(`Siegling '${cardId}' references unknown move id '${moveId}'.`);
+        }
+      }
+    } else {
+      validateAbility(`Card '${cardId}' ability`, card?.ability, null);
+    }
+  }
+  return cardIds;
+}
+
+function validateTrainers(trainers) {
+  const trainerIds = new Set();
+  const activeTrainerIds = new Set();
+  for (const trainer of trainers) {
+    const trainerId = normalizeLower(trainer?.id);
+    if (!trainerId) {
+      throw badRequest('Every SiegeKnight needs a non-blank id.');
+    }
+    if (trainerIds.has(trainerId)) {
+      throw badRequest(`Duplicate SiegeKnight id '${trainerId}'.`);
+    }
+    trainerIds.add(trainerId);
+    if (!normalizeText(trainer?.name)) {
+      throw badRequest(`SiegeKnight '${trainerId}' needs a name.`);
+    }
+    validateEnum(trainer?.element, ELEMENTS, `SiegeKnight '${trainerId}' needs a valid element.`);
+    validateEnum(trainer?.rarity, RARITIES, `SiegeKnight '${trainerId}' needs a valid rarity.`);
+    if (!normalizeText(trainer?.tier)) {
+      throw badRequest(`SiegeKnight '${trainerId}' needs a tier.`);
+    }
+    if (trainer?.active !== false) {
+      activeTrainerIds.add(trainerId);
+    }
+    validateAbility(`SiegeKnight '${trainerId}' passive ability`, trainer?.passiveAbility, true);
+    validateAbility(`SiegeKnight '${trainerId}' active ability`, trainer?.activeAbility, false);
+  }
+  if (activeTrainerIds.size === 0) {
+    throw badRequest('Keep at least one SiegeKnight active in the live game.');
+  }
+  return { trainerIds, activeTrainerIds };
+}
+
+function validateLiveElements(liveElements) {
+  const active = new Set();
+  for (const row of liveElements) {
+    const element = normalizeUpper(row?.element ?? row);
+    if (!element || !ELEMENTS.has(element)) {
+      throw badRequest('Live element rows must use valid element names.');
+    }
+    if (row?.active !== false) {
+      active.add(element);
+    }
+  }
+  if (active.size === 0) {
+    throw badRequest('Keep at least one live element active for gameplay.');
+  }
+  return active;
+}
+
+function validateDecks(decks, cardIds, trainerState, activeLiveElements) {
+  const deckIds = new Set();
+  let hasActiveDeck = false;
+  for (const deck of decks) {
+    const deckId = normalizeLower(deck?.id);
+    if (!deckId) {
+      throw badRequest('Every preset deck needs a non-blank id.');
+    }
+    if (deckIds.has(deckId)) {
+      throw badRequest(`Duplicate preset deck id '${deckId}'.`);
+    }
+    deckIds.add(deckId);
+    if (!normalizeText(deck?.name)) {
+      throw badRequest(`Preset deck '${deckId}' needs a name.`);
+    }
+    const trainerId = normalizeLower(deck?.recommendedTrainerId);
+    if (!trainerId || !trainerState.trainerIds.has(trainerId)) {
+      throw badRequest(`Preset deck '${deckId}' must use a valid recommended trainer id.`);
+    }
+
+    const active = deck?.active !== false;
+    if (active) {
+      if (!trainerState.activeTrainerIds.has(trainerId)) {
+        throw badRequest(`Active preset deck '${deckId}' must use an active recommended trainer.`);
+      }
+      hasActiveDeck = true;
+    }
+
+    const elements = Array.isArray(deck?.elements) ? deck.elements.map(normalizeUpper).filter(Boolean) : [];
+    if (active) {
+      for (const element of elements) {
+        if (element !== 'NEUTRAL' && !activeLiveElements.has(element)) {
+          throw badRequest(`Active preset deck '${deckId}' references inactive live element '${element}'.`);
+        }
+      }
+    }
+
+    const deckCardIds = Array.isArray(deck?.cardIds) ? deck.cardIds.map(normalizeLower).filter(Boolean) : [];
+    if (deckCardIds.length > 0) {
+      const counts = new Map();
+      for (const cardId of deckCardIds) {
+        if (!cardIds.has(cardId)) {
+          throw badRequest(`Preset deck '${deckId}' contains unknown card id '${cardId}'.`);
+        }
+        counts.set(cardId, (counts.get(cardId) || 0) + 1);
+      }
+      for (const [cardId, count] of counts.entries()) {
+        if (count > DECK_RULES.maxCopies) {
+          throw badRequest(`Preset deck '${deckId}' uses more than ${DECK_RULES.maxCopies} copies of '${cardId}'.`);
+        }
+      }
+      if (active && deckCardIds.length < DECK_RULES.minDeckSize) {
+        throw badRequest(`Active preset deck '${deckId}' must contain at least ${DECK_RULES.minDeckSize} cards.`);
+      }
+    } else if (active && elements.length === 0) {
+      throw badRequest(`Active preset deck '${deckId}' needs cards or at least one seed element.`);
+    }
+  }
+  if (!hasActiveDeck) {
+    throw badRequest('Keep at least one preset deck active in the game.');
+  }
+}
+
+function validateAbility(label, ability, shouldBePassive) {
+  if (!ability || typeof ability !== 'object') {
+    throw badRequest(`${label} is missing.`);
+  }
+  if (!normalizeText(ability.name)) {
+    throw badRequest(`${label} needs a name.`);
+  }
+  const targetType = normalizeUpper(ability.targetType);
+  const targetRule = targetType ? TARGET_RULES[targetType] : null;
+  if (!targetRule) {
+    throw badRequest(`${label} needs a valid target type.`);
+  }
+  if (targetRule.requiresRow && !normalizeUpper(ability.targetRow)) {
+    throw badRequest(`${label} needs a target row.`);
+  }
+  const effectType = normalizeLower(ability.effectType);
+  if (!effectType || !SUPPORTED_EFFECT_TYPES.has(effectType)) {
+    throw badRequest(`${label} uses an unsupported effect type.`);
+  }
+  if (ability.requiredEnergy != null && Number(ability.requiredEnergy) < 0) {
+    throw badRequest(`${label} cannot require negative energy.`);
+  }
+  if (shouldBePassive != null && Boolean(ability.passive) !== shouldBePassive) {
+    throw badRequest(`${label} has the wrong passive flag.`);
+  }
 }
 
 function latestUpdateMeta(snapshots) {
@@ -450,8 +676,61 @@ function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function requireArray(value, fieldName) {
+  if (!Array.isArray(value)) {
+    throw badRequest(`The JSON must contain a top-level '${fieldName}' array.`);
+  }
+  return value;
+}
+
 function stringOrEmpty(value) {
   return typeof value === 'string' ? value : '';
+}
+
+function normalizeText(value) {
+  const normalized = String(value || '').trim();
+  return normalized || '';
+}
+
+function normalizeLower(value) {
+  return normalizeText(value).toLowerCase();
+}
+
+function normalizeUpper(value) {
+  return normalizeText(value).toUpperCase();
+}
+
+function validateEnum(value, allowedValues, message) {
+  if (!allowedValues.has(normalizeUpper(value))) {
+    throw badRequest(message);
+  }
+}
+
+function normalizeCardType(value) {
+  const normalized = normalizeUpper(value || 'SIEGLING');
+  return CARD_TYPES.has(normalized) ? normalized : 'SIEGLING';
+}
+
+function inferCardType(card) {
+  if (card?.trapBucketElement != null || card?.trapBucketAmount != null) {
+    return 'TRAP';
+  }
+  if (card?.requiredComboSize != null || card?.requiredComboSignature != null || card?.requiredReaction != null) {
+    return 'SPELL';
+  }
+  if (card?.ability != null && !looksLikeSiegling(card)) {
+    return 'SPELL';
+  }
+  return 'SIEGLING';
+}
+
+function looksLikeSiegling(card) {
+  return card?.health != null
+    || card?.speed != null
+    || card?.preferredRow != null
+    || card?.evolvesFromId != null
+    || Array.isArray(card?.notches)
+    || Array.isArray(card?.moveIds);
 }
 
 function normalizeUpdatedBy(value) {
@@ -474,3 +753,11 @@ function badRequest(message) {
   error.statusCode = 400;
   return error;
 }
+
+exports._private = {
+  inferCardType,
+  resolveCardsPayload,
+  resolveSimplePayload,
+  resolveLiveElementsPayload,
+  validateEditorBundle
+};

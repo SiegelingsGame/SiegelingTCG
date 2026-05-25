@@ -525,9 +525,9 @@
                     || (String(p.name || '') === String(n.name || '') && p.name);
                 const prevHp = p.hp ?? 0;
                 const nextHp = n.hp ?? 0;
-                const prevMaxHp = Number(p.maxHp);
-                const nextMaxHp = Number(n.maxHp);
-                const shieldGained = Number.isFinite(prevMaxHp) && Number.isFinite(nextMaxHp) && nextMaxHp > prevMaxHp;
+                const prevShield = Number(p.shieldHp ?? 0);
+                const nextShield = Number(n.shieldHp ?? 0);
+                const shieldGained = Number.isFinite(prevShield) && Number.isFinite(nextShield) && nextShield > prevShield;
                 if (same && nextHp > prevHp && !shieldGained) {
                     out.push({
                         isPlayer, row: r, col: c,
@@ -552,12 +552,12 @@
                 const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
                     || (p.id && n.id && p.id === n.id)
                     || (String(p.name || '') === String(n.name || '') && p.name);
-                const prevMaxHp = Number(p.maxHp);
-                const nextMaxHp = Number(n.maxHp);
-                if (same && Number.isFinite(prevMaxHp) && Number.isFinite(nextMaxHp) && nextMaxHp > prevMaxHp) {
+                const prevShield = Number(p.shieldHp ?? 0);
+                const nextShield = Number(n.shieldHp ?? 0);
+                if (same && Number.isFinite(prevShield) && Number.isFinite(nextShield) && nextShield > prevShield) {
                     out.push({
                         isPlayer, row: r, col: c,
-                        amount: nextMaxHp - prevMaxHp,
+                        amount: nextShield - prevShield,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
                         instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
@@ -609,43 +609,29 @@
                 if (!same) continue;
                 const prevHp = p.hp ?? 0;
                 const nextHp = n.hp ?? 0;
-                if (nextHp >= prevHp) continue;
-
-                // If the card's maxHp dropped between prev and next (the
-                // HEALTH_BOOST / shield buff expired at phase end), the
-                // engine clamps current hp down to the new max — that's
-                // not an attack, so it shouldn't queue a damage event.
-                // Subtract the "natural" clamp from the apparent drop and
-                // skip if nothing's left.
-                const nextMaxHp = Number(n.maxHp ?? prevHp);
-                const expectedHpAfterBuffDrop = Math.min(prevHp, nextMaxHp);
-                const actualDamage = expectedHpAfterBuffDrop - nextHp;
-                if (actualDamage <= 0) continue;
-
-                // Shield going into this damage is based on the post-buff-
-                // drop hp so the split doesn't double-count a buff that
-                // expired in the same diff.
-                const printedHp = Number(p.printedHealth);
-                const ph = Number.isFinite(printedHp) ? printedHp : null;
-                const preDamageShield = ph != null ? Math.max(0, expectedHpAfterBuffDrop - ph) : 0;
-                const nextShield      = ph != null ? Math.max(0, nextHp - ph)                  : 0;
-                const shieldBroken = Math.max(0, preDamageShield - nextShield);
-                const hpLoss = Math.max(0, actualDamage - shieldBroken);
-                out.push({
-                    isPlayer, row: r, col: c,
-                    amount: actualDamage,
-                    shieldBroken,
-                    hpLoss,
-                    shieldFullyBroken: preDamageShield > 0 && nextShield === 0,
-                    element: normalizeElement(n.element || p.element),
-                    name: n.name || p.name || '',
-                    instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
-                    prevHp,
-                    nextHp,
-                    prevMaxHp: p.maxHp,
-                    nextMaxHp: n.maxHp,
-                    printedHealth: n.printedHealth ?? p.printedHealth
-                });
+                const prevShield = Math.max(0, Number(p.shieldHp ?? 0) || 0);
+                const nextShield = Math.max(0, Number(n.shieldHp ?? 0) || 0);
+                if (same && (nextHp < prevHp || nextShield < prevShield)) {
+                    const shieldBroken = Math.max(0, prevShield - nextShield);
+                    const hpLoss = Math.max(0, prevHp - nextHp);
+                    out.push({
+                        isPlayer, row: r, col: c,
+                        amount: shieldBroken + hpLoss,
+                        shieldBroken,
+                        hpLoss,
+                        shieldFullyBroken: prevShield > 0 && nextShield === 0,
+                        element: normalizeElement(n.element || p.element),
+                        name: n.name || p.name || '',
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
+                        prevHp,
+                        nextHp,
+                        prevShield,
+                        nextShield,
+                        prevMaxHp: p.maxHp,
+                        nextMaxHp: n.maxHp,
+                        printedHealth: n.printedHealth ?? p.printedHealth
+                    });
+                }
             }
         }
         return out;
@@ -830,8 +816,8 @@
             this.pendingPlacements = new Map();
             // Map<key, { isPlayer, row, col, displayHp, finalHp, maxHp, element }>
             // Board renders receive the server's post-damage state immediately;
-            // these entries keep visible card HP at the pre-hit value until the
-            // matching attack animation reaches impact.
+            // these entries keep that resolved HP visible while the matching
+            // attack animation finishes.
             this.pendingHealthChanges = new Map();
             this._pendingSyncScheduled = false;
             this._loadSpeed();
@@ -924,26 +910,42 @@
         renderHealthInner(entry, hp, maxHp) {
             const safeHp = Math.max(0, Number.isFinite(Number(hp)) ? Number(hp) : 0);
             const safeMax = Math.max(0, Number.isFinite(Number(maxHp)) ? Number(maxHp) : 0);
-            const printedHp = Number(entry?.printedHealth);
-            const shield = Number.isFinite(printedHp) ? Math.max(0, safeMax - printedHp) : 0;
-            const intactShield = shield > 0 ? Math.max(0, Math.min(shield, safeHp - printedHp)) : 0;
-            const depletedShield = Math.max(0, shield - intactShield);
-            const shieldState = shield <= 0
-                ? 'none'
-                : intactShield <= 0
-                    ? 'depleted'
-                    : depletedShield > 0
-                        ? 'partial'
-                        : 'intact';
-            const shieldIntactPct = shield > 0 ? Math.round((intactShield / shield) * 100) : 0;
-            const baseMax = shield > 0 ? printedHp : safeMax;
-            const shieldTitle = depletedShield > 0
-                ? `Shield +${shield}: ${intactShield} intact, ${depletedShield} depleted`
-                : `Shield +${shield}: intact`;
-            const shieldHtml = shield > 0
-                ? `<span class="stat-shield stat-shield--${shieldState}" title="${shieldTitle}" data-shield-state="${shieldState}" style="--shield-intact-pct:${shieldIntactPct}%"><span class="stat-shield-icon" aria-hidden="true"></span><span class="stat-shield-value">+${shield}</span></span>`
-                : '';
-            return `${safeHp}/<span class="stat-hp-max">${baseMax}</span>${shieldHtml}`;
+            return `${safeHp}/<span class="stat-hp-max">${safeMax}</span>`;
+        }
+        syncShieldVisualsToHealth(card, entry, shieldHp) {
+            if (!card) return;
+            const intactShield = Math.max(0, Number.isFinite(Number(shieldHp)) ? Number(shieldHp) : 0);
+            const totalShield = intactShield;
+            const shieldBadge = card.querySelector('.status-icons .sb-badge[data-status="HEALTH_BOOST"]');
+            if (intactShield <= 0) {
+                shieldBadge?.remove();
+                const statusIcons = card.querySelector('.status-icons');
+                if (statusIcons && !statusIcons.querySelector('.sb-badge')) {
+                    statusIcons.remove();
+                }
+            } else if (shieldBadge) {
+                shieldBadge.setAttribute('data-shield-state', 'intact');
+                shieldBadge.title = `Shield +${totalShield}`;
+                const num = shieldBadge.querySelector('.sb-num');
+                if (num) num.textContent = `+${totalShield}`;
+            }
+            const hpBar = card.querySelector('.hp-bar');
+            const plates = hpBar?.querySelector('.shield-plates');
+            if (!hpBar) return;
+            if (intactShield <= 0) {
+                hpBar.classList.remove('is-shielded');
+                plates?.remove();
+                return;
+            }
+            hpBar.classList.add('is-shielded');
+            if (!plates) return;
+            plates.dataset.shield = String(intactShield);
+            const current = plates.querySelectorAll('.shield-plate').length;
+            if (current === intactShield) return;
+            plates.innerHTML = Array.from(
+                { length: intactShield },
+                (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
+            ).join('');
         }
         applyHealthToDom(entry, hp, maxHp) {
             if (!entry) return;
@@ -952,11 +954,15 @@
             if (!card) return;
             const resolvedMax = Number.isFinite(Number(maxHp)) ? Number(maxHp) : Number(entry.maxHp);
             const resolvedHp = Number.isFinite(Number(hp)) ? Number(hp) : Number(entry.finalHp);
-            const pct = resolvedMax > 0 ? Math.max(0, Math.min(100, (resolvedHp / resolvedMax) * 100)) : 0;
+            const resolvedShield = Number.isFinite(Number(entry.displayShield)) ? Number(entry.displayShield) : Number(entry.finalShield ?? 0);
+            const barMax = resolvedMax;
+            const barHp = resolvedHp;
+            const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
             const fill = card.querySelector('.hp-fill');
             if (fill) fill.style.width = `${pct}%`;
             const hpStat = card.querySelector('.stat-hp');
             if (hpStat) hpStat.innerHTML = this.renderHealthInner(entry, resolvedHp, resolvedMax);
+            this.syncShieldVisualsToHealth(card, entry, resolvedShield);
         }
         registerPendingHealth(target) {
             if (!target || target.destroysTarget) return null;
@@ -970,14 +976,15 @@
             const maxHp = Number.isFinite(Number(target.nextMaxHp))
                 ? Number(target.nextMaxHp)
                 : Number(target.prevMaxHp);
-            const existing = this.pendingHealthChanges.get(key);
             this.pendingHealthChanges.set(key, {
                 isPlayer: target.isPlayer,
                 row: target.row,
                 col: target.col,
                 instanceId: id,
-                displayHp: existing ? existing.displayHp : prevHp,
+                displayHp: nextHp,
                 finalHp: nextHp,
+                displayShield: Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0,
+                finalShield: Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0,
                 maxHp,
                 printedHealth: target.printedHealth,
                 element: target.element
@@ -1029,11 +1036,29 @@
 
         // ── Health-bar helpers (for direct-attack animations) ──────────────
         _getHealthBarEl(isPlayer) {
-            const desktop = document.querySelector(isPlayer ? '.tb-hp-player' : '.tb-hp-enemy');
-            if (desktop && desktop.offsetParent !== null) return desktop;
-            const mobile = document.querySelector(isPlayer ? '.mobile-hud-player' : '.mobile-hud-enemy');
-            if (mobile && mobile.offsetParent !== null) return mobile;
-            return desktop || mobile || null;
+            const selectors = isPlayer
+                ? [
+                    '#hudRailPlayer .hud-hp-row',
+                    '.mobile-hud-player',
+                    '.tb-hp-player'
+                ]
+                : [
+                    '#hudRailEnemy .hud-hp-row',
+                    '.mobile-hud-enemy',
+                    '.tb-hp-enemy'
+                ];
+            const candidates = selectors
+                .map((selector) => document.querySelector(selector))
+                .filter(Boolean);
+            return candidates.find((el) => {
+                const r = el.getBoundingClientRect();
+                const style = window.getComputedStyle(el);
+                return r.width > 0
+                    && r.height > 0
+                    && style.visibility !== 'hidden'
+                    && style.display !== 'none'
+                    && style.opacity !== '0';
+            }) || candidates[0] || null;
         }
         _getHealthBarCenter(isPlayer) {
             const el = this._getHealthBarEl(isPlayer);
@@ -1280,6 +1305,8 @@
                         instanceId: t.instanceId,
                         prevHp: t.prevHp,
                         nextHp: t.nextHp,
+                        prevShield: t.prevShield,
+                        nextShield: t.nextShield,
                         prevMaxHp: t.prevMaxHp,
                         nextMaxHp: t.nextMaxHp,
                         printedHealth: t.printedHealth

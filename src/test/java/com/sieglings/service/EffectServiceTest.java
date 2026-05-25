@@ -12,6 +12,7 @@ import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.StatusEffect;
 import com.sieglings.model.enums.TargetType;
 import org.junit.jupiter.api.Test;
 
@@ -153,6 +154,31 @@ class EffectServiceTest {
     }
 
     @Test
+    void speedZeroOverridesTrainerPassiveSpeedBuff() {
+        GameState state = battleState();
+        CardInstance target = instance("quick-target", 1, 1, false);
+        target.setTrainerPassiveSpeedBuff(3);
+        state.setAt(false, 1, 1, target);
+
+        Ability mudTrap = new Ability(
+                "Mud Trap",
+                "Sets effective Speed to 0",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.SPEED_ZERO,
+                0,
+                false
+        );
+
+        effectService.resolveAbility(state, mudTrap, null, true, 1, 1);
+
+        assertEquals(0, target.getCurrentSpeed());
+        assertTrue(target.getStatusEffects().contains(StatusEffect.SPEED_ZERO));
+        assertEquals(0, target.getEffectiveSpeed(), "Speed-zero effects must override passive speed bonuses.");
+    }
+
+    @Test
     void connectedAlliesHealthBoostOnlyAffectsLinkedAllies() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
@@ -261,6 +287,60 @@ class EffectServiceTest {
     }
 
     @Test
+    void connectedAlliesShieldOnlyAffectsLinkedAllies() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        CardInstance source = instance("source", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        source.setPlacementOrder(1);
+        state.setAt(true, 1, 1, source);
+
+        CardInstance linkedLeft = instance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH),
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 1, 0);
+        linkedLeft.setPlacementOrder(2);
+        state.setAt(true, 1, 0, linkedLeft);
+
+        CardInstance linkedRight = instance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        linkedRight.setPlacementOrder(3);
+        state.setAt(true, 1, 2, linkedRight);
+
+        CardInstance isolated = instance("isolated", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 0, 2);
+        isolated.setPlacementOrder(4);
+        state.setAt(true, 0, 2, isolated);
+
+        CardInstance chained = instance("chained", List.of(
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+        ), 0, 0);
+        chained.setPlacementOrder(5);
+        state.setAt(true, 0, 0, chained);
+
+        Ability shield = Ability.connectedAlliesShield(
+                "Ward Root",
+                "Connected allies gain +2 Shield",
+                2
+        );
+
+        effectService.resolveAbility(state, shield, source, true, source.getBoardRow(), source.getBoardCol());
+
+        assertEquals(0, source.getTemporaryShield(), "Source card should not shield itself.");
+        assertEquals(2, linkedLeft.getTemporaryShield(), "Linked ally should gain Shield.");
+        assertEquals(2, linkedRight.getTemporaryShield(), "Linked ally should gain Shield.");
+        assertEquals(0, chained.getTemporaryShield(), "Indirect chain allies should stay unchanged.");
+        assertEquals(0, isolated.getTemporaryShield(), "Unlinked ally should stay unchanged.");
+    }
+
+    @Test
     void connectedAlliesSpeedBoostOnlyAffectsLinkedAllies() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
@@ -312,6 +392,56 @@ class EffectServiceTest {
         assertEquals(6, linkedRight.getCurrentSpeed(), "Linked ally should gain Speed.");
         assertEquals(4, chained.getCurrentSpeed(), "Indirect chain allies should stay unchanged.");
         assertEquals(4, isolated.getCurrentSpeed(), "Unlinked ally should stay unchanged.");
+    }
+
+    @Test
+    void connectedAlliesSlowOnlyAffectsLinkedAllies() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        CardInstance source = instance("source", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        source.setPlacementOrder(1);
+        source.setCurrentSpeed(6);
+        state.setAt(true, 1, 1, source);
+
+        CardInstance linkedLeft = instance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 0);
+        linkedLeft.setPlacementOrder(2);
+        linkedLeft.setCurrentSpeed(6);
+        state.setAt(true, 1, 0, linkedLeft);
+
+        CardInstance linkedRight = instance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        linkedRight.setPlacementOrder(3);
+        linkedRight.setCurrentSpeed(6);
+        state.setAt(true, 1, 2, linkedRight);
+
+        CardInstance isolated = instance("isolated", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 0, 2);
+        isolated.setPlacementOrder(4);
+        isolated.setCurrentSpeed(6);
+        state.setAt(true, 0, 2, isolated);
+
+        Ability slow = Ability.connectedAlliesSlow(
+                "Mud Circuit",
+                "Connected allies lose 2 Speed",
+                2
+        );
+
+        effectService.resolveAbility(state, slow, source, true, source.getBoardRow(), source.getBoardCol());
+
+        assertEquals(6, source.getCurrentSpeed(), "Source card should not slow itself.");
+        assertEquals(4, linkedLeft.getCurrentSpeed(), "Linked ally should lose Speed.");
+        assertEquals(4, linkedRight.getCurrentSpeed(), "Linked ally should lose Speed.");
+        assertEquals(6, isolated.getCurrentSpeed(), "Unlinked ally should stay unchanged.");
     }
 
     @Test
@@ -449,6 +579,78 @@ class EffectServiceTest {
         effectService.resolveAbility(state, speedBoost, null, true, 1, 1);
 
         assertEquals(2, target.getEffectiveSpeed(), "Later speed boosts should be able to lift a speed-zero target back above 0.");
+    }
+
+    @Test
+    void slowReducesCurrentSpeedByEffectValueAndClampsAtZero() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        CardInstance target = instance("fast", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 1, 1);
+        target.setCurrentSpeed(6);
+        state.setAt(false, 1, 1, target);
+
+        Ability slow = new Ability(
+                "Heavy Mist",
+                "Reduce 1 enemy speed by 2",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.SLOW,
+                2,
+                false
+        );
+        effectService.resolveAbility(state, slow, null, true, 1, 1);
+
+        assertEquals(4, target.getEffectiveSpeed(), "Slow should subtract exactly the effect value.");
+
+        Ability heavierSlow = new Ability(
+                "Deep Mist",
+                "Reduce 1 enemy speed by 8",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.SLOW,
+                8,
+                false
+        );
+        effectService.resolveAbility(state, heavierSlow, null, true, 1, 1);
+
+        assertEquals(0, target.getEffectiveSpeed(), "Slow should not reduce speed below zero.");
+        assertTrue(target.getStatusEffects().contains(StatusEffect.SPEED_ZERO),
+                "A slowed target that reaches zero speed should act like a speed-zero target.");
+    }
+
+    @Test
+    void drawEffectDrawsEffectValueCardsForActingSide() {
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        state.setPlayer(player);
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+        player.getDeck().add(new SieglingCard("draw-a", "Draw A", Element.EARTH, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE));
+        player.getDeck().add(new SieglingCard("draw-b", "Draw B", Element.EARTH, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE));
+        player.getDeck().add(new SieglingCard("draw-c", "Draw C", Element.EARTH, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE));
+
+        Ability draw = new Ability(
+                "Fresh Plans",
+                "Draw 2 cards",
+                TargetType.SELF,
+                null,
+                0,
+                AbilityEffectKeys.DRAW,
+                2,
+                false
+        );
+
+        effectService.resolveAbility(state, draw, null, true, -1, -1);
+
+        assertEquals(2, player.getHand().size(), "Draw should move effect-value cards into hand.");
+        assertEquals(1, player.getDeck().size(), "Draw should remove the same number of cards from deck.");
     }
 
     private CardInstance instance(String id, List<Notch> notches, int row, int col) {

@@ -7,6 +7,8 @@ import com.sieglings.model.GameState;
 import com.sieglings.model.Notch;
 import com.sieglings.model.Player;
 import com.sieglings.model.SieglingCard;
+import com.sieglings.model.SpellCard;
+import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.NotchDirection;
@@ -27,6 +29,37 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GameServiceTest {
+
+    @Test
+    void maxHealthBoostStaysPermanentWhileShieldAbsorbsDamageSeparately() {
+        SieglingCard card = new SieglingCard("leaf", "Leaf", Element.EARTH, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance instance = new CardInstance(card, 0, 0, true);
+
+        instance.addMaxHealthBoost(3);
+
+        assertEquals(13, instance.getEffectiveMaxHealth());
+        assertEquals(13, instance.getCurrentHealth());
+        assertEquals(0, instance.getTemporaryShield());
+        assertFalse(instance.getStatusEffects().contains(StatusEffect.HEALTH_BOOST));
+
+        instance.clearTemporaryEffects();
+
+        assertEquals(13, instance.getEffectiveMaxHealth());
+        assertEquals(13, instance.getCurrentHealth());
+
+        instance.addShield(2);
+        instance.takeRawDamage(1);
+
+        assertEquals(1, instance.getTemporaryShield());
+        assertEquals(13, instance.getCurrentHealth());
+        assertTrue(instance.getStatusEffects().contains(StatusEffect.HEALTH_BOOST));
+
+        instance.takeRawDamage(3);
+
+        assertEquals(0, instance.getTemporaryShield());
+        assertEquals(11, instance.getCurrentHealth());
+        assertFalse(instance.getStatusEffects().contains(StatusEffect.HEALTH_BOOST));
+    }
 
     @Test
     void trainerHealthPassiveUpdatesPlacedSieglingDuringSetupWithoutRehealing() throws Exception {
@@ -106,6 +139,220 @@ class GameServiceTest {
                 state.getGameLog().stream().anyMatch(entry -> entry.endsWith("Emberpup evolved to Pylook!")),
                 "Evolution should be logged as the base evolving into the new form."
         );
+    }
+
+    @Test
+    void exhaustedSetupActionsBlockSpellAndTrapCardsWithoutConsumingThem() throws Exception {
+        GameService gameService = new GameService();
+        setField(gameService, "energyService", new EnergyService(new PlacementService()));
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+        state.setFirstTurn(false);
+        state.recordSieglingSetupActionConsumed(true);
+
+        SpellCard spell = new SpellCard(
+                "spent-spell",
+                "Spent Spell",
+                Element.FIRE,
+                Rarity.COMMON,
+                0,
+                Ability.damage("Spent Spell", "Deal 3 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 3)
+        );
+        TrapCard trap = new TrapCard(
+                "spent-trap",
+                "Spent Trap",
+                Element.FIRE,
+                Rarity.COMMON,
+                Element.FIRE,
+                0,
+                Ability.damage("Spent Trap", "Deal 3 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 3)
+        );
+        player.getHand().add(spell);
+        player.getHand().add(trap);
+
+        gameService.castSpell(state, true, "spent-spell", -1, -1);
+        gameService.castSpell(state, true, "spent-trap", -1, -1);
+
+        assertEquals(50, enemy.getHealth(), "Blocked action cards should not resolve damage.");
+        assertEquals(2, player.getHand().size(), "Blocked action cards should stay in hand.");
+        assertTrue(player.getHand().contains(spell));
+        assertTrue(player.getHand().contains(trap));
+        assertTrue(player.getDiscard().isEmpty(), "Blocked action cards should not move to discard.");
+        assertEquals(0, player.getSpellsCastThisMatch());
+        assertEquals(0, player.getTrapsSprungThisMatch());
+    }
+
+    @Test
+    void successfulActionCardsConsumeSetupActionBudget() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        setField(gameService, "energyService", new EnergyService(placementService));
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState spellState = new GameState();
+        spellState.setPlayer(player);
+        spellState.setEnemy(enemy);
+        spellState.setCurrentPhase(Phase.SETUP);
+        spellState.setPlayerTurn(true);
+        spellState.setFirstTurn(false);
+
+        SpellCard spell = new SpellCard(
+                "budget-spell",
+                "Budget Spell",
+                Element.FIRE,
+                Rarity.COMMON,
+                0,
+                Ability.damage("Budget Spell", "Deal 3 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 3)
+        );
+        SieglingCard followUp = new SieglingCard("follow-up", "Follow Up", Element.FIRE, Rarity.COMMON, 10, 0, List.of(), Row.FRONT);
+        player.getHand().add(spell);
+        player.getHand().add(followUp);
+
+        gameService.castSpell(spellState, true, "budget-spell", -1, -1);
+        gameService.placeSiegling(spellState, true, "follow-up", 2, 0);
+
+        assertEquals(47, enemy.getHealth(), "The spell should resolve.");
+        assertEquals(1, spellState.getSieglingSetupActionsUsed(true), "The spell should spend the only base setup action.");
+        assertNull(spellState.getAt(true, 2, 0), "No follow-up placement should be allowed after the action budget is spent.");
+        assertTrue(player.getHand().contains(followUp), "Blocked follow-up cards should remain in hand.");
+
+        Player trapPlayer = new Player("Trap Player", true);
+        Player trapEnemy = new Player("Trap Enemy", false);
+        GameState trapState = new GameState();
+        trapState.setPlayer(trapPlayer);
+        trapState.setEnemy(trapEnemy);
+        trapState.setCurrentPhase(Phase.SETUP);
+        trapState.setPlayerTurn(true);
+        trapState.setFirstTurn(false);
+
+        TrapCard trap = new TrapCard(
+                "budget-trap",
+                "Budget Trap",
+                Element.FIRE,
+                Rarity.COMMON,
+                Element.FIRE,
+                0,
+                Ability.damage("Budget Trap", "Deal 4 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 4)
+        );
+        SieglingCard trapFollowUp = new SieglingCard("trap-follow-up", "Trap Follow Up", Element.FIRE, Rarity.COMMON, 10, 0, List.of(), Row.FRONT);
+        trapPlayer.getHand().add(trap);
+        trapPlayer.getHand().add(trapFollowUp);
+
+        gameService.castSpell(trapState, true, "budget-trap", -1, -1);
+        gameService.placeSiegling(trapState, true, "trap-follow-up", 2, 0);
+
+        assertEquals(46, trapEnemy.getHealth(), "The trap should resolve.");
+        assertEquals(1, trapState.getSieglingSetupActionsUsed(true), "The trap should spend the only base setup action.");
+        assertNull(trapState.getAt(true, 2, 0), "No follow-up placement should be allowed after the trap spends the budget.");
+        assertTrue(trapPlayer.getHand().contains(trapFollowUp), "Blocked follow-up cards should remain in hand.");
+    }
+
+    @Test
+    void aiDoesNotCastAfterUsingLastSetupAction() throws Exception {
+        AIService aiService = new AIService();
+        PlacementService placementService = new PlacementService();
+        setField(aiService, "placementService", placementService);
+        setField(aiService, "energyService", new EnergyService(placementService));
+        setField(aiService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+
+        SieglingCard siegling = new SieglingCard(
+                "ai-siegling",
+                "AI Siegling",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(),
+                Row.FRONT
+        );
+        SpellCard spell = new SpellCard(
+                "ai-spell",
+                "AI Spell",
+                Element.FIRE,
+                Rarity.COMMON,
+                0,
+                Ability.damage("AI Spell", "Deal 4 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 4)
+        );
+        enemy.getHand().add(siegling);
+        enemy.getHand().add(spell);
+
+        aiService.executeAITurn(state);
+
+        assertEquals(1, state.getSieglingSetupActionsUsed(false));
+        assertEquals(50, player.getHealth(), "AI should not cast after spending its last setup action.");
+        assertTrue(enemy.getHand().contains(spell), "AI spell should remain in hand.");
+        assertFalse(enemy.getDiscard().contains(spell), "AI spell should not be discarded.");
+    }
+
+    @Test
+    void aiActionCardsSpendSetupBudgetBeforeTryingTrap() throws Exception {
+        AIService aiService = new AIService();
+        PlacementService placementService = new PlacementService();
+        setField(aiService, "placementService", placementService);
+        setField(aiService, "energyService", new EnergyService(placementService));
+        setField(aiService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        SieglingCard playerAnchor = new SieglingCard(
+                "player-anchor",
+                "Player Anchor",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                0,
+                List.of(),
+                Row.FRONT
+        );
+        state.setAt(true, 2, 0, new CardInstance(playerAnchor, 2, 0, true));
+
+        SpellCard spell = new SpellCard(
+                "ai-budget-spell",
+                "AI Budget Spell",
+                Element.FIRE,
+                Rarity.COMMON,
+                0,
+                Ability.damage("AI Budget Spell", "Deal 4 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 4)
+        );
+        TrapCard trap = new TrapCard(
+                "ai-budget-trap",
+                "AI Budget Trap",
+                Element.FIRE,
+                Rarity.COMMON,
+                Element.FIRE,
+                0,
+                Ability.damage("AI Budget Trap", "Deal 5 damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 5)
+        );
+        enemy.getHand().add(spell);
+        enemy.getHand().add(trap);
+
+        aiService.executeAITurn(state);
+
+        assertEquals(1, state.getSieglingSetupActionsUsed(false), "The AI spell should spend the only base setup action.");
+        assertEquals(46, player.getHealth(), "The AI should cast the spell but not also spring the trap.");
+        assertFalse(enemy.getHand().contains(spell));
+        assertTrue(enemy.getDiscard().contains(spell));
+        assertTrue(enemy.getHand().contains(trap), "The AI trap should remain in hand once the setup budget is spent.");
+        assertFalse(enemy.getDiscard().contains(trap), "The AI trap should not be discarded without resolving.");
     }
 
     @Test

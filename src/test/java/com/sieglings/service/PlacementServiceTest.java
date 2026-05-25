@@ -58,6 +58,32 @@ class PlacementServiceTest {
     }
 
     @Test
+    void evolutionCarriesPermanentMaxHealthBoostAndExistingDamage() {
+        SieglingCard base = siegling(
+                "base-boosted",
+                Element.EARTH,
+                List.of(new Notch(NotchDirection.RIGHT, Element.EARTH))
+        );
+        SieglingCard evolvedCard = siegling(
+                "stage2-boosted",
+                Element.EARTH,
+                List.of(new Notch(NotchDirection.RIGHT, Element.EARTH))
+        );
+        evolvedCard.setHealth(14);
+        evolvedCard.setEvolvesFromId("base-boosted");
+
+        CardInstance existing = new CardInstance(base.copy(), 1, 1, true);
+        existing.addMaxHealthBoost(3);
+        existing.takeRawDamage(4);
+
+        CardInstance evolved = placementService.createPlacedInstance(existing, evolvedCard.copy(), true, 1, 1);
+
+        assertEquals(3, evolved.getPermanentHealthBoost());
+        assertEquals(17, evolved.getEffectiveMaxHealth());
+        assertEquals(13, evolved.getCurrentHealth(), "Evolution should preserve the actual damage taken before evolving.");
+    }
+
+    @Test
     void edgeSocketAllowsPlacementWithoutReciprocalCreatureLink() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
