@@ -4780,6 +4780,21 @@ function openLoadoutSelector() {
     syncEntryOverlays();
 }
 
+function returnToPlayMain() {
+    if (loadoutStartPending) {
+        return;
+    }
+    clearMultiplayerSession();
+    currentRoomStatus = null;
+    loadoutErrorMessage = '';
+    welcomeDismissed = false;
+    document.getElementById('gameOverOverlay')?.classList.remove('visible');
+    syncEntryOverlays();
+    renderWelcomeTutorial();
+    renderWelcomeAuth();
+    renderWelcomeLeaderboards();
+}
+
 function selectDeckOption(deckId) {
     detachSavedDeckSelection();
     selectedDeckId = deckId;

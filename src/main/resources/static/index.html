@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=96">
+    <link rel="stylesheet" href="/css/style.css?v=97">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -521,6 +521,7 @@
                     <a class="loadout-local-dev-link" href="/play" target="_blank" rel="noopener">Open Game In New Tab</a>
                 </div>
             </div>
+            <button class="loadout-close-btn" type="button" onclick="returnToPlayMain()" aria-label="Return to Play main screen">&times;</button>
             <div class="invite-room-badge hidden" id="inviteRoomBadge"></div>
         </div>
         <div class="player-identity-card" id="playerIdentityCard">
@@ -616,6 +617,7 @@
                 <div id="loadoutSummary" class="loadout-summary"></div>
                 <div class="loadout-actions">
                     <div class="loadout-actions-shell">
+                        <button class="btn loadout-back-btn" type="button" onclick="returnToPlayMain()">Back to Play</button>
                         <button class="btn btn-primary loadout-start-btn" type="button" id="btnStartLoadout" onclick="startSelectedGame()">Start Battle</button>
                     </div>
                 </div>
