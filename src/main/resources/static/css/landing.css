@@ -340,6 +340,10 @@ img { display: block; }
 }
 .siegelings-wordmark.is-element-flow {
     --siegelings-flow-speed: 4.8s;
+    background-color: transparent !important;
+    background-image: none !important;
+    color: var(--siegelings-hover-color) !important;
+    -webkit-text-fill-color: var(--siegelings-hover-color) !important;
     filter:
         drop-shadow(0 0 18px var(--siegelings-hover-color))
         drop-shadow(0 0 12px rgba(255, 255, 255, 0.18))
