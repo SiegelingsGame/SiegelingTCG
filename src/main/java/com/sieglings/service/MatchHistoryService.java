@@ -70,8 +70,19 @@ public class MatchHistoryService {
         history.setSpellsCast(player.getSpellsCastThisMatch());
         history.setTrapsSprung(player.getTrapsSprungThisMatch());
         history.setSiegelingsDefeated(player.getOpponentSieglingsDefeatedThisMatch());
+        history.setPlayerHealthRemaining(player.getHealth());
+        history.setOpponentHealthRemaining(opponent.getHealth());
+        history.setPlayerEnergyRemaining(totalEnergy(player));
+        history.setGameLog(state.getGameLog() == null ? List.of() : List.copyOf(state.getGameLog()));
         matchHistoryStore.save(history);
         logger.info("Recorded {} match history {} for user {}.", history.getMatchType(), history.getId(), user.getId());
+    }
+
+    private int totalEnergy(Player player) {
+        return player.getFireEnergy() + player.getEarthEnergy() + player.getWindEnergy()
+                + player.getWaterEnergy() + player.getIceEnergy() + player.getShadowEnergy()
+                + player.getElectricEnergy() + player.getMetalEnergy() + player.getUndeadEnergy()
+                + player.getPsychicEnergy();
     }
 
     private String resolveResult(GameState state, String playerName) {

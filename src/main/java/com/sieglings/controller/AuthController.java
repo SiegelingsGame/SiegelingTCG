@@ -199,6 +199,13 @@ public class AuthController {
         response.put("loadoutLabel", history.getLoadoutLabel());
         response.put("trainerName", history.getTrainerName());
         response.put("turnNumber", history.getTurnNumber());
+        response.put("spellsCast", history.getSpellsCast());
+        response.put("trapsSprung", history.getTrapsSprung());
+        response.put("siegelingsDefeated", history.getSiegelingsDefeated());
+        response.put("playerHealthRemaining", history.getPlayerHealthRemaining());
+        response.put("opponentHealthRemaining", history.getOpponentHealthRemaining());
+        response.put("playerEnergyRemaining", history.getPlayerEnergyRemaining());
+        response.put("gameLog", history.getGameLog() == null ? java.util.List.of() : history.getGameLog());
         return response;
     }
 }
