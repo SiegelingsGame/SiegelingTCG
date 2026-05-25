@@ -309,8 +309,7 @@ img { display: block; }
     animation: siegelings-band-drift var(--siegelings-flow-speed) ease-in-out infinite alternate;
     transition: filter 0.35s ease;
 }
-.siegelings-wordmark::before,
-.siegelings-wordmark::after {
+.siegelings-wordmark::before {
     content: attr(data-text);
     position: absolute;
     inset: 0;
@@ -338,26 +337,6 @@ img { display: block; }
     filter: blur(0.35px) drop-shadow(0 0 8px rgba(255, 255, 255, 0.55));
     opacity: 0.76;
     animation: siegelings-seam-particles 4.8s ease-in-out infinite alternate;
-}
-.siegelings-wordmark::after {
-    background:
-        linear-gradient(90deg,
-            transparent 0%,
-            transparent 22.5%,
-            rgba(255, 240, 210, 0.7) 24.8%,
-            transparent 27.4%,
-            transparent 47%,
-            rgba(230, 255, 255, 0.72) 50%,
-            transparent 53%,
-            transparent 72.3%,
-            rgba(230, 255, 245, 0.68) 75%,
-            transparent 78.2%,
-            transparent 100%);
-    background-size: calc(100% + 1ch) 100%;
-    background-position: 50% 50%;
-    filter: blur(1px);
-    opacity: 0.44;
-    animation: siegelings-border-wave 6.2s ease-in-out infinite alternate;
 }
 .siegelings-wordmark.is-element-flow {
     --siegelings-flow-speed: 4.8s;
@@ -389,10 +368,6 @@ img { display: block; }
             calc(50% + 0.55ch) 58%,
             calc(50% - 0.25ch) 44%;
     }
-}
-@keyframes siegelings-border-wave {
-    0%   { background-position: calc(50% - 0.45ch) 50%; opacity: 0.34; }
-    100% { background-position: calc(50% + 0.45ch) 50%; opacity: 0.58; }
 }
 .siegelings-underline {
     width: 60%;
