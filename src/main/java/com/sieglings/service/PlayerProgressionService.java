@@ -16,7 +16,7 @@ import java.util.Map;
 
 @Service
 public class PlayerProgressionService {
-    public static final int STARTING_GOLD = 500;
+    public static final int STARTING_GOLD = 100;
     public static final int CUSTOM_DECK_UNLOCK_COPIES = 30;
     public static final int WIN_GOLD = 75;
     public static final int COMPLETED_MATCH_GOLD = 30;
@@ -60,7 +60,7 @@ public class PlayerProgressionService {
         }
         PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, false);
         if (progression.getGold() < result.pack().price()) {
-            throw new IllegalArgumentException("Not enough gold for that pack.");
+            throw new IllegalArgumentException("Not enough Coins for that pack.");
         }
         progression.setGold(progression.getGold() - result.pack().price());
         grantCards(progression, result.cards());
@@ -78,7 +78,7 @@ public class PlayerProgressionService {
             return progression;
         }
         if (progression.getGold() < price) {
-            throw new IllegalArgumentException("Not enough gold for that premade deck.");
+            throw new IllegalArgumentException("Not enough Coins for that premade deck.");
         }
         progression.setGold(progression.getGold() - price);
         List<String> purchased = new ArrayList<>(progression.getPurchasedDeckIds());

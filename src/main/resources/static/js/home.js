@@ -21,7 +21,10 @@
         typeFilter: 'ALL',
         rarityFilter: 'ALL',
         sort: 'owned-desc',
-        builderCounts: {}
+        builderCounts: {},
+        filterTrayOpen: false,
+        cardTrayOpen: false,
+        authOpen: false
     };
 
     window.addEventListener('DOMContentLoaded', init);
@@ -30,6 +33,11 @@
         bindEvents();
         state.route = routeFromPath(location.pathname);
         setActiveRoute();
+        renderSections();
+        renderHudTools();
+        renderGold();
+        renderHomeDashboard();
+        renderProfile();
         await loadAll();
         render();
     }
@@ -51,6 +59,11 @@
         document.getElementById('joinRoomBtn')?.addEventListener('click', joinRoomFromHome);
         document.getElementById('refreshRoomsBtn')?.addEventListener('click', refreshRooms);
         document.getElementById('saveCustomDeckBtn')?.addEventListener('click', saveCustomDeck);
+        document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
+        document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
+        document.getElementById('trayBackdrop')?.addEventListener('click', closeTrays);
+        document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
+        document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
             btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'lobbies' : btn.dataset.homeFocus === 'builder' ? 'decks' : 'home'));
         });
@@ -101,16 +114,27 @@
     }
 
     function render() {
-        renderFilters();
-        renderProfileMini();
-        renderStarterGate();
-        renderSections();
-        renderCards();
-        renderDecks();
-        renderShop();
-        renderProfile();
-        renderRooms();
-        renderGold();
+        safeRender(renderFilters);
+        safeRender(renderProfileMini);
+        safeRender(renderSections);
+        safeRender(renderStarterGate);
+        safeRender(renderCards);
+        safeRender(renderDecks);
+        safeRender(renderHomeDashboard);
+        safeRender(renderShop);
+        safeRender(renderProfile);
+        safeRender(renderRooms);
+        safeRender(renderGold);
+        safeRender(renderHudTools);
+        safeRender(renderAuthModal);
+    }
+
+    function safeRender(fn) {
+        try {
+            fn();
+        } catch (error) {
+            console.error(error);
+        }
     }
 
     function renderStarterGate() {
@@ -128,6 +152,11 @@
         ['home', 'cards', 'decks', 'lobbies', 'profile', 'shop'].forEach((route) => {
             document.getElementById(`${route}Section`)?.classList.toggle('hidden', state.route !== route);
         });
+        if (!isBinderRoute()) {
+            state.filterTrayOpen = false;
+            state.cardTrayOpen = false;
+        }
+        renderHudTools();
     }
 
     function renderFilters() {
@@ -156,8 +185,8 @@
         const cards = filteredCards();
         const ownedCards = cards.filter(card => ownedCount(card.id) > 0);
         const grids = [
-            ['cardGrid', ownedCards.length ? ownedCards : cards],
-            ['allCardGrid', cards]
+            ['allCardGrid', cards],
+            ['deckCardGrid', ownedCards.length ? ownedCards : cards]
         ];
         grids.forEach(([id, list]) => {
             const grid = document.getElementById(id);
@@ -169,7 +198,10 @@
                 renderDetail();
             }));
         });
-        document.getElementById('allCardCount').textContent = `${cards.length} cards`;
+        const allCount = document.getElementById('allCardCount');
+        if (allCount) allCount.textContent = `${cards.length} cards`;
+        const deckCount = document.getElementById('deckCardCount');
+        if (deckCount) deckCount.textContent = `${ownedCards.length || cards.length} shown`;
         renderDetail();
         renderUnlock();
     }
@@ -206,7 +238,11 @@
     function renderDetail() {
         const panel = document.getElementById('detailPanel');
         const card = selectedCard();
-        if (!panel || !card) return;
+        if (!panel) return;
+        if (!card) {
+            panel.innerHTML = '<div class="unlock-card"><strong>Card details loading</strong><span>Select a card from Cards or Decks to inspect art, abilities, notches, and energy costs.</span></div>';
+            return;
+        }
         const abilities = card.abilities || (card.ability ? [card.ability] : []);
         panel.innerHTML = `
             <div class="detail-art art" style="--el:${elementColor(card.element)}"></div>
@@ -232,6 +268,56 @@
         document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => adjustBuilder(card.id, 1));
     }
 
+    function renderHomeDashboard() {
+        const el = document.getElementById('homeDashboard');
+        if (!el) return;
+        const ownedTotal = state.progression?.ownedTotal || 0;
+        const recentRooms = state.rooms.slice(0, 3);
+        const featuredPacks = state.packs.slice(0, 3);
+        const customState = state.progression?.customDeckUnlocked ? 'Unlocked' : `${ownedTotal}/30 copies`;
+        el.innerHTML = `
+            <div class="home-stat-row">
+                <div class="stat-tile"><strong>${state.profile?.authenticated ? (state.progression?.gold || 0) : 100}</strong><span>Coins ${state.profile?.authenticated ? 'available' : 'after sign up'}</span></div>
+                <div class="stat-tile"><strong>${ownedTotal}</strong><span>Owned card copies</span></div>
+                <div class="stat-tile"><strong>${customState}</strong><span>Custom deck builder</span></div>
+            </div>
+            <div class="home-flow-grid">
+                <article class="home-flow-panel">
+                    <span class="eyebrow">Start Matches</span>
+                    <h2>Premade battles are ready now</h2>
+                    <p>Play PVE or host PVP with premade decks, earn Coins, then open packs to grow your owned binder.</p>
+                    <div class="flow-actions">
+                        <button class="primary-btn" type="button" data-flow-play>PVE Battle</button>
+                        <button class="ghost-btn" type="button" data-flow-lobbies>Lobbies</button>
+                    </div>
+                </article>
+                <article class="home-flow-panel">
+                    <span class="eyebrow">Owned Binder</span>
+                    <h2>Cards live on Cards and Decks</h2>
+                    <p>Use the HUD tray filters to search elements, rarity, card type, notches, and abilities without crowding every page.</p>
+                    <div class="flow-actions">
+                        <button class="primary-btn" type="button" data-flow-cards>Browse Cards</button>
+                        <button class="ghost-btn" type="button" data-flow-decks>Build Deck</button>
+                    </div>
+                </article>
+            </div>
+            <div class="home-strip-grid">
+                <div class="home-flow-panel">
+                    <span class="eyebrow">Open Lobbies</span>
+                    ${recentRooms.length ? recentRooms.map(room => `<div class="mini-row"><strong>${escapeHtml(room.hostName || 'Host')}</strong><span>${escapeHtml(room.roomId)} / ${escapeHtml(room.status || 'Open')}</span></div>`).join('') : '<div class="mini-row"><strong>No open rooms</strong><span>Create a 1v1 lobby when ready.</span></div>'}
+                </div>
+                <div class="home-flow-panel">
+                    <span class="eyebrow">Shop Packs</span>
+                    ${featuredPacks.length ? featuredPacks.map(pack => `<div class="mini-row"><strong>${escapeHtml(pack.name)}</strong><span>${pack.price} Coins / ${pack.elements.map(format).join(' / ')}</span></div>`).join('') : '<div class="mini-row"><strong>Packs loading</strong><span>Element packs will appear here.</span></div>'}
+                </div>
+            </div>
+        `;
+        el.querySelector('[data-flow-play]')?.addEventListener('click', () => goPlay({ mode: 'solo' }));
+        el.querySelector('[data-flow-lobbies]')?.addEventListener('click', () => navigateHub('lobbies'));
+        el.querySelector('[data-flow-cards]')?.addEventListener('click', () => navigateHub('cards'));
+        el.querySelector('[data-flow-decks]')?.addEventListener('click', () => navigateHub('decks'));
+    }
+
     function renderDecks() {
         const grid = document.getElementById('deckGrid');
         if (!grid) return;
@@ -243,7 +329,7 @@
                 <span>${deck.elements.map(format).join(' / ')}</span>
                 <span>${escapeHtml(deck.description || '')}</span>
                 <button class="primary-btn" type="button" data-play-deck="${escapeAttr(deck.id)}">Play Premade</button>
-                <button class="ghost-btn" type="button" data-buy-deck="${escapeAttr(deck.id)}">${owned ? 'Purchased' : `Buy ${price} gold`}</button>
+                <button class="ghost-btn" type="button" data-buy-deck="${escapeAttr(deck.id)}">${owned ? 'Purchased' : `Buy ${price} Coins`}</button>
             </article>`;
         }).join('');
         grid.querySelectorAll('[data-play-deck]').forEach(btn => btn.addEventListener('click', () => goPlay({ mode: 'solo', deckId: btn.dataset.playDeck })));
@@ -273,12 +359,12 @@
         if (!grid) return;
         const packs = state.progression?.starterChosen ? state.packs : state.packs.filter(pack => pack.starterEligible);
         grid.innerHTML = packs.map(renderPackTile).join('');
-        document.getElementById('shopGoldLabel').textContent = `${state.progression?.gold || 0} gold`;
+        document.getElementById('shopGoldLabel').textContent = `${state.progression?.gold || 0} Coins`;
     }
 
     function renderPackTile(pack) {
         const starterMode = state.profile?.authenticated && state.progression && !state.progression.starterChosen;
-        const label = starterMode && pack.starterEligible ? 'Choose Starter' : `${pack.price} gold`;
+        const label = starterMode && pack.starterEligible ? 'Choose Starter' : `${pack.price} Coins`;
         return `<article class="pack-tile">
             <strong>${escapeHtml(pack.name)}</strong>
             <span>${pack.elements.map(format).join(' / ')}</span>
@@ -306,14 +392,14 @@
         const body = document.getElementById('profileSectionBody');
         if (!body) return;
         if (!state.profile?.authenticated) {
-            body.innerHTML = authMarkup();
-            bindAuthForms();
+            body.innerHTML = `<div class="stat-tile profile-callout"><strong>Sign in from the HUD</strong><span>Use the Sign In button to save Coins, starter packs, owned cards, custom decks, friends, and match history.</span><button class="primary-btn" type="button" id="profileSignInBtn">Sign In</button></div>`;
+            document.getElementById('profileSignInBtn')?.addEventListener('click', openAuth);
             return;
         }
         const history = state.profile.matchHistory || [];
         body.innerHTML = `
             <div class="stat-tile"><strong>${escapeHtml(state.profile.user.displayName)}</strong><span>${escapeHtml(state.profile.user.email)}</span></div>
-            <div class="stat-tile"><strong>${state.progression?.gold || 0}</strong><span>Gold</span></div>
+            <div class="stat-tile"><strong>${state.progression?.gold || 0}</strong><span>Coins</span></div>
             <div class="stat-tile"><strong>${state.progression?.ownedTotal || 0}</strong><span>Owned card copies</span></div>
             <div class="stat-tile"><strong>${state.profile.savedDecks?.length || 0}</strong><span>Saved decks</span></div>
             <div class="stat-tile"><strong>Find Players</strong><span>Friends list and player search placeholder for v1.</span></div>
@@ -325,17 +411,21 @@
         const el = document.getElementById('profileMini');
         if (!el) return;
         if (!state.profile?.authenticated) {
-            el.innerHTML = `${authMarkup()}`;
-            bindAuthForms();
+            el.innerHTML = `<strong>Guest</strong><span>Sign in from the HUD to save Coins and owned cards.</span>`;
             return;
         }
-        el.innerHTML = `<strong>${escapeHtml(state.profile.user.displayName)}</strong><span>${state.progression?.gold || 0} gold / ${state.progression?.ownedTotal || 0} owned copies</span><button class="ghost-btn" type="button" id="logoutBtn">Log out</button>`;
+        el.innerHTML = `<strong>${escapeHtml(state.profile.user.displayName)}</strong><span>${state.progression?.gold || 0} Coins / ${state.progression?.ownedTotal || 0} owned copies</span><button class="ghost-btn" type="button" id="logoutBtn">Log out</button>`;
         document.getElementById('logoutBtn')?.addEventListener('click', logout);
     }
 
     function renderGold() {
-        document.getElementById('goldPill').textContent = state.profile?.authenticated ? `${state.progression?.gold || 0} gold` : 'Guest';
+        document.getElementById('goldPill').textContent = state.profile?.authenticated ? `${state.progression?.gold || 0} Coins` : '100 Coins';
         document.getElementById('ownedCountLabel').textContent = `${state.progression?.ownedTotal || 0} owned`;
+        const authBtn = document.getElementById('authHudBtn');
+        if (authBtn) {
+            authBtn.textContent = state.profile?.authenticated ? 'Log Out' : 'Sign In';
+            authBtn.classList.toggle('is-authenticated', Boolean(state.profile?.authenticated));
+        }
     }
 
     function renderUnlock() {
@@ -348,7 +438,7 @@
 
     async function choosePack(packId) {
         if (!state.profile?.authenticated) {
-            navigateHub('profile');
+            openAuth();
             return;
         }
         const starterMode = state.progression && !state.progression.starterChosen;
@@ -370,7 +460,7 @@
     }
 
     async function purchaseDeck(deckId) {
-        if (!state.profile?.authenticated) return navigateHub('profile');
+        if (!state.profile?.authenticated) return openAuth();
         const data = await fetchJson('/api/shop/purchase-deck', { method: 'POST', body: JSON.stringify({ deckId }) });
         if (data?.error) return alert(data.error);
         state.progression = data.progression;
@@ -378,7 +468,7 @@
     }
 
     async function saveCustomDeck() {
-        if (!state.profile?.authenticated) return navigateHub('profile');
+        if (!state.profile?.authenticated) return openAuth();
         const cards = builderCards();
         if (cards.length < 30) return alert('Custom decks need 30 cards.');
         const trainerId = state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id;
@@ -421,10 +511,53 @@
         history.pushState(null, '', route === 'home' ? '/home' : `/${route}`);
         setActiveRoute();
         renderSections();
+        renderCards();
+        renderHomeDashboard();
     }
 
     function setActiveRoute() {
         document.querySelectorAll('[data-route]').forEach(link => link.classList.toggle('active', link.dataset.route === state.route));
+    }
+
+    function isBinderRoute() {
+        return state.route === 'cards' || state.route === 'decks';
+    }
+
+    function toggleTray(type) {
+        if (!isBinderRoute()) return;
+        if (type === 'filter') {
+            state.filterTrayOpen = !state.filterTrayOpen;
+            if (state.filterTrayOpen) state.cardTrayOpen = false;
+        }
+        if (type === 'card') {
+            state.cardTrayOpen = !state.cardTrayOpen;
+            if (state.cardTrayOpen) state.filterTrayOpen = false;
+        }
+        renderHudTools();
+    }
+
+    function closeTrays() {
+        state.filterTrayOpen = false;
+        state.cardTrayOpen = false;
+        renderHudTools();
+    }
+
+    function renderHudTools() {
+        const binder = isBinderRoute();
+        const filterBtn = document.getElementById('filterTrayBtn');
+        const cardBtn = document.getElementById('cardTrayBtn');
+        const filterTray = document.getElementById('filterTray');
+        const cardTray = document.getElementById('detailPanel');
+        const backdrop = document.getElementById('trayBackdrop');
+        filterBtn?.classList.toggle('hidden', !binder);
+        cardBtn?.classList.toggle('hidden', !binder);
+        filterBtn?.classList.toggle('active', binder && state.filterTrayOpen);
+        cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
+        filterTray?.classList.toggle('is-closed', !binder || !state.filterTrayOpen);
+        cardTray?.classList.toggle('is-closed', !binder || !state.cardTrayOpen);
+        filterTray?.setAttribute('aria-hidden', String(!binder || !state.filterTrayOpen));
+        cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
+        backdrop?.classList.toggle('hidden', !binder || (!state.filterTrayOpen && !state.cardTrayOpen));
     }
 
     async function fetchJson(path, options = {}) {
@@ -442,13 +575,35 @@
     function authMarkup() {
         return `<div class="auth-card">
             <strong>Sign in to save progression</strong>
-            <span>Starter packs, gold, owned cards, and custom decks require an account.</span>
+            <span>Starter packs, Coins, owned cards, and custom decks require an account. New players start with 100 Coins.</span>
             <input class="search-input" id="authEmail" type="email" placeholder="Email">
             <input class="search-input" id="authName" placeholder="Display name for register">
             <input class="search-input" id="authPassword" type="password" placeholder="Password">
             <button class="primary-btn" id="loginBtn" type="button">Log In</button>
             <button class="ghost-btn" id="registerBtn" type="button">Register</button>
         </div>`;
+    }
+
+    function openAuth() {
+        if (state.profile?.authenticated) return logout();
+        state.authOpen = true;
+        renderAuthModal();
+    }
+
+    function closeAuth() {
+        state.authOpen = false;
+        renderAuthModal();
+    }
+
+    function renderAuthModal() {
+        const modal = document.getElementById('authModal');
+        const body = document.getElementById('authPanelBody');
+        if (!modal || !body) return;
+        modal.classList.toggle('hidden', !state.authOpen);
+        if (state.authOpen) {
+            body.innerHTML = authMarkup();
+            bindAuthForms();
+        }
     }
 
     function bindAuthForms() {
@@ -466,6 +621,7 @@
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
         state.progression = data.progression;
+        state.authOpen = false;
         render();
     }
 

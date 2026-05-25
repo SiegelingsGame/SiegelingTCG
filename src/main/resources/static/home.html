@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/home.css?v=6">
+    <link rel="stylesheet" href="/css/home.css?v=10">
 </head>
 <body>
 <div class="home-shell">
@@ -29,9 +29,12 @@
             <a href="/shop" data-route="shop">Shop</a>
         </div>
         <div class="nav-actions">
+            <button class="ghost-btn hud-tool hidden" id="filterTrayBtn" type="button">Filters</button>
+            <button class="ghost-btn hud-tool hidden" id="cardTrayBtn" type="button">Card View</button>
             <button class="ghost-btn" id="joinByCodeBtn" type="button">Join by Code</button>
             <button class="primary-btn" id="playNowBtn" type="button">Play</button>
-            <span class="gold-pill" id="goldPill">0 gold</span>
+            <span class="gold-pill" id="goldPill">100 Coins</span>
+            <button class="ghost-btn" id="authHudBtn" type="button">Sign In</button>
         </div>
     </nav>
 
@@ -46,7 +49,7 @@
         </section>
 
         <section class="hub-grid" id="hubGrid">
-            <aside class="filter-panel panel">
+            <aside class="filter-panel panel hud-tray filter-tray is-closed" id="filterTray" aria-hidden="true">
                 <div class="profile-mini" id="profileMini"></div>
                 <div class="section-head">
                     <h2>Owned Filters</h2>
@@ -79,11 +82,11 @@
                     </div>
                 </div>
                 <div class="quick-actions">
-                    <button class="action-tile" id="startPveBtn" type="button"><strong>PVE Battle</strong><span>Use premade decks to earn gold</span></button>
+                    <button class="action-tile" id="startPveBtn" type="button"><strong>PVE Battle</strong><span>Use premade decks to earn Coins</span></button>
                     <button class="action-tile" id="createLobbyBtn" type="button"><strong>Create 1v1 Lobby</strong><span>Host a PVP room with your selected deck</span></button>
-                    <button class="action-tile" id="shopShortcutBtn" type="button"><strong>Open Packs</strong><span>Spend gold on element packs</span></button>
+                    <button class="action-tile" id="shopShortcutBtn" type="button"><strong>Open Packs</strong><span>Spend Coins on element packs</span></button>
                 </div>
-                <div class="card-grid" id="cardGrid"></div>
+                <div class="home-dashboard" id="homeDashboard"></div>
             </section>
 
             <section class="browser-panel panel hidden" id="cardsSection">
@@ -96,6 +99,10 @@
                 <div class="deck-builder-lock" id="deckBuilderLock"></div>
                 <div class="deck-grid" id="deckGrid"></div>
                 <div class="builder-panel" id="builderPanel"></div>
+                <div class="builder-browser">
+                    <div class="section-head"><div><span class="eyebrow">Owned Binder</span><h2>Add owned cards to custom decks</h2></div><span id="deckCardCount"></span></div>
+                    <div class="card-grid" id="deckCardGrid"></div>
+                </div>
             </section>
 
             <section class="browser-panel panel hidden" id="lobbiesSection">
@@ -115,11 +122,22 @@
                 <div class="pack-result hidden" id="packResult"></div>
             </section>
 
-            <aside class="detail-panel panel" id="detailPanel"></aside>
+            <aside class="detail-panel panel hud-tray detail-tray is-closed" id="detailPanel" aria-hidden="true"></aside>
         </section>
     </main>
+
+    <div class="tray-backdrop hidden" id="trayBackdrop"></div>
+    <div class="auth-modal hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+        <div class="auth-modal-panel panel">
+            <div class="section-head">
+                <div><span class="eyebrow">Account</span><h2 id="authModalTitle">Sign in to save progression</h2></div>
+                <button class="ghost-btn" id="closeAuthBtn" type="button">Close</button>
+            </div>
+            <div id="authPanelBody"></div>
+        </div>
+    </div>
 </div>
 
-<script src="/js/home.js?v=6"></script>
+<script src="/js/home.js?v=10"></script>
 </body>
 </html>
