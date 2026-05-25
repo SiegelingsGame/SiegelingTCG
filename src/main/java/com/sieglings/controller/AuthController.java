@@ -150,9 +150,27 @@ public class AuthController {
                 "email", user.getEmail(),
                 "displayName", user.getDisplayName()
         ));
-        response.put("savedDecks", savedDeckService.listDecks(user).stream().map(this::serializeSavedDeck).toList());
-        response.put("matchHistory", matchHistoryService.listRecent(user).stream().map(this::serializeMatchHistory).toList());
+        response.put("savedDecks", loadSavedDecks(user));
+        response.put("matchHistory", loadMatchHistory(user));
         return response;
+    }
+
+    private List<Map<String, Object>> loadSavedDecks(AccountUser user) {
+        try {
+            return savedDeckService.listDecks(user).stream().map(this::serializeSavedDeck).toList();
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load saved decks for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> loadMatchHistory(AccountUser user) {
+        try {
+            return matchHistoryService.listRecent(user).stream().map(this::serializeMatchHistory).toList();
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load match history for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
     }
 
     private Map<String, Object> serializeSavedDeck(SavedDeckEntity deck) {
