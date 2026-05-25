@@ -116,7 +116,7 @@
     function renderStarterGate() {
         const gate = document.getElementById('starterGate');
         const hub = document.getElementById('hubGrid');
-        const mustChoose = state.profile?.authenticated && state.progression && !state.progression.starterChosen;
+        const mustChoose = Boolean(state.profile?.authenticated && state.progression && !state.progression.starterChosen);
         gate.classList.toggle('hidden', !mustChoose);
         hub.classList.toggle('hidden', mustChoose);
         const grid = document.getElementById('starterPackGrid');
