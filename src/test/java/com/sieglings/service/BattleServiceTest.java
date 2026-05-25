@@ -18,12 +18,47 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BattleServiceTest {
+
+    @Test
+    void battleDamageThatEndsGameRecordsMatchHistoryImmediately() throws Exception {
+        BattleService battleService = createBattleService();
+        AtomicInteger recordCalls = new AtomicInteger();
+        setField(battleService, "matchHistoryService", new MatchHistoryService() {
+            @Override
+            public void recordCompletedGame(GameState state) {
+                recordCalls.incrementAndGet();
+                state.setMatchHistoryRecorded(true);
+            }
+        });
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        Player enemy = new Player("AI", false);
+        enemy.setHealth(1);
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard attackerCard = new SieglingCard("splashfin", "Splashfin", Element.WATER, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance attacker = new CardInstance(attackerCard, 1, 1, true);
+        state.setAt(true, 1, 1, attacker);
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+        battleService.resolvePlayerAction(state, 0, -1, -1);
+
+        assertTrue(state.isGameOver());
+        assertEquals("Player", state.getWinner());
+        assertEquals(1, recordCalls.get());
+        assertTrue(state.isMatchHistoryRecorded());
+    }
 
     @Test
     void automaticBattleActionPausesBeforeNextCreatureActs() throws Exception {

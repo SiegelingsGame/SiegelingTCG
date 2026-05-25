@@ -49,6 +49,9 @@ public class BattleService {
     @Autowired
     private MovesPoolService movesPoolService;
 
+    @Autowired
+    private MatchHistoryService matchHistoryService;
+
     public void initializeBattle(GameState state) {
         state.log("=== BATTLE PHASE ===");
 
@@ -515,6 +518,10 @@ public class BattleService {
         } else if (state.getEnemy().getHealth() <= 0) {
             state.setGameOver(true);
             state.setWinner(state.getPlayer().getName());
+        }
+
+        if (state.isGameOver() && matchHistoryService != null) {
+            matchHistoryService.recordCompletedGame(state);
         }
     }
 }
