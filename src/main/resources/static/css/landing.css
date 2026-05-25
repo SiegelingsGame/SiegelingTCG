@@ -271,21 +271,29 @@ img { display: block; }
 .crown-spike-main { width: 22px; height: 44px; }
 .siegelings-wordmark {
     --siegelings-hover-color: var(--element-fire);
+    --siegelings-drift-distance: 0.5ch;
+    --siegelings-flow-speed: 8.5s;
+    position: relative;
+    display: inline-block;
     font-family: 'Cinzel', 'Trajan Pro', Georgia, serif;
     font-weight: 900;
     font-size: clamp(2.6rem, 7vw, 5.4rem);
     letter-spacing: 0.06em;
-    /* Solid element bands only: Fire, Ice, Wind, Earth. */
-    background: linear-gradient(100deg,
-        var(--element-fire) 0%,
-        var(--element-fire) 25%,
-        var(--element-ice) 25%,
-        var(--element-ice) 50%,
-        var(--element-wind) 50%,
-        var(--element-wind) 75%,
-        var(--element-earth) 75%,
-        var(--element-earth) 100%);
-    background-size: 100% 100%;
+    background:
+        linear-gradient(100deg,
+            var(--element-fire) 0%,
+            #ff7a22 19%,
+            var(--element-fire) 23%,
+            var(--element-ice) 27%,
+            #62e7ff 43%,
+            var(--element-ice) 48%,
+            var(--element-wind) 52%,
+            #9affcb 69%,
+            var(--element-wind) 73%,
+            var(--element-earth) 77%,
+            #b9855d 100%);
+    background-size: calc(100% + (var(--siegelings-drift-distance) * 2)) 100%;
+    background-position: calc(50% - var(--siegelings-drift-distance)) 50%;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -298,23 +306,93 @@ img { display: block; }
         drop-shadow(0 3px 6px rgba(0, 0, 0, 0.95));
     line-height: 1;
     cursor: default;
+    animation: siegelings-band-drift var(--siegelings-flow-speed) ease-in-out infinite alternate;
     transition: filter 0.35s ease;
 }
-.siegelings-wordmark.is-element-flood {
-    background-color: transparent !important;
-    background-clip: border-box;
-    background-image: none !important;
-    color: var(--siegelings-hover-color) !important;
-    -webkit-background-clip: border-box;
-    -webkit-text-fill-color: var(--siegelings-hover-color) !important;
+.siegelings-wordmark::before,
+.siegelings-wordmark::after {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.siegelings-wordmark::before {
+    background:
+        radial-gradient(ellipse at 25% 44%, rgba(255, 245, 210, 0.92) 0 1.1%, transparent 2.8%),
+        radial-gradient(ellipse at 25.8% 58%, rgba(255, 120, 44, 0.78) 0 1%, transparent 2.7%),
+        radial-gradient(ellipse at 49.6% 38%, rgba(224, 254, 255, 0.95) 0 1.2%, transparent 3%),
+        radial-gradient(ellipse at 50.4% 62%, rgba(0, 207, 255, 0.72) 0 1.15%, transparent 3%),
+        radial-gradient(ellipse at 74.6% 46%, rgba(238, 255, 245, 0.92) 0 1.1%, transparent 2.8%),
+        radial-gradient(ellipse at 75.4% 60%, rgba(110, 231, 183, 0.76) 0 1.1%, transparent 2.8%);
+    background-size: calc(100% + 1ch) 115%;
+    background-position:
+        calc(50% - 0.5ch) 44%,
+        calc(50% + 0.1ch) 58%,
+        calc(50% + 0.35ch) 38%,
+        calc(50% - 0.2ch) 62%,
+        calc(50% - 0.15ch) 46%,
+        calc(50% + 0.45ch) 60%;
+    filter: blur(0.35px) drop-shadow(0 0 8px rgba(255, 255, 255, 0.55));
+    opacity: 0.76;
+    animation: siegelings-seam-particles 4.8s ease-in-out infinite alternate;
+}
+.siegelings-wordmark::after {
+    background:
+        linear-gradient(90deg,
+            transparent 0%,
+            transparent 22.5%,
+            rgba(255, 240, 210, 0.7) 24.8%,
+            transparent 27.4%,
+            transparent 47%,
+            rgba(230, 255, 255, 0.72) 50%,
+            transparent 53%,
+            transparent 72.3%,
+            rgba(230, 255, 245, 0.68) 75%,
+            transparent 78.2%,
+            transparent 100%);
+    background-size: calc(100% + 1ch) 100%;
+    background-position: 50% 50%;
+    filter: blur(1px);
+    opacity: 0.44;
+    animation: siegelings-border-wave 6.2s ease-in-out infinite alternate;
+}
+.siegelings-wordmark.is-element-flow {
+    --siegelings-flow-speed: 4.8s;
     filter:
-        drop-shadow(0 0 26px var(--siegelings-hover-color))
+        drop-shadow(0 0 18px var(--siegelings-hover-color))
+        drop-shadow(0 0 12px rgba(255, 255, 255, 0.18))
         drop-shadow(0 3px 6px rgba(0, 0, 0, 0.95));
 }
-@keyframes siegelings-color-wave {
-    0%   { background-position: 0% 50%; }
-    50%  { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+@keyframes siegelings-band-drift {
+    0%   { background-position: calc(50% - var(--siegelings-drift-distance)) 50%; }
+    100% { background-position: calc(50% + var(--siegelings-drift-distance)) 50%; }
+}
+@keyframes siegelings-seam-particles {
+    0% {
+        background-position:
+            calc(50% - 0.5ch) 42%,
+            calc(50% + 0.1ch) 61%,
+            calc(50% + 0.35ch) 36%,
+            calc(50% - 0.2ch) 64%,
+            calc(50% - 0.15ch) 43%,
+            calc(50% + 0.45ch) 62%;
+    }
+    100% {
+        background-position:
+            calc(50% + 0.45ch) 58%,
+            calc(50% - 0.4ch) 43%,
+            calc(50% - 0.5ch) 63%,
+            calc(50% + 0.35ch) 39%,
+            calc(50% + 0.55ch) 58%,
+            calc(50% - 0.25ch) 44%;
+    }
+}
+@keyframes siegelings-border-wave {
+    0%   { background-position: calc(50% - 0.45ch) 50%; opacity: 0.34; }
+    100% { background-position: calc(50% + 0.45ch) 50%; opacity: 0.58; }
 }
 .siegelings-underline {
     width: 60%;

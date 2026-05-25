@@ -170,7 +170,7 @@
             window.clearTimeout(clearTimer);
             wordmark.style.setProperty('--siegelings-hover-color', color);
             tagline.style.setProperty('--siegelings-hover-color', color);
-            wordmark.classList.add('is-element-flood');
+            wordmark.classList.add('is-element-flow');
             tagline.classList.add('is-element-wave');
         }
 
@@ -185,7 +185,7 @@
         });
         wordmark.addEventListener('pointerleave', () => {
             active = false;
-            wordmark.classList.remove('is-element-flood');
+            wordmark.classList.remove('is-element-flow');
             tagline.classList.remove('is-element-wave');
             clearTimer = window.setTimeout(() => {
                 wordmark.style.removeProperty('--siegelings-hover-color');
