@@ -562,7 +562,7 @@ public class GameController {
 
     private String buildShareUrl(HttpServletRequest request, String roomId) {
         String baseUrl = resolveRequestOrigin(request);
-        return baseUrl + "/?room=" + roomId;
+        return baseUrl + "/play?room=" + roomId;
     }
 
     private Map<String, Object> serializeOpenRoom(MultiplayerRoom room) {
