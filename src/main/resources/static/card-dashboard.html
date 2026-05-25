@@ -21,8 +21,8 @@
             <button class="btn btn-primary" id="saveProjectBtn" type="button">Save Changes</button>
             <button class="btn btn-secondary" id="downloadJsonBtn" type="button">Download JSON</button>
             <button class="btn btn-secondary" id="copyJsonBtn" type="button">Copy JSON</button>
-            <a class="btn btn-ghost" href="/">Back To Game</a>
-            <a class="btn btn-ghost" href="/" target="_blank" rel="noopener">Open Game In New Tab</a>
+            <a class="btn btn-ghost" href="/home">Back To Home</a>
+            <a class="btn btn-ghost" href="/play" target="_blank" rel="noopener">Open Game In New Tab</a>
         </div>
     </header>
 
@@ -89,6 +89,7 @@
         <button class="page-tab" id="showActionsBtn" type="button" data-editor-page="ACTION">Spell / Trap Page</button>
         <button class="page-tab" id="showTrainersBtn" type="button" data-editor-page="TRAINERS">Siegeknights</button>
         <button class="page-tab" id="showDecksBtn" type="button" data-editor-page="DECKS">Premade Decks</button>
+        <button class="page-tab" id="showPacksBtn" type="button" data-editor-page="PACKS">Packs</button>
         <button class="page-tab" id="showLiveElementsBtn" type="button" data-editor-page="LIVE_ELEMENTS">Live Elements</button>
         <button class="page-tab" id="showMovesPoolBtn" type="button" data-editor-page="MOVES_POOL">Shared Abilities</button>
     </section>
@@ -726,6 +727,28 @@
                     </div>
                 </div>
                 <textarea id="liveElementsJsonPreview" readonly spellcheck="false" rows="14"></textarea>
+            </div>
+        </div>
+    </section>
+
+    <section class="deck-workspace hidden" id="packWorkspace">
+        <div class="panel deck-editor-panel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">Shop</div>
+                    <h2>Pack Groups</h2>
+                </div>
+            </div>
+            <p class="section-help">Starter and shop packs are generated from live cards by element. Each opened pack contains five cards: 2-3 Sieglings, 1-2 traps, and 1-2 spells from the selected elements.</p>
+            <div class="deck-card-list" id="packList"></div>
+            <div class="panel preview-panel">
+                <div class="panel-heading sub-heading">
+                    <div>
+                        <div class="section-kicker">Export</div>
+                        <h3>packs JSON</h3>
+                    </div>
+                </div>
+                <textarea id="packsJsonPreview" readonly spellcheck="false" rows="14"></textarea>
             </div>
         </div>
     </section>

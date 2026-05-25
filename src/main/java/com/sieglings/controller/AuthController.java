@@ -6,6 +6,7 @@ import com.sieglings.persistence.entity.SavedDeckEntity;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
+import com.sieglings.service.PlayerProgressionService;
 import com.sieglings.service.SavedDeckService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,9 @@ public class AuthController {
 
     @Autowired
     private CardDefinitionService cardDefinitionService;
+
+    @Autowired
+    private PlayerProgressionService playerProgressionService;
 
     @PostMapping("/api/auth/register")
     public Map<String, Object> register(@RequestBody Map<String, Object> req) {
@@ -152,6 +156,7 @@ public class AuthController {
         ));
         response.put("savedDecks", savedDeckService.listDecks(user).stream().map(this::serializeSavedDeck).toList());
         response.put("matchHistory", matchHistoryService.listRecent(user).stream().map(this::serializeMatchHistory).toList());
+        response.put("progression", playerProgressionService.serialize(playerProgressionService.getOrCreate(user)));
         return response;
     }
 
