@@ -138,6 +138,62 @@
         if (el) el.textContent = new Date().getFullYear();
     }
 
+    function bindSiegelingsColorWave() {
+        const wordmark = document.querySelector('.siegelings-wordmark');
+        const tagline = document.querySelector('.hero-tagline');
+        if (!wordmark || !tagline) return;
+
+        const palette = [
+            'var(--element-fire)',
+            'var(--element-ice)',
+            'var(--element-wind)',
+            'var(--element-earth)'
+        ];
+        const originalText = tagline.textContent || '';
+        tagline.innerHTML = Array.from(originalText).map((char, index) => {
+            const safeChar = char === ' ' ? '&nbsp;' : escapeHtml(char);
+            const cls = char === ' ' ? 'tagline-char tagline-space' : 'tagline-char';
+            return `<span class="${cls}" style="--wave-index:${index}">${safeChar}</span>`;
+        }).join('');
+
+        let active = false;
+        let clearTimer = null;
+
+        function pickColor(clientX) {
+            const rect = wordmark.getBoundingClientRect();
+            const pct = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
+            const index = Math.max(0, Math.min(palette.length - 1, Math.floor(pct * palette.length)));
+            return palette[index];
+        }
+
+        function applyColor(color) {
+            window.clearTimeout(clearTimer);
+            wordmark.style.setProperty('--siegelings-hover-color', color);
+            tagline.style.setProperty('--siegelings-hover-color', color);
+            wordmark.classList.add('is-element-flood');
+            tagline.classList.add('is-element-wave');
+        }
+
+        wordmark.addEventListener('pointerenter', (event) => {
+            active = true;
+            applyColor(pickColor(event.clientX));
+        });
+        wordmark.addEventListener('pointermove', (event) => {
+            if (active) {
+                applyColor(pickColor(event.clientX));
+            }
+        });
+        wordmark.addEventListener('pointerleave', () => {
+            active = false;
+            wordmark.classList.remove('is-element-flood');
+            tagline.classList.remove('is-element-wave');
+            clearTimer = window.setTimeout(() => {
+                wordmark.style.removeProperty('--siegelings-hover-color');
+                tagline.style.removeProperty('--siegelings-hover-color');
+            }, 650);
+        });
+    }
+
     // ── Optional real asset wiring ────────────────────────────────────────
     // If /img/siegelings-logo.png exists, the <img>'s onerror won't fire and
     // the fallback stays hidden. If it 404s, the inline onerror swaps to the
@@ -153,6 +209,7 @@
         bindParallax();
         bindTrailerModal();
         setFooterYear();
+        bindSiegelingsColorWave();
         trySiegelingsAsset();
     }
 

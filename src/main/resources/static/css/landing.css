@@ -270,6 +270,7 @@ img { display: block; }
 }
 .crown-spike-main { width: 22px; height: 44px; }
 .siegelings-wordmark {
+    --siegelings-hover-color: var(--element-fire);
     font-family: 'Cinzel', 'Trajan Pro', Georgia, serif;
     font-weight: 900;
     font-size: clamp(2.6rem, 7vw, 5.4rem);
@@ -296,6 +297,19 @@ img { display: block; }
         drop-shadow(0 0 10px rgba(255, 100, 50, 0.45))
         drop-shadow(0 3px 6px rgba(0, 0, 0, 0.95));
     line-height: 1;
+    cursor: default;
+    transition: filter 0.35s ease;
+}
+.siegelings-wordmark.is-element-flood {
+    background-color: transparent !important;
+    background-clip: border-box;
+    background-image: none !important;
+    color: var(--siegelings-hover-color) !important;
+    -webkit-background-clip: border-box;
+    -webkit-text-fill-color: var(--siegelings-hover-color) !important;
+    filter:
+        drop-shadow(0 0 26px var(--siegelings-hover-color))
+        drop-shadow(0 3px 6px rgba(0, 0, 0, 0.95));
 }
 @keyframes siegelings-color-wave {
     0%   { background-position: 0% 50%; }
@@ -313,6 +327,7 @@ img { display: block; }
 }
 
 .hero-tagline {
+    --siegelings-hover-color: var(--element-fire);
     margin: 6px 0 28px;
     font-family: 'Cinzel', 'Trajan Pro', Georgia, serif;
     font-weight: 700;
@@ -321,6 +336,25 @@ img { display: block; }
     color: rgba(245, 246, 251, 0.84);
     text-transform: uppercase;
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+}
+.hero-tagline .tagline-char {
+    display: inline-block;
+    color: rgba(245, 246, 251, 0.84);
+    transition:
+        color 0.42s cubic-bezier(0.2, 0.8, 0.3, 1),
+        text-shadow 0.42s cubic-bezier(0.2, 0.8, 0.3, 1),
+        transform 0.42s cubic-bezier(0.2, 0.8, 0.3, 1);
+    transition-delay: calc(var(--wave-index, 0) * 18ms);
+}
+.hero-tagline .tagline-space {
+    width: 0.72em;
+}
+.hero-tagline.is-element-wave .tagline-char {
+    color: var(--siegelings-hover-color);
+    text-shadow:
+        0 0 10px var(--siegelings-hover-color),
+        0 2px 12px rgba(0, 0, 0, 0.7);
+    transform: translateY(-1px);
 }
 
 .hero-ctas {
