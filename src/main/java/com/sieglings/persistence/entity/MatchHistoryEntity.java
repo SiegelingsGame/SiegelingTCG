@@ -1,6 +1,8 @@
 package com.sieglings.persistence.entity;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MatchHistoryEntity {
 
@@ -17,6 +19,10 @@ public class MatchHistoryEntity {
     private int spellsCast;
     private int trapsSprung;
     private int siegelingsDefeated;
+    private int playerHealthRemaining;
+    private int opponentHealthRemaining;
+    private int playerEnergyRemaining;
+    private List<String> gameLog = new ArrayList<>();
 
     public String getId() {
         return id;
@@ -120,5 +126,37 @@ public class MatchHistoryEntity {
 
     public void setSiegelingsDefeated(int siegelingsDefeated) {
         this.siegelingsDefeated = siegelingsDefeated;
+    }
+
+    public int getPlayerHealthRemaining() {
+        return playerHealthRemaining;
+    }
+
+    public void setPlayerHealthRemaining(int playerHealthRemaining) {
+        this.playerHealthRemaining = playerHealthRemaining;
+    }
+
+    public int getOpponentHealthRemaining() {
+        return opponentHealthRemaining;
+    }
+
+    public void setOpponentHealthRemaining(int opponentHealthRemaining) {
+        this.opponentHealthRemaining = opponentHealthRemaining;
+    }
+
+    public int getPlayerEnergyRemaining() {
+        return playerEnergyRemaining;
+    }
+
+    public void setPlayerEnergyRemaining(int playerEnergyRemaining) {
+        this.playerEnergyRemaining = playerEnergyRemaining;
+    }
+
+    public List<String> getGameLog() {
+        return gameLog;
+    }
+
+    public void setGameLog(List<String> gameLog) {
+        this.gameLog = gameLog == null ? new ArrayList<>() : gameLog;
     }
 }

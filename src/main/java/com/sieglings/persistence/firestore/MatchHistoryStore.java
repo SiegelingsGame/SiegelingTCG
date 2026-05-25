@@ -89,6 +89,16 @@ public class MatchHistoryStore {
         payload.put("spellsCast", match.getSpellsCast());
         payload.put("trapsSprung", match.getTrapsSprung());
         payload.put("siegelingsDefeated", match.getSiegelingsDefeated());
+        payload.put("playerHealthRemaining", match.getPlayerHealthRemaining());
+        payload.put("opponentHealthRemaining", match.getOpponentHealthRemaining());
+        payload.put("playerEnergyRemaining", match.getPlayerEnergyRemaining());
+        // Cap the stored log so a single match doc stays well under the 1MB
+        // Firestore limit even for very long games.
+        List<String> log = match.getGameLog();
+        if (log != null && log.size() > 60) {
+            log = new ArrayList<>(log.subList(log.size() - 60, log.size()));
+        }
+        payload.put("gameLog", log == null ? List.of() : log);
         try {
             matchDoc(match.getId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             return match;
@@ -117,7 +127,24 @@ public class MatchHistoryStore {
         match.setSpellsCast(readInt(snapshot, "spellsCast"));
         match.setTrapsSprung(readInt(snapshot, "trapsSprung"));
         match.setSiegelingsDefeated(readInt(snapshot, "siegelingsDefeated"));
+        match.setPlayerHealthRemaining(readInt(snapshot, "playerHealthRemaining"));
+        match.setOpponentHealthRemaining(readInt(snapshot, "opponentHealthRemaining"));
+        match.setPlayerEnergyRemaining(readInt(snapshot, "playerEnergyRemaining"));
+        match.setGameLog(readStringList(snapshot, "gameLog"));
         return match;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> readStringList(DocumentSnapshot snapshot, String key) {
+        Object value = snapshot.get(key);
+        if (value instanceof List<?> list) {
+            List<String> out = new ArrayList<>();
+            for (Object item : list) {
+                if (item != null) out.add(String.valueOf(item));
+            }
+            return out;
+        }
+        return new ArrayList<>();
     }
 
     private int readInt(DocumentSnapshot snapshot, String key) {

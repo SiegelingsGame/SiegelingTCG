@@ -2446,6 +2446,64 @@ function closeCardInspector(event) {
     if (overlay) overlay.classList.add('hidden');
 }
 
+// Most-recent match history list, stashed when the welcome screen renders
+// so openMatchDetail can look up the clicked entry by index.
+let latestMatchHistory = [];
+
+function openMatchDetail(index) {
+    const entry = latestMatchHistory[index];
+    const overlay = document.getElementById('matchDetailOverlay');
+    const content = document.getElementById('matchDetailContent');
+    if (!entry || !overlay || !content) return;
+
+    const resultClass = String(entry.result || '').toLowerCase();
+    const finishedAt = entry.finishedAt ? new Date(entry.finishedAt) : null;
+    const finishedLabel = finishedAt && !isNaN(finishedAt.getTime())
+        ? finishedAt.toLocaleString()
+        : '';
+    const ph = Number(entry.playerHealthRemaining);
+    const oh = Number(entry.opponentHealthRemaining);
+    const en = Number(entry.playerEnergyRemaining);
+
+    const statRow = (label, value) =>
+        `<div class="match-detail-stat"><span class="md-stat-label">${escapeHtml(label)}</span><span class="md-stat-value">${escapeHtml(String(value))}</span></div>`;
+
+    const logLines = Array.isArray(entry.gameLog) ? entry.gameLog : [];
+    const logHtml = logLines.length > 0
+        ? `<div class="match-detail-log">${logLines.map((line) =>
+                `<div class="md-log-line">${escapeHtml(line)}</div>`
+            ).join('')}</div>`
+        : '<div class="identity-note">No turn-by-turn breakdown was recorded for this match.</div>';
+
+    content.innerHTML = `
+        <div class="match-detail-header result-${escapeHtmlAttribute(resultClass)}">
+            <div class="match-detail-result history-result-${escapeHtmlAttribute(resultClass)}">${escapeHtml(entry.result || 'Result')}</div>
+            <div class="match-detail-sub">${escapeHtml(entry.loadoutLabel || 'Loadout')} vs ${escapeHtml(entry.opponentName || 'Opponent')}</div>
+            ${finishedLabel ? `<div class="match-detail-date">${escapeHtml(finishedLabel)}</div>` : ''}
+        </div>
+        <div class="match-detail-stats">
+            ${statRow('Your Health', Number.isFinite(ph) ? ph : '—')}
+            ${statRow('Opponent Health', Number.isFinite(oh) ? oh : '—')}
+            ${statRow('Energy Left', Number.isFinite(en) ? en : '—')}
+            ${statRow('Turns', entry.turnNumber ?? '—')}
+            ${statRow('SiegeKnight', entry.trainerName || '—')}
+            ${statRow('Match Type', entry.matchType || '—')}
+            ${statRow('Spells Cast', entry.spellsCast ?? 0)}
+            ${statRow('Traps Sprung', entry.trapsSprung ?? 0)}
+            ${statRow('Siegelings Defeated', entry.siegelingsDefeated ?? 0)}
+        </div>
+        <div class="match-detail-log-title">Game Breakdown</div>
+        ${logHtml}
+    `;
+    overlay.classList.remove('hidden');
+}
+
+function closeMatchDetail(event) {
+    if (event) event.stopPropagation();
+    const overlay = document.getElementById('matchDetailOverlay');
+    if (overlay) overlay.classList.add('hidden');
+}
+
 function closeCardPreviewSurfaces() {
     if (activeDrawer === 'selected') {
         closeDrawer();
@@ -3731,7 +3789,14 @@ async function syncAuthProfile(silent = false) {
 
     const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET' });
     authState.loading = false;
-    if (!data || !data.authenticated) {
+    if (!data) {
+        if (!silent) {
+            renderWelcomeAuth();
+            renderSavedDecks();
+        }
+        return false;
+    }
+    if (!data.authenticated) {
         clearAuthState();
         return false;
     }
@@ -3776,16 +3841,29 @@ function renderWelcomeAuth() {
         `;
 
         const recent = authState.profile.matchHistory || [];
+        // Stash for the detail modal — opened by clicking a row.
+        latestMatchHistory = recent;
         historyCard.innerHTML = `
             <div class="welcome-card-kicker">Recent Battles</div>
             <h3>Match history follows this login</h3>
             ${recent.length > 0
-                ? `<div class="welcome-history-list">${recent.slice(0, 4).map(entry => `
-                    <div class="welcome-history-row">
-                        <strong>${escapeHtml(entry.result)}</strong>
+                ? `<div class="welcome-history-list">${recent.slice(0, 6).map((entry, idx) => {
+                    const resultClass = String(entry.result || '').toLowerCase();
+                    const ph = Number(entry.playerHealthRemaining);
+                    const oh = Number(entry.opponentHealthRemaining);
+                    const en = Number(entry.playerEnergyRemaining);
+                    const metaBits = [];
+                    if (Number.isFinite(ph) && Number.isFinite(oh)) metaBits.push(`&hearts; ${ph} vs ${oh}`);
+                    if (Number.isFinite(en)) metaBits.push(`&#9889; ${en}`);
+                    if (entry.turnNumber) metaBits.push(`T${entry.turnNumber}`);
+                    return `
+                    <button class="welcome-history-row history-row-clickable result-${escapeHtmlAttribute(resultClass)}" type="button" onclick="openMatchDetail(${idx})">
+                        <strong class="history-result-${escapeHtmlAttribute(resultClass)}">${escapeHtml(entry.result)}</strong>
                         <span>${escapeHtml(entry.loadoutLabel)} vs ${escapeHtml(entry.opponentName)}</span>
-                    </div>
-                `).join('')}</div>`
+                        ${metaBits.length ? `<span class="history-row-meta">${metaBits.join(' &middot; ')}</span>` : ''}
+                    </button>
+                `;
+                }).join('')}</div>`
                 : '<div class="identity-note">Your finished games will appear here after the first recorded match.</div>'}
         `;
         return;
@@ -9129,6 +9207,7 @@ document.addEventListener('keydown', (e) => {
         closeMobileHudSheet();
         closeClaimPopup();
         closeTrainerAbilityPopup();
+        closeMatchDetail();
         selectedCard = null;
         selectedHandIndex = null;
         clearTargetMode();

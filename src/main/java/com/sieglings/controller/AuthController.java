@@ -154,10 +154,27 @@ public class AuthController {
                 "email", user.getEmail(),
                 "displayName", user.getDisplayName()
         ));
-        response.put("savedDecks", savedDeckService.listDecks(user).stream().map(this::serializeSavedDeck).toList());
-        response.put("matchHistory", matchHistoryService.listRecent(user).stream().map(this::serializeMatchHistory).toList());
-        response.put("progression", playerProgressionService.serialize(playerProgressionService.getOrCreate(user)));
+        response.put("savedDecks", loadSavedDecks(user));
+        response.put("matchHistory", loadMatchHistory(user));
         return response;
+    }
+
+    private List<Map<String, Object>> loadSavedDecks(AccountUser user) {
+        try {
+            return savedDeckService.listDecks(user).stream().map(this::serializeSavedDeck).toList();
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load saved decks for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> loadMatchHistory(AccountUser user) {
+        try {
+            return matchHistoryService.listRecent(user).stream().map(this::serializeMatchHistory).toList();
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load match history for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
     }
 
     private Map<String, Object> serializeSavedDeck(SavedDeckEntity deck) {
@@ -186,6 +203,13 @@ public class AuthController {
         response.put("loadoutLabel", history.getLoadoutLabel());
         response.put("trainerName", history.getTrainerName());
         response.put("turnNumber", history.getTurnNumber());
+        response.put("spellsCast", history.getSpellsCast());
+        response.put("trapsSprung", history.getTrapsSprung());
+        response.put("siegelingsDefeated", history.getSiegelingsDefeated());
+        response.put("playerHealthRemaining", history.getPlayerHealthRemaining());
+        response.put("opponentHealthRemaining", history.getOpponentHealthRemaining());
+        response.put("playerEnergyRemaining", history.getPlayerEnergyRemaining());
+        response.put("gameLog", history.getGameLog() == null ? java.util.List.of() : history.getGameLog());
         return response;
     }
 }

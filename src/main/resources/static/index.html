@@ -360,6 +360,13 @@
     <div class="card-inspector" id="cardInspectorContent" onclick="event.stopPropagation()"></div>
 </div>
 
+<div class="match-detail-overlay hidden" id="matchDetailOverlay" onclick="closeMatchDetail(event)">
+    <div class="match-detail-modal" id="matchDetailModal" onclick="event.stopPropagation()">
+        <button class="match-detail-close" type="button" onclick="closeMatchDetail(event)" aria-label="Close match details">&times;</button>
+        <div class="match-detail-content" id="matchDetailContent"></div>
+    </div>
+</div>
+
 <div class="trainer-ability-overlay hidden" id="trainerAbilityOverlay" onclick="closeTrainerAbilityPopup(event)">
     <div class="trainer-ability-modal" id="trainerAbilityModal" onclick="event.stopPropagation()">
         <button class="trainer-ability-close" type="button" onclick="closeTrainerAbilityPopup(event)" aria-label="Close SiegeKnight ability popup">&times;</button>
