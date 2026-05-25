@@ -3,7 +3,6 @@ package com.sieglings.persistence.firestore;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -12,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,15 +33,19 @@ public class MatchHistoryStore {
             QuerySnapshot snapshot = client.requireFirestore()
                     .collection(client.matchesCollection())
                     .whereEqualTo("userId", userId)
-                    .orderBy("finishedAt", Query.Direction.DESCENDING)
-                    .limit(12)
                     .get()
                     .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             List<MatchHistoryEntity> out = new ArrayList<>();
             for (QueryDocumentSnapshot doc : snapshot.getDocuments()) {
                 out.add(toMatch(doc.getId(), doc));
             }
-            return out;
+            return out.stream()
+                    .sorted(Comparator.comparing(
+                            MatchHistoryEntity::getFinishedAt,
+                            Comparator.nullsLast(Comparator.reverseOrder())
+                    ))
+                    .limit(12)
+                    .toList();
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to load match history from Firestore.", ex);
         }
