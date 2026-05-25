@@ -650,6 +650,7 @@ public class GameService {
         if (state == null) return;
         if (state.isBattleActionPausePending()) return;
         if (state.isGameOver()) {
+            matchHistoryService.recordCompletedGame(state);
             state.clearBattleState();
             return;
         }
