@@ -230,17 +230,43 @@ body {
 }
 
 @media (max-width: 767px) {
+    body {
+        padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px));
+    }
     .play-hub-nav {
+        position: fixed;
+        top: auto;
+        right: 0;
+        bottom: 0;
+        left: 0;
         min-height: auto;
         display: grid;
         grid-template-columns: 1fr;
         gap: 7px;
-        padding: 8px 10px;
+        padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px));
         border-top: 2px solid rgba(255, 215, 0, 0.72);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 0;
+        background: rgba(8, 13, 28, 0.96);
+        box-shadow: 0 -18px 42px rgba(0, 0, 0, 0.44);
+        z-index: 260;
     }
     .play-hub-brand {
-        display: none;
+        min-width: 0;
+        display: flex;
+        justify-content: center;
+        order: 1;
+    }
+    .play-hub-mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+    }
+    .play-hub-brand strong {
+        font-size: 12px;
+    }
+    .play-hub-brand small {
+        display: block;
+        font-size: 10px;
     }
     .play-hub-tabs {
         width: 100%;
