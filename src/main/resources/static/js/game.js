@@ -58,6 +58,7 @@ let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
+const PENDING_HOME_LOADOUT_STORAGE_KEY = 'sieglingsPendingLoadout';
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 const BATTLE_AUTO_ADVANCE_DELAY_MS = 1550;
@@ -4641,6 +4642,7 @@ async function loadGameOptions() {
         selectedTrainerId = data.defaultTrainerId;
         builderCounts = {};
         loadoutMode = 'preset';
+        applyPendingHomeLoadout();
         hydrateOnlineStateFromUrl();
         hydrateSavedPlayerName();
         renderWelcomeTutorial();
@@ -4828,6 +4830,43 @@ function hydrateOnlineStateFromUrl() {
         onlineRoomMode = 'join';
         if (roomCodeInput && !roomCodeInput.value) {
             roomCodeInput.value = joinCode.toUpperCase();
+        }
+    }
+}
+
+function applyPendingHomeLoadout() {
+    let pending = null;
+    try {
+        const raw = localStorage.getItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
+        pending = raw ? JSON.parse(raw) : null;
+        localStorage.removeItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
+    } catch (e) {
+        localStorage.removeItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
+        return;
+    }
+    if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
+        return;
+    }
+    if (pending.trainerId && gameOptions?.trainers?.some(trainer => trainer.id === pending.trainerId)) {
+        selectedTrainerId = pending.trainerId;
+    }
+    if (Array.isArray(pending.customDeckCards) && pending.customDeckCards.length) {
+        loadoutMode = 'builder';
+        builderCounts = buildCountsFromCardList(pending.customDeckCards);
+        const input = document.getElementById('saveDeckNameInput');
+        if (input && pending.loadoutLabel) {
+            input.value = pending.loadoutLabel;
+        }
+    } else if (pending.deckId && gameOptions?.decks?.some(deck => deck.id === pending.deckId)) {
+        loadoutMode = 'preset';
+        selectedDeckId = pending.deckId;
+    }
+    matchMode = pending.mode === 'online' ? 'online' : 'solo';
+    if (matchMode === 'online') {
+        onlineRoomMode = pending.onlineRoomMode === 'join' ? 'join' : 'create';
+        const roomCodeInput = document.getElementById('roomCodeInput');
+        if (roomCodeInput && pending.roomId) {
+            roomCodeInput.value = String(pending.roomId).toUpperCase();
         }
     }
 }

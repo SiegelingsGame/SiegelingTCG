@@ -47,6 +47,7 @@
         metadata: null,
         cards: [],
         decks: [],
+        packs: [],
         trainers: [],
         liveElements: defaultLiveElements(),
         selectedCardId: null,
@@ -116,11 +117,15 @@
             "showActionsBtn",
             "showTrainersBtn",
             "showDecksBtn",
+            "showPacksBtn",
             "showLiveElementsBtn",
             "showMovesPoolBtn",
             "cardWorkspace",
             "movesPoolWorkspace",
             "deckWorkspace",
+            "packWorkspace",
+            "packList",
+            "packsJsonPreview",
             "trainerWorkspace",
             "liveElementsWorkspace",
             "liveElementToggles",
@@ -350,6 +355,7 @@
         refs.showActionsBtn.addEventListener("click", () => setEditorPage("ACTION"));
         refs.showTrainersBtn.addEventListener("click", () => setEditorPage("TRAINERS"));
         refs.showDecksBtn.addEventListener("click", () => setEditorPage("DECKS"));
+        refs.showPacksBtn.addEventListener("click", () => setEditorPage("PACKS"));
         refs.showLiveElementsBtn.addEventListener("click", () => setEditorPage("LIVE_ELEMENTS"));
         refs.showMovesPoolBtn.addEventListener("click", () => setEditorPage("MOVES_POOL"));
         refs.liveElementsWorkspace.addEventListener("change", (event) => {
@@ -1220,6 +1226,9 @@
         const trainers = Array.isArray(resolvedData?.trainers)
             ? resolvedData.trainers.map((trainer) => normalizeTrainer(trainer))
             : state.trainers.map((trainer) => normalizeTrainer(buildExportTrainer(trainer)));
+        const packs = Array.isArray(resolvedData?.packs)
+            ? resolvedData.packs.map((pack) => ({ ...pack }))
+            : state.packs.map((pack) => ({ ...pack }));
         let liveElements;
         if (Array.isArray(resolvedData?.liveElements?.elements)) {
             liveElements = normalizeLiveElements(resolvedData.liveElements.elements);
@@ -1232,6 +1241,7 @@
         }
         state.cards = cards;
         state.decks = decks;
+        state.packs = packs;
         state.trainers = trainers;
         state.liveElements = liveElements;
         if (resolvedData && Object.prototype.hasOwnProperty.call(resolvedData, "moves")) {
@@ -1851,9 +1861,10 @@
         renderAuth();
         renderStatus();
         renderFilterOptions();
-        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL");
+        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "PACKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL");
         refs.movesPoolWorkspace.classList.toggle("hidden", state.editorPage !== "MOVES_POOL");
         refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
+        refs.packWorkspace.classList.toggle("hidden", state.editorPage !== "PACKS");
         refs.trainerWorkspace.classList.toggle("hidden", state.editorPage !== "TRAINERS");
         refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
         if (state.editorPage === "MOVES_POOL") {
@@ -1872,6 +1883,7 @@
         renderDeckSummary();
         renderDeckCatalog();
         renderDeckPreview();
+        renderPackPanel();
         renderTrainerList();
         renderTrainerEditor();
         renderTrainerSummary();
@@ -1928,13 +1940,15 @@
         refs.dirtyPill.textContent = state.dirty ? "Unsaved changes" : "Saved";
         refs.cardCountPill.textContent = state.editorPage === "DECKS"
             ? `${state.decks.length} preset deck${state.decks.length === 1 ? "" : "s"}`
+            : (state.editorPage === "PACKS"
+                ? `${state.packs.length} pack group${state.packs.length === 1 ? "" : "s"}`
             : (state.editorPage === "TRAINERS"
                 ? `${state.trainers.length} Siegeknight${state.trainers.length === 1 ? "" : "s"}`
                 : (state.editorPage === "LIVE_ELEMENTS"
                     ? `${state.liveElements.filter((row) => row.active !== false).length} active element${state.liveElements.filter((row) => row.active !== false).length === 1 ? "" : "s"}`
                     : (state.editorPage === "MOVES_POOL"
                         ? `${state.movesPool.length} shared abilit${state.movesPool.length === 1 ? "y" : "ies"}`
-                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`)));
+                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`))));
         refs.filePathLabel.textContent = buildStatusPathText();
         refs.statusMessage.textContent = state.status.message;
 
@@ -1948,6 +1962,26 @@
         } else if (state.status.tone === "success") {
             refs.sourcePill.classList.add("is-success");
         }
+    }
+
+    function renderPackPanel() {
+        if (!refs.packList || !refs.packsJsonPreview) {
+            return;
+        }
+        const packs = Array.isArray(state.packs) ? state.packs : [];
+        refs.packList.innerHTML = packs.length
+            ? packs.map((pack) => `
+                <div class="deck-row">
+                    <div class="deck-row-main">
+                        <strong>${escapeHtml(pack.name || pack.id)}</strong>
+                        <div class="card-meta">${escapeHtml((pack.elements || []).map(formatEnumLabel).join(" / "))} | ${pack.starterEligible ? "Starter eligible" : "Shop pack"} | ${Number(pack.price || 0)} gold</div>
+                        <div class="card-meta">${escapeHtml(pack.description || "")}</div>
+                    </div>
+                    <span class="status-pill ${pack.active === false ? "is-warning" : "is-success"}">${pack.active === false ? "Inactive" : "Active"}</span>
+                </div>
+            `).join("")
+            : `<div class="empty-browser">No pack groups are available. The live game will use generated element packs.</div>`;
+        refs.packsJsonPreview.value = JSON.stringify(packs, null, 2);
     }
 
     function renderFilterOptions() {
@@ -1969,6 +2003,7 @@
         refs.showActionsBtn.classList.toggle("active", state.editorPage === "ACTION");
         refs.showTrainersBtn.classList.toggle("active", state.editorPage === "TRAINERS");
         refs.showDecksBtn.classList.toggle("active", state.editorPage === "DECKS");
+        refs.showPacksBtn.classList.toggle("active", state.editorPage === "PACKS");
         refs.showLiveElementsBtn.classList.toggle("active", state.editorPage === "LIVE_ELEMENTS");
         refs.showMovesPoolBtn.classList.toggle("active", state.editorPage === "MOVES_POOL");
         if (state.editorPage === "LIVE_ELEMENTS") {
@@ -3276,6 +3311,7 @@
             cards: state.cards.map((card) => buildExportCard(card)),
             moves: state.movesPool.map((m) => buildExportMove(m)),
             decks: state.decks.map((deck) => buildExportDeck(deck)),
+            packs: state.packs.map((pack) => ({ ...pack })),
             trainers: state.trainers.map((trainer) => buildExportTrainer(trainer)),
             liveElements: {
                 elements: state.liveElements.map((row) => ({

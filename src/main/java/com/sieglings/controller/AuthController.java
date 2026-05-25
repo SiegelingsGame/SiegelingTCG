@@ -6,6 +6,7 @@ import com.sieglings.persistence.entity.SavedDeckEntity;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
+import com.sieglings.service.PlayerProgressionService;
 import com.sieglings.service.SavedDeckService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,9 @@ public class AuthController {
 
     @Autowired
     private CardDefinitionService cardDefinitionService;
+
+    @Autowired
+    private PlayerProgressionService playerProgressionService;
 
     @PostMapping("/api/auth/register")
     public Map<String, Object> register(@RequestBody Map<String, Object> req) {

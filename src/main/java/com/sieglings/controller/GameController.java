@@ -23,6 +23,7 @@ import com.sieglings.service.MovesPoolService;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.MultiplayerRoom;
 import com.sieglings.service.MultiplayerService;
+import com.sieglings.service.PlayerProgressionService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -64,6 +65,9 @@ public class GameController {
 
     @Autowired
     private MatchHistoryService matchHistoryService;
+
+    @Autowired
+    private PlayerProgressionService playerProgressionService;
 
     @GetMapping("/api/game/options")
     @ResponseBody
@@ -136,6 +140,7 @@ public class GameController {
             String playerName = req == null ? null : (String) req.get("playerName");
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
+            validateStartOwnership(user, options);
             MultiplayerService.RoomSession session = multiplayerService.createRoom(playerName, options, user == null ? null : user.getId());
             return buildRoomMeta(multiplayerService.requireRoom(session.roomId()), session, request);
         } catch (IllegalArgumentException ex) {
@@ -153,6 +158,7 @@ public class GameController {
             String playerName = req == null ? null : (String) req.get("playerName");
             GameService.StartOptions options = parseStartOptions(req, "deck_water_wind", "trainer06");
             AccountUser user = accountService.findUser(authorizationHeader);
+            validateStartOwnership(user, options);
             MultiplayerService.RoomSession session = multiplayerService.joinRoom(roomId, playerName, options, user == null ? null : user.getId());
             MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
             Map<String, Object> resp = buildRoomMeta(room, session, request);
@@ -193,12 +199,20 @@ public class GameController {
                                        @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         try {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
+            AccountUser user = accountService.findUser(authorizationHeader);
+            validateStartOwnership(user, options);
             GameState state = gameService.newGame(options.playerDeckId(), options.playerTrainerId(), options.customDeckCards());
             attachAuthenticatedSoloUser(state, authorizationHeader);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
         return buildStateResponse(gameService.getState(), true, null);
+    }
+
+    @GetMapping("/api/match/rooms")
+    @ResponseBody
+    public Map<String, Object> listRooms() {
+        return Map.of("rooms", multiplayerService.listOpenRooms().stream().map(this::serializeOpenRoom).toList());
     }
 
     @PostMapping("/api/game/mulligan")
@@ -549,6 +563,23 @@ public class GameController {
     private String buildShareUrl(HttpServletRequest request, String roomId) {
         String baseUrl = resolveRequestOrigin(request);
         return baseUrl + "/?room=" + roomId;
+    }
+
+    private Map<String, Object> serializeOpenRoom(MultiplayerRoom room) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("roomId", room.getRoomId());
+        out.put("hostName", room.getHostName());
+        out.put("playerCount", room.hasGuest() ? 2 : 1);
+        out.put("maxPlayers", 2);
+        out.put("format", "PVP 1v1");
+        out.put("status", room.isStarted() ? "Started" : "Open");
+        out.put("updatedAt", room.getUpdatedAt() == null ? null : room.getUpdatedAt().toString());
+        if (room.getHostOptions() != null) {
+            out.put("deckId", room.getHostOptions().playerDeckId());
+            out.put("trainerId", room.getHostOptions().playerTrainerId());
+            out.put("custom", room.getHostOptions().customDeckCards() != null && !room.getHostOptions().customDeckCards().isEmpty());
+        }
+        return out;
     }
 
     private String resolveRequestOrigin(HttpServletRequest request) {
@@ -928,6 +959,16 @@ public class GameController {
                 customDeckCards,
                 loadoutLabel
         );
+    }
+
+    private void validateStartOwnership(AccountUser user, GameService.StartOptions options) {
+        if (options.customDeckCards() == null || options.customDeckCards().isEmpty()) {
+            return;
+        }
+        if (user == null) {
+            throw new IllegalArgumentException("Sign in to use custom decks.");
+        }
+        playerProgressionService.validateCustomDeckOwnership(user, options.customDeckCards());
     }
 
     @SuppressWarnings("unchecked")

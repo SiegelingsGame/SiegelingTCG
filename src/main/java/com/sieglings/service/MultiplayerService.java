@@ -70,6 +70,14 @@ public class MultiplayerService {
         return rooms.get(roomId);
     }
 
+    public List<MultiplayerRoom> listOpenRooms() {
+        return rooms.values().stream()
+                .filter(room -> !room.isStarted())
+                .filter(room -> !room.hasGuest())
+                .sorted((left, right) -> right.getUpdatedAt().compareTo(left.getUpdatedAt()))
+                .toList();
+    }
+
     public MultiplayerRoom requireRoom(String roomId) {
         MultiplayerRoom room = rooms.get(roomId);
         if (room == null) {

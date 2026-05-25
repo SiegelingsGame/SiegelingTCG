@@ -26,6 +26,9 @@ public class MatchHistoryService {
     @Autowired
     private AccountUserStore accountUserStore;
 
+    @Autowired
+    private PlayerProgressionService playerProgressionService;
+
     public List<MatchHistoryEntity> listRecent(AccountUser user) {
         return matchHistoryStore.findTop12ByUserOrderByFinishedAtDesc(user.getId());
     }
@@ -75,6 +78,7 @@ public class MatchHistoryService {
         history.setPlayerEnergyRemaining(totalEnergy(player));
         history.setGameLog(state.getGameLog() == null ? List.of() : List.copyOf(state.getGameLog()));
         matchHistoryStore.save(history);
+        playerProgressionService.awardMatchGold(history);
         logger.info("Recorded {} match history {} for user {}.", history.getMatchType(), history.getId(), user.getId());
     }
 

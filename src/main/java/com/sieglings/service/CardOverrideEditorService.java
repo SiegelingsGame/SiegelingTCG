@@ -32,6 +32,7 @@ public class CardOverrideEditorService {
     private final CardDefinitionService cardDefinitionService;
     private final LiveElementCatalogService liveElementCatalogService;
     private final MovesPoolService movesPoolService;
+    private final PackCatalogService packCatalogService;
 
     public CardOverrideEditorService(ObjectMapper objectMapper,
                                      CardOverrideStorageService storageService,
@@ -40,7 +41,8 @@ public class CardOverrideEditorService {
                                      CardEditorAuthService authService,
                                      CardDefinitionService cardDefinitionService,
                                      LiveElementCatalogService liveElementCatalogService,
-                                     MovesPoolService movesPoolService) {
+                                     MovesPoolService movesPoolService,
+                                     PackCatalogService packCatalogService) {
         this.objectMapper = objectMapper;
         this.storageService = storageService;
         this.presetDeckCatalogService = presetDeckCatalogService;
@@ -49,6 +51,7 @@ public class CardOverrideEditorService {
         this.cardDefinitionService = cardDefinitionService;
         this.liveElementCatalogService = liveElementCatalogService;
         this.movesPoolService = movesPoolService;
+        this.packCatalogService = packCatalogService;
     }
 
     public Map<String, Object> loadEditorState(String editorToken) {
@@ -180,6 +183,7 @@ public class CardOverrideEditorService {
         ObjectNode live = objectMapper.createObjectNode();
         live.set("elements", objectMapper.valueToTree(liveElementCatalogService.buildEditorPayload()));
         data.set("liveElements", live);
+        data.set("packs", objectMapper.valueToTree(packCatalogService.serializePacks()));
         return data;
     }
 

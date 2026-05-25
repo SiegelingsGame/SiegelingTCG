@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Sieglings TCG Home</title>
+    <link rel="stylesheet" href="/css/home.css?v=1">
+</head>
+<body>
+<div class="home-shell">
+    <nav class="home-nav">
+        <a class="brand" href="/home" data-route="home">
+            <span class="brand-mark">ST</span>
+            <span><strong>Sieglings TCG</strong><small>Card Binder Home</small></span>
+        </a>
+        <div class="nav-tabs" aria-label="Primary navigation">
+            <a href="/home" data-route="home">Home</a>
+            <a href="/play" data-route="play">Play</a>
+            <a href="/cards" data-route="cards">Cards</a>
+            <a href="/decks" data-route="decks">Decks</a>
+            <a href="/lobbies" data-route="lobbies">Lobbies</a>
+            <a href="/profile" data-route="profile">Profile</a>
+            <a href="/shop" data-route="shop">Shop</a>
+        </div>
+        <div class="nav-actions">
+            <button class="ghost-btn" id="joinByCodeBtn" type="button">Join by Code</button>
+            <button class="primary-btn" id="playNowBtn" type="button">Play</button>
+            <span class="gold-pill" id="goldPill">0 gold</span>
+        </div>
+    </nav>
+
+    <main class="home-main">
+        <section class="starter-gate hidden" id="starterGate">
+            <div>
+                <span class="eyebrow">Starter Pack</span>
+                <h1>Choose your first five cards</h1>
+                <p>Premade decks are ready immediately. Your starter pack begins your owned collection so you can unlock custom deckbuilding at 30 total card copies.</p>
+            </div>
+            <div class="pack-grid" id="starterPackGrid"></div>
+        </section>
+
+        <section class="hub-grid" id="hubGrid">
+            <aside class="filter-panel panel">
+                <div class="profile-mini" id="profileMini"></div>
+                <div class="section-head">
+                    <h2>Owned Filters</h2>
+                    <span id="ownedCountLabel">0 owned</span>
+                </div>
+                <input class="search-input" id="cardSearchInput" type="search" placeholder="Search cards, abilities, notches...">
+                <div class="chip-wrap" id="elementFilters"></div>
+                <div class="chip-wrap" id="typeFilters"></div>
+                <div class="chip-wrap" id="rarityFilters"></div>
+                <select class="search-input" id="cardSortSelect">
+                    <option value="owned-desc">Sort: Owned first</option>
+                    <option value="name-asc">Sort: Name</option>
+                    <option value="speed-desc">Sort: Speed high</option>
+                    <option value="health-desc">Sort: Health high</option>
+                    <option value="rarity-desc">Sort: Rarity high</option>
+                </select>
+                <div class="unlock-card" id="customUnlockCard"></div>
+            </aside>
+
+            <section class="browser-panel panel" id="homeSection">
+                <div class="section-head">
+                    <div>
+                        <span class="eyebrow">Home</span>
+                        <h1>Start matches, build your binder, unlock custom decks</h1>
+                    </div>
+                    <div class="mode-tabs">
+                        <button class="active" type="button" data-home-focus="cards">Owned Cards</button>
+                        <button type="button" data-home-focus="matches">Start Match</button>
+                        <button type="button" data-home-focus="builder">Deck Builder</button>
+                    </div>
+                </div>
+                <div class="quick-actions">
+                    <button class="action-tile" id="startPveBtn" type="button"><strong>PVE Battle</strong><span>Use premade decks to earn gold</span></button>
+                    <button class="action-tile" id="createLobbyBtn" type="button"><strong>Create 1v1 Lobby</strong><span>Host a PVP room with your selected deck</span></button>
+                    <button class="action-tile" id="shopShortcutBtn" type="button"><strong>Open Packs</strong><span>Spend gold on element packs</span></button>
+                </div>
+                <div class="card-grid" id="cardGrid"></div>
+            </section>
+
+            <section class="browser-panel panel hidden" id="cardsSection">
+                <div class="section-head"><div><span class="eyebrow">Cards</span><h1>All cards and card art</h1></div><span id="allCardCount"></span></div>
+                <div class="card-grid" id="allCardGrid"></div>
+            </section>
+
+            <section class="browser-panel panel hidden" id="decksSection">
+                <div class="section-head"><div><span class="eyebrow">Decks</span><h1>Premade decks and custom builds</h1></div><button class="primary-btn" id="saveCustomDeckBtn" type="button">Save Custom Deck</button></div>
+                <div class="deck-builder-lock" id="deckBuilderLock"></div>
+                <div class="deck-grid" id="deckGrid"></div>
+                <div class="builder-panel" id="builderPanel"></div>
+            </section>
+
+            <section class="browser-panel panel hidden" id="lobbiesSection">
+                <div class="section-head"><div><span class="eyebrow">Lobbies</span><h1>Open 1v1 rooms</h1></div><button class="primary-btn" id="refreshRoomsBtn" type="button">Refresh</button></div>
+                <div class="join-row"><input class="search-input" id="roomCodeInput" placeholder="Room code"><button class="primary-btn" id="joinRoomBtn" type="button">Join</button></div>
+                <div class="room-list" id="roomList"></div>
+            </section>
+
+            <section class="browser-panel panel hidden" id="profileSection">
+                <div class="section-head"><div><span class="eyebrow">Profile</span><h1>Your profile, friends, and recent battles</h1></div></div>
+                <div class="profile-grid" id="profileSectionBody"></div>
+            </section>
+
+            <section class="browser-panel panel hidden" id="shopSection">
+                <div class="section-head"><div><span class="eyebrow">Shop</span><h1>Gacha packs and premade decks</h1></div><span id="shopGoldLabel"></span></div>
+                <div class="pack-grid" id="shopPackGrid"></div>
+                <div class="pack-result hidden" id="packResult"></div>
+            </section>
+
+            <aside class="detail-panel panel" id="detailPanel"></aside>
+        </section>
+    </main>
+</div>
+
+<script src="/js/home.js?v=1"></script>
+</body>
+</html>

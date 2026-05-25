@@ -27,6 +27,7 @@ public class FirestoreUserDataClient {
     private final String sessionsCollection;
     private final String decksCollection;
     private final String matchesCollection;
+    private final String progressionCollection;
 
     private volatile Firestore firestore;
     private volatile String initializationError;
@@ -39,7 +40,8 @@ public class FirestoreUserDataClient {
             @Value("${app.user-data.collection-users:accountUsers}") String usersCollection,
             @Value("${app.user-data.collection-sessions:authSessions}") String sessionsCollection,
             @Value("${app.user-data.collection-decks:savedDecks}") String decksCollection,
-            @Value("${app.user-data.collection-matches:matchHistory}") String matchesCollection
+            @Value("${app.user-data.collection-matches:matchHistory}") String matchesCollection,
+            @Value("${app.user-data.collection-progression:playerProgression}") String progressionCollection
     ) {
         this.enabled = enabled;
         this.projectId = projectId == null ? "" : projectId.trim();
@@ -49,6 +51,7 @@ public class FirestoreUserDataClient {
         this.sessionsCollection = sessionsCollection;
         this.decksCollection = decksCollection;
         this.matchesCollection = matchesCollection;
+        this.progressionCollection = progressionCollection;
     }
 
     @PostConstruct
@@ -91,6 +94,10 @@ public class FirestoreUserDataClient {
 
     public String matchesCollection() {
         return matchesCollection;
+    }
+
+    public String progressionCollection() {
+        return progressionCollection;
     }
 
     private synchronized void ensureInitialized() {
