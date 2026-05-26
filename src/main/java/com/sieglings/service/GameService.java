@@ -103,6 +103,10 @@ public class GameService {
         return cardDefs.getDeckBuilderCatalog();
     }
 
+    public List<Card> buildDeckById(String deckId) {
+        return cardDefs.buildDeckById(deckId);
+    }
+
     public List<String> getActiveLiveElementNames() {
         return cardDefs.getActiveLiveElementNames();
     }
