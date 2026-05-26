@@ -26,8 +26,8 @@ function HandNotches({ notches, small }) {
   for (const n of notches || []) {
     if (n?.direction) map[n.direction] = n;
   }
-  const edge = small ? "3px" : "5px";
-  const corner = small ? "8px" : "12px";
+  const edge = small ? "4px" : "6px";
+  const corner = small ? "5px" : "7px";
   return (
     <div
       className="hand-notches"

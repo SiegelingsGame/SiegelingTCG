@@ -868,14 +868,14 @@ body.placement-active .board-cell.legal {
     box-shadow: 0 0 0 2px rgba(226, 183, 20, 0.48);
 }
 
-.notch-TOP { left: 50%; top: var(--notch-edge-offset, 5px); }
-.notch-TOP_RIGHT { left: calc(100% - var(--notch-corner-offset, 12px)); top: var(--notch-corner-offset, 12px); }
-.notch-RIGHT { left: calc(100% - var(--notch-edge-offset, 5px)); top: 50%; }
-.notch-BOTTOM_RIGHT { left: calc(100% - var(--notch-corner-offset, 12px)); top: calc(100% - var(--notch-corner-offset, 12px)); }
-.notch-BOTTOM { left: 50%; top: calc(100% - var(--notch-edge-offset, 5px)); }
-.notch-BOTTOM_LEFT { left: var(--notch-corner-offset, 12px); top: calc(100% - var(--notch-corner-offset, 12px)); }
-.notch-LEFT { left: var(--notch-edge-offset, 5px); top: 50%; }
-.notch-TOP_LEFT { left: var(--notch-corner-offset, 12px); top: var(--notch-corner-offset, 12px); }
+.notch-TOP { left: 50%; top: var(--notch-edge-offset, 6px); }
+.notch-TOP_RIGHT { left: calc(100% - var(--notch-corner-offset, 7px)); top: var(--notch-corner-offset, 7px); }
+.notch-RIGHT { left: calc(100% - var(--notch-edge-offset, 6px)); top: 50%; }
+.notch-BOTTOM_RIGHT { left: calc(100% - var(--notch-corner-offset, 7px)); top: calc(100% - var(--notch-corner-offset, 7px)); }
+.notch-BOTTOM { left: 50%; top: calc(100% - var(--notch-edge-offset, 6px)); }
+.notch-BOTTOM_LEFT { left: var(--notch-corner-offset, 7px); top: calc(100% - var(--notch-corner-offset, 7px)); }
+.notch-LEFT { left: var(--notch-edge-offset, 6px); top: 50%; }
+.notch-TOP_LEFT { left: var(--notch-corner-offset, 7px); top: var(--notch-corner-offset, 7px); }
 
 .hand-area {
     background: var(--surface);
@@ -911,8 +911,8 @@ body.placement-active .board-cell.legal {
 }
 
 .hand-card {
-    --notch-edge-offset: 5px;
-    --notch-corner-offset: 12px;
+    --notch-edge-offset: 6px;
+    --notch-corner-offset: 7px;
     min-width: 146px;
     max-width: 156px;
     min-height: 220px;
@@ -2920,7 +2920,7 @@ body.placement-active .board-cell.legal {
         padding: 6px;
         min-height: 168px;
         --notch-edge-offset: 4px;
-        --notch-corner-offset: 9px;
+        --notch-corner-offset: 5px;
     }
 
     .card-title {
@@ -3399,7 +3399,7 @@ body.placement-active .board-cell.legal {
         padding: 5px;
         scroll-snap-align: start;
         --notch-edge-offset: 3px;
-        --notch-corner-offset: 7px;
+        --notch-corner-offset: 4px;
     }
 
     .hand-card-shell {
