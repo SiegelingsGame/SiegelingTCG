@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/home.css?v=24">
+    <link rel="stylesheet" href="/css/home.css?v=25">
 </head>
 <body>
 <div class="home-shell">
@@ -98,23 +98,93 @@
                 </div>
             </section>
 
-            <section class="browser-panel panel hidden" id="socialSection">
-                <div class="section-head"><div><span class="eyebrow">Social</span><h1>Open lobbies and friends</h1></div><button class="primary-btn" id="refreshRoomsBtn" type="button">Refresh Lobbies</button></div>
+            <section class="browser-panel panel hidden social-section" id="socialSection">
                 <div class="social-grid">
-                    <section class="social-panel">
-                        <div class="section-head social-panel-head"><div><span class="eyebrow">Open Lobbies</span><h2>Join a 1v1 room</h2></div></div>
-                        <div class="join-row"><input class="search-input" id="roomCodeInput" placeholder="Room code"><button class="primary-btn" id="joinRoomBtn" type="button">Join</button></div>
-                        <div class="room-list" id="roomList"></div>
+                    <aside class="social-side-stack">
+                        <section class="social-panel social-card social-lobby-tools">
+                            <div class="social-panel-head">
+                                <div><span class="eyebrow">Open Lobbies</span><h2>Find a 1v1 table</h2></div>
+                                <span class="social-soft-pill" id="roomCountLabel">0 open</span>
+                            </div>
+                            <p class="social-muted">Join a room or create your own table.</p>
+                            <button class="social-create-btn" id="socialCreateLobbyBtn" type="button"><span>+</span>Create 1v1 Lobby</button>
+                            <div class="filter-label">Filters</div>
+                            <select class="search-input" id="roomFormatFilter">
+                                <option value="ALL">All Formats</option>
+                                <option value="PVP">PVP 1v1</option>
+                                <option value="RANKED">Ranked</option>
+                                <option value="CASUAL">Casual</option>
+                            </select>
+                            <select class="search-input" id="roomElementFilter">
+                                <option value="ALL">All Elements</option>
+                                <option value="FIRE">Fire</option>
+                                <option value="EARTH">Earth</option>
+                                <option value="WIND">Wind</option>
+                                <option value="WATER">Water</option>
+                                <option value="ICE">Ice</option>
+                                <option value="SHADOW">Shadow</option>
+                            </select>
+                            <select class="search-input" id="roomSortFilter">
+                                <option value="newest">Newest</option>
+                                <option value="host">Host Name</option>
+                                <option value="players">Players</option>
+                            </select>
+                            <label class="social-toggle-row">
+                                <span>Hide full rooms</span>
+                                <input id="roomHideFullToggle" type="checkbox">
+                            </label>
+                        </section>
+
+                        <section class="social-panel social-card">
+                            <div class="social-panel-head"><div><span class="eyebrow">Quick Join</span><h2>Jump in fast</h2></div></div>
+                            <p class="social-muted">Join the first available 1v1 lobby.</p>
+                            <button class="ghost-btn social-wide-action" id="quickJoinBtn" type="button">Quick Join</button>
+                        </section>
+
+                        <section class="social-panel social-card social-how">
+                            <div class="social-panel-head"><div><span class="eyebrow">How It Works</span><h2>Table flow</h2></div></div>
+                            <ol>
+                                <li><span>1</span>Create or join a 1v1 lobby</li>
+                                <li><span>2</span>Choose your deck</li>
+                                <li><span>3</span>Battle for coins and rank</li>
+                            </ol>
+                        </section>
+                    </aside>
+
+                    <section class="social-main-stack">
+                        <div class="social-search-row">
+                            <input class="search-input" id="roomSearchInput" type="search" placeholder="Search lobbies...">
+                            <button class="ghost-btn" id="refreshRoomsBtn" type="button">Refresh</button>
+                        </div>
+                        <section class="social-panel social-card social-lobbies-card">
+                            <div class="social-panel-head">
+                                <div><span class="eyebrow">Available Lobbies</span><h2>Open tables</h2></div>
+                                <span class="social-soft-pill" id="roomShownLabel">0 shown</span>
+                            </div>
+                            <div class="join-row social-code-row"><input class="search-input" id="roomCodeInput" placeholder="Room code"><button class="primary-btn" id="joinRoomBtn" type="button">Join Code</button></div>
+                            <div class="room-list" id="roomList"></div>
+                        </section>
+                        <section class="social-panel social-card social-active-card" id="socialActiveLobby"></section>
                     </section>
-                    <section class="social-panel">
-                        <div class="section-head social-panel-head"><div><span class="eyebrow">Friends</span><h2>Add players by email</h2></div><span id="friendCountLabel">0 friends</span></div>
-                        <form class="friend-add-row" id="friendAddForm">
-                            <input class="search-input" id="friendEmailInput" type="email" placeholder="friend@email.com">
-                            <button class="primary-btn" type="submit">Add Friend</button>
-                        </form>
-                        <div class="friend-message" id="friendMessage"></div>
-                        <div class="friend-list" id="friendList"></div>
-                    </section>
+
+                    <aside class="social-side-stack social-friends-stack">
+                        <section class="social-panel social-card social-friends-card">
+                            <div class="social-panel-head">
+                                <div><span class="eyebrow">Friends</span><h2>Player list</h2></div>
+                                <span class="social-soft-pill" id="friendCountLabel">0 friends</span>
+                            </div>
+                            <input class="search-input" id="friendSearchInput" type="search" placeholder="Search friends...">
+                            <div class="friend-list" id="friendList"></div>
+                        </section>
+                        <section class="social-panel social-card">
+                            <div class="social-panel-head"><div><span class="eyebrow">Add Friend</span><h2>Invite a player</h2></div></div>
+                            <form class="friend-add-row" id="friendAddForm">
+                                <input class="search-input" id="friendEmailInput" type="email" placeholder="friend@email.com">
+                                <button class="primary-btn" type="submit">Add</button>
+                            </form>
+                            <div class="friend-message" id="friendMessage"></div>
+                        </section>
+                    </aside>
                 </div>
             </section>
 
@@ -145,6 +215,6 @@
     </div>
 </div>
 
-<script src="/js/home.js?v=27"></script>
+<script src="/js/home.js?v=29"></script>
 </body>
 </html>

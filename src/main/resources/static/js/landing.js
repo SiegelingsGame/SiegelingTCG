@@ -195,22 +195,12 @@
     }
 
     // ── Optional real asset wiring ────────────────────────────────────────
-    // If /img/siegelings-logo.png exists, the <img>'s onerror won't fire and
-    // the fallback stays hidden. If it 404s, the inline onerror swaps to the
-    // CSS-drawn placeholder so the page still renders cleanly.
-    function trySiegelingsAsset() {
-        const img = document.querySelector('.siegelings-logo-img');
-        if (!img) return;
-        img.src = '/img/siegelings-logo.png';
-    }
-
     function init() {
         renderCreatureGrid();
         bindParallax();
         bindTrailerModal();
         setFooterYear();
         bindSiegelingsColorWave();
-        trySiegelingsAsset();
     }
 
     if (document.readyState === 'loading') {
