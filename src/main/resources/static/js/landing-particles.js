@@ -1,7 +1,6 @@
 /**
  * Landing hero — dispersed element particle auras.
- * When one element color is highlighted on the wordmark, the other palette
- * colors swarm as fluid, shiny particles orbiting the hero with soft blotch auras.
+ * Canvas + CSS orb fallback (CSS shows when reduced-motion is on or canvas fails).
  */
 (function () {
     'use strict';
@@ -20,6 +19,13 @@
         '--element-earth-glow'
     ];
 
+    const FALLBACK_COLORS = [
+        { key: 'fire',  base: { r: 255, g: 69, b: 0 },   glow: { r: 255, g: 140, b: 40 } },
+        { key: 'ice',   base: { r: 0, g: 207, b: 255 },  glow: { r: 120, g: 235, b: 255 } },
+        { key: 'wind',  base: { r: 110, g: 231, b: 183 }, glow: { r: 180, g: 255, b: 220 } },
+        { key: 'earth', base: { r: 139, g: 94, b: 60 },  glow: { r: 185, g: 140, b: 90 } }
+    ];
+
     function parseCssColor(raw) {
         const value = String(raw || '').trim();
         if (!value) return null;
@@ -36,12 +42,7 @@
         probe.remove();
         const m = resolved && resolved.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
         if (!m) return null;
-        return {
-            r: Number(m[1]),
-            g: Number(m[2]),
-            b: Number(m[3]),
-            css: resolved
-        };
+        return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]), css: resolved };
     }
 
     function resolveThemeColor(varName) {
@@ -61,14 +62,24 @@
         return min + Math.random() * (max - min);
     }
 
+    function clamp(v, lo, hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
     class LandingParticleField {
         constructor(hero) {
             this.hero = hero;
             this.canvas = document.createElement('canvas');
             this.canvas.className = 'hero-particle-canvas';
             this.canvas.setAttribute('aria-hidden', 'true');
+            this.domLayer = document.createElement('div');
+            this.domLayer.className = 'hero-particle-dom';
+            this.domLayer.setAttribute('aria-hidden', 'true');
             hero.appendChild(this.canvas);
+            hero.appendChild(this.domLayer);
+
             this.ctx = this.canvas.getContext('2d');
+            this.canvasOk = Boolean(this.ctx);
             this.palette = [];
             this.particles = [];
             this.auras = [];
@@ -79,7 +90,7 @@
             this.lastTs = 0;
             this.center = { x: 0, y: 0 };
             this.orbitRadius = 280;
-            this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            this.motionScale = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0.45 : 1;
 
             this._onResize = () => this.resize();
             window.addEventListener('resize', this._onResize);
@@ -87,22 +98,18 @@
             this.resolvePalette();
         }
 
-        destroy() {
-            window.removeEventListener('resize', this._onResize);
-            this.canvas.remove();
-            this.running = false;
-        }
-
         resize() {
             const rect = this.hero.getBoundingClientRect();
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
             this.width = Math.max(1, rect.width);
             this.height = Math.max(1, rect.height);
-            this.canvas.width = Math.round(this.width * dpr);
-            this.canvas.height = Math.round(this.height * dpr);
-            this.canvas.style.width = `${this.width}px`;
-            this.canvas.style.height = `${this.height}px`;
-            this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            if (this.canvasOk) {
+                this.canvas.width = Math.round(this.width * dpr);
+                this.canvas.height = Math.round(this.height * dpr);
+                this.canvas.style.width = `${this.width}px`;
+                this.canvas.style.height = `${this.height}px`;
+                this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
             this.center.x = this.width * 0.5;
             this.center.y = this.height * 0.46;
             this.orbitRadius = Math.min(this.width, this.height) * 0.52;
@@ -110,10 +117,11 @@
 
         resolvePalette() {
             this.palette = ELEMENT_KEYS.map((key, index) => {
-                const base = resolveThemeColor(CSS_VARS[index]);
-                const glow = resolveThemeColor(GLOW_VARS[index]) || base;
+                const fb = FALLBACK_COLORS[index];
+                const base = resolveThemeColor(CSS_VARS[index]) || fb.base;
+                const glow = resolveThemeColor(GLOW_VARS[index]) || fb.glow;
                 return { key, base, glow };
-            }).filter((entry) => entry.base);
+            });
         }
 
         setHighlight(cssVarOrIndex) {
@@ -124,7 +132,9 @@
                 const needle = String(cssVarOrIndex || '').trim();
                 index = CSS_VARS.findIndex((v) => needle === `var(${v})` || needle.includes(v.slice(2)));
             }
-            if (index === this.highlightIndex && this.targetIntensity >= 1) return;
+            if (index === this.highlightIndex && this.targetIntensity >= 0.98) {
+                return;
+            }
             this.highlightIndex = index;
             if (index < 0) {
                 this.targetIntensity = 0;
@@ -133,40 +143,74 @@
             }
             this.resize();
             this.rebuildSwarm(index);
+            this.syncDomOrbs(index);
             this.targetIntensity = 1;
             this.hero.classList.add('hero-particles-active');
+            this.domLayer.style.opacity = '1';
             this.canvas.style.opacity = '1';
             this.ensureLoop();
         }
 
-        clearHighlight(delayMs = 650) {
+        clearHighlight() {
             this.targetIntensity = 0;
             this.highlightIndex = -1;
             window.setTimeout(() => {
                 if (this.targetIntensity === 0) {
                     this.hero.classList.remove('hero-particles-active');
+                    this.domLayer.innerHTML = '';
+                    this.domLayer.style.opacity = '0';
                 }
-            }, delayMs);
+            }, 650);
         }
 
         fadeOut() {
             this.targetIntensity = 0;
             this.highlightIndex = -1;
             this.hero.classList.remove('hero-particles-active');
+            this.domLayer.innerHTML = '';
+            this.domLayer.style.opacity = '0';
+        }
+
+        syncDomOrbs(activeIndex) {
+            const inactive = this.palette
+                .map((el, i) => ({ el, i }))
+                .filter(({ i }) => i !== activeIndex);
+
+            const parts = [];
+            inactive.forEach(({ el, i }, swarmIndex) => {
+                const orbCount = 5;
+                for (let o = 0; o < orbCount; o += 1) {
+                    const delay = (swarmIndex * 1.7 + o * 0.85).toFixed(2);
+                    const orbit = (28 + o * 11 + swarmIndex * 6).toFixed(0);
+                    const size = (88 + o * 18 + swarmIndex * 8).toFixed(0);
+                    parts.push(
+                        `<span class="hero-particle-orb hero-particle-orb-${el.key}" ` +
+                        `style="--orb-delay:${delay}s;--orb-orbit:${orbit}vmin;--orb-size:${size}px"></span>`
+                    );
+                }
+                for (let s = 0; s < 10; s += 1) {
+                    const delay = (swarmIndex * 2.1 + s * 0.35).toFixed(2);
+                    const orbit = (18 + s * 5 + swarmIndex * 4).toFixed(0);
+                    parts.push(
+                        `<span class="hero-particle-spark hero-particle-spark-${el.key}" ` +
+                        `style="--orb-delay:${delay}s;--orb-orbit:${orbit}vmin"></span>`
+                    );
+                }
+            });
+            this.domLayer.innerHTML = parts.join('');
         }
 
         rebuildSwarm(activeIndex) {
             this.particles = [];
             this.auras = [];
-            if (this.reducedMotion) return;
-
+            const scale = this.motionScale;
             const inactive = this.palette
                 .map((el, i) => ({ el, i }))
                 .filter(({ i }) => i !== activeIndex);
 
-            inactive.forEach(({ el, i }, swarmIndex) => {
-                const count = 42 + Math.floor(rand(0, 18));
-                const auraCount = 4 + (swarmIndex % 2);
+            inactive.forEach(({ el }, swarmIndex) => {
+                const count = Math.round((38 + rand(0, 16)) * scale);
+                const auraCount = Math.max(2, Math.round((4 + (swarmIndex % 2)) * scale));
                 const bandOffset = (swarmIndex - (inactive.length - 1) * 0.5) * 0.38;
 
                 for (let a = 0; a < auraCount; a += 1) {
@@ -180,37 +224,39 @@
 
         createAura(el, bandOffset, auraIndex, auraCount) {
             const phase = (auraIndex / Math.max(1, auraCount)) * Math.PI * 2;
+            const speed = this.motionScale;
             return {
                 kind: 'aura',
                 el,
                 angle: phase + rand(0, Math.PI * 2),
-                angleVel: rand(0.00022, 0.00048) * (Math.random() > 0.5 ? 1 : -1),
-                radius: this.orbitRadius * rand(0.55, 0.95),
-                radiusVel: rand(-0.018, 0.018),
+                angleVel: rand(0.00035, 0.00075) * speed * (Math.random() > 0.5 ? 1 : -1),
+                radius: this.orbitRadius * rand(0.5, 0.98),
+                radiusVel: rand(-0.02, 0.02) * speed,
                 wobbleX: rand(0.4, 1.1),
                 wobbleY: rand(0.4, 1.1),
                 wobblePhase: rand(0, Math.PI * 2),
-                size: rand(90, 168),
-                alpha: rand(0.14, 0.28),
+                size: rand(100, 190),
+                alpha: rand(0.22, 0.42),
                 bandOffset,
                 drift: rand(0, 1000)
             };
         }
 
         createParticle(el, bandOffset, along) {
+            const speed = this.motionScale;
             return {
                 kind: 'spark',
                 el,
                 angle: along * Math.PI * 2 + bandOffset + rand(-0.25, 0.25),
-                angleVel: rand(0.00055, 0.00135) * (Math.random() > 0.5 ? 1 : -1),
-                radius: this.orbitRadius * rand(0.32, 1.02),
-                radiusVel: rand(-0.04, 0.04),
+                angleVel: rand(0.00085, 0.002) * speed * (Math.random() > 0.5 ? 1 : -1),
+                radius: this.orbitRadius * rand(0.28, 1.05),
+                radiusVel: rand(-0.05, 0.05) * speed,
                 wobbleX: rand(0.8, 2.4),
                 wobbleY: rand(0.8, 2.4),
                 wobblePhase: rand(0, Math.PI * 2),
-                size: rand(2.4, 6.8),
-                shine: Math.random() > 0.4,
-                alpha: rand(0.62, 1),
+                size: rand(3, 8),
+                shine: Math.random() > 0.35,
+                alpha: rand(0.75, 1),
                 bandOffset,
                 trail: [],
                 drift: rand(0, 1000)
@@ -228,14 +274,17 @@
             const dt = Math.min(ts - this.lastTs, 48);
             this.lastTs = ts;
 
-            this.intensity = lerp(this.intensity, this.targetIntensity, this.reducedMotion ? 1 : 0.12);
-            this.canvas.style.opacity = String(Math.max(0, Math.min(1, this.intensity)));
+            this.intensity = lerp(this.intensity, this.targetIntensity, 0.14);
+            const opacity = String(Math.max(0, Math.min(1, this.intensity)));
+            this.canvas.style.opacity = opacity;
+            this.domLayer.style.opacity = opacity;
+
             const alive = this.intensity > 0.01 || this.targetIntensity > 0.01;
 
-            if (alive && !this.reducedMotion) {
+            if (alive && this.canvasOk) {
                 this.update(dt, ts);
                 this.draw(ts);
-            } else {
+            } else if (this.canvasOk) {
                 this.ctx.clearRect(0, 0, this.width, this.height);
             }
 
@@ -246,6 +295,7 @@
                 this.particles = [];
                 this.auras = [];
                 this.canvas.style.opacity = '0';
+                this.domLayer.style.opacity = '0';
             }
         }
 
@@ -253,35 +303,33 @@
             const t = ts * 0.001;
             const cx = this.center.x;
             const cy = this.center.y;
-            const pull = 0.000035 * dt;
+            const pull = 0.00005 * dt * this.motionScale;
 
             const step = (item) => {
                 item.angle += item.angleVel * dt;
                 item.radius += item.radiusVel * dt;
-                const minR = this.orbitRadius * 0.22;
-                const maxR = this.orbitRadius * 1.08;
+                const minR = this.orbitRadius * 0.18;
+                const maxR = this.orbitRadius * 1.12;
                 if (item.radius < minR || item.radius > maxR) {
                     item.radiusVel *= -1;
                     item.radius = clamp(item.radius, minR, maxR);
                 }
                 const wobT = t * 0.9 + item.drift * 0.001;
-                const ox = Math.sin(wobT * item.wobbleX + item.wobblePhase) * (item.kind === 'aura' ? 34 : 18);
-                const oy = Math.cos(wobT * item.wobbleY + item.wobblePhase * 1.3) * (item.kind === 'aura' ? 28 : 14);
+                const ox = Math.sin(wobT * item.wobbleX + item.wobblePhase) * (item.kind === 'aura' ? 40 : 22);
+                const oy = Math.cos(wobT * item.wobbleY + item.wobblePhase * 1.3) * (item.kind === 'aura' ? 32 : 16);
                 item.x = cx + Math.cos(item.angle) * item.radius + ox;
                 item.y = cy + Math.sin(item.angle) * item.radius * 0.82 + oy;
 
                 if (item.kind === 'spark') {
                     item.trail.push({ x: item.x, y: item.y, life: 1 });
-                    if (item.trail.length > 6) item.trail.shift();
-                    item.trail.forEach((pt) => { pt.life -= 0.14 * (dt / 16); });
+                    if (item.trail.length > 8) item.trail.shift();
+                    item.trail.forEach((pt) => { pt.life -= 0.16 * (dt / 16); });
                     item.trail = item.trail.filter((pt) => pt.life > 0.04);
                 }
             };
 
             this.auras.forEach(step);
             this.particles.forEach(step);
-
-            // gentle mutual orbit bias per band
             this.particles.forEach((p) => {
                 p.angleVel += Math.sin(t + p.bandOffset * 4) * pull;
             });
@@ -303,18 +351,17 @@
         drawAura(ctx, a, fade) {
             const { base, glow } = a.el;
             const grd = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, a.size);
-            grd.addColorStop(0, rgba(glow, a.alpha * fade * 1.15));
-            grd.addColorStop(0.35, rgba(base, a.alpha * fade * 0.75));
-            grd.addColorStop(0.72, rgba(base, a.alpha * fade * 0.22));
+            grd.addColorStop(0, rgba(glow, a.alpha * fade * 1.35));
+            grd.addColorStop(0.35, rgba(base, a.alpha * fade * 0.9));
+            grd.addColorStop(0.72, rgba(base, a.alpha * fade * 0.35));
             grd.addColorStop(1, rgba(base, 0));
             ctx.fillStyle = grd;
             ctx.beginPath();
             ctx.ellipse(a.x, a.y, a.size, a.size * 0.72, a.angle * 0.15, 0, Math.PI * 2);
             ctx.fill();
 
-            // water-blotch caustic ring
-            ctx.strokeStyle = rgba(glow, a.alpha * fade * 0.35);
-            ctx.lineWidth = 1.2;
+            ctx.strokeStyle = rgba(glow, a.alpha * fade * 0.5);
+            ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.ellipse(a.x, a.y, a.size * 0.62, a.size * 0.4, -a.angle * 0.2, 0, Math.PI * 2);
             ctx.stroke();
@@ -323,38 +370,34 @@
         drawSpark(ctx, p, fade, ts) {
             const { base, glow } = p.el;
             p.trail.forEach((pt, i) => {
-                const a = pt.life * p.alpha * fade * 0.35 * (i / Math.max(1, p.trail.length));
+                const a = pt.life * p.alpha * fade * 0.5 * (i / Math.max(1, p.trail.length));
                 ctx.fillStyle = rgba(base, a);
                 ctx.beginPath();
-                ctx.arc(pt.x, pt.y, p.size * 0.65, 0, Math.PI * 2);
+                ctx.arc(pt.x, pt.y, p.size * 0.7, 0, Math.PI * 2);
                 ctx.fill();
             });
 
             const pulse = 0.85 + Math.sin(ts * 0.008 + p.drift) * 0.15;
             const r = p.size * pulse;
 
-            const halo = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 5);
-            halo.addColorStop(0, rgba(glow, p.alpha * fade * 0.55));
-            halo.addColorStop(0.45, rgba(base, p.alpha * fade * 0.2));
+            const halo = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 6);
+            halo.addColorStop(0, rgba(glow, p.alpha * fade * 0.75));
+            halo.addColorStop(0.45, rgba(base, p.alpha * fade * 0.35));
             halo.addColorStop(1, rgba(base, 0));
             ctx.fillStyle = halo;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, r * 5, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, r * 6, 0, Math.PI * 2);
             ctx.fill();
 
-            const core = ctx.createRadialGradient(p.x - r * 0.25, p.y - r * 0.25, 0, p.x, p.y, r * 1.4);
-            core.addColorStop(0, rgba({ r: 255, g: 255, b: 255 }, p.shine ? 0.95 * fade : 0.5 * fade));
+            const core = ctx.createRadialGradient(p.x - r * 0.25, p.y - r * 0.25, 0, p.x, p.y, r * 1.6);
+            core.addColorStop(0, rgba({ r: 255, g: 255, b: 255 }, p.shine ? 1 * fade : 0.65 * fade));
             core.addColorStop(0.35, rgba(glow, p.alpha * fade));
             core.addColorStop(1, rgba(base, 0));
             ctx.fillStyle = core;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, r * 1.4, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, r * 1.6, 0, Math.PI * 2);
             ctx.fill();
         }
-    }
-
-    function clamp(v, lo, hi) {
-        return Math.max(lo, Math.min(hi, v));
     }
 
     let field = null;

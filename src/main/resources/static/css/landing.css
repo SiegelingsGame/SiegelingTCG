@@ -158,7 +158,8 @@ img { display: block; }
     overflow: hidden;
 }
 
-.hero-particle-canvas {
+.hero-particle-canvas,
+.hero-particle-dom {
     position: absolute;
     inset: 0;
     z-index: 5;
@@ -167,10 +168,69 @@ img { display: block; }
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.45s ease;
+}
+
+.hero-particle-canvas {
     mix-blend-mode: screen;
 }
 
-.hero.hero-particles-active .hero-particle-canvas {
+.hero-particle-dom {
+    overflow: hidden;
+}
+
+.hero-particle-orb,
+.hero-particle-spark {
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    border-radius: 50%;
+    pointer-events: none;
+    transform-origin: center center;
+    animation: hero-particle-orbit 14s linear infinite;
+    animation-delay: var(--orb-delay, 0s);
+    will-change: transform;
+}
+
+.hero-particle-orb {
+    width: var(--orb-size, 110px);
+    height: var(--orb-size, 110px);
+    margin: calc(var(--orb-size, 110px) / -2) 0 0 calc(var(--orb-size, 110px) / -2);
+    filter: blur(22px);
+    opacity: 0.82;
+}
+
+.hero-particle-spark {
+    width: 8px;
+    height: 8px;
+    margin: -4px 0 0 -4px;
+    filter: blur(1px);
+    box-shadow: 0 0 14px currentColor, 0 0 28px currentColor;
+    opacity: 0.95;
+}
+
+.hero-particle-orb-fire,
+.hero-particle-spark-fire { color: #ff5520; background: radial-gradient(circle, rgba(255, 120, 40, 0.95) 0%, rgba(255, 69, 0, 0.5) 42%, transparent 72%); }
+.hero-particle-orb-ice,
+.hero-particle-spark-ice { color: #00cfff; background: radial-gradient(circle, rgba(160, 240, 255, 0.95) 0%, rgba(0, 207, 255, 0.45) 42%, transparent 72%); }
+.hero-particle-orb-wind,
+.hero-particle-spark-wind { color: #6ee7b7; background: radial-gradient(circle, rgba(200, 255, 230, 0.95) 0%, rgba(110, 231, 183, 0.45) 42%, transparent 72%); }
+.hero-particle-orb-earth,
+.hero-particle-spark-earth { color: #b48c50; background: radial-gradient(circle, rgba(210, 170, 120, 0.95) 0%, rgba(139, 94, 60, 0.5) 42%, transparent 72%); }
+
+@keyframes hero-particle-orbit {
+    0% {
+        transform: rotate(0deg) translateX(var(--orb-orbit, 32vmin)) rotate(0deg) scale(1);
+    }
+    50% {
+        transform: rotate(180deg) translateX(calc(var(--orb-orbit, 32vmin) * 1.08)) rotate(-180deg) scale(1.06);
+    }
+    100% {
+        transform: rotate(360deg) translateX(var(--orb-orbit, 32vmin)) rotate(-360deg) scale(1);
+    }
+}
+
+.hero.hero-particles-active .hero-particle-canvas,
+.hero.hero-particles-active .hero-particle-dom {
     opacity: 1;
 }
 
@@ -1320,7 +1380,9 @@ img { display: block; }
 
 /* ── Reduced motion ──────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-    .hero-particle-canvas { display: none; }
+    .hero-particle-canvas { opacity: 0 !important; }
+    .hero-particle-orb,
+    .hero-particle-spark { animation-duration: 22s; }
     .siegelings-logo,
     .hero-element-orb,
     .sgl-vs-emblem,
