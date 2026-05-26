@@ -2551,7 +2551,12 @@ body.gacha-active {
 }
 
 .reveal-card.is-revealed {
+    cursor: default;
+}
+
+.reveal-card.is-animating {
     animation: rarityLift 0.72s ease both;
+    z-index: 2;
 }
 
 .rarity-burst {
@@ -2560,16 +2565,38 @@ body.gacha-active {
     z-index: 4;
     pointer-events: none;
     opacity: 0;
+    overflow: visible;
     background:
-        radial-gradient(circle at 18% 28%, var(--rarity) 0 3px, transparent 4px),
-        radial-gradient(circle at 74% 18%, var(--rarity) 0 2px, transparent 3px),
-        radial-gradient(circle at 88% 70%, var(--rarity) 0 3px, transparent 4px),
-        radial-gradient(circle at 24% 82%, var(--rarity) 0 2px, transparent 3px),
-        radial-gradient(circle, color-mix(in srgb, var(--rarity) 24%, transparent), transparent 58%);
+        radial-gradient(circle, color-mix(in srgb, var(--rarity) 18%, transparent), transparent 62%);
 }
 
-.reveal-card.is-revealed .rarity-burst {
-    animation: rarityBurst 0.78s ease-out both;
+.reveal-card.is-animating .rarity-burst {
+    animation: rarityBurst 0.88s ease-out both;
+}
+
+.reveal-spark {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--size, 3px);
+    height: var(--size, 3px);
+    margin: calc(var(--size, 3px) / -2);
+    border-radius: 999px;
+    background: var(--rarity);
+    box-shadow:
+        0 0 6px var(--rarity),
+        0 0 14px color-mix(in srgb, var(--rarity) 72%, #fff 28%);
+    opacity: 0;
+    animation: revealSpark var(--dur, 0.7s) cubic-bezier(.15, .85, .25, 1) var(--delay, 0s) both;
+}
+
+.reveal-spark::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, #fff, var(--rarity));
+    opacity: 0.55;
 }
 
 .reveal-card-art {
@@ -2690,9 +2717,24 @@ body.gacha-active {
 }
 
 @keyframes rarityBurst {
-    0% { opacity: 0; transform: scale(0.7) rotate(0deg); }
-    35% { opacity: 1; }
-    100% { opacity: 0; transform: scale(1.2) rotate(18deg); }
+    0% { opacity: 0; transform: scale(0.65) rotate(0deg); }
+    28% { opacity: 0.95; }
+    100% { opacity: 0; transform: scale(1.28) rotate(22deg); }
+}
+
+@keyframes revealSpark {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.15);
+    }
+    22% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.15);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(calc(-50% + var(--sx)), calc(-50% + var(--sy))) scale(0.2);
+    }
 }
 
 .profile-mini { margin-bottom: 14px; }

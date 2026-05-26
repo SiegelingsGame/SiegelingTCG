@@ -149,6 +149,7 @@
     };
 
     let liveCatalogRefreshPromise = null;
+    let gachaParticleField = null;
 
     window.addEventListener('DOMContentLoaded', init);
 
@@ -2108,10 +2109,15 @@
                     <button class="primary-btn" type="button" data-clear-pack-result>Done</button>
                 </div>
             </div>
+            <canvas class="gacha-particles" aria-hidden="true"></canvas>
             <div class="gacha-stage">
                 ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), reveal.lastRevealedId === card.revealId, latest.packId, index)).join('')}
             </div>
         </section>`;
+        const opening = result.querySelector('.pack-opening');
+        if (opening) {
+            initGachaParticles(opening, elementColor(cards[0]?.element || 'FIRE'));
+        }
     }
 
     function ensurePackReveal(latest) {
@@ -2174,7 +2180,7 @@
         </button>`;
     }
 
-    function revealPackCard(revealId) {
+    function revealPackCard(revealId, triggerEl = null) {
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
@@ -2197,6 +2203,7 @@
     }
 
     function clearPackResult() {
+        destroyGachaParticles();
         state.packReveal = null;
         document.body.classList.remove('gacha-active');
         const result = document.getElementById('packResult');
@@ -3112,7 +3119,7 @@
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const revealButton = event.target.closest('[data-reveal-card]');
-        if (revealButton) revealPackCard(revealButton.dataset.revealCard);
+        if (revealButton) revealPackCard(revealButton.dataset.revealCard, revealButton);
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();
         if (event.target.closest('[data-clear-pack-result]')) clearPackResult();
     });
