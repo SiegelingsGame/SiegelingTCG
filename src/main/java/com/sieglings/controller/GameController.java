@@ -15,6 +15,7 @@ import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.persistence.entity.AccountUser;
+import com.sieglings.service.CardOverrideStorageService;
 import com.sieglings.service.EnergyService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.GameService;
@@ -69,6 +70,9 @@ public class GameController {
     @Autowired
     private PlayerProgressionService playerProgressionService;
 
+    @Autowired
+    private CardOverrideStorageService cardOverrideStorageService;
+
     @GetMapping("/api/game/options")
     @ResponseBody
     public Map<String, Object> getOptions() {
@@ -95,7 +99,14 @@ public class GameController {
         resp.put("liveElements", gameService.getActiveLiveElementNames());
         resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
         resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
+        resp.put("catalogVersion", cardOverrideStorageService.getCatalogRevision());
         return resp;
+    }
+
+    @GetMapping("/api/game/catalog-version")
+    @ResponseBody
+    public Map<String, Object> getCatalogVersion() {
+        return Map.of("catalogVersion", cardOverrideStorageService.getCatalogRevision());
     }
 
     /**

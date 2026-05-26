@@ -137,8 +137,12 @@
         activeChatPeer: null,
         viewingProfile: null,
         socialPollTimer: null,
-        packReveal: null
+        packReveal: null,
+        catalogVersion: 0,
+        catalogSyncBound: false
     };
+
+    let liveCatalogRefreshPromise = null;
 
     window.addEventListener('DOMContentLoaded', init);
 
@@ -151,7 +155,9 @@
         renderHudTools();
         renderGold();
         renderHomeDashboard();
+        bindCatalogSync();
         await loadAll();
+        await syncCatalogIfVersionChanged();
         render();
         syncAuthRouteIntent();
     }
@@ -223,6 +229,11 @@
             renderRoute();
             syncAuthRouteIntent();
         });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                void syncCatalogIfVersionChanged();
+            }
+        });
     }
 
     async function loadAll() {
@@ -232,7 +243,7 @@
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile()
         ]);
-        state.options = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
+        applyGameOptions(options);
         state.packs = packs?.packs || [];
         state.dailyOffers = packs?.dailyOffers || [];
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
@@ -2032,6 +2043,55 @@
         const data = await fetchJson(path);
         if (data) writeCache(cacheKey, data);
         return data;
+    }
+
+    function applyGameOptions(options) {
+        const next = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
+        state.options = next;
+        state.catalogVersion = Number(next.catalogVersion) || 0;
+    }
+
+    function bindCatalogSync() {
+        if (state.catalogSyncBound || typeof SieglingsCatalogSync === 'undefined') return;
+        state.catalogSyncBound = true;
+        SieglingsCatalogSync.onCatalogPublished((catalogVersion) => {
+            void applyPublishedCatalogVersion(catalogVersion);
+        });
+    }
+
+    async function syncCatalogIfVersionChanged() {
+        const remote = await fetchJson('/api/game/catalog-version');
+        if (!remote) return;
+        const remoteVersion = Number(remote.catalogVersion) || 0;
+        if (remoteVersion === state.catalogVersion && Array.isArray(state.options?.cardCatalog) && state.options.cardCatalog.length) {
+            return;
+        }
+        await refreshLiveCatalog();
+    }
+
+    async function applyPublishedCatalogVersion(catalogVersion) {
+        const remoteVersion = Number(catalogVersion) || 0;
+        if (remoteVersion > 0 && remoteVersion === state.catalogVersion
+            && Array.isArray(state.options?.cardCatalog) && state.options.cardCatalog.length) {
+            return;
+        }
+        await refreshLiveCatalog();
+    }
+
+    async function refreshLiveCatalog() {
+        if (liveCatalogRefreshPromise) {
+            return liveCatalogRefreshPromise;
+        }
+        liveCatalogRefreshPromise = (async () => {
+            const data = await fetchJson('/api/game/options');
+            if (!data) return;
+            applyGameOptions(data);
+            writeCache('gameOptions', data);
+            render();
+        })().finally(() => {
+            liveCatalogRefreshPromise = null;
+        });
+        return liveCatalogRefreshPromise;
     }
 
     function readCache(cacheKey, ttlMs) {
