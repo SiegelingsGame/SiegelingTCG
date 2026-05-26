@@ -37,6 +37,7 @@ let mobileHudSheetOpen = false;
 let mulliganSelectedIndices = new Set();
 let mulliganHandSig = '';
 let loadoutErrorMessage = '';
+let liveCatalogRefreshPromise = null;
 let loadoutStartPending = false;
 let lastInteractionCueKey = '';
 let transientMessageTimer = null;
@@ -4676,6 +4677,34 @@ async function loadGameOptions() {
         showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
         syncEntryOverlays();
     }
+}
+
+async function refreshLiveGameOptions() {
+    if (!gameOptions) {
+        return loadGameOptions();
+    }
+    if (liveCatalogRefreshPromise) {
+        return liveCatalogRefreshPromise;
+    }
+    liveCatalogRefreshPromise = (async () => {
+        const [data, editorState] = await Promise.all([
+            fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS)
+        ]);
+        if (!data) {
+            return;
+        }
+        gameOptions = filterGameOptionsToDashboardCards(data, editorState);
+        loadoutErrorMessage = '';
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    })().catch((error) => {
+        console.error('Failed to refresh live game options:', error);
+    }).finally(() => {
+        liveCatalogRefreshPromise = null;
+    });
+    return liveCatalogRefreshPromise;
 }
 
 function filterGameOptionsToDashboardCards(options, editorState) {
@@ -9374,7 +9403,7 @@ renderWelcomeAuth();
 syncEntryOverlays();
 if (typeof SieglingsCatalogSync !== 'undefined') {
     SieglingsCatalogSync.onCatalogPublished(() => {
-        loadGameOptions();
+        refreshLiveGameOptions();
     });
 }
 loadGameOptions();
