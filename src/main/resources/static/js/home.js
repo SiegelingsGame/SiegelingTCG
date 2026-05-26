@@ -1231,6 +1231,7 @@
                 </div>
             </div>`;
             document.getElementById('profileSignInBtn')?.addEventListener('click', openAuth);
+            renderEditProfileModalHost(null);
             return;
         }
         const view = profileViewModel();
@@ -1249,9 +1250,15 @@
                 </div>
             </div>
             ${renderAchievementBadges(view)}
-            ${state.profileEditOpen ? renderEditProfileModal(view) : ''}
         </div>`;
+        renderEditProfileModalHost(view);
         bindProfileDashboard();
+    }
+
+    function renderEditProfileModalHost(view) {
+        const host = document.getElementById('editProfileModalHost');
+        if (!host) return;
+        host.innerHTML = state.profileEditOpen && view ? renderEditProfileModal(view) : '';
     }
 
     function profileViewModel() {
