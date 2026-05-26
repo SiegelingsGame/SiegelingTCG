@@ -8510,7 +8510,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     /* Compact Card Preview content so the full card fits without scrolling.
        Switch to a horizontal layout: art on the left, info column on the
-       right. Shrink fonts and chrome so a Siegling's notch markers and stats
+       right. Shrink fonts and chrome so a Siegeling's notch markers and stats
        are fully visible inside the bottom-UI-height drawer. */
     #drawerSelected .drawer-handle {
         margin: 0 auto 4px;

@@ -162,14 +162,17 @@
     function renderFilters() {
         renderFilter('elementFilters', ['ALL', ...(state.options?.liveElements || [])], state.elementFilter, (value) => {
             state.elementFilter = value;
+            renderFilters();
             renderCards();
         });
         renderFilter('typeFilters', ['ALL', 'SIEGLING', 'SPELL', 'TRAP'], state.typeFilter, (value) => {
             state.typeFilter = value;
+            renderFilters();
             renderCards();
         });
         renderFilter('rarityFilters', ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'], state.rarityFilter, (value) => {
             state.rarityFilter = value;
+            renderFilters();
             renderCards();
         });
     }
@@ -177,7 +180,10 @@
     function renderFilter(id, values, active, onPick) {
         const el = document.getElementById(id);
         if (!el) return;
-        el.innerHTML = values.map(value => `<button class="chip${value === active ? ' active' : ''}" type="button" data-value="${value}">${format(value)}</button>`).join('');
+        el.innerHTML = values.map(value => {
+            const isActive = value === active;
+            return `<button class="chip${isActive ? ' active' : ''}" type="button" data-value="${escapeAttr(value)}" aria-pressed="${isActive}">${format(value)}</button>`;
+        }).join('');
         el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => onPick(btn.dataset.value)));
     }
 
@@ -660,7 +666,15 @@
     }
     function elementColor(element) { return ELEMENT_COLORS[element] || '#f05b2f'; }
     function format(value) {
-        return String(value || '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const normalized = String(value || '');
+        if (normalized === 'SIEGLING') return 'Siegeling';
+        if (normalized === 'SIEGLINGS') return 'Siegelings';
+        return normalized
+            .toLowerCase()
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase())
+            .replace(/\bSiegling\b/g, 'Siegeling')
+            .replace(/\bSieglings\b/g, 'Siegelings');
     }
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));

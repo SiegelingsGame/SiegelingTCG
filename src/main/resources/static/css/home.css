@@ -339,6 +339,11 @@ select.search-input { color-scheme: dark; }
     font-size: 11px;
     font-weight: 850;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, color 0.16s ease;
 }
 
 .chip:hover {
@@ -346,9 +351,18 @@ select.search-input { color-scheme: dark; }
 }
 
 .chip.active {
-    color: #111827;
-    background: var(--accent);
-    border-color: transparent;
+    color: #081021;
+    background: linear-gradient(180deg, #ffe164 0%, #ffb400 100%);
+    border-color: rgba(255, 255, 255, 0.54);
+    box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.22), 0 0 18px rgba(255, 139, 20, 0.26);
+}
+
+.chip.active::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: #081021;
 }
 
 .card-grid,
