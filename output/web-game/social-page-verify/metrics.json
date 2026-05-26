@@ -1,0 +1,12 @@
+{
+  "metrics": {
+    "activeNav": "Social",
+    "socialVisible": true,
+    "heading": "Open lobbies and friends",
+    "roomText": "Room AB12CD Mira / 1-2 / PVP 1v1 Status: Open / Wagers coming soon Join",
+    "friendText": "Friend One friend@test.dev Remove",
+    "friendCount": "1 friend",
+    "addPlaceholder": "friend@email.com"
+  },
+  "errors": []
+}

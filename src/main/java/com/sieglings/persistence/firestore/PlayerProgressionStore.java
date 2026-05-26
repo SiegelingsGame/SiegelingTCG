@@ -43,6 +43,7 @@ public class PlayerProgressionStore {
         }
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("gold", progression.getGold());
+        payload.put("remnants", progression.getRemnants());
         payload.put("ownedCards", progression.getOwnedCards());
         payload.put("starterPackId", progression.getStarterPackId());
         payload.put("rewardedMatchIds", progression.getRewardedMatchIds());
@@ -70,6 +71,8 @@ public class PlayerProgressionStore {
         progression.setUserId(userId);
         Long gold = snapshot.getLong("gold");
         progression.setGold(gold == null ? 0 : gold.intValue());
+        Long remnants = snapshot.getLong("remnants");
+        progression.setRemnants(remnants == null ? 0 : remnants.intValue());
         progression.setOwnedCards(readIntMap(snapshot.get("ownedCards")));
         progression.setStarterPackId(snapshot.getString("starterPackId"));
         progression.setRewardedMatchIds(readStringList(snapshot.get("rewardedMatchIds")));

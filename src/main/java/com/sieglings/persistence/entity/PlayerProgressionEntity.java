@@ -9,6 +9,7 @@ import java.util.Map;
 public class PlayerProgressionEntity {
     private String userId;
     private int gold;
+    private int remnants;
     private Map<String, Integer> ownedCards = new LinkedHashMap<>();
     private String starterPackId;
     private List<String> rewardedMatchIds = new ArrayList<>();
@@ -23,6 +24,8 @@ public class PlayerProgressionEntity {
     public void setUserId(String userId) { this.userId = userId; }
     public int getGold() { return gold; }
     public void setGold(int gold) { this.gold = gold; }
+    public int getRemnants() { return remnants; }
+    public void setRemnants(int remnants) { this.remnants = Math.max(0, remnants); }
     public Map<String, Integer> getOwnedCards() { return ownedCards; }
     public void setOwnedCards(Map<String, Integer> ownedCards) {
         this.ownedCards = ownedCards == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ownedCards);
