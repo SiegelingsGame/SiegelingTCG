@@ -1,5 +1,6 @@
 (function () {
     const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+    const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
     const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -143,13 +144,13 @@
 
     async function init() {
         bindEvents();
+        hydrateProfilePrefsFromCache();
         state.route = routeFromPath(location.pathname);
         setActiveRoute();
         renderSections();
         renderHudTools();
         renderGold();
         renderHomeDashboard();
-        renderProfile();
         await loadAll();
         render();
         syncAuthRouteIntent();
@@ -262,7 +263,9 @@
         state.profile = data;
         state.progression = data.progression || null;
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings)
+            || state.profilePrefs
             || defaultProfilePrefs(data.user || {});
+        cacheProfilePrefs(state.profilePrefs);
         return data;
     }
 
@@ -1173,10 +1176,10 @@
 
     function profileViewModel() {
         const user = state.profile?.user || {};
-        if (!state.profilePrefs) {
-            state.profilePrefs = defaultProfilePrefs(user);
-        }
-        const prefs = { ...defaultProfilePrefs(user), ...state.profilePrefs };
+        const prefs = {
+            ...defaultProfilePrefs(user),
+            ...(state.profilePrefs || {})
+        };
         const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
         prefs.favoriteElement = favoriteElement;
         const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
@@ -1464,6 +1467,7 @@
         const data = await fetchJson('/api/profile/settings', { method: 'POST', body: JSON.stringify(next) });
         if (data?.error) return alert(data.error);
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || next;
+        cacheProfilePrefs(state.profilePrefs);
         if (state.profile?.user && state.profilePrefs?.displayName) {
             state.profile.user.displayName = state.profilePrefs.displayName;
         }
@@ -1598,9 +1602,30 @@
     }
 
     function normalizeProfileElement(element) {
-        const normalized = format(element || 'Neutral');
-        if (normalized === 'Water') return 'Ice';
-        return PROFILE_ELEMENTS.includes(normalized) ? normalized : 'Neutral';
+        const raw = String(element || '').trim();
+        if (!raw) return 'Fire';
+        const upper = raw.toUpperCase();
+        const fromServer = {
+            FIRE: 'Fire',
+            ICE: 'Ice',
+            WIND: 'Wind',
+            EARTH: 'Earth',
+            WATER: 'Water',
+            SHADOW: 'Shadow',
+            ELECTRIC: 'Electric',
+            STORM: 'Electric',
+            METAL: 'Metal',
+            MECH: 'Metal',
+            UNDEAD: 'Undead',
+            PSYCHIC: 'Psychic',
+            NEUTRAL: 'Neutral'
+        };
+        if (fromServer[upper]) {
+            return PROFILE_ELEMENTS.includes(fromServer[upper]) ? fromServer[upper] : fromServer[upper];
+        }
+        const normalized = format(raw);
+        if (normalized === 'Water' && !PROFILE_ELEMENTS.includes('Water')) return 'Ice';
+        return PROFILE_ELEMENTS.includes(normalized) ? normalized : (fromServer[upper] || normalized || 'Fire');
     }
 
     function initials(name) {
@@ -2094,6 +2119,7 @@
         state.profile = data;
         state.progression = data.progression;
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
+        cacheProfilePrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
         await ensurePacksLoaded();
@@ -2103,6 +2129,7 @@
     async function logout() {
         await fetchJson('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         state.token = '';
         state.profile = null;
         state.progression = null;
@@ -2287,17 +2314,52 @@
 
     function applyProfileSettingsFromServer(settings) {
         if (!settings) return null;
-        return {
+        const mapped = {
             displayName: settings.displayName || '',
             avatarMode: settings.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL',
             avatar: settings.avatar || '',
             avatarUrl: settings.avatarUrl || '',
-            favoriteElement: normalizeProfileElement(settings.favoriteElement || 'Fire'),
             playerTitle: settings.playerTitle || '',
             bio: settings.bio || '',
             preferredCardBack: settings.preferredCardBack || '',
             favoriteSiegling: settings.favoriteSiegling || ''
         };
+        const elementSource = settings.favoriteElementLabel || settings.favoriteElement;
+        if (elementSource != null && String(elementSource).trim()) {
+            mapped.favoriteElement = normalizeProfileElement(elementSource);
+        }
+        return mapped;
+    }
+
+    function hydrateProfilePrefsFromCache() {
+        if (!state.token) return;
+        try {
+            const raw = localStorage.getItem(PROFILE_PREFS_CACHE_KEY);
+            if (!raw) return;
+            const cached = applyProfileSettingsFromServer(JSON.parse(raw));
+            if (cached) state.profilePrefs = cached;
+        } catch (_error) {
+            localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
+        }
+    }
+
+    function cacheProfilePrefs(prefs) {
+        if (!prefs || !state.token) return;
+        try {
+            localStorage.setItem(PROFILE_PREFS_CACHE_KEY, JSON.stringify({
+                displayName: prefs.displayName,
+                avatarMode: prefs.avatarMode,
+                avatar: prefs.avatar,
+                avatarUrl: prefs.avatarUrl,
+                favoriteElement: prefs.favoriteElement,
+                playerTitle: prefs.playerTitle,
+                bio: prefs.bio,
+                preferredCardBack: prefs.preferredCardBack,
+                favoriteSiegling: prefs.favoriteSiegling
+            }));
+        } catch (_error) {
+            // ignore quota errors
+        }
     }
 
     function profileDisplayName() {

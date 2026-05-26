@@ -45,8 +45,9 @@ public class ProfileSettingsService {
         if (req.get("avatarUrl") instanceof String avatarUrl) {
             settings.setAvatarUrl(trim(avatarUrl, 500));
         }
-        if (req.get("favoriteElement") instanceof String favoriteElement) {
-            settings.setFavoriteElement(normalizeElement(favoriteElement));
+        if (req.containsKey("favoriteElement")) {
+            Object favoriteElement = req.get("favoriteElement");
+            settings.setFavoriteElement(normalizeElement(favoriteElement == null ? null : String.valueOf(favoriteElement)));
         }
         if (req.get("playerTitle") instanceof String playerTitle) {
             settings.setPlayerTitle(trim(playerTitle, 60));
@@ -77,6 +78,7 @@ public class ProfileSettingsService {
                 : settings.getAvatar());
         out.put("avatarUrl", settings.getAvatarUrl() == null ? "" : settings.getAvatarUrl());
         out.put("favoriteElement", normalizeElement(settings.getFavoriteElement()));
+        out.put("favoriteElementLabel", toProfileElementLabel(settings.getFavoriteElement()));
         out.put("playerTitle", settings.getPlayerTitle() == null ? "" : settings.getPlayerTitle());
         out.put("bio", settings.getBio() == null ? "" : settings.getBio());
         out.put("preferredCardBack", settings.getPreferredCardBack() == null ? "" : settings.getPreferredCardBack());
@@ -111,6 +113,14 @@ public class ProfileSettingsService {
             return "FIRE";
         }
         return normalized.length() > 20 ? normalized.substring(0, 20) : normalized;
+    }
+
+    private String toProfileElementLabel(String element) {
+        String normalized = normalizeElement(element);
+        if (normalized.isBlank()) {
+            return "Fire";
+        }
+        return normalized.charAt(0) + normalized.substring(1).toLowerCase(Locale.ROOT);
     }
 
     private String trim(String value, int max) {
