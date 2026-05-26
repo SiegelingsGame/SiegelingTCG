@@ -200,6 +200,7 @@
             grid.innerHTML = list.map(renderCardTile).join('');
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
+                openCardTray();
                 renderCards();
                 renderDetail();
             }));
@@ -539,6 +540,13 @@
             state.cardTrayOpen = !state.cardTrayOpen;
             if (state.cardTrayOpen) state.filterTrayOpen = false;
         }
+        renderHudTools();
+    }
+
+    function openCardTray() {
+        if (!isBinderRoute()) return;
+        state.cardTrayOpen = true;
+        state.filterTrayOpen = false;
         renderHudTools();
     }
 
