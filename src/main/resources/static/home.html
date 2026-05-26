@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/home.css?v=25">
+    <link rel="stylesheet" href="/css/home.css?v=26">
 </head>
 <body>
 <div class="home-shell">
@@ -184,6 +184,25 @@
                             </form>
                             <div class="friend-message" id="friendMessage"></div>
                         </section>
+
+                        <section class="social-panel social-card social-messages-card">
+                            <div class="social-panel-head">
+                                <div><span class="eyebrow">Messages</span><h2>Friend chat</h2></div>
+                                <span class="social-soft-pill" id="messageThreadCount">0 threads</span>
+                            </div>
+                            <div class="message-thread-list" id="messageThreadList"></div>
+                            <div class="message-compose hidden" id="messageCompose">
+                                <div class="message-compose-head">
+                                    <strong id="messageComposeTitle">Chat</strong>
+                                    <button class="ghost-btn compact-btn" type="button" id="closeMessageComposeBtn">Close</button>
+                                </div>
+                                <div class="message-log" id="messageLog"></div>
+                                <form class="message-send-row" id="messageSendForm">
+                                    <input class="search-input" id="messageInput" type="text" maxlength="500" placeholder="Type a message...">
+                                    <button class="primary-btn" type="submit">Send</button>
+                                </form>
+                            </div>
+                        </section>
                     </aside>
                 </div>
             </section>
@@ -204,6 +223,10 @@
     </main>
 
     <div class="tray-backdrop hidden" id="trayBackdrop"></div>
+    <div class="profile-modal hidden" id="viewProfileModal" role="dialog" aria-modal="true" aria-labelledby="viewProfileTitle">
+        <div class="profile-edit-panel profile-panel" id="viewProfileBody"></div>
+    </div>
+
     <div class="auth-modal hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
         <div class="auth-modal-panel panel">
             <div class="section-head">
@@ -215,6 +238,6 @@
     </div>
 </div>
 
-<script src="/js/home.js?v=29"></script>
+<script src="/js/home.js?v=30"></script>
 </body>
 </html>

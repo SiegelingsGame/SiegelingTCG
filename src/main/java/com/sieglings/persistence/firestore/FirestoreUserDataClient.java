@@ -28,6 +28,10 @@ public class FirestoreUserDataClient {
     private final String decksCollection;
     private final String matchesCollection;
     private final String progressionCollection;
+    private final String profileSettingsCollection;
+    private final String presenceCollection;
+    private final String lobbiesCollection;
+    private final String directMessagesCollection;
 
     private volatile Firestore firestore;
     private volatile String initializationError;
@@ -41,7 +45,11 @@ public class FirestoreUserDataClient {
             @Value("${app.user-data.collection-sessions:authSessions}") String sessionsCollection,
             @Value("${app.user-data.collection-decks:savedDecks}") String decksCollection,
             @Value("${app.user-data.collection-matches:matchHistory}") String matchesCollection,
-            @Value("${app.user-data.collection-progression:playerProgression}") String progressionCollection
+            @Value("${app.user-data.collection-progression:playerProgression}") String progressionCollection,
+            @Value("${app.user-data.collection-profile-settings:profileSettings}") String profileSettingsCollection,
+            @Value("${app.user-data.collection-presence:userPresence}") String presenceCollection,
+            @Value("${app.user-data.collection-lobbies:openLobbies}") String lobbiesCollection,
+            @Value("${app.user-data.collection-direct-messages:directMessages}") String directMessagesCollection
     ) {
         this.enabled = enabled;
         this.projectId = projectId == null ? "" : projectId.trim();
@@ -52,6 +60,10 @@ public class FirestoreUserDataClient {
         this.decksCollection = decksCollection;
         this.matchesCollection = matchesCollection;
         this.progressionCollection = progressionCollection;
+        this.profileSettingsCollection = profileSettingsCollection;
+        this.presenceCollection = presenceCollection;
+        this.lobbiesCollection = lobbiesCollection;
+        this.directMessagesCollection = directMessagesCollection;
     }
 
     @PostConstruct
@@ -98,6 +110,22 @@ public class FirestoreUserDataClient {
 
     public String progressionCollection() {
         return progressionCollection;
+    }
+
+    public String profileSettingsCollection() {
+        return profileSettingsCollection;
+    }
+
+    public String presenceCollection() {
+        return presenceCollection;
+    }
+
+    public String lobbiesCollection() {
+        return lobbiesCollection;
+    }
+
+    public String directMessagesCollection() {
+        return directMessagesCollection;
     }
 
     private synchronized void ensureInitialized() {

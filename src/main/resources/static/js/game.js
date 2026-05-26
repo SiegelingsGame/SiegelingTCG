@@ -5537,6 +5537,15 @@ async function createRoom() {
     };
     currentRoomStatus = data;
     saveMultiplayerSession();
+    try {
+        localStorage.setItem('sieglingsHostLobby', JSON.stringify({
+            roomId: data.roomId,
+            playerToken: data.playerToken,
+            expiresAt: data.expiresAt || null
+        }));
+    } catch (_error) {
+        // ignore storage failures
+    }
     startRoomPolling();
     renderLoadoutOptions();
     updateLoadoutSummary();

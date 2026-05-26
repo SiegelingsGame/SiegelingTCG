@@ -215,6 +215,33 @@ public class GameController {
         return Map.of("rooms", multiplayerService.listOpenRooms().stream().map(this::serializeOpenRoom).toList());
     }
 
+    @PostMapping("/api/match/close")
+    @ResponseBody
+    public Map<String, Object> closeMatch(@RequestBody(required = false) Map<String, Object> req,
+                                          @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                          @RequestHeader(value = "X-Room-Id", required = false) String roomIdHeader,
+                                          @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            if (roomId == null || roomId.isBlank()) {
+                roomId = roomIdHeader;
+            }
+            AccountUser user = accountService.findUser(authorizationHeader);
+            MultiplayerRoom room = multiplayerService.requireRoom(roomId);
+            if (user == null && (playerToken == null || !room.isHostToken(playerToken))) {
+                throw new IllegalArgumentException("Sign in as the host to close this lobby.");
+            }
+            String hostUserId = user == null ? room.getHostUserId() : user.getId();
+            if (user != null && room.getHostUserId() != null && !room.getHostUserId().equals(user.getId())) {
+                throw new IllegalArgumentException("Only the host can close this lobby.");
+            }
+            multiplayerService.closeRoom(roomId, hostUserId);
+            return Map.of("ok", true, "roomId", roomId);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @PostMapping("/api/game/mulligan")
     @ResponseBody
     public Map<String, Object> mulligan(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
@@ -557,6 +584,8 @@ public class GameController {
                 : room.getHostName());
         resp.put("guestJoined", room.hasGuest());
         resp.put("shareUrl", buildShareUrl(request, room.getRoomId()));
+        resp.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
+        resp.put("format", room.getFormat() == null ? "PVP" : room.getFormat());
         return resp;
     }
 
@@ -574,6 +603,8 @@ public class GameController {
         out.put("format", "PVP 1v1");
         out.put("status", room.isStarted() ? "Started" : "Open");
         out.put("updatedAt", room.getUpdatedAt() == null ? null : room.getUpdatedAt().toString());
+        out.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
+        out.put("format", room.getFormat() == null ? "PVP" : room.getFormat());
         if (room.getHostOptions() != null) {
             out.put("deckId", room.getHostOptions().playerDeckId());
             out.put("trainerId", room.getHostOptions().playerTrainerId());
