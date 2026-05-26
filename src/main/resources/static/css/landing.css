@@ -29,7 +29,6 @@
 
     /* Asset overrides — drop real files into static/img/ and override these */
     --asset-pcg-logo:        url('/img/pcg-logo.png');
-    --asset-hero-bg:         url('/img/hero-creatures.webp');
 }
 
 * { box-sizing: border-box; }
@@ -158,31 +157,33 @@ img { display: block; }
     overflow: hidden;
 }
 
-.hero-particle-canvas,
-.hero-particle-dom {
+.siegelings-logo .hero-particle-canvas,
+.siegelings-logo .hero-particle-dom {
     position: absolute;
-    inset: 0;
-    z-index: 5;
-    width: 100%;
-    height: 100%;
+    inset: -12%;
+    z-index: 1;
+    width: 124%;
+    height: 124%;
+    left: -12%;
+    top: -12%;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.45s ease;
 }
 
-.hero-particle-canvas {
+.siegelings-logo .hero-particle-canvas {
     mix-blend-mode: screen;
 }
 
-.hero-particle-dom {
-    overflow: hidden;
+.siegelings-logo .hero-particle-dom {
+    overflow: visible;
 }
 
 .hero-particle-orb,
 .hero-particle-spark {
     position: absolute;
-    left: 50%;
-    top: 46%;
+    left: var(--orbit-cx, 50%);
+    top: var(--orbit-cy, 50%);
     border-radius: 50%;
     pointer-events: none;
     transform-origin: center center;
@@ -219,31 +220,19 @@ img { display: block; }
 
 @keyframes hero-particle-orbit {
     0% {
-        transform: rotate(0deg) translateX(var(--orb-orbit, 32vmin)) rotate(0deg) scale(1);
+        transform: rotate(0deg) translateX(var(--orb-orbit, 80px)) rotate(0deg) scale(1);
     }
     50% {
-        transform: rotate(180deg) translateX(calc(var(--orb-orbit, 32vmin) * 1.08)) rotate(-180deg) scale(1.06);
+        transform: rotate(180deg) translateX(calc(var(--orb-orbit, 80px) * 1.08)) rotate(-180deg) scale(1.06);
     }
     100% {
-        transform: rotate(360deg) translateX(var(--orb-orbit, 32vmin)) rotate(-360deg) scale(1);
+        transform: rotate(360deg) translateX(var(--orb-orbit, 80px)) rotate(-360deg) scale(1);
     }
 }
 
-.hero.hero-particles-active .hero-particle-canvas,
-.hero.hero-particles-active .hero-particle-dom {
+.siegelings-logo.siegelings-logo-particles-active .hero-particle-canvas,
+.siegelings-logo.siegelings-logo-particles-active .hero-particle-dom {
     opacity: 1;
-}
-
-.hero.hero-particles-active .hero-element-orb {
-    opacity: 0.22;
-    transition: opacity 0.55s ease;
-}
-
-.hero.hero-particles-active .hero-vignette {
-    background:
-        radial-gradient(ellipse at 50% 45%, rgba(255, 255, 255, 0.06) 18%, transparent 42%),
-        radial-gradient(ellipse at 50% 45%, transparent 22%, rgba(8, 12, 28, 0.82) 75%),
-        linear-gradient(180deg, transparent 30%, rgba(8, 12, 28, 0.7) 100%);
 }
 
 .hero-bg {
@@ -273,11 +262,7 @@ img { display: block; }
         radial-gradient(circle at 28% 22%, rgba(168, 85, 247, 0.22), transparent 28%);
 }
 .hero-bg-near {
-    background-image: var(--asset-hero-bg);
-    background-size: cover;
-    background-position: center 30%;
-    opacity: 0.55;
-    mix-blend-mode: screen;
+    display: none;
 }
 .hero-vignette {
     position: absolute;
@@ -320,20 +305,24 @@ img { display: block; }
 
 /* Siegelings logo block */
 .siegelings-logo {
+    position: relative;
     display: flex;
     justify-content: center;
     margin-bottom: 18px;
+    overflow: visible;
     animation: siegelings-float 4s ease-in-out infinite;
 }
-@keyframes siegelings-float {
-    0%, 100% { transform: translateY(0); }
-    50%      { transform: translateY(-10px); }
-}
 .siegelings-logo-fallback {
+    position: relative;
+    z-index: 2;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
+}
+@keyframes siegelings-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-10px); }
 }
 .siegelings-crown {
     display: flex;
@@ -957,11 +946,10 @@ img { display: block; }
     position: absolute;
     inset: 0;
     z-index: 0;
-    background-image: var(--asset-hero-bg);
-    background-size: cover;
-    background-position: center;
-    opacity: 0.18;
-    filter: blur(2px);
+    background:
+        radial-gradient(ellipse at 50% 40%, rgba(30, 144, 255, 0.2), transparent 58%),
+        linear-gradient(180deg, #0a1530 0%, #0d1b3e 60%, #1a0a2e 100%);
+    opacity: 0.55;
 }
 .sgl-gate-vignette {
     position: absolute;
@@ -1380,7 +1368,7 @@ img { display: block; }
 
 /* ── Reduced motion ──────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-    .hero-particle-canvas { opacity: 0 !important; }
+    .siegelings-logo .hero-particle-canvas { opacity: 0 !important; }
     .hero-particle-orb,
     .hero-particle-spark { animation-duration: 22s; }
     .siegelings-logo,

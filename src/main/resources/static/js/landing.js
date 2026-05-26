@@ -184,19 +184,17 @@
             }
         }
 
-        const hero = document.getElementById('hero');
-
-        function onHeroPointerMove(event) {
+        wordmark.addEventListener('pointerenter', (event) => {
+            active = true;
             const hit = pickHighlight(event.clientX);
             applyColor(hit.color, hit.index);
-        }
-
-        function onHeroPointerEnter(event) {
-            active = true;
-            onHeroPointerMove(event);
-        }
-
-        function onHeroPointerLeave() {
+        });
+        wordmark.addEventListener('pointermove', (event) => {
+            if (!active) return;
+            const hit = pickHighlight(event.clientX);
+            applyColor(hit.color, hit.index);
+        });
+        wordmark.addEventListener('pointerleave', () => {
             active = false;
             wordmark.classList.remove('is-element-flow');
             tagline.classList.remove('is-element-wave');
@@ -207,19 +205,7 @@
                 wordmark.style.removeProperty('--siegelings-hover-color');
                 tagline.style.removeProperty('--siegelings-hover-color');
             }, 650);
-        }
-
-        if (hero) {
-            hero.addEventListener('pointerenter', onHeroPointerEnter);
-            hero.addEventListener('pointermove', onHeroPointerMove);
-            hero.addEventListener('pointerleave', onHeroPointerLeave);
-        } else {
-            wordmark.addEventListener('pointerenter', onHeroPointerEnter);
-            wordmark.addEventListener('pointermove', (event) => {
-                if (active) onHeroPointerMove(event);
-            });
-            wordmark.addEventListener('pointerleave', onHeroPointerLeave);
-        }
+        });
     }
 
     // ── Optional real asset wiring ────────────────────────────────────────

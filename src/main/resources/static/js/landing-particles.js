@@ -67,16 +67,16 @@
     }
 
     class LandingParticleField {
-        constructor(hero) {
-            this.hero = hero;
+        constructor(anchor) {
+            this.anchor = anchor;
             this.canvas = document.createElement('canvas');
             this.canvas.className = 'hero-particle-canvas';
             this.canvas.setAttribute('aria-hidden', 'true');
             this.domLayer = document.createElement('div');
             this.domLayer.className = 'hero-particle-dom';
             this.domLayer.setAttribute('aria-hidden', 'true');
-            hero.appendChild(this.canvas);
-            hero.appendChild(this.domLayer);
+            anchor.insertBefore(this.canvas, anchor.firstChild);
+            anchor.insertBefore(this.domLayer, this.canvas.nextSibling);
 
             this.ctx = this.canvas.getContext('2d');
             this.canvasOk = Boolean(this.ctx);
@@ -99,10 +99,15 @@
         }
 
         resize() {
-            const rect = this.hero.getBoundingClientRect();
+            const wordmark = this.anchor.querySelector('.siegelings-wordmark');
+            if (!wordmark) return;
+
+            const anchorRect = this.anchor.getBoundingClientRect();
+            const wordRect = wordmark.getBoundingClientRect();
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
-            this.width = Math.max(1, rect.width);
-            this.height = Math.max(1, rect.height);
+
+            this.width = Math.max(1, anchorRect.width);
+            this.height = Math.max(1, anchorRect.height);
             if (this.canvasOk) {
                 this.canvas.width = Math.round(this.width * dpr);
                 this.canvas.height = Math.round(this.height * dpr);
@@ -110,9 +115,19 @@
                 this.canvas.style.height = `${this.height}px`;
                 this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             }
-            this.center.x = this.width * 0.5;
-            this.center.y = this.height * 0.46;
-            this.orbitRadius = Math.min(this.width, this.height) * 0.52;
+
+            this.center.x = (wordRect.left - anchorRect.left) + wordRect.width * 0.5;
+            this.center.y = (wordRect.top - anchorRect.top) + wordRect.height * 0.5;
+            this.orbitRadius = Math.max(wordRect.width * 0.52, wordRect.height * 0.38, 72);
+
+            const orbitX = `${this.center.x}px`;
+            const orbitY = `${this.center.y}px`;
+            this.domLayer.style.setProperty('--orbit-cx', orbitX);
+            this.domLayer.style.setProperty('--orbit-cy', orbitY);
+            if (this.canvasOk) {
+                this.canvas.style.setProperty('--orbit-cx', orbitX);
+                this.canvas.style.setProperty('--orbit-cy', orbitY);
+            }
         }
 
         resolvePalette() {
@@ -145,7 +160,7 @@
             this.rebuildSwarm(index);
             this.syncDomOrbs(index);
             this.targetIntensity = 1;
-            this.hero.classList.add('hero-particles-active');
+            this.anchor.classList.add('siegelings-logo-particles-active');
             this.domLayer.style.opacity = '1';
             this.canvas.style.opacity = '1';
             this.ensureLoop();
@@ -156,7 +171,7 @@
             this.highlightIndex = -1;
             window.setTimeout(() => {
                 if (this.targetIntensity === 0) {
-                    this.hero.classList.remove('hero-particles-active');
+                    this.anchor.classList.remove('siegelings-logo-particles-active');
                     this.domLayer.innerHTML = '';
                     this.domLayer.style.opacity = '0';
                 }
@@ -166,7 +181,7 @@
         fadeOut() {
             this.targetIntensity = 0;
             this.highlightIndex = -1;
-            this.hero.classList.remove('hero-particles-active');
+            this.anchor.classList.remove('siegelings-logo-particles-active');
             this.domLayer.innerHTML = '';
             this.domLayer.style.opacity = '0';
         }
@@ -181,19 +196,19 @@
                 const orbCount = 5;
                 for (let o = 0; o < orbCount; o += 1) {
                     const delay = (swarmIndex * 1.7 + o * 0.85).toFixed(2);
-                    const orbit = (28 + o * 11 + swarmIndex * 6).toFixed(0);
-                    const size = (88 + o * 18 + swarmIndex * 8).toFixed(0);
+                    const orbitPx = Math.round(this.orbitRadius * (0.72 + o * 0.14 + swarmIndex * 0.06));
+                    const size = Math.round(52 + o * 14 + swarmIndex * 6);
                     parts.push(
                         `<span class="hero-particle-orb hero-particle-orb-${el.key}" ` +
-                        `style="--orb-delay:${delay}s;--orb-orbit:${orbit}vmin;--orb-size:${size}px"></span>`
+                        `style="--orb-delay:${delay}s;--orb-orbit:${orbitPx}px;--orb-size:${size}px"></span>`
                     );
                 }
                 for (let s = 0; s < 10; s += 1) {
                     const delay = (swarmIndex * 2.1 + s * 0.35).toFixed(2);
-                    const orbit = (18 + s * 5 + swarmIndex * 4).toFixed(0);
+                    const orbitPx = Math.round(this.orbitRadius * (0.55 + s * 0.08 + swarmIndex * 0.05));
                     parts.push(
                         `<span class="hero-particle-spark hero-particle-spark-${el.key}" ` +
-                        `style="--orb-delay:${delay}s;--orb-orbit:${orbit}vmin"></span>`
+                        `style="--orb-delay:${delay}s;--orb-orbit:${orbitPx}px"></span>`
                     );
                 }
             });
@@ -403,9 +418,9 @@
     let field = null;
 
     function init() {
-        const hero = document.getElementById('hero');
-        if (!hero || field) return;
-        field = new LandingParticleField(hero);
+        const anchor = document.querySelector('.siegelings-logo');
+        if (!anchor || field) return;
+        field = new LandingParticleField(anchor);
     }
 
     window.LandingParticles = {
