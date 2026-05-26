@@ -137,8 +137,11 @@
         activeChatPeer: null,
         viewingProfile: null,
         socialPollTimer: null,
-        packReveal: null
+        packReveal: null,
+        catalogVersion: 0
     };
+
+    let liveCatalogRefreshPromise = null;
 
     window.addEventListener('DOMContentLoaded', init);
 
@@ -152,6 +155,9 @@
         renderGold();
         renderHomeDashboard();
         await loadAll();
+        if (isBinderRoute()) {
+            await refreshLiveCatalog();
+        }
         render();
         syncAuthRouteIntent();
     }
@@ -223,6 +229,11 @@
             renderRoute();
             syncAuthRouteIntent();
         });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && isBinderRoute()) {
+                void refreshLiveCatalog();
+            }
+        });
     }
 
     async function loadAll() {
@@ -232,7 +243,7 @@
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile()
         ]);
-        state.options = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
+        applyGameOptions(options);
         state.packs = packs?.packs || [];
         state.dailyOffers = packs?.dailyOffers || [];
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
@@ -304,11 +315,11 @@
     }
 
     function renderRoute() {
-        if (state.route === 'cards') {
-            renderCards();
-        } else if (state.route === 'decks') {
-            renderDecks();
-        } else if (state.route === 'home') {
+        if (state.route === 'cards' || state.route === 'decks') {
+            void refreshLiveCatalog();
+            return;
+        }
+        if (state.route === 'home') {
             renderHomeDashboard();
         } else if (state.route === 'shop') {
             renderShop();
@@ -1954,7 +1965,12 @@
     }
 
     function navigateHub(route) {
-        if (route === state.route) return;
+        if (route === state.route) {
+            if (route === 'cards' || route === 'decks') {
+                void refreshLiveCatalog();
+            }
+            return;
+        }
         state.route = route;
         history.pushState(null, '', route === 'home' ? '/home' : `/${route}`);
         setActiveRoute();
@@ -2032,6 +2048,35 @@
         const data = await fetchJson(path);
         if (data) writeCache(cacheKey, data);
         return data;
+    }
+
+    function applyGameOptions(options) {
+        const next = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
+        state.options = next;
+        state.catalogVersion = Number(next.catalogVersion) || 0;
+    }
+
+    async function refreshLiveCatalog() {
+        if (liveCatalogRefreshPromise) {
+            return liveCatalogRefreshPromise;
+        }
+        liveCatalogRefreshPromise = (async () => {
+            const data = await fetchJson('/api/game/options');
+            if (!data) return;
+            applyGameOptions(data);
+            writeCache('gameOptions', data);
+            if (state.route === 'cards') {
+                renderCards();
+            } else if (state.route === 'decks') {
+                renderDecks();
+            }
+            safeRender(renderHomeDashboard);
+            safeRender(renderProfileMini);
+            safeRender(renderUnlock);
+        })().finally(() => {
+            liveCatalogRefreshPromise = null;
+        });
+        return liveCatalogRefreshPromise;
     }
 
     function readCache(cacheKey, ttlMs) {
