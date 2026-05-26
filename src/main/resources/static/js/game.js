@@ -2,7 +2,7 @@ let gameState = null;
 
 /**
  * Remembers the last element that activated each perimeter socket so the socket
- * keeps its color as a reference after the Siegling is removed. A new notch
+ * keeps its color as a reference after the Siegeling is removed. A new notch
  * connection to the same socket overwrites the stored element.
  */
 // External sockets are active only while a notch currently touches them.
@@ -53,6 +53,14 @@ let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
 let handSelectorScaleFrame = null;
 let previewCardScaleFrame = null;
+const DECK_ART_ASSET_KEYS = ['FIRE', 'EARTH', 'WIND', 'WATER', 'ICE'];
+const DECK_ART_ASSETS = {
+    FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
+    EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
+    WIND: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
+    WATER: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
+    ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
+};
 let handTouchSuppressHandIndex = null;
 let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
@@ -73,7 +81,7 @@ const LEADERBOARD_TABS = [
     { id: 'matchesPlayed', label: 'Matches' },
     { id: 'spellsCast', label: 'Spells' },
     { id: 'trapsSprung', label: 'Traps' },
-    { id: 'siegelingsDefeated', label: 'Sieglings' },
+    { id: 'siegelingsDefeated', label: 'Siegelings' },
     { id: 'pvpWinRate', label: 'PVP W/L' }
 ];
 let welcomeLeaderboardState = {
@@ -502,7 +510,7 @@ const CARD_ART_BY_KEY = Object.freeze({
 const WELCOME_SLIDES = [
     {
         title: '1. Notches can wake external sockets',
-        copy: 'When you place a Siegling, any notch that points off the board lines up with a perimeter socket. That live connection feeds your energy pool the same way it does in a real match.',
+        copy: 'When you place a Siegeling, any notch that points off the board lines up with a perimeter socket. That live connection feeds your energy pool the same way it does in a real match.',
         visual: `
             <div class="tutorial-visual tutorial-board">
                 <div class="tutorial-arena-mid tutorial-arena-external-demo">
@@ -547,7 +555,7 @@ const WELCOME_SLIDES = [
     },
     {
         title: '2. Same element, straight link',
-        copy: 'When opposite notches share an element, the arena draws a simple horizontal bar between them—exactly the same connector style you see between linked Sieglings in play.',
+        copy: 'When opposite notches share an element, the arena draws a simple horizontal bar between them—exactly the same connector style you see between linked Siegelings in play.',
         visual: `
             <div class="tutorial-visual tutorial-links">
                 <div class="tutorial-arena-mid tutorial-arena-compact">
@@ -605,7 +613,7 @@ const WELCOME_SLIDES = [
     },
     {
         title: '4. Battle mode in motion',
-        copy: 'After setup, battle turns your board into combat: Sieglings strike in speed order, abilities resolve, and HP ticks down on both sides—this is the same two-board view you fight on.',
+        copy: 'After setup, battle turns your board into combat: Siegelings strike in speed order, abilities resolve, and HP ticks down on both sides—this is the same two-board view you fight on.',
         visual: `
             <div class="tutorial-visual tutorial-battle">
                 <div class="tutorial-battle-snapshot">
@@ -815,7 +823,7 @@ function clearArenaSelection() {
 }
 
 /**
- * Focus a Siegling on either board for the live preview / Card Preview drawer.
+ * Focus a Siegeling on either board for the live preview / Card Preview drawer.
  * Second click on the same piece clears selection.
  */
 function onArenaCardClick(isPlayer, row, col, event) {
@@ -903,11 +911,11 @@ function cancelBoardCardLongPress() {
 
 function openSelectedCardDrawer() {
     const card = getFocusedPreviewCard();
-    updateSelectedInfo(card, card ? null : 'Hover, select a hand card, or click a Siegling on the board.');
+    updateSelectedInfo(card, card ? null : 'Hover, select a hand card, or click a Siegeling on the board.');
     openDrawer('selected');
 }
 
-/** Compact move rows from server (`moves` on Sieglings) or fall back to ability objects. */
+/** Compact move rows from server (`moves` on Siegelings) or fall back to ability objects. */
 function getSieglingMovesForDisplay(card) {
     if (!card || card.type !== "SIEGLING") {
         return [];
@@ -2695,7 +2703,7 @@ function renderClaimPopup() {
         title.textContent = `Claim ${card.name}?`;
     }
     if (tier) {
-        tier.textContent = `${formatElementLabel(card.element)} Siegling`;
+        tier.textContent = `${formatElementLabel(card.element)} Siegeling`;
     }
     if (description) {
         description.textContent = `This removes ${card.name} from your board and grants 1 temporary ${formatElementLabel(card.element)} energy for this turn.`;
@@ -2768,7 +2776,7 @@ function getInteractionHintState() {
     if (focusedCard) {
         if (isBoardPreviewCard(focusedCard)) {
             hints.push(
-                `${boardCardOwnershipLabel(focusedCard)} Siegling — ${focusedCard.hp ?? '?'}/${focusedCard.maxHp ?? '?'} HP.`
+                `${boardCardOwnershipLabel(focusedCard)} Siegeling — ${focusedCard.hp ?? '?'}/${focusedCard.maxHp ?? '?'} HP.`
             );
         } else {
             const lockReason = getHandCardLockReason(focusedCard);
@@ -2778,7 +2786,7 @@ function getInteractionHintState() {
                 if (focusedCard.evolvesFromName) {
                     hints.push(`After ${focusedCard.evolvesFromName} survives a full battle phase in that form, play this on it to evolve.`);
                 } else if (gameState?.currentPhase === 'SETUP' && !gameState?.playerPlacementUsed) {
-                    hints.push('Highlighted slots show where this Siegling can be placed.');
+                    hints.push('Highlighted slots show where this Siegeling can be placed.');
                 }
             } else if (focusedCard.type === 'TRAP') {
                 hints.push('Traps stay hidden until their trigger condition is met.');
@@ -2808,7 +2816,7 @@ function renderHintPanel() {
     const hintState = getInteractionHintState();
     if (!hintState.available) {
         panel.innerHTML = `
-            <div class="hint-drawer-copy">Select or hover a hand card, or click a Siegling on either board, to see contextual help.</div>
+            <div class="hint-drawer-copy">Select or hover a hand card, or click a Siegeling on either board, to see contextual help.</div>
             <div class="hint-list">
                 <div class="hint-item">The eye button opens the live card preview drawer when something is focused.</div>
             </div>
@@ -2884,7 +2892,7 @@ function syncSetupActionsCounter() {
     if (valueEl) {
         valueEl.textContent = `${remaining}/${budget}`;
     }
-    el.title = `${remaining} Siegling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used).`;
+    el.title = `${remaining} Siegeling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used).`;
     el.classList.toggle('is-zero', remaining === 0);
 
     const playerActive = gs.activeSide === 'PLAYER';
@@ -2989,12 +2997,12 @@ function getDesktopPreviewNote(card, lockReason) {
         return lockReason;
     }
     if (!card) {
-        return 'Hover, select a hand card, or click a Siegling on either board to inspect it here.';
+        return 'Hover, select a hand card, or click a Siegeling on either board to inspect it here.';
     }
     if (isBoardPreviewCard(card)) {
         const own = boardCardOwnershipLabel(card);
         const phases = Number(card.battlePhasesSeen || 0);
-        return `${own} Siegling in play — ${card.hp}/${card.maxHp} HP · ${phases} battle phase(s) survived.`;
+        return `${own} Siegeling in play — ${card.hp}/${card.maxHp} HP · ${phases} battle phase(s) survived.`;
     }
     if (card.type === 'SIEGLING') {
         if (card.evolvesFromName) {
@@ -3004,9 +3012,9 @@ function getDesktopPreviewNote(card, lockReason) {
             return sieglingPlacementLockMessage();
         }
         if (gameState?.currentPhase === 'SETUP') {
-            return 'Highlighted board cells show where this Siegling can expand next.';
+            return 'Highlighted board cells show where this Siegeling can expand next.';
         }
-        return 'Siegling battle actions resolve automatically in speed order during battle.';
+        return 'Siegeling battle actions resolve automatically in speed order during battle.';
     }
     if (card.type === 'TRAP') {
         return 'Traps stay hidden until their trigger condition is met.';
@@ -3040,7 +3048,7 @@ function getFocusedCardSummary(card, lockReason) {
     }
     if (isBoardPreviewCard(card)) {
         const own = boardCardOwnershipLabel(card);
-        return `${own} Siegling on board — HP ${card.hp}/${card.maxHp}. Eye button opens the full preview.`;
+        return `${own} Siegeling on board — HP ${card.hp}/${card.maxHp}. Eye button opens the full preview.`;
     }
     if (!isPlayerHandCard(card)) {
         return 'Board card details update live as links, statuses, and battle order change.';
@@ -3144,7 +3152,7 @@ function renderDesktopCardPreviewPanel() {
 
     const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
     if (!focusedCard) {
-        panel.innerHTML = '<div class="desktop-empty-state">Hover or click a Siegling on either board, or select a hand card, to inspect it here.</div>';
+        panel.innerHTML = '<div class="desktop-empty-state">Hover or click a Siegeling on either board, or select a hand card, to inspect it here.</div>';
         return;
     }
 
@@ -3291,10 +3299,14 @@ function formatDeckSectionLabel(type) {
         case 'TRAP':
             return 'Traps';
         case 'SIEGLING':
-            return 'Sieglings';
+            return 'Siegelings';
         default:
             return type || 'Cards';
     }
+}
+
+function formatBuilderTypeFilterLabel(type) {
+    return String(type || '').toUpperCase() === 'SIEGLING' ? 'SIEGELING' : (type || 'CARD');
 }
 
 function getDeckCardMonogram(name) {
@@ -4258,7 +4270,7 @@ function getHandCardLockReason(card) {
         return '';
     }
     if (isBoardPreviewCard(card)) {
-        return 'This Siegling is already on the board.';
+        return 'This Siegeling is already on the board.';
     }
     if (gameState.currentPhase === 'MULLIGAN') {
         return 'Choose cards to redraw (optional) or keep your opening hand.';
@@ -4273,7 +4285,7 @@ function getHandCardLockReason(card) {
         return 'Finish the current target selection first.';
     }
     if (isOpeningPlacementOnlyTurn() && card.type !== 'SIEGLING') {
-        return 'Turn 1 starts with a Siegling placement.';
+        return 'Turn 1 starts with a Siegeling placement.';
     }
     if (gameState.currentPhase !== 'SETUP') {
         return 'Cards can only be played during setup.';
@@ -4307,7 +4319,7 @@ function getHandCardLockReason(card) {
         }
     }
     if (card.type === 'SIEGLING' && getLegalPlacementsForCard(card).length === 0) {
-        return 'No legal placement available for this Siegling.';
+        return 'No legal placement available for this Siegeling.';
     }
     return '';
 }
@@ -4350,7 +4362,7 @@ function getInteractionBannerState() {
         return {
             kind: 'place',
             label: 'Claim',
-            message: 'Tap one of your battle-tested Sieglings to claim it and gain 1 temporary energy of its element this turn.'
+            message: 'Tap one of your battle-tested Siegelings to claim it and gain 1 temporary energy of its element this turn.'
         };
     }
     if (gameState.currentPhase === 'BATTLE') {
@@ -4358,7 +4370,7 @@ function getInteractionBannerState() {
             kind: 'battle',
             label: 'Battle Action',
             message: gameState.pendingBattle
-                ? 'Queue one action for the acting Siegling. The hand HUD now hosts the live battle queue.'
+                ? 'Queue one action for the acting Siegeling. The hand HUD now hosts the live battle queue.'
                 : 'Battle is resolving in speed order. The hand HUD stays in queue mode until setup returns.'
         };
     }
@@ -4786,6 +4798,21 @@ function openLoadoutSelector() {
     syncEntryOverlays();
 }
 
+function returnToPlayMain() {
+    if (loadoutStartPending) {
+        return;
+    }
+    clearMultiplayerSession();
+    currentRoomStatus = null;
+    loadoutErrorMessage = '';
+    welcomeDismissed = false;
+    document.getElementById('gameOverOverlay')?.classList.remove('visible');
+    syncEntryOverlays();
+    renderWelcomeTutorial();
+    renderWelcomeAuth();
+    renderWelcomeLeaderboards();
+}
+
 function selectDeckOption(deckId) {
     detachSavedDeckSelection();
     selectedDeckId = deckId;
@@ -5011,15 +5038,17 @@ function renderLoadoutOptions() {
         const primaryElement = deckTheme.element || deck.elements?.[0] || 'NEUTRAL';
         const primaryHex = getElementHex(primaryElement);
         const traits = (deckTheme.traits || []).slice(0, 3);
+        const deckArt = deckArtAssetForElements(deck.elements);
 
         /* Build spine bands â€“ each element gets its own colored band with a sigil inside */
         const spineBands = deck.elements.map(el => {
             const c = getElementHex(el);
             return `<div class="spine-band" style="background:${c}"></div>`;
         }).join('');
-        const faceSigils = buildDeckFaceSigils(deck.elements);
+        const faceSigils = deckArt ? '' : buildDeckFaceSigils(deck.elements);
+        const artStyle = deckArt?.back ? `;--deck-art:url('${deckArt.back}')` : '';
 
-        return `<button type="button" class="deck-card${selected} ${elClasses}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
+        return `<button type="button" class="deck-card${selected} ${elClasses}${deckArt ? ' has-deck-art' : ''}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}${artStyle}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
             <div class="deck-card-spine">${spineBands}</div>
             ${faceSigils}
             <span class="deck-card-state">${deck.id === selectedDeckId ? 'Selected' : escapeHtml(deckTheme.playstyle)}</span>
@@ -5297,7 +5326,7 @@ function renderDeckBuilder() {
     const typeFilters = ['ALL', 'SIEGLING', 'SPELL', 'TRAP'];
     typeFiltersEl.innerHTML = typeFilters.map(filter => {
         const active = builderTypeFilter === filter ? ' active' : '';
-        return `<button class="builder-filter${active}" onclick="setBuilderTypeFilter('${filter}')">${filter}</button>`;
+        return `<button class="builder-filter${active}" onclick="setBuilderTypeFilter('${filter}')">${formatBuilderTypeFilterLabel(filter)}</button>`;
     }).join('');
 
     const filteredCards = gameOptions.cardCatalog.filter(card => {
@@ -5919,13 +5948,13 @@ function renderDomLegacy() {
     if (phase === 'BATTLE') {
         if (playerBattlePending) {
             battleLabel = 'Battle Action';
-            battleTitle = 'Open the live queue prompt for the Siegling that is currently acting by speed.';
+            battleTitle = 'Open the live queue prompt for the Siegeling that is currently acting by speed.';
         } else if (enemyBattlePending) {
             battleLabel = 'Queue Locked';
             battleTitle = 'Review battle status while the opponent resolves the current speed action.';
         } else {
             battleLabel = 'Queue Live';
-            battleTitle = 'Review the live battle queue. Sieglings resolve abilities in speed order until the phase ends.';
+            battleTitle = 'Review the live battle queue. Siegelings resolve abilities in speed order until the phase ends.';
         }
     }
     btnBattle.disabled = over;
@@ -5938,7 +5967,7 @@ function renderDomLegacy() {
             ? battleHandViewOpen ? 'View Battle Action' : 'View Hand'
             : getSelectedBattlePreviewCard()
                 ? 'Preview selected card abilities'
-                : 'Preview Siegling battle abilities';
+                : 'Preview Siegeling battle abilities';
         btnBattlePanel.innerHTML = phase === 'BATTLE'
             ? battleHandViewOpen ? '&#9876;' : '&#127183;'
             : '&#9876;';
@@ -6633,6 +6662,11 @@ function buildDeckFaceSigils(elements) {
     }).join('');
 
     return `<div class="deck-card-sigils count-${elements.length}">${sigils}</div>`;
+}
+
+function deckArtAssetForElements(elements = []) {
+    const key = DECK_ART_ASSET_KEYS.find(element => elements.includes(element));
+    return key ? DECK_ART_ASSETS[key] : null;
 }
 
 function getDeckSigilPlacements(count) {
@@ -7540,6 +7574,13 @@ function buildZigZagPath(x1, y1, x2, y2, amplitude, count) {
 }
 
 const ALL_DIRECTIONS = ['TOP', 'TOP_RIGHT', 'RIGHT', 'BOTTOM_RIGHT', 'BOTTOM', 'BOTTOM_LEFT', 'LEFT', 'TOP_LEFT'];
+const NOTCH_ICON_PATHS = {
+    FIRE: '/img/notches/notch-fire.png',
+    EARTH: '/img/notches/notch-earth.png',
+    WIND: '/img/notches/notch-wind.png',
+    ICE: '/img/notches/notch-ice.png',
+    SHADOW: '/img/notches/notch-shadow.png'
+};
 
 function renderBoardNotches(notches, options) {
     const notchMap = {};
@@ -7555,7 +7596,7 @@ function renderBoardNotches(notches, options) {
             if (options.board) {
                 stateClass = getNotchStateClass(notch, { ...options, isBoard: true });
             }
-            html += `<div class="bc-notch bc-notch-${dir} filled ${elemClass} ${stateClass}"></div>`;
+            html += `<div class="bc-notch bc-notch-${dir} filled ${elemClass} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
         } else {
             html += `<div class="bc-notch bc-notch-${dir} empty"></div>`;
         }
@@ -7574,7 +7615,7 @@ function renderHandNotches(notches) {
         const notch = notchMap[dir];
         if (notch) {
             const elemClass = notch.element.toLowerCase();
-            html += `<div class="notch-dot ${elemClass} notch-${dir}"></div>`;
+            html += `<div class="notch-dot ${elemClass} notch-${dir}" style="${notchIconStyle(notch.element)}"></div>`;
         } else {
             html += `<div class="notch-dot notch-${dir}"></div>`;
         }
@@ -7597,11 +7638,21 @@ function renderNotches(notches, options = {}) {
             stateClass = getNotchStateClass(notch, options);
         }
 
-        html += `<div class="notch-dot ${elemClass} notch-${notch.direction} ${stateClass}"></div>`;
+        html += `<div class="notch-dot ${elemClass} notch-${notch.direction} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
     }
 
     html += `</div>`;
     return html;
+}
+
+function notchIconPath(element) {
+    const normalized = String(element || '').toUpperCase();
+    return NOTCH_ICON_PATHS[normalized] || `/img/elements/element-${normalized.toLowerCase()}.svg`;
+}
+
+function notchIconStyle(element) {
+    const normalized = String(element || 'NEUTRAL').toUpperCase();
+    return `--notch:${getElementHex(normalized)};--notch-icon:url('${notchIconPath(normalized)}');`;
 }
 
 function getNotchStateClass(notch, options) {
@@ -8123,7 +8174,7 @@ function renderSelectedCardBattlePreview(card) {
     const abilities = getSelectedCardBattlePreviewAbilities(card);
     const lockReason = getHandCardLockReason(card);
     const fallback = card?.type === 'SIEGLING'
-        ? 'Basic strike only. No printed battle ability is available for this Siegling.'
+        ? 'Basic strike only. No printed battle ability is available for this Siegeling.'
         : 'No printed ability text is available for this card.';
 
     let html = '<div class="battle-standby-preview battle-selected-preview">';
@@ -8150,12 +8201,12 @@ function renderStandbyBattleAbilityPreview() {
 
     const entries = getStandbyBattlePreviewCards();
     if (entries.length === 0) {
-        return '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Place a Siegling to preview its battle abilities here.</div><div class="battle-hint">When battle begins, this panel becomes the live speed-order action queue.</div>';
+        return '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Place a Siegeling to preview its battle abilities here.</div><div class="battle-hint">When battle begins, this panel becomes the live speed-order action queue.</div>';
     }
 
     let html = '<div class="battle-standby-preview">';
     html += '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Review your board abilities before ending setup.</div>';
-    html += '<div class="battle-hint">Listed in projected speed order. Energy availability is checked again when each Siegling acts.</div>';
+    html += '<div class="battle-hint">Listed in projected speed order. Energy availability is checked again when each Siegeling acts.</div>';
     html += '<div class="battle-standby-list">';
     for (const entry of entries) {
         const card = entry.card;
@@ -8169,10 +8220,10 @@ function renderStandbyBattleAbilityPreview() {
             .map(buildStandbyAbilityEntryFromAbility);
         html += `<article class="battle-standby-card ${elementClass}">`;
         html += '<div class="battle-standby-card-head">';
-        html += `<div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Siegling')}</div><div class="battle-standby-card-meta">HP ${escapeHtml(String(hp))}/${escapeHtml(String(maxHp))} | SPD ${escapeHtml(String(speed))} | ${escapeHtml(rowLabel)}</div></div>`;
+        html += `<div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Siegeling')}</div><div class="battle-standby-card-meta">HP ${escapeHtml(String(hp))}/${escapeHtml(String(maxHp))} | SPD ${escapeHtml(String(speed))} | ${escapeHtml(rowLabel)}</div></div>`;
         html += `<div class="battle-standby-order">#${entries.indexOf(entry) + 1}</div>`;
         html += '</div>';
-        html += renderStandbyAbilityRows(abilities, 'Basic strike only. No printed battle ability is available for this Siegling.');
+        html += renderStandbyAbilityRows(abilities, 'Basic strike only. No printed battle ability is available for this Siegeling.');
         html += '</article>';
     }
     html += '</div>';
@@ -8255,7 +8306,7 @@ function renderBattlePanel() {
             setPanelHtml(buildQueueShell(
                 'Await Opponent',
                 'waiting',
-                '<div class="battle-attacker"><strong>Queue locked.</strong> The opponent is resolving the current speed action.</div><div class="battle-hint">The hand HUD will reopen your queue prompt as soon as the next acting Siegling is ready.</div>'
+                '<div class="battle-attacker"><strong>Queue locked.</strong> The opponent is resolving the current speed action.</div><div class="battle-hint">The hand HUD will reopen your queue prompt as soon as the next acting Siegeling is ready.</div>'
             ));
             return;
         }
@@ -8263,7 +8314,7 @@ function renderBattlePanel() {
             setPanelHtml(buildQueueShell(
                 'Resolving',
                 'waiting',
-                '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegling arrives, this panel flips into queue mode automatically.</div>'
+                '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
             ));
             return;
         }
@@ -8533,7 +8584,7 @@ function selectCard(handIndexOrCardId) {
                     side: 'enemy',
                     step: 'pickEnemy',
                     cardId: card.id,
-                    message: `Select an enemy Siegling to move, then an empty enemy cell.`
+                    message: `Select an enemy Siegeling to move, then an empty enemy cell.`
                 };
                 updateSelectedInfo(card, targetContext.message);
                 autoOpenMobilePreview();
@@ -8717,7 +8768,7 @@ function onTrainerUse() {
 function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
     if (!card && !msg) {
-        el.innerHTML = 'Select a hand card or click a Siegling on either board to preview it here.';
+        el.innerHTML = 'Select a hand card or click a Siegeling on either board to preview it here.';
         return;
     }
 
@@ -8742,7 +8793,7 @@ function updateSelectedInfo(card, msg) {
         } else if (isBoardPreviewCard(card)) {
             const own = boardCardOwnershipLabel(card);
             const phases = Number(card.battlePhasesSeen || 0);
-            html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
+            html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`

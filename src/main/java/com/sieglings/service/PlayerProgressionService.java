@@ -16,10 +16,11 @@ import java.util.Map;
 
 @Service
 public class PlayerProgressionService {
-    public static final int STARTING_GOLD = 500;
+    public static final int STARTING_GOLD = 100;
     public static final int CUSTOM_DECK_UNLOCK_COPIES = 30;
-    public static final int WIN_GOLD = 75;
-    public static final int COMPLETED_MATCH_GOLD = 30;
+    public static final int SOLO_WIN_GOLD = 10;
+    public static final int ONLINE_WIN_GOLD = 5;
+    public static final int WIN_STREAK_GOLD = 2;
 
     @Autowired
     private PlayerProgressionStore store;
@@ -60,7 +61,7 @@ public class PlayerProgressionService {
         }
         PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, false);
         if (progression.getGold() < result.pack().price()) {
-            throw new IllegalArgumentException("Not enough gold for that pack.");
+            throw new IllegalArgumentException("Not enough Coins for that pack.");
         }
         progression.setGold(progression.getGold() - result.pack().price());
         grantCards(progression, result.cards());
@@ -78,12 +79,34 @@ public class PlayerProgressionService {
             return progression;
         }
         if (progression.getGold() < price) {
-            throw new IllegalArgumentException("Not enough gold for that premade deck.");
+            throw new IllegalArgumentException("Not enough Coins for that premade deck.");
         }
         progression.setGold(progression.getGold() - price);
         List<String> purchased = new ArrayList<>(progression.getPurchasedDeckIds());
         purchased.add(deck.id());
         progression.setPurchasedDeckIds(purchased);
+        progression.setUpdatedAt(Instant.now());
+        return store.save(progression);
+    }
+
+    public PlayerProgressionEntity purchaseDailyOffer(AccountUser user, String offerId) {
+        PlayerProgressionEntity progression = getOrCreate(user);
+        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+            throw new IllegalArgumentException("Choose a starter pack before buying daily cards.");
+        }
+        PackCatalogService.DailyCardOffer offer = packCatalogService.findDailyOffer(offerId)
+                .orElseThrow(() -> new IllegalArgumentException("Daily card offer not found."));
+        if (progression.getPurchasedDailyOfferIds().contains(offer.id())) {
+            return progression;
+        }
+        if (progression.getGold() < offer.price()) {
+            throw new IllegalArgumentException("Not enough Coins for that daily card.");
+        }
+        progression.setGold(progression.getGold() - offer.price());
+        grantCards(progression, List.of(offer.card()));
+        List<String> purchased = new ArrayList<>(progression.getPurchasedDailyOfferIds());
+        purchased.add(0, offer.id());
+        progression.setPurchasedDailyOfferIds(purchased.stream().limit(90).toList());
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -101,13 +124,34 @@ public class PlayerProgressionService {
         if (progression.getRewardedMatchIds().contains(history.getId())) {
             return;
         }
-        int reward = "WIN".equalsIgnoreCase(history.getResult()) ? WIN_GOLD : COMPLETED_MATCH_GOLD;
+        int reward = calculateMatchReward(progression, history);
         progression.setGold(progression.getGold() + reward);
         List<String> rewarded = new ArrayList<>(progression.getRewardedMatchIds());
         rewarded.add(history.getId());
         progression.setRewardedMatchIds(rewarded);
         progression.setUpdatedAt(Instant.now());
         store.save(progression);
+    }
+
+    private int calculateMatchReward(PlayerProgressionEntity progression, MatchHistoryEntity history) {
+        boolean online = "ONLINE".equalsIgnoreCase(history.getMatchType());
+        boolean win = "WIN".equalsIgnoreCase(history.getResult());
+        if (!win) {
+            if (online) {
+                progression.setOnlineWinStreak(0);
+            } else {
+                progression.setSoloWinStreak(0);
+            }
+            return 0;
+        }
+        if (online) {
+            int streak = progression.getOnlineWinStreak() + 1;
+            progression.setOnlineWinStreak(streak);
+            return ONLINE_WIN_GOLD + (WIN_STREAK_GOLD * streak);
+        }
+        int streak = progression.getSoloWinStreak() + 1;
+        progression.setSoloWinStreak(streak);
+        return SOLO_WIN_GOLD + (WIN_STREAK_GOLD * streak);
     }
 
     public void validateCustomDeckOwnership(AccountUser user, List<String> customDeckCards) {
@@ -143,7 +187,10 @@ public class PlayerProgressionService {
         out.put("starterPackId", progression.getStarterPackId());
         out.put("starterChosen", progression.getStarterPackId() != null && !progression.getStarterPackId().isBlank());
         out.put("purchasedDeckIds", progression.getPurchasedDeckIds());
+        out.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
         out.put("packHistory", progression.getPackHistory().stream().limit(12).toList());
+        out.put("soloWinStreak", progression.getSoloWinStreak());
+        out.put("onlineWinStreak", progression.getOnlineWinStreak());
         return out;
     }
 

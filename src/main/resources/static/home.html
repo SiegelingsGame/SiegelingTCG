@@ -3,29 +3,38 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Sieglings TCG Home</title>
-    <link rel="stylesheet" href="/css/home.css?v=1">
+    <title>Siegelings TCG Home</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+    <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0a1530">
+    <link rel="stylesheet" href="/css/home.css?v=24">
 </head>
 <body>
 <div class="home-shell">
     <nav class="home-nav">
         <a class="brand" href="/home" data-route="home">
-            <span class="brand-mark">ST</span>
-            <span><strong>Sieglings TCG</strong><small>Card Binder Home</small></span>
+            <img class="brand-mark" src="/img/siegelings-icon.png" alt="" aria-hidden="true">
+            <span><strong>Siegelings TCG</strong><small>Card Binder Home</small></span>
         </a>
         <div class="nav-tabs" aria-label="Primary navigation">
             <a href="/home" data-route="home">Home</a>
             <a href="/play" data-route="play">Play</a>
             <a href="/cards" data-route="cards">Cards</a>
             <a href="/decks" data-route="decks">Decks</a>
-            <a href="/lobbies" data-route="lobbies">Lobbies</a>
+            <a href="/social" data-route="social">Social</a>
             <a href="/profile" data-route="profile">Profile</a>
             <a href="/shop" data-route="shop">Shop</a>
         </div>
         <div class="nav-actions">
+            <button class="ghost-btn hud-tool hidden" id="filterTrayBtn" type="button">Filters</button>
+            <button class="ghost-btn hud-tool hidden" id="cardTrayBtn" type="button">Card View</button>
             <button class="ghost-btn" id="joinByCodeBtn" type="button">Join by Code</button>
             <button class="primary-btn" id="playNowBtn" type="button">Play</button>
-            <span class="gold-pill" id="goldPill">0 gold</span>
+            <span class="gold-pill" id="goldPill"><span class="coin-value"><img class="coin-icon" src="/img/ui/siegel-coin.png" alt="" aria-hidden="true"><span>100</span><small>Coins</small></span></span>
+            <button class="ghost-btn" id="authHudBtn" type="button">Sign In</button>
         </div>
     </nav>
 
@@ -40,7 +49,7 @@
         </section>
 
         <section class="hub-grid" id="hubGrid">
-            <aside class="filter-panel panel">
+            <aside class="filter-panel panel hud-tray filter-tray is-closed" id="filterTray" aria-hidden="true">
                 <div class="profile-mini" id="profileMini"></div>
                 <div class="section-head">
                     <h2>Owned Filters</h2>
@@ -50,11 +59,14 @@
                 <div class="chip-wrap" id="elementFilters"></div>
                 <div class="chip-wrap" id="typeFilters"></div>
                 <div class="chip-wrap" id="rarityFilters"></div>
+                <div class="filter-label">Energy Cost</div>
+                <div class="chip-wrap" id="energyCostFilters"></div>
                 <select class="search-input" id="cardSortSelect">
                     <option value="owned-desc">Sort: Owned first</option>
                     <option value="name-asc">Sort: Name</option>
                     <option value="speed-desc">Sort: Speed high</option>
                     <option value="health-desc">Sort: Health high</option>
+                    <option value="cost-asc">Sort: Cost low</option>
                     <option value="rarity-desc">Sort: Rarity high</option>
                 </select>
                 <div class="unlock-card" id="customUnlockCard"></div>
@@ -64,20 +76,10 @@
                 <div class="section-head">
                     <div>
                         <span class="eyebrow">Home</span>
-                        <h1>Start matches, build your binder, unlock custom decks</h1>
-                    </div>
-                    <div class="mode-tabs">
-                        <button class="active" type="button" data-home-focus="cards">Owned Cards</button>
-                        <button type="button" data-home-focus="matches">Start Match</button>
-                        <button type="button" data-home-focus="builder">Deck Builder</button>
+                        <h1>Your siege command hub</h1>
                     </div>
                 </div>
-                <div class="quick-actions">
-                    <button class="action-tile" id="startPveBtn" type="button"><strong>PVE Battle</strong><span>Use premade decks to earn gold</span></button>
-                    <button class="action-tile" id="createLobbyBtn" type="button"><strong>Create 1v1 Lobby</strong><span>Host a PVP room with your selected deck</span></button>
-                    <button class="action-tile" id="shopShortcutBtn" type="button"><strong>Open Packs</strong><span>Spend gold on element packs</span></button>
-                </div>
-                <div class="card-grid" id="cardGrid"></div>
+                <div class="home-dashboard" id="homeDashboard"></div>
             </section>
 
             <section class="browser-panel panel hidden" id="cardsSection">
@@ -90,12 +92,30 @@
                 <div class="deck-builder-lock" id="deckBuilderLock"></div>
                 <div class="deck-grid" id="deckGrid"></div>
                 <div class="builder-panel" id="builderPanel"></div>
+                <div class="builder-browser">
+                    <div class="section-head"><div><span class="eyebrow">Deck Binder</span><h2>Saved custom decks</h2></div><span id="deckCardCount"></span></div>
+                    <div class="deck-grid custom-deck-grid" id="customDeckGrid"></div>
+                </div>
             </section>
 
-            <section class="browser-panel panel hidden" id="lobbiesSection">
-                <div class="section-head"><div><span class="eyebrow">Lobbies</span><h1>Open 1v1 rooms</h1></div><button class="primary-btn" id="refreshRoomsBtn" type="button">Refresh</button></div>
-                <div class="join-row"><input class="search-input" id="roomCodeInput" placeholder="Room code"><button class="primary-btn" id="joinRoomBtn" type="button">Join</button></div>
-                <div class="room-list" id="roomList"></div>
+            <section class="browser-panel panel hidden" id="socialSection">
+                <div class="section-head"><div><span class="eyebrow">Social</span><h1>Open lobbies and friends</h1></div><button class="primary-btn" id="refreshRoomsBtn" type="button">Refresh Lobbies</button></div>
+                <div class="social-grid">
+                    <section class="social-panel">
+                        <div class="section-head social-panel-head"><div><span class="eyebrow">Open Lobbies</span><h2>Join a 1v1 room</h2></div></div>
+                        <div class="join-row"><input class="search-input" id="roomCodeInput" placeholder="Room code"><button class="primary-btn" id="joinRoomBtn" type="button">Join</button></div>
+                        <div class="room-list" id="roomList"></div>
+                    </section>
+                    <section class="social-panel">
+                        <div class="section-head social-panel-head"><div><span class="eyebrow">Friends</span><h2>Add players by email</h2></div><span id="friendCountLabel">0 friends</span></div>
+                        <form class="friend-add-row" id="friendAddForm">
+                            <input class="search-input" id="friendEmailInput" type="email" placeholder="friend@email.com">
+                            <button class="primary-btn" type="submit">Add Friend</button>
+                        </form>
+                        <div class="friend-message" id="friendMessage"></div>
+                        <div class="friend-list" id="friendList"></div>
+                    </section>
+                </div>
             </section>
 
             <section class="browser-panel panel hidden" id="profileSection">
@@ -109,11 +129,22 @@
                 <div class="pack-result hidden" id="packResult"></div>
             </section>
 
-            <aside class="detail-panel panel" id="detailPanel"></aside>
+            <aside class="detail-panel panel hud-tray detail-tray is-closed" id="detailPanel" aria-hidden="true"></aside>
         </section>
     </main>
+
+    <div class="tray-backdrop hidden" id="trayBackdrop"></div>
+    <div class="auth-modal hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+        <div class="auth-modal-panel panel">
+            <div class="section-head">
+                <div><span class="eyebrow">Account</span><h2 id="authModalTitle">Sign in to save progression</h2></div>
+                <button class="ghost-btn" id="closeAuthBtn" type="button">Close</button>
+            </div>
+            <div id="authPanelBody"></div>
+        </div>
+    </div>
 </div>
 
-<script src="/js/home.js?v=1"></script>
+<script src="/js/home.js?v=27"></script>
 </body>
 </html>

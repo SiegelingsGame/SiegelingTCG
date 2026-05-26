@@ -1,6 +1,8 @@
 package com.sieglings.persistence.entity;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A registered account. Stored in Firestore at {@code accountUsers/{id}} where {@code id} is the
@@ -13,6 +15,7 @@ public class AccountUser {
     private String email;
     private String passwordHash;
     private String displayName;
+    private List<String> friendEmails = new ArrayList<>();
     private Instant createdAt = Instant.now();
 
     public String getId() {
@@ -45,6 +48,14 @@ public class AccountUser {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public List<String> getFriendEmails() {
+        return friendEmails;
+    }
+
+    public void setFriendEmails(List<String> friendEmails) {
+        this.friendEmails = friendEmails == null ? new ArrayList<>() : new ArrayList<>(friendEmails);
     }
 
     public Instant getCreatedAt() {

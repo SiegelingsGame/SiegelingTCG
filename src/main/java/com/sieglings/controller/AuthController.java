@@ -143,6 +143,30 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/api/profile/friends")
+    public Map<String, Object> addFriend(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                         @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            AccountUser updated = accountService.addFriend(user, (String) req.get("email"));
+            return buildProfileResponse(updated, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/profile/friends/delete")
+    public Map<String, Object> deleteFriend(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                            @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            AccountUser updated = accountService.removeFriend(user, (String) req.get("email"));
+            return buildProfileResponse(updated, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     private Map<String, Object> buildProfileResponse(AccountUser user, String token) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("authenticated", true);
@@ -154,9 +178,33 @@ public class AuthController {
                 "email", user.getEmail(),
                 "displayName", user.getDisplayName()
         ));
+        response.put("friends", loadFriends(user));
         response.put("savedDecks", loadSavedDecks(user));
         response.put("matchHistory", loadMatchHistory(user));
+        if (playerProgressionService != null) {
+            try {
+                response.put("progression", playerProgressionService.serialize(playerProgressionService.getOrCreate(user)));
+            } catch (RuntimeException ex) {
+                log.warn("Unable to load progression for authenticated user {}", user.getId(), ex);
+            }
+        }
         return response;
+    }
+
+    private List<Map<String, Object>> loadFriends(AccountUser user) {
+        return (user.getFriendEmails() == null ? List.<String>of() : user.getFriendEmails()).stream()
+                .map(email -> {
+                    Map<String, Object> friend = new LinkedHashMap<>();
+                    friend.put("email", email);
+                    try {
+                        AccountUser friendUser = accountService.findByEmail(email);
+                        friend.put("displayName", friendUser == null ? email : friendUser.getDisplayName());
+                    } catch (RuntimeException ex) {
+                        friend.put("displayName", email);
+                    }
+                    return friend;
+                })
+                .toList();
     }
 
     private List<Map<String, Object>> loadSavedDecks(AccountUser user) {

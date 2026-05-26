@@ -1,0 +1,572 @@
+﻿[
+    {
+        "id":  "firsky",
+        "name":  "Firsky",
+        "description":  "A small flame spirit that actively hunts smaller creatures."
+    },
+    {
+        "id":  "pylook",
+        "name":  "Pylook",
+        "description":  "Some say the spirits of lost SiegeKnights burning with rage become pylooks"
+    },
+    {
+        "id":  "sundile",
+        "name":  "Sundile",
+        "description":  "These scaled lizards are known to have an affinity for lava pools and tracking time"
+    },
+    {
+        "id":  "draco",
+        "name":  "Draco",
+        "description":  "Their coiled tails lash out at anything that dares to cross their path. Always found in groups"
+    },
+    {
+        "id":  "emberfox",
+        "name":  "Emberfox",
+        "description":  "The gentle emberfox, found in many homes as a pet. Perfect for winter snuggles"
+    },
+    {
+        "id":  "emberpup",
+        "name":  "Emberpup",
+        "description":  "A fiery puppy that leaves scorch marks wherever it walks. Attacks on sight!"
+    },
+    {
+        "id":  "raydile",
+        "name":  "Raydile",
+        "description":  "A salamander with a molten core. These lone siegelings seek the heat of the sun."
+    },
+    {
+        "id":  "emberfin",
+        "name":  "Emberfin",
+        "description":  "A predator that hides in smoke clouds, striking with superheated fangs before vanishing again."
+    },
+    {
+        "id":  "dracoil",
+        "name":  "Dracoil",
+        "description":  "Dracoil\u0027s leave the safety of the pack to travel alone, but they are known to return when the pack is in danger"
+    },
+    {
+        "id":  "cindergil",
+        "name":  "Cindergil",
+        "description":  "A majestic stag with antlers of living flame. It heals allies as it runs, but catching it requires persistence."
+    },
+    {
+        "id":  "hotdog",
+        "name":  "Hotdog",
+        "description":  "Its gullet is a literal furnace. Once it locks its jaws, the heat alone does half the work."
+    },
+    {
+        "id":  "pyleer",
+        "name":  "Pyleer",
+        "description":  "The pylook\u0027s evolved form, formed on many pylook\u0027s fused into a single ghastly creature"
+    },
+    {
+        "id":  "solgator",
+        "name":  "Solgator",
+        "description":  "The Solgator guards the lava pools of the Fire lands, they attack anything that dares to cross their path"
+    },
+    {
+        "id":  "pylord",
+        "name":  "Pylord",
+        "description":  "This ancient Siegeling is said to be the soul of a powerful SiegLord who jumped into the Volcano to become Fire itself"
+    },
+    {
+        "id":  "fawny",
+        "name":  "Fawny",
+        "description":  "Bundled up from within the snow, these small deerlike creatures are known to be shy"
+    },
+    {
+        "id":  "frostfly",
+        "name":  "Frostfly",
+        "description":  "Frostflies are found fluttering along snowflakes, they rest on pine trees and have a fondness for winter berries"
+    },
+    {
+        "id":  "icewee",
+        "name":  "Ice-Wee",
+        "description":  "The Ice-Weee is a odd creature, its Ice-Cube shaped body can grow to intimidate other creatures"
+    },
+    {
+        "id":  "falcool",
+        "name":  "Falcool",
+        "description":  "Ceeponee float through the winter winds and are known to be a bit shy"
+    },
+    {
+        "id":  "cozycub",
+        "name":  "Cozycub",
+        "description":  "Large and imposing these cuddly creatures only want to find their companion and stay warm."
+    },
+    {
+        "id":  "chilldoe",
+        "name":  "Chilldoe",
+        "description":  "Trading the puffy for a Hooded Jacker, the Chilldoe has honed its fist into fearsome weapons"
+    },
+    {
+        "id":  "icecuewee",
+        "name":  "Ice-Cue-Wee",
+        "description":  "A gentle fawn made of crystallized snow. It heals nearby allies w.ith its aura but flees from conflict."
+    },
+    {
+        "id":  "falcoat",
+        "name":  "Falcoat",
+        "description":  "A well dressed predator that blends into ice fields. By the time you see it, its talons are already at your throat."
+    },
+    {
+        "id":  "peatbeak",
+        "name":  "Peatbeak",
+        "description":  "An ancient ice fowl. Nearly impervious to physical blows. Peaceful unless provoked."
+    },
+    {
+        "id":  "lumina",
+        "name":  "Lumina",
+        "description":  "A floating ice crystal that conjures devastating hailstorms. It aggressively pursues anything generating heat."
+    },
+    {
+        "id":  "frostag",
+        "name":  "Frostag",
+        "description":  "A spectral blade given sentient form. It glides through blizzards, striking with lethal cold precision."
+    },
+    {
+        "id":  "glaciemperor",
+        "name":  "Glaciemperor",
+        "description":  "An ancient ice wyrm that commands blizzards with a thought. Entire regions freeze in its wake. The undisputed ruler of the frozen wastes."
+    },
+    {
+        "id":  "breezee",
+        "name":  "Breezee",
+        "description":  "Tiny birds that gather in murmuration flocks. Their synchronized wingbeats create cutting air blades."
+    },
+    {
+        "id":  "pursula",
+        "name":  "Pursula",
+        "description":  "A hyperactive wind hound that barrels into anything it sees. Fast, reckless, and surprisingly tough."
+    },
+    {
+        "id":  "cloudpuff",
+        "name":  "Cloudpuff",
+        "description":  "A cottontail made of solidified cloud. Surprisingly resilient but bolts at any sudden movement."
+    },
+    {
+        "id":  "gagglestand",
+        "name":  "Gagglestand",
+        "description":  "A flowering plant creature that disperses healing pollen on the wind. Peaceful and slow to anger."
+    },
+    {
+        "id":  "purseus",
+        "name":  "Purseus",
+        "description":  "A swirling vortex with glowing eyes. It hurls cutting wind blades at anything it spots."
+    },
+    {
+        "id":  "cloudwisp",
+        "name":  "Cloudwisp",
+        "description":  "A raptor with wind-hardened talons that patrols mountain ridges. Its diving attacks hit like a battering ram."
+    },
+    {
+        "id":  "hurricrane",
+        "name":  "Hurricrane",
+        "description":  "A manta ray that swims through the sky, trailing stormclouds. Its wing sweeps conjure devastating gales."
+    },
+    {
+        "id":  "cloudsprite",
+        "name":  "Cloudsprite",
+        "description":  "A manta ray that swims through the sky, trailing stormclouds. Its wing sweeps conjure devastating gales."
+    },
+    {
+        "id":  "shellshock",
+        "name":  "Shellshock",
+        "description":  "A scorching desert wind given physical form. It hunts relentlessly, searing targets with superheated air currents."
+    },
+    {
+        "id":  "pursephone",
+        "name":  "Pursephone",
+        "description":  "A towering fog golem that drifts through highland passes. It protects lost travelers and only retaliates when harmed."
+    },
+    {
+        "id":  "skydon",
+        "name":  "Skydon",
+        "description":  "Weaves healing currents from the wind itself. Extremely hard to catch."
+    },
+    {
+        "id":  "strikehawk",
+        "name":  "Strikehawk",
+        "description":  "A massive gryphon wreathed in perpetual hurricane winds. It hunts from the eye of its own personal storm."
+    },
+    {
+        "id":  "aerovane",
+        "name":  "Aerovane",
+        "description":  "The sovereign of all skies. Aerovane moves faster than sight and strikes harder than a thunderbolt. Legends say it can split mountains with a wingbeat."
+    },
+    {
+        "id":  "cacty",
+        "name":  "Cacty",
+        "description":  "A blobby little creature made of mysterious goo. Travels in packs."
+    },
+    {
+        "id":  "applehead",
+        "name":  "Applehead",
+        "description":  "A tiny rock creature that rolls around aimlessly. Only fights back when provoked.."
+    },
+    {
+        "id":  "sleaf",
+        "name":  "Sleaf",
+        "description":  "A hulking beast covered in razor-sharp thorns. Charges at intruders."
+    },
+    {
+        "id":  "squirebud",
+        "name":  "Squire Bud",
+        "description":  "A squirrel-like creature armored in bark. Incredibly fast and flighty, it vanishes into the underbrush in a blink."
+    },
+    {
+        "id":  "pylme",
+        "name":  "Pylme",
+        "description":  "Tiny mud elementals that hurl clods of enchanted earth. Their aim improves dramatically when they group up."
+    },
+    {
+        "id":  "jackedty",
+        "name":  "Jacked\u0027ty",
+        "description":  "An ancient stone golem draped in living moss. A true gentle giant."
+    },
+    {
+        "id":  "floraknight",
+        "name":  "Flora Knight",
+        "description":  "A serpentine creature woven from fern fronds and ancient vines.It channels nature magic to entangle prey."
+    },
+    {
+        "id":  "bonoblade",
+        "name":  "Bonoblade",
+        "description":  "A burrowing predator that erupts from the ground to ambush unsuspecting prey with snapping jaws."
+    },
+    {
+        "id":  "generoot",
+        "name":  "Generoot",
+        "description":  "A hulking beast covered in razor-sharp thorns. Charges at intruders.."
+    },
+    {
+        "id":  "guerilla",
+        "name":  "Guerilla",
+        "description":  "A regal stag with antlers of living crystal that resonate with healing frequencies. Fiercely shy and nearly impossible to corner."
+    },
+    {
+        "id":  "sleafwyrm",
+        "name":  "Sleafwyrm",
+        "description":  "A living garden on legs. Flowers and herbs grow across its shell, providing potent healing to all nearby allies."
+    },
+    {
+        "id":  "cactyjackedty",
+        "name":  "CactyJackedty",
+        "description":  "A massive burrowing beast whose footsteps cause tremors. When it surfaces, the ground splits open around it."
+    },
+    {
+        "id":  "dracosleaf",
+        "name":  "Dracosleaf",
+        "description":  "Forged in the planet\u0027s core. An immovable gentle giant."
+    },
+    {
+        "id":  "gymstone",
+        "name":  "Gymstone",
+        "description":  "Forged in the planet\u0027s core. An immovable gentle giant."
+    },
+    {
+        "id":  "echo",
+        "name":  "Echo",
+        "description":  "Shadowy vermin that swarm in dark corners. Individually pathetic, but a pack of them can overwhelm the unprepared."
+    },
+    {
+        "id":  "voib",
+        "name":  "Voib",
+        "description":  "A pinprick of void given form. It drifts through caves pulling dust into a lazy orbit."
+    },
+    {
+        "id":  "nightcap",
+        "name":  "Nightcap",
+        "description":  "A shadow cat that hunts by starlight. Its eyes are the last thing targets see before the dark folds in."
+    },
+    {
+        "id":  "echowing",
+        "name":  "Echowing",
+        "description":  "A bat-like hunter that drops from cave ceilings with razor talons extended. Silent until the moment of impact."
+    },
+    {
+        "id":  "voiboy",
+        "name":  "Voiboy",
+        "description":  "The void swells-a restless orb that warps light and leaves afterimages where it passes."
+    },
+    {
+        "id":  "echolustrious",
+        "name":  "Echolustrious",
+        "description":  "Slips between shadows. You only see it when it wants you to."
+    },
+    {
+        "id":  "voimaw",
+        "name":  "VoiMaw",
+        "description":  "A living black hole in miniature. Event horizons twitch at its maw; not even sound escapes unscathed."
+    },
+    {
+        "id":  "umbralwyrm",
+        "name":  "Umbralwyrm",
+        "description":  "A serpentine wyrm made of living darkness. It devours light itself, casting devastating shadow magic from the void."
+    },
+    {
+        "id":  "Creep",
+        "name":  "Creep",
+        "description":  "An ancient horror from the space between worlds. Extremely rare and dangerous."
+    },
+    {
+        "id":  "monkwatt",
+        "name":  "Monkwatt",
+        "description":  "A tiny orb of crackling electricity. It panics when approached, discharging sparks in every direction as it flees."
+    },
+    {
+        "id":  "newt",
+        "name":  "Newt",
+        "description":  "Electrified ants that march in formation. Their synchronized shocks can stun creatures many times their size."
+    },
+    {
+        "id":  "staticap",
+        "name":  "Staticap",
+        "description":  "A woodpecker whose beak delivers electric shocks. It aggressively pecks at anything shiny or metallic."
+    },
+    {
+        "id":  "blinky",
+        "name":  "Blinky",
+        "description":  "A tortoise whose shell crackles with stored static. It shocks anything that touches it, but never initiates conflict."
+    },
+    {
+        "id":  "simicircuit",
+        "name":  "Simicircuit",
+        "description":  "Tiny bolts arc between its tendrils, energizing allies nearby."
+    },
+    {
+        "id":  "joltram",
+        "name":  "Joltram",
+        "description":  "A burrowing creature that erupts from the ground in a shower of electric sparks. It headbutts targets with a charged skull."
+    },
+    {
+        "id":  "kilokong",
+        "name":  "Kilokong",
+        "description":  "A serpent of pure plasma that moves like living lightning. Its strikes paralyze, and it never stops hunting once it has a target."
+    },
+    {
+        "id":  "newton",
+        "name":  "New Ton",
+        "description":  "A rhinoceros-like beast with a horn that acts as a lightning rod. Its charges are accompanied by deafening thunderclaps."
+    },
+    {
+        "id":  "bleetstrike",
+        "name":  "Bleetstrike",
+        "description":  "A floating jellyfish-like creature that drifts through mountain peaks, weaving devastating chain-lightning between its tendrils."
+    },
+    {
+        "id":  "stormclaw",
+        "name":  "Stormclaw",
+        "description":  "Lightning crackles between its claws. Hunts anything that moves."
+    },
+    {
+        "id":  "thunderlord",
+        "name":  "Thunderlord",
+        "description":  "The living embodiment of the storm. Thunderlord calls down apocalyptic lightning from perpetual thunderheads. Where it walks, the sky itself obeys."
+    },
+    {
+        "id":  "spoutyl",
+        "name":  "Spoutyl",
+        "description":  "A tiny water spirit that heals allies with soothing droplets. Commonly found near pools and streams."
+    },
+    {
+        "id":  "shellpack",
+        "name":  "Shellpack",
+        "description":  "A sleek creature that darts across water surfaces. Vanishes beneath the surface when startled."
+    },
+    {
+        "id":  "jawby",
+        "name":  "Jawby",
+        "description":  "A creature draped in kelp-like fronds. Its thick hide absorbs blows while it waits in tide pools."
+    },
+    {
+        "id":  "ceeponee",
+        "name":  "Ceeponee",
+        "description":  "Ceeponee float through the winter winds and are known to be a bit shy"
+    },
+    {
+        "id":  "droxyl",
+        "name":  "Droxyl",
+        "description":  "A fox adapted to river life. Strikes with razor-sharp water blades from the shadows of rapids."
+    },
+    {
+        "id":  "clawkid",
+        "name":  "Clawkid",
+        "description":  "A turtle-like creature with a coral shell. Its hardened armor deflects most attacks."
+    },
+    {
+        "id":  "torqlander",
+        "name":  "Torqlander",
+        "description":  "Emerges from morning mist to strike with condensed water bolts. Fades back into fog when threatened."
+    },
+    {
+        "id":  "ceehorcee",
+        "name":  "Ceehorcee",
+        "description":  "A translucent predator that blends into ice fields. By the time you see it, its fangs are already at your throat."
+    },
+    {
+        "id":  "hydroxyl",
+        "name":  "Hydroxyl",
+        "description":  "A serpent that flows like water. Constricts and drowns prey in whirlpools of its own making."
+    },
+    {
+        "id":  "shellnaut",
+        "name":  "Shellnaut",
+        "description":  "A massive crab-like guardian. Rises with the tide to shield allies behind walls of water."
+    },
+    {
+        "id":  "jawbite",
+        "name":  "Jawbite",
+        "description":  "Summons healing rains and cleansing waves. Allies fight longer when a Brinecaller watches over them."
+    },
+    {
+        "id":  "clawqueen",
+        "name":  "Claw Queen",
+        "description":  "Commands storm surges and lightning-struck seas. Its tidal blasts devastate entire shorelines."
+    },
+    {
+        "id":  "ceesteed",
+        "name":  "Ceesteed",
+        "description":  "A massive yeti-like creature of compacted snow. It ignores most threats, but when provoked, nothing stops it."
+    },
+    {
+        "id":  "conchious",
+        "name":  "Conchious",
+        "description":  "The sovereign of the darkest depths. Abyssalking controls pressure, cold, and crushing darkness. Few who dive deep ever return."
+    },
+    {
+        "id":  "light_siegling_standin",
+        "name":  "Light Siegeling",
+        "description":  "A radiant placeholder Siegeling. Full Light roster coming soon."
+    },
+    {
+        "id":  "light_daybreak",
+        "name":  "Light Siegeling (Daybreak)",
+        "description":  "Brighter placeholder form on the Light evolve path."
+    },
+    {
+        "id":  "light_solbanner",
+        "name":  "Light Siegeling (Solbanner)",
+        "description":  "Rare capstone of the Light stand-in line."
+    },
+    {
+        "id":  "lightbear",
+        "name":  "Lightbear",
+        "description":  "A warm-hearted bear woven from dawn light. It shields allies with a soft, steady glow."
+    },
+    {
+        "id":  "mentaroo",
+        "name":  "Mentaroo",
+        "description":  "A mind-touched placeholder Siegeling. Full Psychic roster coming soon."
+    },
+    {
+        "id":  "luvy",
+        "name":  "Luvy",
+        "description":  "A mind-touched placeholder Siegeling. Full Psychic roster coming soon."
+    },
+    {
+        "id":  "papap",
+        "name":  "Papap",
+        "description":  "A mind-touched placeholder Siegeling. Full Psychic roster coming soon."
+    },
+    {
+        "id":  "ragguette",
+        "name":  "Ragguette",
+        "description":  "A mind-touched placeholder Siegeling. Full Psychic roster coming soon."
+    },
+    {
+        "id":  "luvysore",
+        "name":  "Luvysore",
+        "description":  "A mind-touched placeholder Siegeling. Full Psychic roster coming soon."
+    },
+    {
+        "id":  "mentarak",
+        "name":  "Mentarak",
+        "description":  "A mind-touched placeholder Siegeling. Full Psychic roster coming soon."
+    },
+    {
+        "id":  "luvyduvysore",
+        "name":  "Luvy Duvysore",
+        "description":  "A powerful placeholder Siegeling. Full Psychic roster coming soon."
+    },
+    {
+        "id":  "psychic_siegling_l1",
+        "name":  "Psychic Siegeling L1",
+        "description":  "A sovereign placeholder Siegeling. Full Psychic roster coming soon."
+    },
+    {
+        "id":  "bearby",
+        "name":  "Bearby",
+        "description":  "A metallic placeholder Siegeling. Full Metal roster coming soon."
+    },
+    {
+        "id":  "drillbo",
+        "name":  "Drillbo",
+        "description":  "A metallic placeholder Siegeling. Full Metal roster coming soon."
+    },
+    {
+        "id":  "bearnade",
+        "name":  "Bearnade",
+        "description":  "A metallic placeholder Siegeling. Full Metal roster coming soon."
+    },
+    {
+        "id":  "bearzooka",
+        "name":  "Bearzooka",
+        "description":  "A reinforced placeholder Siegeling. Full Metal roster coming soon."
+    },
+    {
+        "id":  "metal_siegling_e1",
+        "name":  "Metal Siegeling E1",
+        "description":  "A hardened placeholder Siegeling. Full Metal roster coming soon."
+    },
+    {
+        "id":  "metal_siegling_l1",
+        "name":  "Metal Siegeling L1",
+        "description":  "An indomitable placeholder Siegeling. Full Metal roster coming soon."
+    },
+    {
+        "id":  "toxleaf",
+        "name":  "Toxleaf",
+        "description":  "A toxic placeholder Siegeling. Full Poison roster coming soon."
+    },
+    {
+        "id":  "slandy",
+        "name":  "Slandy",
+        "description":  "A poison-drenched sandcastle that shambles on battlements of glass and grit. Touch the walls and the venom seeps in."
+    },
+    {
+        "id":  "poison_venomidge",
+        "name":  "Poison Siegeling (Venomidge)",
+        "description":  "Uncommon step on the Poison stand-in evolve path."
+    },
+    {
+        "id":  "poison_venomapex",
+        "name":  "Poison Siegeling (Venomapex)",
+        "description":  "Rare capstone of the Poison stand-in line."
+    },
+    {
+        "id":  "spookyweed",
+        "name":  "Spooky Weed",
+        "description":  "An undead placeholder Siegeling. Full Undead roster coming soon."
+    },
+    {
+        "id":  "embertwins",
+        "name":  "Embertwins",
+        "description":  "Twin embers of unquiet spirits, bound back-to-back. They finish each other\u0027s curses in crackling whispers."
+    },
+    {
+        "id":  "livingwood",
+        "name":  "Living Wood",
+        "description":  "Uncommon step on the Undead stand-in evolve path."
+    },
+    {
+        "id":  "golor",
+        "name":  "Golor",
+        "description":  "Rare capstone of the Undead stand-in line."
+    },
+    {
+        "id":  "sheenx",
+        "name":  "Sheenx",
+        "description":  "Rare capstone of the Undead stand-in line."
+    }
+]
