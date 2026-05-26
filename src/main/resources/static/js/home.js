@@ -211,6 +211,13 @@
         document.getElementById('trayBackdrop')?.addEventListener('click', closeTrays);
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
+        document.getElementById('closeDeckPreviewBtn')?.addEventListener('click', closeDeckPreview);
+        document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
+            if (event.target === event.currentTarget) closeDeckPreview();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeDeckPreview();
+        });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
             btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'decks' : 'home'));
         });
@@ -760,8 +767,17 @@
         const grid = document.getElementById('deckGrid');
         if (!grid) return;
         grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
-        grid.querySelectorAll('[data-play-deck]').forEach(btn => btn.addEventListener('click', () => goPlay({ mode: 'solo', deckId: btn.dataset.playDeck })));
-        grid.querySelectorAll('[data-buy-deck]').forEach(btn => btn.addEventListener('click', () => purchaseDeck(btn.dataset.buyDeck)));
+        grid.querySelectorAll('[data-play-deck]').forEach(btn => btn.addEventListener('click', (event) => { event.stopPropagation(); goPlay({ mode: 'solo', deckId: btn.dataset.playDeck }); }));
+        grid.querySelectorAll('[data-buy-deck]').forEach(btn => btn.addEventListener('click', (event) => { event.stopPropagation(); purchaseDeck(btn.dataset.buyDeck); }));
+        grid.querySelectorAll('[data-preview-deck]').forEach(tile => {
+            tile.addEventListener('click', () => openDeckPreview(tile.dataset.previewDeck));
+            tile.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openDeckPreview(tile.dataset.previewDeck);
+                }
+            });
+        });
         renderBuilder();
         renderSavedDecks();
     }
@@ -774,12 +790,13 @@
         const elementLabels = deck.elements.map(format).join(' / ');
         const visual = deckAssetForElements(deck.elements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card${visual ? ' has-deck-art' : ''}" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
+        return `<article class="deck-tile hub-deck-card deck-tile--clickable${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
             <span class="deck-card-state">${owned ? 'Purchased' : 'Premade'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name)}</strong>
                 <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
                 <span class="deck-card-desc">${escapeHtml(deck.description || 'Ready-to-play battle deck.')}</span>
+                <span class="deck-card-hint">Tap to preview cards</span>
             </div>
             <div class="deck-card-actions">
                 <button class="primary-btn" type="button" data-play-deck="${escapeAttr(deck.id)}">Play</button>
@@ -825,6 +842,55 @@
                 <button class="primary-btn" type="button" data-play-custom-deck="${escapeAttr(deck.id)}">Play</button>
             </div>
         </article>`;
+    }
+
+    function openDeckPreview(deckId) {
+        const deck = (state.options?.decks || []).find(item => item.id === deckId);
+        if (!deck) return;
+        const cardCounts = (deck.cards || []).filter(entry => entry && entry.id);
+        showDeckPreview({
+            eyebrow: 'Premade Deck',
+            name: deck.name || 'Deck',
+            sub: `${(deck.elements || []).map(format).join(' / ')} / ${deckTotalCards(cardCounts)} cards`,
+            cardCounts
+        });
+    }
+
+    function deckTotalCards(cardCounts) {
+        return (cardCounts || []).reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
+    }
+
+    function showDeckPreview({ eyebrow, name, sub, cardCounts }) {
+        const modal = document.getElementById('deckPreviewModal');
+        const grid = document.getElementById('deckPreviewGrid');
+        if (!modal || !grid) return;
+        const titleEl = document.getElementById('deckPreviewTitle');
+        const eyebrowEl = document.getElementById('deckPreviewEyebrow');
+        const subEl = document.getElementById('deckPreviewSub');
+        if (eyebrowEl) eyebrowEl.textContent = eyebrow || 'Deck';
+        if (titleEl) titleEl.textContent = name || 'Deck';
+        if (subEl) subEl.textContent = sub || '';
+        const tiles = (cardCounts || []).map(entry => {
+            const card = findCard(entry.id);
+            if (!card) return '';
+            const count = Number(entry.count) || 1;
+            return renderCardTile(card).replace(
+                '<div class="binder-card-shell">',
+                `${count > 1 ? `<span class="deck-preview-count">x${count}</span>` : ''}<div class="binder-card-shell">`
+            );
+        }).filter(Boolean).join('');
+        grid.innerHTML = tiles || '<div class="unlock-card"><strong>No cards to preview</strong><span>This deck has no resolvable cards in the current catalog.</span></div>';
+        grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
+            state.selectedCardId = tile.dataset.cardId;
+            closeDeckPreview();
+            openCardTray();
+            renderDetail();
+        }));
+        modal.classList.remove('hidden');
+    }
+
+    function closeDeckPreview() {
+        document.getElementById('deckPreviewModal')?.classList.add('hidden');
     }
 
     function renderBuilder() {
@@ -1165,6 +1231,7 @@
                 </div>
             </div>`;
             document.getElementById('profileSignInBtn')?.addEventListener('click', openAuth);
+            renderEditProfileModalHost(null);
             return;
         }
         const view = profileViewModel();
@@ -1183,9 +1250,15 @@
                 </div>
             </div>
             ${renderAchievementBadges(view)}
-            ${state.profileEditOpen ? renderEditProfileModal(view) : ''}
         </div>`;
+        renderEditProfileModalHost(view);
         bindProfileDashboard();
+    }
+
+    function renderEditProfileModalHost(view) {
+        const host = document.getElementById('editProfileModalHost');
+        if (!host) return;
+        host.innerHTML = state.profileEditOpen && view ? renderEditProfileModal(view) : '';
     }
 
     function profileViewModel() {
