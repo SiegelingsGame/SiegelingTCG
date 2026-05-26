@@ -115,6 +115,12 @@
         rarityFilter: 'ALL',
         energyCostFilter: 'ALL',
         sort: 'owned-desc',
+        roomSearch: '',
+        roomFormatFilter: 'ALL',
+        roomElementFilter: 'ALL',
+        roomSort: 'newest',
+        roomHideFull: false,
+        friendSearch: '',
         builderCounts: {},
         friendMessage: '',
         friendMessageType: '',
@@ -139,6 +145,7 @@
         renderProfile();
         await loadAll();
         render();
+        syncAuthRouteIntent();
     }
 
     function bindEvents() {
@@ -157,6 +164,32 @@
         document.getElementById('joinByCodeBtn')?.addEventListener('click', () => navigateHub('social'));
         document.getElementById('joinRoomBtn')?.addEventListener('click', joinRoomFromHome);
         document.getElementById('refreshRoomsBtn')?.addEventListener('click', () => refreshRooms(true));
+        document.getElementById('socialCreateLobbyBtn')?.addEventListener('click', createLobbyFromHome);
+        document.getElementById('quickJoinBtn')?.addEventListener('click', quickJoinFirstRoom);
+        document.getElementById('roomSearchInput')?.addEventListener('input', (event) => {
+            state.roomSearch = event.target.value.trim().toLowerCase();
+            renderRooms();
+        });
+        document.getElementById('roomFormatFilter')?.addEventListener('change', (event) => {
+            state.roomFormatFilter = event.target.value;
+            renderRooms();
+        });
+        document.getElementById('roomElementFilter')?.addEventListener('change', (event) => {
+            state.roomElementFilter = event.target.value;
+            renderRooms();
+        });
+        document.getElementById('roomSortFilter')?.addEventListener('change', (event) => {
+            state.roomSort = event.target.value;
+            renderRooms();
+        });
+        document.getElementById('roomHideFullToggle')?.addEventListener('change', (event) => {
+            state.roomHideFull = event.target.checked;
+            renderRooms();
+        });
+        document.getElementById('friendSearchInput')?.addEventListener('input', (event) => {
+            state.friendSearch = event.target.value.trim().toLowerCase();
+            renderFriends();
+        });
         document.getElementById('friendAddForm')?.addEventListener('submit', addFriendFromSocial);
         document.getElementById('saveCustomDeckBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
@@ -180,6 +213,7 @@
             setActiveRoute();
             renderSections();
             renderRoute();
+            syncAuthRouteIntent();
         });
     }
 
@@ -889,16 +923,108 @@
     function renderRooms() {
         const list = document.getElementById('roomList');
         if (!list) return;
-        list.innerHTML = state.rooms.length ? state.rooms.map(room => `<article class="room-tile">
-            <strong>Room ${escapeHtml(room.roomId)}</strong>
-            <span>${escapeHtml(room.hostName || 'Host')} / ${room.playerCount || 1}-2 / ${escapeHtml(room.format || 'PVP 1v1')}</span>
-            <span>Status: ${escapeHtml(room.status || 'Open')} / Wagers coming soon</span>
-            <button class="primary-btn" type="button" data-room-id="${escapeAttr(room.roomId)}">Join</button>
-        </article>`).join('') : '<div class="unlock-card">No open 1v1 lobbies right now. Create one to host the table.</div>';
+        const rooms = filteredRooms();
+        const totalOpen = state.rooms.filter(room => !isRoomFull(room)).length;
+        const roomCount = document.getElementById('roomCountLabel');
+        const shownCount = document.getElementById('roomShownLabel');
+        const quickJoinBtn = document.getElementById('quickJoinBtn');
+        if (roomCount) roomCount.textContent = `${totalOpen} open`;
+        if (shownCount) shownCount.textContent = `${rooms.length} shown`;
+        if (quickJoinBtn) quickJoinBtn.disabled = !rooms.some(room => !isRoomFull(room));
+        renderSocialActiveLobby();
+
+        list.innerHTML = rooms.length ? rooms.map(room => renderRoomTile(room)).join('') : `<div class="social-empty-state">
+            <strong>No open 1v1 lobbies match your filters</strong>
+            <span>Create a table and your lobby will appear here for other players.</span>
+            <button class="primary-btn" type="button" data-create-empty-lobby>Create Lobby</button>
+        </div>`;
         list.querySelectorAll('[data-room-id]').forEach(btn => btn.addEventListener('click', () => {
             document.getElementById('roomCodeInput').value = btn.dataset.roomId;
             joinRoomFromHome();
         }));
+        list.querySelector('[data-create-empty-lobby]')?.addEventListener('click', createLobbyFromHome);
+    }
+
+    function renderRoomTile(room) {
+        const element = inferRoomElement(room);
+        const color = elementColor(element);
+        const full = isRoomFull(room);
+        const playerCount = Number(room.playerCount || room.players?.length || 1);
+        const status = full ? 'Full' : escapeHtml(room.status || 'Open');
+        const roomId = escapeAttr(room.roomId || '');
+        return `<article class="room-tile social-room-tile" style="--room-el:${color}">
+            <div class="room-emblem" aria-hidden="true">${renderRoomEmblem(element)}</div>
+            <div class="room-copy">
+                <div class="room-title-line">
+                    <span class="room-badge">${escapeHtml(room.format || 'PVP')}</span>
+                    <strong>${escapeHtml(room.name || `${room.hostName || 'Host'}'s Arena`)}</strong>
+                </div>
+                <span>${escapeHtml(format(element))} table / Best of 1</span>
+                <span>Hosted by ${escapeHtml(room.hostName || 'Host')} / Code ${escapeHtml(room.roomId || '----')}</span>
+            </div>
+            <div class="room-seat-count"><strong>${playerCount} / 2</strong><span>Players</span></div>
+            <button class="${full ? 'ghost-btn' : 'primary-btn'}" type="button" data-room-id="${roomId}" ${full ? 'disabled' : ''}>${status === 'Full' ? 'Full' : 'Join'}</button>
+        </article>`;
+    }
+
+    function filteredRooms() {
+        const query = state.roomSearch;
+        const formatFilter = state.roomFormatFilter;
+        const elementFilter = state.roomElementFilter;
+        return [...state.rooms]
+            .filter(room => {
+                const element = inferRoomElement(room);
+                const haystack = [
+                    room.roomId,
+                    room.name,
+                    room.hostName,
+                    room.format,
+                    room.status,
+                    element
+                ].join(' ').toLowerCase();
+                if (query && !haystack.includes(query)) return false;
+                if (formatFilter !== 'ALL' && !String(room.format || 'PVP').toUpperCase().includes(formatFilter)) return false;
+                if (elementFilter !== 'ALL' && element !== elementFilter) return false;
+                if (state.roomHideFull && isRoomFull(room)) return false;
+                return true;
+            })
+            .sort((a, b) => {
+                if (state.roomSort === 'host') return String(a.hostName || '').localeCompare(String(b.hostName || ''));
+                if (state.roomSort === 'players') return Number(b.playerCount || 1) - Number(a.playerCount || 1);
+                return String(b.createdAt || b.roomId || '').localeCompare(String(a.createdAt || a.roomId || ''));
+            });
+    }
+
+    function inferRoomElement(room) {
+        const raw = String(room.element || room.requiredElement || room.deckElement || room.elementFilter || room.format || '').toUpperCase();
+        return Object.keys(ELEMENT_COLORS).find(element => raw.includes(element)) || 'FIRE';
+    }
+
+    function isRoomFull(room) {
+        return Number(room.playerCount || room.players?.length || 1) >= 2 || String(room.status || '').toUpperCase() === 'FULL';
+    }
+
+    function renderRoomEmblem(element) {
+        const icon = elementIconPath(element);
+        if (icon) return `<img src="${escapeAttr(icon)}" alt="" aria-hidden="true">`;
+        return `<span>${escapeHtml(format(element).slice(0, 1) || 'S')}</span>`;
+    }
+
+    function renderSocialActiveLobby() {
+        const card = document.getElementById('socialActiveLobby');
+        if (!card) return;
+        const name = state.profile?.displayName || state.profile?.email || 'Your Arena';
+        const deck = selectedDeckId();
+        card.innerHTML = `<div class="social-active-content">
+            <div>
+                <span class="eyebrow">Your Active Lobby</span>
+                <h2>${escapeHtml(name)}'s table</h2>
+                <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
+            </div>
+            <div class="social-active-status"><strong>1 / 2</strong><span>Waiting for opponent</span></div>
+            <button class="primary-btn" id="activeLobbyCreateBtn" type="button">Start Hosting</button>
+        </div>`;
+        document.getElementById('activeLobbyCreateBtn')?.addEventListener('click', createLobbyFromHome);
     }
 
     function renderFriends() {
@@ -908,6 +1034,10 @@
         if (!list) return;
 
         const friends = state.profile?.friends || [];
+        const visibleFriends = friends.filter(friend => {
+            const text = `${friend.displayName || ''} ${friend.email || ''}`.toLowerCase();
+            return !state.friendSearch || text.includes(state.friendSearch);
+        });
         if (count) count.textContent = `${friends.length} friend${friends.length === 1 ? '' : 's'}`;
         if (message) {
             message.textContent = state.friendMessage || '';
@@ -915,22 +1045,27 @@
         }
 
         if (!state.profile?.authenticated) {
-            list.innerHTML = `<div class="unlock-card"><strong>Sign in to add friends</strong><span>Friends are saved to your account and added by email.</span><button class="primary-btn" type="button" id="socialSignInBtn">Sign In</button></div>`;
+            list.innerHTML = `<div class="social-empty-state"><strong>Sign in to add friends</strong><span>Friends are saved to your account and added by email.</span><button class="primary-btn" type="button" id="socialSignInBtn">Sign In</button></div>`;
             document.getElementById('socialSignInBtn')?.addEventListener('click', openAuth);
             return;
         }
 
-        list.innerHTML = friends.length
-            ? friends.map(friend => `<article class="friend-tile">
-                <div>
+        list.innerHTML = visibleFriends.length
+            ? visibleFriends.map(friend => `<article class="friend-tile social-friend-tile">
+                <div class="friend-avatar" aria-hidden="true">${escapeHtml(friendInitial(friend))}</div>
+                <div class="friend-copy">
                     <strong>${escapeHtml(friend.displayName || friend.email)}</strong>
                     <span>${escapeHtml(friend.email)}</span>
                 </div>
                 <button class="ghost-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}">Remove</button>
             </article>`).join('')
-            : '<div class="unlock-card"><strong>No friends yet</strong><span>Add a registered player by email to start your list.</span></div>';
+            : '<div class="social-empty-state"><strong>No friends found</strong><span>Add a registered player by email to start your list.</span></div>';
 
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
+    }
+
+    function friendInitial(friend) {
+        return String(friend.displayName || friend.email || 'S').trim().slice(0, 1).toUpperCase();
     }
 
     function renderProfile() {
@@ -1685,6 +1820,14 @@
         goPlay({ mode: 'online', onlineRoomMode: 'create', deckId: selectedDeckId() });
     }
 
+    function quickJoinFirstRoom() {
+        const room = filteredRooms().find(candidate => !isRoomFull(candidate));
+        if (!room?.roomId) return;
+        const input = document.getElementById('roomCodeInput');
+        if (input) input.value = room.roomId;
+        joinRoomFromHome();
+    }
+
     function joinRoomFromHome() {
         const room = document.getElementById('roomCodeInput')?.value?.trim()?.toUpperCase();
         if (!room) return;
@@ -1841,6 +1984,12 @@
 
     function closeAuth() {
         state.authOpen = false;
+        renderAuthModal();
+    }
+
+    function syncAuthRouteIntent() {
+        if (String(location.pathname || '').replace(/\/+$/, '') !== '/login') return;
+        state.authOpen = !state.profile?.authenticated;
         renderAuthModal();
     }
 

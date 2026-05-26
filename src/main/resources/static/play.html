@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Siegelings TCG</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+    <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0a1530">
+    <link rel="stylesheet" href="/css/style.css?v=100">
+    <!-- Pre-load loading-gate styles so the splash covers the loadout
+         screen on the very first Start Battle press — the lazy-injected
+         link tag inside loading-gate.js was paint-blocking the gate. -->
+    <link rel="stylesheet" href="/css/landing.css?v=4">
+</head>
+<body>
+<nav class="play-hub-nav" aria-label="Siegelings hub navigation">
+    <a class="play-hub-brand" href="/home">
+        <img class="play-hub-mark" src="/img/siegelings-icon.png" alt="" aria-hidden="true">
+        <span><strong>Siegelings TCG</strong><small>Battle Table</small></span>
+    </a>
+    <div class="play-hub-tabs">
+        <a href="/home">Home</a>
+        <a class="active" href="/play" aria-current="page">Play</a>
+        <a href="/cards">Cards</a>
+        <a href="/decks">Decks</a>
+        <a href="/social">Social</a>
+        <a href="/profile">Profile</a>
+        <a href="/shop">Shop</a>
+    </div>
+    <div class="play-hub-actions">
+        <a class="play-hub-ghost" href="/social">Join by Code</a>
+        <a class="play-hub-primary" href="/play">Play</a>
+        <a class="play-hub-pill" href="/profile">Sign In</a>
+    </div>
+</nav>
+
+<!-- Top Nav Bar: consolidated stats + actions -->
+<nav class="top-bar">
+    <div class="top-bar-side top-bar-enemy">
+        <span class="tb-label" id="enemyHeading">AI</span>
+        <span class="tb-hp tb-hp-enemy"><span id="enemyHealth">50</span> HP</span>
+        <span class="tb-meta">H:<span id="enemyHandSize">0</span> D:<span id="enemyDeckSize">0</span></span>
+        <div class="tb-energy" id="enemyEnergy"></div>
+    </div>
+    <div class="top-bar-center">
+        <span class="phase-badge" id="phaseBadge">DRAW</span>
+        <span class="tb-turn">T<span id="turnNumber">0</span></span>
+        <details class="energy-detail-details" id="energyDetailDetails">
+            <summary class="energy-detail-summary">Energy detail</summary>
+            <div class="energy-detail-dropdown" id="energyDetailPanel" role="region" aria-label="Energy breakdown for both players"></div>
+        </details>
+        <span class="hidden" id="activeSideLabel">Player</span>
+        <span class="hidden" id="firstPlayerLabel">Player</span>
+        <span class="hidden" id="roomBadge"></span>
+    </div>
+    <div class="top-bar-side top-bar-player">
+        <div class="tb-energy" id="playerEnergy"></div>
+        <span class="tb-meta">D:<span id="playerDeckSize">0</span></span>
+        <span class="tb-hp tb-hp-player"><span id="playerHealth">50</span> HP</span>
+        <span class="tb-label" id="playerHeading">Player</span>
+    </div>
+</nav>
+
+<div class="mobile-hud" id="mobileHud" aria-label="Mobile match summary">
+    <button class="mobile-hud-side mobile-hud-enemy" type="button" onclick="toggleMobileHudSheet('enemy')" aria-controls="mobileStatSheet" aria-expanded="false">
+        <div class="m-name" id="mobileEnemyName">AI</div>
+        <div class="m-hp-bar"><div class="m-hp-fill" id="mobileEnemyHpBar" style="width:100%"></div></div>
+        <div class="m-counts">H:<strong id="mobileEnemyHandSize">0</strong> D:<strong id="mobileEnemyDeckSize">0</strong> E:<strong id="mobileEnemyEnergyCount">0</strong><span class="m-elements" id="mobileEnemyElements"></span></div>
+    </button>
+
+    <div class="mobile-hud-center">
+        <div class="m-phase" id="mobilePhaseBadge">DRAW</div>
+        <div class="m-turn">T<span id="mobileTurnNumber">0</span></div>
+    </div>
+
+    <button class="mobile-hud-side right mobile-hud-player" type="button" onclick="toggleMobileHudSheet('player')" aria-controls="mobileStatSheet" aria-expanded="false">
+        <div class="m-name" id="mobilePlayerName">Player</div>
+        <div class="m-hp-bar"><div class="m-hp-fill" id="mobilePlayerHpBar" style="width:100%"></div></div>
+        <div class="m-counts">H:<strong id="mobilePlayerHandSize">0</strong> D:<strong id="mobilePlayerDeckSize">0</strong> E:<strong id="mobilePlayerEnergyCount">0</strong><span class="m-elements" id="mobilePlayerElements"></span></div>
+    </button>
+</div>
+
+<div class="phase-transition-banner hidden" id="phaseTransitionBanner" aria-live="polite" aria-atomic="true">
+    <div class="phase-transition-banner-inner">
+        <div class="phase-transition-banner-kicker" id="phaseTransitionKicker">Phase Shift</div>
+        <div class="phase-transition-banner-title" id="phaseTransitionTitle">Battle Phase</div>
+    </div>
+</div>
+
+<!-- App Shell: single screen, no scroll -->
+<div class="app-shell">
+
+    <!-- Battlefield -->
+    <div class="battlefield" id="boardArea">
+        <div class="interaction-banner hidden" id="interactionBanner"></div>
+        <div class="battle-row-confirm-overlay hidden" id="battleRowConfirmOverlay"></div>
+
+        <div class="bf-half bf-enemy">
+            <div class="board-label">ENEMY</div>
+            <div class="board-grid" id="enemyGrid"></div>
+            <!-- Floating card preview overlaid on enemy half -->
+            <div class="card-preview-float hidden" id="cardPreviewFloat" onclick="onPreviewFloatTap()"></div>
+        </div>
+
+        <div class="bf-half bf-player">
+            <div class="board-label">YOU</div>
+            <div class="board-grid" id="playerGrid"></div>
+        </div>
+    </div>
+
+    <aside class="hud-rail hud-rail-enemy" id="hudRailEnemy" aria-label="Enemy player info">
+        <div class="hud-rail-stripe"></div>
+
+        <div class="hud-section">
+            <div class="hud-name-row">
+                <span class="hud-role-dot"></span>
+                <span class="hud-name" id="railEnemyHeading">AI</span>
+            </div>
+            <div class="hud-hp-row">
+                <span class="hud-hp-icon">&hearts;</span>
+                <div class="hud-hp-track">
+                    <div class="hud-hp-fill hud-hp-fill-enemy" id="railEnemyHpBar" style="width:100%"></div>
+                </div>
+                <span class="hud-hp-label"><strong id="railEnemyHealth">50</strong>/50</span>
+            </div>
+        </div>
+
+        <div class="hud-section">
+            <div class="hud-section-label">Knight</div>
+            <div class="hud-knight-card" id="railEnemyKnight">
+                <div class="hud-knight-portrait" id="railEnemyKnightPortrait">&#9876;</div>
+                <div class="hud-knight-info">
+                    <div class="hud-knight-kicker">Siege Knight</div>
+                    <div class="hud-knight-name" id="railEnemyKnightName">&mdash;</div>
+                    <div class="hud-knight-element" id="railEnemyKnightElement"></div>
+                    <div class="hud-knight-ability" id="railEnemyKnightAbility"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-section">
+            <div class="hud-section-label">Cards</div>
+            <div class="hud-counts-row">
+                <div class="hud-count-chip">
+                    <span class="hud-count-label">Hand</span>
+                    <span class="hud-count-value" id="railEnemyHandSize">0</span>
+                </div>
+                <div class="hud-count-chip">
+                    <span class="hud-count-label">Deck</span>
+                    <span class="hud-count-value hud-count-deck" id="railEnemyDeckSize">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-section hud-section-elements">
+            <div class="hud-section-label">Elements</div>
+            <div class="hud-elements-list" id="railEnemyElements"></div>
+        </div>
+    </aside>
+
+    <aside class="hud-rail hud-rail-player" id="hudRailPlayer" aria-label="Your player info">
+        <div class="hud-rail-stripe"></div>
+
+        <div class="hud-section">
+            <div class="hud-name-row">
+                <span class="hud-role-dot"></span>
+                <span class="hud-name" id="railPlayerHeading">Player</span>
+                <span class="hud-you-tag">You</span>
+            </div>
+            <div class="hud-hp-row">
+                <span class="hud-hp-icon">&hearts;</span>
+                <div class="hud-hp-track">
+                    <div class="hud-hp-fill hud-hp-fill-player" id="railPlayerHpBar" style="width:100%"></div>
+                </div>
+                <span class="hud-hp-label"><strong id="railPlayerHealth">50</strong>/50</span>
+            </div>
+        </div>
+
+        <div class="hud-section">
+            <div class="hud-section-label">Knight</div>
+            <div class="hud-knight-card" id="railPlayerKnight">
+                <div class="hud-knight-portrait" id="railPlayerKnightPortrait">&#128737;</div>
+                <div class="hud-knight-info">
+                    <div class="hud-knight-kicker">Siege Knight</div>
+                    <div class="hud-knight-name" id="railPlayerKnightName">&mdash;</div>
+                    <div class="hud-knight-element" id="railPlayerKnightElement"></div>
+                    <div class="hud-knight-ability" id="railPlayerKnightAbility"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-section">
+            <div class="hud-section-label">Cards</div>
+            <div class="hud-counts-row">
+                <div class="hud-count-chip">
+                    <span class="hud-count-label">Hand</span>
+                    <span class="hud-count-value" id="railPlayerHandSize">0</span>
+                </div>
+                <div class="hud-count-chip">
+                    <span class="hud-count-label">Deck</span>
+                    <span class="hud-count-value hud-count-deck" id="railPlayerDeckSize">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-section hud-section-elements">
+            <div class="hud-section-label">Elements</div>
+            <div class="hud-elements-list" id="railPlayerElements"></div>
+        </div>
+    </aside>
+
+    <aside class="desktop-menu" id="desktopMenu">
+        <div class="desktop-menu-header">
+            <div class="desktop-menu-title">Menu &amp; Info</div>
+            <div class="desktop-menu-copy">Wide desktop docks previews, actions, and deck tracking beside the arena.</div>
+            <div class="desktop-menu-meta">
+                <span class="desktop-menu-chip" id="desktopMenuViewport">Adaptive layout</span>
+                <span class="desktop-menu-chip" id="desktopMenuFocus">Hover a card to inspect live costs and timing notes.</span>
+            </div>
+            <div class="desktop-action-history" id="desktopActionHistory">
+                <div class="desktop-battle-log-title">Battle log</div>
+                <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>
+            </div>
+        </div>
+
+        <!-- Action Bar: slim segmented control -->
+        <div class="action-bar" id="actionBar">
+            <div class="action-bar-btns" id="actionButtons">
+                <button class="ab-btn ab-trainer ab-primary" id="btnTrainerAbility" onclick="openTrainerAbilityPopup()">&#9876; Knight</button>
+                <button class="ab-btn ab-draw ab-primary" id="btnDraw" onclick="playerDraw()">&#127183; Draw</button>
+                <button class="ab-btn ab-battle" id="btnBattle" onclick="executeBattle()" title="Battle starts automatically after both players finish Setup.">Auto Battle</button>
+                <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
+            </div>
+            <div class="action-bar-aux">
+                <a class="ab-icon" href="/home" title="Back to Home" aria-label="Back to Home">&#8592;</a>
+                <span id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" title="Setup actions remaining this turn">
+                    <span class="ab-action-counter-label">Act</span>
+                    <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
+                </span>
+                <button class="ab-icon" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
+                <button class="ab-icon" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
+                <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
+                <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
+                <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
+                <button class="ab-icon" id="btnMuteSound" onclick="toggleSieglingsMute()" title="Toggle Sound" aria-label="Toggle Sound">&#128266;</button>
+                <button class="ab-icon" onclick="openLoadoutSelector()" title="New Game">&#9654;</button>
+            </div>
+        </div>
+
+        <section class="desktop-menu-section desktop-menu-inspect" id="desktopInspectSection" aria-label="Card and deck inspector">
+            <div class="desktop-inspect-toolbar">
+                <div class="desktop-inspect-toggle" role="tablist" aria-label="Inspector view">
+                    <button type="button" class="desktop-inspect-tab is-active" role="tab" id="tabDesktopInspectCard" aria-selected="true" aria-controls="desktopInspectPaneCard" onclick="setDesktopInspectTab('card')">Card</button>
+                    <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectDeck" aria-selected="false" aria-controls="desktopInspectPaneDeck" onclick="setDesktopInspectTab('deck')">Deck</button>
+                </div>
+            </div>
+            <div class="desktop-inspect-viewport">
+                <div class="desktop-inspect-pane desktop-inspect-pane-card is-active" id="desktopInspectPaneCard" role="tabpanel" aria-labelledby="tabDesktopInspectCard">
+                    <div class="desktop-card-preview-panel" id="desktopCardPreviewPanel">
+                        <div class="desktop-empty-state">Hover or select a hand card to inspect it here.</div>
+                    </div>
+                </div>
+                <div class="desktop-inspect-pane desktop-inspect-pane-deck" id="desktopInspectPaneDeck" role="tabpanel" aria-labelledby="tabDesktopInspectDeck" hidden>
+                    <div class="desktop-deck-preview" id="desktopDeckPreview">
+                        <div class="desktop-empty-state">Deck contents appear here once the match starts.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="desktop-menu-section desktop-menu-hand" id="desktopHandSection">
+            <div class="desktop-section-title" id="desktopHandSectionTitle">Hand Selector</div>
+            <div class="hand-tray" id="handTray" onmousemove="handleHandSelectorPointerMove(event)" onwheel="handleHandSelectorWheel(event)" onmouseleave="stopHandSelectorAutoScroll()">
+                <div class="hand-cards" id="playerHand" onmousemove="handleHandSelectorPointerMove(event)"></div>
+                <div class="desktop-hand-battle-panel hidden" id="desktopHandBattlePanel" aria-live="polite">
+                    Queue actions appear here when battle begins.
+                </div>
+            </div>
+        </section>
+    </aside>
+
+    <aside class="desktop-battle-drawer" id="desktopBattleDrawer" aria-hidden="true">
+        <div class="desktop-battle-drawer-header">
+            <h3>Battle Action</h3>
+            <button class="desktop-battle-close" type="button" onclick="closeDrawer()" aria-label="Close battle action panel">&times;</button>
+        </div>
+        <div id="desktopBattleActionPanel" class="desktop-battle-drawer-content">
+            Battle starts automatically after both players finish Setup. When it begins, Siegelings act in speed order.
+        </div>
+    </aside>
+
+    <div class="hand-lift-layer hidden" id="handLiftLayer" aria-hidden="true"></div>
+</div>
+
+<section class="mobile-stat-sheet" id="mobileStatSheet" aria-label="Mobile player details">
+    <div class="stat-sheet-tabs" role="tablist" aria-label="Player detail tabs">
+        <button class="stat-tab active-enemy" id="mobileStatEnemyTab" type="button" role="tab" aria-selected="true" aria-controls="mobileStatEnemySheet" onclick="setMobileHudSheetSide('enemy')">AI</button>
+        <button class="stat-tab" id="mobileStatPlayerTab" type="button" role="tab" aria-selected="false" aria-controls="mobileStatPlayerSheet" onclick="setMobileHudSheetSide('player')">Player</button>
+        <button class="mobile-stat-close" type="button" onclick="closeMobileHudSheet()" aria-label="Close player details">&times;</button>
+    </div>
+
+    <div class="stat-sheet-content" id="mobileStatEnemySheet" role="tabpanel" aria-labelledby="mobileStatEnemyTab">
+        <div class="m-knight-mini">
+            <span class="m-knight-icon" id="mobileEnemyKnightIcon">&#9876;</span>
+            <div>
+                <div class="m-knight-name" id="mobileEnemyKnightName">-</div>
+                <div class="m-knight-elem" id="mobileEnemyKnightInfo"></div>
+            </div>
+        </div>
+        <div class="m-count-box">
+            <div class="m-count-lbl">Hand</div>
+            <div class="m-count-val accent" id="mobileEnemyStatHandSize">0</div>
+        </div>
+        <div class="m-count-box">
+            <div class="m-count-lbl">Deck</div>
+            <div class="m-count-val" id="mobileEnemyStatDeckSize">0</div>
+        </div>
+        <div class="m-elem-list" id="mobileEnemyStatElements"></div>
+    </div>
+
+    <div class="stat-sheet-content" id="mobileStatPlayerSheet" role="tabpanel" aria-labelledby="mobileStatPlayerTab" hidden>
+        <div class="m-knight-mini">
+            <span class="m-knight-icon" id="mobilePlayerKnightIcon">&#128737;</span>
+            <div>
+                <div class="m-knight-name" id="mobilePlayerKnightName">-</div>
+                <div class="m-knight-elem" id="mobilePlayerKnightInfo"></div>
+            </div>
+        </div>
+        <div class="m-count-box">
+            <div class="m-count-lbl">Hand</div>
+            <div class="m-count-val accent" id="mobilePlayerStatHandSize">0</div>
+        </div>
+        <div class="m-count-box">
+            <div class="m-count-lbl">Deck</div>
+            <div class="m-count-val" id="mobilePlayerStatDeckSize">0</div>
+        </div>
+        <div class="m-elem-list" id="mobilePlayerStatElements"></div>
+    </div>
+</section>
+
+<!-- Drawer Overlays (slide-up) -->
+<div class="drawer-backdrop hidden" id="drawerBackdrop" onclick="closeDrawer()"></div>
+
+<div class="drawer hidden" id="drawerBattle" data-drawer="battle">
+    <div class="drawer-handle" onclick="closeDrawer()"></div>
+    <h3>Battle Action</h3>
+    <div id="battleActionPanel" class="drawer-content">
+        Battle starts automatically after both players finish Setup. When it begins, Siegelings act in speed order.
+    </div>
+</div>
+
+<div class="drawer hidden" id="drawerSelected" data-drawer="selected">
+    <div class="drawer-handle" onclick="closeDrawer()"></div>
+    <h3>Card Preview</h3>
+    <div id="selectedCardInfo" class="drawer-content">
+        Select a hand card or tap a Siegeling on either board to inspect it.
+    </div>
+</div>
+
+<div class="drawer hidden" id="drawerHint" data-drawer="hint">
+    <div class="drawer-handle" onclick="closeDrawer()"></div>
+    <h3>Hints</h3>
+    <div id="interactionHintPanel" class="drawer-content">
+        Select or hover a card to see contextual help.
+    </div>
+</div>
+
+<div class="drawer hidden" id="drawerLog" data-drawer="log">
+    <div class="drawer-handle" onclick="closeDrawer()"></div>
+    <h3>Game Log</h3>
+    <div class="game-log-toolbar" id="gameLogToolbar" aria-label="Log filters"></div>
+    <div class="game-log drawer-content" id="gameLog"></div>
+</div>
+
+<div class="drawer hidden" id="drawerKey" data-drawer="key">
+    <div class="drawer-handle" onclick="closeDrawer()"></div>
+    <h3>Element Key</h3>
+    <div id="elementKeyPanel" class="drawer-content"></div>
+</div>
+
+<!-- Card Inspector Overlay -->
+<div class="card-inspector-overlay hidden" id="cardInspector" onclick="closeCardInspector(event)">
+    <div class="card-inspector" id="cardInspectorContent" onclick="event.stopPropagation()"></div>
+</div>
+
+<div class="match-detail-overlay hidden" id="matchDetailOverlay" onclick="closeMatchDetail(event)">
+    <div class="match-detail-modal" id="matchDetailModal" onclick="event.stopPropagation()">
+        <button class="match-detail-close" type="button" onclick="closeMatchDetail(event)" aria-label="Close match details">&times;</button>
+        <div class="match-detail-content" id="matchDetailContent"></div>
+    </div>
+</div>
+
+<div class="trainer-ability-overlay hidden" id="trainerAbilityOverlay" onclick="closeTrainerAbilityPopup(event)">
+    <div class="trainer-ability-modal" id="trainerAbilityModal" onclick="event.stopPropagation()">
+        <button class="trainer-ability-close" type="button" onclick="closeTrainerAbilityPopup(event)" aria-label="Close SiegeKnight ability popup">&times;</button>
+        <div class="trainer-ability-kicker">SiegeKnight Ability</div>
+        <h3 id="trainerAbilityTitle">SiegeKnight Ability</h3>
+        <div class="trainer-ability-tier" id="trainerAbilityTier"></div>
+        <p class="trainer-ability-description" id="trainerAbilityDescription"></p>
+        <p class="trainer-ability-copy" id="trainerAbilityCopy"></p>
+        <div class="trainer-ability-actions">
+            <button class="btn" type="button" onclick="closeTrainerAbilityPopup(event)">Close</button>
+            <button class="btn btn-primary" type="button" id="btnUseTrainerAbility" onclick="activateTrainerAbilityFromPopup()">Use Ability</button>
+        </div>
+    </div>
+</div>
+
+<div class="trainer-ability-overlay dashboard-access-overlay hidden" id="dashboardAccessOverlay" onclick="closeDashboardAccess(event)" aria-hidden="true">
+    <form class="trainer-ability-modal dashboard-access-modal" id="dashboardAccessForm" onclick="event.stopPropagation()" onsubmit="submitDashboardAccess(event)">
+        <button class="trainer-ability-close" type="button" onclick="closeDashboardAccess(event)" aria-label="Close dashboard access">&times;</button>
+        <div class="trainer-ability-kicker">Dashboard Access</div>
+        <h3>Open Card Dashboard</h3>
+        <p class="trainer-ability-description">Enter the dashboard password to continue.</p>
+        <label class="dashboard-access-field">
+            <span>Password</span>
+            <input id="dashboardAccessPassword" type="password" autocomplete="current-password">
+        </label>
+        <p class="dashboard-access-error" id="dashboardAccessError" role="alert" aria-live="polite"></p>
+        <div class="trainer-ability-actions">
+            <button class="btn" type="button" onclick="closeDashboardAccess(event)">Cancel</button>
+            <button class="btn btn-primary" type="submit">Open Dashboard</button>
+        </div>
+    </form>
+</div>
+
+<div class="trainer-ability-overlay claim-confirm-overlay hidden" id="claimConfirmOverlay" onclick="closeClaimPopup(event)">
+    <div class="trainer-ability-modal claim-confirm-modal" id="claimConfirmModal" onclick="event.stopPropagation()">
+        <button class="trainer-ability-close" type="button" onclick="closeClaimPopup(event)" aria-label="Close claim popup">&times;</button>
+        <div class="trainer-ability-kicker">Claim Siegeling</div>
+        <h3 id="claimConfirmTitle">Claim this Siegeling?</h3>
+        <div class="trainer-ability-tier" id="claimConfirmTier"></div>
+        <p class="trainer-ability-description" id="claimConfirmDescription"></p>
+        <p class="trainer-ability-copy claim-confirm-copy" id="claimConfirmCopy"></p>
+        <div class="trainer-ability-actions">
+            <button class="btn" type="button" onclick="closeClaimPopup(event)">Cancel</button>
+            <button class="btn btn-primary" type="button" id="btnConfirmClaim" onclick="confirmClaimFromPopup()">Claim</button>
+        </div>
+    </div>
+</div>
+
+<!-- Trainer display (hidden, populated by JS) -->
+<div class="hidden" id="enemyTrainer"></div>
+<div class="hidden" id="playerTrainer"></div>
+
+<!-- Legacy references kept for JS compatibility -->
+<span class="hidden" id="handHeading">Your Hand</span>
+<div class="hidden" id="leftPanel"></div>
+<div class="hidden" id="rightPanel"></div>
+<div class="hidden" id="mobileInfoTabs"></div>
+
+<!-- Card Tooltip -->
+<div class="card-tooltip" id="cardTooltip">
+    <div class="tt-name" id="ttName"></div>
+    <div class="tt-stats" id="ttStats"></div>
+    <div class="tt-ability" id="ttAbility"></div>
+</div>
+
+<!-- Game Over Overlay -->
+<div class="game-over-overlay" id="gameOverOverlay">
+    <div class="game-over-box">
+        <h2 id="gameOverTitle">GAME OVER</h2>
+        <p id="gameOverMsg"></p>
+        <button class="btn btn-primary" onclick="openLoadoutSelector()">Play Again</button>
+    </div>
+</div>
+
+<div class="welcome-overlay visible" id="welcomeOverlay">
+    <div class="welcome-shell">
+        <div class="welcome-main">
+            <section class="welcome-hero">
+                <div class="welcome-eyebrow">WELCOME TO THE ARENA</div>
+                <h2>Build links, wake the sockets, and command real momentum.</h2>
+                <p class="welcome-hero-copy">Siegelings is a board-first card battle game. Place one Siegeling during setup, connect matching notches to grow your network, and use those links to generate elemental energy for spells, traps, and battle abilities.</p>
+                <div class="welcome-tutorial-stage" id="welcomeTutorialStage"></div>
+                <div class="welcome-tutorial-nav">
+                    <button class="btn welcome-nav-btn" type="button" onclick="stepWelcomeSlide(-1)">&#8592; Back</button>
+                    <div class="welcome-tutorial-dots" id="welcomeTutorialDots"></div>
+                    <button class="btn btn-primary welcome-nav-btn" type="button" onclick="stepWelcomeSlide(1)">Next &#8594;</button>
+                </div>
+            </section>
+            <aside class="welcome-sidebar">
+                <section class="welcome-auth-card" id="welcomeAuthCard"></section>
+                <section class="welcome-history-card" id="welcomeHistoryCard"></section>
+            </aside>
+        </div>
+        <section class="welcome-leaderboards" id="welcomeLeaderboardsSection" aria-label="Daily leaderboards">
+            <div class="welcome-lb-header">
+                <div class="welcome-eyebrow">DAILY LEADERBOARDS</div>
+                <h3 class="welcome-section-heading">See who rules the arena today</h3>
+                <p class="welcome-leaderboards-intro">Top 10 registered players. Rankings refresh on the server once per day.</p>
+            </div>
+            <div class="welcome-lb-meta" id="welcomeLeaderboardsMeta"></div>
+            <div class="welcome-lb-tabs" id="welcomeLeaderboardsTabs" role="tablist" aria-label="Leaderboard category"></div>
+            <div class="welcome-lb-body" id="welcomeLeaderboardsBody"></div>
+        </section>
+        <div class="welcome-footer">
+            <div class="welcome-footer-note">Sign in to save progress, or jump in as a guest.</div>
+            <div class="welcome-footer-actions">
+                <button class="btn welcome-guest-btn" type="button" onclick="playAsGuest()">Play as Guest</button>
+                <button class="btn welcome-dashboard-btn" id="btnDashboardAccess" type="button" onclick="openDashboardAccess()" title="Dashboard" aria-label="Dashboard">&#9881; Dashboard</button>
+                <span class="crafted-by">Crafted By PartyChatGaming</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="loadout-overlay" id="loadoutOverlay">
+    <div class="loadout-box">
+        <div class="loadout-hero">
+            <div class="loadout-hero-copy">
+                <div class="loadout-kicker" id="loadoutKicker">Battle Loadout</div>
+                <h2 id="loadoutTitle">Prepare for Battle</h2>
+                <p class="loadout-copy" id="loadoutSubtitle">Name yourself, choose your deck, then command a SiegeKnight.</p>
+                <div class="loadout-local-dev hidden" id="loadoutLocalDev" aria-label="Local development tools">
+                    <a class="loadout-local-dev-link" href="/card-dashboard.html" target="_blank" rel="noopener">Open Card Editor</a>
+                    <span class="loadout-local-dev-sep" aria-hidden="true">·</span>
+                    <a class="loadout-local-dev-link" href="/play" target="_blank" rel="noopener">Open Game In New Tab</a>
+                </div>
+            </div>
+            <button class="loadout-close-btn" type="button" onclick="returnToPlayMain()" aria-label="Return to Play main screen">&times;</button>
+            <div class="invite-room-badge hidden" id="inviteRoomBadge"></div>
+        </div>
+        <div class="player-identity-card" id="playerIdentityCard">
+            <label class="online-field">
+                <span>Name on the battlefield</span>
+                <input type="text" id="playerNameInput" maxlength="20" placeholder="Your name" oninput="onPlayerNameInput()">
+            </label>
+            <div class="identity-note" id="playerIdentityNote">This name is shown in online matches and saved on this device.</div>
+        </div>
+        <div class="loadout-toggle-set">
+            <div class="loadout-toggle-label">Battle Mode</div>
+            <div class="match-mode-tabs" role="group" aria-label="Battle Mode">
+                <button class="loadout-tab active" id="soloMatchTab" type="button" onclick="setMatchMode('solo')" aria-pressed="true">Solo Vs AI</button>
+                <button class="loadout-tab" id="onlineMatchTab" type="button" onclick="setMatchMode('online')" aria-pressed="false">Online Match</button>
+            </div>
+        </div>
+        <div id="onlineMatchPanel" class="hidden loadout-online-panel">
+            <div class="loadout-tabs" role="group" aria-label="Online room mode">
+                <button class="loadout-tab active" id="hostRoomTab" type="button" onclick="setOnlineRoomMode('create')" aria-pressed="true">Host Room</button>
+                <button class="loadout-tab" id="joinRoomTab" type="button" onclick="setOnlineRoomMode('join')" aria-pressed="false">Join Room</button>
+            </div>
+            <div class="online-match-grid">
+                <label class="online-field" id="roomCodeField">
+                    <span>Room Code</span>
+                    <input type="text" id="roomCodeInput" maxlength="6" placeholder="ABC123">
+                </label>
+            </div>
+            <div id="onlineStatus" class="loadout-summary"></div>
+        </div>
+        <div class="loadout-toggle-set">
+            <div class="loadout-toggle-label">Deck Source</div>
+            <div class="loadout-tabs" role="group" aria-label="Deck Source">
+                <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Preset Decks</button>
+                <button class="loadout-tab" id="builderTab" type="button" onclick="switchLoadoutMode('builder')" aria-pressed="false">Deck Builder</button>
+            </div>
+        </div>
+        <div class="loadout-core">
+            <div class="loadout-flow">
+                <div id="presetLoadoutPanel" class="loadout-section deck-section">
+                    <div class="loadout-section-title-row">
+                        <div>
+                            <div class="loadout-section-kicker">Faction Banner</div>
+                            <h3>Choose Your Deck</h3>
+                        </div>
+                    </div>
+                    <div id="deckOptions" class="loadout-options"></div>
+                </div>
+                <div id="builderLoadoutPanel" class="loadout-section hidden">
+                    <div class="builder-toolbar">
+                        <div class="builder-filter-group" id="builderElementFilters"></div>
+                        <div class="builder-filter-group" id="builderTypeFilters"></div>
+                    </div>
+                    <div class="builder-layout">
+                        <div>
+                            <h3>Card Pool</h3>
+                            <div id="builderCatalog" class="builder-catalog"></div>
+                        </div>
+                        <div>
+                            <h3>Deck List</h3>
+                            <div id="builderDeckList" class="builder-deck-list"></div>
+                        </div>
+                        <div>
+                            <h3>Card Preview</h3>
+                            <div id="builderCardPreview" class="builder-card-preview-panel"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="loadout-section trainer-section">
+                    <div class="loadout-section-title-row">
+                        <div>
+                            <div class="loadout-section-kicker">Commander</div>
+                            <h3>Choose Your SiegeKnight</h3>
+                        </div>
+                    </div>
+                    <div id="trainerOptions" class="loadout-options"></div>
+                </div>
+                <div class="loadout-section hidden" id="savedDecksSection">
+                    <div class="saved-decks-header">
+                        <div>
+                            <h3>Saved Decks</h3>
+                            <div class="identity-note">Save presets or custom builds to this account, then load them on any login.</div>
+                        </div>
+                        <div class="saved-decks-actions">
+                            <input type="text" id="saveDeckNameInput" maxlength="40" placeholder="Name this loadout">
+                            <button class="btn btn-primary" type="button" onclick="saveCurrentLoadout()">Save Current Loadout</button>
+                        </div>
+                    </div>
+                    <div id="savedDeckList" class="saved-deck-list"></div>
+                </div>
+            </div>
+            <aside class="selected-loadout-panel" id="selectedLoadoutPanel" aria-label="Selected Loadout">
+                <div id="selectedLoadoutPreview" class="selected-loadout-preview"></div>
+                <div id="loadoutSummary" class="loadout-summary"></div>
+                <div class="loadout-actions">
+                    <div class="loadout-actions-shell">
+                        <button class="btn loadout-back-btn" type="button" onclick="returnToPlayMain()">Back to Play</button>
+                        <button class="btn btn-primary loadout-start-btn" type="button" id="btnStartLoadout" onclick="startSelectedGame()">Start Battle</button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+
+<div class="mulligan-overlay" id="mulliganOverlay">
+    <div class="mulligan-box">
+        <div class="loadout-kicker">Opening Hand</div>
+        <h2>Keep your hand or redraw some cards once.</h2>
+        <p class="loadout-copy" id="mulliganCopy">Each player gets one mulligan before the first draw phase begins.</p>
+        <div class="mulligan-hand-preview" id="mulliganHandPreview"></div>
+        <div class="mulligan-actions" id="mulliganActions">
+            <button class="btn" type="button" onclick="submitMulliganKeep()">Keep hand</button>
+            <button class="btn btn-primary" type="button" id="btnMulliganRedraw" onclick="submitMulliganSelected()">Redraw selected</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1';
+    const panel = document.getElementById('loadoutLocalDev');
+    if (isLocal && panel) {
+        panel.classList.remove('hidden');
+    }
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
+<script src="/js/config.js"></script>
+<script type="module" src="/js/firebase-init.js?v=2"></script>
+    <script src="/js/game.js?v=117"></script>
+    <script src="/js/sounds.js?v=1"></script>
+    <script src="/js/fx.js?v=4"></script>
+    <script src="/js/action-queue.js?v=21"></script>
+    <script src="/js/loading-gate.js?v=2"></script>
+</body>
+</html>

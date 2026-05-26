@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/landing.css?v=8">
+    <link rel="stylesheet" href="/css/landing.css?v=10">
 </head>
 <body class="landing-body">
 
@@ -40,9 +40,6 @@
 
     <div class="hero-content">
         <div class="siegelings-logo" id="siegelingsLogo" aria-label="Siegelings">
-            <img class="siegelings-logo-img" src="" alt=""
-                 data-asset="siegelings-logo"
-                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
             <div class="siegelings-logo-fallback">
                 <div class="siegelings-crown" aria-hidden="true">
                     <span class="crown-spike"></span><span class="crown-spike"></span>
@@ -57,10 +54,12 @@
         <p class="hero-tagline">Collect. Command. Conquer.</p>
 
         <div class="hero-ctas">
-            <a class="cta cta-primary" href="/home" id="ctaPlay">
+            <a class="cta cta-primary" href="/play" id="ctaPlay">
                 <span class="cta-glow" aria-hidden="true"></span>
                 <span class="cta-label">Play Now</span>
-                <span class="cta-arrow" aria-hidden="true">▶</span>
+            </a>
+            <a class="cta cta-login" href="/login" id="ctaLogin">
+                <span class="cta-label">Log In</span>
             </a>
             <button class="cta cta-ghost" type="button" id="ctaTrailer">
                 <span class="cta-label">Watch Trailer</span>

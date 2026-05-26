@@ -28,7 +28,6 @@
     --element-wind-glow:  rgba(110, 231, 183, 0.55);
 
     /* Asset overrides — drop real files into static/img/ and override these */
-    --asset-siegelings-logo: url('/img/siegelings-logo.png');
     --asset-pcg-logo:        url('/img/pcg-logo.png');
     --asset-hero-bg:         url('/img/hero-creatures.webp');
 }
@@ -242,12 +241,6 @@ img { display: block; }
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-10px); }
 }
-.siegelings-logo-img {
-    max-width: min(560px, 78vw);
-    height: auto;
-    filter: drop-shadow(0 8px 28px rgba(0, 0, 0, 0.55))
-            drop-shadow(0 0 24px rgba(30, 144, 255, 0.35));
-}
 .siegelings-logo-fallback {
     display: flex;
     flex-direction: column;
@@ -440,7 +433,7 @@ img { display: block; }
 }
 .cta:hover { transform: translateY(-2px); }
 .cta:active { transform: translateY(0); }
-.cta-label, .cta-arrow { position: relative; z-index: 1; }
+.cta-label { position: relative; z-index: 1; }
 
 .cta-primary {
     color: #fff;
@@ -465,6 +458,23 @@ img { display: block; }
 @keyframes cta-shine {
     0%   { transform: translateX(-30%) rotate(0deg); }
     100% { transform: translateX(30%)  rotate(360deg); }
+}
+
+.cta-login {
+    color: #081021;
+    background: linear-gradient(135deg, #f8fbff, #76e6ff 48%, #ffd54a);
+    border-color: rgba(255, 255, 255, 0.72);
+    box-shadow:
+        0 10px 26px rgba(118, 230, 255, 0.24),
+        inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.cta-login:hover {
+    background: linear-gradient(135deg, #ffffff, #9df1ff 48%, #ffe680);
+    box-shadow:
+        0 14px 34px rgba(118, 230, 255, 0.36),
+        0 0 22px rgba(255, 213, 74, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .cta-ghost {
