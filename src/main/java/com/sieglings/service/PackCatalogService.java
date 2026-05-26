@@ -39,7 +39,7 @@ public class PackCatalogService {
             packs.add(new PackDefinition(
                     "pack_" + element.name().toLowerCase(Locale.ROOT),
                     formatElement(element) + " Starter Pack",
-                    "Five " + formatElement(element) + " cards: 2-3 Sieglings, 1-2 traps, and 1-2 spells.",
+                    "Five " + formatElement(element) + " cards: 2-3 Siegelings, 1-2 traps, and 1-2 spells.",
                     true,
                     100,
                     List.of(element),
@@ -82,7 +82,7 @@ public class PackCatalogService {
         List<Card> traps = select(pool, CardType.TRAP, 1);
         List<Card> spells = select(pool, CardType.SPELL, 1);
         if (sieglings.size() < 2 || traps.isEmpty() || spells.isEmpty()) {
-            throw new IllegalArgumentException("This pack does not have enough live cards configured. It needs at least 2 Sieglings, 1 trap, and 1 spell.");
+            throw new IllegalArgumentException("This pack does not have enough live cards configured. It needs at least 2 Siegelings, 1 trap, and 1 spell.");
         }
 
         List<Card> cards = new ArrayList<>();

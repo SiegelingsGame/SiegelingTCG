@@ -453,12 +453,32 @@
     function renderPackTile(pack) {
         const starterMode = state.profile?.authenticated && state.progression && !state.progression.starterChosen;
         const label = starterMode && pack.starterEligible ? 'Choose Starter' : `${pack.price} Coins`;
-        return `<article class="pack-tile">
-            <strong>${escapeHtml(pack.name)}</strong>
-            <span>${pack.elements.map(format).join(' / ')}</span>
-            <span>${escapeHtml(pack.description || '')}</span>
-            <button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}">${label}</button>
+        const primaryElement = pack.elements?.[0] || 'FIRE';
+        const image = packImageFor(pack);
+        const imageStyle = image
+            ? `background-image: linear-gradient(180deg, rgba(5, 8, 18, 0) 44%, rgba(5, 8, 18, 0.84) 100%), url('${image}');`
+            : '';
+        return `<article class="pack-tile ${image ? 'pack-tile-art' : ''}" style="--el:${elementColor(primaryElement)}">
+            <div class="pack-art" style="${imageStyle}"></div>
+            <div class="pack-info">
+                <span class="pack-kicker">${pack.starterEligible ? 'Starter Pack' : 'Pack Group'}</span>
+                <strong>${escapeHtml(pack.name)}</strong>
+                <span>${pack.elements.map(format).join(' / ')}</span>
+                <span>${escapeHtml(formatGameText(pack.description || ''))}</span>
+                <button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}">${label}</button>
+            </div>
         </article>`;
+    }
+
+    function packImageFor(pack) {
+        const element = String(pack.elements?.[0] || '').toUpperCase();
+        const images = {
+            FIRE: '/img/packs/starter-fire.jpg',
+            EARTH: '/img/packs/starter-earth.jpg',
+            WIND: '/img/packs/starter-wind.jpg',
+            ICE: '/img/packs/starter-ice.jpg'
+        };
+        return pack.starterEligible ? images[element] : '';
     }
 
     function renderRooms() {
@@ -813,6 +833,13 @@
             .replace(/\b\w/g, c => c.toUpperCase())
             .replace(/\bSiegling\b/g, 'Siegeling')
             .replace(/\bSieglings\b/g, 'Siegelings');
+    }
+    function formatGameText(value) {
+        return String(value || '')
+            .replace(/\bSiegling\b/g, 'Siegeling')
+            .replace(/\bSieglings\b/g, 'Siegelings')
+            .replace(/\bsiegling\b/g, 'siegeling')
+            .replace(/\bsieglings\b/g, 'siegelings');
     }
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
