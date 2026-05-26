@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -25,6 +26,11 @@ public class ProfileSettingsService {
 
     public ProfileSettingsEntity getOrCreate(AccountUser user) {
         return settingsStore.findByUserId(user.getId()).orElseGet(() -> defaultsFor(user));
+    }
+
+    /** Returns serialized settings only when the player has saved profile prefs in Firestore. */
+    public Optional<Map<String, Object>> findSerializedIfPresent(AccountUser user) {
+        return settingsStore.findByUserId(user.getId()).map(settings -> serialize(settings, user));
     }
 
     public ProfileSettingsEntity save(AccountUser user, Map<String, Object> req) {

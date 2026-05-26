@@ -6,7 +6,6 @@ import com.sieglings.persistence.entity.SavedDeckEntity;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
-import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.service.PlayerProgressionService;
 import com.sieglings.service.ProfileSettingsService;
 import com.sieglings.service.SavedDeckService;
@@ -195,8 +194,8 @@ public class AuthController {
         }
         if (profileSettingsService != null) {
             try {
-                ProfileSettingsEntity settings = profileSettingsService.getOrCreate(user);
-                response.put("profileSettings", profileSettingsService.serialize(settings, user));
+                profileSettingsService.findSerializedIfPresent(user)
+                        .ifPresent(settings -> response.put("profileSettings", settings));
             } catch (RuntimeException ex) {
                 log.warn("Unable to load profile settings for authenticated user {}", user.getId(), ex);
             }

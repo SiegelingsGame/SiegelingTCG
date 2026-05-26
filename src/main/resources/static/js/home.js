@@ -262,10 +262,13 @@
         }
         state.profile = data;
         state.progression = data.progression || null;
-        state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings)
-            || state.profilePrefs
-            || defaultProfilePrefs(data.user || {});
-        cacheProfilePrefs(state.profilePrefs);
+        const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
+        if (serverPrefs) {
+            state.profilePrefs = { ...defaultProfilePrefs(data.user || {}), ...serverPrefs };
+            cacheProfilePrefs(state.profilePrefs);
+        } else if (!state.profilePrefs) {
+            state.profilePrefs = defaultProfilePrefs(data.user || {});
+        }
         return data;
     }
 
@@ -1465,8 +1468,11 @@
         next.avatar = (next.avatar || initials(next.displayName)).slice(0, 4).toUpperCase();
         if (!next.playerTitle) next.playerTitle = elementThemes[next.favoriteElement].mood;
         const data = await fetchJson('/api/profile/settings', { method: 'POST', body: JSON.stringify(next) });
-        if (data?.error) return alert(data.error);
-        state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || next;
+        if (!data) return alert('Could not save profile. Is the server running the latest code with /api/profile/settings?');
+        if (data.error) return alert(data.error);
+        state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings)
+            ? { ...defaultProfilePrefs(state.profile?.user || {}), ...applyProfileSettingsFromServer(data.profileSettings) }
+            : next;
         cacheProfilePrefs(state.profilePrefs);
         if (state.profile?.user && state.profilePrefs?.displayName) {
             state.profile.user.displayName = state.profilePrefs.displayName;
