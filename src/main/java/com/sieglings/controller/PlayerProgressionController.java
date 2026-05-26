@@ -73,15 +73,31 @@ public class PlayerProgressionController {
         }
     }
 
+    @PostMapping("/api/shop/purchase-card")
+    public Map<String, Object> purchaseCard(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                            @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            PlayerProgressionEntity progression = progressionService.purchaseDailyOffer(user, string(req, "offerId"));
+            return buildResponse(progression);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @GetMapping("/api/shop/packs")
     public Map<String, Object> packs() {
-        return Map.of("packs", packCatalogService.serializePacks());
+        return Map.of(
+                "packs", packCatalogService.serializePacks(),
+                "dailyOffers", packCatalogService.serializeDailyOffers()
+        );
     }
 
     private Map<String, Object> buildResponse(PlayerProgressionEntity progression) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("progression", progressionService.serialize(progression));
         out.put("packs", packCatalogService.serializePacks());
+        out.put("dailyOffers", packCatalogService.serializeDailyOffers());
         out.put("cardCatalog", cardDefinitionService.getDeckBuilderCatalog().stream().map(this::serializeCardLite).toList());
         return out;
     }

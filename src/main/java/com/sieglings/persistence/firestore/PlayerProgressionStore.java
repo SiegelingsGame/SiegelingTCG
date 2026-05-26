@@ -47,7 +47,10 @@ public class PlayerProgressionStore {
         payload.put("starterPackId", progression.getStarterPackId());
         payload.put("rewardedMatchIds", progression.getRewardedMatchIds());
         payload.put("purchasedDeckIds", progression.getPurchasedDeckIds());
+        payload.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
         payload.put("packHistory", progression.getPackHistory());
+        payload.put("soloWinStreak", progression.getSoloWinStreak());
+        payload.put("onlineWinStreak", progression.getOnlineWinStreak());
         payload.put("updatedAt", toTimestamp(progression.getUpdatedAt()));
         try {
             doc(progression.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -71,6 +74,11 @@ public class PlayerProgressionStore {
         progression.setStarterPackId(snapshot.getString("starterPackId"));
         progression.setRewardedMatchIds(readStringList(snapshot.get("rewardedMatchIds")));
         progression.setPurchasedDeckIds(readStringList(snapshot.get("purchasedDeckIds")));
+        progression.setPurchasedDailyOfferIds(readStringList(snapshot.get("purchasedDailyOfferIds")));
+        Long soloWinStreak = snapshot.getLong("soloWinStreak");
+        Long onlineWinStreak = snapshot.getLong("onlineWinStreak");
+        progression.setSoloWinStreak(soloWinStreak == null ? 0 : soloWinStreak.intValue());
+        progression.setOnlineWinStreak(onlineWinStreak == null ? 0 : onlineWinStreak.intValue());
         Object history = snapshot.get("packHistory");
         if (history instanceof List<?> list) {
             List<Map<String, Object>> packHistory = new ArrayList<>();

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -113,6 +114,41 @@ public class AccountService {
             return;
         }
         sessionStore.deleteById(token);
+    }
+
+    public AccountUser addFriend(AccountUser user, String email) {
+        if (user == null) {
+            throw new IllegalArgumentException("Sign in to add friends.");
+        }
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail.equals(user.getEmail())) {
+            throw new IllegalArgumentException("You cannot add yourself.");
+        }
+        if (userStore.findById(normalizedEmail).isEmpty()) {
+            throw new IllegalArgumentException("No account exists for that email.");
+        }
+
+        LinkedHashSet<String> friends = new LinkedHashSet<>(user.getFriendEmails());
+        friends.add(normalizedEmail);
+        user.setFriendEmails(friends.stream().toList());
+        userStore.save(user);
+        return user;
+    }
+
+    public AccountUser removeFriend(AccountUser user, String email) {
+        if (user == null) {
+            throw new IllegalArgumentException("Sign in to manage friends.");
+        }
+        String normalizedEmail = normalizeEmail(email);
+        LinkedHashSet<String> friends = new LinkedHashSet<>(user.getFriendEmails());
+        friends.remove(normalizedEmail);
+        user.setFriendEmails(friends.stream().toList());
+        userStore.save(user);
+        return user;
+    }
+
+    public AccountUser findByEmail(String email) {
+        return userStore.findById(normalizeEmail(email)).orElse(null);
     }
 
     private SessionView createSession(AccountUser user) {

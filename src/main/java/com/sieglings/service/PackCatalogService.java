@@ -7,12 +7,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,6 +32,14 @@ public class PackCatalogService {
     ) {}
 
     public record PackOpenResult(PackDefinition pack, List<Card> cards) {}
+
+    public record DailyCardOffer(
+            String id,
+            String availableOn,
+            int slot,
+            int price,
+            Card card
+    ) {}
 
     @Autowired
     private CardDefinitionService cardDefinitionService;
@@ -55,6 +66,16 @@ public class PackCatalogService {
         packs.add(new PackDefinition("pack_stormtide", "Stormtide Pack",
                 "Water and Wind cards for control and tempo.", true, 140,
                 List.of(Element.WATER, Element.WIND), false));
+        List<Element> activeElements = activeGameplayElements();
+        packs.add(new PackDefinition("pack_siegeling_random", "Siegeling Pack",
+                "Five random Siegeling cards from a changing elemental mix.", true, 160,
+                activeElements, false));
+        packs.add(new PackDefinition("pack_spell_random", "Spell Pack",
+                "Five random Spell cards from a changing elemental mix.", true, 120,
+                activeElements, false));
+        packs.add(new PackDefinition("pack_trap_random", "Trap Pack",
+                "Five random Trap cards from a changing elemental mix.", true, 120,
+                activeElements, false));
         return packs.stream()
                 .filter(pack -> pack.elements().stream().map(Enum::name).allMatch(cardDefinitionService.getActiveLiveElementNames()::contains))
                 .toList();
@@ -78,9 +99,26 @@ public class PackCatalogService {
         List<Card> pool = cardDefinitionService.getDeckBuilderCatalog().stream()
                 .filter(card -> pack.elements().contains(card.getElement()))
                 .toList();
-        List<Card> sieglings = select(pool, CardType.SIEGLING, 3);
-        List<Card> traps = select(pool, CardType.TRAP, 1);
-        List<Card> spells = select(pool, CardType.SPELL, 1);
+        Optional<CardType> focusType = focusedType(pack.id());
+        if (focusType.isPresent()) {
+            List<Card> focusCards = randomElementPool(pool, focusType.get()).stream()
+                    .filter(card -> card.getCardType() == focusType.get())
+                    .toList();
+            if (focusCards.size() < 5) {
+                focusCards = pool.stream()
+                        .filter(card -> card.getCardType() == focusType.get())
+                        .toList();
+            }
+            List<Card> cards = selectRandom(focusCards, 5);
+            if (cards.size() < 5) {
+                throw new IllegalArgumentException("This pack does not have enough live " + focusType.get().name().toLowerCase(Locale.ROOT) + " cards configured.");
+            }
+            return new PackOpenResult(pack, cards);
+        }
+
+        List<Card> sieglings = selectRandom(pool, CardType.SIEGLING, 3);
+        List<Card> traps = selectRandom(pool, CardType.TRAP, 1);
+        List<Card> spells = selectRandom(pool, CardType.SPELL, 1);
         if (sieglings.size() < 2 || traps.isEmpty() || spells.isEmpty()) {
             throw new IllegalArgumentException("This pack does not have enough live cards configured. It needs at least 2 Siegelings, 1 trap, and 1 spell.");
         }
@@ -93,10 +131,9 @@ public class PackCatalogService {
             cards.remove(cards.size() - 1);
         }
         while (cards.size() < 5) {
-            List<Card> filler = pool.stream()
+            List<Card> filler = selectRandom(pool.stream()
                     .filter(card -> cards.stream().noneMatch(existing -> existing.getId().equals(card.getId())))
-                    .sorted(cardSort())
-                    .toList();
+                    .toList(), 1);
             if (filler.isEmpty()) {
                 throw new IllegalArgumentException("This pack cannot produce five unique cards from the current live pool.");
             }
@@ -107,6 +144,63 @@ public class PackCatalogService {
 
     public List<Map<String, Object>> serializePacks() {
         return listPacks().stream().map(this::serializePack).toList();
+    }
+
+    public List<DailyCardOffer> listDailyOffers() {
+        List<Card> cards = cardDefinitionService.getDeckBuilderCatalog().stream()
+                .sorted(cardSort())
+                .toList();
+        if (cards.isEmpty()) {
+            return List.of();
+        }
+        String date = java.time.LocalDate.now(java.time.ZoneId.systemDefault()).toString();
+        List<DailyCardOffer> offers = new ArrayList<>();
+        List<CardType> slots = List.of(
+                CardType.SIEGLING,
+                CardType.SIEGLING,
+                CardType.SPELL,
+                CardType.TRAP,
+                CardType.SIEGLING
+        );
+        Set<String> selectedCardIds = new HashSet<>();
+        for (int i = 0; i < slots.size(); i++) {
+            CardType type = slots.get(i);
+            List<Card> candidates = cards.stream()
+                    .filter(card -> card.getCardType() == type)
+                    .filter(card -> !selectedCardIds.contains(card.getId()))
+                    .toList();
+            if (candidates.isEmpty()) {
+                candidates = cards.stream()
+                        .filter(card -> !selectedCardIds.contains(card.getId()))
+                        .toList();
+            }
+            if (candidates.isEmpty()) {
+                candidates = cards;
+            }
+            List<Card> shuffled = new ArrayList<>(candidates);
+            Collections.shuffle(shuffled, new Random((date + ":" + type.name() + ":" + i).hashCode()));
+            Card card = shuffled.get(0);
+            selectedCardIds.add(card.getId());
+            offers.add(new DailyCardOffer(
+                    "daily_" + date + "_" + card.getId(),
+                    date,
+                    i + 1,
+                    priceFor(card),
+                    card
+            ));
+        }
+        return offers;
+    }
+
+    public Optional<DailyCardOffer> findDailyOffer(String offerId) {
+        String normalized = offerId == null ? "" : offerId.trim();
+        return listDailyOffers().stream()
+                .filter(offer -> offer.id().equals(normalized))
+                .findFirst();
+    }
+
+    public List<Map<String, Object>> serializeDailyOffers() {
+        return listDailyOffers().stream().map(this::serializeDailyOffer).toList();
     }
 
     public Map<String, Object> serializePack(PackDefinition pack) {
@@ -121,16 +215,76 @@ public class PackCatalogService {
         return out;
     }
 
-    private List<Card> select(List<Card> pool, CardType type, int limit) {
-        Set<String> seen = pool.stream().map(Card::getId).collect(Collectors.toSet());
-        if (seen.isEmpty()) {
+    public Map<String, Object> serializeDailyOffer(DailyCardOffer offer) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", offer.id());
+        out.put("availableOn", offer.availableOn());
+        out.put("slot", offer.slot());
+        out.put("price", offer.price());
+        out.put("cardId", offer.card().getId());
+        out.put("cardName", offer.card().getName());
+        out.put("type", offer.card().getCardType().name());
+        out.put("element", offer.card().getElement().name());
+        out.put("rarity", offer.card().getRarity().name());
+        return out;
+    }
+
+    private List<Card> selectRandom(List<Card> pool, CardType type, int limit) {
+        return selectRandom(pool.stream()
+                .filter(card -> card.getCardType() == type)
+                .toList(), limit);
+    }
+
+    private List<Card> selectRandom(List<Card> pool, int limit) {
+        if (pool.isEmpty()) {
             return List.of();
         }
-        return pool.stream()
+        List<Card> shuffled = new ArrayList<>(pool);
+        Collections.shuffle(shuffled);
+        return shuffled.stream().limit(limit).toList();
+    }
+
+    private List<Card> randomElementPool(List<Card> pool, CardType type) {
+        List<Element> elements = pool.stream()
                 .filter(card -> card.getCardType() == type)
-                .sorted(cardSort())
-                .limit(limit)
+                .map(Card::getElement)
+                .distinct()
                 .toList();
+        if (elements.size() <= 1) {
+            return pool;
+        }
+        List<Element> shuffled = new ArrayList<>(elements);
+        Collections.shuffle(shuffled);
+        int count = Math.min(shuffled.size(), 2 + new Random().nextInt(Math.min(2, shuffled.size() - 1) + 1));
+        Set<Element> selected = shuffled.stream().limit(count).collect(Collectors.toSet());
+        return pool.stream()
+                .filter(card -> selected.contains(card.getElement()))
+                .toList();
+    }
+
+    private Optional<CardType> focusedType(String packId) {
+        return switch (packId) {
+            case "pack_siegeling_random" -> Optional.of(CardType.SIEGLING);
+            case "pack_spell_random" -> Optional.of(CardType.SPELL);
+            case "pack_trap_random" -> Optional.of(CardType.TRAP);
+            default -> Optional.empty();
+        };
+    }
+
+    private List<Element> activeGameplayElements() {
+        return LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
+                .filter(element -> cardDefinitionService.getActiveLiveElementNames().contains(element.name()))
+                .toList();
+    }
+
+    private int priceFor(Card card) {
+        return switch (card.getRarity()) {
+            case COMMON -> 60;
+            case UNCOMMON -> 95;
+            case RARE -> 140;
+            case EPIC -> 210;
+            case LEGENDARY -> 320;
+        };
     }
 
     private Comparator<Card> cardSort() {

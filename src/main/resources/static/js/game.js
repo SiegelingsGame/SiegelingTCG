@@ -53,6 +53,14 @@ let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
 let handSelectorScaleFrame = null;
 let previewCardScaleFrame = null;
+const DECK_ART_ASSET_KEYS = ['FIRE', 'EARTH', 'WIND', 'WATER', 'ICE'];
+const DECK_ART_ASSETS = {
+    FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
+    EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
+    WIND: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
+    WATER: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
+    ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
+};
 let handTouchSuppressHandIndex = null;
 let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
@@ -5022,15 +5030,17 @@ function renderLoadoutOptions() {
         const primaryElement = deckTheme.element || deck.elements?.[0] || 'NEUTRAL';
         const primaryHex = getElementHex(primaryElement);
         const traits = (deckTheme.traits || []).slice(0, 3);
+        const deckArt = deckArtAssetForElements(deck.elements);
 
         /* Build spine bands â€“ each element gets its own colored band with a sigil inside */
         const spineBands = deck.elements.map(el => {
             const c = getElementHex(el);
             return `<div class="spine-band" style="background:${c}"></div>`;
         }).join('');
-        const faceSigils = buildDeckFaceSigils(deck.elements);
+        const faceSigils = deckArt ? '' : buildDeckFaceSigils(deck.elements);
+        const artStyle = deckArt?.back ? `;--deck-art:url('${deckArt.back}')` : '';
 
-        return `<button type="button" class="deck-card${selected} ${elClasses}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
+        return `<button type="button" class="deck-card${selected} ${elClasses}${deckArt ? ' has-deck-art' : ''}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}${artStyle}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
             <div class="deck-card-spine">${spineBands}</div>
             ${faceSigils}
             <span class="deck-card-state">${deck.id === selectedDeckId ? 'Selected' : escapeHtml(deckTheme.playstyle)}</span>
@@ -6646,6 +6656,11 @@ function buildDeckFaceSigils(elements) {
     return `<div class="deck-card-sigils count-${elements.length}">${sigils}</div>`;
 }
 
+function deckArtAssetForElements(elements = []) {
+    const key = DECK_ART_ASSET_KEYS.find(element => elements.includes(element));
+    return key ? DECK_ART_ASSETS[key] : null;
+}
+
 function getDeckSigilPlacements(count) {
     switch (count) {
         case 1:
@@ -7551,6 +7566,13 @@ function buildZigZagPath(x1, y1, x2, y2, amplitude, count) {
 }
 
 const ALL_DIRECTIONS = ['TOP', 'TOP_RIGHT', 'RIGHT', 'BOTTOM_RIGHT', 'BOTTOM', 'BOTTOM_LEFT', 'LEFT', 'TOP_LEFT'];
+const NOTCH_ICON_PATHS = {
+    FIRE: '/img/notches/notch-fire.png',
+    EARTH: '/img/notches/notch-earth.png',
+    WIND: '/img/notches/notch-wind.png',
+    ICE: '/img/notches/notch-ice.png',
+    SHADOW: '/img/notches/notch-shadow.png'
+};
 
 function renderBoardNotches(notches, options) {
     const notchMap = {};
@@ -7566,7 +7588,7 @@ function renderBoardNotches(notches, options) {
             if (options.board) {
                 stateClass = getNotchStateClass(notch, { ...options, isBoard: true });
             }
-            html += `<div class="bc-notch bc-notch-${dir} filled ${elemClass} ${stateClass}"></div>`;
+            html += `<div class="bc-notch bc-notch-${dir} filled ${elemClass} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
         } else {
             html += `<div class="bc-notch bc-notch-${dir} empty"></div>`;
         }
@@ -7585,7 +7607,7 @@ function renderHandNotches(notches) {
         const notch = notchMap[dir];
         if (notch) {
             const elemClass = notch.element.toLowerCase();
-            html += `<div class="notch-dot ${elemClass} notch-${dir}"></div>`;
+            html += `<div class="notch-dot ${elemClass} notch-${dir}" style="${notchIconStyle(notch.element)}"></div>`;
         } else {
             html += `<div class="notch-dot notch-${dir}"></div>`;
         }
@@ -7608,11 +7630,21 @@ function renderNotches(notches, options = {}) {
             stateClass = getNotchStateClass(notch, options);
         }
 
-        html += `<div class="notch-dot ${elemClass} notch-${notch.direction} ${stateClass}"></div>`;
+        html += `<div class="notch-dot ${elemClass} notch-${notch.direction} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
     }
 
     html += `</div>`;
     return html;
+}
+
+function notchIconPath(element) {
+    const normalized = String(element || '').toUpperCase();
+    return NOTCH_ICON_PATHS[normalized] || `/img/elements/element-${normalized.toLowerCase()}.svg`;
+}
+
+function notchIconStyle(element) {
+    const normalized = String(element || 'NEUTRAL').toUpperCase();
+    return `--notch:${getElementHex(normalized)};--notch-icon:url('${notchIconPath(normalized)}');`;
 }
 
 function getNotchStateClass(notch, options) {

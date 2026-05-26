@@ -47,12 +47,51 @@ class PlayerProgressionServiceTest {
         history.setId("match-1");
         history.setUserId("player@example.com");
         history.setResult("WIN");
+        history.setMatchType("SOLO");
 
         service.awardMatchGold(history);
         service.awardMatchGold(history);
 
-        assertEquals(PlayerProgressionService.STARTING_GOLD + PlayerProgressionService.WIN_GOLD, store.saved.getGold());
+        assertEquals(PlayerProgressionService.STARTING_GOLD + PlayerProgressionService.SOLO_WIN_GOLD + PlayerProgressionService.WIN_STREAK_GOLD, store.saved.getGold());
         assertEquals(1, store.saved.getRewardedMatchIds().size());
+        assertEquals(1, store.saved.getSoloWinStreak());
+    }
+
+    @Test
+    void onlineAndSoloWinRewardsScaleWithActiveStreak() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.awardMatchGold(history("solo-1", "SOLO", "WIN"));
+        service.awardMatchGold(history("solo-2", "SOLO", "WIN"));
+        service.awardMatchGold(history("pvp-1", "ONLINE", "WIN"));
+        service.awardMatchGold(history("pvp-2", "ONLINE", "LOSS"));
+
+        int expected = PlayerProgressionService.STARTING_GOLD
+                + 12
+                + 14
+                + 7;
+        assertEquals(expected, store.saved.getGold());
+        assertEquals(2, store.saved.getSoloWinStreak());
+        assertEquals(0, store.saved.getOnlineWinStreak());
+    }
+
+    @Test
+    void dailyOfferPurchasesGrantOneCopyAndCanOnlyBeBoughtOnce() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.purchaseDailyOffer(user(), "daily-test-draco");
+        service.purchaseDailyOffer(user(), "daily-test-draco");
+
+        assertEquals(440, store.saved.getGold());
+        assertEquals(1, store.saved.getOwnedCards().get("draco"));
+        assertEquals(1, store.saved.getPurchasedDailyOfferIds().size());
     }
 
     @Test
@@ -99,6 +138,15 @@ class PlayerProgressionServiceTest {
         return user;
     }
 
+    private MatchHistoryEntity history(String id, String matchType, String result) {
+        MatchHistoryEntity history = new MatchHistoryEntity();
+        history.setId(id);
+        history.setUserId("player@example.com");
+        history.setMatchType(matchType);
+        history.setResult(result);
+        return history;
+    }
+
     private static class FakeProgressionStore extends PlayerProgressionStore {
         private PlayerProgressionEntity saved;
 
@@ -127,6 +175,20 @@ class PlayerProgressionServiceTest {
                             new TrapCard("flaretrap", "Flare Trap", Element.FIRE, Rarity.COMMON, Element.FIRE, 2, Ability.damage("Flare", "", TargetType.SINGLE_ENEMY, null, 1, 1))
                     )
             );
+        }
+
+        @Override
+        public Optional<DailyCardOffer> findDailyOffer(String offerId) {
+            if (!"daily-test-draco".equals(offerId)) {
+                return Optional.empty();
+            }
+            return Optional.of(new DailyCardOffer(
+                    "daily-test-draco",
+                    "2026-05-25",
+                    1,
+                    60,
+                    new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT)
+            ));
         }
     }
 

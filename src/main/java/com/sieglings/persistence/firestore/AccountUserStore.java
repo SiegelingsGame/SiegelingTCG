@@ -45,6 +45,7 @@ public class AccountUserStore {
         payload.put("email", user.getEmail());
         payload.put("passwordHash", user.getPasswordHash());
         payload.put("displayName", user.getDisplayName());
+        payload.put("friendEmails", user.getFriendEmails() == null ? java.util.List.of() : user.getFriendEmails());
         payload.put("createdAt", toTimestamp(user.getCreatedAt()));
         try {
             userDoc(user.getId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -64,6 +65,13 @@ public class AccountUserStore {
         user.setEmail(snapshot.getString("email"));
         user.setPasswordHash(snapshot.getString("passwordHash"));
         user.setDisplayName(snapshot.getString("displayName"));
+        Object friendEmails = snapshot.get("friendEmails");
+        if (friendEmails instanceof java.util.List<?> rawList) {
+            user.setFriendEmails(rawList.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .toList());
+        }
         Object createdAt = snapshot.get("createdAt");
         if (createdAt instanceof Timestamp ts) {
             user.setCreatedAt(Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()));

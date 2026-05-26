@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/home.css?v=16">
+    <link rel="stylesheet" href="/css/home.css?v=24">
 </head>
 <body>
 <div class="home-shell">
@@ -24,7 +24,7 @@
             <a href="/play" data-route="play">Play</a>
             <a href="/cards" data-route="cards">Cards</a>
             <a href="/decks" data-route="decks">Decks</a>
-            <a href="/lobbies" data-route="lobbies">Lobbies</a>
+            <a href="/social" data-route="social">Social</a>
             <a href="/profile" data-route="profile">Profile</a>
             <a href="/shop" data-route="shop">Shop</a>
         </div>
@@ -33,7 +33,7 @@
             <button class="ghost-btn hud-tool hidden" id="cardTrayBtn" type="button">Card View</button>
             <button class="ghost-btn" id="joinByCodeBtn" type="button">Join by Code</button>
             <button class="primary-btn" id="playNowBtn" type="button">Play</button>
-            <span class="gold-pill" id="goldPill">100 Coins</span>
+            <span class="gold-pill" id="goldPill"><span class="coin-value"><img class="coin-icon" src="/img/ui/siegel-coin.png" alt="" aria-hidden="true"><span>100</span><small>Coins</small></span></span>
             <button class="ghost-btn" id="authHudBtn" type="button">Sign In</button>
         </div>
     </nav>
@@ -59,11 +59,14 @@
                 <div class="chip-wrap" id="elementFilters"></div>
                 <div class="chip-wrap" id="typeFilters"></div>
                 <div class="chip-wrap" id="rarityFilters"></div>
+                <div class="filter-label">Energy Cost</div>
+                <div class="chip-wrap" id="energyCostFilters"></div>
                 <select class="search-input" id="cardSortSelect">
                     <option value="owned-desc">Sort: Owned first</option>
                     <option value="name-asc">Sort: Name</option>
                     <option value="speed-desc">Sort: Speed high</option>
                     <option value="health-desc">Sort: Health high</option>
+                    <option value="cost-asc">Sort: Cost low</option>
                     <option value="rarity-desc">Sort: Rarity high</option>
                 </select>
                 <div class="unlock-card" id="customUnlockCard"></div>
@@ -73,18 +76,8 @@
                 <div class="section-head">
                     <div>
                         <span class="eyebrow">Home</span>
-                        <h1>Start matches, build your binder, unlock custom decks</h1>
+                        <h1>Your siege command hub</h1>
                     </div>
-                    <div class="mode-tabs">
-                        <button class="active" type="button" data-home-focus="cards">Owned Cards</button>
-                        <button type="button" data-home-focus="matches">Start Match</button>
-                        <button type="button" data-home-focus="builder">Deck Builder</button>
-                    </div>
-                </div>
-                <div class="quick-actions">
-                    <button class="action-tile" id="startPveBtn" type="button"><strong>PVE Battle</strong><span>Use premade decks to earn Coins</span></button>
-                    <button class="action-tile" id="createLobbyBtn" type="button"><strong>Create 1v1 Lobby</strong><span>Host a PVP room with your selected deck</span></button>
-                    <button class="action-tile" id="shopShortcutBtn" type="button"><strong>Open Packs</strong><span>Spend Coins on element packs</span></button>
                 </div>
                 <div class="home-dashboard" id="homeDashboard"></div>
             </section>
@@ -105,10 +98,24 @@
                 </div>
             </section>
 
-            <section class="browser-panel panel hidden" id="lobbiesSection">
-                <div class="section-head"><div><span class="eyebrow">Lobbies</span><h1>Open 1v1 rooms</h1></div><button class="primary-btn" id="refreshRoomsBtn" type="button">Refresh</button></div>
-                <div class="join-row"><input class="search-input" id="roomCodeInput" placeholder="Room code"><button class="primary-btn" id="joinRoomBtn" type="button">Join</button></div>
-                <div class="room-list" id="roomList"></div>
+            <section class="browser-panel panel hidden" id="socialSection">
+                <div class="section-head"><div><span class="eyebrow">Social</span><h1>Open lobbies and friends</h1></div><button class="primary-btn" id="refreshRoomsBtn" type="button">Refresh Lobbies</button></div>
+                <div class="social-grid">
+                    <section class="social-panel">
+                        <div class="section-head social-panel-head"><div><span class="eyebrow">Open Lobbies</span><h2>Join a 1v1 room</h2></div></div>
+                        <div class="join-row"><input class="search-input" id="roomCodeInput" placeholder="Room code"><button class="primary-btn" id="joinRoomBtn" type="button">Join</button></div>
+                        <div class="room-list" id="roomList"></div>
+                    </section>
+                    <section class="social-panel">
+                        <div class="section-head social-panel-head"><div><span class="eyebrow">Friends</span><h2>Add players by email</h2></div><span id="friendCountLabel">0 friends</span></div>
+                        <form class="friend-add-row" id="friendAddForm">
+                            <input class="search-input" id="friendEmailInput" type="email" placeholder="friend@email.com">
+                            <button class="primary-btn" type="submit">Add Friend</button>
+                        </form>
+                        <div class="friend-message" id="friendMessage"></div>
+                        <div class="friend-list" id="friendList"></div>
+                    </section>
+                </div>
             </section>
 
             <section class="browser-panel panel hidden" id="profileSection">
@@ -138,6 +145,6 @@
     </div>
 </div>
 
-<script src="/js/home.js?v=18"></script>
+<script src="/js/home.js?v=27"></script>
 </body>
 </html>

@@ -44,6 +44,7 @@
     --success: #2ecc71;
     --highlight: rgba(255, 215, 0, 0.24);
     --mobile-action-bar-height: 86px;
+    --mobile-hub-nav-height: 156px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -231,7 +232,7 @@ body {
 
 @media (max-width: 767px) {
     body {
-        padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(var(--mobile-hub-nav-height) + env(safe-area-inset-bottom, 0px));
     }
     .play-hub-nav {
         position: fixed;
@@ -5036,6 +5037,12 @@ body.placement-active .board-cell.legal {
 .bc-notch.filled.undead   { background: var(--undead); border-color: #6a5a7c; }
 .bc-notch.filled.psychic  { background: var(--psychic); border-color: #9a6ecc; }
 
+.bc-notch.filled[style*="--notch-icon"] {
+    background: var(--notch-icon, radial-gradient(circle at 35% 28%, rgba(255,255,255,0.78), transparent 30%)), var(--notch, #f0f0f0);
+    background-position: center;
+    background-size: cover;
+}
+
 /* Linked notches: green ring */
 .bc-notch.linked {
     box-shadow: 0 0 0 3px rgba(46,204,113,0.6);
@@ -5106,6 +5113,12 @@ body.placement-active .board-cell.legal {
 .notch-dot.metal { background: var(--metal); border-color: #7a848c; }
 .notch-dot.undead { background: var(--undead); border-color: #6a5a7c; }
 .notch-dot.psychic { background: var(--psychic); border-color: #9a6ecc; }
+
+.notch-dot[style*="--notch-icon"] {
+    background: var(--notch-icon, radial-gradient(circle at 35% 28%, rgba(255,255,255,0.72), transparent 30%)), var(--notch, rgba(8, 12, 20, 0.76));
+    background-position: center;
+    background-size: cover;
+}
 .notch-dot.linked {
     width: 12px;
     height: 12px;
@@ -6435,6 +6448,15 @@ body.placement-active .board-cell.legal {
     transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
+.deck-card.has-deck-art {
+    background:
+        linear-gradient(180deg, rgba(1, 4, 12, 0.06) 0%, rgba(1, 4, 12, 0.24) 34%, rgba(1, 5, 16, 0.95) 100%),
+        var(--deck-art),
+        var(--deck-bg, rgba(255, 255, 255, 0.04));
+    background-size: cover;
+    background-position: center;
+}
+
 .deck-card:hover {
     transform: translateY(-6px) scale(1.02);
     border-color: color-mix(in srgb, var(--deck-accent, #e2b714) 82%, #fff 18%);
@@ -6458,6 +6480,12 @@ body.placement-active .board-cell.legal {
         repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(255,255,255,0.022) 12px, rgba(255,255,255,0.022) 13px);
 }
 
+.deck-card.has-deck-art::before {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 28%),
+        linear-gradient(180deg, transparent 36%, rgba(1, 5, 16, 0.76) 100%);
+}
+
 .deck-card::after {
     inset: 5px;
     border-radius: 14px;
@@ -6471,12 +6499,33 @@ body.placement-active .board-cell.legal {
     box-shadow: 10px 0 26px rgba(0, 0, 0, 0.28);
 }
 
+.deck-card.has-deck-art .deck-card-spine {
+    opacity: 0.16;
+}
+
 .deck-card-sigils {
     inset: 28px 18px 96px 48px;
 }
 
 .deck-card-sigil {
     filter: drop-shadow(0 0 12px var(--deck-glow-strong));
+}
+
+.deck-card-art-icon {
+    inset: 34px 22px 112px 48px;
+    display: grid;
+    place-items: center;
+}
+
+.deck-card-art-icon img {
+    width: min(124px, 64%);
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.36);
+    box-shadow:
+        0 20px 38px rgba(0, 0, 0, 0.38),
+        0 0 28px var(--deck-glow-strong);
 }
 
 .deck-card-body {
@@ -11011,5 +11060,18 @@ body.sgl-opponent-turn .battle-cta-row {
     }
     .welcome-guest-btn {
         text-align: center;
+    }
+}
+
+@media (max-width: 767px) {
+    .welcome-overlay,
+    .mulligan-overlay {
+        bottom: calc(var(--mobile-hub-nav-height) + env(safe-area-inset-bottom, 0px));
+    }
+
+    .welcome-shell,
+    .mulligan-box {
+        max-height: calc(100dvh - var(--mobile-hub-nav-height) - 20px - env(safe-area-inset-bottom, 0px));
+        overflow-y: auto;
     }
 }
