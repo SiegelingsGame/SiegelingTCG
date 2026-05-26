@@ -99,9 +99,14 @@ public class GameController {
         resp.put("liveElements", gameService.getActiveLiveElementNames());
         resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
         resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
-        Long publishVersion = cardOverrideStorageService.getCurrentPublishVersion();
-        resp.put("catalogVersion", publishVersion == null ? 0L : publishVersion);
+        resp.put("catalogVersion", cardOverrideStorageService.getCatalogRevision());
         return resp;
+    }
+
+    @GetMapping("/api/game/catalog-version")
+    @ResponseBody
+    public Map<String, Object> getCatalogVersion() {
+        return Map.of("catalogVersion", cardOverrideStorageService.getCatalogRevision());
     }
 
     /**

@@ -138,7 +138,8 @@
         viewingProfile: null,
         socialPollTimer: null,
         packReveal: null,
-        catalogVersion: 0
+        catalogVersion: 0,
+        catalogSyncBound: false
     };
 
     let liveCatalogRefreshPromise = null;
@@ -154,10 +155,9 @@
         renderHudTools();
         renderGold();
         renderHomeDashboard();
+        bindCatalogSync();
         await loadAll();
-        if (isBinderRoute()) {
-            await refreshLiveCatalog();
-        }
+        await syncCatalogIfVersionChanged();
         render();
         syncAuthRouteIntent();
     }
@@ -230,8 +230,8 @@
             syncAuthRouteIntent();
         });
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && isBinderRoute()) {
-                void refreshLiveCatalog();
+            if (document.visibilityState === 'visible') {
+                void syncCatalogIfVersionChanged();
             }
         });
     }
@@ -315,11 +315,11 @@
     }
 
     function renderRoute() {
-        if (state.route === 'cards' || state.route === 'decks') {
-            void refreshLiveCatalog();
-            return;
-        }
-        if (state.route === 'home') {
+        if (state.route === 'cards') {
+            renderCards();
+        } else if (state.route === 'decks') {
+            renderDecks();
+        } else if (state.route === 'home') {
             renderHomeDashboard();
         } else if (state.route === 'shop') {
             renderShop();
@@ -1965,12 +1965,7 @@
     }
 
     function navigateHub(route) {
-        if (route === state.route) {
-            if (route === 'cards' || route === 'decks') {
-                void refreshLiveCatalog();
-            }
-            return;
-        }
+        if (route === state.route) return;
         state.route = route;
         history.pushState(null, '', route === 'home' ? '/home' : `/${route}`);
         setActiveRoute();
@@ -2056,6 +2051,33 @@
         state.catalogVersion = Number(next.catalogVersion) || 0;
     }
 
+    function bindCatalogSync() {
+        if (state.catalogSyncBound || typeof SieglingsCatalogSync === 'undefined') return;
+        state.catalogSyncBound = true;
+        SieglingsCatalogSync.onCatalogPublished((catalogVersion) => {
+            void applyPublishedCatalogVersion(catalogVersion);
+        });
+    }
+
+    async function syncCatalogIfVersionChanged() {
+        const remote = await fetchJson('/api/game/catalog-version');
+        if (!remote) return;
+        const remoteVersion = Number(remote.catalogVersion) || 0;
+        if (remoteVersion === state.catalogVersion && Array.isArray(state.options?.cardCatalog) && state.options.cardCatalog.length) {
+            return;
+        }
+        await refreshLiveCatalog();
+    }
+
+    async function applyPublishedCatalogVersion(catalogVersion) {
+        const remoteVersion = Number(catalogVersion) || 0;
+        if (remoteVersion > 0 && remoteVersion === state.catalogVersion
+            && Array.isArray(state.options?.cardCatalog) && state.options.cardCatalog.length) {
+            return;
+        }
+        await refreshLiveCatalog();
+    }
+
     async function refreshLiveCatalog() {
         if (liveCatalogRefreshPromise) {
             return liveCatalogRefreshPromise;
@@ -2065,14 +2087,7 @@
             if (!data) return;
             applyGameOptions(data);
             writeCache('gameOptions', data);
-            if (state.route === 'cards') {
-                renderCards();
-            } else if (state.route === 'decks') {
-                renderDecks();
-            }
-            safeRender(renderHomeDashboard);
-            safeRender(renderProfileMini);
-            safeRender(renderUnlock);
+            render();
         })().finally(() => {
             liveCatalogRefreshPromise = null;
         });

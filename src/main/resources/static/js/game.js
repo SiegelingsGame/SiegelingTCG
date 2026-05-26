@@ -9372,5 +9372,10 @@ renderDesktopActionHistory();
 renderWelcomeTutorial();
 renderWelcomeAuth();
 syncEntryOverlays();
+if (typeof SieglingsCatalogSync !== 'undefined') {
+    SieglingsCatalogSync.onCatalogPublished(() => {
+        loadGameOptions();
+    });
+}
 loadGameOptions();
 
