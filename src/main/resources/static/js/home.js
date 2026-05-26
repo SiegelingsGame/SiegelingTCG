@@ -143,6 +143,7 @@
     };
 
     let liveCatalogRefreshPromise = null;
+    let gachaParticleField = null;
 
     window.addEventListener('DOMContentLoaded', init);
 
@@ -1819,10 +1820,15 @@
                     <button class="primary-btn" type="button" data-clear-pack-result>Done</button>
                 </div>
             </div>
+            <canvas class="gacha-particles" aria-hidden="true"></canvas>
             <div class="gacha-stage">
                 ${cards.map(card => renderRevealCard(card, reveal.revealed.has(card.revealId), latest.packId)).join('')}
             </div>
         </section>`;
+        const opening = result.querySelector('.pack-opening');
+        if (opening) {
+            initGachaParticles(opening, elementColor(cards[0]?.element || 'FIRE'));
+        }
     }
 
     function ensurePackReveal(latest) {
@@ -1883,22 +1889,223 @@
         </button>`;
     }
 
-    function revealPackCard(revealId) {
+    function revealPackCard(revealId, triggerEl = null) {
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
-        ensurePackReveal(latest).revealed.add(revealId);
-        renderPackResult();
+        const reveal = ensurePackReveal(latest);
+        if (reveal.revealed.has(revealId)) return;
+        reveal.revealed.add(revealId);
+        const button = triggerEl
+            || document.querySelector(`[data-reveal-card="${CSS.escape(revealId)}"]`);
+        if (button) {
+            playRevealCardAnimation(button);
+        } else {
+            renderPackResult();
+        }
+        updatePackRevealProgress();
     }
 
     function revealAllPackCards() {
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
-        latest.cards.forEach((card, index) => reveal.revealed.add(`${card.id || 'card'}-${index}`));
-        renderPackResult();
+        const pending = [...document.querySelectorAll('.reveal-card:not(.is-revealed)')];
+        pending.forEach((button, index) => {
+            const revealId = button.dataset.revealCard;
+            if (!revealId) return;
+            window.setTimeout(() => {
+                reveal.revealed.add(revealId);
+                playRevealCardAnimation(button);
+                updatePackRevealProgress();
+            }, index * 110);
+        });
+        if (!pending.length) {
+            latest.cards.forEach((card, index) => reveal.revealed.add(`${card.id || 'card'}-${index}`));
+            renderPackResult();
+        }
+    }
+
+    function playRevealCardAnimation(button) {
+        if (!button || button.classList.contains('is-revealed')) return;
+        button.classList.add('is-revealed', 'is-animating');
+        button.setAttribute('aria-pressed', 'true');
+        spawnRevealSparks(button);
+        const settle = (event) => {
+            if (event.target !== button || event.animationName !== 'rarityLift') return;
+            button.classList.remove('is-animating');
+            button.removeEventListener('animationend', settle);
+        };
+        button.addEventListener('animationend', settle);
+    }
+
+    function spawnRevealSparks(button) {
+        const burst = button.querySelector('.rarity-burst');
+        if (!burst) return;
+        burst.replaceChildren();
+        const rarity = getComputedStyle(button).getPropertyValue('--rarity').trim() || rarityColor('COMMON');
+        const sparkCount = 12;
+        for (let i = 0; i < sparkCount; i += 1) {
+            const spark = document.createElement('span');
+            spark.className = 'reveal-spark';
+            const angle = (Math.PI * 2 * i) / sparkCount + (Math.random() - 0.5) * 0.55;
+            const dist = 38 + Math.random() * 48;
+            spark.style.setProperty('--rarity', rarity);
+            spark.style.setProperty('--sx', `${Math.cos(angle) * dist}px`);
+            spark.style.setProperty('--sy', `${Math.sin(angle) * dist}px`);
+            spark.style.setProperty('--delay', `${Math.random() * 0.14}s`);
+            spark.style.setProperty('--dur', `${0.52 + Math.random() * 0.38}s`);
+            spark.style.setProperty('--size', `${2 + Math.random() * 3}px`);
+            burst.appendChild(spark);
+        }
+    }
+
+    function updatePackRevealProgress() {
+        const latest = state.progression?.packHistory?.[0];
+        if (!latest) return;
+        const reveal = ensurePackReveal(latest);
+        const label = document.querySelector('.pack-opening-head p');
+        if (label) {
+            label.textContent = `${reveal.revealed.size}/${latest.cards.length} cards revealed. Flip cards one at a time, or reveal the whole pack.`;
+        }
+    }
+
+    function destroyGachaParticles() {
+        gachaParticleField?.destroy();
+        gachaParticleField = null;
+    }
+
+    function initGachaParticles(host, accentHex) {
+        destroyGachaParticles();
+        if (!host) return;
+        const canvas = host.querySelector('.gacha-particles');
+        if (!canvas) return;
+        gachaParticleField = new GachaParticleField(canvas, accentHex);
+        gachaParticleField.start();
+    }
+
+    class GachaParticleField {
+        constructor(canvas, accentHex) {
+            this.canvas = canvas;
+            this.ctx = canvas.getContext('2d');
+            this.accent = parseHexColor(accentHex) || { r: 255, g: 180, b: 74 };
+            this.particles = [];
+            this.width = 0;
+            this.height = 0;
+            this.running = false;
+            this.raf = 0;
+            this.startedAt = 0;
+            this.onResize = () => this.resize();
+        }
+
+        start() {
+            if (this.running) return;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            this.running = true;
+            this.resize();
+            this.seedParticles();
+            window.addEventListener('resize', this.onResize);
+            this.startedAt = performance.now();
+            this.tick(this.startedAt);
+        }
+
+        destroy() {
+            this.running = false;
+            cancelAnimationFrame(this.raf);
+            window.removeEventListener('resize', this.onResize);
+            this.ctx?.clearRect(0, 0, this.width, this.height);
+        }
+
+        resize() {
+            const rect = this.canvas.parentElement?.getBoundingClientRect();
+            if (!rect?.width || !rect?.height) return;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            this.width = Math.floor(rect.width);
+            this.height = Math.floor(rect.height);
+            this.canvas.width = Math.floor(this.width * dpr);
+            this.canvas.height = Math.floor(this.height * dpr);
+            this.canvas.style.width = `${this.width}px`;
+            this.canvas.style.height = `${this.height}px`;
+            this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        seedParticles() {
+            const palette = [
+                this.accent,
+                tintRgb(this.accent, 0.72),
+                tintRgb(this.accent, 1.28)
+            ];
+            this.particles = Array.from({ length: 16 }, (_, index) => {
+                const tone = palette[index % palette.length];
+                return {
+                    x: Math.random() * this.width,
+                    y: Math.random() * this.height,
+                    baseX: Math.random(),
+                    baseY: Math.random(),
+                    size: 1.1 + Math.random() * 2.4,
+                    alpha: 0.12 + Math.random() * 0.2,
+                    drift: 0.35 + Math.random() * 0.9,
+                    phase: Math.random() * Math.PI * 2,
+                    loop: 18 + Math.random() * 16,
+                    tone
+                };
+            });
+        }
+
+        tick(ts) {
+            if (!this.running) return;
+            this.raf = requestAnimationFrame((next) => this.tick(next));
+            const elapsed = (ts - this.startedAt) / 1000;
+            const ctx = this.ctx;
+            ctx.clearRect(0, 0, this.width, this.height);
+            ctx.globalCompositeOperation = 'lighter';
+            this.particles.forEach((particle) => {
+                const t = elapsed / particle.loop;
+                const wave = Math.sin((t * Math.PI * 2) + particle.phase);
+                const swirl = Math.cos((t * Math.PI * 2 * 0.62) + particle.phase * 1.4);
+                particle.x = ((particle.baseX + wave * 0.11 * particle.drift) % 1) * this.width;
+                particle.y = ((particle.baseY + swirl * 0.09 * particle.drift) % 1) * this.height;
+                const pulse = 0.55 + Math.sin((t * Math.PI * 2 * 1.7) + particle.phase) * 0.45;
+                const radius = particle.size * (0.85 + pulse * 0.35);
+                const grd = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, radius * 5);
+                grd.addColorStop(0, rgba(particle.tone, particle.alpha * 0.95));
+                grd.addColorStop(0.45, rgba(particle.tone, particle.alpha * 0.35));
+                grd.addColorStop(1, rgba(particle.tone, 0));
+                ctx.fillStyle = grd;
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, radius * 4.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalCompositeOperation = 'source-over';
+        }
+    }
+
+    function parseHexColor(hex) {
+        const normalized = String(hex || '').trim().replace('#', '');
+        if (normalized.length !== 6) return null;
+        const value = Number.parseInt(normalized, 16);
+        if (!Number.isFinite(value)) return null;
+        return {
+            r: (value >> 16) & 255,
+            g: (value >> 8) & 255,
+            b: value & 255
+        };
+    }
+
+    function tintRgb(rgb, amount) {
+        const scale = Number(amount) || 1;
+        return {
+            r: Math.min(255, Math.round(rgb.r * scale)),
+            g: Math.min(255, Math.round(rgb.g * scale)),
+            b: Math.min(255, Math.round(rgb.b * scale))
+        };
+    }
+
+    function rgba(rgb, alpha) {
+        return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
     }
 
     function clearPackResult() {
+        destroyGachaParticles();
         state.packReveal = null;
         const result = document.getElementById('packResult');
         if (result) {
@@ -2770,7 +2977,7 @@
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const revealButton = event.target.closest('[data-reveal-card]');
-        if (revealButton) revealPackCard(revealButton.dataset.revealCard);
+        if (revealButton) revealPackCard(revealButton.dataset.revealCard, revealButton);
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();
         if (event.target.closest('[data-clear-pack-result]')) clearPackResult();
     });
