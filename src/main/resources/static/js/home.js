@@ -45,6 +45,7 @@
         ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
     };
     const RARITY_ORDER = { COMMON: 1, UNCOMMON: 2, RARE: 3, EPIC: 4, LEGENDARY: 5 };
+    const REMNANT_CRAFT_COSTS = { COMMON: 500, UNCOMMON: 1000, RARE: 2000, EPIC: 4000, LEGENDARY: 8000 };
     const RARITY_COLORS = {
         COMMON: '#b8c0cc',
         UNCOMMON: '#64c987',
@@ -117,6 +118,7 @@
         typeFilter: 'ALL',
         rarityFilter: 'ALL',
         energyCostFilter: 'ALL',
+        showUnowned: false,
         sort: 'owned-desc',
         roomSearch: '',
         roomFormatFilter: 'ALL',
@@ -125,6 +127,10 @@
         roomHideFull: false,
         friendSearch: '',
         builderCounts: {},
+        builderSearch: '',
+        builderElementFilter: 'ALL',
+        builderTypeFilter: 'ALL',
+        builderSort: 'owned-desc',
         friendMessage: '',
         friendMessageType: '',
         filterTrayOpen: false,
@@ -160,6 +166,7 @@
         await loadAll();
         await syncCatalogIfVersionChanged();
         render();
+        focusRouteTarget(routeFocusFromHash());
         syncAuthRouteIntent();
     }
 
@@ -170,6 +177,11 @@
         });
         document.getElementById('cardSortSelect')?.addEventListener('change', (event) => {
             state.sort = event.target.value;
+            renderCards();
+        });
+        document.getElementById('showUnownedToggle')?.addEventListener('click', () => {
+            state.showUnowned = !state.showUnowned;
+            renderFilters();
             renderCards();
         });
         document.getElementById('playNowBtn')?.addEventListener('click', () => goPlay({ mode: 'solo' }));
@@ -235,6 +247,7 @@
             setActiveRoute();
             renderSections();
             renderRoute();
+            focusRouteTarget(routeFocusFromHash());
             syncAuthRouteIntent();
         });
         document.addEventListener('visibilitychange', () => {
@@ -245,16 +258,19 @@
     }
 
     async function loadAll() {
-        const [options, packs, descriptions, profile] = await Promise.all([
+        const [options, packs, descriptions, profile, leaderboards] = await Promise.all([
             fetchCachedJson('gameOptions', '/api/game/options', STATIC_CACHE_TTL_MS),
             fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
-            syncProfile()
+            syncProfile(),
+            fetchCachedJson('leaderboards', '/api/leaderboards', STATIC_CACHE_TTL_MS)
         ]);
         applyGameOptions(options);
         state.packs = packs?.packs || [];
         state.dailyOffers = packs?.dailyOffers || [];
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
+        state.leaderboards = leaderboards || null;
+        state.leaderboardsError = leaderboards?.error || '';
         if (!state.selectedCardId) {
             state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
         }
@@ -375,6 +391,12 @@
     }
 
     function renderFilters() {
+        const showUnownedToggle = document.getElementById('showUnownedToggle');
+        if (showUnownedToggle) {
+            showUnownedToggle.classList.toggle('active', state.showUnowned);
+            showUnownedToggle.setAttribute('aria-pressed', String(state.showUnowned));
+            showUnownedToggle.textContent = state.showUnowned ? 'Showing unowned' : 'Show unowned';
+        }
         renderFilter('elementFilters', elementFilterValues(), state.elementFilter, (value) => {
             state.elementFilter = value;
             renderFilters();
@@ -415,7 +437,9 @@
         grids.forEach(([id, list]) => {
             const grid = document.getElementById(id);
             if (!grid) return;
-            grid.innerHTML = list.map(renderCardTile).join('');
+            grid.innerHTML = list.length
+                ? list.map(renderCardTile).join('')
+                : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
                 openCardTray();
@@ -424,13 +448,17 @@
             }));
         });
         const allCount = document.getElementById('allCardCount');
-        if (allCount) allCount.textContent = `${cards.length} cards`;
+        if (allCount) {
+            const ownedVisible = cards.filter(card => ownedCount(card.id) > 0).length;
+            allCount.textContent = state.showUnowned ? `${cards.length} cards / ${ownedVisible} owned` : `${cards.length} owned cards`;
+        }
         renderDetail();
         renderUnlock();
     }
 
     function filteredCards() {
         const cards = [...(state.options?.cardCatalog || [])].filter(card => {
+            if (!state.showUnowned && ownedCount(card.id) <= 0) return false;
             if (state.elementFilter !== 'ALL' && card.element !== state.elementFilter) return false;
             if (state.typeFilter !== 'ALL' && card.type !== state.typeFilter) return false;
             if (state.rarityFilter !== 'ALL' && card.rarity !== state.rarityFilter) return false;
@@ -490,6 +518,12 @@
         }
         const abilities = card.abilities || (card.ability ? [card.ability] : []);
         const flavorText = creatureDescriptionFor(card);
+        const craftCost = remnantCraftCost(card);
+        const remnants = remnantBalance();
+        const canCraft = state.profile?.authenticated && state.progression?.starterChosen && remnants >= craftCost;
+        const craftLabel = state.profile?.authenticated
+            ? `Craft for ${craftCost.toLocaleString()} Remnants`
+            : 'Sign in to craft';
         panel.innerHTML = `
             <div class="detail-art art" style="--el:${elementColor(card.element)}">${renderElementIcon(card.element)}</div>
             <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
@@ -515,8 +549,13 @@
             </div>
             <h3>Abilities</h3>
             ${abilities.length ? abilities.map(a => `<p><strong>${escapeHtml(a.name || 'Ability')}</strong><br>${escapeHtml(a.description || '')}</p>`).join('') : '<p>No printed ability.</p>'}
+            <div class="craft-card-action">
+                <button class="primary-btn" type="button" id="craftSelectedCard"${canCraft || !state.profile?.authenticated ? '' : ' disabled'}>${escapeHtml(craftLabel)}</button>
+                <span>${escapeHtml(remnants.toLocaleString())} Remnants available</span>
+            </div>
             <button class="primary-btn" type="button" id="addSelectedToBuilder">Add to Custom Deck</button>
         `;
+        document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
         document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => adjustBuilder(card.id, 1));
     }
 
@@ -527,8 +566,7 @@
         const ownedTotal = state.progression?.ownedTotal || 0;
         const coins = state.profile?.authenticated ? (state.progression?.gold || 0) : 100;
         const savedDecks = state.profile?.savedDecks || [];
-        const packHistory = state.progression?.packHistory || [];
-        const packFragments = Math.max(0, packHistory.length * 25 + Math.floor(ownedTotal / 3));
+        const remnants = remnantBalance();
         const customSlotsUsed = savedDecks.length;
         const customSlotsMax = 20;
         const recentRooms = state.rooms.slice(0, 4);
@@ -551,35 +589,38 @@
             </section>
 
             <section class="command-action-row">
-                <button class="command-action-card fire" type="button" data-home-action="pve">
+                <a class="command-action-card fire" href="/play?mode=solo" data-home-action="pve">
                     <span class="command-action-icon">PVE</span>
                     <strong>PVE Battle</strong>
-                    <small>Fight AI opponents and earn Coins.</small>
+                    <small>Fight AI opponents and earn Siegecoins and Remnants.</small>
                     <span class="command-action-arrow">&gt;</span>
-                </button>
-                <button class="command-action-card water" type="button" data-home-action="create-lobby">
+                </a>
+                <a class="command-action-card water" href="/social#socialActiveLobby" data-home-action="create-lobby">
                     <span class="command-action-icon">1v1</span>
                     <strong>Create 1v1 Lobby</strong>
                     <small>Host a PVP room and challenge a friend.</small>
                     <span class="command-action-arrow">&gt;</span>
-                </button>
-                <button class="command-action-card shadow" type="button" data-home-action="shop">
+                </a>
+                <a class="command-action-card shadow" href="/shop" data-home-action="shop">
                     <span class="command-action-icon">Pack</span>
                     <strong>Open Packs</strong>
-                    <small>Discover new cards and grow your collection.</small>
+                    <small>Discover cards and earn Remnants every time.</small>
                     <span class="command-action-arrow">&gt;</span>
-                </button>
+                </a>
             </section>
 
             <section class="command-count-row">
-                ${homeCountTile(coinIconMarkup(), 'Coins', coins.toLocaleString(), 'Available', true)}
-                ${homeCountTile('Card', 'Owned Card Copies', ownedTotal.toLocaleString(), 'Total copies')}
-                ${homeCountTile('Deck', 'Custom Deck Slots', `${customSlotsUsed} / ${customSlotsMax}`, 'Slots used')}
-                ${homeCountTile('Frag', 'Pack Fragments', packFragments.toLocaleString(), 'Fragments')}
+                ${homeCountTile(coinIconMarkup(), 'Siegecoins', coins.toLocaleString(), 'Available', true)}
+                ${homeCountTile('Card', 'Owned Cards', ownedTotal.toLocaleString(), 'Total copies')}
+                ${homeCountTile('Deck', 'Custom Decks', `${customSlotsUsed} / ${customSlotsMax}`, 'Slots used')}
+                ${homeCountTile('Rem', 'Remnants', remnants.toLocaleString(), 'Craft currency')}
                 ${homeCountTile('Set', 'Collection', `${collection.completion}%`, 'Set completion')}
             </section>
 
             <section class="command-grid">
+                ${renderArenaGuidePanel()}
+                ${renderHomeLeaderboardsPanel()}
+
                 <article class="command-panel quick-play-panel">
                     <div class="command-panel-head"><div><span class="eyebrow">Quick Play</span><h3>Jump into battle</h3></div></div>
                     <p>Choose a match mode and start playing with your current loadout.</p>
@@ -610,7 +651,7 @@
 
                 <article class="command-panel collection-hub-panel">
                     <div class="command-panel-head"><div><span class="eyebrow">Collection Hub</span><h3>Search, filter, and build</h3></div></div>
-                    <p>Review owned cards, inspect notches, and turn your collection into stronger decks.</p>
+                    <p>Review owned cards, inspect notches, and spend Remnants from packs and wins to craft specific cards.</p>
                     <div class="collection-actions">
                         <button class="primary-btn" type="button" data-home-action="cards">Browse Cards</button>
                         <button class="ghost-btn" type="button" data-home-action="decks">Build Deck</button>
@@ -645,6 +686,59 @@
         bindHomeDashboardActions(el);
     }
 
+    function renderArenaGuidePanel() {
+        return `<article class="command-panel arena-guide-panel">
+            <div class="command-panel-head">
+                <div><span class="eyebrow">Welcome to the Arena</span><h3>Build links, wake sockets, command momentum</h3></div>
+            </div>
+            <p>Siegelings is a board-first card battle game. Place Siegelings during setup, connect matching notches, then spend the elemental energy those links create.</p>
+            <div class="arena-guide-steps">
+                <div><strong>1</strong><span>Notches can wake external sockets and feed your energy pool.</span></div>
+                <div><strong>2</strong><span>Matching internal links strengthen your board network.</span></div>
+                <div><strong>3</strong><span>Deck choice and SiegeKnight timing shape the battle plan.</span></div>
+            </div>
+        </article>`;
+    }
+
+    function renderHomeLeaderboardsPanel() {
+        const tabs = [
+            ['wins', 'Wins'],
+            ['matchesPlayed', 'Matches'],
+            ['spellsCast', 'Spells'],
+            ['trapsSprung', 'Traps'],
+            ['siegelingsDefeated', 'Siegelings'],
+            ['pvpWinRate', 'PVP W/L']
+        ];
+        const boards = state.leaderboards?.boards || {};
+        const activeRows = boards[state.leaderboardTab] || [];
+        const activeTab = tabs.some(([id]) => id === state.leaderboardTab) ? state.leaderboardTab : 'wins';
+        const generatedAt = state.leaderboards?.generatedAt ? formatDateTime(state.leaderboards.generatedAt) : '';
+        return `<article class="command-panel home-leaderboards-panel">
+            <div class="command-panel-head">
+                <div><span class="eyebrow">Daily Leaderboards</span><h3>See who rules the arena today</h3></div>
+                <span class="reset-pill">${generatedAt ? `Updated ${escapeHtml(generatedAt)}` : 'Daily'}</span>
+            </div>
+            <div class="home-lb-tabs">
+                ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}">${escapeHtml(label)}</button>`).join('')}
+            </div>
+            <div class="home-lb-list">
+                ${state.leaderboardsError && !state.leaderboards ? `<div class="home-empty-emblem">${escapeHtml(state.leaderboardsError)}</div>` : ''}
+                ${activeRows.length ? activeRows.slice(0, 6).map(row => {
+                    const value = activeTab === 'pvpWinRate' && row.detail ? row.detail : row.value;
+                    return `<div class="home-lb-row"><strong>#${escapeHtml(row.rank)}</strong><span>${escapeHtml(row.displayName || 'Player')}</span><em>${escapeHtml(value ?? '')}</em></div>`;
+                }).join('') : '<div class="home-empty-emblem">No leaderboard results yet.</div>'}
+            </div>
+        </article>`;
+    }
+
+    function formatDateTime(value) {
+        try {
+            return new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        } catch (error) {
+            return String(value || '');
+        }
+    }
+
     function homeCountTile(icon, label, value, hint, iconIsMarkup = false) {
         return `<article class="command-count-card">
             <span class="count-icon">${iconIsMarkup ? icon : escapeHtml(icon)}</span>
@@ -670,7 +764,7 @@
         return [
             { icon: 'X', title: 'Win 3 PVP Matches', current: Math.min(3, pvpWins), target: 3, reward: 150 },
             { icon: 'P', title: 'Open 2 Packs', current: Math.min(2, openedPacks), target: 2, reward: 100 },
-            { icon: coinIconMarkup(), iconMarkup: true, title: 'Earn 300 Coins', current: Math.min(300, coins), target: 300, reward: 150 }
+            { icon: coinIconMarkup(), iconMarkup: true, title: 'Earn 300 Siegecoins', current: Math.min(300, coins), target: 300, reward: 150 }
         ];
     }
 
@@ -744,11 +838,20 @@
     }
 
     function bindHomeDashboardActions(root) {
-        root.querySelectorAll('[data-home-action]').forEach(btn => btn.addEventListener('click', () => {
+        root.querySelectorAll('[data-home-action]').forEach(btn => btn.addEventListener('click', (event) => {
             const action = btn.dataset.homeAction;
-            if (action === 'pve') return goPlay({ mode: 'solo' });
-            if (action === 'create-lobby') return createLobbyFromHome();
+            const directLink = btn.tagName === 'A';
+            if (action === 'pve') {
+                queuePlayLoadout({ mode: 'solo' });
+                if (!directLink) return goPlay({ mode: 'solo' });
+                return;
+            }
+            if (action === 'create-lobby') {
+                if (directLink) return;
+                return navigateHub('social', { focus: 'lobby' });
+            }
             if (action === 'card') {
+                event.preventDefault();
                 state.selectedCardId = btn.dataset.cardId;
                 navigateHub('cards');
                 openCardTray();
@@ -758,9 +861,16 @@
             }
             if (action === 'cards') return navigateHub('cards');
             if (action === 'decks') return navigateHub('decks');
-            if (action === 'social') return navigateHub('social');
-            if (action === 'shop') return navigateHub('shop');
+            if (action === 'social') return navigateHub('social', { focus: 'lobby' });
+            if (action === 'shop') {
+                if (directLink) return;
+                return navigateHub('shop');
+            }
             if (action === 'missions') return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }));
+        root.querySelectorAll('[data-home-lb]').forEach(btn => btn.addEventListener('click', () => {
+            state.leaderboardTab = btn.dataset.homeLb || 'wins';
+            renderHomeDashboard();
         }));
     }
 
@@ -897,18 +1007,181 @@
     function renderBuilder() {
         const lock = document.getElementById('deckBuilderLock');
         const panel = document.getElementById('builderPanel');
+        const catalog = document.getElementById('builderCatalogPanel');
         const unlocked = Boolean(state.progression?.customDeckUnlocked);
+        const builderAvailable = Boolean(state.options?.cardCatalog?.length);
+        const total = builderTotal();
+        const trainerId = builderTrainerId();
+        const deckElements = builderDeckElements();
+        const primaryElement = deckElements[0] || 'NEUTRAL';
         lock.innerHTML = unlocked
             ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Use owned cards with max 3 copies each.</span></div>'
-            : `<div class="unlock-card"><strong>Own 30 total card copies to build custom decks.</strong><span>${state.progression?.ownedTotal || 0}/30 owned copies. Play premade decks and open packs to unlock.</span></div>`;
-        panel.innerHTML = unlocked
-            ? `<div class="section-head"><h2>Custom Deck Draft (${builderTotal()}/30)</h2><button class="primary-btn" type="button" id="playCustomBtn">Play Custom</button></div><div class="builder-list">${Object.entries(state.builderCounts).map(([cardId, count]) => {
-                const card = findCard(cardId);
-                return `<div class="card-tile"><div class="art" style="--el:${elementColor(card?.element)}"></div><div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} copies</span><button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">Remove</button></div></div>`;
-            }).join('') || '<div class="unlock-card">Select owned cards from the browser to start building.</div>'}</div>`
+            : `<div class="unlock-card"><strong>Deck planner available</strong><span>${state.profile?.authenticated ? `${state.progression?.ownedTotal || 0}/30 owned copies. Save-ready custom decks unlock once your binder has 30 owned copies.` : 'Sign in to save decks to your binder. You can still plan and test a custom list here.'}</span></div>`;
+        panel.innerHTML = builderAvailable
+            ? `<section class="deck-builder-workbench" style="--builder-accent:${elementColor(primaryElement)}">
+                <div class="builder-hero-row">
+                    <div>
+                        <span class="eyebrow">Custom Builder</span>
+                        <h2>Build a deck from your binder</h2>
+                        <p>Pick owned cards here, save the list, then play it whenever you want. Max 3 copies per card.</p>
+                    </div>
+                    <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
+                        <strong>${total}</strong><span>/30</span>
+                    </div>
+                </div>
+                <div class="builder-form-grid">
+                    <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
+                    <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
+                    <label><span>Sort catalog</span><select class="search-input" id="builderSortSelect">
+                        <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
+                        <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
+                        <option value="cost-asc"${state.builderSort === 'cost-asc' ? ' selected' : ''}>Cost low</option>
+                        <option value="rarity-desc"${state.builderSort === 'rarity-desc' ? ' selected' : ''}>Rarity high</option>
+                    </select></label>
+                </div>
+                <div class="builder-actions-row">
+                    <button class="primary-btn" type="button" id="saveDeckWorkbenchBtn"${total < 30 ? ' disabled' : ''}>Save Deck</button>
+                    <button class="ghost-btn" type="button" id="playCustomBtn"${total < 30 ? ' disabled' : ''}>Play Custom</button>
+                    <button class="ghost-btn" type="button" id="clearBuilderBtn"${total ? '' : ' disabled'}>Clear</button>
+                    <span>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</span>
+                </div>
+                <div class="builder-list">${builderDraftRows()}</div>
+            </section>`
             : '';
-        document.getElementById('playCustomBtn')?.addEventListener('click', () => goPlay({ mode: 'solo', customDeckCards: builderCards(), loadoutLabel: 'Custom Binder Deck' }));
+        if (catalog) catalog.innerHTML = builderAvailable ? renderBuilderCatalog() : '';
+        document.getElementById('playCustomBtn')?.addEventListener('click', () => {
+            if (builderTotal() < 30) return alert('Custom decks need 30 cards.');
+            goPlay({ mode: 'solo', customDeckCards: builderCards(), trainerId: builderTrainerId(), loadoutLabel: builderDeckName() });
+        });
+        document.getElementById('saveDeckWorkbenchBtn')?.addEventListener('click', saveCustomDeck);
+        document.getElementById('clearBuilderBtn')?.addEventListener('click', () => {
+            state.builderCounts = {};
+            renderBuilder();
+        });
+        document.getElementById('builderTrainerSelect')?.addEventListener('change', (event) => {
+            localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
+        });
+        document.getElementById('builderDeckName')?.addEventListener('input', (event) => {
+            localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
+        });
+        document.getElementById('builderSortSelect')?.addEventListener('change', (event) => {
+            state.builderSort = event.target.value;
+            renderBuilder();
+        });
+        bindBuilderCatalogEvents(catalog);
         panel.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.removeCard, -1)));
+    }
+
+    function builderTrainerId() {
+        const saved = localStorage.getItem('sieglingsBuilderTrainerId');
+        if (saved && (state.options?.trainers || []).some(trainer => trainer.id === saved)) return saved;
+        return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
+    }
+
+    function builderDeckName() {
+        return (localStorage.getItem('sieglingsBuilderDeckName') || 'Custom Binder Deck').slice(0, 40);
+    }
+
+    function builderTrainerOptions(selectedId) {
+        return (state.options?.trainers || []).map(trainer => `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}>${escapeHtml(trainer.name || trainer.id)}</option>`).join('');
+    }
+
+    function builderDraftRows() {
+        const entries = Object.entries(state.builderCounts);
+        if (!entries.length) {
+            return '<div class="unlock-card builder-empty">Add owned cards from the catalog below to start building.</div>';
+        }
+        return entries.sort(([a], [b]) => (findCard(a)?.name || a).localeCompare(findCard(b)?.name || b)).map(([cardId, count]) => {
+            const card = findCard(cardId);
+            const maxCopies = builderCardLimit(cardId);
+            return `<div class="builder-deck-card" style="--el:${elementColor(card?.element)}">
+                <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
+                <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
+                <div class="builder-stepper">
+                    <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
+                    <button class="ghost-btn" type="button" data-add-builder-card="${escapeAttr(cardId)}"${count >= maxCopies || builderTotal() >= 30 ? ' disabled' : ''}>+</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderBuilderCatalog() {
+        const cards = builderCatalogCards();
+        return `<section class="deck-builder-catalog">
+            <div class="section-head">
+                <div><span class="eyebrow">Owned Card Catalog</span><h2>Add cards without opening Play</h2></div>
+                <span>${cards.length} cards</span>
+            </div>
+            <div class="builder-catalog-tools">
+                <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search owned cards...">
+                <select class="search-input" id="builderElementSelect">
+                    ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
+                </select>
+                <select class="search-input" id="builderTypeSelect">
+                    ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
+                </select>
+            </div>
+            <div class="builder-catalog-grid">
+                ${cards.length ? cards.map(renderBuilderCatalogCard).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
+            </div>
+        </section>`;
+    }
+
+    function renderBuilderCatalogCard(card) {
+        const owned = ownedCount(card.id);
+        const count = state.builderCounts[card.id] || 0;
+        const maxCopies = builderCardLimit(card.id);
+        const total = builderTotal();
+        const canAdd = maxCopies > 0 && count < maxCopies && total < 30;
+        return `<article class="builder-catalog-card" style="--el:${elementColor(card.element)}">
+            <div class="builder-catalog-art">${renderElementIcon(card.element)}</div>
+            <div class="builder-catalog-copy">
+                <strong>${escapeHtml(card.name)}</strong>
+                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
+                <small>${escapeHtml(format(card.rarity))} / ${owned ? `Owned x${owned}` : 'Planner copy'}</small>
+            </div>
+            <div class="builder-stepper">
+                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
+                <strong>${count}</strong>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>+</button>
+            </div>
+        </article>`;
+    }
+
+    function builderCatalogCards() {
+        return [...(state.options?.cardCatalog || [])]
+            .filter(card => builderCardLimit(card.id) > 0)
+            .filter(card => state.builderElementFilter === 'ALL' || card.element === state.builderElementFilter)
+            .filter(card => state.builderTypeFilter === 'ALL' || card.type === state.builderTypeFilter)
+            .filter(card => {
+                if (!state.builderSearch) return true;
+                const text = `${card.name} ${card.type} ${card.element} ${card.rarity} ${creatureDescriptionFor(card)} ${JSON.stringify(card.abilities || [])}`.toLowerCase();
+                return text.includes(state.builderSearch);
+            })
+            .sort((a, b) => {
+                if (state.builderSort === 'name-asc') return a.name.localeCompare(b.name);
+                if (state.builderSort === 'cost-asc') return cardEnergyCost(a) - cardEnergyCost(b) || a.name.localeCompare(b.name);
+                if (state.builderSort === 'rarity-desc') return (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0);
+                return ownedCount(b.id) - ownedCount(a.id) || a.name.localeCompare(b.name);
+            });
+    }
+
+    function bindBuilderCatalogEvents(root) {
+        if (!root) return;
+        root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.addBuilderCard, 1)));
+        root.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.removeCard, -1)));
+        root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
+            state.builderSearch = event.target.value.trim().toLowerCase();
+            renderBuilder();
+        });
+        root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
+            state.builderElementFilter = event.target.value;
+            renderBuilder();
+        });
+        root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
+            state.builderTypeFilter = event.target.value;
+            renderBuilder();
+        });
     }
 
     function renderShop() {
@@ -1225,7 +1498,7 @@
                         <div>
                             <span class="eyebrow">Player Hub</span>
                             <h2>Claim your Siegelings profile</h2>
-                            <p>Sign in to save Coins, starter packs, owned cards, custom decks, friends, and match history.</p>
+                            <p>Sign in to save Siegecoins, Remnants, starter packs, owned cards, custom decks, friends, and match history.</p>
                         </div>
                     </div>
                     <button class="primary-btn profile-theme-btn" type="button" id="profileSignInBtn">Sign In</button>
@@ -1581,9 +1854,21 @@
         return `<img class="coin-icon" src="${COIN_ICON_PATH}" alt="" aria-hidden="true">`;
     }
 
-    function renderCoinAmount(value, label = 'Coins') {
-        const amount = String(value ?? 0).replace(/\s*Coins?$/i, '').trim() || '0';
+    function renderCoinAmount(value, label = 'Siegecoins') {
+        const amount = String(value ?? 0).replace(/\s*(Siegecoins?|Coins?)$/i, '').trim() || '0';
         return `<span class="coin-value">${coinIconMarkup()}<span>${escapeHtml(amount)}</span>${label ? `<small>${escapeHtml(label)}</small>` : ''}</span>`;
+    }
+
+    function remnantBalance() {
+        const explicit = Number(state.progression?.remnants);
+        if (Number.isFinite(explicit)) return Math.max(0, explicit);
+        const packHistory = state.progression?.packHistory || [];
+        const ownedTotal = state.progression?.ownedTotal || 0;
+        return Math.max(0, packHistory.length * 40 + Math.floor(ownedTotal / 3));
+    }
+
+    function remnantCraftCost(card) {
+        return REMNANT_CRAFT_COSTS[String(card?.rarity || 'COMMON').toUpperCase()] || REMNANT_CRAFT_COSTS.COMMON;
     }
 
     function collectionSummary() {
@@ -1740,7 +2025,7 @@
         const el = document.getElementById('profileMini');
         if (!el) return;
         if (!state.profile?.authenticated) {
-            el.innerHTML = `<strong>Guest</strong><span>Sign in from the HUD to save Coins and owned cards.</span>`;
+            el.innerHTML = `<strong>Guest</strong><span>Sign in from the HUD to save Siegecoins, Remnants, and owned cards.</span>`;
             return;
         }
         el.innerHTML = `<strong>${escapeHtml(state.profile.user.displayName)}</strong><span>${renderCoinAmount(state.progression?.gold || 0)} / ${state.progression?.ownedTotal || 0} owned copies</span><button class="ghost-btn" type="button" id="logoutBtn">Log out</button>`;
@@ -1781,7 +2066,9 @@
         state.packReveal = latest ? {
             packId: latest.packId,
             openedAt: latest.openedAt,
-            revealed: new Set()
+            revealed: new Set(),
+            lastRevealedId: '',
+            sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
         } : null;
         renderPackResult();
         render();
@@ -1807,8 +2094,10 @@
         const reveal = ensurePackReveal(latest);
         const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
         const revealedCount = reveal.revealed.size;
+        document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
-        result.innerHTML = `<section class="pack-opening" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')}">
+        result.innerHTML = `<section class="pack-opening" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')}">
+            <div class="gacha-particles" aria-hidden="true"></div>
             <div class="pack-opening-head">
                 <div>
                     <span class="eyebrow">Gacha reveal</span>
@@ -1822,7 +2111,7 @@
             </div>
             <canvas class="gacha-particles" aria-hidden="true"></canvas>
             <div class="gacha-stage">
-                ${cards.map(card => renderRevealCard(card, reveal.revealed.has(card.revealId), latest.packId)).join('')}
+                ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), reveal.lastRevealedId === card.revealId, latest.packId, index)).join('')}
             </div>
         </section>`;
         const opening = result.querySelector('.pack-opening');
@@ -1839,7 +2128,9 @@
             state.packReveal = {
                 packId: latest.packId,
                 openedAt: latest.openedAt,
-                revealed: new Set()
+                revealed: new Set(),
+                lastRevealedId: '',
+                sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
             };
         }
         return state.packReveal;
@@ -1864,11 +2155,11 @@
         };
     }
 
-    function renderRevealCard(card, revealed, packId = '') {
+    function renderRevealCard(card, revealed, newlyRevealed = false, packId = '', index = 0) {
         const rarity = card.rarity || 'COMMON';
         const element = card.element || 'FIRE';
         const isSiegling = card.type === 'SIEGLING';
-        return `<button class="reveal-card ${revealed ? 'is-revealed' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)}">
+        return `<button class="reveal-card ${revealed ? 'is-revealed' : ''} ${newlyRevealed ? 'is-new-reveal' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
             <span class="rarity-burst" aria-hidden="true"></span>
             <span class="reveal-face reveal-back">
                 <span class="pack-back-sigil">${escapeHtml(format(element).slice(0, 1) || '?')}</span>
@@ -1893,220 +2184,28 @@
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
-        if (reveal.revealed.has(revealId)) return;
+        const index = latest.cards.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId);
+        const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
         reveal.revealed.add(revealId);
-        const button = triggerEl
-            || document.querySelector(`[data-reveal-card="${CSS.escape(revealId)}"]`);
-        if (button) {
-            playRevealCardAnimation(button);
-        } else {
-            renderPackResult();
-        }
-        updatePackRevealProgress();
+        reveal.lastRevealedId = revealId;
+        reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
+        renderPackResult();
     }
 
     function revealAllPackCards() {
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
-        const pending = [...document.querySelectorAll('.reveal-card:not(.is-revealed)')];
-        pending.forEach((button, index) => {
-            const revealId = button.dataset.revealCard;
-            if (!revealId) return;
-            window.setTimeout(() => {
-                reveal.revealed.add(revealId);
-                playRevealCardAnimation(button);
-                updatePackRevealProgress();
-            }, index * 110);
-        });
-        if (!pending.length) {
-            latest.cards.forEach((card, index) => reveal.revealed.add(`${card.id || 'card'}-${index}`));
-            renderPackResult();
-        }
-    }
-
-    function playRevealCardAnimation(button) {
-        if (!button || button.classList.contains('is-revealed')) return;
-        button.classList.add('is-revealed', 'is-animating');
-        button.setAttribute('aria-pressed', 'true');
-        spawnRevealSparks(button);
-        const settle = (event) => {
-            if (event.target !== button || event.animationName !== 'rarityLift') return;
-            button.classList.remove('is-animating');
-            button.removeEventListener('animationend', settle);
-        };
-        button.addEventListener('animationend', settle);
-    }
-
-    function spawnRevealSparks(button) {
-        const burst = button.querySelector('.rarity-burst');
-        if (!burst) return;
-        burst.replaceChildren();
-        const rarity = getComputedStyle(button).getPropertyValue('--rarity').trim() || rarityColor('COMMON');
-        const sparkCount = 12;
-        for (let i = 0; i < sparkCount; i += 1) {
-            const spark = document.createElement('span');
-            spark.className = 'reveal-spark';
-            const angle = (Math.PI * 2 * i) / sparkCount + (Math.random() - 0.5) * 0.55;
-            const dist = 38 + Math.random() * 48;
-            spark.style.setProperty('--rarity', rarity);
-            spark.style.setProperty('--sx', `${Math.cos(angle) * dist}px`);
-            spark.style.setProperty('--sy', `${Math.sin(angle) * dist}px`);
-            spark.style.setProperty('--delay', `${Math.random() * 0.14}s`);
-            spark.style.setProperty('--dur', `${0.52 + Math.random() * 0.38}s`);
-            spark.style.setProperty('--size', `${2 + Math.random() * 3}px`);
-            burst.appendChild(spark);
-        }
-    }
-
-    function updatePackRevealProgress() {
-        const latest = state.progression?.packHistory?.[0];
-        if (!latest) return;
-        const reveal = ensurePackReveal(latest);
-        const label = document.querySelector('.pack-opening-head p');
-        if (label) {
-            label.textContent = `${reveal.revealed.size}/${latest.cards.length} cards revealed. Flip cards one at a time, or reveal the whole pack.`;
-        }
-    }
-
-    function destroyGachaParticles() {
-        gachaParticleField?.destroy();
-        gachaParticleField = null;
-    }
-
-    function initGachaParticles(host, accentHex) {
-        destroyGachaParticles();
-        if (!host) return;
-        const canvas = host.querySelector('.gacha-particles');
-        if (!canvas) return;
-        gachaParticleField = new GachaParticleField(canvas, accentHex);
-        gachaParticleField.start();
-    }
-
-    class GachaParticleField {
-        constructor(canvas, accentHex) {
-            this.canvas = canvas;
-            this.ctx = canvas.getContext('2d');
-            this.accent = parseHexColor(accentHex) || { r: 255, g: 180, b: 74 };
-            this.particles = [];
-            this.width = 0;
-            this.height = 0;
-            this.running = false;
-            this.raf = 0;
-            this.startedAt = 0;
-            this.onResize = () => this.resize();
-        }
-
-        start() {
-            if (this.running) return;
-            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-            this.running = true;
-            this.resize();
-            this.seedParticles();
-            window.addEventListener('resize', this.onResize);
-            this.startedAt = performance.now();
-            this.tick(this.startedAt);
-        }
-
-        destroy() {
-            this.running = false;
-            cancelAnimationFrame(this.raf);
-            window.removeEventListener('resize', this.onResize);
-            this.ctx?.clearRect(0, 0, this.width, this.height);
-        }
-
-        resize() {
-            const rect = this.canvas.parentElement?.getBoundingClientRect();
-            if (!rect?.width || !rect?.height) return;
-            const dpr = Math.min(window.devicePixelRatio || 1, 2);
-            this.width = Math.floor(rect.width);
-            this.height = Math.floor(rect.height);
-            this.canvas.width = Math.floor(this.width * dpr);
-            this.canvas.height = Math.floor(this.height * dpr);
-            this.canvas.style.width = `${this.width}px`;
-            this.canvas.style.height = `${this.height}px`;
-            this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        }
-
-        seedParticles() {
-            const palette = [
-                this.accent,
-                tintRgb(this.accent, 0.72),
-                tintRgb(this.accent, 1.28)
-            ];
-            this.particles = Array.from({ length: 16 }, (_, index) => {
-                const tone = palette[index % palette.length];
-                return {
-                    x: Math.random() * this.width,
-                    y: Math.random() * this.height,
-                    baseX: Math.random(),
-                    baseY: Math.random(),
-                    size: 1.1 + Math.random() * 2.4,
-                    alpha: 0.12 + Math.random() * 0.2,
-                    drift: 0.35 + Math.random() * 0.9,
-                    phase: Math.random() * Math.PI * 2,
-                    loop: 18 + Math.random() * 16,
-                    tone
-                };
-            });
-        }
-
-        tick(ts) {
-            if (!this.running) return;
-            this.raf = requestAnimationFrame((next) => this.tick(next));
-            const elapsed = (ts - this.startedAt) / 1000;
-            const ctx = this.ctx;
-            ctx.clearRect(0, 0, this.width, this.height);
-            ctx.globalCompositeOperation = 'lighter';
-            this.particles.forEach((particle) => {
-                const t = elapsed / particle.loop;
-                const wave = Math.sin((t * Math.PI * 2) + particle.phase);
-                const swirl = Math.cos((t * Math.PI * 2 * 0.62) + particle.phase * 1.4);
-                particle.x = ((particle.baseX + wave * 0.11 * particle.drift) % 1) * this.width;
-                particle.y = ((particle.baseY + swirl * 0.09 * particle.drift) % 1) * this.height;
-                const pulse = 0.55 + Math.sin((t * Math.PI * 2 * 1.7) + particle.phase) * 0.45;
-                const radius = particle.size * (0.85 + pulse * 0.35);
-                const grd = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, radius * 5);
-                grd.addColorStop(0, rgba(particle.tone, particle.alpha * 0.95));
-                grd.addColorStop(0.45, rgba(particle.tone, particle.alpha * 0.35));
-                grd.addColorStop(1, rgba(particle.tone, 0));
-                ctx.fillStyle = grd;
-                ctx.beginPath();
-                ctx.arc(particle.x, particle.y, radius * 4.5, 0, Math.PI * 2);
-                ctx.fill();
-            });
-            ctx.globalCompositeOperation = 'source-over';
-        }
-    }
-
-    function parseHexColor(hex) {
-        const normalized = String(hex || '').trim().replace('#', '');
-        if (normalized.length !== 6) return null;
-        const value = Number.parseInt(normalized, 16);
-        if (!Number.isFinite(value)) return null;
-        return {
-            r: (value >> 16) & 255,
-            g: (value >> 8) & 255,
-            b: value & 255
-        };
-    }
-
-    function tintRgb(rgb, amount) {
-        const scale = Number(amount) || 1;
-        return {
-            r: Math.min(255, Math.round(rgb.r * scale)),
-            g: Math.min(255, Math.round(rgb.g * scale)),
-            b: Math.min(255, Math.round(rgb.b * scale))
-        };
-    }
-
-    function rgba(rgb, alpha) {
-        return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+        latest.cards.forEach((card, index) => reveal.revealed.add(`${card.id || 'card'}-${index}`));
+        reveal.lastRevealedId = '';
+        reveal.sparkColor = elementColor(latest.cards?.[0]?.element || 'FIRE');
+        renderPackResult();
     }
 
     function clearPackResult() {
         destroyGachaParticles();
         state.packReveal = null;
+        document.body.classList.remove('gacha-active');
         const result = document.getElementById('packResult');
         if (result) {
             result.classList.add('hidden');
@@ -2150,14 +2249,26 @@
         render();
     }
 
+    async function craftSelectedCard(cardId) {
+        if (!state.profile?.authenticated) return openAuth();
+        const data = await fetchJson('/api/cards/craft', { method: 'POST', body: JSON.stringify({ cardId }) });
+        if (data?.error) return alert(data.error);
+        state.progression = data.progression;
+        renderCards();
+        renderHomeDashboard();
+        renderGold();
+    }
+
     async function saveCustomDeck() {
         if (!state.profile?.authenticated) return openAuth();
+        if (!state.progression?.customDeckUnlocked) return alert('Save-ready custom decks unlock once you own 30 total card copies.');
         const cards = builderCards();
         if (cards.length < 30) return alert('Custom decks need 30 cards.');
-        const trainerId = state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id;
+        const trainerId = builderTrainerId();
+        const name = builderDeckName();
         const data = await fetchJson('/api/profile/decks', {
             method: 'POST',
-            body: JSON.stringify({ trainerId, customDeckCards: cards, name: 'Custom Binder Deck' })
+            body: JSON.stringify({ trainerId, customDeckCards: cards, name })
         });
         if (data?.error) return alert(data.error);
         state.profile = data;
@@ -2230,7 +2341,7 @@
         goPlay({ mode: 'online', onlineRoomMode: 'join', roomId: room, deckId: selectedDeckId() });
     }
 
-    function goPlay(payload) {
+    function queuePlayLoadout(payload = {}) {
         localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
             createdAt: Date.now(),
             deckId: payload.deckId || selectedDeckId(),
@@ -2241,16 +2352,36 @@
             customDeckCards: payload.customDeckCards || null,
             loadoutLabel: payload.loadoutLabel || ''
         }));
+    }
+
+    function goPlay(payload) {
+        queuePlayLoadout(payload);
         window.location.href = '/play';
     }
 
-    function navigateHub(route) {
-        if (route === state.route) return;
+    function navigateHub(route, options = {}) {
+        const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
+        if (route === state.route) {
+            focusRouteTarget(options.focus);
+            return;
+        }
         state.route = route;
-        history.pushState(null, '', route === 'home' ? '/home' : `/${route}`);
+        history.pushState(null, '', `${route === 'home' ? '/home' : `/${route}`}${hash}`);
         setActiveRoute();
         renderSections();
         renderRoute();
+        focusRouteTarget(options.focus);
+    }
+
+    function focusRouteTarget(focus) {
+        if (focus !== 'lobby') return;
+        requestAnimationFrame(() => {
+            document.getElementById('socialActiveLobby')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    }
+
+    function routeFocusFromHash() {
+        return location.hash === '#socialActiveLobby' ? 'lobby' : '';
     }
 
     function setActiveRoute() {
@@ -2412,7 +2543,7 @@
     function authMarkup() {
         return `<div class="auth-card">
             <strong>Sign in to save progression</strong>
-            <span>Starter packs, Coins, owned cards, and custom decks require an account. New players start with ${renderCoinAmount(100)}.</span>
+            <span>Starter packs, Siegecoins, Remnants, owned cards, and custom decks require an account. New players start with ${renderCoinAmount(100)}.</span>
             <input class="search-input" id="authEmail" type="email" placeholder="Email">
             <input class="search-input" id="authName" placeholder="Display name for register">
             <input class="search-input" id="authPassword" type="password" placeholder="Password">
@@ -2485,10 +2616,12 @@
     }
 
     function adjustBuilder(cardId, delta) {
-        if (!state.progression?.customDeckUnlocked) return navigateHub('decks');
-        const owned = ownedCount(cardId);
+        if (!state.options?.cardCatalog?.length) return navigateHub('decks');
+        const cardLimit = builderCardLimit(cardId);
         const current = state.builderCounts[cardId] || 0;
-        const next = Math.max(0, Math.min(3, owned, current + delta));
+        const totalWithoutCard = builderTotal() - current;
+        const copyLimit = Math.min(cardLimit, Math.max(0, 30 - totalWithoutCard));
+        const next = Math.max(0, Math.min(copyLimit, current + delta));
         if (next) state.builderCounts[cardId] = next;
         else delete state.builderCounts[cardId];
         navigateHub('decks');
@@ -2500,6 +2633,15 @@
     }
 
     function builderTotal() { return builderCards().length; }
+    function builderDeckElements() {
+        return [...new Set(builderCards().map(id => findCard(id)?.element).filter(Boolean))].slice(0, 4);
+    }
+    function builderCardLimit(cardId) {
+        const owned = ownedCount(cardId);
+        if (owned > 0) return Math.min(3, owned);
+        if (!state.profile?.authenticated || !state.progression?.ownedTotal) return 3;
+        return 0;
+    }
     function selectedCard() { return findCard(state.selectedCardId) || state.options?.cardCatalog?.[0]; }
     function findCard(id) { return (state.options?.cardCatalog || []).find(card => card.id === id); }
     function ownedCount(id) { return state.progression?.ownedCards?.[id] || 0; }

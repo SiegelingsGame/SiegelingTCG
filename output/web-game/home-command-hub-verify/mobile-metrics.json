@@ -1,0 +1,32 @@
+{
+  "actionCards": 3,
+  "bodyTextHasEncodingArtifacts": false,
+  "bottomContentAboveHud": true,
+  "bottomContentVisible": true,
+  "canScrollMain": true,
+  "countCards": 5,
+  "expectedMaxScrollTop": 3459,
+  "horizontalOverflow": false,
+  "lastPanelRect": {
+    "bottom": 605,
+    "height": 321,
+    "top": 284,
+    "width": 333
+  },
+  "mainClientHeight": 844,
+  "mainScrollHeight": 4303,
+  "mainScrollTopAfterBottom": 3458.666748046875,
+  "missionLogs": 3,
+  "missionRows": 3,
+  "navRect": {
+    "bottom": 844,
+    "height": 206,
+    "top": 638,
+    "width": 390
+  },
+  "shopRows": 4,
+  "viewport": {
+    "height": 844,
+    "width": 390
+  }
+}

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Card Sizing Fixture</title>
+    <link rel="stylesheet" href="/css/style.css?v=101">
+    <style>
+        body {
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            padding: 40px;
+            background: #14192a;
+        }
+
+        .fixture {
+            width: min(420px, calc(100vw - 48px));
+        }
+
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            position: relative;
+            width: 100%;
+        }
+
+        .fixture-note {
+            margin-top: 18px;
+            color: var(--text-dim);
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .demo-link svg {
+            filter: drop-shadow(0 0 6px rgba(46, 204, 113, 0.45));
+        }
+    </style>
+</head>
+<body>
+    <main class="fixture">
+        <div class="board-grid" id="playerGrid">
+            <div class="board-cell has-card" data-row="0" data-col="0">
+                <div class="board-card fire">
+                    <div class="bc-notches">
+                        <div class="bc-notch bc-notch-TOP filled fire external" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="bc-notch bc-notch-TOP_RIGHT filled fire external" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="bc-notch bc-notch-RIGHT filled fire linked" id="pyloRightNotch" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="bc-notch bc-notch-BOTTOM_RIGHT filled earth linked" style="--notch:#b48c50;--notch-icon:url('/img/notches/notch-earth.png');"></div>
+                        <div class="bc-notch bc-notch-BOTTOM filled fire" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="bc-notch bc-notch-BOTTOM_LEFT empty"></div>
+                        <div class="bc-notch bc-notch-LEFT filled wind expandable" style="--notch:#96ffb4;--notch-icon:url('/img/elements/element-wind.svg');"></div>
+                        <div class="bc-notch bc-notch-TOP_LEFT filled fire external" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                    </div>
+                    <div class="bc-inner">
+                        <div class="bc-name-box"><span class="card-name">Pylo</span></div>
+                        <div class="bc-stats-box">
+                            <div class="hp-bar"><div class="hp-fill" style="width:100%"></div></div>
+                            <div class="card-stats">
+                                <span class="stat stat-hp">8/8</span>
+                                <span class="stat stat-spd">12</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="board-cell has-card" data-row="0" data-col="1">
+                <div class="board-card earth">
+                    <div class="bc-notches">
+                        <div class="bc-notch bc-notch-TOP empty"></div>
+                        <div class="bc-notch bc-notch-TOP_RIGHT filled earth external" style="--notch:#b48c50;--notch-icon:url('/img/notches/notch-earth.png');"></div>
+                        <div class="bc-notch bc-notch-RIGHT filled earth" style="--notch:#b48c50;--notch-icon:url('/img/notches/notch-earth.png');"></div>
+                        <div class="bc-notch bc-notch-BOTTOM_RIGHT empty"></div>
+                        <div class="bc-notch bc-notch-BOTTOM filled earth" style="--notch:#b48c50;--notch-icon:url('/img/notches/notch-earth.png');"></div>
+                        <div class="bc-notch bc-notch-BOTTOM_LEFT empty"></div>
+                        <div class="bc-notch bc-notch-LEFT filled fire linked" id="rootletLeftNotch" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="bc-notch bc-notch-TOP_LEFT empty"></div>
+                    </div>
+                    <div class="bc-inner">
+                        <div class="bc-name-box"><span class="card-name">Rootlet</span></div>
+                        <div class="bc-stats-box">
+                            <div class="hp-bar"><div class="hp-fill" style="width:100%"></div></div>
+                            <div class="card-stats">
+                                <span class="stat stat-hp">10/10</span>
+                                <span class="stat stat-spd">4</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="board-cell"></div>
+            <div class="link-connector demo-link" id="demoConnector" aria-hidden="true"></div>
+        </div>
+        <div class="fixture-note">Pylo's right notch is linked to Rootlet's left notch while both cards fill their slots edge-to-edge.</div>
+    </main>
+    <script>
+        function drawDemoConnector() {
+            const grid = document.getElementById('playerGrid');
+            const connector = document.getElementById('demoConnector');
+            const start = document.getElementById('pyloRightNotch');
+            const end = document.getElementById('rootletLeftNotch');
+            if (!grid || !connector || !start || !end) return;
+
+            const gridRect = grid.getBoundingClientRect();
+            const startRect = start.getBoundingClientRect();
+            const endRect = end.getBoundingClientRect();
+            const sx = startRect.left + startRect.width / 2 - gridRect.left;
+            const sy = startRect.top + startRect.height / 2 - gridRect.top;
+            const ex = endRect.left + endRect.width / 2 - gridRect.left;
+            const ey = endRect.top + endRect.height / 2 - gridRect.top;
+            const pad = 8;
+            const minX = Math.min(sx, ex) - pad;
+            const minY = Math.min(sy, ey) - pad;
+            const width = Math.abs(ex - sx) + pad * 2;
+            const height = Math.abs(ey - sy) + pad * 2 || pad * 2;
+
+            connector.style.left = `${minX}px`;
+            connector.style.top = `${minY}px`;
+            connector.style.width = `${width}px`;
+            connector.style.height = `${height}px`;
+            connector.innerHTML = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><line x1="${sx - minX}" y1="${sy - minY}" x2="${ex - minX}" y2="${ey - minY}" stroke="#2ecc71" stroke-width="5" stroke-linecap="round"/></svg>`;
+        }
+
+        window.addEventListener('load', drawDemoConnector);
+        window.addEventListener('resize', drawDemoConnector);
+    </script>
+</body>
+</html>

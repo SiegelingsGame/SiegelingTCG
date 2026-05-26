@@ -1,0 +1,18 @@
+{
+  "pve": {
+    "loadoutKicker": "Battle Loadout",
+    "loadoutTitle": "Prepare for Battle",
+    "path": "/play",
+    "presetPanelVisible": true,
+    "search": "?mode=solo",
+    "soloActive": true
+  },
+  "social": {
+    "activeLobbyExists": true,
+    "activeNav": "Social",
+    "hash": "#socialActiveLobby",
+    "path": "/social",
+    "playPath": false,
+    "socialVisible": true
+  }
+}

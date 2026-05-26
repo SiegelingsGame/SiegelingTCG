@@ -1,0 +1,11 @@
+{
+  "bodyStart": "SIEGELINGS TCG\nBattle Table\nHome\nPlay\nCards\nDecks\nSocial\nProfile\nShop\nJoin by Code\nPlay\nSign In\nENEMY\nYOU\nAI\n♥\n50/50\nKNIGHT\n⚔\nSIEGE KNIGHT\n—\nCARDS\nHAND\n0\nDECK\n0\nELEMENTS\nPlayer\nYOU\n♥\n50/50\nKNIGHT\n🛡\nSIEGE KNIGHT\n—\nCARDS\nHAND\n0\nDECK\n0\nELEMENTS\nMenu & Info\nWide desktop docks previews, actions, and deck tracking beside the arena.\nDesktop Dock 1280x720\nHover a hand or board card to inspect live costs, lock reasons, and setup timing.\nBATTLE LOG\nThe five most recent battle-phase events will show here ",
+  "loadoutKicker": "Battle Loadout",
+  "loadoutTitle": "Prepare for Battle",
+  "onlineActive": false,
+  "path": "/play",
+  "presetPanelVisible": true,
+  "search": "?mode=solo",
+  "soloActive": true,
+  "title": "Siegelings TCG"
+}

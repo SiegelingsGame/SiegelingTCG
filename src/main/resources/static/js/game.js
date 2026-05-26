@@ -99,6 +99,16 @@ let authState = {
 };
 let selectedSavedDeckId = null;
 let lastProfileRefreshKey = '';
+let playLobbyState = {
+    active: false,
+    mode: 'create',
+    ready: false,
+    opponentReady: false,
+    countdown: 0,
+    chatMessages: []
+};
+let playLobbyCountdownTimer = null;
+let playLobbyOpponentTimer = null;
 const ROW_NAMES = ['Back', 'Middle', 'Front'];
 const TARGET_TYPES = {
     SINGLE_ENEMY: 'enemy',
@@ -3556,6 +3566,7 @@ function syncEntryOverlays() {
     const showingGameplay = Boolean(gameState);
     const welcomeVisible = !showingGameplay && !welcomeDismissed;
 
+    document.body?.classList.toggle('gameplay-active', showingGameplay);
     welcomeOverlay?.classList.toggle('visible', welcomeVisible);
     loadoutOverlay?.classList.toggle('visible', !showingGameplay && welcomeDismissed);
     if (!gameState?.mulligan?.active) {
@@ -3740,6 +3751,211 @@ function playAsGuest() {
     dismissWelcome();
 }
 
+function startPlaySolo() {
+    matchMode = 'solo';
+    onlineRoomMode = 'create';
+    resetPlayLobbyState(false);
+    dismissWelcome();
+}
+
+function resetPlayLobbyState(shouldRender = true) {
+    if (playLobbyCountdownTimer) {
+        clearInterval(playLobbyCountdownTimer);
+        playLobbyCountdownTimer = null;
+    }
+    if (playLobbyOpponentTimer) {
+        clearTimeout(playLobbyOpponentTimer);
+        playLobbyOpponentTimer = null;
+    }
+    playLobbyState = {
+        active: false,
+        mode: 'create',
+        ready: false,
+        opponentReady: false,
+        countdown: 0,
+        chatMessages: []
+    };
+    if (shouldRender) {
+        renderPlayLobby();
+    }
+}
+
+function openPlayLobby(mode = 'create') {
+    matchMode = 'online';
+    onlineRoomMode = mode === 'join' ? 'join' : 'create';
+    playLobbyState.active = true;
+    playLobbyState.mode = onlineRoomMode;
+    playLobbyState.ready = false;
+    playLobbyState.opponentReady = onlineRoomMode === 'join';
+    playLobbyState.countdown = 0;
+    playLobbyState.chatMessages = defaultLobbyMessages();
+    const roomInput = document.getElementById('playLobbyRoomCodeInput');
+    const loadoutRoomInput = document.getElementById('roomCodeInput');
+    if (roomInput && loadoutRoomInput && loadoutRoomInput.value) {
+        roomInput.value = loadoutRoomInput.value;
+    }
+    renderPlayLobby();
+}
+
+function defaultLobbyMessages() {
+    const name = getPlayEntryName();
+    if (onlineRoomMode === 'join') {
+        return [
+            { by: 'system', text: 'Invite found. Confirm when both players are ready to pick loadouts.' },
+            { by: 'opponent', text: 'I am here. Let us lock in.' }
+        ];
+    }
+    return [
+        { by: 'system', text: `${name} opened a 1v1 lobby.` },
+        { by: 'system', text: 'Share the invite code, chat while you wait, then both players confirm.' }
+    ];
+}
+
+function getPlayEntryName() {
+    return authState.profile?.user?.displayName || loadSavedPlayerName() || 'You';
+}
+
+function getPlayEntryEmail() {
+    return authState.profile?.user?.email || 'Guest session';
+}
+
+function renderPlayLobby() {
+    const card = document.getElementById('playLobbyCard');
+    if (!card) {
+        return;
+    }
+    const active = playLobbyState.active;
+    const mode = playLobbyState.mode || onlineRoomMode || 'create';
+    const joinCode = getJoinRoomCodeFromUrl()?.toUpperCase() || '';
+    const lobbyCode = currentRoomStatus?.roomId || joinCode || document.getElementById('playLobbyRoomCodeInput')?.value?.trim()?.toUpperCase() || '';
+    const opponentName = mode === 'join' ? 'Inviting Player' : (playLobbyState.opponentReady ? 'Opponent' : 'Waiting...');
+    const statusText = active
+        ? playLobbyState.countdown > 0
+            ? `Selection opens in ${playLobbyState.countdown}`
+            : playLobbyState.ready && playLobbyState.opponentReady
+                ? 'Both players confirmed. Starting selection.'
+                : playLobbyState.ready
+                    ? 'You confirmed. Waiting on the other player.'
+                    : 'Enter the room, chat, and confirm when ready.'
+        : 'Create or join a 1v1 lobby to stage the match before loadout selection.';
+    const chatMessages = active && playLobbyState.chatMessages.length
+        ? playLobbyState.chatMessages
+        : active
+            ? defaultLobbyMessages()
+            : [{ by: 'system', text: 'Create or join a lobby to open the chat room and ready check.' }];
+
+    card.innerHTML = `
+        <div class="play-lobby-head">
+            <div>
+                <span class="welcome-card-kicker">${active ? (mode === 'join' ? 'Joined Lobby' : 'Lobby Open') : 'Lobby'}</span>
+                <h3>${active ? 'Pre-match room' : 'Create a room experience'}</h3>
+            </div>
+            <span class="play-lobby-code">${escapeHtml(lobbyCode || (mode === 'join' ? 'Enter code' : 'Code after loadout'))}</span>
+        </div>
+        <div class="play-lobby-status">${escapeHtml(statusText)}</div>
+        <div class="play-lobby-players">
+            ${renderLobbyPlayerCard('You', getPlayEntryName(), getPlayEntryEmail(), playLobbyState.ready)}
+            ${renderLobbyPlayerCard('Opponent', opponentName, mode === 'join' ? 'Connected by invite' : 'Invite pending', playLobbyState.opponentReady)}
+        </div>
+        <div class="play-lobby-controls${active ? '' : ' is-muted'}">
+            <label class="online-field ${mode === 'join' ? '' : 'hidden'}">
+                <span>Lobby Code</span>
+                <input type="text" id="playLobbyRoomCodeInput" maxlength="6" placeholder="ABC123" value="${escapeHtmlAttribute(lobbyCode)}" oninput="syncPlayLobbyRoomCode()">
+            </label>
+            <div class="play-lobby-chat">
+                <div class="play-lobby-chat-log">
+                    ${chatMessages.map(renderLobbyChatMessage).join('')}
+                </div>
+                <form class="play-lobby-chat-form" onsubmit="sendPlayLobbyChat(event)">
+                    <input type="text" id="playLobbyChatInput" maxlength="96" placeholder="Message lobby" ${active ? '' : 'disabled'}>
+                    <button class="btn" type="submit" ${active ? '' : 'disabled'}>Send</button>
+                </form>
+            </div>
+            <div class="play-lobby-actions">
+                <button class="btn welcome-dashboard-btn" type="button" onclick="openPlayLobby('${mode === 'join' ? 'create' : 'join'}')">${mode === 'join' ? 'Host Instead' : 'Join Instead'}</button>
+                <button class="btn welcome-guest-btn" type="button" onclick="resetPlayLobbyState()">Cancel</button>
+                <button class="btn btn-primary" type="button" ${active ? '' : 'disabled'} onclick="confirmPlayLobbyReady()">${playLobbyState.ready ? 'Ready Confirmed' : 'Confirm Ready'}</button>
+            </div>
+        </div>
+    `;
+}
+
+function renderLobbyPlayerCard(role, name, detail, ready) {
+    return `<article class="play-lobby-player${ready ? ' is-ready' : ''}">
+        <span>${escapeHtml(role)}</span>
+        <strong>${escapeHtml(name)}</strong>
+        <small>${escapeHtml(detail)}</small>
+        <em>${ready ? 'Ready' : 'Not ready'}</em>
+    </article>`;
+}
+
+function renderLobbyChatMessage(message) {
+    const by = message.by === 'opponent' ? 'Opponent' : message.by === 'you' ? 'You' : 'System';
+    return `<div class="play-lobby-chat-row ${escapeHtmlAttribute(message.by || 'system')}"><strong>${escapeHtml(by)}</strong><span>${escapeHtml(message.text || '')}</span></div>`;
+}
+
+function syncPlayLobbyRoomCode() {
+    const value = document.getElementById('playLobbyRoomCodeInput')?.value?.trim()?.toUpperCase() || '';
+    const loadoutInput = document.getElementById('roomCodeInput');
+    if (loadoutInput) {
+        loadoutInput.value = value;
+    }
+}
+
+function sendPlayLobbyChat(event) {
+    event?.preventDefault?.();
+    const input = document.getElementById('playLobbyChatInput');
+    const text = input?.value?.trim() || '';
+    if (!text) {
+        return;
+    }
+    playLobbyState.chatMessages.push({ by: 'you', text });
+    if (input) {
+        input.value = '';
+    }
+    renderPlayLobby();
+}
+
+function confirmPlayLobbyReady() {
+    if (!playLobbyState.active || playLobbyState.countdown > 0) {
+        return;
+    }
+    playLobbyState.ready = true;
+    if (!playLobbyState.opponentReady) {
+        playLobbyState.chatMessages.push({ by: 'system', text: 'You confirmed. Waiting for the other player to confirm.' });
+        playLobbyOpponentTimer = setTimeout(() => {
+            playLobbyState.opponentReady = true;
+            playLobbyState.chatMessages.push({ by: 'opponent', text: 'Ready on my side.' });
+            beginPlayLobbyCountdown();
+        }, 800);
+        renderPlayLobby();
+        return;
+    }
+    beginPlayLobbyCountdown();
+}
+
+function beginPlayLobbyCountdown() {
+    if (!playLobbyState.ready || !playLobbyState.opponentReady || playLobbyCountdownTimer) {
+        renderPlayLobby();
+        return;
+    }
+    playLobbyState.countdown = 3;
+    renderPlayLobby();
+    playLobbyCountdownTimer = setInterval(() => {
+        playLobbyState.countdown -= 1;
+        if (playLobbyState.countdown <= 0) {
+            clearInterval(playLobbyCountdownTimer);
+            playLobbyCountdownTimer = null;
+            playLobbyState.active = false;
+            playLobbyState.countdown = 0;
+            syncPlayLobbyRoomCode();
+            dismissWelcome();
+            return;
+        }
+        renderPlayLobby();
+    }, 900);
+}
+
 function setAuthMode(mode) {
     authMode = mode;
     authState.error = '';
@@ -3884,6 +4100,7 @@ function renderWelcomeAuth() {
                 }).join('')}</div>`
                 : '<div class="identity-note">Your finished games will appear here after the first recorded match.</div>'}
         `;
+        renderPlayLobby();
         return;
     }
 
@@ -3942,6 +4159,7 @@ function renderWelcomeAuth() {
             <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
         </div>
     `;
+    renderPlayLobby();
 }
 
 function renderSavedDecks() {
@@ -4806,6 +5024,7 @@ function returnToPlayMain() {
     currentRoomStatus = null;
     loadoutErrorMessage = '';
     welcomeDismissed = false;
+    resetPlayLobbyState(false);
     document.getElementById('gameOverOverlay')?.classList.remove('visible');
     syncEntryOverlays();
     renderWelcomeTutorial();
@@ -4903,6 +5122,12 @@ function applyPendingHomeLoadout() {
         if (roomCodeInput && pending.roomId) {
             roomCodeInput.value = String(pending.roomId).toUpperCase();
         }
+        playLobbyState.active = true;
+        playLobbyState.mode = onlineRoomMode;
+        playLobbyState.ready = false;
+        playLobbyState.opponentReady = onlineRoomMode === 'join';
+        playLobbyState.chatMessages = defaultLobbyMessages();
+        renderPlayLobby();
     }
 }
 

@@ -1,0 +1,43 @@
+{
+  "metrics": {
+    "cards": [
+      {
+        "width": 253,
+        "height": 370,
+        "ratio": 0.684,
+        "hasSpine": false,
+        "hasSigils": false,
+        "hasIconImg": false,
+        "hasArt": true
+      },
+      {
+        "width": 253,
+        "height": 370,
+        "ratio": 0.684,
+        "hasSpine": false,
+        "hasSigils": false,
+        "hasIconImg": false,
+        "hasArt": true
+      },
+      {
+        "width": 253,
+        "height": 370,
+        "ratio": 0.684,
+        "hasSpine": false,
+        "hasSigils": false,
+        "hasIconImg": false,
+        "hasArt": true
+      },
+      {
+        "width": 253,
+        "height": 370,
+        "ratio": 0.684,
+        "hasSpine": false,
+        "hasSigils": false,
+        "hasIconImg": false,
+        "hasArt": true
+      }
+    ]
+  },
+  "errors": []
+}

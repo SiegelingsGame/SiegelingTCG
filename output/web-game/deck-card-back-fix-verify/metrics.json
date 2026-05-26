@@ -1,0 +1,17 @@
+{
+  "afterBackgroundImage": "linear-gradient(rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 48%, rgba(3, 8, 18, 0.58) 100%)",
+  "beforeBackgroundPosition": "50% 50%",
+  "beforeBackgroundSize": "100% 100%",
+  "bodyTextHasEncodingArtifacts": false,
+  "cssLink": "http://localhost:8080/css/home.css?v=24",
+  "deckCards": 4,
+  "firstCardRect": {
+    "height": 338,
+    "ratio": 0.684,
+    "width": 231
+  },
+  "firstDeckArtVar": "url('/img/decks/card-back-fire.png')",
+  "hasSigils": 0,
+  "hasSpine": 0,
+  "jsLink": "http://localhost:8080/js/home.js?v=27"
+}
