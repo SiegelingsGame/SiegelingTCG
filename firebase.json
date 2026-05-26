@@ -21,16 +21,21 @@
         ]
       }
     ],
-    "redirects": [
-      {
-        "source": "/",
-        "destination": "/home",
-        "type": 302
-      }
-    ],
     "rewrites": [
       {
+        "source": "/landing",
+        "destination": "/landing.html"
+      },
+      {
         "source": "/home",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/login",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/social",
         "destination": "/home.html"
       },
       {
