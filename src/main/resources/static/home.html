@@ -49,29 +49,6 @@
         </section>
 
         <section class="hub-grid" id="hubGrid">
-            <aside class="filter-panel panel hud-tray filter-tray is-closed" id="filterTray" aria-hidden="true">
-                <div class="profile-mini" id="profileMini"></div>
-                <div class="section-head">
-                    <h2>Owned Filters</h2>
-                    <span id="ownedCountLabel">0 owned</span>
-                </div>
-                <input class="search-input" id="cardSearchInput" type="search" placeholder="Search cards, abilities, notches...">
-                <div class="chip-wrap" id="elementFilters"></div>
-                <div class="chip-wrap" id="typeFilters"></div>
-                <div class="chip-wrap" id="rarityFilters"></div>
-                <div class="filter-label">Energy Cost</div>
-                <div class="chip-wrap" id="energyCostFilters"></div>
-                <select class="search-input" id="cardSortSelect">
-                    <option value="owned-desc">Sort: Owned first</option>
-                    <option value="name-asc">Sort: Name</option>
-                    <option value="speed-desc">Sort: Speed high</option>
-                    <option value="health-desc">Sort: Health high</option>
-                    <option value="cost-asc">Sort: Cost low</option>
-                    <option value="rarity-desc">Sort: Rarity high</option>
-                </select>
-                <div class="unlock-card" id="customUnlockCard"></div>
-            </aside>
-
             <section class="browser-panel panel" id="homeSection">
                 <div class="section-head">
                     <div>
@@ -217,12 +194,33 @@
                 <div class="pack-grid" id="shopPackGrid"></div>
                 <div class="pack-result hidden" id="packResult"></div>
             </section>
-
-            <aside class="detail-panel panel hud-tray detail-tray is-closed" id="detailPanel" aria-hidden="true"></aside>
         </section>
     </main>
 
     <div class="tray-backdrop hidden" id="trayBackdrop"></div>
+    <aside class="filter-panel panel hud-tray filter-tray is-closed" id="filterTray" aria-hidden="true">
+        <div class="profile-mini" id="profileMini"></div>
+        <div class="section-head">
+            <h2>Owned Filters</h2>
+            <span id="ownedCountLabel">0 owned</span>
+        </div>
+        <input class="search-input" id="cardSearchInput" type="search" placeholder="Search cards, abilities, notches...">
+        <div class="chip-wrap" id="elementFilters"></div>
+        <div class="chip-wrap" id="typeFilters"></div>
+        <div class="chip-wrap" id="rarityFilters"></div>
+        <div class="filter-label">Energy Cost</div>
+        <div class="chip-wrap" id="energyCostFilters"></div>
+        <select class="search-input" id="cardSortSelect">
+            <option value="owned-desc">Sort: Owned first</option>
+            <option value="name-asc">Sort: Name</option>
+            <option value="speed-desc">Sort: Speed high</option>
+            <option value="health-desc">Sort: Health high</option>
+            <option value="cost-asc">Sort: Cost low</option>
+            <option value="rarity-desc">Sort: Rarity high</option>
+        </select>
+        <div class="unlock-card" id="customUnlockCard"></div>
+    </aside>
+    <aside class="detail-panel panel hud-tray detail-tray is-closed" id="detailPanel" aria-hidden="true"></aside>
     <div id="editProfileModalHost"></div>
     <div class="profile-modal hidden" id="viewProfileModal" role="dialog" aria-modal="true" aria-labelledby="viewProfileTitle">
         <div class="profile-edit-panel profile-panel" id="viewProfileBody"></div>
