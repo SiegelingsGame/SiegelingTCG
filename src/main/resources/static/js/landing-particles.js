@@ -1,10 +1,11 @@
 /**
- * Landing hero — dispersed element particle auras.
- * Canvas + CSS orb fallback (CSS shows when reduced-motion is on or canvas fails).
+ * Landing hero — element particles drift around the SIEGELINGS wordmark.
+ * Full-hero layer (no logo box); slow, fluttery motion.
  */
 (function () {
     'use strict';
 
+    const SPEED = 0.34;
     const ELEMENT_KEYS = ['fire', 'ice', 'wind', 'earth'];
     const CSS_VARS = [
         '--element-fire',
@@ -67,16 +68,19 @@
     }
 
     class LandingParticleField {
-        constructor(anchor) {
-            this.anchor = anchor;
+        constructor(hero) {
+            this.hero = hero;
+            this.wordmark = hero.querySelector('.siegelings-wordmark');
+
             this.canvas = document.createElement('canvas');
             this.canvas.className = 'hero-particle-canvas';
             this.canvas.setAttribute('aria-hidden', 'true');
             this.domLayer = document.createElement('div');
             this.domLayer.className = 'hero-particle-dom';
             this.domLayer.setAttribute('aria-hidden', 'true');
-            anchor.insertBefore(this.canvas, anchor.firstChild);
-            anchor.insertBefore(this.domLayer, this.canvas.nextSibling);
+
+            hero.insertBefore(this.canvas, hero.firstChild);
+            hero.insertBefore(this.domLayer, this.canvas.nextSibling);
 
             this.ctx = this.canvas.getContext('2d');
             this.canvasOk = Boolean(this.ctx);
@@ -89,8 +93,8 @@
             this.running = false;
             this.lastTs = 0;
             this.center = { x: 0, y: 0 };
-            this.orbitRadius = 280;
-            this.motionScale = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0.45 : 1;
+            this.orbitRadius = 200;
+            this.motionScale = SPEED * (window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0.55 : 1);
 
             this._onResize = () => this.resize();
             window.addEventListener('resize', this._onResize);
@@ -99,15 +103,17 @@
         }
 
         resize() {
-            const wordmark = this.anchor.querySelector('.siegelings-wordmark');
-            if (!wordmark) return;
+            if (!this.wordmark) {
+                this.wordmark = this.hero.querySelector('.siegelings-wordmark');
+            }
+            if (!this.wordmark) return;
 
-            const anchorRect = this.anchor.getBoundingClientRect();
-            const wordRect = wordmark.getBoundingClientRect();
+            const heroRect = this.hero.getBoundingClientRect();
+            const wordRect = this.wordmark.getBoundingClientRect();
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-            this.width = Math.max(1, anchorRect.width);
-            this.height = Math.max(1, anchorRect.height);
+            this.width = Math.max(1, heroRect.width);
+            this.height = Math.max(1, heroRect.height);
             if (this.canvasOk) {
                 this.canvas.width = Math.round(this.width * dpr);
                 this.canvas.height = Math.round(this.height * dpr);
@@ -116,18 +122,19 @@
                 this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             }
 
-            this.center.x = (wordRect.left - anchorRect.left) + wordRect.width * 0.5;
-            this.center.y = (wordRect.top - anchorRect.top) + wordRect.height * 0.5;
-            this.orbitRadius = Math.max(wordRect.width * 0.52, wordRect.height * 0.38, 72);
+            this.center.x = (wordRect.left - heroRect.left) + wordRect.width * 0.5;
+            this.center.y = (wordRect.top - heroRect.top) + wordRect.height * 0.5;
+            this.orbitRadius = Math.max(
+                wordRect.width * 0.72,
+                wordRect.height * 0.55,
+                Math.min(this.width, this.height) * 0.22,
+                100
+            );
 
             const orbitX = `${this.center.x}px`;
             const orbitY = `${this.center.y}px`;
             this.domLayer.style.setProperty('--orbit-cx', orbitX);
             this.domLayer.style.setProperty('--orbit-cy', orbitY);
-            if (this.canvasOk) {
-                this.canvas.style.setProperty('--orbit-cx', orbitX);
-                this.canvas.style.setProperty('--orbit-cy', orbitY);
-            }
         }
 
         resolvePalette() {
@@ -160,9 +167,7 @@
             this.rebuildSwarm(index);
             this.syncDomOrbs(index);
             this.targetIntensity = 1;
-            this.anchor.classList.add('siegelings-logo-particles-active');
-            this.domLayer.style.opacity = '1';
-            this.canvas.style.opacity = '1';
+            this.hero.classList.add('hero-particles-active');
             this.ensureLoop();
         }
 
@@ -171,9 +176,8 @@
             this.highlightIndex = -1;
             window.setTimeout(() => {
                 if (this.targetIntensity === 0) {
-                    this.anchor.classList.remove('siegelings-logo-particles-active');
+                    this.hero.classList.remove('hero-particles-active');
                     this.domLayer.innerHTML = '';
-                    this.domLayer.style.opacity = '0';
                 }
             }, 650);
         }
@@ -181,9 +185,8 @@
         fadeOut() {
             this.targetIntensity = 0;
             this.highlightIndex = -1;
-            this.anchor.classList.remove('siegelings-logo-particles-active');
+            this.hero.classList.remove('hero-particles-active');
             this.domLayer.innerHTML = '';
-            this.domLayer.style.opacity = '0';
         }
 
         syncDomOrbs(activeIndex) {
@@ -192,20 +195,19 @@
                 .filter(({ i }) => i !== activeIndex);
 
             const parts = [];
-            inactive.forEach(({ el, i }, swarmIndex) => {
-                const orbCount = 5;
-                for (let o = 0; o < orbCount; o += 1) {
-                    const delay = (swarmIndex * 1.7 + o * 0.85).toFixed(2);
-                    const orbitPx = Math.round(this.orbitRadius * (0.72 + o * 0.14 + swarmIndex * 0.06));
-                    const size = Math.round(52 + o * 14 + swarmIndex * 6);
+            inactive.forEach(({ el }, swarmIndex) => {
+                for (let o = 0; o < 3; o += 1) {
+                    const delay = (swarmIndex * 2.8 + o * 1.4).toFixed(2);
+                    const orbitPx = Math.round(this.orbitRadius * (0.85 + o * 0.12 + swarmIndex * 0.05));
+                    const size = Math.round(44 + o * 12 + swarmIndex * 5);
                     parts.push(
                         `<span class="hero-particle-orb hero-particle-orb-${el.key}" ` +
                         `style="--orb-delay:${delay}s;--orb-orbit:${orbitPx}px;--orb-size:${size}px"></span>`
                     );
                 }
-                for (let s = 0; s < 10; s += 1) {
-                    const delay = (swarmIndex * 2.1 + s * 0.35).toFixed(2);
-                    const orbitPx = Math.round(this.orbitRadius * (0.55 + s * 0.08 + swarmIndex * 0.05));
+                for (let s = 0; s < 6; s += 1) {
+                    const delay = (swarmIndex * 3.2 + s * 0.55).toFixed(2);
+                    const orbitPx = Math.round(this.orbitRadius * (0.65 + s * 0.09 + swarmIndex * 0.04));
                     parts.push(
                         `<span class="hero-particle-spark hero-particle-spark-${el.key}" ` +
                         `style="--orb-delay:${delay}s;--orb-orbit:${orbitPx}px"></span>`
@@ -224,12 +226,12 @@
                 .filter(({ i }) => i !== activeIndex);
 
             inactive.forEach(({ el }, swarmIndex) => {
-                const count = Math.round((38 + rand(0, 16)) * scale);
-                const auraCount = Math.max(2, Math.round((4 + (swarmIndex % 2)) * scale));
+                const count = Math.max(10, Math.round((16 + rand(0, 8)) * scale));
+                const auraCount = 2;
                 const bandOffset = (swarmIndex - (inactive.length - 1) * 0.5) * 0.38;
 
                 for (let a = 0; a < auraCount; a += 1) {
-                    this.auras.push(this.createAura(el, bandOffset, a, auraCount));
+                    this.auras.push(this.createAura(el, bandOffset, a));
                 }
                 for (let p = 0; p < count; p += 1) {
                     this.particles.push(this.createParticle(el, bandOffset, p / count));
@@ -237,41 +239,40 @@
             });
         }
 
-        createAura(el, bandOffset, auraIndex, auraCount) {
-            const phase = (auraIndex / Math.max(1, auraCount)) * Math.PI * 2;
-            const speed = this.motionScale;
+        createAura(el, bandOffset, auraIndex) {
             return {
                 kind: 'aura',
                 el,
-                angle: phase + rand(0, Math.PI * 2),
-                angleVel: rand(0.00035, 0.00075) * speed * (Math.random() > 0.5 ? 1 : -1),
-                radius: this.orbitRadius * rand(0.5, 0.98),
-                radiusVel: rand(-0.02, 0.02) * speed,
-                wobbleX: rand(0.4, 1.1),
-                wobbleY: rand(0.4, 1.1),
+                angle: auraIndex * Math.PI + rand(0, Math.PI * 2),
+                angleVel: rand(0.00008, 0.00018) * (Math.random() > 0.5 ? 1 : -1),
+                radius: this.orbitRadius * rand(0.55, 1.02),
+                radiusVel: rand(-0.004, 0.004),
+                wobbleX: rand(0.25, 0.55),
+                wobbleY: rand(0.25, 0.55),
                 wobblePhase: rand(0, Math.PI * 2),
-                size: rand(100, 190),
-                alpha: rand(0.22, 0.42),
+                flutterPhase: rand(0, Math.PI * 2),
+                size: rand(70, 120),
+                alpha: rand(0.12, 0.22),
                 bandOffset,
                 drift: rand(0, 1000)
             };
         }
 
         createParticle(el, bandOffset, along) {
-            const speed = this.motionScale;
             return {
                 kind: 'spark',
                 el,
-                angle: along * Math.PI * 2 + bandOffset + rand(-0.25, 0.25),
-                angleVel: rand(0.00085, 0.002) * speed * (Math.random() > 0.5 ? 1 : -1),
-                radius: this.orbitRadius * rand(0.28, 1.05),
-                radiusVel: rand(-0.05, 0.05) * speed,
-                wobbleX: rand(0.8, 2.4),
-                wobbleY: rand(0.8, 2.4),
+                angle: along * Math.PI * 2 + bandOffset + rand(-0.15, 0.15),
+                angleVel: rand(0.00012, 0.00028) * (Math.random() > 0.5 ? 1 : -1),
+                radius: this.orbitRadius * rand(0.4, 1.08),
+                radiusVel: rand(-0.008, 0.008),
+                wobbleX: rand(0.35, 0.75),
+                wobbleY: rand(0.35, 0.75),
                 wobblePhase: rand(0, Math.PI * 2),
-                size: rand(3, 8),
-                shine: Math.random() > 0.35,
-                alpha: rand(0.75, 1),
+                flutterPhase: rand(0, Math.PI * 2),
+                size: rand(2, 4.5),
+                shine: Math.random() > 0.5,
+                alpha: rand(0.5, 0.82),
                 bandOffset,
                 trail: [],
                 drift: rand(0, 1000)
@@ -289,7 +290,7 @@
             const dt = Math.min(ts - this.lastTs, 48);
             this.lastTs = ts;
 
-            this.intensity = lerp(this.intensity, this.targetIntensity, 0.14);
+            this.intensity = lerp(this.intensity, this.targetIntensity, 0.08);
             const opacity = String(Math.max(0, Math.min(1, this.intensity)));
             this.canvas.style.opacity = opacity;
             this.domLayer.style.opacity = opacity;
@@ -309,8 +310,6 @@
                 this.running = false;
                 this.particles = [];
                 this.auras = [];
-                this.canvas.style.opacity = '0';
-                this.domLayer.style.opacity = '0';
             }
         }
 
@@ -318,36 +317,37 @@
             const t = ts * 0.001;
             const cx = this.center.x;
             const cy = this.center.y;
-            const pull = 0.00005 * dt * this.motionScale;
 
             const step = (item) => {
-                item.angle += item.angleVel * dt;
+                item.flutterPhase += dt * 0.00035;
+                const flutter = Math.sin(item.flutterPhase + item.wobblePhase) * 0.00045 * dt;
+                item.angle += (item.angleVel + flutter) * dt;
+
                 item.radius += item.radiusVel * dt;
-                const minR = this.orbitRadius * 0.18;
-                const maxR = this.orbitRadius * 1.12;
+                const minR = this.orbitRadius * 0.35;
+                const maxR = this.orbitRadius * 1.15;
                 if (item.radius < minR || item.radius > maxR) {
-                    item.radiusVel *= -1;
+                    item.radiusVel *= -0.6;
                     item.radius = clamp(item.radius, minR, maxR);
                 }
-                const wobT = t * 0.9 + item.drift * 0.001;
-                const ox = Math.sin(wobT * item.wobbleX + item.wobblePhase) * (item.kind === 'aura' ? 40 : 22);
-                const oy = Math.cos(wobT * item.wobbleY + item.wobblePhase * 1.3) * (item.kind === 'aura' ? 32 : 16);
+
+                const wobT = t * 0.32 + item.drift * 0.0004;
+                const wobbleAmp = item.kind === 'aura' ? 18 : 10;
+                const ox = Math.sin(wobT * item.wobbleX + item.wobblePhase) * wobbleAmp;
+                const oy = Math.cos(wobT * item.wobbleY + item.wobblePhase * 1.2) * wobbleAmp * 0.85;
                 item.x = cx + Math.cos(item.angle) * item.radius + ox;
-                item.y = cy + Math.sin(item.angle) * item.radius * 0.82 + oy;
+                item.y = cy + Math.sin(item.angle) * item.radius * 0.88 + oy;
 
                 if (item.kind === 'spark') {
                     item.trail.push({ x: item.x, y: item.y, life: 1 });
-                    if (item.trail.length > 8) item.trail.shift();
-                    item.trail.forEach((pt) => { pt.life -= 0.16 * (dt / 16); });
-                    item.trail = item.trail.filter((pt) => pt.life > 0.04);
+                    if (item.trail.length > 4) item.trail.shift();
+                    item.trail.forEach((pt) => { pt.life -= 0.08 * (dt / 16); });
+                    item.trail = item.trail.filter((pt) => pt.life > 0.06);
                 }
             };
 
             this.auras.forEach(step);
             this.particles.forEach(step);
-            this.particles.forEach((p) => {
-                p.angleVel += Math.sin(t + p.bandOffset * 4) * pull;
-            });
         }
 
         draw(ts) {
@@ -366,51 +366,44 @@
         drawAura(ctx, a, fade) {
             const { base, glow } = a.el;
             const grd = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, a.size);
-            grd.addColorStop(0, rgba(glow, a.alpha * fade * 1.35));
-            grd.addColorStop(0.35, rgba(base, a.alpha * fade * 0.9));
-            grd.addColorStop(0.72, rgba(base, a.alpha * fade * 0.35));
+            grd.addColorStop(0, rgba(glow, a.alpha * fade * 0.9));
+            grd.addColorStop(0.45, rgba(base, a.alpha * fade * 0.45));
             grd.addColorStop(1, rgba(base, 0));
             ctx.fillStyle = grd;
             ctx.beginPath();
-            ctx.ellipse(a.x, a.y, a.size, a.size * 0.72, a.angle * 0.15, 0, Math.PI * 2);
+            ctx.ellipse(a.x, a.y, a.size, a.size * 0.75, a.angle * 0.08, 0, Math.PI * 2);
             ctx.fill();
-
-            ctx.strokeStyle = rgba(glow, a.alpha * fade * 0.5);
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.ellipse(a.x, a.y, a.size * 0.62, a.size * 0.4, -a.angle * 0.2, 0, Math.PI * 2);
-            ctx.stroke();
         }
 
         drawSpark(ctx, p, fade, ts) {
             const { base, glow } = p.el;
             p.trail.forEach((pt, i) => {
-                const a = pt.life * p.alpha * fade * 0.5 * (i / Math.max(1, p.trail.length));
+                const a = pt.life * p.alpha * fade * 0.28 * (i / Math.max(1, p.trail.length));
                 ctx.fillStyle = rgba(base, a);
                 ctx.beginPath();
-                ctx.arc(pt.x, pt.y, p.size * 0.7, 0, Math.PI * 2);
+                ctx.arc(pt.x, pt.y, p.size * 0.55, 0, Math.PI * 2);
                 ctx.fill();
             });
 
-            const pulse = 0.85 + Math.sin(ts * 0.008 + p.drift) * 0.15;
+            const pulse = 0.92 + Math.sin(ts * 0.003 + p.drift) * 0.08;
             const r = p.size * pulse;
 
-            const halo = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 6);
-            halo.addColorStop(0, rgba(glow, p.alpha * fade * 0.75));
-            halo.addColorStop(0.45, rgba(base, p.alpha * fade * 0.35));
+            const halo = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 4.5);
+            halo.addColorStop(0, rgba(glow, p.alpha * fade * 0.5));
+            halo.addColorStop(0.55, rgba(base, p.alpha * fade * 0.18));
             halo.addColorStop(1, rgba(base, 0));
             ctx.fillStyle = halo;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, r * 6, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, r * 4.5, 0, Math.PI * 2);
             ctx.fill();
 
-            const core = ctx.createRadialGradient(p.x - r * 0.25, p.y - r * 0.25, 0, p.x, p.y, r * 1.6);
-            core.addColorStop(0, rgba({ r: 255, g: 255, b: 255 }, p.shine ? 1 * fade : 0.65 * fade));
-            core.addColorStop(0.35, rgba(glow, p.alpha * fade));
+            const core = ctx.createRadialGradient(p.x - r * 0.2, p.y - r * 0.2, 0, p.x, p.y, r * 1.2);
+            core.addColorStop(0, rgba({ r: 255, g: 255, b: 255 }, p.shine ? 0.75 * fade : 0.4 * fade));
+            core.addColorStop(0.5, rgba(glow, p.alpha * fade * 0.65));
             core.addColorStop(1, rgba(base, 0));
             ctx.fillStyle = core;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, r * 1.6, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, r * 1.2, 0, Math.PI * 2);
             ctx.fill();
         }
     }
@@ -418,9 +411,9 @@
     let field = null;
 
     function init() {
-        const anchor = document.querySelector('.siegelings-logo');
-        if (!anchor || field) return;
-        field = new LandingParticleField(anchor);
+        const hero = document.getElementById('hero');
+        if (!hero || field) return;
+        field = new LandingParticleField(hero);
     }
 
     window.LandingParticles = {
