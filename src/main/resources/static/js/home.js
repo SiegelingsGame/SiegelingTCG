@@ -189,10 +189,8 @@
 
     function renderCards() {
         const cards = filteredCards();
-        const ownedCards = cards.filter(card => ownedCount(card.id) > 0);
         const grids = [
-            ['allCardGrid', cards],
-            ['deckCardGrid', ownedCards.length ? ownedCards : cards]
+            ['allCardGrid', cards]
         ];
         grids.forEach(([id, list]) => {
             const grid = document.getElementById(id);
@@ -207,8 +205,6 @@
         });
         const allCount = document.getElementById('allCardCount');
         if (allCount) allCount.textContent = `${cards.length} cards`;
-        const deckCount = document.getElementById('deckCardCount');
-        if (deckCount) deckCount.textContent = `${ownedCards.length || cards.length} shown`;
         renderDetail();
         renderUnlock();
     }
@@ -328,20 +324,74 @@
     function renderDecks() {
         const grid = document.getElementById('deckGrid');
         if (!grid) return;
-        grid.innerHTML = (state.options?.decks || []).map(deck => {
-            const price = deck.elements.length <= 1 ? 300 : deck.elements.length >= 4 ? 700 : 450;
-            const owned = state.progression?.purchasedDeckIds?.includes(deck.id);
-            return `<article class="deck-tile">
-                <strong>${escapeHtml(deck.name)}</strong>
-                <span>${deck.elements.map(format).join(' / ')}</span>
-                <span>${escapeHtml(deck.description || '')}</span>
-                <button class="primary-btn" type="button" data-play-deck="${escapeAttr(deck.id)}">Play Premade</button>
-                <button class="ghost-btn" type="button" data-buy-deck="${escapeAttr(deck.id)}">${owned ? 'Purchased' : `Buy ${price} Coins`}</button>
-            </article>`;
-        }).join('');
+        grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
         grid.querySelectorAll('[data-play-deck]').forEach(btn => btn.addEventListener('click', () => goPlay({ mode: 'solo', deckId: btn.dataset.playDeck })));
         grid.querySelectorAll('[data-buy-deck]').forEach(btn => btn.addEventListener('click', () => purchaseDeck(btn.dataset.buyDeck)));
         renderBuilder();
+        renderSavedDecks();
+    }
+
+    function renderPremadeDeckTile(deck) {
+        const price = deck.elements.length <= 1 ? 300 : deck.elements.length >= 4 ? 700 : 450;
+        const owned = state.progression?.purchasedDeckIds?.includes(deck.id);
+        const primary = deck.elements?.[0] || 'FIRE';
+        const accent = elementColor(primary);
+        const elementLabels = deck.elements.map(format).join(' / ');
+        const spineBands = deck.elements.map(el => `<span style="background:${elementColor(el)}"></span>`).join('');
+        const sigils = deck.elements.slice(0, 4).map(el => `<span style="--sigil:${elementColor(el)}">${format(el).slice(0, 1)}</span>`).join('');
+        return `<article class="deck-tile hub-deck-card" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}">
+            <div class="deck-card-spine">${spineBands}</div>
+            <div class="deck-card-sigils">${sigils}</div>
+            <span class="deck-card-state">${owned ? 'Purchased' : 'Premade'}</span>
+            <div class="deck-card-body">
+                <strong class="deck-card-name">${escapeHtml(deck.name)}</strong>
+                <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
+                <span class="deck-card-desc">${escapeHtml(deck.description || 'Ready-to-play battle deck.')}</span>
+            </div>
+            <div class="deck-card-actions">
+                <button class="primary-btn" type="button" data-play-deck="${escapeAttr(deck.id)}">Play</button>
+                <button class="ghost-btn" type="button" data-buy-deck="${escapeAttr(deck.id)}">${owned ? 'Owned' : `${price} Coins`}</button>
+            </div>
+        </article>`;
+    }
+
+    function renderSavedDecks() {
+        const grid = document.getElementById('customDeckGrid');
+        const count = document.getElementById('deckCardCount');
+        if (!grid) return;
+        const savedDecks = state.profile?.savedDecks || [];
+        if (count) count.textContent = `${savedDecks.length} saved`;
+        if (!state.profile?.authenticated) {
+            grid.innerHTML = '<div class="unlock-card"><strong>Sign in to save custom decks</strong><span>Your deck binder will show saved custom decks after login.</span></div>';
+            return;
+        }
+        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Build a 30-card custom deck from owned cards, then save it here.</span></div>';
+        grid.querySelectorAll('[data-play-custom-deck]').forEach(btn => btn.addEventListener('click', () => {
+            const deck = savedDecks.find(item => item.id === btn.dataset.playCustomDeck);
+            if (!deck) return;
+            goPlay({ mode: 'solo', deckId: deck.deckId, customDeckCards: deck.customDeckCards || null, trainerId: deck.trainerId, loadoutLabel: deck.name });
+        }));
+    }
+
+    function renderSavedDeckTile(deck) {
+        const cardIds = deck.customDeckCards || [];
+        const elements = [...new Set(cardIds.map(id => findCard(id)?.element).filter(Boolean))].slice(0, 4);
+        const fallbackDeck = (state.options?.decks || []).find(item => item.id === deck.deckId);
+        const displayElements = elements.length ? elements : (fallbackDeck?.elements || ['FIRE']);
+        const accent = elementColor(displayElements[0]);
+        const sigils = displayElements.map(el => `<span style="--sigil:${elementColor(el)}">${format(el).slice(0, 1)}</span>`).join('');
+        return `<article class="deck-tile hub-deck-card custom-saved-deck" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}">
+            <div class="deck-card-sigils">${sigils}</div>
+            <span class="deck-card-state">${deck.custom ? 'Custom' : 'Saved'}</span>
+            <div class="deck-card-body">
+                <strong class="deck-card-name">${escapeHtml(deck.name || 'Saved Deck')}</strong>
+                <span class="deck-card-elements">${displayElements.map(format).join(' / ')}</span>
+                <span class="deck-card-desc">${deck.custom ? `${cardIds.length} owned cards` : escapeHtml(deck.deckName || 'Premade loadout')} / ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
+            </div>
+            <div class="deck-card-actions">
+                <button class="primary-btn" type="button" data-play-custom-deck="${escapeAttr(deck.id)}">Play</button>
+            </div>
+        </article>`;
     }
 
     function renderBuilder() {
@@ -487,6 +537,7 @@
         state.profile = data;
         state.progression = data.progression;
         renderProfile();
+        renderDecks();
     }
 
     function createLobbyFromHome() {
@@ -673,6 +724,11 @@
         return ['cards', 'decks', 'lobbies', 'profile', 'shop'].includes(route) ? route : 'home';
     }
     function elementColor(element) { return ELEMENT_COLORS[element] || '#f05b2f'; }
+    function deckGradient(elements = []) {
+        const colors = (elements.length ? elements : ['FIRE']).map(elementColor);
+        if (colors.length === 1) return `linear-gradient(145deg, ${colors[0]}, #07101f 82%)`;
+        return `linear-gradient(145deg, ${colors.map((color, index) => `${color} ${Math.round(index * 100 / (colors.length - 1))}%`).join(', ')})`;
+    }
     function format(value) {
         const normalized = String(value || '');
         if (normalized === 'SIEGLING') return 'Siegeling';

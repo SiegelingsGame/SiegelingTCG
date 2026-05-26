@@ -455,6 +455,131 @@ select.search-input { color-scheme: dark; }
     line-height: 1.45;
 }
 
+.hub-deck-card {
+    position: relative;
+    min-height: 320px;
+    overflow: hidden;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    border-color: color-mix(in srgb, var(--deck-accent, var(--accent)) 54%, rgba(255, 255, 255, 0.18));
+    background:
+        radial-gradient(circle at 24% 18%, color-mix(in srgb, var(--deck-accent, var(--accent)) 52%, transparent), transparent 28%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.42)),
+        var(--deck-bg, linear-gradient(145deg, var(--fire), #07101f));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 18px 36px rgba(0, 0, 0, 0.24);
+}
+
+.hub-deck-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 18px),
+        linear-gradient(180deg, transparent 32%, rgba(3, 8, 18, 0.9) 100%);
+    pointer-events: none;
+}
+
+.hub-deck-card .deck-card-spine {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 32px;
+    display: grid;
+    z-index: 1;
+}
+
+.hub-deck-card .deck-card-spine span {
+    display: block;
+    min-height: 0;
+}
+
+.hub-deck-card .deck-card-sigils {
+    position: absolute;
+    inset: 28px 18px 112px 48px;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 10px;
+}
+
+.hub-deck-card .deck-card-sigils span {
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.66);
+    color: #f8fbff;
+    background: color-mix(in srgb, var(--sigil, var(--accent)) 62%, rgba(5, 10, 20, 0.82));
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), 0 0 24px color-mix(in srgb, var(--sigil, var(--accent)) 44%, transparent);
+    font-size: 23px;
+    font-weight: 950;
+}
+
+.hub-deck-card .deck-card-state {
+    position: absolute;
+    z-index: 2;
+    top: 14px;
+    right: 14px;
+    display: inline-flex;
+    width: auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    color: #101828;
+    background: linear-gradient(180deg, #ffe25a, #d49b00);
+    font-size: 10px;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.hub-deck-card .deck-card-body {
+    position: relative;
+    z-index: 2;
+    padding: 0 14px 86px 46px;
+}
+
+.hub-deck-card .deck-card-name {
+    margin-top: 0;
+    color: #fff6da;
+    font-size: 20px;
+    line-height: 1.05;
+    text-shadow: 0 8px 24px rgba(0, 0, 0, 0.48);
+}
+
+.hub-deck-card .deck-card-elements {
+    color: color-mix(in srgb, var(--deck-accent, var(--accent)) 72%, #ffffff);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+}
+
+.hub-deck-card .deck-card-desc {
+    margin-top: 7px;
+    color: rgba(245, 239, 224, 0.82);
+}
+
+.deck-card-actions {
+    position: absolute;
+    z-index: 3;
+    right: 12px;
+    bottom: 12px;
+    left: 44px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.deck-card-actions button {
+    width: 100%;
+    margin-top: 0;
+    min-height: 42px;
+}
+
+.custom-saved-deck .deck-card-actions {
+    grid-template-columns: 1fr;
+}
+
 .detail-art {
     height: 285px;
     margin-bottom: 12px;
