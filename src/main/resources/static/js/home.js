@@ -1,6 +1,10 @@
 (function () {
     const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
+    const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
+    const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
+    const ROOM_CACHE_TTL_MS = 20 * 1000;
+    const memoryCache = {};
     const ELEMENT_COLORS = {
         FIRE: '#f05b2f', EARTH: '#a7773d', WIND: '#64c987', WATER: '#3c8ed8', ICE: '#7ad9e7',
         SHADOW: '#6d4a9e', ELECTRIC: '#f5cf3d', METAL: '#aeb5b8', UNDEAD: '#9f7c73', PSYCHIC: '#db73b4'
@@ -57,7 +61,7 @@
         document.getElementById('shopShortcutBtn')?.addEventListener('click', () => navigateHub('shop'));
         document.getElementById('joinByCodeBtn')?.addEventListener('click', () => navigateHub('lobbies'));
         document.getElementById('joinRoomBtn')?.addEventListener('click', joinRoomFromHome);
-        document.getElementById('refreshRoomsBtn')?.addEventListener('click', refreshRooms);
+        document.getElementById('refreshRoomsBtn')?.addEventListener('click', () => refreshRooms(true));
         document.getElementById('saveCustomDeckBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
@@ -67,17 +71,26 @@
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
             btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'lobbies' : btn.dataset.homeFocus === 'builder' ? 'decks' : 'home'));
         });
+        document.querySelectorAll('a[data-route]').forEach((link) => {
+            link.addEventListener('click', (event) => {
+                const route = link.dataset.route;
+                if (route === 'play') return;
+                event.preventDefault();
+                navigateHub(route);
+            });
+        });
         window.addEventListener('popstate', () => {
             state.route = routeFromPath(location.pathname);
             setActiveRoute();
             renderSections();
+            renderRoute();
         });
     }
 
     async function loadAll() {
         const [options, packs, profile] = await Promise.all([
-            fetchJson('/api/game/options'),
-            fetchJson('/api/shop/packs'),
+            fetchCachedJson('gameOptions', '/api/game/options', STATIC_CACHE_TTL_MS),
+            fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS),
             syncProfile()
         ]);
         state.options = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
@@ -107,8 +120,9 @@
         return data;
     }
 
-    async function refreshRooms() {
-        const data = await fetchJson('/api/match/rooms');
+    async function refreshRooms(force = false) {
+        const data = force ? await fetchJson('/api/match/rooms') : await fetchCachedJson('matchRooms', '/api/match/rooms', ROOM_CACHE_TTL_MS);
+        if (force && data) writeCache('matchRooms', data);
         state.rooms = data?.rooms || [];
         renderRooms();
     }
@@ -127,6 +141,23 @@
         safeRender(renderGold);
         safeRender(renderHudTools);
         safeRender(renderAuthModal);
+    }
+
+    function renderRoute() {
+        if (state.route === 'cards') {
+            renderCards();
+        } else if (state.route === 'decks') {
+            renderDecks();
+        } else if (state.route === 'home') {
+            renderHomeDashboard();
+        } else if (state.route === 'shop') {
+            renderShop();
+        } else if (state.route === 'profile') {
+            renderProfile();
+        } else if (state.route === 'lobbies') {
+            renderRooms();
+        }
+        renderHudTools();
     }
 
     function safeRender(fn) {
@@ -565,12 +596,12 @@
     }
 
     function navigateHub(route) {
+        if (route === state.route) return;
         state.route = route;
         history.pushState(null, '', route === 'home' ? '/home' : `/${route}`);
         setActiveRoute();
         renderSections();
-        renderCards();
-        renderHomeDashboard();
+        renderRoute();
     }
 
     function setActiveRoute() {
@@ -633,6 +664,49 @@
             return await resp.json();
         } catch (error) {
             console.error(error);
+            return null;
+        }
+    }
+
+    async function fetchCachedJson(cacheKey, path, ttlMs) {
+        const cached = readCache(cacheKey, ttlMs);
+        if (cached) return cached;
+        const data = await fetchJson(path);
+        if (data) writeCache(cacheKey, data);
+        return data;
+    }
+
+    function readCache(cacheKey, ttlMs) {
+        try {
+            const cached = readCacheEntry(cacheKey);
+            if (!cached || Date.now() - cached.savedAt > ttlMs) return null;
+            return cached.data;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function writeCache(cacheKey, data) {
+        try {
+            const entry = { savedAt: Date.now(), data };
+            memoryCache[cacheKey] = entry;
+            const storage = browserSessionStorage();
+            if (storage) storage.setItem(HUB_CACHE_PREFIX + cacheKey, JSON.stringify(entry));
+        } catch (error) {
+            // Session cache is an optimization only.
+        }
+    }
+
+    function readCacheEntry(cacheKey) {
+        const storage = browserSessionStorage();
+        const raw = storage?.getItem(HUB_CACHE_PREFIX + cacheKey);
+        return raw ? JSON.parse(raw) : memoryCache[cacheKey];
+    }
+
+    function browserSessionStorage() {
+        try {
+            return window.sessionStorage || null;
+        } catch (error) {
             return null;
         }
     }
