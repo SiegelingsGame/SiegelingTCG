@@ -55,7 +55,7 @@
       },
       {
         "source": "/play",
-        "destination": "/index.html"
+        "destination": "/play.html"
       },
       {
         "source": "/api/cards/editor",
