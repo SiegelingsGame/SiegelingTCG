@@ -31,10 +31,10 @@
     }
 
     const FEATURED_SIEGELINGS = [
-        { name: 'Pylord',       element: 'FIRE'  },
-        { name: 'Glaciemperor', element: 'ICE'   },
-        { name: 'Aerovane',     element: 'WIND'  },
-        { name: 'Gymstone',     element: 'EARTH' },
+        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png'  },
+        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png'   },
+        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png'  },
+        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png' },
     ];
 
     const FLAVOR_LINES = [
@@ -55,7 +55,7 @@
                 <article class="creature-card" data-element="${elKey}"
                          style="--creature-color: var(--element-${elKey}); --creature-glow: var(--element-${elKey}-glow, rgba(255,255,255,0.4))">
                     <div class="creature-portrait" aria-hidden="true">
-                        ${getElementSvg(s.element)}
+                        <img src="${escapeAttr(s.art)}" alt="" loading="lazy">
                     </div>
                     <div class="creature-name">${escapeHtml(s.name)}</div>
                     <div class="creature-card-footer">
@@ -71,6 +71,10 @@
         return String(value == null ? '' : value)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function escapeAttr(value) {
+        return escapeHtml(value);
     }
 
     // ── Hero parallax ─────────────────────────────────────────────────────
@@ -155,6 +159,7 @@
             const cls = char === ' ' ? 'tagline-char tagline-space' : 'tagline-char';
             return `<span class="${cls}" style="--wave-index:${index}">${safeChar}</span>`;
         }).join('');
+        fitHeroTagline();
 
         let active = false;
         let clearTimer = null;
@@ -195,12 +200,49 @@
     }
 
     // ── Optional real asset wiring ────────────────────────────────────────
+    function fitHeroTagline() {
+        const tagline = document.querySelector('.hero-tagline');
+        const heroContent = document.querySelector('.hero-content');
+        if (!tagline || !heroContent) return;
+
+        tagline.style.removeProperty('--tagline-fit-size');
+        tagline.style.removeProperty('--tagline-fit-tracking');
+        const baseStyle = getComputedStyle(tagline);
+        const maxFont = parseFloat(baseStyle.getPropertyValue('--tagline-fit-size')) || 22;
+        const minFont = 8.5;
+        const maxTracking = Number.parseFloat(baseStyle.getPropertyValue('--tagline-fit-tracking')) || 0.32;
+        const minTracking = 0.02;
+        const available = Math.max(120, Math.min(heroContent.clientWidth, window.innerWidth - 28));
+
+        tagline.style.setProperty('--tagline-fit-size', `${maxFont}px`);
+        tagline.style.setProperty('--tagline-fit-tracking', `${maxTracking}em`);
+
+        for (let pass = 0; pass < 4; pass += 1) {
+            const width = tagline.scrollWidth || tagline.getBoundingClientRect().width;
+            if (width <= available) break;
+            const ratio = available / width;
+            const currentFont = parseFloat(getComputedStyle(tagline).fontSize) || maxFont;
+            const currentTracking = Number.parseFloat(tagline.style.getPropertyValue('--tagline-fit-tracking')) || maxTracking;
+            const nextFont = Math.max(minFont, currentFont * ratio);
+            const nextTracking = Math.max(minTracking, currentTracking * Math.max(0.58, ratio));
+            tagline.style.setProperty('--tagline-fit-size', `${nextFont.toFixed(2)}px`);
+            tagline.style.setProperty('--tagline-fit-tracking', `${nextTracking.toFixed(3)}em`);
+        }
+    }
+
     function init() {
         renderCreatureGrid();
         bindParallax();
         bindTrailerModal();
         setFooterYear();
         bindSiegelingsColorWave();
+        window.addEventListener('resize', fitHeroTagline);
+        window.addEventListener('orientationchange', () => window.setTimeout(fitHeroTagline, 120));
+        const heroContent = document.querySelector('.hero-content');
+        if (window.ResizeObserver && heroContent) {
+            new ResizeObserver(fitHeroTagline).observe(heroContent);
+        }
+        document.fonts?.ready?.then(fitHeroTagline);
     }
 
     if (document.readyState === 'loading') {
