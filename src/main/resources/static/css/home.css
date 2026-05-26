@@ -988,4 +988,65 @@ select.search-input { color-scheme: dark; }
         text-align: center;
         order: -1;
     }
+    .deck-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+    }
+    .hub-deck-card {
+        min-height: 226px;
+        border-radius: 9px;
+    }
+    .hub-deck-card .deck-card-spine {
+        width: 22px;
+    }
+    .hub-deck-card .deck-card-sigils {
+        inset: 22px 8px 98px 34px;
+        gap: 6px;
+    }
+    .hub-deck-card .deck-card-sigils span {
+        width: 38px;
+        height: 38px;
+        border-width: 2px;
+        font-size: 18px;
+    }
+    .hub-deck-card .deck-card-state {
+        top: 10px;
+        right: 8px;
+        padding: 5px 7px;
+        font-size: 9px;
+    }
+    .hub-deck-card .deck-card-body {
+        padding: 0 9px 64px 31px;
+    }
+    .hub-deck-card .deck-card-name {
+        font-size: 14px;
+        line-height: 1.08;
+    }
+    .hub-deck-card .deck-card-elements {
+        font-size: 9px;
+        letter-spacing: 0.35px;
+    }
+    .hub-deck-card .deck-card-desc {
+        margin-top: 4px;
+        font-size: 9px;
+        line-height: 1.25;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .deck-card-actions {
+        left: 30px;
+        right: 8px;
+        bottom: 8px;
+        gap: 5px;
+    }
+    .deck-card-actions button {
+        min-height: 34px;
+        padding: 7px 4px;
+        font-size: 10px;
+        line-height: 1.05;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
 }
