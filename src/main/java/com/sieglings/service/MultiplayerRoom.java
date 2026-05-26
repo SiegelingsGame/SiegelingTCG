@@ -15,6 +15,10 @@ public class MultiplayerRoom {
     private GameService.StartOptions hostOptions;
     private GameService.StartOptions guestOptions;
     private GameState gameState;
+    private String format = "PVP";
+    private boolean closed;
+    private Instant createdAt = Instant.now();
+    private Instant expiresAt;
     private Instant updatedAt = Instant.now();
 
     public MultiplayerRoom(String roomId, String hostToken, String hostName, GameService.StartOptions hostOptions) {
@@ -42,8 +46,20 @@ public class MultiplayerRoom {
     public void setGuestOptions(GameService.StartOptions guestOptions) { this.guestOptions = guestOptions; }
     public GameState getGameState() { return gameState; }
     public void setGameState(GameState gameState) { this.gameState = gameState; }
+    public String getFormat() { return format; }
+    public void setFormat(String format) { this.format = format; }
+    public boolean isClosed() { return closed; }
+    public void setClosed(boolean closed) { this.closed = closed; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    public Instant getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public void touch() { updatedAt = Instant.now(); }
+
+    public boolean isExpired(Instant now) {
+        return expiresAt != null && expiresAt.isBefore(now);
+    }
 
     public boolean hasGuest() {
         return guestToken != null && guestName != null && guestOptions != null;

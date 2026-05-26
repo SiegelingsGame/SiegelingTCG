@@ -1,9 +1,12 @@
 (function () {
     const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+    const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
     const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
     const ROOM_CACHE_TTL_MS = 20 * 1000;
+    const HOST_LOBBY_KEY = 'sieglingsHostLobby';
+    const SOCIAL_POLL_MS = 12 * 1000;
     const COIN_ICON_PATH = '/img/ui/siegel-coin.png';
     const memoryCache = {};
     const ELEMENT_COLORS = {
@@ -129,6 +132,11 @@
         authOpen: false,
         profileEditOpen: false,
         profilePrefs: null,
+        friendPresence: {},
+        messageThreads: [],
+        activeChatPeer: null,
+        viewingProfile: null,
+        socialPollTimer: null,
         packReveal: null
     };
 
@@ -136,13 +144,13 @@
 
     async function init() {
         bindEvents();
+        hydrateProfilePrefsFromCache();
         state.route = routeFromPath(location.pathname);
         setActiveRoute();
         renderSections();
         renderHudTools();
         renderGold();
         renderHomeDashboard();
-        renderProfile();
         await loadAll();
         render();
         syncAuthRouteIntent();
@@ -254,6 +262,13 @@
         }
         state.profile = data;
         state.progression = data.progression || null;
+        const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
+        if (serverPrefs) {
+            state.profilePrefs = { ...defaultProfilePrefs(data.user || {}), ...serverPrefs };
+            cacheProfilePrefs(state.profilePrefs);
+        } else if (!state.profilePrefs) {
+            state.profilePrefs = defaultProfilePrefs(data.user || {});
+        }
         return data;
     }
 
@@ -302,6 +317,10 @@
         } else if (state.route === 'social') {
             renderRooms();
             renderFriends();
+            renderMessageThreads();
+            startSocialPolling();
+        } else {
+            stopSocialPolling();
         }
         renderHudTools();
     }
@@ -952,6 +971,7 @@
         const playerCount = Number(room.playerCount || room.players?.length || 1);
         const status = full ? 'Full' : escapeHtml(room.status || 'Open');
         const roomId = escapeAttr(room.roomId || '');
+        const expiresLabel = formatLobbyExpiry(room.expiresAt);
         return `<article class="room-tile social-room-tile" style="--room-el:${color}">
             <div class="room-emblem" aria-hidden="true">${renderRoomEmblem(element)}</div>
             <div class="room-copy">
@@ -961,6 +981,7 @@
                 </div>
                 <span>${escapeHtml(format(element))} table / Best of 1</span>
                 <span>Hosted by ${escapeHtml(room.hostName || 'Host')} / Code ${escapeHtml(room.roomId || '----')}</span>
+                ${expiresLabel ? `<span class="room-expiry">${escapeHtml(expiresLabel)}</span>` : ''}
             </div>
             <div class="room-seat-count"><strong>${playerCount} / 2</strong><span>Players</span></div>
             <button class="${full ? 'ghost-btn' : 'primary-btn'}" type="button" data-room-id="${roomId}" ${full ? 'disabled' : ''}>${status === 'Full' ? 'Full' : 'Join'}</button>
@@ -1013,15 +1034,41 @@
     function renderSocialActiveLobby() {
         const card = document.getElementById('socialActiveLobby');
         if (!card) return;
-        const name = state.profile?.displayName || state.profile?.email || 'Your Arena';
+        const hostLobby = readHostLobby();
+        const name = profileDisplayName();
         const deck = selectedDeckId();
+        if (hostLobby?.roomId) {
+            const expiresLabel = formatLobbyExpiry(hostLobby.expiresAt);
+            card.innerHTML = `<div class="social-active-content">
+                <div>
+                    <span class="eyebrow">Your Active Lobby</span>
+                    <h2>${escapeHtml(name)}'s table</h2>
+                    <span>Room code <strong>${escapeHtml(hostLobby.roomId)}</strong></span>
+                    <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
+                    ${expiresLabel ? `<span>${escapeHtml(expiresLabel)}</span>` : ''}
+                </div>
+                <div class="social-active-status"><strong>1 / 2</strong><span>Waiting for opponent</span></div>
+                <div class="friend-actions">
+                    <button class="primary-btn" id="activeLobbyResumeBtn" type="button">Open Table</button>
+                    <button class="ghost-btn" id="activeLobbyCloseBtn" type="button">Close Lobby</button>
+                </div>
+            </div>`;
+            document.getElementById('activeLobbyResumeBtn')?.addEventListener('click', () => goPlay({
+                mode: 'online',
+                onlineRoomMode: 'create',
+                roomId: hostLobby.roomId,
+                deckId: selectedDeckId()
+            }));
+            document.getElementById('activeLobbyCloseBtn')?.addEventListener('click', () => closeHostLobby(hostLobby));
+            return;
+        }
         card.innerHTML = `<div class="social-active-content">
             <div>
                 <span class="eyebrow">Your Active Lobby</span>
                 <h2>${escapeHtml(name)}'s table</h2>
                 <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
             </div>
-            <div class="social-active-status"><strong>1 / 2</strong><span>Waiting for opponent</span></div>
+            <div class="social-active-status"><strong>0 / 2</strong><span>No open table yet</span></div>
             <button class="primary-btn" id="activeLobbyCreateBtn" type="button">Start Hosting</button>
         </div>`;
         document.getElementById('activeLobbyCreateBtn')?.addEventListener('click', createLobbyFromHome);
@@ -1051,17 +1098,38 @@
         }
 
         list.innerHTML = visibleFriends.length
-            ? visibleFriends.map(friend => `<article class="friend-tile social-friend-tile">
-                <div class="friend-avatar" aria-hidden="true">${escapeHtml(friendInitial(friend))}</div>
-                <div class="friend-copy">
-                    <strong>${escapeHtml(friend.displayName || friend.email)}</strong>
-                    <span>${escapeHtml(friend.email)}</span>
+            ? visibleFriends.map(friend => {
+                const presence = state.friendPresence[friend.email] || {};
+                const prefs = presence.profileSettings || {};
+                const online = Boolean(presence.presence?.online);
+                const status = presence.presence?.status || 'OFFLINE';
+                return `<article class="friend-tile social-friend-tile">
+                <div class="friend-avatar-wrap">
+                    ${renderPlayerAvatar({
+                        displayName: prefs.displayName || friend.displayName || friend.email,
+                        avatarMode: prefs.avatarMode,
+                        avatar: prefs.avatar,
+                        avatarUrl: prefs.avatarUrl,
+                        favoriteElement: prefs.favoriteElement
+                    }, 'friend-avatar')}
+                    <span class="presence-dot ${online ? (status === 'IN_GAME' ? 'in-game' : 'online') : ''}" title="${escapeHtml(status)}"></span>
                 </div>
-                <button class="ghost-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}">Remove</button>
-            </article>`).join('')
+                <div class="friend-copy">
+                    <strong>${escapeHtml(prefs.displayName || friend.displayName || friend.email)}</strong>
+                    <span>${escapeHtml(friend.email)} · ${online ? escapeHtml(status.replace('_', ' ')) : 'Offline'}</span>
+                </div>
+                <div class="friend-actions">
+                    <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
+                    <button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>
+                    <button class="ghost-btn compact-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}">Remove</button>
+                </div>
+            </article>`;
+            }).join('')
             : '<div class="social-empty-state"><strong>No friends found</strong><span>Add a registered player by email to start your list.</span></div>';
 
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
+        list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => openPlayerProfile(btn.dataset.viewProfile)));
+        list.querySelectorAll('[data-message-friend]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.messageFriend)));
     }
 
     function friendInitial(friend) {
@@ -1111,10 +1179,10 @@
 
     function profileViewModel() {
         const user = state.profile?.user || {};
-        if (!state.profilePrefs) {
-            state.profilePrefs = defaultProfilePrefs(user);
-        }
-        const prefs = { ...defaultProfilePrefs(user), ...state.profilePrefs };
+        const prefs = {
+            ...defaultProfilePrefs(user),
+            ...(state.profilePrefs || {})
+        };
         const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
         prefs.favoriteElement = favoriteElement;
         const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
@@ -1142,6 +1210,7 @@
         const displayName = user.displayName || 'New Duelist';
         return {
             displayName,
+            avatarMode: 'INITIAL',
             avatar: initials(displayName),
             avatarUrl: '',
             favoriteElement: 'Fire',
@@ -1168,7 +1237,7 @@
             <div class="profile-hero-effects" aria-hidden="true"><span></span><span></span><span></span></div>
             <div class="profile-hero-content">
                 <div class="profile-avatar-wrap">
-                    ${prefs.avatarUrl ? `<img class="profile-avatar-img" src="${escapeAttr(prefs.avatarUrl)}" alt="">` : `<div class="profile-avatar">${escapeHtml(prefs.avatar || initials(prefs.displayName))}</div>`}
+                    ${renderPlayerAvatar(prefs, 'profile-avatar')}
                     <span class="profile-level">LV ${view.level}</span>
                 </div>
                 <div class="profile-identity">
@@ -1351,8 +1420,12 @@
                 </div>
                 <div class="profile-edit-grid">
                     ${profileInput('Display name', 'displayName', prefs.displayName)}
+                    <label><span>Avatar style</span><select class="search-input" data-profile-field="avatarMode">
+                        <option value="INITIAL"${prefs.avatarMode === 'INITIAL' ? ' selected' : ''}>First initial</option>
+                        <option value="ELEMENT"${prefs.avatarMode === 'ELEMENT' ? ' selected' : ''}>Favorite element icon</option>
+                    </select></label>
                     ${profileInput('Avatar initials', 'avatar', prefs.avatar)}
-                    ${profileInput('Avatar URL placeholder', 'avatarUrl', prefs.avatarUrl)}
+                    ${profileInput('Avatar image URL', 'avatarUrl', prefs.avatarUrl)}
                     <label><span>Favorite element</span><select class="search-input" data-profile-field="favoriteElement">${PROFILE_ELEMENTS.map(element => `<option value="${element}"${element === prefs.favoriteElement ? ' selected' : ''}>${element}</option>`).join('')}</select></label>
                     ${profileInput('Player title', 'playerTitle', prefs.playerTitle)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
@@ -1361,7 +1434,7 @@
                 </div>
                 <div class="profile-edit-actions">
                     <button class="ghost-btn" type="button" data-profile-close>Cancel</button>
-                    <button class="primary-btn profile-theme-btn" type="button" data-profile-save>Save Local Profile</button>
+                    <button class="primary-btn profile-theme-btn" type="button" data-profile-save>Save Profile</button>
                 </div>
             </div>
         </div>`;
@@ -1384,18 +1457,29 @@
         document.querySelectorAll('[data-profile-route]').forEach(btn => btn.addEventListener('click', () => navigateHub(btn.dataset.profileRoute)));
     }
 
-    function saveProfilePrefs() {
+    async function saveProfilePrefs() {
+        if (!state.profile?.authenticated) return openAuth();
         const next = { ...(state.profilePrefs || defaultProfilePrefs(state.profile?.user || {})) };
         document.querySelectorAll('[data-profile-field]').forEach(input => {
             next[input.dataset.profileField] = input.value.trim();
         });
         next.favoriteElement = normalizeProfileElement(next.favoriteElement);
+        next.avatarMode = next.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL';
         next.avatar = (next.avatar || initials(next.displayName)).slice(0, 4).toUpperCase();
         if (!next.playerTitle) next.playerTitle = elementThemes[next.favoriteElement].mood;
-        // TODO: Persist these profile preferences through a backend profile settings endpoint.
-        state.profilePrefs = next;
+        const data = await fetchJson('/api/profile/settings', { method: 'POST', body: JSON.stringify(next) });
+        if (!data) return alert('Could not save profile. Is the server running the latest code with /api/profile/settings?');
+        if (data.error) return alert(data.error);
+        state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings)
+            ? { ...defaultProfilePrefs(state.profile?.user || {}), ...applyProfileSettingsFromServer(data.profileSettings) }
+            : next;
+        cacheProfilePrefs(state.profilePrefs);
+        if (state.profile?.user && state.profilePrefs?.displayName) {
+            state.profile.user.displayName = state.profilePrefs.displayName;
+        }
         state.profileEditOpen = false;
         renderProfile();
+        renderFriends();
     }
 
     function renderElementBadge(element) {
@@ -1524,9 +1608,30 @@
     }
 
     function normalizeProfileElement(element) {
-        const normalized = format(element || 'Neutral');
-        if (normalized === 'Water') return 'Ice';
-        return PROFILE_ELEMENTS.includes(normalized) ? normalized : 'Neutral';
+        const raw = String(element || '').trim();
+        if (!raw) return 'Fire';
+        const upper = raw.toUpperCase();
+        const fromServer = {
+            FIRE: 'Fire',
+            ICE: 'Ice',
+            WIND: 'Wind',
+            EARTH: 'Earth',
+            WATER: 'Water',
+            SHADOW: 'Shadow',
+            ELECTRIC: 'Electric',
+            STORM: 'Electric',
+            METAL: 'Metal',
+            MECH: 'Metal',
+            UNDEAD: 'Undead',
+            PSYCHIC: 'Psychic',
+            NEUTRAL: 'Neutral'
+        };
+        if (fromServer[upper]) {
+            return PROFILE_ELEMENTS.includes(fromServer[upper]) ? fromServer[upper] : fromServer[upper];
+        }
+        const normalized = format(raw);
+        if (normalized === 'Water' && !PROFILE_ELEMENTS.includes('Water')) return 'Ice';
+        return PROFILE_ELEMENTS.includes(normalized) ? normalized : (fromServer[upper] || normalized || 'Fire');
     }
 
     function initials(name) {
@@ -2019,7 +2124,8 @@
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
         state.progression = data.progression;
-        state.profilePrefs = null;
+        state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
+        cacheProfilePrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
         await ensurePacksLoaded();
@@ -2029,6 +2135,7 @@
     async function logout() {
         await fetchJson('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         state.token = '';
         state.profile = null;
         state.progression = null;
@@ -2210,6 +2317,319 @@
         return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     }
     function escapeAttr(value) { return escapeHtml(value); }
+
+    function applyProfileSettingsFromServer(settings) {
+        if (!settings) return null;
+        const mapped = {
+            displayName: settings.displayName || '',
+            avatarMode: settings.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL',
+            avatar: settings.avatar || '',
+            avatarUrl: settings.avatarUrl || '',
+            playerTitle: settings.playerTitle || '',
+            bio: settings.bio || '',
+            preferredCardBack: settings.preferredCardBack || '',
+            favoriteSiegling: settings.favoriteSiegling || ''
+        };
+        const elementSource = settings.favoriteElementLabel || settings.favoriteElement;
+        if (elementSource != null && String(elementSource).trim()) {
+            mapped.favoriteElement = normalizeProfileElement(elementSource);
+        }
+        return mapped;
+    }
+
+    function hydrateProfilePrefsFromCache() {
+        if (!state.token) return;
+        try {
+            const raw = localStorage.getItem(PROFILE_PREFS_CACHE_KEY);
+            if (!raw) return;
+            const cached = applyProfileSettingsFromServer(JSON.parse(raw));
+            if (cached) state.profilePrefs = cached;
+        } catch (_error) {
+            localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
+        }
+    }
+
+    function cacheProfilePrefs(prefs) {
+        if (!prefs || !state.token) return;
+        try {
+            localStorage.setItem(PROFILE_PREFS_CACHE_KEY, JSON.stringify({
+                displayName: prefs.displayName,
+                avatarMode: prefs.avatarMode,
+                avatar: prefs.avatar,
+                avatarUrl: prefs.avatarUrl,
+                favoriteElement: prefs.favoriteElement,
+                playerTitle: prefs.playerTitle,
+                bio: prefs.bio,
+                preferredCardBack: prefs.preferredCardBack,
+                favoriteSiegling: prefs.favoriteSiegling
+            }));
+        } catch (_error) {
+            // ignore quota errors
+        }
+    }
+
+    function profileDisplayName() {
+        return state.profilePrefs?.displayName
+            || state.profile?.user?.displayName
+            || state.profile?.email
+            || 'Your Arena';
+    }
+
+    function renderPlayerAvatar(prefs = {}, className = 'friend-avatar') {
+        const displayName = prefs.displayName || 'Player';
+        const mode = prefs.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL';
+        if (prefs.avatarUrl) {
+            return `<img class="player-avatar-img ${escapeAttr(className)}" src="${escapeAttr(prefs.avatarUrl)}" alt="">`;
+        }
+        if (mode === 'ELEMENT') {
+            const iconPath = elementIconPath(normalizeProfileElement(prefs.favoriteElement));
+            if (iconPath) {
+                return `<div class="player-avatar-element ${escapeAttr(className)}" aria-hidden="true"><img src="${escapeAttr(iconPath)}" alt=""></div>`;
+            }
+        }
+        return `<div class="${escapeAttr(className)}" aria-hidden="true">${escapeHtml((prefs.avatar || initials(displayName)).slice(0, 1))}</div>`;
+    }
+
+    function formatLobbyExpiry(expiresAt) {
+        if (!expiresAt) return '';
+        const remainingMs = new Date(expiresAt).getTime() - Date.now();
+        if (!Number.isFinite(remainingMs) || remainingMs <= 0) return 'Expires soon';
+        const minutes = Math.ceil(remainingMs / 60000);
+        return `Closes in ${minutes} min`;
+    }
+
+    function readHostLobby() {
+        try {
+            const raw = localStorage.getItem(HOST_LOBBY_KEY);
+            if (!raw) return null;
+            const lobby = JSON.parse(raw);
+            if (!lobby?.roomId) return null;
+            if (lobby.expiresAt && new Date(lobby.expiresAt).getTime() <= Date.now()) {
+                localStorage.removeItem(HOST_LOBBY_KEY);
+                return null;
+            }
+            return lobby;
+        } catch (_error) {
+            return null;
+        }
+    }
+
+    function writeHostLobby(lobby) {
+        if (!lobby?.roomId) {
+            localStorage.removeItem(HOST_LOBBY_KEY);
+            return;
+        }
+        localStorage.setItem(HOST_LOBBY_KEY, JSON.stringify(lobby));
+    }
+
+    async function closeHostLobby(lobby) {
+        if (!lobby?.roomId) return;
+        const headers = { 'Content-Type': 'application/json' };
+        if (state.token) headers.Authorization = `Bearer ${state.token}`;
+        if (lobby.playerToken) {
+            headers['X-Room-Id'] = lobby.roomId;
+            headers['X-Player-Token'] = lobby.playerToken;
+        }
+        const data = await fetchJson('/api/match/close', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ roomId: lobby.roomId })
+        });
+        if (data?.error) return alert(data.error);
+        localStorage.removeItem(HOST_LOBBY_KEY);
+        await refreshRooms(true);
+        renderSocialActiveLobby();
+    }
+
+    function startSocialPolling() {
+        stopSocialPolling();
+        refreshSocialData(true);
+        state.socialPollTimer = window.setInterval(() => refreshSocialData(false), SOCIAL_POLL_MS);
+    }
+
+    function stopSocialPolling() {
+        if (state.socialPollTimer) {
+            window.clearInterval(state.socialPollTimer);
+            state.socialPollTimer = null;
+        }
+    }
+
+    async function refreshSocialData(forceRooms) {
+        if (!state.profile?.authenticated) {
+            state.friendPresence = {};
+            state.messageThreads = [];
+            renderFriends();
+            renderMessageThreads();
+            return;
+        }
+        await Promise.all([
+            refreshRooms(forceRooms),
+            refreshFriendPresence(),
+            refreshMessageThreads(),
+            sendPresenceHeartbeat()
+        ]);
+        renderFriends();
+        renderMessageThreads();
+        renderSocialActiveLobby();
+    }
+
+    async function sendPresenceHeartbeat() {
+        if (!state.profile?.authenticated) return;
+        const hostLobby = readHostLobby();
+        await fetchJson('/api/social/presence/heartbeat', {
+            method: 'POST',
+            body: JSON.stringify({
+                status: hostLobby?.roomId ? 'IN_GAME' : 'ONLINE',
+                currentRoomId: hostLobby?.roomId || null
+            })
+        });
+    }
+
+    async function refreshFriendPresence() {
+        const data = await fetchJson('/api/social/presence');
+        if (data?.error) return;
+        const map = {};
+        (data.friends || []).forEach(row => {
+            if (row.userId) map[row.userId] = row;
+        });
+        state.friendPresence = map;
+    }
+
+    async function refreshMessageThreads() {
+        const data = await fetchJson('/api/social/messages/threads');
+        if (data?.error) return;
+        state.messageThreads = data.threads || [];
+    }
+
+    function renderMessageThreads() {
+        const list = document.getElementById('messageThreadList');
+        const count = document.getElementById('messageThreadCount');
+        const compose = document.getElementById('messageCompose');
+        if (!list) return;
+        if (count) count.textContent = `${state.messageThreads.length} thread${state.messageThreads.length === 1 ? '' : 's'}`;
+        if (!state.profile?.authenticated) {
+            list.innerHTML = '<div class="social-empty-state"><strong>Sign in to message friends</strong></div>';
+            compose?.classList.add('hidden');
+            return;
+        }
+        if (!state.messageThreads.length) {
+            list.innerHTML = '<div class="social-empty-state"><strong>No messages yet</strong><span>Open a friend profile and tap Message to start chatting.</span></div>';
+            return;
+        }
+        list.innerHTML = state.messageThreads.map(thread => {
+            const friend = (state.profile?.friends || []).find(row => row.email === thread.peerId);
+            const label = friend?.displayName || thread.peerId;
+            return `<button class="message-thread-btn" type="button" data-open-thread="${escapeAttr(thread.peerId)}">
+                <strong>${escapeHtml(label)}</strong>
+                <span>${escapeHtml(thread.lastMessage || 'No messages yet')}</span>
+            </button>`;
+        }).join('');
+        list.querySelectorAll('[data-open-thread]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.openThread)));
+        if (state.activeChatPeer) {
+            openMessageComposer(state.activeChatPeer, false);
+        }
+    }
+
+    async function openMessageComposer(peerId, focusInput = true) {
+        if (!state.profile?.authenticated) return openAuth();
+        state.activeChatPeer = peerId;
+        const compose = document.getElementById('messageCompose');
+        const title = document.getElementById('messageComposeTitle');
+        const log = document.getElementById('messageLog');
+        const friend = (state.profile?.friends || []).find(row => row.email === peerId);
+        if (title) title.textContent = `Chat with ${friend?.displayName || peerId}`;
+        compose?.classList.remove('hidden');
+        const data = await fetchJson(`/api/social/messages/with/${encodeURIComponent(peerId)}`);
+        if (data?.error) {
+            if (log) log.innerHTML = `<div class="social-empty-state">${escapeHtml(data.error)}</div>`;
+            return;
+        }
+        if (log) {
+            log.innerHTML = (data.messages || []).length
+                ? data.messages.map(message => `<div class="message-bubble ${message.mine ? 'mine' : 'theirs'}">${escapeHtml(message.text)}</div>`).join('')
+                : '<div class="social-empty-state"><span>Say hello to start the conversation.</span></div>';
+            log.scrollTop = log.scrollHeight;
+        }
+        renderMessageThreads();
+        if (focusInput) document.getElementById('messageInput')?.focus();
+    }
+
+    async function sendChatMessage(event) {
+        event?.preventDefault();
+        if (!state.activeChatPeer) return;
+        const input = document.getElementById('messageInput');
+        const text = input?.value?.trim() || '';
+        if (!text) return;
+        const data = await fetchJson('/api/social/messages/send', {
+            method: 'POST',
+            body: JSON.stringify({ recipientId: state.activeChatPeer, text })
+        });
+        if (data?.error) return alert(data.error);
+        if (input) input.value = '';
+        await refreshMessageThreads();
+        await openMessageComposer(state.activeChatPeer, false);
+    }
+
+    async function openPlayerProfile(userId) {
+        const data = await fetchJson(`/api/social/players/${encodeURIComponent(userId)}/profile`);
+        if (data?.error) return alert(data.error);
+        state.viewingProfile = data;
+        const modal = document.getElementById('viewProfileModal');
+        const body = document.getElementById('viewProfileBody');
+        if (!modal || !body) return;
+        const prefs = data.profileSettings || {};
+        const theme = elementThemes[normalizeProfileElement(prefs.favoriteElement)] || elementThemes.Fire;
+        body.innerHTML = `<div class="view-profile-modal-head">
+            <div>
+                <span class="eyebrow">Player Profile</span>
+                <h2 id="viewProfileTitle">${escapeHtml(prefs.displayName || userId)}</h2>
+                <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
+            </div>
+            <button class="ghost-btn compact-btn" type="button" id="closeViewProfileBtn">Close</button>
+        </div>
+        <div class="profile-dashboard" style="${profileThemeStyle(theme)}">
+            <section class="profile-hero profile-hero-neutral">
+                <div class="profile-hero-content">
+                    <div class="profile-avatar-wrap">${renderPlayerAvatar(prefs, 'profile-avatar')}</div>
+                    <div class="profile-identity">
+                        ${renderElementBadge(prefs.favoriteElement)}
+                        <p class="profile-bio">${escapeHtml(prefs.bio || '')}</p>
+                        <p class="profile-muted">Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling || '—')}</p>
+                        <p class="profile-muted">${escapeHtml(prefs.preferredCardBack || '')} card back</p>
+                        <p class="profile-muted">Status: ${escapeHtml((data.presence?.online ? data.presence.status : 'OFFLINE').replace('_', ' '))}</p>
+                    </div>
+                </div>
+            </section>
+            <section class="profile-stat-grid">
+                ${renderStatCard('Cards Owned', data.stats?.ownedTotal ?? 0, 'Total copies')}
+                ${renderStatCard('Unique Cards', data.stats?.uniqueOwned ?? 0, 'Discovered')}
+                ${renderStatCard('Coins', data.stats?.gold ?? 0, 'Wallet')}
+                ${renderStatCard('Level', data.stats?.level ?? 1, 'Collector rank')}
+            </section>
+            ${data.isFriend ? `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileMessageBtn">Message</button>
+            </div>` : '<p class="profile-muted">Add this player as a friend to send messages.</p>'}
+        </div>`;
+        modal.classList.remove('hidden');
+        document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
+        document.getElementById('viewProfileMessageBtn')?.addEventListener('click', () => {
+            closePlayerProfile();
+            navigateHub('social');
+            openMessageComposer(userId);
+        });
+    }
+
+    function closePlayerProfile() {
+        state.viewingProfile = null;
+        document.getElementById('viewProfileModal')?.classList.add('hidden');
+    }
+
+    document.getElementById('closeMessageComposeBtn')?.addEventListener('click', () => {
+        state.activeChatPeer = null;
+        document.getElementById('messageCompose')?.classList.add('hidden');
+        renderMessageThreads();
+    });
+    document.getElementById('messageSendForm')?.addEventListener('submit', sendChatMessage);
 
     document.addEventListener('click', (event) => {
         const packButton = event.target.closest('[data-pack-id]');
