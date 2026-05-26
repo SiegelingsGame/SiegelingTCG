@@ -1,0 +1,18 @@
+{
+  "binderArt": 3,
+  "binderShells": 3,
+  "bodyTextHasEncodingArtifacts": false,
+  "cssLink": "http://localhost:8080/css/home.css?v=23",
+  "firstCardRect": {
+    "bottom": 1304,
+    "height": 266,
+    "top": 1039,
+    "width": 156
+  },
+  "firstCardText": "Applehead\nSIEGELING / EARTH\nHP:16\nSPD:8\nCommon / Unowned\nCost 1 Earth",
+  "jsLink": "http://localhost:8080/js/home.js?v=26",
+  "oldMiniCards": 0,
+  "previewActionCards": 3,
+  "previewCards": 3,
+  "rowColumns": "155.771px 155.781px"
+}

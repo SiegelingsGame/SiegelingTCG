@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=100">
+    <link rel="stylesheet" href="/css/style.css?v=102">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -469,38 +469,30 @@
 </div>
 
 <div class="welcome-overlay visible" id="welcomeOverlay">
-    <div class="welcome-shell">
-        <div class="welcome-main">
-            <section class="welcome-hero">
-                <div class="welcome-eyebrow">WELCOME TO THE ARENA</div>
-                <h2>Build links, wake the sockets, and command real momentum.</h2>
-                <p class="welcome-hero-copy">Siegelings is a board-first card battle game. Place one Siegeling during setup, connect matching notches to grow your network, and use those links to generate elemental energy for spells, traps, and battle abilities.</p>
-                <div class="welcome-tutorial-stage" id="welcomeTutorialStage"></div>
-                <div class="welcome-tutorial-nav">
-                    <button class="btn welcome-nav-btn" type="button" onclick="stepWelcomeSlide(-1)">&#8592; Back</button>
-                    <div class="welcome-tutorial-dots" id="welcomeTutorialDots"></div>
-                    <button class="btn btn-primary welcome-nav-btn" type="button" onclick="stepWelcomeSlide(1)">Next &#8594;</button>
-                </div>
-            </section>
+    <div class="welcome-shell play-entry-shell">
+        <section class="play-entry-hero">
+            <div>
+                <div class="welcome-eyebrow">PLAY</div>
+                <h2>Ready your account, open a lobby, then choose your deck.</h2>
+                <p class="welcome-hero-copy">Solo battles go straight to loadout. Online battles now stage through a lobby with player cards, chat, ready checks, and a 3-2-1 handoff before deck and SiegeKnight selection.</p>
+            </div>
+            <div class="play-entry-actions">
+                <button class="btn btn-primary" type="button" onclick="startPlaySolo()">Solo Battle</button>
+                <button class="btn welcome-guest-btn" type="button" onclick="openPlayLobby('create')">Create Lobby</button>
+                <button class="btn welcome-dashboard-btn" type="button" onclick="openPlayLobby('join')">Join Lobby</button>
+            </div>
+        </section>
+        <div class="play-entry-grid">
             <aside class="welcome-sidebar">
                 <section class="welcome-auth-card" id="welcomeAuthCard"></section>
                 <section class="welcome-history-card" id="welcomeHistoryCard"></section>
             </aside>
+            <section class="play-lobby-card" id="playLobbyCard" aria-live="polite"></section>
         </div>
-        <section class="welcome-leaderboards" id="welcomeLeaderboardsSection" aria-label="Daily leaderboards">
-            <div class="welcome-lb-header">
-                <div class="welcome-eyebrow">DAILY LEADERBOARDS</div>
-                <h3 class="welcome-section-heading">See who rules the arena today</h3>
-                <p class="welcome-leaderboards-intro">Top 10 registered players. Rankings refresh on the server once per day.</p>
-            </div>
-            <div class="welcome-lb-meta" id="welcomeLeaderboardsMeta"></div>
-            <div class="welcome-lb-tabs" id="welcomeLeaderboardsTabs" role="tablist" aria-label="Leaderboard category"></div>
-            <div class="welcome-lb-body" id="welcomeLeaderboardsBody"></div>
-        </section>
         <div class="welcome-footer">
-            <div class="welcome-footer-note">Sign in to save progress, or jump in as a guest.</div>
+            <div class="welcome-footer-note">Arena guide and daily leaderboards now live on Home.</div>
             <div class="welcome-footer-actions">
-                <button class="btn welcome-guest-btn" type="button" onclick="playAsGuest()">Play as Guest</button>
+                <a class="btn welcome-dashboard-btn" href="/home">Home</a>
                 <button class="btn welcome-dashboard-btn" id="btnDashboardAccess" type="button" onclick="openDashboardAccess()" title="Dashboard" aria-label="Dashboard">&#9881; Dashboard</button>
                 <span class="crafted-by">Crafted By PartyChatGaming</span>
             </div>
@@ -617,7 +609,7 @@
                 <div id="loadoutSummary" class="loadout-summary"></div>
                 <div class="loadout-actions">
                     <div class="loadout-actions-shell">
-                        <button class="btn loadout-back-btn" type="button" onclick="returnToPlayMain()">Back to Play</button>
+                        <button class="btn loadout-back-btn" type="button" onclick="returnToPlayMain()">Main Menu</button>
                         <button class="btn btn-primary loadout-start-btn" type="button" id="btnStartLoadout" onclick="startSelectedGame()">Start Battle</button>
                     </div>
                 </div>
@@ -652,7 +644,7 @@
 <script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
-    <script src="/js/game.js?v=117"></script>
+    <script src="/js/game.js?v=119"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
     <script src="/js/action-queue.js?v=21"></script>

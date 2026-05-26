@@ -36,6 +36,7 @@ class PlayerProgressionServiceTest {
 
         assertEquals("pack_fire", progression.getStarterPackId());
         assertEquals(5, progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum());
+        assertEquals(PlayerProgressionService.PACK_OPEN_REMNANTS, progression.getRemnants());
         assertThrows(IllegalArgumentException.class, () -> service.chooseStarterPack(user, "pack_fire"));
     }
 
@@ -53,6 +54,7 @@ class PlayerProgressionServiceTest {
         service.awardMatchGold(history);
 
         assertEquals(PlayerProgressionService.STARTING_GOLD + PlayerProgressionService.SOLO_WIN_GOLD + PlayerProgressionService.WIN_STREAK_GOLD, store.saved.getGold());
+        assertEquals(PlayerProgressionService.SOLO_WIN_REMNANTS, store.saved.getRemnants());
         assertEquals(1, store.saved.getRewardedMatchIds().size());
         assertEquals(1, store.saved.getSoloWinStreak());
     }
@@ -72,8 +74,25 @@ class PlayerProgressionServiceTest {
                 + 14
                 + 7;
         assertEquals(expected, store.saved.getGold());
+        assertEquals(PlayerProgressionService.SOLO_WIN_REMNANTS * 2 + PlayerProgressionService.ONLINE_WIN_REMNANTS, store.saved.getRemnants());
         assertEquals(2, store.saved.getSoloWinStreak());
         assertEquals(0, store.saved.getOnlineWinStreak());
+    }
+
+    @Test
+    void remnantsCraftSpecificCardsAtHighRarityCost() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setRemnants(2500);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.craftCard(user(), "dracoil");
+
+        assertEquals(500, store.saved.getRemnants());
+        assertEquals(1, store.saved.getOwnedCards().get("dracoil"));
     }
 
     @Test
@@ -196,6 +215,14 @@ class PlayerProgressionServiceTest {
         @Override
         public int getDeckBuilderMaxCopies() {
             return 3;
+        }
+
+        @Override
+        public List<Card> getDeckBuilderCatalog() {
+            return List.of(
+                    new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
+                    new SieglingCard("dracoil", "Dracoil", Element.FIRE, Rarity.RARE, 8, 3, List.of(), Row.FRONT)
+            );
         }
     }
 }

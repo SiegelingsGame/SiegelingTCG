@@ -1,0 +1,14 @@
+{
+  "activeLobbyExists": true,
+  "activeLobbyRect": {
+    "bottom": 399,
+    "height": 103,
+    "top": 296
+  },
+  "activeLobbyText": "YOUR ACTIVE LOBBY\nYour Arena's table\nDeck ready: deck_fire\n1 / 2\nWaiting for opponent\nStart Hosting",
+  "activeNav": "Social",
+  "hash": "#socialActiveLobby",
+  "path": "/social",
+  "playPath": false,
+  "socialVisible": true
+}

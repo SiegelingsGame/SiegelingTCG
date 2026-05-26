@@ -1,0 +1,169 @@
+{
+  "baseUrl": "http://127.0.0.1:59239",
+  "results": [
+    {
+      "path": "/play",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollTargetSelector": ".welcome-shell",
+      "scrollRemaining": 0,
+      "nav": {
+        "top": 698,
+        "bottom": 844,
+        "height": 146,
+        "display": "grid"
+      },
+      "bottomContent": {
+        "top": 503,
+        "bottom": 663,
+        "height": 160,
+        "display": "flex"
+      },
+      "clearsHud": true,
+      "isScrollableToEnd": true
+    },
+    {
+      "path": "/home",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollTargetSelector": ".home-main",
+      "scrollRemaining": 0,
+      "nav": {
+        "top": 637,
+        "bottom": 844,
+        "height": 207,
+        "display": "flex"
+      },
+      "bottomContent": {
+        "top": -797,
+        "bottom": 620,
+        "height": 1417,
+        "display": "grid"
+      },
+      "clearsHud": true,
+      "isScrollableToEnd": true
+    },
+    {
+      "path": "/cards",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollTargetSelector": ".home-main",
+      "scrollRemaining": 0,
+      "nav": {
+        "top": 637,
+        "bottom": 844,
+        "height": 207,
+        "display": "flex"
+      },
+      "bottomContent": {
+        "top": 10,
+        "bottom": 125,
+        "height": 115,
+        "display": "grid"
+      },
+      "clearsHud": true,
+      "isScrollableToEnd": true
+    },
+    {
+      "path": "/decks",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollTargetSelector": ".home-main",
+      "scrollRemaining": 0,
+      "nav": {
+        "top": 637,
+        "bottom": 844,
+        "height": 207,
+        "display": "flex"
+      },
+      "bottomContent": {
+        "top": -37,
+        "bottom": 620,
+        "height": 657,
+        "display": "grid"
+      },
+      "clearsHud": true,
+      "isScrollableToEnd": true
+    },
+    {
+      "path": "/lobbies",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollTargetSelector": ".home-main",
+      "scrollRemaining": 0,
+      "nav": {
+        "top": 637,
+        "bottom": 844,
+        "height": 207,
+        "display": "flex"
+      },
+      "bottomContent": {
+        "top": 10,
+        "bottom": 327,
+        "height": 317,
+        "display": "grid"
+      },
+      "clearsHud": true,
+      "isScrollableToEnd": true
+    },
+    {
+      "path": "/profile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollTargetSelector": ".home-main",
+      "scrollRemaining": 0,
+      "nav": {
+        "top": 637,
+        "bottom": 844,
+        "height": 207,
+        "display": "flex"
+      },
+      "bottomContent": {
+        "top": 10,
+        "bottom": 250,
+        "height": 240,
+        "display": "grid"
+      },
+      "clearsHud": true,
+      "isScrollableToEnd": true
+    },
+    {
+      "path": "/shop",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollTargetSelector": ".home-main",
+      "scrollRemaining": 0,
+      "nav": {
+        "top": 637,
+        "bottom": 844,
+        "height": 207,
+        "display": "flex"
+      },
+      "bottomContent": {
+        "top": 10,
+        "bottom": 125,
+        "height": 115,
+        "display": "grid"
+      },
+      "clearsHud": true,
+      "isScrollableToEnd": true
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failed": []
+}

@@ -1,0 +1,32 @@
+{
+  "actionCards": 3,
+  "bodyScrollHeight": 1587,
+  "bodyTextHasEncodingArtifacts": false,
+  "commandGrid": {
+    "bottom": 1542,
+    "height": 984,
+    "top": 558,
+    "width": 1199
+  },
+  "countCards": 5,
+  "cssLink": "http://localhost:8080/css/home.css?v=22",
+  "hasSocialAction": true,
+  "heroHeading": "Your Siege Awaits",
+  "jsLink": "http://localhost:8080/js/home.js?v=24",
+  "lastPanel": {
+    "bottom": 1542,
+    "height": 321,
+    "top": 1221,
+    "width": 353
+  },
+  "mainClientHeight": 1520,
+  "mainScrollHeight": 1520,
+  "missionLogs": 3,
+  "missionRows": 3,
+  "pageScrollHeight": 1587,
+  "shopRows": 4,
+  "viewport": {
+    "height": 720,
+    "width": 1280
+  }
+}

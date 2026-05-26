@@ -1,0 +1,122 @@
+[
+  {
+    "activeNav": "Home",
+    "activePanelId": "homeSection",
+    "bodyTextHasEncodingArtifacts": false,
+    "bottomContentAboveHud": true,
+    "canScrollMain": true,
+    "contentBottom": 605,
+    "expectedMaxScrollTop": 3459,
+    "horizontalOverflow": false,
+    "mainClientHeight": 844,
+    "mainScrollHeight": 4303,
+    "mainScrollTopAfterBottom": 3458.666748046875,
+    "navRect": {
+      "bottom": 844,
+      "height": 206,
+      "top": 638,
+      "width": 390
+    },
+    "path": "/home"
+  },
+  {
+    "activeNav": "Cards",
+    "activePanelId": "cardsSection",
+    "bodyTextHasEncodingArtifacts": false,
+    "bottomContentAboveHud": true,
+    "canScrollMain": true,
+    "contentBottom": 606,
+    "expectedMaxScrollTop": 12285,
+    "horizontalOverflow": false,
+    "mainClientHeight": 844,
+    "mainScrollHeight": 13129,
+    "mainScrollTopAfterBottom": 12284.6669921875,
+    "navRect": {
+      "bottom": 844,
+      "height": 206,
+      "top": 638,
+      "width": 390
+    },
+    "path": "/cards"
+  },
+  {
+    "activeNav": "Decks",
+    "activePanelId": "decksSection",
+    "bodyTextHasEncodingArtifacts": false,
+    "bottomContentAboveHud": true,
+    "canScrollMain": true,
+    "contentBottom": 606,
+    "expectedMaxScrollTop": 303,
+    "horizontalOverflow": false,
+    "mainClientHeight": 844,
+    "mainScrollHeight": 1147,
+    "mainScrollTopAfterBottom": 302.6666564941406,
+    "navRect": {
+      "bottom": 844,
+      "height": 206,
+      "top": 638,
+      "width": 390
+    },
+    "path": "/decks"
+  },
+  {
+    "activeNav": "Social",
+    "activePanelId": "socialSection",
+    "bodyTextHasEncodingArtifacts": false,
+    "bottomContentAboveHud": true,
+    "canScrollMain": true,
+    "contentBottom": 605,
+    "expectedMaxScrollTop": 90,
+    "horizontalOverflow": false,
+    "mainClientHeight": 844,
+    "mainScrollHeight": 934,
+    "mainScrollTopAfterBottom": 90,
+    "navRect": {
+      "bottom": 844,
+      "height": 206,
+      "top": 638,
+      "width": 390
+    },
+    "path": "/social"
+  },
+  {
+    "activeNav": "Profile",
+    "activePanelId": "profileSection",
+    "bodyTextHasEncodingArtifacts": false,
+    "bottomContentAboveHud": true,
+    "canScrollMain": false,
+    "contentBottom": 506,
+    "expectedMaxScrollTop": 0,
+    "horizontalOverflow": false,
+    "mainClientHeight": 844,
+    "mainScrollHeight": 844,
+    "mainScrollTopAfterBottom": 0,
+    "navRect": {
+      "bottom": 844,
+      "height": 206,
+      "top": 638,
+      "width": 390
+    },
+    "path": "/profile"
+  },
+  {
+    "activeNav": "Shop",
+    "activePanelId": "shopSection",
+    "bodyTextHasEncodingArtifacts": false,
+    "bottomContentAboveHud": true,
+    "canScrollMain": true,
+    "contentBottom": 607,
+    "expectedMaxScrollTop": 578,
+    "horizontalOverflow": false,
+    "mainClientHeight": 844,
+    "mainScrollHeight": 1422,
+    "mainScrollTopAfterBottom": 578,
+    "navRect": {
+      "bottom": 844,
+      "height": 206,
+      "top": 638,
+      "width": 390
+    },
+    "path": "/shop"
+  }
+]

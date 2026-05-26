@@ -1,0 +1,21 @@
+{
+  "actions": [
+    {
+      "action": "pve",
+      "href": "/play?mode=solo",
+      "tag": "A"
+    },
+    {
+      "action": "create-lobby",
+      "href": "/social#socialActiveLobby",
+      "tag": "A"
+    },
+    {
+      "action": "shop",
+      "href": "/shop",
+      "tag": "A"
+    }
+  ],
+  "cssLink": "http://localhost:8080/css/home.css?v=28",
+  "jsLink": "http://localhost:8080/js/home.js?v=33"
+}

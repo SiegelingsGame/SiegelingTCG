@@ -1,0 +1,26 @@
+{
+  "actions": [
+    {
+      "action": "pve",
+      "href": "/play?mode=solo",
+      "tag": "A",
+      "text": "PVE\nPVE Battle\nFight AI opponents and earn Coins.\n>"
+    },
+    {
+      "action": "create-lobby",
+      "href": "/social#socialActiveLobby",
+      "tag": "A",
+      "text": "1v1\nCreate 1v1 Lobby\nHost a PVP room and challenge a friend.\n>"
+    },
+    {
+      "action": "shop",
+      "href": "/shop",
+      "tag": "A",
+      "text": "Pack\nOpen Packs\nDiscover new cards and grow your collection.\n>"
+    }
+  ],
+  "cssLink": "http://localhost:8080/css/home.css?v=27",
+  "jsLink": "http://localhost:8080/js/home.js?v=32",
+  "pveHref": null,
+  "socialCreateHref": "/social#socialActiveLobby"
+}

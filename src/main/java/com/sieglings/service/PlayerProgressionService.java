@@ -21,6 +21,9 @@ public class PlayerProgressionService {
     public static final int SOLO_WIN_GOLD = 10;
     public static final int ONLINE_WIN_GOLD = 5;
     public static final int WIN_STREAK_GOLD = 2;
+    public static final int PACK_OPEN_REMNANTS = 40;
+    public static final int SOLO_WIN_REMNANTS = 20;
+    public static final int ONLINE_WIN_REMNANTS = 30;
 
     @Autowired
     private PlayerProgressionStore store;
@@ -48,6 +51,7 @@ public class PlayerProgressionService {
         }
         PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
         grantCards(progression, result.cards());
+        grantRemnants(progression, PACK_OPEN_REMNANTS);
         progression.setStarterPackId(result.pack().id());
         addPackHistory(progression, result, 0, "STARTER");
         progression.setUpdatedAt(Instant.now());
@@ -61,10 +65,11 @@ public class PlayerProgressionService {
         }
         PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, false);
         if (progression.getGold() < result.pack().price()) {
-            throw new IllegalArgumentException("Not enough Coins for that pack.");
+            throw new IllegalArgumentException("Not enough Siegecoins for that pack.");
         }
         progression.setGold(progression.getGold() - result.pack().price());
         grantCards(progression, result.cards());
+        grantRemnants(progression, PACK_OPEN_REMNANTS);
         addPackHistory(progression, result, result.pack().price(), "SHOP");
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
@@ -79,7 +84,7 @@ public class PlayerProgressionService {
             return progression;
         }
         if (progression.getGold() < price) {
-            throw new IllegalArgumentException("Not enough Coins for that premade deck.");
+            throw new IllegalArgumentException("Not enough Siegecoins for that premade deck.");
         }
         progression.setGold(progression.getGold() - price);
         List<String> purchased = new ArrayList<>(progression.getPurchasedDeckIds());
@@ -100,13 +105,29 @@ public class PlayerProgressionService {
             return progression;
         }
         if (progression.getGold() < offer.price()) {
-            throw new IllegalArgumentException("Not enough Coins for that daily card.");
+            throw new IllegalArgumentException("Not enough Siegecoins for that daily card.");
         }
         progression.setGold(progression.getGold() - offer.price());
         grantCards(progression, List.of(offer.card()));
         List<String> purchased = new ArrayList<>(progression.getPurchasedDailyOfferIds());
         purchased.add(0, offer.id());
         progression.setPurchasedDailyOfferIds(purchased.stream().limit(90).toList());
+        progression.setUpdatedAt(Instant.now());
+        return store.save(progression);
+    }
+
+    public PlayerProgressionEntity craftCard(AccountUser user, String cardId) {
+        PlayerProgressionEntity progression = getOrCreate(user);
+        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+            throw new IllegalArgumentException("Choose a starter pack before crafting cards.");
+        }
+        Card card = findCraftableCard(cardId);
+        int cost = craftCost(card);
+        if (progression.getRemnants() < cost) {
+            throw new IllegalArgumentException("Not enough Remnants to craft " + card.getName() + ".");
+        }
+        progression.setRemnants(progression.getRemnants() - cost);
+        grantCards(progression, List.of(card));
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -126,6 +147,9 @@ public class PlayerProgressionService {
         }
         int reward = calculateMatchReward(progression, history);
         progression.setGold(progression.getGold() + reward);
+        if (reward > 0) {
+            progression.setRemnants(progression.getRemnants() + calculateMatchRemnants(history));
+        }
         List<String> rewarded = new ArrayList<>(progression.getRewardedMatchIds());
         rewarded.add(history.getId());
         progression.setRewardedMatchIds(rewarded);
@@ -180,6 +204,7 @@ public class PlayerProgressionService {
     public Map<String, Object> serialize(PlayerProgressionEntity progression) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("gold", progression.getGold());
+        out.put("remnants", progression.getRemnants());
         out.put("ownedCards", progression.getOwnedCards());
         out.put("ownedTotal", ownedTotal(progression));
         out.put("customDeckUnlocked", ownedTotal(progression) >= CUSTOM_DECK_UNLOCK_COPIES);
@@ -204,6 +229,34 @@ public class PlayerProgressionService {
             owned.merge(card.getId(), 1, Integer::sum);
         }
         progression.setOwnedCards(owned);
+    }
+
+    private void grantRemnants(PlayerProgressionEntity progression, int amount) {
+        progression.setRemnants(progression.getRemnants() + Math.max(0, amount));
+    }
+
+    private int calculateMatchRemnants(MatchHistoryEntity history) {
+        return "ONLINE".equalsIgnoreCase(history.getMatchType()) ? ONLINE_WIN_REMNANTS : SOLO_WIN_REMNANTS;
+    }
+
+    private Card findCraftableCard(String cardId) {
+        if (cardId == null || cardId.isBlank()) {
+            throw new IllegalArgumentException("Card id is required.");
+        }
+        return cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(card -> card.getId().equals(cardId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Card not found."));
+    }
+
+    public int craftCost(Card card) {
+        return switch (card.getRarity()) {
+            case COMMON -> 500;
+            case UNCOMMON -> 1000;
+            case RARE -> 2000;
+            case EPIC -> 4000;
+            case LEGENDARY -> 8000;
+        };
     }
 
     private void addPackHistory(PlayerProgressionEntity progression, PackCatalogService.PackOpenResult result, int price, String source) {
