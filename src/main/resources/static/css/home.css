@@ -879,6 +879,15 @@ select.search-input { color-scheme: dark; }
 }
 
 @media (max-width: 900px) {
+    body {
+        height: 100dvh;
+        overflow: hidden;
+    }
+    .home-shell {
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
+    }
     .home-nav {
         position: fixed;
         top: auto;
@@ -928,7 +937,14 @@ select.search-input { color-scheme: dark; }
         justify-content: space-between;
     }
     .home-main {
-        padding: 10px 10px calc(178px + env(safe-area-inset-bottom, 0px));
+        height: 100dvh;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        box-sizing: border-box;
+        padding: 10px 10px calc(224px + env(safe-area-inset-bottom, 0px));
+        scroll-padding-bottom: calc(224px + env(safe-area-inset-bottom, 0px));
     }
     .filter-panel,
     .detail-panel {
