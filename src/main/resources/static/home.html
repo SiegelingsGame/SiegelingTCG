@@ -49,33 +49,6 @@
         </section>
 
         <section class="hub-grid" id="hubGrid">
-            <aside class="filter-panel panel hud-tray filter-tray is-closed" id="filterTray" aria-hidden="true">
-                <div class="profile-mini" id="profileMini"></div>
-                <div class="section-head">
-                    <h2>Owned Filters</h2>
-                    <span id="ownedCountLabel">0 owned</span>
-                </div>
-                <input class="search-input" id="cardSearchInput" type="search" placeholder="Search cards, abilities, notches...">
-                <div class="filter-label">Collection</div>
-                <div class="chip-wrap">
-                    <button class="chip" id="showUnownedToggle" type="button" aria-pressed="false">Show unowned</button>
-                </div>
-                <div class="chip-wrap" id="elementFilters"></div>
-                <div class="chip-wrap" id="typeFilters"></div>
-                <div class="chip-wrap" id="rarityFilters"></div>
-                <div class="filter-label">Energy Cost</div>
-                <div class="chip-wrap" id="energyCostFilters"></div>
-                <select class="search-input" id="cardSortSelect">
-                    <option value="owned-desc">Sort: Owned first</option>
-                    <option value="name-asc">Sort: Name</option>
-                    <option value="speed-desc">Sort: Speed high</option>
-                    <option value="health-desc">Sort: Health high</option>
-                    <option value="cost-asc">Sort: Cost low</option>
-                    <option value="rarity-desc">Sort: Rarity high</option>
-                </select>
-                <div class="unlock-card" id="customUnlockCard"></div>
-            </aside>
-
             <section class="browser-panel panel" id="homeSection">
                 <div class="section-head">
                     <div>
@@ -189,6 +162,25 @@
                             </form>
                             <div class="friend-message" id="friendMessage"></div>
                         </section>
+
+                        <section class="social-panel social-card social-messages-card">
+                            <div class="social-panel-head">
+                                <div><span class="eyebrow">Messages</span><h2>Friend chat</h2></div>
+                                <span class="social-soft-pill" id="messageThreadCount">0 threads</span>
+                            </div>
+                            <div class="message-thread-list" id="messageThreadList"></div>
+                            <div class="message-compose hidden" id="messageCompose">
+                                <div class="message-compose-head">
+                                    <strong id="messageComposeTitle">Chat</strong>
+                                    <button class="ghost-btn compact-btn" type="button" id="closeMessageComposeBtn">Close</button>
+                                </div>
+                                <div class="message-log" id="messageLog"></div>
+                                <form class="message-send-row" id="messageSendForm">
+                                    <input class="search-input" id="messageInput" type="text" maxlength="500" placeholder="Type a message...">
+                                    <button class="primary-btn" type="submit">Send</button>
+                                </form>
+                            </div>
+                        </section>
                     </aside>
                 </div>
             </section>
@@ -203,12 +195,38 @@
                 <div class="pack-grid" id="shopPackGrid"></div>
                 <div class="pack-result hidden" id="packResult"></div>
             </section>
-
-            <aside class="detail-panel panel hud-tray detail-tray is-closed" id="detailPanel" aria-hidden="true"></aside>
         </section>
     </main>
 
     <div class="tray-backdrop hidden" id="trayBackdrop"></div>
+    <aside class="filter-panel panel hud-tray filter-tray is-closed" id="filterTray" aria-hidden="true">
+        <div class="profile-mini" id="profileMini"></div>
+        <div class="section-head">
+            <h2>Owned Filters</h2>
+            <span id="ownedCountLabel">0 owned</span>
+        </div>
+        <input class="search-input" id="cardSearchInput" type="search" placeholder="Search cards, abilities, notches...">
+        <div class="chip-wrap" id="elementFilters"></div>
+        <div class="chip-wrap" id="typeFilters"></div>
+        <div class="chip-wrap" id="rarityFilters"></div>
+        <div class="filter-label">Energy Cost</div>
+        <div class="chip-wrap" id="energyCostFilters"></div>
+        <select class="search-input" id="cardSortSelect">
+            <option value="owned-desc">Sort: Owned first</option>
+            <option value="name-asc">Sort: Name</option>
+            <option value="speed-desc">Sort: Speed high</option>
+            <option value="health-desc">Sort: Health high</option>
+            <option value="cost-asc">Sort: Cost low</option>
+            <option value="rarity-desc">Sort: Rarity high</option>
+        </select>
+        <div class="unlock-card" id="customUnlockCard"></div>
+    </aside>
+    <aside class="detail-panel panel hud-tray detail-tray is-closed" id="detailPanel" aria-hidden="true"></aside>
+    <div id="editProfileModalHost"></div>
+    <div class="profile-modal hidden" id="viewProfileModal" role="dialog" aria-modal="true" aria-labelledby="viewProfileTitle">
+        <div class="profile-edit-panel profile-panel" id="viewProfileBody"></div>
+    </div>
+
     <div class="auth-modal hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
         <div class="auth-modal-panel panel">
             <div class="section-head">
@@ -218,8 +236,23 @@
             <div id="authPanelBody"></div>
         </div>
     </div>
+
+    <div class="deck-preview-modal hidden" id="deckPreviewModal" role="dialog" aria-modal="true" aria-labelledby="deckPreviewTitle">
+        <div class="deck-preview-panel panel">
+            <div class="section-head deck-preview-head">
+                <div>
+                    <span class="eyebrow" id="deckPreviewEyebrow">Deck</span>
+                    <h2 id="deckPreviewTitle">Deck</h2>
+                    <span class="deck-preview-sub" id="deckPreviewSub"></span>
+                </div>
+                <button class="ghost-btn" id="closeDeckPreviewBtn" type="button">Close</button>
+            </div>
+            <div class="card-grid deck-preview-grid" id="deckPreviewGrid"></div>
+        </div>
+    </div>
 </div>
 
-<script src="/js/home.js?v=33"></script>
+<script src="/js/catalog-sync.js?v=1"></script>
+<script src="/js/home.js?v=35"></script>
 </body>
 </html>

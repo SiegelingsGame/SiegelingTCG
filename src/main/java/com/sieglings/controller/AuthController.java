@@ -7,6 +7,7 @@ import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
 import com.sieglings.service.PlayerProgressionService;
+import com.sieglings.service.ProfileSettingsService;
 import com.sieglings.service.SavedDeckService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +44,9 @@ public class AuthController {
 
     @Autowired
     private PlayerProgressionService playerProgressionService;
+
+    @Autowired
+    private ProfileSettingsService profileSettingsService;
 
     @PostMapping("/api/auth/register")
     public Map<String, Object> register(@RequestBody Map<String, Object> req) {
@@ -186,6 +190,14 @@ public class AuthController {
                 response.put("progression", playerProgressionService.serialize(playerProgressionService.getOrCreate(user)));
             } catch (RuntimeException ex) {
                 log.warn("Unable to load progression for authenticated user {}", user.getId(), ex);
+            }
+        }
+        if (profileSettingsService != null) {
+            try {
+                profileSettingsService.findSerializedIfPresent(user)
+                        .ifPresent(settings -> response.put("profileSettings", settings));
+            } catch (RuntimeException ex) {
+                log.warn("Unable to load profile settings for authenticated user {}", user.getId(), ex);
             }
         }
         return response;

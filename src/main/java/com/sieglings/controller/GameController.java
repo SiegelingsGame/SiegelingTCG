@@ -15,6 +15,7 @@ import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.persistence.entity.AccountUser;
+import com.sieglings.service.CardOverrideStorageService;
 import com.sieglings.service.EnergyService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.GameService;
@@ -69,6 +70,9 @@ public class GameController {
     @Autowired
     private PlayerProgressionService playerProgressionService;
 
+    @Autowired
+    private CardOverrideStorageService cardOverrideStorageService;
+
     @GetMapping("/api/game/options")
     @ResponseBody
     public Map<String, Object> getOptions() {
@@ -84,7 +88,8 @@ public class GameController {
                 "name", deck.name(),
                 "description", deck.description(),
                 "elements", deck.elements().stream().map(Enum::name).toList(),
-                "recommendedTrainerId", deck.recommendedTrainerId()
+                "recommendedTrainerId", deck.recommendedTrainerId(),
+                "cards", deckCardCounts(deck.id())
         )).toList());
         resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
         resp.put("deckBuilder", Map.of(
@@ -95,7 +100,14 @@ public class GameController {
         resp.put("liveElements", gameService.getActiveLiveElementNames());
         resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
         resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
+        resp.put("catalogVersion", cardOverrideStorageService.getCatalogRevision());
         return resp;
+    }
+
+    @GetMapping("/api/game/catalog-version")
+    @ResponseBody
+    public Map<String, Object> getCatalogVersion() {
+        return Map.of("catalogVersion", cardOverrideStorageService.getCatalogRevision());
     }
 
     /**
@@ -118,7 +130,8 @@ public class GameController {
                 "name", deck.name(),
                 "description", deck.description(),
                 "elements", deck.elements().stream().map(Enum::name).toList(),
-                "recommendedTrainerId", deck.recommendedTrainerId()
+                "recommendedTrainerId", deck.recommendedTrainerId(),
+                "cards", deckCardCounts(deck.id())
         )).toList());
         resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
         resp.put("deckBuilder", Map.of(
@@ -213,6 +226,33 @@ public class GameController {
     @ResponseBody
     public Map<String, Object> listRooms() {
         return Map.of("rooms", multiplayerService.listOpenRooms().stream().map(this::serializeOpenRoom).toList());
+    }
+
+    @PostMapping("/api/match/close")
+    @ResponseBody
+    public Map<String, Object> closeMatch(@RequestBody(required = false) Map<String, Object> req,
+                                          @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                          @RequestHeader(value = "X-Room-Id", required = false) String roomIdHeader,
+                                          @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            if (roomId == null || roomId.isBlank()) {
+                roomId = roomIdHeader;
+            }
+            AccountUser user = accountService.findUser(authorizationHeader);
+            MultiplayerRoom room = multiplayerService.requireRoom(roomId);
+            if (user == null && (playerToken == null || !room.isHostToken(playerToken))) {
+                throw new IllegalArgumentException("Sign in as the host to close this lobby.");
+            }
+            String hostUserId = user == null ? room.getHostUserId() : user.getId();
+            if (user != null && room.getHostUserId() != null && !room.getHostUserId().equals(user.getId())) {
+                throw new IllegalArgumentException("Only the host can close this lobby.");
+            }
+            multiplayerService.closeRoom(roomId, hostUserId);
+            return Map.of("ok", true, "roomId", roomId);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/mulligan")
@@ -557,12 +597,14 @@ public class GameController {
                 : room.getHostName());
         resp.put("guestJoined", room.hasGuest());
         resp.put("shareUrl", buildShareUrl(request, room.getRoomId()));
+        resp.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
+        resp.put("format", room.getFormat() == null ? "PVP" : room.getFormat());
         return resp;
     }
 
     private String buildShareUrl(HttpServletRequest request, String roomId) {
         String baseUrl = resolveRequestOrigin(request);
-        return baseUrl + "/?room=" + roomId;
+        return baseUrl + "/play?room=" + roomId;
     }
 
     private Map<String, Object> serializeOpenRoom(MultiplayerRoom room) {
@@ -574,6 +616,8 @@ public class GameController {
         out.put("format", "PVP 1v1");
         out.put("status", room.isStarted() ? "Started" : "Open");
         out.put("updatedAt", room.getUpdatedAt() == null ? null : room.getUpdatedAt().toString());
+        out.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
+        out.put("format", room.getFormat() == null ? "PVP" : room.getFormat());
         if (room.getHostOptions() != null) {
             out.put("deckId", room.getHostOptions().playerDeckId());
             out.put("trainerId", room.getHostOptions().playerTrainerId());
@@ -676,6 +720,25 @@ public class GameController {
 
     private List<Map<String, Object>> serializeHand(Player player) {
         return serializeCards(player.getHand());
+    }
+
+    /** Ordered id+count summary of a preset deck so clients can preview its contents. */
+    private List<Map<String, Object>> deckCardCounts(String deckId) {
+        try {
+            List<Card> cards = gameService.buildDeckById(deckId);
+            Map<String, Long> counts = new LinkedHashMap<>();
+            for (Card card : cards) {
+                counts.merge(card.getId(), 1L, Long::sum);
+            }
+            return counts.entrySet().stream().map(entry -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("id", entry.getKey());
+                m.put("count", entry.getValue());
+                return (Map<String, Object>) m;
+            }).toList();
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
     }
 
     private List<Map<String, Object>> serializeCards(List<Card> cards) {

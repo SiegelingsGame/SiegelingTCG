@@ -96,7 +96,7 @@
         if (!already) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = '/css/landing.css?v=4';
+            link.href = '/css/landing.css?v=17';
             link.dataset.sglLandingCss = '1';
             document.head.appendChild(link);
         }

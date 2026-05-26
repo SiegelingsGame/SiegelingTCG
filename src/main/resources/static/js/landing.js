@@ -164,34 +164,43 @@
         let active = false;
         let clearTimer = null;
 
-        function pickColor(clientX) {
+        function pickHighlight(clientX) {
             const rect = wordmark.getBoundingClientRect();
             const pct = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
             const index = Math.max(0, Math.min(palette.length - 1, Math.floor(pct * palette.length)));
-            return palette[index];
+            return { color: palette[index], index };
         }
 
-        function applyColor(color) {
+        function applyColor(color, index) {
             window.clearTimeout(clearTimer);
             wordmark.style.setProperty('--siegelings-hover-color', color);
             tagline.style.setProperty('--siegelings-hover-color', color);
             wordmark.classList.add('is-element-flow');
             tagline.classList.add('is-element-wave');
+            if (typeof index === 'number' && window.LandingParticles) {
+                window.LandingParticles.setHighlight(index);
+            } else if (window.LandingParticles) {
+                window.LandingParticles.setHighlight(color);
+            }
         }
 
         wordmark.addEventListener('pointerenter', (event) => {
             active = true;
-            applyColor(pickColor(event.clientX));
+            const hit = pickHighlight(event.clientX);
+            applyColor(hit.color, hit.index);
         });
         wordmark.addEventListener('pointermove', (event) => {
-            if (active) {
-                applyColor(pickColor(event.clientX));
-            }
+            if (!active) return;
+            const hit = pickHighlight(event.clientX);
+            applyColor(hit.color, hit.index);
         });
         wordmark.addEventListener('pointerleave', () => {
             active = false;
             wordmark.classList.remove('is-element-flow');
             tagline.classList.remove('is-element-wave');
+            if (window.LandingParticles) {
+                window.LandingParticles.clearHighlight(650);
+            }
             clearTimer = window.setTimeout(() => {
                 wordmark.style.removeProperty('--siegelings-hover-color');
                 tagline.style.removeProperty('--siegelings-hover-color');

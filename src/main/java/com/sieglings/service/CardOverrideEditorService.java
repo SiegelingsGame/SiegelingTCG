@@ -133,6 +133,7 @@ public class CardOverrideEditorService {
         response.put("firestoreError", storageService.getFirestoreInitializationError());
         response.put("auth", authSnapshot);
         response.put("metadata", buildMetadata());
+        response.put("catalogVersion", storageService.getCatalogRevision());
         return response;
     }
 

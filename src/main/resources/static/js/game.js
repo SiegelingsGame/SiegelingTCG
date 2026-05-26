@@ -3993,6 +3993,12 @@ async function submitAuth(mode) {
     saveAuthToken(data.token || '');
     authState.profile = data;
     authState.error = '';
+    // After signing in or creating an account, send players to the Home hub
+    // (skip when joining via an invite link, where they intend to play right away).
+    if ((mode === 'login' || mode === 'register') && data.authenticated && !isInviteJoinFlow()) {
+        window.location.href = '/home';
+        return;
+    }
     hydrateSavedPlayerName();
     renderWelcomeAuth();
     renderSavedDecks();
@@ -5093,6 +5099,8 @@ function applyPendingHomeLoadout() {
     if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
         return;
     }
+    // Arrived from the Home hub with a chosen loadout — skip the welcome and go straight to the loadout.
+    welcomeDismissed = true;
     if (pending.trainerId && gameOptions?.trainers?.some(trainer => trainer.id === pending.trainerId)) {
         selectedTrainerId = pending.trainerId;
     }
@@ -5754,6 +5762,15 @@ async function createRoom() {
     };
     currentRoomStatus = data;
     saveMultiplayerSession();
+    try {
+        localStorage.setItem('sieglingsHostLobby', JSON.stringify({
+            roomId: data.roomId,
+            playerToken: data.playerToken,
+            expiresAt: data.expiresAt || null
+        }));
+    } catch (_error) {
+        // ignore storage failures
+    }
     startRoomPolling();
     renderLoadoutOptions();
     updateLoadoutSummary();
@@ -9580,5 +9597,10 @@ renderDesktopActionHistory();
 renderWelcomeTutorial();
 renderWelcomeAuth();
 syncEntryOverlays();
+if (typeof SieglingsCatalogSync !== 'undefined') {
+    SieglingsCatalogSync.onCatalogPublished(() => {
+        loadGameOptions();
+    });
+}
 loadGameOptions();
 

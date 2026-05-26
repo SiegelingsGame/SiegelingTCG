@@ -29,7 +29,6 @@
 
     /* Asset overrides — drop real files into static/img/ and override these */
     --asset-pcg-logo:        url('/img/pcg-logo.png');
-    --asset-hero-bg:         url('/img/hero-creatures.webp');
 }
 
 * { box-sizing: border-box; }
@@ -158,6 +157,82 @@ img { display: block; }
     overflow: hidden;
 }
 
+.hero .hero-particle-canvas,
+.hero .hero-particle-dom {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.65s ease;
+}
+
+.hero .hero-particle-canvas {
+    mix-blend-mode: normal;
+}
+
+.hero .hero-particle-dom {
+    overflow: visible;
+}
+
+.hero-particle-orb,
+.hero-particle-spark {
+    position: absolute;
+    left: var(--orbit-cx, 50%);
+    top: var(--orbit-cy, 50%);
+    border-radius: 50%;
+    pointer-events: none;
+    transform-origin: center center;
+    animation: hero-particle-orbit 38s ease-in-out infinite;
+    animation-delay: var(--orb-delay, 0s);
+    will-change: transform;
+}
+
+.hero-particle-orb {
+    width: var(--orb-size, 110px);
+    height: var(--orb-size, 110px);
+    margin: calc(var(--orb-size, 110px) / -2) 0 0 calc(var(--orb-size, 110px) / -2);
+    filter: blur(26px);
+    opacity: 0.48;
+}
+
+.hero-particle-spark {
+    width: 5px;
+    height: 5px;
+    margin: -2.5px 0 0 -2.5px;
+    filter: blur(0.5px);
+    box-shadow: 0 0 10px currentColor;
+    opacity: 0.62;
+}
+
+.hero-particle-orb-fire,
+.hero-particle-spark-fire { color: #ff5520; background: radial-gradient(circle, rgba(255, 120, 40, 0.95) 0%, rgba(255, 69, 0, 0.5) 42%, transparent 72%); }
+.hero-particle-orb-ice,
+.hero-particle-spark-ice { color: #00cfff; background: radial-gradient(circle, rgba(160, 240, 255, 0.95) 0%, rgba(0, 207, 255, 0.45) 42%, transparent 72%); }
+.hero-particle-orb-wind,
+.hero-particle-spark-wind { color: #6ee7b7; background: radial-gradient(circle, rgba(200, 255, 230, 0.95) 0%, rgba(110, 231, 183, 0.45) 42%, transparent 72%); }
+.hero-particle-orb-earth,
+.hero-particle-spark-earth { color: #b48c50; background: radial-gradient(circle, rgba(210, 170, 120, 0.95) 0%, rgba(139, 94, 60, 0.5) 42%, transparent 72%); }
+
+@keyframes hero-particle-orbit {
+    0% {
+        transform: rotate(0deg) translateX(var(--orb-orbit, 80px)) rotate(0deg) scale(0.96);
+    }
+    50% {
+        transform: rotate(180deg) translateX(calc(var(--orb-orbit, 80px) * 1.04)) rotate(-180deg) scale(1.02);
+    }
+    100% {
+        transform: rotate(360deg) translateX(var(--orb-orbit, 80px)) rotate(-360deg) scale(0.96);
+    }
+}
+
+.hero.hero-particles-active .hero-particle-canvas,
+.hero.hero-particles-active .hero-particle-dom {
+    opacity: 1;
+}
+
 .hero-bg {
     position: absolute;
     inset: -8% -8%;
@@ -185,11 +260,7 @@ img { display: block; }
         radial-gradient(circle at 28% 22%, rgba(168, 85, 247, 0.22), transparent 28%);
 }
 .hero-bg-near {
-    background-image: var(--asset-hero-bg);
-    background-size: cover;
-    background-position: center 30%;
-    opacity: 0.55;
-    mix-blend-mode: screen;
+    display: none;
 }
 .hero-vignette {
     position: absolute;
@@ -232,20 +303,23 @@ img { display: block; }
 
 /* Siegelings logo block */
 .siegelings-logo {
+    position: relative;
     display: flex;
     justify-content: center;
     margin-bottom: 18px;
     animation: siegelings-float 4s ease-in-out infinite;
 }
-@keyframes siegelings-float {
-    0%, 100% { transform: translateY(0); }
-    50%      { transform: translateY(-10px); }
-}
 .siegelings-logo-fallback {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
+}
+@keyframes siegelings-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-10px); }
 }
 .siegelings-crown {
     display: flex;
@@ -869,11 +943,10 @@ img { display: block; }
     position: absolute;
     inset: 0;
     z-index: 0;
-    background-image: var(--asset-hero-bg);
-    background-size: cover;
-    background-position: center;
-    opacity: 0.18;
-    filter: blur(2px);
+    background:
+        radial-gradient(ellipse at 50% 40%, rgba(30, 144, 255, 0.2), transparent 58%),
+        linear-gradient(180deg, #0a1530 0%, #0d1b3e 60%, #1a0a2e 100%);
+    opacity: 0.55;
 }
 .sgl-gate-vignette {
     position: absolute;
@@ -1292,6 +1365,9 @@ img { display: block; }
 
 /* ── Reduced motion ──────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+    .hero .hero-particle-canvas { opacity: 0 !important; }
+    .hero-particle-orb,
+    .hero-particle-spark { animation-duration: 52s; }
     .siegelings-logo,
     .hero-element-orb,
     .sgl-vs-emblem,

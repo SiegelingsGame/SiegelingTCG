@@ -838,6 +838,9 @@
             }
             applyServerPayload(payload);
             applyDataSet(payload.data, false);
+            if (typeof SieglingsCatalogSync !== "undefined") {
+                SieglingsCatalogSync.notifyCatalogPublished(payload.catalogVersion);
+            }
             setStatus(
                 state.liveEditingEnabled
                     ? "Published the live card, Siegeknight, premade deck, live element roster, and shared abilities to Firestore."

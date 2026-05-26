@@ -28,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class CardOverrideStorageService {
@@ -70,6 +71,7 @@ public class CardOverrideStorageService {
     private volatile String firestoreInitializationError;
     private volatile CacheEntry cacheEntry;
     private volatile PublishVersionEntry publishVersionEntry;
+    private final AtomicLong localCatalogRevision = new AtomicLong(0L);
 
     @Autowired
     public CardOverrideStorageService(
@@ -312,6 +314,7 @@ public class CardOverrideStorageService {
         }
 
         cacheEntry = null;
+        localCatalogRevision.incrementAndGet();
         return new LoadSnapshot(
                 objectMapper.valueToTree(file),
                 StorageBackend.PROJECT_FILE,
@@ -493,6 +496,18 @@ public class CardOverrideStorageService {
             throw new IllegalStateException("Firestore is not available in this runtime.");
         }
         return firestore;
+    }
+
+    /**
+     * Monotonic revision for catalog consumers. Uses the live Firestore publish signal when
+     * available; otherwise bumps on each project-file save in this JVM.
+     */
+    public long getCatalogRevision() {
+        Long published = getCurrentPublishVersion();
+        if (published != null) {
+            return published;
+        }
+        return localCatalogRevision.get();
     }
 
     public Long getCurrentPublishVersion() {
