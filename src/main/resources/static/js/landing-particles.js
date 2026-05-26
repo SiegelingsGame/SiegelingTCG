@@ -21,14 +21,20 @@
     ];
 
     function parseCssColor(raw) {
-        if (!raw) return null;
+        const value = String(raw || '').trim();
+        if (!value) return null;
         const probe = document.createElement('span');
-        probe.style.color = raw.trim();
-        if (!probe.style.color) return null;
+        probe.style.cssText = 'position:absolute;left:-9999px;visibility:hidden;';
+        probe.style.color = value;
         document.body.appendChild(probe);
-        const resolved = getComputedStyle(probe).color;
+        let resolved = getComputedStyle(probe).color;
+        if (!resolved || resolved === 'rgba(0, 0, 0, 0)') {
+            probe.style.color = '';
+            probe.style.backgroundColor = value;
+            resolved = getComputedStyle(probe).backgroundColor;
+        }
         probe.remove();
-        const m = resolved.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        const m = resolved && resolved.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
         if (!m) return null;
         return {
             r: Number(m[1]),
@@ -36,6 +42,11 @@
             b: Number(m[3]),
             css: resolved
         };
+    }
+
+    function resolveThemeColor(varName) {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        return parseCssColor(raw);
     }
 
     function rgba(c, a) {
@@ -56,7 +67,7 @@
             this.canvas = document.createElement('canvas');
             this.canvas.className = 'hero-particle-canvas';
             this.canvas.setAttribute('aria-hidden', 'true');
-            hero.insertBefore(this.canvas, hero.firstChild);
+            hero.appendChild(this.canvas);
             this.ctx = this.canvas.getContext('2d');
             this.palette = [];
             this.particles = [];
@@ -98,11 +109,9 @@
         }
 
         resolvePalette() {
-            const root = getComputedStyle(document.documentElement);
             this.palette = ELEMENT_KEYS.map((key, index) => {
-                const base = parseCssColor(root.getPropertyValue(CSS_VARS[index]));
-                const glowRaw = root.getPropertyValue(GLOW_VARS[index]) || CSS_VARS[index];
-                const glow = parseCssColor(glowRaw) || base;
+                const base = resolveThemeColor(CSS_VARS[index]);
+                const glow = resolveThemeColor(GLOW_VARS[index]) || base;
                 return { key, base, glow };
             }).filter((entry) => entry.base);
         }
@@ -122,9 +131,11 @@
                 this.fadeOut();
                 return;
             }
+            this.resize();
             this.rebuildSwarm(index);
             this.targetIntensity = 1;
             this.hero.classList.add('hero-particles-active');
+            this.canvas.style.opacity = '1';
             this.ensureLoop();
         }
 
@@ -154,8 +165,8 @@
                 .filter(({ i }) => i !== activeIndex);
 
             inactive.forEach(({ el, i }, swarmIndex) => {
-                const count = 28 + Math.floor(rand(0, 14));
-                const auraCount = 3 + (swarmIndex % 2);
+                const count = 42 + Math.floor(rand(0, 18));
+                const auraCount = 4 + (swarmIndex % 2);
                 const bandOffset = (swarmIndex - (inactive.length - 1) * 0.5) * 0.38;
 
                 for (let a = 0; a < auraCount; a += 1) {
@@ -179,8 +190,8 @@
                 wobbleX: rand(0.4, 1.1),
                 wobbleY: rand(0.4, 1.1),
                 wobblePhase: rand(0, Math.PI * 2),
-                size: rand(72, 140),
-                alpha: rand(0.08, 0.16),
+                size: rand(90, 168),
+                alpha: rand(0.14, 0.28),
                 bandOffset,
                 drift: rand(0, 1000)
             };
@@ -197,9 +208,9 @@
                 wobbleX: rand(0.8, 2.4),
                 wobbleY: rand(0.8, 2.4),
                 wobblePhase: rand(0, Math.PI * 2),
-                size: rand(1.8, 5.2),
-                shine: Math.random() > 0.55,
-                alpha: rand(0.45, 0.95),
+                size: rand(2.4, 6.8),
+                shine: Math.random() > 0.4,
+                alpha: rand(0.62, 1),
                 bandOffset,
                 trail: [],
                 drift: rand(0, 1000)
@@ -217,7 +228,8 @@
             const dt = Math.min(ts - this.lastTs, 48);
             this.lastTs = ts;
 
-            this.intensity = lerp(this.intensity, this.targetIntensity, this.reducedMotion ? 1 : 0.06);
+            this.intensity = lerp(this.intensity, this.targetIntensity, this.reducedMotion ? 1 : 0.12);
+            this.canvas.style.opacity = String(Math.max(0, Math.min(1, this.intensity)));
             const alive = this.intensity > 0.01 || this.targetIntensity > 0.01;
 
             if (alive && !this.reducedMotion) {
@@ -233,6 +245,7 @@
                 this.running = false;
                 this.particles = [];
                 this.auras = [];
+                this.canvas.style.opacity = '0';
             }
         }
 
