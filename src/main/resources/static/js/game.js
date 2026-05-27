@@ -2065,7 +2065,10 @@ function cancelBattleTargetSelection() {
     clearTargetingPreview();
     clearTargetMode();
     render();
-    if (isMobileLayout()) {
+    if (isPortraitMobileHudLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
+    } else if (isMobileLayout()) {
         mobileInfoTab = 'battle';
         openDrawer('battle');
     }
@@ -2524,6 +2527,77 @@ let _drawerCloseTimers = [];
 
 function isBattleTargetSelectionActive() {
     return Boolean(targetMode && targetContext && targetContext.mode === 'battle');
+}
+
+function isMobileBattleTargetingCameraActive() {
+    return isBattleTargetSelectionActive() && isPortraitMobileHudLayout();
+}
+
+function renderMobileTargetingHud() {
+    const hud = document.getElementById('mobileTargetingHud');
+    if (!hud) {
+        return;
+    }
+    if (!isMobileBattleTargetingCameraActive()) {
+        hud.classList.add('hidden');
+        hud.innerHTML = '';
+        return;
+    }
+
+    const ability = getActiveBattleTargetAbility();
+    const pending = gameState?.pendingBattle;
+    if (!ability || !pending) {
+        hud.classList.add('hidden');
+        hud.innerHTML = '';
+        return;
+    }
+
+    const instructions = buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow());
+    let html = '<div class="mobile-targeting-hud-inner">';
+    html += `<div class="mobile-targeting-hud-kicker">${escapeHtml(instructions.trayStateLabel)}</div>`;
+    html += `<div class="mobile-targeting-hud-move">${escapeHtml(instructions.moveName)}</div>`;
+    html += `<div class="mobile-targeting-hud-effect">${escapeHtml(instructions.effectLine)}</div>`;
+    html += `<div class="mobile-targeting-hud-arrow">${escapeHtml(instructions.arrowHint)}</div>`;
+    if (isRowSelectBattleTargetContext()) {
+        html += renderRowSelectBattleConfirm();
+    }
+    html += '</div>';
+    hud.innerHTML = html;
+    hud.classList.remove('hidden');
+    window.requestAnimationFrame(() => {
+        if (!isMobileBattleTargetingCameraActive()) {
+            document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
+            return;
+        }
+        const stack = Math.ceil(hud.getBoundingClientRect().height + 10);
+        document.documentElement.style.setProperty('--mobile-targeting-hud-stack', `${stack}px`);
+        syncMobileTargetingArenaScale();
+    });
+}
+
+function syncMobileTargetingArenaScale() {
+    if (!isMobileBattleTargetingCameraActive()) {
+        document.documentElement.style.removeProperty('--mobile-targeting-arena-scale');
+        return;
+    }
+    const board = document.getElementById('boardArea');
+    if (!board) {
+        return;
+    }
+    const run = () => {
+        if (!isMobileBattleTargetingCameraActive()) {
+            return;
+        }
+        const available = board.clientHeight;
+        const content = board.scrollHeight;
+        if (available <= 0 || content <= 0) {
+            return;
+        }
+        const scale = Math.min(1, (available - 4) / content);
+        document.documentElement.style.setProperty('--mobile-targeting-arena-scale', scale.toFixed(3));
+        scheduleBoardLinkConnectorRefresh();
+    };
+    window.requestAnimationFrame(() => window.requestAnimationFrame(run));
 }
 
 function shouldUseDesktopBattleDrawer() {
@@ -3126,8 +3200,15 @@ function renderHintPanel() {
 function syncActionBarAttention() {
     const hintButton = document.getElementById('btnHint');
     const previewButton = document.getElementById('btnSelectedPreview');
+    const cancelMoveButton = document.getElementById('btnCancelBattleMove');
+    const targetingCamera = isMobileBattleTargetingCameraActive();
     const hintState = getInteractionHintState();
     const focusedCard = getFocusedPreviewCard();
+
+    cancelMoveButton?.classList.toggle('hidden', !targetingCamera);
+    if (cancelMoveButton) {
+        cancelMoveButton.hidden = !targetingCamera;
+    }
 
     hintButton?.classList.toggle('ab-icon-live', hintState.available);
     hintButton?.classList.toggle('ab-icon-pulse', hintState.available);
@@ -4982,6 +5063,11 @@ function renderInteractionBanner() {
     if (!banner) {
         return;
     }
+    if (isMobileBattleTargetingCameraActive()) {
+        banner.className = 'interaction-banner hidden';
+        banner.innerHTML = '';
+        return;
+    }
     const state = getInteractionBannerState();
     if (!state) {
         banner.className = 'interaction-banner hidden';
@@ -5053,13 +5139,16 @@ function applyInteractionState() {
     const placementActive = isPlacementSelectionActive();
     const handHidden = isHandHiddenForPhase();
     const battlePhaseActive = Boolean(gameState && gameState.currentPhase === 'BATTLE');
+    const mobileTargetingCamera = isMobileBattleTargetingCameraActive();
 
     body.classList.toggle('targeting-active', targetingActive);
     body.classList.toggle('placement-active', placementActive);
     body.classList.toggle('battle-phase-active', battlePhaseActive);
+    body.classList.toggle('mobile-battle-targeting-camera', mobileTargetingCamera);
 
     boardArea?.classList.toggle('targeting-active', targetingActive);
     boardArea?.classList.toggle('placement-active', placementActive);
+    boardArea?.classList.toggle('mobile-targeting-camera-board', mobileTargetingCamera);
     if (!targetingActive) {
         clearTargetingPreview();
     }
@@ -5069,6 +5158,8 @@ function applyInteractionState() {
 
     renderInteractionBanner();
     renderHintPanel();
+    renderMobileTargetingHud();
+    syncMobileTargetingArenaScale();
     syncActionBarAttention();
     maybeTriggerInteractionFeedback();
 }
@@ -9308,7 +9399,10 @@ function chooseBattleAbility(index) {
         selectedRow: -1,
         message: buildBattleTargetMessage(targetSide, ability)
     };
-    if (isMobileLayout()) {
+    if (isPortraitMobileHudLayout()) {
+        closeDrawer(true);
+        closeMobileHudSheet();
+    } else if (isMobileLayout()) {
         mobileInfoTab = 'battle';
         openDrawer('battle');
     }
@@ -9629,6 +9723,8 @@ function onTargetSelected(row, col, fromPlayerBoard) {
             if (ability) {
                 scheduleBattleTargetingPreview(ability);
             }
+            renderMobileTargetingHud();
+            syncMobileTargetingArenaScale();
             return;
         }
         if (targetContext.side === 'enemy' && fromPlayerBoard) {
@@ -10227,6 +10323,7 @@ window.addEventListener('resize', () => {
     syncMobileInfoTab();
     syncMobileHudSheetSide();
     syncFocusedCardUi();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -10246,6 +10343,7 @@ window.addEventListener('resize', () => {
     syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -10257,6 +10355,7 @@ window.addEventListener('orientationchange', () => {
     syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 

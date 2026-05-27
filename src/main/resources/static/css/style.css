@@ -5772,6 +5772,232 @@ body.placement-active .board-cell.legal {
     text-align: center;
 }
 
+/* Mobile portrait: full-screen battle targeting camera */
+@media (max-width: 767px) {
+    :root {
+        --mobile-targeting-bar-height: 56px;
+    }
+
+    .mobile-targeting-hud {
+        display: none;
+        position: fixed;
+        left: 8px;
+        right: 8px;
+        bottom: calc(var(--mobile-targeting-bar-height) + env(safe-area-inset-bottom, 0px) + 8px);
+        z-index: 185;
+        pointer-events: none;
+    }
+
+    .mobile-targeting-hud:not(.hidden) {
+        display: block;
+    }
+
+    .mobile-targeting-hud-inner {
+        display: grid;
+        gap: 4px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 188, 92, 0.38);
+        background: rgba(8, 14, 28, 0.92);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+        pointer-events: auto;
+    }
+
+    .mobile-targeting-hud-kicker {
+        font-size: 0.58em;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #ffd4d4;
+    }
+
+    .mobile-targeting-hud-move {
+        font-size: 0.82em;
+        font-weight: 800;
+        color: #fff6e8;
+        line-height: 1.2;
+    }
+
+    .mobile-targeting-hud-effect {
+        font-size: 0.7em;
+        line-height: 1.3;
+        color: rgba(233, 240, 255, 0.9);
+    }
+
+    .mobile-targeting-hud-arrow {
+        font-size: 0.68em;
+        line-height: 1.32;
+        color: rgba(255, 220, 160, 0.95);
+    }
+
+    .mobile-targeting-hud .battle-row-confirm {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 4px;
+        pointer-events: auto;
+    }
+
+    .mobile-targeting-hud .battle-row-confirm-btn {
+        flex: 1 1 calc(50% - 6px);
+        min-height: 34px;
+        font-size: 0.68em;
+    }
+
+    body.mobile-battle-targeting-camera {
+        overflow: hidden;
+        height: 100dvh;
+    }
+
+    body.mobile-battle-targeting-camera .mobile-hud,
+    body.mobile-battle-targeting-camera .hud-rail,
+    body.mobile-battle-targeting-camera .phase-transition-banner,
+    body.mobile-battle-targeting-camera .interaction-banner,
+    body.mobile-battle-targeting-camera .drawer,
+    body.mobile-battle-targeting-camera .drawer-backdrop,
+    body.mobile-battle-targeting-camera .desktop-menu-header,
+    body.mobile-battle-targeting-camera .desktop-menu-inspect,
+    body.mobile-battle-targeting-camera .desktop-menu-hand,
+    body.mobile-battle-targeting-camera .desktop-hand-battle-panel,
+    body.mobile-battle-targeting-camera #btnDraw,
+    body.mobile-battle-targeting-camera #btnBattle,
+    body.mobile-battle-targeting-camera #btnEndTurn,
+    body.mobile-battle-targeting-camera .action-bar-aux .ab-icon:not(.ab-targeting-keep),
+    body.mobile-battle-targeting-camera .action-bar-aux .ab-action-counter,
+    body.mobile-battle-targeting-camera .action-bar-aux a.ab-icon {
+        display: none !important;
+    }
+
+    body.mobile-battle-targeting-camera .app-shell {
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+    }
+
+    body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board {
+        position: fixed;
+        top: env(safe-area-inset-top, 0px);
+        left: 0;
+        right: 0;
+        bottom: calc(var(--mobile-targeting-bar-height) + env(safe-area-inset-bottom, 0px) + 8px);
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 4px 2px;
+        border-radius: 0;
+        overflow: hidden;
+        z-index: 50;
+        justify-content: center;
+        gap: 2px;
+        transform: scale(var(--mobile-targeting-arena-scale, 1));
+        transform-origin: center center;
+    }
+
+    body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board .bf-half {
+        flex: 1 1 0;
+        min-height: 0;
+        max-width: min(96vw, 300px);
+        justify-content: center;
+    }
+
+    body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board .board-grid {
+        width: min(100%, 268px);
+        gap: 2px;
+        padding: 2px 4px;
+    }
+
+    body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board .board-cell {
+        aspect-ratio: 5 / 5.2;
+        padding: 2px;
+    }
+
+    body.mobile-battle-targeting-camera .desktop-menu {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 210;
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        flex-shrink: 0;
+        margin: 0;
+        padding: 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        border: none;
+        border-top: 1px solid rgba(255, 188, 92, 0.28);
+        background:
+            linear-gradient(180deg, rgba(14, 22, 42, 0.98), rgba(8, 12, 24, 0.99));
+        box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.42);
+    }
+
+    body.mobile-battle-targeting-camera .action-bar {
+        order: 0;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        margin: 0;
+        background: transparent;
+        border: none;
+    }
+
+    body.mobile-battle-targeting-camera .action-bar-btns {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: row;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    body.mobile-battle-targeting-camera #btnTrainerAbility,
+    body.mobile-battle-targeting-camera #btnCancelBattleMove {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        flex: 1 1 0;
+        min-height: 40px;
+        margin: 0;
+        font-size: 0.68em;
+    }
+
+    body.mobile-battle-targeting-camera #btnCancelBattleMove {
+        background: rgba(139, 194, 255, 0.18);
+        color: #e8f2ff;
+        border: 1px solid rgba(139, 194, 255, 0.45);
+    }
+
+    body.mobile-battle-targeting-camera .action-bar-aux {
+        flex: 0 0 auto;
+        gap: 5px;
+        justify-content: flex-end;
+    }
+
+    body.mobile-battle-targeting-camera .action-bar-aux .ab-icon.ab-targeting-keep {
+        width: 34px;
+        height: 34px;
+        font-size: 0.78em;
+    }
+
+    body.mobile-battle-targeting-camera.targeting-active .board-cell.targetable,
+    body.mobile-battle-targeting-camera.targeting-active .board-cell.row-selected,
+    body.mobile-battle-targeting-camera.targeting-active .board-cell.active-attacker {
+        opacity: 1;
+        filter: none;
+        transform: translateY(-2px) scale(1.03);
+    }
+
+    body.mobile-battle-targeting-camera.targeting-active .board-cell:not(.targetable):not(.row-selected):not(.active-attacker):not(.has-card) {
+        opacity: 0.42;
+    }
+
+    body.mobile-battle-targeting-camera.targeting-active .board-cell.has-card:not(.targetable):not(.row-selected):not(.active-attacker) {
+        opacity: 0.72;
+    }
+}
+
 .game-log {
     font-size: 0.7em;
     max-height: 240px;
