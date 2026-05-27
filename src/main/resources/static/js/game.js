@@ -37,6 +37,7 @@ let mobileHudSheetOpen = false;
 let mulliganSelectedIndices = new Set();
 let mulliganHandSig = '';
 let loadoutErrorMessage = '';
+let liveCatalogRefreshPromise = null;
 let loadoutStartPending = false;
 let lastInteractionCueKey = '';
 let transientMessageTimer = null;
@@ -67,6 +68,17 @@ let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
 const PENDING_HOME_LOADOUT_STORAGE_KEY = 'sieglingsPendingLoadout';
+
+(function redirectLegacyPlayRoomLinks() {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (!room || !window.location.pathname.endsWith('/play')) {
+        return;
+    }
+    params.delete('room');
+    const query = params.toString();
+    window.location.replace(`/social?room=${encodeURIComponent(room.trim().toUpperCase())}${query ? `&${query}` : ''}`);
+})();
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 const BATTLE_AUTO_ADVANCE_DELAY_MS = 1550;
@@ -99,6 +111,7 @@ let authState = {
 };
 let selectedSavedDeckId = null;
 let lastProfileRefreshKey = '';
+let socialOnlineLaunchRoomId = '';
 let playLobbyState = {
     active: false,
     mode: 'create',
@@ -3523,7 +3536,15 @@ function getJoinRoomCodeFromUrl() {
 }
 
 function isInviteJoinFlow() {
-    return Boolean(getJoinRoomCodeFromUrl());
+    return Boolean(socialOnlineLaunchRoomId);
+}
+
+function isSocialBattleLaunch() {
+    return Boolean(socialOnlineLaunchRoomId || multiplayerSession?.roomId);
+}
+
+function shouldShowOnlineLoadoutOnPlay() {
+    return false;
 }
 
 function loadSavedPlayerName() {
@@ -4100,7 +4121,6 @@ function renderWelcomeAuth() {
                 }).join('')}</div>`
                 : '<div class="identity-note">Your finished games will appear here after the first recorded match.</div>'}
         `;
-        renderPlayLobby();
         return;
     }
 
@@ -4159,7 +4179,6 @@ function renderWelcomeAuth() {
             <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
         </div>
     `;
-    renderPlayLobby();
 }
 
 function renderSavedDecks() {
@@ -4896,6 +4915,34 @@ async function loadGameOptions() {
     }
 }
 
+async function refreshLiveGameOptions() {
+    if (!gameOptions) {
+        return loadGameOptions();
+    }
+    if (liveCatalogRefreshPromise) {
+        return liveCatalogRefreshPromise;
+    }
+    liveCatalogRefreshPromise = (async () => {
+        const [data, editorState] = await Promise.all([
+            fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS)
+        ]);
+        if (!data) {
+            return;
+        }
+        gameOptions = filterGameOptionsToDashboardCards(data, editorState);
+        loadoutErrorMessage = '';
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    })().catch((error) => {
+        console.error('Failed to refresh live game options:', error);
+    }).finally(() => {
+        liveCatalogRefreshPromise = null;
+    });
+    return liveCatalogRefreshPromise;
+}
+
 function filterGameOptionsToDashboardCards(options, editorState) {
     const catalog = Array.isArray(options?.cardCatalog) ? options.cardCatalog : [];
     const dashboardCards = Array.isArray(editorState?.data?.cards) ? editorState.data.cards : [];
@@ -5075,14 +5122,9 @@ function setOnlineRoomMode(mode) {
 }
 
 function hydrateOnlineStateFromUrl() {
-    const roomCodeInput = document.getElementById('roomCodeInput');
     const joinCode = getJoinRoomCodeFromUrl();
     if (joinCode) {
-        matchMode = 'online';
-        onlineRoomMode = 'join';
-        if (roomCodeInput && !roomCodeInput.value) {
-            roomCodeInput.value = joinCode.toUpperCase();
-        }
+        window.location.replace(`/social?room=${encodeURIComponent(joinCode.trim().toUpperCase())}`);
     }
 }
 
@@ -5117,17 +5159,17 @@ function applyPendingHomeLoadout() {
     }
     matchMode = pending.mode === 'online' ? 'online' : 'solo';
     if (matchMode === 'online') {
-        onlineRoomMode = pending.onlineRoomMode === 'join' ? 'join' : 'create';
-        const roomCodeInput = document.getElementById('roomCodeInput');
-        if (roomCodeInput && pending.roomId) {
-            roomCodeInput.value = String(pending.roomId).toUpperCase();
+        onlineRoomMode = 'join';
+        if (pending.roomId) {
+            socialOnlineLaunchRoomId = String(pending.roomId).toUpperCase();
+            const roomCodeInput = document.getElementById('roomCodeInput');
+            if (roomCodeInput) {
+                roomCodeInput.value = socialOnlineLaunchRoomId;
+            }
         }
-        playLobbyState.active = true;
-        playLobbyState.mode = onlineRoomMode;
-        playLobbyState.ready = false;
-        playLobbyState.opponentReady = onlineRoomMode === 'join';
-        playLobbyState.chatMessages = defaultLobbyMessages();
-        renderPlayLobby();
+        if (pending.battleLaunch) {
+            welcomeDismissed = true;
+        }
     }
 }
 
@@ -5310,10 +5352,14 @@ function renderLoadoutOptions() {
         </button>`;
     }).join('');
 
+    const hideOnlineLoadout = !shouldShowOnlineLoadoutOnPlay();
     overlay?.classList.toggle('invite-flow', inviteFlow);
     loadoutBox?.classList.toggle('invite-focused', inviteFlow);
-    matchModeTabs?.classList.toggle('hidden', inviteFlow);
-    roomModeTabs?.classList.toggle('hidden', inviteFlow);
+    matchModeTabs?.classList.toggle('hidden', inviteFlow || hideOnlineLoadout);
+    roomModeTabs?.classList.toggle('hidden', inviteFlow || hideOnlineLoadout);
+    if (hideOnlineLoadout && matchMode === 'online' && !multiplayerSession?.roomId) {
+        matchMode = 'solo';
+    }
 
     if (inviteFlow) {
         const inviteCode = getCurrentRoomCode() || getJoinRoomCodeFromUrl()?.toUpperCase() || '';
@@ -5345,7 +5391,7 @@ function renderLoadoutOptions() {
     onlineMatchTab.setAttribute('aria-pressed', matchMode === 'online' ? 'true' : 'false');
     soloMatchTab.classList.toggle('hidden', inviteFlow);
     onlineMatchTab.classList.toggle('hidden', inviteFlow);
-    onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online');
+    onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online' || hideOnlineLoadout);
     hostRoomTab.classList.toggle('active', onlineRoomMode === 'create');
     joinRoomTab.classList.toggle('active', onlineRoomMode === 'join');
     hostRoomTab.setAttribute('aria-pressed', onlineRoomMode === 'create' ? 'true' : 'false');
@@ -5709,12 +5755,17 @@ async function startSelectedGame() {
 
     try {
         if (matchMode === 'online') {
-            if (onlineRoomMode === 'create') {
-                await createRoom();
-            } else {
-                await joinRoom();
+            if (multiplayerSession?.roomId) {
+                const data = await fetchRoomStatus();
+                if (data?.started) {
+                    clearExternalSocketElementMemory();
+                    gameState = data;
+                    render();
+                    return;
+                }
             }
-            return;
+            console.warn('Online lobbies are hosted on Social. Starting a solo match instead.');
+            matchMode = 'solo';
         }
         await newGame();
     } finally {
@@ -9599,7 +9650,7 @@ renderWelcomeAuth();
 syncEntryOverlays();
 if (typeof SieglingsCatalogSync !== 'undefined') {
     SieglingsCatalogSync.onCatalogPublished(() => {
-        loadGameOptions();
+        refreshLiveGameOptions();
     });
 }
 loadGameOptions();

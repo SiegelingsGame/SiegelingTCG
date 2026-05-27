@@ -241,14 +241,14 @@ public class GameController {
             }
             AccountUser user = accountService.findUser(authorizationHeader);
             MultiplayerRoom room = multiplayerService.requireRoom(roomId);
-            if (user == null && (playerToken == null || !room.isHostToken(playerToken))) {
-                throw new IllegalArgumentException("Sign in as the host to close this lobby.");
-            }
-            String hostUserId = user == null ? room.getHostUserId() : user.getId();
-            if (user != null && room.getHostUserId() != null && !room.getHostUserId().equals(user.getId())) {
+            boolean hostTokenMatches = playerToken != null && room.isHostToken(playerToken);
+            boolean signedInHost = user != null
+                    && room.getHostUserId() != null
+                    && room.getHostUserId().equals(user.getId());
+            if (!hostTokenMatches && !signedInHost) {
                 throw new IllegalArgumentException("Only the host can close this lobby.");
             }
-            multiplayerService.closeRoom(roomId, hostUserId);
+            multiplayerService.closeRoom(roomId, room.getHostUserId());
             return Map.of("ok", true, "roomId", roomId);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
@@ -604,7 +604,7 @@ public class GameController {
 
     private String buildShareUrl(HttpServletRequest request, String roomId) {
         String baseUrl = resolveRequestOrigin(request);
-        return baseUrl + "/play?room=" + roomId;
+        return baseUrl + "/social?room=" + roomId;
     }
 
     private Map<String, Object> serializeOpenRoom(MultiplayerRoom room) {

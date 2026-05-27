@@ -6,8 +6,17 @@
     const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
     const ROOM_CACHE_TTL_MS = 20 * 1000;
     const HOST_LOBBY_KEY = 'sieglingsHostLobby';
+    const MULTIPLAYER_SESSION_KEY = 'sieglingsMultiplayerSession';
+    const PLAYER_NAME_KEY = 'sieglingsPlayerName';
     const SOCIAL_POLL_MS = 12 * 1000;
     const COIN_ICON_PATH = '/img/ui/siegel-coin.png';
+    const HERO_STAT_ICONS = {
+        coins: COIN_ICON_PATH,
+        cards: '/img/packs/siegeling-back.png',
+        decks: '/img/decks/deck-icon-fire.png',
+        remnants: '/img/legendary/legendary-fire.png',
+        collection: '/img/packs/spell-card-back.png'
+    };
     const memoryCache = {};
     const ELEMENT_COLORS = {
         FIRE: '#f05b2f', EARTH: '#a7773d', WIND: '#64c987', WATER: '#3c8ed8', ICE: '#7ad9e7',
@@ -144,7 +153,13 @@
         activeChatPeer: null,
         viewingProfile: null,
         socialPollTimer: null,
+        lobbyBusy: false,
+        hostLobbyStatus: null,
+        battleRedirectPending: false,
+        hostLobbyPollTimer: null,
         packReveal: null,
+        packOpeningDismissedKey: '',
+        shopView: 'browse',
         catalogVersion: 0,
         catalogSyncBound: false
     };
@@ -152,23 +167,49 @@
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
 
+    function initGachaParticles() {
+        return null;
+    }
+
+    function destroyGachaParticles() {
+        gachaParticleField = null;
+    }
+
     window.addEventListener('DOMContentLoaded', init);
 
     async function init() {
         bindEvents();
         hydrateProfilePrefsFromCache();
-        state.route = routeFromPath(location.pathname);
+        hydrateRoomInviteFromUrl();
+        applyRouteFromLocation();
         setActiveRoute();
         renderSections();
         renderHudTools();
         renderGold();
         renderHomeDashboard();
         bindCatalogSync();
-        await loadAll();
-        await syncCatalogIfVersionChanged();
-        render();
-        focusRouteTarget(routeFocusFromHash());
-        syncAuthRouteIntent();
+        try {
+            await loadAll();
+            await syncCatalogIfVersionChanged();
+            render();
+            focusRouteTarget(routeFocusFromHash());
+            syncAuthRouteIntent();
+            ensureHostLobbyPolling();
+        } catch (err) {
+            console.error('Init load failed', err);
+        } finally {
+            openSharedProfileFromUrl();
+        }
+    }
+
+    function openSharedProfileFromUrl() {
+        const params = new URLSearchParams(location.search);
+        const profileId = params.get('profile');
+        if (!profileId) return;
+        params.delete('profile');
+        const query = params.toString();
+        history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
+        openPlayerProfile(profileId);
     }
 
     function bindEvents() {
@@ -222,6 +263,15 @@
         document.getElementById('saveCustomDeckBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
+        document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
+        document.getElementById('supportBtn')?.addEventListener('click', () => {
+            window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
+        });
+        document.getElementById('optionsModal')?.addEventListener('click', (event) => {
+            if (event.target.id === 'optionsModal') { closeOptions(); return; }
+            handleOptionsClick(event);
+        });
+        document.getElementById('optionsModal')?.addEventListener('submit', handleOptionsSubmit);
         document.getElementById('trayBackdrop')?.addEventListener('click', closeTrays);
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
@@ -244,7 +294,7 @@
             });
         });
         window.addEventListener('popstate', () => {
-            state.route = routeFromPath(location.pathname);
+            applyRouteFromLocation();
             setActiveRoute();
             renderSections();
             renderRoute();
@@ -348,6 +398,7 @@
             renderHomeDashboard();
         } else if (state.route === 'shop') {
             renderShop();
+            syncShopPackView();
         } else if (state.route === 'profile') {
             renderProfile();
         } else if (state.route === 'social') {
@@ -480,15 +531,13 @@
         });
     }
 
-    function renderCardTile(card) {
-        const selected = card.id === state.selectedCardId ? ' selected' : '';
-        const owned = ownedCount(card.id);
+    function renderBinderCardShell(card, options = {}) {
+        const owned = Number.isFinite(options.ownedOverride) ? options.ownedOverride : ownedCount(card.id);
         const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const isSiegling = card.type === 'SIEGLING';
-        return `<button class="card-tile binder-card${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-            ${isSiegling ? renderBinderNotches(card.notches) : ''}
+        return `${isSiegling ? renderBinderNotches(card.notches) : ''}
             <div class="binder-card-shell">
                 <div class="binder-card-header">
                     <strong>${escapeHtml(card.name)}</strong>
@@ -504,7 +553,13 @@
                     ${renderShopCardAbilityLine(card)}
                     ${renderShopCardDescription(card)}
                 </div>
-            </div>
+            </div>`;
+    }
+
+    function renderCardTile(card) {
+        const selected = card.id === state.selectedCardId ? ' selected' : '';
+        return `<button class="card-tile binder-card${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+            ${renderBinderCardShell(card)}
         </button>`;
     }
 
@@ -574,17 +629,27 @@
         const recentDecks = savedDecks.slice(0, 3);
         const missions = homeDailyMissions();
         const missionLog = homeMissionLog();
+        const displayName = (state.profile?.user?.displayName || 'Siegelord').toUpperCase();
         el.innerHTML = `
             <section class="command-hero">
-                <div class="command-hero-copy">
-                    <span class="eyebrow">Welcome back, ${escapeHtml(state.profile?.user?.displayName || 'Siegelord')}</span>
-                    <h2>Your Siege Awaits</h2>
-                    <p>Battle, build, collect, and keep your daily momentum moving from one command table.</p>
+                <div class="command-hero-top">
+                    <div class="command-hero-copy">
+                        <p class="command-hero-welcome">Welcome back, ${escapeHtml(displayName)}</p>
+                        <h2>Your Siege Awaits</h2>
+                        <p class="command-hero-tagline">Battle, build, collect, and keep your daily momentum moving from one command table.</p>
+                    </div>
+                    <div class="command-hero-actions">
+                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="cards"><span>Cards</span>Owned Cards</button>
+                        <button class="primary-btn command-hero-btn command-hero-btn-primary" type="button" data-home-action="pve"><span>Play</span>Start Match</button>
+                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="decks"><span>Deck</span>Deck Builder</button>
+                    </div>
                 </div>
-                <div class="command-hero-actions">
-                    <button class="ghost-btn command-hero-btn" type="button" data-home-action="cards"><span>Cards</span>Owned Cards</button>
-                    <button class="primary-btn command-hero-btn" type="button" data-home-action="pve"><span>Play</span>Start Match</button>
-                    <button class="ghost-btn command-hero-btn" type="button" data-home-action="decks"><span>Deck</span>Deck Builder</button>
+                <div class="command-hero-stats" aria-label="Account resources">
+                    ${homeHeroStatChip(HERO_STAT_ICONS.coins, 'Siegecoins', coins.toLocaleString(), 'Available')}
+                    ${homeHeroStatChip(HERO_STAT_ICONS.cards, 'Owned Cards', ownedTotal.toLocaleString(), 'Total copies')}
+                    ${homeHeroStatChip(HERO_STAT_ICONS.decks, 'Custom Decks', `${customSlotsUsed} / ${customSlotsMax}`, 'Slots used')}
+                    ${homeHeroStatChip(HERO_STAT_ICONS.remnants, 'Remnants', remnants.toLocaleString(), 'Craft currency')}
+                    ${homeHeroStatChip(HERO_STAT_ICONS.collection, 'Collection', `${collection.completion}%`, 'Set completion')}
                 </div>
             </section>
 
@@ -609,26 +674,8 @@
                 </a>
             </section>
 
-            <section class="command-count-row">
-                ${homeCountTile(coinIconMarkup(), 'Siegecoins', coins.toLocaleString(), 'Available', true)}
-                ${homeCountTile('Card', 'Owned Cards', ownedTotal.toLocaleString(), 'Total copies')}
-                ${homeCountTile('Deck', 'Custom Decks', `${customSlotsUsed} / ${customSlotsMax}`, 'Slots used')}
-                ${homeCountTile('Rem', 'Remnants', remnants.toLocaleString(), 'Craft currency')}
-                ${homeCountTile('Set', 'Collection', `${collection.completion}%`, 'Set completion')}
-            </section>
-
             <section class="command-grid">
-                ${renderArenaGuidePanel()}
                 ${renderHomeLeaderboardsPanel()}
-
-                <article class="command-panel quick-play-panel">
-                    <div class="command-panel-head"><div><span class="eyebrow">Quick Play</span><h3>Jump into battle</h3></div></div>
-                    <p>Choose a match mode and start playing with your current loadout.</p>
-                    <div class="quick-play-actions">
-                        <button class="command-mode-card active" type="button" data-home-action="pve"><strong>PVE Battle</strong><span>Fight AI opponents</span></button>
-                        <button class="command-mode-card" type="button" data-home-action="social"><strong>Browse Social</strong><span>Join open rooms</span></button>
-                    </div>
-                </article>
 
                 <article class="command-panel daily-missions-panel">
                     <div class="command-panel-head">
@@ -686,20 +733,6 @@
         bindHomeDashboardActions(el);
     }
 
-    function renderArenaGuidePanel() {
-        return `<article class="command-panel arena-guide-panel">
-            <div class="command-panel-head">
-                <div><span class="eyebrow">Welcome to the Arena</span><h3>Build links, wake sockets, command momentum</h3></div>
-            </div>
-            <p>Siegelings is a board-first card battle game. Place Siegelings during setup, connect matching notches, then spend the elemental energy those links create.</p>
-            <div class="arena-guide-steps">
-                <div><strong>1</strong><span>Notches can wake external sockets and feed your energy pool.</span></div>
-                <div><strong>2</strong><span>Matching internal links strengthen your board network.</span></div>
-                <div><strong>3</strong><span>Deck choice and SiegeKnight timing shape the battle plan.</span></div>
-            </div>
-        </article>`;
-    }
-
     function renderHomeLeaderboardsPanel() {
         const tabs = [
             ['wins', 'Wins'],
@@ -743,6 +776,17 @@
         return `<article class="command-count-card">
             <span class="count-icon">${iconIsMarkup ? icon : escapeHtml(icon)}</span>
             <div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong><em>${escapeHtml(hint)}</em></div>
+        </article>`;
+    }
+
+    function homeHeroStatChip(iconSrc, label, value, hint) {
+        return `<article class="command-hero-stat">
+            <span class="command-hero-stat-icon"><img src="${escapeAttr(iconSrc)}" alt="" aria-hidden="true"></span>
+            <div class="command-hero-stat-copy">
+                <small>${escapeHtml(label)}</small>
+                <strong>${escapeHtml(value)}</strong>
+                <em>${escapeHtml(hint)}</em>
+            </div>
         </article>`;
     }
 
@@ -1441,8 +1485,16 @@
         const hostLobby = readHostLobby();
         const name = profileDisplayName();
         const deck = selectedDeckId();
+        const shareUrl = hostLobby?.shareUrl || buildSocialRoomShareUrl(hostLobby?.roomId);
+        const status = state.hostLobbyStatus;
+        const guestWaiting = hostLobby?.roomId && !status?.started;
         if (hostLobby?.roomId) {
             const expiresLabel = formatLobbyExpiry(hostLobby.expiresAt);
+            const statusLine = status?.started
+                ? 'Match started — opening Play'
+                : status?.guestJoined
+                    ? 'Opponent joined — starting battle'
+                    : 'Waiting for an opponent on this invite link';
             card.innerHTML = `<div class="social-active-content">
                 <div>
                     <span class="eyebrow">Your Active Lobby</span>
@@ -1450,19 +1502,16 @@
                     <span>Room code <strong>${escapeHtml(hostLobby.roomId)}</strong></span>
                     <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
                     ${expiresLabel ? `<span>${escapeHtml(expiresLabel)}</span>` : ''}
+                    ${shareUrl ? `<span class="social-invite-url">Invite: <a href="${escapeAttr(shareUrl)}">${escapeHtml(shareUrl)}</a></span>` : ''}
+                    <span>${escapeHtml(statusLine)}</span>
                 </div>
-                <div class="social-active-status"><strong>1 / 2</strong><span>Waiting for opponent</span></div>
+                <div class="social-active-status"><strong>${status?.guestJoined ? '2' : '1'} / 2</strong><span>${guestWaiting ? 'Share the invite link' : 'Battle ready'}</span></div>
                 <div class="friend-actions">
-                    <button class="primary-btn" id="activeLobbyResumeBtn" type="button">Open Table</button>
+                    ${shareUrl ? '<button class="ghost-btn" id="activeLobbyCopyBtn" type="button">Copy Invite Link</button>' : ''}
                     <button class="ghost-btn" id="activeLobbyCloseBtn" type="button">Close Lobby</button>
                 </div>
             </div>`;
-            document.getElementById('activeLobbyResumeBtn')?.addEventListener('click', () => goPlay({
-                mode: 'online',
-                onlineRoomMode: 'create',
-                roomId: hostLobby.roomId,
-                deckId: selectedDeckId()
-            }));
+            document.getElementById('activeLobbyCopyBtn')?.addEventListener('click', () => copyLobbyInvite(shareUrl));
             document.getElementById('activeLobbyCloseBtn')?.addEventListener('click', () => closeHostLobby(hostLobby));
             return;
         }
@@ -1471,9 +1520,10 @@
                 <span class="eyebrow">Your Active Lobby</span>
                 <h2>${escapeHtml(name)}'s table</h2>
                 <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
+                <span class="social-muted-inline">Lobbies live on Social. When someone joins, Play opens for both players.</span>
             </div>
             <div class="social-active-status"><strong>0 / 2</strong><span>No open table yet</span></div>
-            <button class="primary-btn" id="activeLobbyCreateBtn" type="button">Start Hosting</button>
+            <button class="primary-btn" id="activeLobbyCreateBtn" type="button" ${state.lobbyBusy ? 'disabled' : ''}>${state.lobbyBusy ? 'Creating...' : 'Start Hosting'}</button>
         </div>`;
         document.getElementById('activeLobbyCreateBtn')?.addEventListener('click', createLobbyFromHome);
     }
@@ -2116,15 +2166,18 @@
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
         const latest = state.progression?.packHistory?.[0];
+        state.packOpeningDismissedKey = '';
         state.packReveal = latest ? {
             packId: latest.packId,
             openedAt: latest.openedAt,
             revealed: new Set(),
             dissolvedRemnants: new Set(),
             lastRevealedId: '',
+            previewId: '',
             sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
         } : null;
         renderPackResult();
+        navigateHub('shop', { shopView: 'cardpack' });
         render();
     }
 
@@ -2141,24 +2194,62 @@
         render();
     }
 
-    function renderPackResult() {
+    function packSessionKey(latest) {
+        return `${latest.packId || 'pack'}:${latest.openedAt || ''}`;
+    }
+
+    function renderPackResult(options = {}) {
         const result = document.getElementById('packResult');
         const latest = state.progression?.packHistory?.[0];
         if (!result || !latest) return;
         const reveal = ensurePackReveal(latest);
         const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
-        const revealedCount = reveal.revealed.size;
-        const duplicateRemnants = Number(latest.remnantsFromDuplicates) || cards.reduce((sum, card) => sum + (Number(card.remnantsAwarded) || 0), 0);
-        const duplicateCount = cards.filter(card => card.duplicateAtCap).length;
+        const sessionKey = packSessionKey(latest);
+        const opening = result.querySelector('.pack-opening');
+        const sameSession = opening?.dataset.packKey === sessionKey;
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
-        result.innerHTML = `<section class="pack-opening" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')}">
+
+        if (!sameSession || options.rebuild) {
+            const revealedCount = reveal.revealed.size;
+            const heading = gachaHeading(cards[0]?.element || 'FIRE', cards.length);
+            const previewCard = reveal.previewId ? cards.find(card => card.revealId === reveal.previewId) : null;
+            result.innerHTML = buildPackOpeningMarkup({
+                latest,
+                cards,
+                reveal,
+                heading,
+                revealedCount,
+                previewCard,
+                sessionKey
+            });
+            const stage = result.querySelector('.gacha-stage');
+            if (stage) {
+                stage.classList.add('is-initial');
+                window.setTimeout(() => stage.classList.remove('is-initial'), Math.min(1400, 700 + cards.length * 80));
+            }
+            if (typeof initGachaParticles === 'function') {
+                initGachaParticles(result.querySelector('.pack-opening'), elementColor(cards[0]?.element || 'FIRE'));
+            }
+            return;
+        }
+
+        patchPackOpening({ result, latest, cards, reveal });
+    }
+
+    function buildPackOpeningMarkup({ latest, cards, reveal, heading, revealedCount, previewCard, sessionKey }) {
+        const duplicateRemnants = Number(latest.remnantsFromDuplicates) || cards.reduce((sum, card) => sum + (Number(card.remnantsAwarded) || 0), 0);
+        const duplicateCount = cards.filter(card => card.duplicateAtCap).length;
+        const duplicateNote = duplicateCount
+            ? ` <span class="pack-duplicate-note">${duplicateCount} pull${duplicateCount === 1 ? '' : 's'} at the 3-copy limit become Remnants${duplicateRemnants ? ` (+${duplicateRemnants.toLocaleString()}).` : '.'}</span>`
+            : '';
+        return `<section class="pack-opening" data-pack-key="${escapeAttr(sessionKey)}" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')}">
             <div class="gacha-particles" aria-hidden="true"></div>
             <div class="pack-opening-head">
                 <div>
-                    <span class="eyebrow">Gacha reveal</span>
-                    <h2>${escapeHtml(latest.packName)} opened</h2>
-                    <p>${revealedCount}/${cards.length} cards revealed. Flip cards one at a time, or reveal the whole pack.${duplicateCount ? ` ${duplicateCount} pull${duplicateCount === 1 ? '' : 's'} at the 3-copy limit become Remnants${duplicateRemnants ? ` (+${duplicateRemnants.toLocaleString()}).` : '.'}` : ''}</p>
+                    <span class="eyebrow">${escapeHtml(heading.eyebrow)}</span>
+                    <h2>${escapeHtml(heading.title)}</h2>
+                    <p>${escapeHtml(heading.sub)} <span class="pack-progress">${revealedCount}/${cards.length} unsealed</span>${duplicateNote}</p>
                 </div>
                 <div class="pack-opening-actions">
                     <button class="ghost-btn" type="button" data-reveal-all-pack>Reveal All</button>
@@ -2167,13 +2258,73 @@
             </div>
             <canvas class="gacha-particles" aria-hidden="true"></canvas>
             <div class="gacha-stage">
-                ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), reveal.lastRevealedId === card.revealId, latest.packId, index)).join('')}
+                ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), latest.packId, index)).join('')}
             </div>
+            ${previewCard ? renderRevealPreview(previewCard) : ''}
         </section>`;
+    }
+
+    function patchPackOpening({ result, latest, cards, reveal }) {
         const opening = result.querySelector('.pack-opening');
-        if (opening) {
-            initGachaParticles(opening, elementColor(cards[0]?.element || 'FIRE'));
+        if (!opening) return;
+        const elementGlow = elementColor(cards[0]?.element || 'FIRE');
+        opening.style.setProperty('--pack-glow', elementGlow);
+        opening.style.setProperty('--spark-glow', reveal.sparkColor || elementGlow);
+        const progress = opening.querySelector('.pack-progress');
+        if (progress) progress.textContent = `${reveal.revealed.size}/${cards.length} unsealed`;
+
+        const stage = opening.querySelector('.gacha-stage');
+        if (!stage) return;
+        const animateId = reveal.lastRevealedId || '';
+        cards.forEach((card, index) => {
+            const selector = `[data-reveal-card="${escapeAttr(card.revealId)}"]`;
+            let btn = stage.querySelector(selector);
+            const revealed = reveal.revealed.has(card.revealId);
+            if (!btn) {
+                stage.insertAdjacentHTML('beforeend', renderRevealCard(card, revealed, latest.packId, index));
+                btn = stage.querySelector(selector);
+            }
+            if (!btn) return;
+            const wasRevealed = btn.classList.contains('is-revealed');
+            btn.classList.toggle('is-revealed', revealed);
+            if (revealed && !wasRevealed && animateId === card.revealId) {
+                if (card.duplicateAtCap && card.remnantsAwarded > 0 && !reveal.dissolvedRemnants.has(card.revealId)) {
+                    window.setTimeout(() => playRemnantDissolve(btn, card, () => renderPackResult()), 720);
+                } else {
+                    triggerRevealCardAnimation(btn);
+                }
+            }
+            if (reveal.dissolvedRemnants.has(card.revealId)) {
+                btn.classList.add('is-remnant-resolved');
+                btn.disabled = true;
+            }
+        });
+
+        const previewCard = reveal.previewId ? cards.find(card => card.revealId === reveal.previewId) : null;
+        patchPackPreview(opening, previewCard);
+    }
+
+    function patchPackPreview(opening, previewCard) {
+        const existing = opening.querySelector('.reveal-preview');
+        if (!previewCard) {
+            existing?.remove();
+            return;
         }
+        const markup = renderRevealPreview(previewCard);
+        if (existing) existing.outerHTML = markup;
+        else opening.insertAdjacentHTML('beforeend', markup);
+    }
+
+    function triggerRevealCardAnimation(cardEl) {
+        if (!cardEl) return;
+        cardEl.classList.remove('is-animating');
+        void cardEl.offsetWidth;
+        cardEl.classList.add('is-animating');
+        const finish = (event) => {
+            if (event.target !== cardEl) return;
+            cardEl.classList.remove('is-animating');
+        };
+        cardEl.addEventListener('animationend', finish, { once: true });
     }
 
     function ensurePackReveal(latest) {
@@ -2187,8 +2338,11 @@
                 revealed: new Set(),
                 dissolvedRemnants: new Set(),
                 lastRevealedId: '',
+                previewId: '',
                 sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
             };
+        } else if (!state.packReveal.dissolvedRemnants) {
+            state.packReveal.dissolvedRemnants = new Set();
         }
         return state.packReveal;
     }
@@ -2237,38 +2391,33 @@
         </span>`;
     }
 
-    function renderRevealCardFront(card) {
-        const rarity = card.rarity || 'COMMON';
-        const element = card.element || 'FIRE';
-        const isSiegling = card.type === 'SIEGLING';
-        return `<span class="reveal-face reveal-front">
-            ${isSiegling ? renderRevealNotches(card.notches) : ''}
-            <span class="reveal-card-art">${renderRevealCardArt(element)}</span>
-            <span class="reveal-card-copy">
-                <small>${escapeHtml(format(card.type))} / ${escapeHtml(format(element))}</small>
-                <strong>${escapeHtml(card.name || 'Unknown Card')}</strong>
-                <span class="reveal-rarity">${escapeHtml(format(rarity))}</span>
-                ${isSiegling ? `<span class="reveal-stats">HP ${escapeHtml(card.health ?? '-')} / SPD ${escapeHtml(card.speed ?? '-')}</span>` : ''}
-                <span class="reveal-cost">${revealCardEnergyCost(card) > 0 ? `Cost ${revealCardEnergyCost(card)} ${escapeHtml(format(card.costElement || element))}` : 'No energy cost'}</span>
-            </span>
-        </span>`;
-    }
-
-    function renderRevealCard(card, revealed, newlyRevealed = false, packId = '', index = 0) {
+    function renderRevealCard(card, revealed, packId = '', index = 0) {
         const rarity = card.rarity || 'COMMON';
         const element = card.element || 'FIRE';
         const dissolved = isRemnantDissolved(card.revealId);
         const remnantPull = Boolean(card.duplicateAtCap && card.remnantsAwarded > 0);
         const showRemnantFace = remnantPull && revealed && dissolved;
-        return `<button class="reveal-card${revealed ? ' is-revealed' : ''}${newlyRevealed ? ' is-new-reveal' : ''}${remnantPull ? ' is-remnant-pull' : ''}${showRemnantFace ? ' is-remnant-resolved' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="${remnantPull ? 'true' : 'false'}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}"${showRemnantFace ? ' disabled' : ''}>
+        const ownedPreview = Math.max(1, Math.min(3, ownedCount(card.id) || (revealed && !remnantPull ? 1 : 0)));
+        if (showRemnantFace) {
+            return `<button class="reveal-card is-revealed is-remnant-pull is-remnant-resolved rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="true" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}" disabled aria-label="${escapeAttr(card.name || 'Card')} converted into Remnants">
+                <span class="rarity-burst" aria-hidden="true"></span>
+                <span class="reveal-dust-burst" aria-hidden="true"></span>
+                <span class="reveal-face reveal-back" aria-hidden="true"></span>
+                ${renderRevealRemnantFace(card)}
+            </button>`;
+        }
+        return `<button class="reveal-card${revealed ? ' is-revealed' : ''}${remnantPull ? ' is-remnant-pull' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="${remnantPull ? 'true' : 'false'}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
             <span class="rarity-burst" aria-hidden="true"></span>
             <span class="reveal-dust-burst" aria-hidden="true"></span>
             <span class="reveal-face reveal-back">
-                <span class="pack-back-sigil">${escapeHtml(format(element).slice(0, 1) || '?')}</span>
                 <strong>Tap to reveal</strong>
                 <small>${remnantPull ? 'May become Remnants' : `${escapeHtml(format(rarity))} pulse`}</small>
             </span>
-            ${showRemnantFace ? renderRevealRemnantFace(card) : renderRevealCardFront(card)}
+            <span class="reveal-face reveal-front">
+                <div class="card-tile binder-card gacha-card-front" style="--el:${elementColor(element)}">
+                    ${renderBinderCardShell(card, { ownedOverride: ownedPreview })}
+                </div>
+            </span>
         </button>`;
     }
 
@@ -2312,42 +2461,101 @@
         }, 1180);
     }
 
-    function revealPackCard(revealId, triggerEl = null) {
+    function revealPackCard(revealId, options = {}) {
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
-        if (reveal.revealed.has(revealId) || reveal.dissolvedRemnants.has(revealId)) return;
+        if (reveal.dissolvedRemnants.has(revealId)) return;
         const index = latest.cards.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId);
         const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
         if (!card) return;
+        if (reveal.revealed.has(revealId)) return;
         reveal.revealed.add(revealId);
         reveal.lastRevealedId = revealId;
-        reveal.sparkColor = rarityColor(card.rarity || 'COMMON');
+        if (options.openPreview) reveal.previewId = revealId;
+        reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
+        renderPackResult();
+    }
 
-        const runDissolve = () => {
-            const liveEl = triggerEl?.isConnected
-                ? triggerEl
-                : document.querySelector(`[data-reveal-card="${CSS.escape(revealId)}"]`);
-            if (card.duplicateAtCap && card.remnantsAwarded > 0) {
-                if (liveEl) {
-                    liveEl.classList.add('is-revealed', 'is-new-reveal');
-                    window.setTimeout(() => playRemnantDissolve(liveEl, card, () => renderPackResult()), 720);
-                    return;
-                }
-                reveal.dissolvedRemnants.add(revealId);
-            }
-            renderPackResult();
-        };
-
-        if (triggerEl) {
-            triggerEl.classList.add('is-revealed', 'is-new-reveal', 'is-animating');
-            window.setTimeout(() => {
-                triggerEl.classList.remove('is-animating', 'is-new-reveal');
-                runDissolve();
-            }, card.duplicateAtCap ? 760 : 420);
+    function openPackPreview(revealId) {
+        const latest = state.progression?.packHistory?.[0];
+        if (!latest) return;
+        const reveal = ensurePackReveal(latest);
+        reveal.previewId = revealId;
+        reveal.lastRevealedId = '';
+        const result = document.getElementById('packResult');
+        const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
+        const opening = result?.querySelector('.pack-opening');
+        if (opening && opening.dataset.packKey === packSessionKey(latest)) {
+            patchPackPreview(opening, cards.find(card => card.revealId === revealId));
             return;
         }
-        runDissolve();
+        renderPackResult();
+    }
+
+    function closePackPreview() {
+        const reveal = state.packReveal;
+        if (!reveal) return;
+        reveal.previewId = '';
+        reveal.lastRevealedId = '';
+        const latest = state.progression?.packHistory?.[0];
+        const opening = document.getElementById('packResult')?.querySelector('.pack-opening');
+        if (latest && opening && opening.dataset.packKey === packSessionKey(latest)) {
+            patchPackPreview(opening, null);
+            return;
+        }
+        renderPackResult();
+    }
+
+    function gachaHeading(element, count) {
+        const lore = {
+            FIRE: { title: 'Relics of the Flame Uncovered', sub: 'Embers stir within the seal — each one waiting to ignite.' },
+            EARTH: { title: 'Stones of the Old World Stir', sub: 'Ancient roots tremble — something buried longs to wake.' },
+            WIND: { title: 'Whispers of the Gale Gather', sub: 'The air hums with hidden names yet to be spoken.' },
+            WATER: { title: 'Tides of the Deep Surface', sub: 'From the abyss, forgotten currents rise to be claimed.' },
+            ICE: { title: 'Frostbound Relics Awaken', sub: 'Beneath the rime, sealed power begins to thaw.' },
+            SHADOW: { title: 'Secrets of the Veil Emerge', sub: 'Shapes shift in the dark, eager to be seen.' },
+            ELECTRIC: { title: 'A Charge of Fates Crackles', sub: 'Static gathers — destiny waits for the spark.' },
+            METAL: { title: 'Forged Legacies Unsealed', sub: 'Cold steel remembers the hands that shaped it.' },
+            UNDEAD: { title: 'The Restless Are Summoned', sub: 'What was buried does not stay still for long.' },
+            PSYCHIC: { title: 'Echoes of the Mind Converge', sub: 'Thoughts not your own press against the seal.' }
+        };
+        const entry = lore[String(element || '').toUpperCase()] || { title: 'Relics Uncovered', sub: 'Unknown powers wait beyond the seal.' };
+        const words = ['no', 'a single', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+        const pulses = words[count] || `${count}`;
+        return {
+            eyebrow: 'Gacha reveal',
+            title: entry.title,
+            sub: `${pulses.charAt(0).toUpperCase() + pulses.slice(1)} ancient pulses resonate within — tap each to reveal its fate. ${entry.sub}`
+        };
+    }
+
+    function renderRevealPreview(card) {
+        const element = card.element || 'FIRE';
+        const rarity = card.rarity || 'COMMON';
+        const isSiegling = card.type === 'SIEGLING';
+        const abilities = card.abilities || (card.ability ? [card.ability] : []);
+        const flavor = creatureDescriptionFor(card);
+        const cost = revealCardEnergyCost(card);
+        return `<div class="reveal-preview" data-preview-backdrop style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)}">
+            <div class="reveal-preview-card" role="dialog" aria-modal="true" aria-label="${escapeAttr(card.name || 'Card')} preview">
+                <button class="reveal-preview-close" type="button" data-close-preview aria-label="Back to pack">&times;</button>
+                <div class="reveal-preview-art">
+                    ${isSiegling ? renderRevealNotches(card.notches) : ''}
+                    ${renderRevealCardArt(element)}
+                </div>
+                <div class="reveal-preview-body">
+                    <small>${escapeHtml(format(card.type))} / ${escapeHtml(format(element))}</small>
+                    <h3>${escapeHtml(card.name || 'Unknown Card')}</h3>
+                    <span class="reveal-rarity">${escapeHtml(format(rarity))}</span>
+                    ${isSiegling ? `<div class="reveal-preview-stats"><span>HP ${escapeHtml(card.health ?? '-')}</span><span>SPD ${escapeHtml(card.speed ?? '-')}</span></div>` : ''}
+                    <div class="reveal-preview-cost">${cost > 0 ? `Cost ${cost} ${escapeHtml(format(card.costElement || element))}` : 'No energy cost'}</div>
+                    ${flavor ? `<p class="reveal-preview-flavor">${escapeHtml(flavor)}</p>` : ''}
+                    ${abilities.length ? abilities.map(a => `<p class="reveal-preview-ability"><strong>${escapeHtml(a.name || 'Ability')}</strong> ${escapeHtml(a.description || '')}</p>`).join('') : ''}
+                </div>
+                <button class="ghost-btn reveal-preview-back" type="button" data-close-preview>Back to pack</button>
+            </div>
+        </div>`;
     }
 
     function revealAllPackCards() {
@@ -2370,15 +2578,50 @@
         });
     }
 
-    function clearPackResult() {
+    function hidePackResultDom() {
         destroyGachaParticles();
-        state.packReveal = null;
         document.body.classList.remove('gacha-active');
         const result = document.getElementById('packResult');
         if (result) {
             result.classList.add('hidden');
             result.innerHTML = '';
         }
+    }
+
+    function shouldShowPackOpening() {
+        if (!state.packReveal) return false;
+        const latest = state.progression?.packHistory?.[0];
+        if (!latest) return false;
+        return state.packOpeningDismissedKey !== packSessionKey(latest);
+    }
+
+    function syncShopPackView() {
+        if (state.route !== 'shop') {
+            if (!shouldShowPackOpening()) hidePackResultDom();
+            else {
+                document.getElementById('packResult')?.classList.add('hidden');
+                document.body.classList.remove('gacha-active');
+            }
+            return;
+        }
+        if (state.shopView === 'cardpack' && shouldShowPackOpening()) {
+            renderPackResult();
+            return;
+        }
+        hidePackResultDom();
+        if (state.shopView === 'cardpack') {
+            state.shopView = 'browse';
+            history.replaceState(null, '', hubPath('shop', 'browse'));
+        }
+    }
+
+    function clearPackResult() {
+        const latest = state.progression?.packHistory?.[0];
+        if (latest) state.packOpeningDismissedKey = packSessionKey(latest);
+        state.packReveal = null;
+        hidePackResultDom();
+        navigateHub('shop', { shopView: 'browse', replace: true });
+        renderShop();
     }
 
     function revealCardEnergyCost(card) {
@@ -2491,8 +2734,49 @@
         renderFriends();
     }
 
-    function createLobbyFromHome() {
-        goPlay({ mode: 'online', onlineRoomMode: 'create', deckId: selectedDeckId() });
+    async function createLobbyFromHome() {
+        if (state.lobbyBusy) return;
+        const existing = readHostLobby();
+        if (existing?.roomId) {
+            navigateHub('social', { focus: 'lobby' });
+            renderSocialActiveLobby();
+            return;
+        }
+        if (!state.options?.decks?.length) {
+            alert('Deck options are still loading. Try again in a moment.');
+            return;
+        }
+        state.lobbyBusy = true;
+        renderSocialActiveLobby();
+        try {
+            const data = await fetchJson('/api/match/create', {
+                method: 'POST',
+                body: JSON.stringify(buildSocialMatchBody())
+            });
+            if (data?.error) {
+                alert(data.error);
+                return;
+            }
+            writeHostLobby({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                expiresAt: data.expiresAt || null,
+                shareUrl: data.shareUrl || buildSocialRoomShareUrl(data.roomId)
+            });
+            saveMultiplayerSession({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                viewerSide: data.viewerSide || 'PLAYER'
+            });
+            state.hostLobbyStatus = data;
+            navigateHub('social', { focus: 'lobby' });
+            await refreshRooms(true);
+            renderSocialActiveLobby();
+            ensureHostLobbyPolling();
+        } finally {
+            state.lobbyBusy = false;
+            renderSocialActiveLobby();
+        }
     }
 
     function quickJoinFirstRoom() {
@@ -2503,10 +2787,36 @@
         joinRoomFromHome();
     }
 
-    function joinRoomFromHome() {
+    async function joinRoomFromHome() {
         const room = document.getElementById('roomCodeInput')?.value?.trim()?.toUpperCase();
         if (!room) return;
-        goPlay({ mode: 'online', onlineRoomMode: 'join', roomId: room, deckId: selectedDeckId() });
+        if (!state.options?.decks?.length) {
+            alert('Deck options are still loading. Try again in a moment.');
+            return;
+        }
+        if (state.lobbyBusy) return;
+        state.lobbyBusy = true;
+        try {
+            const data = await fetchJson('/api/match/join', {
+                method: 'POST',
+                body: JSON.stringify({ ...buildSocialMatchBody(), roomId: room })
+            });
+            if (data?.error) {
+                alert(data.error);
+                return;
+            }
+            saveMultiplayerSession({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                viewerSide: data.viewerSide || 'PLAYER'
+            });
+            launchOnlineBattleFromSocial({
+                roomId: data.roomId,
+                playerToken: data.playerToken
+            }, data);
+        } finally {
+            state.lobbyBusy = false;
+        }
     }
 
     function queuePlayLoadout(payload = {}) {
@@ -2515,8 +2825,9 @@
             deckId: payload.deckId || selectedDeckId(),
             trainerId: payload.trainerId || state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id,
             mode: payload.mode || 'solo',
-            onlineRoomMode: payload.onlineRoomMode || 'create',
+            onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
+            battleLaunch: Boolean(payload.battleLaunch),
             customDeckCards: payload.customDeckCards || null,
             loadoutLabel: payload.loadoutLabel || ''
         }));
@@ -2529,12 +2840,23 @@
 
     function navigateHub(route, options = {}) {
         const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
-        if (route === state.route) {
-            focusRouteTarget(options.focus);
-            return;
-        }
+        const nextShopView = route === 'shop' ? (options.shopView || state.shopView || 'browse') : 'browse';
+        const nextPath = `${hubPath(route, nextShopView)}${hash}`;
+        const samePlace = route === state.route && (route !== 'shop' || nextShopView === state.shopView);
+
         state.route = route;
-        history.pushState(null, '', `${route === 'home' ? '/home' : `/${route}`}${hash}`);
+        state.shopView = nextShopView;
+
+        if (options.replace) {
+            if (`${location.pathname}${location.hash}` !== nextPath) {
+                history.replaceState(null, '', nextPath);
+            }
+        } else if (!samePlace) {
+            history.pushState(null, '', nextPath);
+        } else if (`${location.pathname}${location.hash}` !== nextPath) {
+            history.replaceState(null, '', nextPath);
+        }
+
         setActiveRoute();
         renderSections();
         renderRoute();
@@ -2588,6 +2910,8 @@
 
     function renderHudTools() {
         const binder = isBinderRoute();
+        const optionsBtn = document.getElementById('optionsBtn');
+        optionsBtn?.classList.toggle('hidden', state.route !== 'home');
         const filterBtn = document.getElementById('filterTrayBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
         const filterTray = document.getElementById('filterTray');
@@ -2912,10 +3236,39 @@
         const key = DECK_ASSET_KEYS.find(element => elements.includes(element));
         return key ? DECK_ASSET_PATHS[key] : null;
     }
+    function parseHubRoute(path) {
+        const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
+        const head = segments[0] || 'home';
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse' };
+        if (head === 'shop') {
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse' };
+        }
+        if (['cards', 'decks', 'social', 'profile'].includes(head)) {
+            return { route: head, shopView: 'browse' };
+        }
+        return { route: 'home', shopView: 'browse' };
+    }
+
+    function hubPath(route, shopView = 'browse') {
+        if (route === 'home') return '/home';
+        if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
+        return `/${route}`;
+    }
+
+    function applyRouteFromLocation(path = location.pathname) {
+        const parsed = parseHubRoute(path);
+        state.route = parsed.route;
+        state.shopView = parsed.shopView;
+        if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
+            state.shopView = 'browse';
+            if (location.pathname !== hubPath('shop', 'browse')) {
+                history.replaceState(null, '', hubPath('shop', 'browse'));
+            }
+        }
+    }
+
     function routeFromPath(path) {
-        const route = String(path || '/home').replace(/^\/+/, '').split('/')[0] || 'home';
-        if (route === 'lobbies') return 'social';
-        return ['cards', 'decks', 'social', 'profile', 'shop'].includes(route) ? route : 'home';
+        return parseHubRoute(path).route;
     }
     function elementColor(element) { return ELEMENT_COLORS[element] || '#f05b2f'; }
     function rarityColor(rarity) { return RARITY_COLORS[rarity] || RARITY_COLORS.COMMON; }
@@ -3040,6 +3393,129 @@
         return `<div class="${escapeAttr(className)}" aria-hidden="true">${escapeHtml((prefs.avatar || initials(displayName)).slice(0, 1))}</div>`;
     }
 
+    function hydrateRoomInviteFromUrl() {
+        const params = new URLSearchParams(location.search);
+        const room = params.get('room');
+        if (!room) return;
+        params.delete('room');
+        const query = params.toString();
+        const nextPath = `${hubPath('social')}${query ? `?${query}` : ''}#socialActiveLobby`;
+        history.replaceState(null, '', nextPath);
+        state.route = 'social';
+        const input = document.getElementById('roomCodeInput');
+        if (input) input.value = room.trim().toUpperCase();
+    }
+
+    function buildSocialMatchBody() {
+        return {
+            deckId: selectedDeckId(),
+            trainerId: selectedTrainerId(),
+            playerName: socialBattleName(),
+            loadoutLabel: ''
+        };
+    }
+
+    function selectedTrainerId() {
+        return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
+    }
+
+    function socialBattleName() {
+        return state.profile?.user?.displayName || loadStoredPlayerName() || 'Player';
+    }
+
+    function loadStoredPlayerName() {
+        try {
+            return localStorage.getItem(PLAYER_NAME_KEY) || '';
+        } catch (_error) {
+            return '';
+        }
+    }
+
+    function buildSocialRoomShareUrl(roomId) {
+        if (!roomId) return '';
+        return `${location.origin}/social?room=${encodeURIComponent(roomId)}`;
+    }
+
+    function saveMultiplayerSession(session) {
+        if (!session?.roomId || !session?.playerToken) return;
+        try {
+            localStorage.setItem(MULTIPLAYER_SESSION_KEY, JSON.stringify(session));
+        } catch (_error) {
+            // ignore storage failures
+        }
+    }
+
+    async function fetchMatchStatus(lobby) {
+        if (!lobby?.roomId || !lobby?.playerToken) return null;
+        return fetchJson('/api/match/status', {
+            headers: {
+                'X-Room-Id': lobby.roomId,
+                'X-Player-Token': lobby.playerToken
+            }
+        });
+    }
+
+    function ensureHostLobbyPolling() {
+        if (!readHostLobby()?.roomId) {
+            stopHostLobbyPolling();
+            return;
+        }
+        if (state.hostLobbyPollTimer) return;
+        state.hostLobbyPollTimer = window.setInterval(() => {
+            void checkHostLobbyForBattle();
+        }, 3000);
+        void checkHostLobbyForBattle();
+    }
+
+    function stopHostLobbyPolling() {
+        if (!state.hostLobbyPollTimer) return;
+        window.clearInterval(state.hostLobbyPollTimer);
+        state.hostLobbyPollTimer = null;
+    }
+
+    async function checkHostLobbyForBattle() {
+        const lobby = readHostLobby();
+        if (!lobby?.roomId) {
+            stopHostLobbyPolling();
+            return;
+        }
+        const status = await fetchMatchStatus(lobby);
+        if (!status || status.error) return;
+        state.hostLobbyStatus = status;
+        if (status.started) {
+            launchOnlineBattleFromSocial(lobby, status);
+        }
+    }
+
+    function launchOnlineBattleFromSocial(lobby, status) {
+        if (!lobby?.roomId || !lobby?.playerToken || state.battleRedirectPending) return;
+        state.battleRedirectPending = true;
+        saveMultiplayerSession({
+            roomId: lobby.roomId,
+            playerToken: lobby.playerToken,
+            viewerSide: status?.viewerSide || 'PLAYER'
+        });
+        localStorage.removeItem(HOST_LOBBY_KEY);
+        state.hostLobbyStatus = null;
+        stopHostLobbyPolling();
+        goPlay({
+            mode: 'online',
+            roomId: lobby.roomId,
+            deckId: selectedDeckId(),
+            trainerId: selectedTrainerId(),
+            battleLaunch: true
+        });
+    }
+
+    async function copyLobbyInvite(url) {
+        if (!url) return;
+        try {
+            await navigator.clipboard.writeText(url);
+        } catch (_error) {
+            window.prompt('Copy this invite link:', url);
+        }
+    }
+
     function formatLobbyExpiry(expiresAt) {
         if (!expiresAt) return '';
         const remainingMs = new Date(expiresAt).getTime() - Date.now();
@@ -3067,6 +3543,7 @@
     function writeHostLobby(lobby) {
         if (!lobby?.roomId) {
             localStorage.removeItem(HOST_LOBBY_KEY);
+            state.hostLobbyStatus = null;
             return;
         }
         localStorage.setItem(HOST_LOBBY_KEY, JSON.stringify(lobby));
@@ -3087,6 +3564,9 @@
         });
         if (data?.error) return alert(data.error);
         localStorage.removeItem(HOST_LOBBY_KEY);
+        state.hostLobbyStatus = null;
+        state.battleRedirectPending = false;
+        stopHostLobbyPolling();
         await refreshRooms(true);
         renderSocialActiveLobby();
     }
@@ -3118,6 +3598,9 @@
             refreshMessageThreads(),
             sendPresenceHeartbeat()
         ]);
+        if (readHostLobby()?.roomId) {
+            await checkHostLobbyForBattle();
+        }
         renderFriends();
         renderMessageThreads();
         renderSocialActiveLobby();
@@ -3221,13 +3704,24 @@
     }
 
     async function openPlayerProfile(userId) {
-        const data = await fetchJson(`/api/social/players/${encodeURIComponent(userId)}/profile`);
-        if (data?.error) return alert(data.error);
-        state.viewingProfile = data;
         const modal = document.getElementById('viewProfileModal');
         const body = document.getElementById('viewProfileBody');
         if (!modal || !body) return;
+        const data = await fetchJson(`/api/social/players/${encodeURIComponent(userId)}/profile`).catch(() => ({ error: 'Could not load this profile.' }));
+        if (data?.error) {
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Player Profile</span><h2 id="viewProfileTitle">Profile unavailable</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" id="closeViewProfileBtn">Close</button>
+                </div>
+                <p class="profile-muted">${escapeHtml(data.error || 'This player could not be found.')}</p>`;
+            modal.classList.remove('hidden');
+            document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
+            return;
+        }
+        state.viewingProfile = data;
         const prefs = data.profileSettings || {};
+        const myEmail = state.profile?.user?.email || '';
+        const isSelf = Boolean(myEmail && String(myEmail).toLowerCase() === String(userId).toLowerCase());
         const theme = elementThemes[normalizeProfileElement(prefs.favoriteElement)] || elementThemes.Fire;
         body.innerHTML = `<div class="view-profile-modal-head">
             <div>
@@ -3258,7 +3752,10 @@
             </section>
             ${data.isFriend ? `<div class="profile-edit-actions">
                 <button class="primary-btn profile-theme-btn" type="button" id="viewProfileMessageBtn">Message</button>
-            </div>` : '<p class="profile-muted">Add this player as a friend to send messages.</p>'}
+            </div>` : isSelf ? '<p class="profile-muted">This is your own profile. Share it from Options to let others add you.</p>'
+                : `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAddFriendBtn">Add Friend</button>
+            </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`}
         </div>`;
         modal.classList.remove('hidden');
         document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
@@ -3267,11 +3764,227 @@
             navigateHub('social');
             openMessageComposer(userId);
         });
+        document.getElementById('viewProfileAddFriendBtn')?.addEventListener('click', () => addFriendByEmail(userId));
+    }
+
+    async function addFriendByEmail(email) {
+        const msg = document.getElementById('viewProfileFriendMsg');
+        if (!state.profile?.authenticated) {
+            closePlayerProfile();
+            openAuth();
+            return;
+        }
+        const data = await fetchJson('/api/profile/friends', { method: 'POST', body: JSON.stringify({ email }) });
+        if (data?.error) {
+            if (msg) { msg.textContent = data.error; msg.style.color = '#ff7676'; }
+            return;
+        }
+        state.profile = data;
+        state.progression = data.progression || state.progression;
+        const btn = document.getElementById('viewProfileAddFriendBtn');
+        if (btn) { btn.textContent = 'Friend Added'; btn.disabled = true; }
+        if (msg) { msg.textContent = 'Added to your friends list.'; msg.style.color = ''; }
+        renderFriends();
     }
 
     function closePlayerProfile() {
         state.viewingProfile = null;
         document.getElementById('viewProfileModal')?.classList.add('hidden');
+    }
+
+    const GUIDE_SECTIONS = [
+        {
+            id: 'arena',
+            label: 'The Arena',
+            title: 'Build links, wake sockets, command momentum',
+            html: `<p>Siegelings is a board-first card battle game. Place Siegelings during setup, connect matching notches, then spend the elemental energy those links create.</p>
+                <ol class="guide-list">
+                    <li><strong>Notches wake sockets.</strong> Each Siegeling has notches on its edges. When a notch lines up with an open socket on the board, it wakes and feeds your energy pool.</li>
+                    <li><strong>Matching links strengthen the network.</strong> Connecting notches of the same element between your Siegelings reinforces your board and unlocks stronger plays.</li>
+                    <li><strong>Deck choice and SiegeKnight timing shape the plan.</strong> Lead with the right deck, then time your SiegeKnight to swing momentum when the board is set.</li>
+                </ol>`
+        },
+        {
+            id: 'app',
+            label: 'Using the App',
+            title: 'Find your way around the binder hub',
+            html: `<ul class="guide-list">
+                    <li><strong>Home</strong> — your command hub with collection stats, daily leaderboards, and quick play.</li>
+                    <li><strong>Play</strong> — solo PVE and live 1v1 battles after a Social lobby fills.</li>
+                    <li><strong>Cards</strong> — your owned binder by default. Use the <em>Show unowned</em> toggle in Filters to browse the full catalog, then filter by element, type, rarity, and energy cost.</li>
+                    <li><strong>Decks</strong> — run premade decks right away; custom deckbuilding unlocks once your binder holds 30 owned copies. Save custom lists to your deck binder.</li>
+                    <li><strong>Social</strong> — create and join 1v1 lobbies, friends, messaging, and player profiles.</li>
+                    <li><strong>Shop</strong> — spend Siegecoins on packs. Opening a pack starts the gacha reveal; tap each card to flip it.</li>
+                    <li><strong>Profile</strong> — customize your avatar, favorite element, title, bio, and card back.</li>
+                    <li><strong>Options</strong> — this menu: the full guide, your shareable profile QR, and admin access.</li>
+                </ul>
+                <p class="guide-note">Earn <strong>Remnants</strong> from opening packs and winning matches, then craft specific cards from the Cards menu.</p>`
+        },
+        {
+            id: 'elements',
+            label: 'Elemental Affinity',
+            title: 'Elements and how they connect',
+            html: `<p>Every Siegeling, spell, and trap belongs to an element. Notches carry an element too — matching the element of a notch to its neighbor forms a stronger link and a cleaner energy feed.</p>
+                <div class="guide-elements">
+                    <span class="guide-el" style="--gc:#f05b2f">Fire</span>
+                    <span class="guide-el" style="--gc:#3c8ed8">Water</span>
+                    <span class="guide-el" style="--gc:#7ad9e7">Ice</span>
+                    <span class="guide-el" style="--gc:#64c987">Wind</span>
+                    <span class="guide-el" style="--gc:#a7773d">Earth</span>
+                    <span class="guide-el" style="--gc:#6d4a9e">Shadow</span>
+                    <span class="guide-el" style="--gc:#f5cf3d">Electric</span>
+                    <span class="guide-el" style="--gc:#aeb5b8">Metal</span>
+                    <span class="guide-el" style="--gc:#9f7c73">Undead</span>
+                    <span class="guide-el" style="--gc:#db73b4">Psychic</span>
+                    <span class="guide-el" style="--gc:#95a5a6">Neutral</span>
+                </div>
+                <p class="guide-note">Lean into one or two elements so your notches line up and your energy pool stays focused, or splash for flexible answers at the cost of weaker links.</p>`
+        },
+        {
+            id: 'energy',
+            label: 'Energy in Battle',
+            title: 'How energy is made and spent',
+            html: `<ol class="guide-list">
+                    <li><strong>Place a Siegeling.</strong> During setup and each turn you commit Siegelings to the board.</li>
+                    <li><strong>Notches wake sockets.</strong> A notch touching an open socket wakes it, generating elemental energy of that notch's element into your pool.</li>
+                    <li><strong>Matching links compound.</strong> When two Siegelings connect on a shared element, the link feeds energy more efficiently and reinforces both cards.</li>
+                    <li><strong>Spend energy.</strong> Energy in your pool pays for abilities, spells, and traps. Most cards cost a specific amount of a specific element — build the pool that matches your hand.</li>
+                </ol>
+                <p class="guide-note">Energy is generated by your board, not handed out for free — the better your notch network, the more you can spend each turn.</p>`
+        },
+        {
+            id: 'spells-traps',
+            label: 'Spells & Traps',
+            title: 'One-shot effects and reactive defense',
+            html: `<ul class="guide-list">
+                    <li><strong>Spells</strong> are cast from your hand for an immediate effect — damage, buffs, energy swings, or board control. They cost energy from your pool and resolve right away.</li>
+                    <li><strong>Traps</strong> are set ahead of time and spring when their condition is met (such as an opponent attacking or playing into them). Set them early, then let your opponent walk into the trigger.</li>
+                    <li><strong>Reactions</strong> — some cards require a specific reaction or combo to fire. Check a card's detail panel for its cost element, required reaction, and ability text.</li>
+                </ul>
+                <p class="guide-note">Hold a trap when you read an incoming play, and chain spells off a strong energy turn for a momentum swing.</p>`
+        }
+    ];
+
+    function openOptions() {
+        state.optionsView = 'menu';
+        renderOptions();
+        document.getElementById('optionsModal')?.classList.remove('hidden');
+    }
+
+    function closeOptions() {
+        document.getElementById('optionsModal')?.classList.add('hidden');
+    }
+
+    function renderOptions() {
+        const body = document.getElementById('optionsBody');
+        if (!body) return;
+        const view = state.optionsView || 'menu';
+        if (view === 'menu') {
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Home</span><h2 id="optionsTitle">Settings</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-close>Close</button>
+                </div>
+                <div class="options-menu">
+                    <button class="options-menu-item" type="button" data-options-view="guide">
+                        <span class="options-menu-icon">&#128214;</span>
+                        <span><strong>Guide</strong><small>Arena, app, elements, energy, spells &amp; traps</small></span>
+                    </button>
+                    <button class="options-menu-item" type="button" data-options-view="share">
+                        <span class="options-menu-icon">&#128279;</span>
+                        <span><strong>Share Profile</strong><small>Show a QR code so others can view and friend you</small></span>
+                    </button>
+                    <button class="options-menu-item" type="button" data-options-view="admin">
+                        <span class="options-menu-icon">&#9881;</span>
+                        <span><strong>Admin</strong><small>Password-protected dashboard access</small></span>
+                    </button>
+                </div>`;
+        } else if (view === 'guide') {
+            const activeId = state.guideTab && GUIDE_SECTIONS.some(s => s.id === state.guideTab) ? state.guideTab : GUIDE_SECTIONS[0].id;
+            const section = GUIDE_SECTIONS.find(s => s.id === activeId);
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Guide</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                <div class="guide-tabs">
+                    ${GUIDE_SECTIONS.map(s => `<button class="guide-tab${s.id === activeId ? ' active' : ''}" type="button" data-guide-tab="${s.id}">${escapeHtml(s.label)}</button>`).join('')}
+                </div>
+                <div class="guide-content">
+                    <h3>${escapeHtml(section.title)}</h3>
+                    ${section.html}
+                </div>`;
+        } else if (view === 'share') {
+            const email = state.profile?.user?.email || '';
+            const authed = Boolean(state.profile?.authenticated && email);
+            const link = authed ? `${location.origin}/home?profile=${encodeURIComponent(email)}` : '';
+            let qrMarkup = '<p class="guide-note">Sign in to generate your shareable profile code.</p>';
+            if (authed) {
+                if (typeof qrcode === 'function') {
+                    try {
+                        const qr = qrcode(0, 'M');
+                        qr.addData(link);
+                        qr.make();
+                        qrMarkup = `<div class="share-qr">${qr.createImgTag(5, 8)}</div>`;
+                    } catch (err) {
+                        qrMarkup = '<p class="guide-note">Could not generate a QR code right now.</p>';
+                    }
+                } else {
+                    qrMarkup = '<p class="guide-note">QR generator unavailable.</p>';
+                }
+            }
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Share Profile</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                <div class="share-profile">
+                    ${qrMarkup}
+                    ${authed ? `<p class="guide-note">Scan to open ${escapeHtml(state.profile?.user?.displayName || 'this')} profile, where you can send a friend request.</p>
+                    <div class="share-link-row">
+                        <input class="search-input" id="shareProfileLink" type="text" readonly value="${escapeAttr(link)}">
+                        <button class="primary-btn" type="button" id="copyShareLinkBtn">Copy link</button>
+                    </div>` : ''}
+                </div>`;
+        } else if (view === 'admin') {
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Admin</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                <form class="admin-access" id="optionsAdminForm">
+                    <p class="guide-note">Enter the admin password to open the card dashboard.</p>
+                    <input class="search-input" id="optionsAdminPassword" type="password" placeholder="Password" autocomplete="off">
+                    <p class="admin-error" id="optionsAdminError"></p>
+                    <button class="primary-btn" type="submit">Unlock Dashboard</button>
+                </form>`;
+        }
+    }
+
+    function handleOptionsClick(event) {
+        if (event.target.closest('[data-options-close]')) { closeOptions(); return; }
+        const viewBtn = event.target.closest('[data-options-view]');
+        if (viewBtn) { state.optionsView = viewBtn.dataset.optionsView; renderOptions(); return; }
+        const tabBtn = event.target.closest('[data-guide-tab]');
+        if (tabBtn) { state.guideTab = tabBtn.dataset.guideTab; renderOptions(); return; }
+        if (event.target.closest('#copyShareLinkBtn')) {
+            const input = document.getElementById('shareProfileLink');
+            if (input) {
+                input.select();
+                navigator.clipboard?.writeText(input.value).catch(() => {});
+                const btn = document.getElementById('copyShareLinkBtn');
+                if (btn) { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy link'; }, 1600); }
+            }
+        }
+    }
+
+    function handleOptionsSubmit(event) {
+        const form = event.target.closest('#optionsAdminForm');
+        if (!form) return;
+        event.preventDefault();
+        const pass = document.getElementById('optionsAdminPassword')?.value || '';
+        if (pass === 'Aviators4!') {
+            window.location.href = '/card-dashboard.html';
+        } else {
+            const err = document.getElementById('optionsAdminError');
+            if (err) err.textContent = 'Incorrect password.';
+        }
     }
 
     document.getElementById('closeMessageComposeBtn')?.addEventListener('click', () => {
@@ -3282,13 +3995,34 @@
     document.getElementById('messageSendForm')?.addEventListener('submit', sendChatMessage);
 
     document.addEventListener('click', (event) => {
+        if (event.target.closest('[data-clear-pack-result]')) {
+            clearPackResult();
+            return;
+        }
         const packButton = event.target.closest('[data-pack-id]');
         if (packButton) choosePack(packButton.dataset.packId);
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
+        if (event.target.closest('[data-close-preview]') || event.target.matches('[data-preview-backdrop]')) {
+            closePackPreview();
+            return;
+        }
+        if (state.packReveal?.previewId) return;
         const revealButton = event.target.closest('[data-reveal-card]');
-        if (revealButton) revealPackCard(revealButton.dataset.revealCard, revealButton);
+        if (revealButton) {
+            const revealId = revealButton.dataset.revealCard;
+            if (state.packReveal?.dissolvedRemnants?.has(revealId)) return;
+            const alreadyRevealed = Boolean(state.packReveal?.revealed?.has?.(revealId));
+            if (alreadyRevealed) {
+                const latest = state.progression?.packHistory?.[0];
+                const index = latest?.cards?.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId) ?? -1;
+                const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
+                if (card?.duplicateAtCap && card?.remnantsAwarded > 0) return;
+                openPackPreview(revealId);
+            } else {
+                revealPackCard(revealId, { openPreview: false });
+            }
+        }
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();
-        if (event.target.closest('[data-clear-pack-result]')) clearPackResult();
     });
 })();

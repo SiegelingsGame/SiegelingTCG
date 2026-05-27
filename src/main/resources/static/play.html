@@ -32,7 +32,7 @@
         <a href="/shop">Shop</a>
     </div>
     <div class="play-hub-actions">
-        <a class="play-hub-ghost" href="/social">Join by Code</a>
+        <a class="play-hub-ghost" href="/social">Social Lobbies</a>
         <a class="play-hub-primary" href="/play">Play</a>
         <a class="play-hub-pill" href="/profile">Sign In</a>
     </div>
@@ -473,21 +473,19 @@
         <section class="play-entry-hero">
             <div>
                 <div class="welcome-eyebrow">PLAY</div>
-                <h2>Ready your account, open a lobby, then choose your deck.</h2>
-                <p class="welcome-hero-copy">Solo battles go straight to loadout. Online battles now stage through a lobby with player cards, chat, ready checks, and a 3-2-1 handoff before deck and SiegeKnight selection.</p>
+                <h2>Solo battles and live PvP matches start here.</h2>
+                <p class="welcome-hero-copy">Run PVE on this table anytime. For 1v1 lobbies, create or join a table on Social — when both players are in, the battle opens here automatically.</p>
             </div>
             <div class="play-entry-actions">
                 <button class="btn btn-primary" type="button" onclick="startPlaySolo()">Solo Battle</button>
-                <button class="btn welcome-guest-btn" type="button" onclick="openPlayLobby('create')">Create Lobby</button>
-                <button class="btn welcome-dashboard-btn" type="button" onclick="openPlayLobby('join')">Join Lobby</button>
+                <a class="btn welcome-dashboard-btn" href="/social">Browse Social Lobbies</a>
             </div>
         </section>
-        <div class="play-entry-grid">
+        <div class="play-entry-grid play-entry-grid-solo">
             <aside class="welcome-sidebar">
                 <section class="welcome-auth-card" id="welcomeAuthCard"></section>
                 <section class="welcome-history-card" id="welcomeHistoryCard"></section>
             </aside>
-            <section class="play-lobby-card" id="playLobbyCard" aria-live="polite"></section>
         </div>
         <div class="welcome-footer">
             <div class="welcome-footer-note">Arena guide and daily leaderboards now live on Home.</div>

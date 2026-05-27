@@ -11034,6 +11034,10 @@ body.sgl-opponent-turn .battle-cta-row {
     gap: 16px;
 }
 
+.play-entry-grid-solo {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .play-lobby-card {
     min-width: 0;
 }
