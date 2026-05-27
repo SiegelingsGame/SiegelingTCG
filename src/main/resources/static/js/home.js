@@ -162,6 +162,7 @@
         lobbyBusy: false,
         hostLobbyStatus: null,
         battleRedirectPending: false,
+        loadoutRedirectPending: false,
         hostLobbyPollTimer: null,
         lobbyRoomId: '',
         lobbyStatus: null,

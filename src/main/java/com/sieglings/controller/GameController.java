@@ -173,7 +173,8 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_water_wind", "trainer06");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
-            MultiplayerService.RoomSession session = multiplayerService.joinRoom(roomId, playerName, options, user == null ? null : user.getId());
+            MultiplayerService.RoomSession session = multiplayerService.joinRoom(
+                    roomId, playerName, options, user == null ? null : user.getId());
             MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
             Map<String, Object> resp = buildRoomMeta(room, session, request);
             if (room.isStarted()) {
@@ -761,6 +762,8 @@ public class GameController {
         resp.put("firstPlayer", gs.isPlayerGoesFirst() == viewerIsPlayer ? "PLAYER" : "ENEMY");
         resp.put("activeSideLabel", activeSideLabel);
         resp.put("firstPlayerLabel", gs.isPlayerGoesFirst() == viewerIsPlayer ? "You" : opponent.getName());
+        resp.put("coinFlipWinnerName", gs.isPlayerGoesFirst() ? gs.getPlayer().getName() : gs.getEnemy().getName());
+        resp.put("viewerGoesFirst", gs.isPlayerGoesFirst() == viewerIsPlayer);
         resp.put("setupTurnsTakenThisRound", gs.getSetupTurnsTakenThisRound());
         resp.put("gameOver", gs.isGameOver());
         resp.put("winner", gs.getWinner());
@@ -921,8 +924,13 @@ public class GameController {
                 ? (room.getGuestName() == null ? "Waiting for Player 2" : room.getGuestName())
                 : room.getHostName());
         resp.put("guestJoined", room.hasGuest());
+        resp.put("loadoutPhase", room.isLoadoutPhase());
         resp.put("hostReady", room.isHostReady());
         resp.put("guestReady", room.isGuestReady());
+        resp.put("hostLoadoutReady", room.isHostReady());
+        resp.put("guestLoadoutReady", room.isGuestReady());
+        resp.put("viewerLoadoutReady", viewerIsPlayer ? room.isHostReady() : room.isGuestReady());
+        resp.put("opponentLoadoutReady", viewerIsPlayer ? room.isGuestReady() : room.isHostReady());
         resp.put("viewerIsHost", room.isHostToken(session.playerToken()));
         resp.put("hostUserId", room.getHostUserId());
         resp.put("hostName", room.getHostName());

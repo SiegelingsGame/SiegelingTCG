@@ -63,6 +63,7 @@ class MultiplayerServiceRoomListTest {
 
         MultiplayerRoom waiting = service.requireRoom(host.roomId());
         assertFalse(waiting.isStarted());
+        assertTrue(waiting.isLoadoutPhase());
 
         service.setPlayerReady(host.roomId(), host.playerToken(), "Host", waiting.getHostOptions());
         assertFalse(service.requireRoom(host.roomId()).isStarted());

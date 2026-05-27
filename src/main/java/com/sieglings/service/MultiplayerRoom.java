@@ -18,6 +18,8 @@ public class MultiplayerRoom {
     private GameService.StartOptions hostOptions;
     private GameService.StartOptions guestOptions;
     private GameState gameState;
+    private boolean hostLoadoutReady;
+    private boolean guestLoadoutReady;
     private String format = "PVP";
     private boolean closed;
     private String endGameNotice;
@@ -58,6 +60,10 @@ public class MultiplayerRoom {
     public void setGuestOptions(GameService.StartOptions guestOptions) { this.guestOptions = guestOptions; }
     public GameState getGameState() { return gameState; }
     public void setGameState(GameState gameState) { this.gameState = gameState; }
+    public boolean isHostLoadoutReady() { return hostLoadoutReady; }
+    public void setHostLoadoutReady(boolean hostLoadoutReady) { this.hostLoadoutReady = hostLoadoutReady; }
+    public boolean isGuestLoadoutReady() { return guestLoadoutReady; }
+    public void setGuestLoadoutReady(boolean guestLoadoutReady) { this.guestLoadoutReady = guestLoadoutReady; }
     public String getFormat() { return format; }
     public void setFormat(String format) { this.format = format; }
     public boolean isClosed() { return closed; }
@@ -121,7 +127,11 @@ public class MultiplayerRoom {
     }
 
     public boolean hasGuest() {
-        return guestToken != null && guestName != null && guestOptions != null;
+        return guestToken != null && guestName != null;
+    }
+
+    public boolean isLoadoutPhase() {
+        return hasGuest() && !isStarted();
     }
 
     public boolean isStarted() {

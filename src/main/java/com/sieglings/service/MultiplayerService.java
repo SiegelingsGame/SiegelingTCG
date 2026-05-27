@@ -135,7 +135,6 @@ public class MultiplayerService {
             gameState.getEnemy().setAccountUserId(room.getGuestUserId());
         }
         room.setGameState(gameState);
-        room.touch();
         if (lobbyPersistenceService != null) {
             lobbyPersistenceService.markStarted(room.getRoomId());
         }
