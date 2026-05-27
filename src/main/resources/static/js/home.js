@@ -1348,9 +1348,7 @@
         const label = starterMode && pack.starterEligible ? 'Choose Starter' : renderCoinAmount(pack.price, '');
         const primaryElement = pack.elements?.[0] || 'FIRE';
         const image = packImageFor(pack);
-        const imageStyle = image
-            ? `background-image: linear-gradient(180deg, rgba(5, 8, 18, 0) 44%, rgba(5, 8, 18, 0.84) 100%), url('${image}');`
-            : '';
+        const imageStyle = image ? `background-image: url('${image}');` : '';
         const kicker = pack.starterEligible ? (starterMode ? 'Starter Pack' : 'Element Pack') : 'Pack Group';
         const displayName = pack.starterEligible && !starterMode
             ? `${format(primaryElement)} Element Pack`
