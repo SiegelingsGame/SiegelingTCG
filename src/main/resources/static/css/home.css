@@ -4273,3 +4273,100 @@ body.gacha-active {
     justify-content: space-between;
     gap: 12px;
 }
+
+/* Options menu + guides */
+.options-icon { vertical-align: -3px; margin-right: 4px; }
+
+.options-panel { max-width: 560px; }
+
+.options-menu {
+    display: grid;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.options-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    padding: 16px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.options-menu-item:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+
+.options-menu-item strong { display: block; font-size: 15px; }
+.options-menu-item small { color: var(--text-dim); }
+.options-menu-icon { font-size: 26px; line-height: 1; }
+
+.guide-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 14px;
+}
+
+.guide-tab {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.guide-tab.active {
+    border-color: var(--accent);
+    color: #0b1020;
+    background: var(--accent);
+    font-weight: 700;
+}
+
+.guide-content h3 { margin: 0 0 10px; }
+.guide-content p { color: var(--text); line-height: 1.55; }
+.guide-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; line-height: 1.5; }
+.guide-list li strong { color: var(--accent); }
+.guide-note {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--accent);
+    background: rgba(255, 215, 0, 0.06);
+    border-radius: 0 8px 8px 0;
+    color: var(--text-dim);
+}
+
+.guide-elements { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.guide-el {
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0b1020;
+    background: var(--gc, #95a5a6);
+}
+
+.share-profile { display: grid; gap: 14px; justify-items: center; text-align: center; }
+.share-qr {
+    background: #fff;
+    padding: 14px;
+    border-radius: 14px;
+    display: inline-block;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.share-qr img { display: block; width: 220px; height: 220px; image-rendering: pixelated; }
+.share-link-row { display: flex; gap: 8px; width: 100%; }
+.share-link-row .search-input { flex: 1; }
+
+.admin-access { display: grid; gap: 12px; margin-top: 8px; }
+.admin-error { color: #ff7676; min-height: 16px; margin: 0; }
