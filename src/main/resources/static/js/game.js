@@ -7108,7 +7108,7 @@ function renderDomLegacy() {
     }
     btnDraw.disabled = over || opponentSetupTurn || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
     if (btnEndTurn) {
-        btnEndTurn.textContent = playerActive ? 'End Turn' : 'Opponent\'s Turn';
+        btnEndTurn.textContent = playerActive ? 'End Turn' : 'Opponents Turn';
     }
     btnEndTurn.disabled = over || !playerActive || phase !== 'SETUP';
     btnDraw.classList.toggle('hidden', battlePhaseActive);
@@ -7707,7 +7707,7 @@ function onDrawComplete() {
     if (!btn) return;
     const playerActive = gameState?.activeSide === 'PLAYER';
     btn.classList.add('ab-drawn');
-    btn.innerHTML = playerActive ? '&#9197; End Turn' : 'Opponent\'s Turn';
+    btn.innerHTML = playerActive ? '&#9197; End Turn' : 'Opponents Turn';
     btn.onclick = playerActive ? endTurn : null;
     btn.disabled = !playerActive;
 }
