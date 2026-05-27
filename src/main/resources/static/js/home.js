@@ -2162,9 +2162,7 @@
         return `<button class="reveal-card ${revealed ? 'is-revealed' : ''} ${newlyRevealed ? 'is-new-reveal' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
             <span class="rarity-burst" aria-hidden="true"></span>
             <span class="reveal-face reveal-back">
-                <span class="pack-back-sigil">${escapeHtml(format(element).slice(0, 1) || '?')}</span>
                 <strong>Tap to reveal</strong>
-                <small>${escapeHtml(format(rarity))} pulse</small>
             </span>
             <span class="reveal-face reveal-front">
                 ${isSiegling ? renderRevealNotches(card.notches) : ''}
