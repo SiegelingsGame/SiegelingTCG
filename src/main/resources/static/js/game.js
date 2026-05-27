@@ -30,6 +30,7 @@ let matchMode = 'solo';
 let onlineRoomMode = 'create';
 let multiplayerSession = loadSavedMultiplayerSession();
 let roomPollHandle = null;
+let roomExpiryTimeoutHandle = null;
 let currentRoomStatus = null;
 let mobileInfoTab = 'battle';
 let mobileHudSheetSide = 'enemy';
@@ -3470,7 +3471,13 @@ function clearMultiplayerSession() {
     multiplayerSession = null;
     currentRoomStatus = null;
     clearRoomPolling();
+    clearRoomExpiryTimer();
     saveMultiplayerSession();
+    try {
+        localStorage.removeItem('sieglingsHostLobby');
+    } catch (_error) {
+        // ignore storage failures
+    }
 }
 
 function clearRoomPolling() {
@@ -3479,6 +3486,83 @@ function clearRoomPolling() {
         roomPollHandle = null;
     }
 }
+
+function clearRoomExpiryTimer() {
+    if (roomExpiryTimeoutHandle) {
+        clearTimeout(roomExpiryTimeoutHandle);
+        roomExpiryTimeoutHandle = null;
+    }
+}
+
+function scheduleRoomExpiryClose(status = currentRoomStatus) {
+    clearRoomExpiryTimer();
+    if (!status?.roomId || status.started || !status.expiresAt) {
+        return;
+    }
+    const remainingMs = new Date(status.expiresAt).getTime() - Date.now();
+    if (!Number.isFinite(remainingMs)) {
+        return;
+    }
+    roomExpiryTimeoutHandle = setTimeout(() => {
+        void closeUnfilledLobby('Lobby expired before another player joined.');
+    }, Math.max(0, remainingMs));
+}
+
+async function closeUnfilledLobby(message = '') {
+    const session = multiplayerSession;
+    const status = currentRoomStatus;
+    if (status?.started || gameState?.multiplayer) {
+        return;
+    }
+    if (session?.roomId && session?.playerToken) {
+        try {
+            await fetchJson(apiUrls('/api/match/close'), {
+                method: 'POST',
+                headers: getAuthHeaders({
+                    'Content-Type': 'application/json',
+                    'X-Room-Id': session.roomId,
+                    'X-Player-Token': session.playerToken
+                }),
+                body: JSON.stringify({ roomId: session.roomId })
+            });
+        } catch (e) {
+            console.warn('Could not close expired lobby remotely; clearing local room.', e);
+        }
+    }
+    clearMultiplayerSession();
+    gameState = null;
+    loadoutErrorMessage = message;
+    if (welcomeDismissed) {
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    }
+}
+
+async function leaveOnlineMatch() {
+    const session = multiplayerSession;
+    if (session?.roomId && session?.playerToken) {
+        try {
+            await fetchJson(apiUrls('/api/match/close'), {
+                method: 'POST',
+                headers: getAuthHeaders({
+                    'Content-Type': 'application/json',
+                    'X-Room-Id': session.roomId,
+                    'X-Player-Token': session.playerToken
+                }),
+                body: JSON.stringify({ roomId: session.roomId })
+            });
+        } catch (e) {
+            console.warn('Could not close remote room; leaving locally.', e);
+        }
+    }
+    clearMultiplayerSession();
+    gameState = null;
+    mulliganSelectedIndices.clear();
+    mulliganHandSig = '';
+    openLoadoutSelector();
+}
+window.leaveOnlineMatch = leaveOnlineMatch;
 
 function loadSavedAuthToken() {
     try {
@@ -5144,19 +5228,32 @@ async function resumeMultiplayerSession() {
 
     matchMode = 'online';
     currentRoomStatus = data;
-    startRoomPolling();
     if (data.started) {
+        startRoomPolling();
         if (!gameState) {
             clearExternalSocketElementMemory();
         }
         gameState = data;
         render();
     } else {
+        if (isRoomStatusExpired(data)) {
+            await closeUnfilledLobby('Lobby expired before another player joined.');
+            return false;
+        }
+        startRoomPolling();
+        scheduleRoomExpiryClose(data);
         renderLoadoutOptions();
         updateLoadoutSummary();
         syncEntryOverlays();
     }
     return true;
+}
+
+function isRoomStatusExpired(status) {
+    if (!status?.expiresAt || status.started) {
+        return false;
+    }
+    return new Date(status.expiresAt).getTime() <= Date.now();
 }
 
 async function fetchRoomStatus() {
@@ -5177,16 +5274,30 @@ function startRoomPolling() {
     roomPollHandle = setInterval(async () => {
         const data = await fetchRoomStatus();
         if (!data || data.error) {
+            if (currentRoomStatus?.roomId && !currentRoomStatus?.started && !gameState?.multiplayer) {
+                void closeUnfilledLobby(data?.error || 'Lobby closed before another player joined.');
+            } else if (gameState?.multiplayer || currentRoomStatus?.started) {
+                console.warn(data?.error || 'Room status polling failed.');
+                clearMultiplayerSession();
+                gameState = null;
+                openLoadoutSelector();
+            }
             return;
         }
         currentRoomStatus = data;
         if (data.started) {
+            clearRoomExpiryTimer();
             if (!gameState) {
                 clearExternalSocketElementMemory();
             }
             gameState = data;
             render();
         } else {
+            if (isRoomStatusExpired(data)) {
+                void closeUnfilledLobby('Lobby expired before another player joined.');
+                return;
+            }
+            scheduleRoomExpiryClose(data);
             renderOnlineStatus();
             updateLoadoutSummary();
             syncEntryOverlays();
@@ -5772,6 +5883,7 @@ async function createRoom() {
         // ignore storage failures
     }
     startRoomPolling();
+    scheduleRoomExpiryClose(data);
     renderLoadoutOptions();
     updateLoadoutSummary();
     syncEntryOverlays();
@@ -5807,10 +5919,12 @@ async function joinRoom() {
     startRoomPolling();
 
     if (data.started) {
+        clearRoomExpiryTimer();
         clearExternalSocketElementMemory();
         gameState = data;
         render();
     } else {
+        scheduleRoomExpiryClose(data);
         renderLoadoutOptions();
         updateLoadoutSummary();
         syncEntryOverlays();
@@ -8166,6 +8280,7 @@ function renderMulliganOverlay() {
     const preview = document.getElementById('mulliganHandPreview');
     const copy = document.getElementById('mulliganCopy');
     const actions = document.getElementById('mulliganActions');
+    const waitActions = document.getElementById('mulliganWaitActions');
     if (!overlay || !preview || !copy || !actions) {
         return;
     }
@@ -8174,6 +8289,7 @@ function renderMulliganOverlay() {
         overlay.classList.remove('visible');
         preview.innerHTML = '';
         mulliganHandSig = '';
+        waitActions?.classList.add('hidden');
         return;
     }
 
@@ -8195,6 +8311,7 @@ function renderMulliganOverlay() {
     }
 
     actions.classList.toggle('hidden', !gameState.mulligan.youPending);
+    waitActions?.classList.toggle('hidden', !gameState.multiplayer || gameState.mulligan.youPending);
     const redrawBtn = document.getElementById('btnMulliganRedraw');
     if (redrawBtn && gameState.mulligan.youPending) {
         const n = mulliganSelectedIndices.size;
