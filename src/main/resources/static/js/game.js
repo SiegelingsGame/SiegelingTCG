@@ -2051,8 +2051,18 @@ function resolveApiBaseUrl(url) {
     }
 }
 
-function isCompactLandscapeLayout() {
+function isPhoneLandscapeLayout() {
     return window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches;
+}
+
+function isTabletLandscapeLayout() {
+    return window.matchMedia(
+        '(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)'
+    ).matches;
+}
+
+function isCompactLandscapeLayout() {
+    return isPhoneLandscapeLayout() || isTabletLandscapeLayout();
 }
 
 function isDesktopSidebarLayout() {
@@ -2071,7 +2081,10 @@ function getViewportModeLabel() {
     if (isDesktopSidebarLayout()) {
         return 'Desktop Dock';
     }
-    if (isCompactLandscapeLayout()) {
+    if (isTabletLandscapeLayout()) {
+        return 'iPad Landscape';
+    }
+    if (isPhoneLandscapeLayout()) {
         return 'Landscape';
     }
     return 'Portrait';
@@ -2195,6 +2208,8 @@ function updateResponsiveLayoutVars(force = false) {
             Math.min(96, desktopHandFiveCardFitWidth),
             Math.max(96, desktopHandFiveCardFitWidth)
         ))
+        : isTabletLandscapeLayout()
+        ? Math.round(clampNumber(viewportHeight * 0.14, 88, 118))
         : compactLandscape
         ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
         : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
@@ -10021,7 +10036,8 @@ syncDesktopInspectTabUi();
     const mqListeners = [
         window.matchMedia('(max-width: 900px)'),
         window.matchMedia('(min-width: 980px)'),
-        window.matchMedia('(orientation: landscape) and (max-height: 600px)')
+        window.matchMedia('(orientation: landscape) and (max-height: 600px)'),
+        window.matchMedia('(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)')
     ];
     mqListeners.forEach((mq) => {
         if (typeof mq.addEventListener === 'function') {
