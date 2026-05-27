@@ -1289,9 +1289,10 @@
         const normalized = String(element || 'NEUTRAL').toLowerCase();
         const label = format(element || 'NEUTRAL');
         const tokensToDraw = Math.min(amount, 6);
+        const tokenStyle = notchIconStyle(element || 'NEUTRAL');
         let tokens = '';
         for (let i = 0; i < tokensToDraw; i += 1) {
-            tokens += `<span class="energy-token solid-token token-${escapeAttr(normalized)}"></span>`;
+            tokens += `<span class="energy-token notch-token token-${escapeAttr(normalized)}" style="${tokenStyle}"></span>`;
         }
         const overflow = amount > tokensToDraw ? `<span class="binder-card-cost-count">+${amount - tokensToDraw}</span>` : '';
         return `<div class="binder-card-cost binder-card-cost-emblems" aria-label="Cost ${amount} ${escapeAttr(label)} energy">
