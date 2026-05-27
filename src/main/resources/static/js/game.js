@@ -5631,6 +5631,7 @@ function switchLoadoutMode(mode) {
 function setMatchMode(mode) {
     matchMode = mode;
     currentRoomStatus = null;
+    loadoutErrorMessage = '';
     if (mode === 'solo') {
         clearMultiplayerSession();
     } else {
@@ -5643,6 +5644,7 @@ function setMatchMode(mode) {
 function setOnlineRoomMode(mode) {
     onlineRoomMode = mode;
     currentRoomStatus = null;
+    loadoutErrorMessage = '';
     clearMultiplayerSession();
     hydrateOnlineStateFromUrl();
     renderLoadoutOptions();
@@ -5706,8 +5708,12 @@ async function resumeMultiplayerSession() {
         return false;
     }
 
+    const reconnectingSocialLaunch = isSocialBattleLaunch();
     const data = await fetchRoomStatus();
     if (!data || data.error) {
+        if (reconnectingSocialLaunch) {
+            loadoutErrorMessage = data?.error || 'Could not reconnect to the online match. Check the room in Social, then try joining again.';
+        }
         clearMultiplayerSession();
         return false;
     }
@@ -5912,7 +5918,7 @@ function renderLoadoutOptions() {
     loadoutBox?.classList.toggle('invite-focused', inviteFlow);
     matchModeTabs?.classList.toggle('hidden', inviteFlow || hideOnlineLoadout);
     roomModeTabs?.classList.toggle('hidden', inviteFlow || hideOnlineLoadout);
-    if (hideOnlineLoadout && matchMode === 'online' && !multiplayerSession?.roomId) {
+    if (hideOnlineLoadout && matchMode === 'online' && !multiplayerSession?.roomId && !inviteFlow) {
         matchMode = 'solo';
     }
 
@@ -6268,6 +6274,13 @@ function updateLoadoutSummary() {
         return;
     }
 
+    if (loadoutErrorMessage && matchMode === 'online') {
+        const canRetryOnlineStart = Boolean(multiplayerSession?.roomId || (onlineRoomMode === 'join' && getCurrentRoomCode()));
+        summary.textContent = loadoutErrorMessage;
+        syncLoadoutStartButton(startBtn, loadoutStartPending || !canRetryOnlineStart, startButtonLabel);
+        return;
+    }
+
     if (loadoutMode === 'builder') {
         const cardCount = getBuilderCardCount();
         const elementList = collectBuilderElements();
@@ -6306,6 +6319,7 @@ async function startSelectedGame() {
     if (loadoutMode === 'builder' && getBuilderCardCount() < gameOptions.deckBuilder.minDeckSize) return;
 
     loadoutStartPending = true;
+    loadoutErrorMessage = '';
     updateLoadoutSummary();
 
     try {
@@ -6313,14 +6327,33 @@ async function startSelectedGame() {
             if (multiplayerSession?.roomId) {
                 const data = await fetchRoomStatus();
                 if (data?.started) {
+                    loadoutErrorMessage = '';
                     clearExternalSocketElementMemory();
                     gameState = data;
                     render();
                     return;
                 }
+                if (data && !data.error) {
+                    currentRoomStatus = data;
+                    startRoomPolling();
+                    if (isRoomStatusExpired(data)) {
+                        await closeUnfilledLobby('Lobby expired before another player joined.');
+                    } else {
+                        scheduleRoomExpiryClose(data);
+                        renderLoadoutOptions();
+                        syncEntryOverlays();
+                    }
+                    return;
+                }
+                loadoutErrorMessage = data?.error || 'Could not reconnect to the online match. Check the room in Social, then try again.';
+                return;
             }
-            console.warn('Online lobbies are hosted on Social. Starting a solo match instead.');
-            matchMode = 'solo';
+            if (onlineRoomMode === 'create' && !isInviteJoinFlow()) {
+                await createRoom();
+            } else {
+                await joinRoom();
+            }
+            return;
         }
         await newGame();
     } finally {
@@ -6357,10 +6390,12 @@ async function createRoom() {
         body: JSON.stringify(body)
     }, LOADOUT_ACTION_TIMEOUT_MS);
     if (!data || data.error) {
-        console.error(data?.error || 'Unable to create room.');
-        return;
+        loadoutErrorMessage = data?.error || 'Unable to create room. Please try again from Social.';
+        console.error(loadoutErrorMessage);
+        return false;
     }
 
+    loadoutErrorMessage = '';
     multiplayerSession = {
         roomId: data.roomId,
         playerToken: data.playerToken,
@@ -6382,11 +6417,15 @@ async function createRoom() {
     renderLoadoutOptions();
     updateLoadoutSummary();
     syncEntryOverlays();
+    return true;
 }
 
 async function joinRoom() {
     const roomId = getCurrentRoomCode();
-    if (!roomId) return;
+    if (!roomId) {
+        loadoutErrorMessage = 'Enter a room code or return to Social to choose an online match.';
+        return false;
+    }
 
     savePlayerName(getCurrentPlayerName());
     const body = {
@@ -6400,10 +6439,12 @@ async function joinRoom() {
         body: JSON.stringify(body)
     }, LOADOUT_ACTION_TIMEOUT_MS);
     if (!data || data.error) {
-        console.error(data?.error || 'Unable to join room.');
-        return;
+        loadoutErrorMessage = data?.error || 'Unable to join room. Check the room in Social, then try again.';
+        console.error(loadoutErrorMessage);
+        return false;
     }
 
+    loadoutErrorMessage = '';
     multiplayerSession = {
         roomId: data.roomId,
         playerToken: data.playerToken,
@@ -6424,6 +6465,7 @@ async function joinRoom() {
         updateLoadoutSummary();
         syncEntryOverlays();
     }
+    return true;
 }
 
 async function copyRoomShareLink() {
