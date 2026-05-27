@@ -15,6 +15,7 @@ import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.persistence.entity.AccountUser;
+import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.service.CardOverrideStorageService;
 import com.sieglings.service.EnergyService;
 import com.sieglings.service.CardDefinitionService;
@@ -184,21 +185,85 @@ public class GameController {
         }
     }
 
+    @PostMapping("/api/match/ready")
+    @ResponseBody
+    public Map<String, Object> readyMatch(@RequestBody(required = false) Map<String, Object> req,
+                                          @RequestHeader(value = "X-Room-Id", required = false) String roomIdHeader,
+                                          @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                          @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                          HttpServletRequest request) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            if (roomId == null || roomId.isBlank()) {
+                roomId = roomIdHeader;
+            }
+            String playerName = req == null ? null : (String) req.get("playerName");
+            MultiplayerRoom existingRoom = multiplayerService.requireAuthorizedRoom(roomId, playerToken);
+            GameService.StartOptions existingOptions = existingRoom.isHostToken(playerToken)
+                    ? existingRoom.getHostOptions()
+                    : existingRoom.getGuestOptions();
+            String fallbackDeck = existingOptions == null ? "deck_fire_earth" : existingOptions.playerDeckId();
+            String fallbackTrainer = existingOptions == null ? "trainer05" : existingOptions.playerTrainerId();
+            GameService.StartOptions options = parseStartOptions(req, fallbackDeck, fallbackTrainer);
+            AccountUser user = accountService.findUser(authorizationHeader);
+            validateStartOwnership(user, options);
+            MultiplayerService.RoomSession session = multiplayerService.setPlayerReady(
+                    roomId,
+                    playerToken,
+                    playerName,
+                    options
+            );
+            MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
+            Map<String, Object> resp = buildRoomMeta(room, session, request);
+            if (room.isStarted()) {
+                resp.putAll(buildStateResponse(room.getGameState(), session.viewerIsPlayer(), room.getRoomId()));
+            }
+            return resp;
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/match/lobby-chat")
+    @ResponseBody
+    public Map<String, Object> lobbyChat(@RequestBody Map<String, Object> req,
+                                         @RequestHeader(value = "X-Room-Id", required = false) String roomIdHeader,
+                                         @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            if (roomId == null || roomId.isBlank()) {
+                roomId = roomIdHeader;
+            }
+            String message = req == null ? null : (String) req.get("message");
+            multiplayerService.addLobbyChat(roomId, playerToken, message);
+            MultiplayerRoom room = multiplayerService.requireRoom(roomId);
+            return Map.of(
+                    "ok", true,
+                    "lobbyChat", room.getLobbyChat()
+            );
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @GetMapping("/api/match/status")
     @ResponseBody
     public Map<String, Object> getMatchStatus(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                               @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                              @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                               HttpServletRequest request) {
         try {
             MultiplayerRoom room = multiplayerService.requireAuthorizedRoom(roomId, playerToken);
             boolean viewerIsPlayer = multiplayerService.viewerIsPlayer(roomId, playerToken);
+            AccountUser user = accountService.findUser(authorizationHeader);
             Map<String, Object> resp = buildRoomMeta(
                     room,
                     new MultiplayerService.RoomSession(roomId, playerToken, viewerIsPlayer, room.isStarted()),
                     request
             );
+            resp.putAll(buildEndSessionMeta(room, viewerIsPlayer));
             if (room.isStarted()) {
-                resp.putAll(buildStateResponse(room.getGameState(), viewerIsPlayer, roomId));
+                resp.putAll(buildStateResponse(room.getGameState(), viewerIsPlayer, roomId, user, room));
             }
             return resp;
         } catch (IllegalArgumentException ex) {
@@ -237,6 +302,78 @@ public class GameController {
     @ResponseBody
     public Map<String, Object> listRooms() {
         return Map.of("rooms", multiplayerService.listOpenRooms().stream().map(this::serializeOpenRoom).toList());
+    }
+
+    @PostMapping("/api/match/forfeit")
+    @ResponseBody
+    public Map<String, Object> forfeitMatch(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
+                                            @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            MultiplayerRoom room = multiplayerService.requireAuthorizedRoom(roomId, playerToken);
+            boolean viewerIsPlayer = multiplayerService.viewerIsPlayer(roomId, playerToken);
+            GameState state = multiplayerService.forfeitMatch(roomId, playerToken);
+            AccountUser user = accountService.findUser(authorizationHeader);
+            return buildStateResponse(state, viewerIsPlayer, roomId, user, room);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/match/rematch")
+    @ResponseBody
+    public Map<String, Object> rematch(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
+                                       @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                       @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            MultiplayerRoom room = multiplayerService.requireAuthorizedRoom(roomId, playerToken);
+            boolean viewerIsPlayer = multiplayerService.viewerIsPlayer(roomId, playerToken);
+            GameState state = multiplayerService.requestRematch(roomId, playerToken);
+            AccountUser user = accountService.findUser(authorizationHeader);
+            Map<String, Object> resp = buildStateResponse(state, viewerIsPlayer, roomId, user, room);
+            resp.put("rematchStarted", !state.isGameOver());
+            return resp;
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/match/end-home")
+    @ResponseBody
+    public Map<String, Object> endScreenHome(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
+                                             @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                             @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            multiplayerService.returnHomeFromEnd(roomId, playerToken);
+            MultiplayerRoom room = multiplayerService.requireAuthorizedRoom(roomId, playerToken);
+            boolean viewerIsPlayer = multiplayerService.viewerIsPlayer(roomId, playerToken);
+            AccountUser user = accountService.findUser(authorizationHeader);
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("ok", true);
+            if (room.isStarted() && room.getGameState() != null) {
+                resp.putAll(buildStateResponse(room.getGameState(), viewerIsPlayer, roomId, user, room));
+            } else {
+                resp.putAll(buildEndSessionMeta(room, viewerIsPlayer));
+            }
+            return resp;
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/game/forfeit")
+    @ResponseBody
+    public Map<String, Object> forfeitSolo(@RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                           @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.forfeit(state, true);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/match/close")
@@ -594,6 +731,15 @@ public class GameController {
     }
 
     private Map<String, Object> buildStateResponse(GameState gs, boolean viewerIsPlayer, String roomId) {
+        MultiplayerRoom room = roomId == null ? null : multiplayerService.getRoom(roomId);
+        return buildStateResponse(gs, viewerIsPlayer, roomId, null, room);
+    }
+
+    private Map<String, Object> buildStateResponse(GameState gs,
+                                                   boolean viewerIsPlayer,
+                                                   String roomId,
+                                                   AccountUser user,
+                                                   MultiplayerRoom room) {
         if (gs == null) return Map.of("error", "No game");
 
         Player viewer = viewerIsPlayer ? gs.getPlayer() : gs.getEnemy();
@@ -653,7 +799,112 @@ public class GameController {
         List<String> latestLog = new ArrayList<>(log.subList(Math.max(0, log.size() - 80), log.size()));
         Collections.reverse(latestLog);
         resp.put("gameLog", latestLog);
+
+        if (gs.isGameOver()) {
+            resp.put("endScreen", buildEndScreen(gs, viewerIsPlayer, roomId, user, viewer, opponent));
+        }
+        if (room != null) {
+            resp.putAll(buildEndSessionMeta(room, viewerIsPlayer));
+        }
         return resp;
+    }
+
+    private Map<String, Object> buildEndSessionMeta(MultiplayerRoom room, boolean viewerIsHostSide) {
+        Map<String, Object> meta = new LinkedHashMap<>();
+        if (room == null) {
+            return meta;
+        }
+        meta.put("endGameNotice", room.getEndGameNotice());
+        meta.put("endGameNoticeSeq", room.getEndGameNoticeSeq());
+        boolean viewerIsHost = viewerIsHostSide;
+        meta.put("youRematchReady", viewerIsHost ? room.isHostRematchReady() : room.isGuestRematchReady());
+        meta.put("opponentRematchReady", viewerIsHost ? room.isGuestRematchReady() : room.isHostRematchReady());
+        meta.put("youReturnedHome", viewerIsHost ? room.isHostReturnedHome() : room.isGuestReturnedHome());
+        meta.put("opponentReturnedHome", viewerIsHost ? room.isGuestReturnedHome() : room.isHostReturnedHome());
+        meta.put("rematchBlocked", room.isHostReturnedHome() || room.isGuestReturnedHome());
+        return meta;
+    }
+
+    private Map<String, Object> buildEndScreen(GameState gs,
+                                               boolean viewerIsPlayer,
+                                               String roomId,
+                                               AccountUser user,
+                                               Player viewer,
+                                               Player opponent) {
+        Map<String, Object> screen = new LinkedHashMap<>();
+        String result = resolveViewerResult(gs, viewer.getName());
+        screen.put("result", result);
+        screen.put("endReason", gs.getEndReason() == null ? "NORMAL" : gs.getEndReason());
+        screen.put("forfeitedBy", gs.getForfeitedBy());
+        screen.put("turns", gs.getTurnNumber());
+        screen.put("opponentName", opponent.getName());
+
+        EnergyService.EnergyBreakdown viewerEnergy = energyService.getBreakdown(gs, viewerIsPlayer);
+        EnergyService.EnergyBreakdown opponentEnergy = energyService.getBreakdown(gs, !viewerIsPlayer);
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("spellsCast", viewer.getSpellsCastThisMatch());
+        stats.put("trapsSprung", viewer.getTrapsSprungThisMatch());
+        stats.put("siegelingsDefeated", viewer.getOpponentSieglingsDefeatedThisMatch());
+        stats.put("yourHealth", viewer.getHealth());
+        stats.put("opponentHealth", opponent.getHealth());
+        stats.put("yourInternalEnergy", sumInternalEnergy(viewerEnergy));
+        stats.put("yourExternalEnergy", sumExternalEnergy(viewerEnergy));
+        stats.put("opponentInternalEnergy", sumInternalEnergy(opponentEnergy));
+        stats.put("opponentExternalEnergy", sumExternalEnergy(opponentEnergy));
+        screen.put("stats", stats);
+
+        String matchType = roomId != null || gs.isEnemyHumanControlled() ? "ONLINE" : "SOLO";
+        screen.put("matchType", matchType);
+        screen.putAll(playerProgressionService.describeEarnedRewards(user, matchType, result));
+
+        if (user != null) {
+            screen.put("record", buildBattleRecord(user));
+        }
+        return screen;
+    }
+
+    private Map<String, Object> buildBattleRecord(AccountUser user) {
+        List<MatchHistoryEntity> history = matchHistoryService.listRecent(user);
+        int wins = 0;
+        int losses = 0;
+        for (MatchHistoryEntity entry : history) {
+            if ("WIN".equalsIgnoreCase(entry.getResult())) {
+                wins++;
+            } else if ("LOSS".equalsIgnoreCase(entry.getResult())) {
+                losses++;
+            }
+        }
+        int total = wins + losses;
+        Map<String, Object> record = new LinkedHashMap<>();
+        record.put("wins", wins);
+        record.put("losses", losses);
+        record.put("total", total);
+        record.put("winRate", total == 0 ? 0 : Math.round((wins * 100.0) / total));
+        return record;
+    }
+
+    private String resolveViewerResult(GameState gs, String viewerName) {
+        if (gs.getWinner() == null) {
+            return "UNKNOWN";
+        }
+        if ("Draw".equalsIgnoreCase(gs.getWinner())) {
+            return "DRAW";
+        }
+        return gs.getWinner().equalsIgnoreCase(viewerName) ? "WIN" : "LOSS";
+    }
+
+    private int sumInternalEnergy(EnergyService.EnergyBreakdown energy) {
+        return energy.fireInternal() + energy.earthInternal() + energy.windInternal()
+                + energy.waterInternal() + energy.iceInternal() + energy.shadowInternal()
+                + energy.electricInternal() + energy.metalInternal() + energy.undeadInternal()
+                + energy.psychicInternal();
+    }
+
+    private int sumExternalEnergy(EnergyService.EnergyBreakdown energy) {
+        return energy.fireExternal() + energy.earthExternal() + energy.windExternal()
+                + energy.waterExternal() + energy.iceExternal() + energy.shadowExternal()
+                + energy.electricExternal() + energy.metalExternal() + energy.undeadExternal()
+                + energy.psychicExternal();
     }
 
     private Map<String, Object> buildRoomMeta(MultiplayerRoom room,
@@ -670,21 +921,56 @@ public class GameController {
                 ? (room.getGuestName() == null ? "Waiting for Player 2" : room.getGuestName())
                 : room.getHostName());
         resp.put("guestJoined", room.hasGuest());
+        resp.put("hostReady", room.isHostReady());
+        resp.put("guestReady", room.isGuestReady());
+        resp.put("viewerIsHost", room.isHostToken(session.playerToken()));
+        resp.put("hostUserId", room.getHostUserId());
+        resp.put("hostName", room.getHostName());
+        resp.put("guestName", room.getGuestName());
+        resp.put("lobbyChat", room.getLobbyChat());
+        resp.put("players", serializeLobbyPlayers(room));
         resp.put("shareUrl", buildShareUrl(request, room.getRoomId()));
         resp.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
         resp.put("format", room.getFormat() == null ? "PVP" : room.getFormat());
         return resp;
     }
 
+    private List<Map<String, Object>> serializeLobbyPlayers(MultiplayerRoom room) {
+        List<Map<String, Object>> players = new ArrayList<>();
+        players.add(serializeLobbyPlayer(room.getHostName(), "host", room.isHostReady(), room.getHostOptions()));
+        if (room.hasGuest()) {
+            players.add(serializeLobbyPlayer(room.getGuestName(), "guest", room.isGuestReady(), room.getGuestOptions()));
+        }
+        return players;
+    }
+
+    private Map<String, Object> serializeLobbyPlayer(String name,
+                                                     String role,
+                                                     boolean ready,
+                                                     GameService.StartOptions options) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("name", name);
+        row.put("role", role);
+        row.put("ready", ready);
+        if (options != null) {
+            row.put("deckId", options.playerDeckId());
+            row.put("trainerId", options.playerTrainerId());
+            row.put("loadoutLabel", options.loadoutLabel());
+        }
+        return row;
+    }
+
     private String buildShareUrl(HttpServletRequest request, String roomId) {
         String baseUrl = resolveRequestOrigin(request);
-        return baseUrl + "/social?room=" + roomId;
+        return baseUrl + "/social/lobby/" + roomId;
     }
 
     private Map<String, Object> serializeOpenRoom(MultiplayerRoom room) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("roomId", room.getRoomId());
         out.put("hostName", room.getHostName());
+        out.put("hostUserId", room.getHostUserId());
+        out.put("name", room.getHostName() + "'s Arena");
         out.put("playerCount", room.hasGuest() ? 2 : 1);
         out.put("maxPlayers", 2);
         out.put("format", "PVP 1v1");

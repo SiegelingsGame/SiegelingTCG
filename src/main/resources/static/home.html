@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/home.css?v=36">
+    <link rel="stylesheet" href="/css/home.css?v=37">
 </head>
 <body>
 <div class="home-shell">
@@ -86,7 +86,7 @@
                                 <div><span class="eyebrow">Open Lobbies</span><h2>Find a 1v1 table</h2></div>
                                 <span class="social-soft-pill" id="roomCountLabel">0 open</span>
                             </div>
-                            <p class="social-muted">Create and host 1v1 tables here. Share your invite link — anyone on that URL can see the lobby and join to start a Play battle.</p>
+                            <p class="social-muted">Create and host 1v1 tables here. Share your invite link — opponents join the waiting room, pick decks and knights, then both hit Start Match.</p>
                             <button class="social-create-btn" id="socialCreateLobbyBtn" type="button"><span>+</span>Create 1v1 Lobby</button>
                             <div class="filter-label">Filters</div>
                             <select class="search-input" id="roomFormatFilter">
@@ -125,7 +125,7 @@
                             <div class="social-panel-head"><div><span class="eyebrow">How It Works</span><h2>Table flow</h2></div></div>
                             <ol>
                                 <li><span>1</span>Create a lobby on Social or open an invite link</li>
-                                <li><span>2</span>Join with your deck — the match opens on Play</li>
+                                <li><span>2</span>Join the waiting room, pick your deck and knight, then both confirm</li>
                                 <li><span>3</span>Battle for coins and rank</li>
                             </ol>
                         </section>
@@ -192,6 +192,10 @@
                         </section>
                     </aside>
                 </div>
+            </section>
+
+            <section class="browser-panel panel hidden lobby-section" id="lobbySection">
+                <div class="lobby-waiting-root" id="lobbyWaitingRoot"></div>
             </section>
 
             <section class="browser-panel panel hidden" id="profileSection">

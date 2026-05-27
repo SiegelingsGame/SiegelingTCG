@@ -807,6 +807,21 @@ public class GameService {
         }
     }
 
+    public GameState forfeit(GameState state, boolean isPlayerSide) {
+        if (state == null || state.isGameOver()) {
+            return state;
+        }
+        Player actor = isPlayerSide ? state.getPlayer() : state.getEnemy();
+        Player opponent = isPlayerSide ? state.getEnemy() : state.getPlayer();
+        state.setEndReason("FORFEIT");
+        state.setForfeitedBy(actor.getName());
+        state.setGameOver(true);
+        state.setWinner(opponent.getName());
+        state.log(actor.getName() + " quit the match. " + opponent.getName() + " wins!");
+        matchHistoryService.recordCompletedGame(state);
+        return state;
+    }
+
     private void checkWinCondition(GameState state) {
         if (state == null || state.isGameOver()) return;
 
