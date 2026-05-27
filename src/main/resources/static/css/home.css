@@ -2710,6 +2710,18 @@ body.gacha-active {
     text-transform: uppercase;
 }
 
+.filter-toggle {
+    width: 100%;
+    justify-content: center;
+}
+
+.filter-toggle.active {
+    border-color: var(--accent);
+    color: #0b1020;
+    background: var(--accent);
+    font-weight: 800;
+}
+
 .pack-progress {
     display: inline-block;
     margin-left: 6px;
