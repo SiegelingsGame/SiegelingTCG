@@ -146,6 +146,8 @@
         filterTrayOpen: false,
         cardTrayOpen: false,
         authOpen: false,
+        authRegisterStep: 'credentials',
+        registerDraft: { email: '', password: '' },
         profileEditOpen: false,
         profilePrefs: null,
         friendPresence: {},
@@ -3055,11 +3057,19 @@
     }
 
     function authMarkup() {
+        if (state.authRegisterStep === 'display-name') {
+            return `<div class="auth-card">
+                <strong>Choose your display name</strong>
+                <span>Confirm how other duelists will see you (${escapeHtml(state.registerDraft.email || '')}).</span>
+                <input class="search-input" id="authName" maxlength="20" placeholder="Display name" autofocus>
+                <button class="primary-btn" id="confirmRegisterBtn" type="button">Confirm</button>
+                <button class="ghost-btn" id="backRegisterBtn" type="button">Back</button>
+            </div>`;
+        }
         return `<div class="auth-card">
             <strong>Sign in to save progression</strong>
             <span>Starter packs, Siegecoins, Remnants, owned cards, and custom decks require an account. New players start with ${renderCoinAmount(100)}.</span>
             <input class="search-input" id="authEmail" type="email" placeholder="Email">
-            <input class="search-input" id="authName" placeholder="Display name for register">
             <input class="search-input" id="authPassword" type="password" placeholder="Password">
             <button class="primary-btn" id="loginBtn" type="button">Log In</button>
             <button class="ghost-btn" id="registerBtn" type="button">Register</button>
@@ -3074,6 +3084,8 @@
 
     function closeAuth() {
         state.authOpen = false;
+        state.authRegisterStep = 'credentials';
+        state.registerDraft = { email: '', password: '' };
         renderAuthModal();
     }
 
@@ -3096,14 +3108,39 @@
 
     function bindAuthForms() {
         document.querySelectorAll('#loginBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('login')));
-        document.querySelectorAll('#registerBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('register')));
+        document.querySelectorAll('#registerBtn').forEach(btn => btn.addEventListener('click', () => beginRegisterDisplayName()));
+        document.querySelectorAll('#confirmRegisterBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('register')));
+        document.querySelectorAll('#backRegisterBtn').forEach(btn => btn.addEventListener('click', () => {
+            state.authRegisterStep = 'credentials';
+            renderAuthModal();
+        }));
+    }
+
+    function beginRegisterDisplayName() {
+        const email = (document.getElementById('authEmail')?.value || '').trim();
+        const password = document.getElementById('authPassword')?.value || '';
+        if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
+            alert('Enter a valid email address.');
+            return;
+        }
+        if (!password || password.length < 6) {
+            alert('Passwords must be at least 6 characters.');
+            return;
+        }
+        state.registerDraft = { email, password };
+        state.authRegisterStep = 'display-name';
+        renderAuthModal();
     }
 
     async function submitAuth(mode) {
-        const email = document.getElementById('authEmail')?.value || '';
-        const password = document.getElementById('authPassword')?.value || '';
-        const displayName = document.getElementById('authName')?.value || '';
-        const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify({ email, password, displayName }) });
+        const onRegisterNameStep = mode === 'register' && state.authRegisterStep === 'display-name';
+        const email = onRegisterNameStep ? state.registerDraft.email : (document.getElementById('authEmail')?.value || '');
+        const password = onRegisterNameStep ? state.registerDraft.password : (document.getElementById('authPassword')?.value || '');
+        const displayName = mode === 'register' ? (document.getElementById('authName')?.value || '') : '';
+        const body = mode === 'register'
+            ? { email, password, displayName }
+            : { email, password };
+        const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) });
         if (data?.error) return alert(data.error);
         state.token = data.token || '';
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
@@ -3113,6 +3150,8 @@
         cacheProfilePrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
+        state.authRegisterStep = 'credentials';
+        state.registerDraft = { email: '', password: '' };
         await ensurePacksLoaded();
         render();
     }
