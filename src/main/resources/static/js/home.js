@@ -4176,6 +4176,30 @@
         }
     }
 
+    function chatMessageSenderLabel(message, peerId) {
+        if (message?.mine) return 'You';
+        const senderId = message?.senderId || peerId;
+        const friend = (state.profile?.friends || []).find(row => row.email === senderId);
+        if (friend?.displayName) return friend.displayName;
+        const peer = (state.profile?.friends || []).find(row => row.email === peerId);
+        return peer?.displayName || senderId || 'Friend';
+    }
+
+    function renderChatMessageBubble(message, peerId) {
+        const sender = chatMessageSenderLabel(message, peerId);
+        const when = message?.createdAt ? formatDateTime(message.createdAt) : '';
+        const timeMarkup = when
+            ? `<time class="message-bubble-time" datetime="${escapeAttr(message.createdAt)}">${escapeHtml(when)}</time>`
+            : '';
+        return `<div class="message-bubble ${message.mine ? 'mine' : 'theirs'}">
+            <div class="message-bubble-meta">
+                <span class="message-bubble-sender">${escapeHtml(sender)}</span>
+                ${timeMarkup}
+            </div>
+            <div class="message-bubble-text">${escapeHtml(message.text || '')}</div>
+        </div>`;
+    }
+
     async function openMessageComposer(peerId, focusInput = true) {
         if (!state.profile?.authenticated) return openAuth();
         state.activeChatPeer = peerId;
@@ -4193,7 +4217,7 @@
         }
         if (log) {
             log.innerHTML = (data.messages || []).length
-                ? data.messages.map(message => `<div class="message-bubble ${message.mine ? 'mine' : 'theirs'}">${escapeHtml(message.text)}</div>`).join('')
+                ? data.messages.map(message => renderChatMessageBubble(message, peerId)).join('')
                 : '<div class="social-empty-state"><span>Say hello to start the conversation.</span></div>';
             log.scrollTop = log.scrollHeight;
         }
