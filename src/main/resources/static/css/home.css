@@ -2477,30 +2477,63 @@ body.gacha-active {
     background: transparent;
     color: var(--text);
     perspective: 900px;
-    animation: revealCardEnter 0.62s cubic-bezier(.2, .8, .2, 1) both;
-    animation-delay: calc(var(--slot, 0) * 80ms);
     cursor: pointer;
     --glow: rgba(255, 255, 255, 0.85);
+    --aura-strength: 0.42;
+    --aura-inset: -18%;
+    --aura-halo-inset: -52%;
+    --aura-blur: 10px;
+}
+
+.gacha-stage.is-initial .reveal-card {
+    animation: revealCardEnter 0.62s cubic-bezier(.2, .8, .2, 1) both;
+    animation-delay: calc(var(--slot, 0) * 80ms);
 }
 
 .reveal-card::before {
     content: "";
     position: absolute;
-    inset: -16%;
+    inset: var(--aura-inset);
     z-index: -1;
     border-radius: 26px;
     pointer-events: none;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) 60%, transparent), transparent 78%);
-    filter: blur(7px);
-    opacity: 0;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) 72%, transparent), transparent 76%);
+    filter: blur(var(--aura-blur));
+    opacity: 0.22;
     animation: gachaCardPulse 2.8s ease-in-out infinite;
     animation-delay: calc(var(--slot, 0) * 260ms);
 }
 
+.reveal-card::after {
+    content: "";
+    position: absolute;
+    inset: var(--aura-halo-inset);
+    z-index: -2;
+    border-radius: 40px;
+    pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) 48%, transparent), transparent 74%);
+    filter: blur(calc(var(--aura-blur) * 1.35));
+    opacity: 0;
+    transition: opacity 0.45s ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .reveal-card::before {
+    .reveal-card::before,
+    .reveal-card::after {
         animation: none;
+    }
+
+    .reveal-card::before {
         opacity: 0.4;
+    }
+
+    .reveal-card.is-revealed::after {
+        opacity: 0.35;
+    }
+
+    .gacha-stage.is-initial .reveal-card,
+    .reveal-card.is-animating {
+        animation: none;
     }
 }
 
@@ -2557,15 +2590,60 @@ body.gacha-active {
 }
 
 .reveal-card.is-revealed {
-    cursor: default;
-    border-color: color-mix(in srgb, var(--rarity) 54%, rgba(255, 255, 255, 0.15));
+    cursor: pointer;
+    border-color: color-mix(in srgb, var(--rarity) 64%, rgba(255, 255, 255, 0.18));
     --glow: var(--rarity);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--rarity) 36%, transparent),
+        0 0 calc(18px + var(--aura-strength) * 28px) color-mix(in srgb, var(--rarity) calc(28% + var(--aura-strength) * 42%), transparent);
 }
 
 .reveal-card.is-revealed::before {
-    inset: -20%;
-    filter: blur(9px);
-    animation-duration: 2.2s;
+    inset: var(--aura-inset);
+    filter: blur(var(--aura-blur));
+    opacity: calc(0.34 + var(--aura-strength) * 0.66);
+    animation-duration: calc(3.4s - var(--aura-strength) * 0.9s);
+}
+
+.reveal-card.is-revealed::after {
+    opacity: calc(0.18 + var(--aura-strength) * 0.62);
+    animation: gachaCardPulse calc(3.1s - var(--aura-strength) * 0.85s) ease-in-out infinite;
+    animation-delay: calc(var(--slot, 0) * 260ms);
+}
+
+.reveal-card.rarity-common {
+    --aura-strength: 0.42;
+    --aura-inset: -24%;
+    --aura-halo-inset: -58%;
+    --aura-blur: 11px;
+}
+
+.reveal-card.rarity-uncommon {
+    --aura-strength: 0.58;
+    --aura-inset: -34%;
+    --aura-halo-inset: -72%;
+    --aura-blur: 14px;
+}
+
+.reveal-card.rarity-rare {
+    --aura-strength: 0.72;
+    --aura-inset: -46%;
+    --aura-halo-inset: -88%;
+    --aura-blur: 18px;
+}
+
+.reveal-card.rarity-epic {
+    --aura-strength: 0.86;
+    --aura-inset: -58%;
+    --aura-halo-inset: -104%;
+    --aura-blur: 24px;
+}
+
+.reveal-card.rarity-legendary {
+    --aura-strength: 1;
+    --aura-inset: -72%;
+    --aura-halo-inset: -124%;
+    --aura-blur: 30px;
 }
 
 .reveal-card.is-animating {
@@ -2586,6 +2664,37 @@ body.gacha-active {
 
 .reveal-card.is-animating .rarity-burst {
     animation: rarityBurst 0.88s ease-out both;
+}
+
+.reveal-card.rarity-rare.is-animating .rarity-burst,
+.reveal-card.rarity-epic.is-animating .rarity-burst,
+.reveal-card.rarity-legendary.is-animating .rarity-burst {
+    inset: -28px;
+    background:
+        radial-gradient(circle, color-mix(in srgb, var(--rarity) 34%, transparent), transparent 58%);
+}
+
+.reveal-card.rarity-legendary.is-animating .rarity-burst {
+    inset: -36px;
+    background:
+        radial-gradient(circle, color-mix(in srgb, var(--rarity) 48%, #fff 8%), transparent 54%);
+}
+
+.reveal-front .gacha-card-front {
+    pointer-events: none;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    box-shadow: none;
+}
+
+.reveal-front .gacha-card-front .binder-card-shell {
+    height: 100%;
+    min-height: 0;
 }
 
 .reveal-spark {
@@ -2859,8 +2968,8 @@ body.gacha-active {
 }
 
 @keyframes gachaCardPulse {
-    0%, 100% { opacity: 0.3; transform: scale(0.95); }
-    50% { opacity: 0.75; transform: scale(1.05); }
+    0%, 100% { opacity: 0.38; transform: scale(0.92); }
+    50% { opacity: 1; transform: scale(1.12); }
 }
 
 @keyframes gachaParticles {

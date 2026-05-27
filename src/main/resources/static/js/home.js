@@ -144,6 +144,8 @@
         viewingProfile: null,
         socialPollTimer: null,
         packReveal: null,
+        packOpeningDismissedKey: '',
+        shopView: 'browse',
         catalogVersion: 0,
         catalogSyncBound: false
     };
@@ -151,12 +153,20 @@
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
 
+    function initGachaParticles() {
+        return null;
+    }
+
+    function destroyGachaParticles() {
+        gachaParticleField = null;
+    }
+
     window.addEventListener('DOMContentLoaded', init);
 
     async function init() {
         bindEvents();
         hydrateProfilePrefsFromCache();
-        state.route = routeFromPath(location.pathname);
+        applyRouteFromLocation();
         setActiveRoute();
         renderSections();
         renderHudTools();
@@ -268,7 +278,7 @@
             });
         });
         window.addEventListener('popstate', () => {
-            state.route = routeFromPath(location.pathname);
+            applyRouteFromLocation();
             setActiveRoute();
             renderSections();
             renderRoute();
@@ -372,6 +382,7 @@
             renderHomeDashboard();
         } else if (state.route === 'shop') {
             renderShop();
+            syncShopPackView();
         } else if (state.route === 'profile') {
             renderProfile();
         } else if (state.route === 'social') {
@@ -2077,14 +2088,17 @@
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
         const latest = state.progression?.packHistory?.[0];
+        state.packOpeningDismissedKey = '';
         state.packReveal = latest ? {
             packId: latest.packId,
             openedAt: latest.openedAt,
             revealed: new Set(),
             lastRevealedId: '',
+            previewId: '',
             sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
         } : null;
         renderPackResult();
+        navigateHub('shop', { shopView: 'cardpack' });
         render();
     }
 
@@ -2101,18 +2115,52 @@
         render();
     }
 
-    function renderPackResult() {
+    function packSessionKey(latest) {
+        return `${latest.packId || 'pack'}:${latest.openedAt || ''}`;
+    }
+
+    function renderPackResult(options = {}) {
         const result = document.getElementById('packResult');
         const latest = state.progression?.packHistory?.[0];
         if (!result || !latest) return;
         const reveal = ensurePackReveal(latest);
         const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
-        const revealedCount = reveal.revealed.size;
-        const heading = gachaHeading(cards[0]?.element || 'FIRE', cards.length);
-        const previewCard = reveal.previewId ? cards.find(card => card.revealId === reveal.previewId) : null;
+        const sessionKey = packSessionKey(latest);
+        const opening = result.querySelector('.pack-opening');
+        const sameSession = opening?.dataset.packKey === sessionKey;
+
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
-        result.innerHTML = `<section class="pack-opening" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')}">
+
+        if (!sameSession || options.rebuild) {
+            const revealedCount = reveal.revealed.size;
+            const heading = gachaHeading(cards[0]?.element || 'FIRE', cards.length);
+            const previewCard = reveal.previewId ? cards.find(card => card.revealId === reveal.previewId) : null;
+            result.innerHTML = buildPackOpeningMarkup({
+                latest,
+                cards,
+                reveal,
+                heading,
+                revealedCount,
+                previewCard,
+                sessionKey
+            });
+            const stage = result.querySelector('.gacha-stage');
+            if (stage) {
+                stage.classList.add('is-initial');
+                window.setTimeout(() => stage.classList.remove('is-initial'), Math.min(1400, 700 + cards.length * 80));
+            }
+            if (typeof initGachaParticles === 'function') {
+                initGachaParticles(result.querySelector('.pack-opening'), elementColor(cards[0]?.element || 'FIRE'));
+            }
+            return;
+        }
+
+        patchPackOpening({ result, latest, cards, reveal });
+    }
+
+    function buildPackOpeningMarkup({ latest, cards, reveal, heading, revealedCount, previewCard, sessionKey }) {
+        return `<section class="pack-opening" data-pack-key="${escapeAttr(sessionKey)}" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')}">
             <div class="gacha-particles" aria-hidden="true"></div>
             <div class="pack-opening-head">
                 <div>
@@ -2127,14 +2175,65 @@
             </div>
             <canvas class="gacha-particles" aria-hidden="true"></canvas>
             <div class="gacha-stage">
-                ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), reveal.lastRevealedId === card.revealId, latest.packId, index)).join('')}
+                ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), latest.packId, index)).join('')}
             </div>
             ${previewCard ? renderRevealPreview(previewCard) : ''}
         </section>`;
+    }
+
+    function patchPackOpening({ result, latest, cards, reveal }) {
         const opening = result.querySelector('.pack-opening');
-        if (opening) {
-            initGachaParticles(opening, elementColor(cards[0]?.element || 'FIRE'));
+        if (!opening) return;
+        const elementGlow = elementColor(cards[0]?.element || 'FIRE');
+        opening.style.setProperty('--pack-glow', elementGlow);
+        opening.style.setProperty('--spark-glow', reveal.sparkColor || elementGlow);
+        const progress = opening.querySelector('.pack-progress');
+        if (progress) progress.textContent = `${reveal.revealed.size}/${cards.length} unsealed`;
+
+        const stage = opening.querySelector('.gacha-stage');
+        if (!stage) return;
+        const animateId = reveal.lastRevealedId || '';
+        cards.forEach((card, index) => {
+            const selector = `[data-reveal-card="${escapeAttr(card.revealId)}"]`;
+            let btn = stage.querySelector(selector);
+            const revealed = reveal.revealed.has(card.revealId);
+            if (!btn) {
+                stage.insertAdjacentHTML('beforeend', renderRevealCard(card, revealed, latest.packId, index));
+                btn = stage.querySelector(selector);
+            }
+            if (!btn) return;
+            const wasRevealed = btn.classList.contains('is-revealed');
+            btn.classList.toggle('is-revealed', revealed);
+            if (revealed && !wasRevealed && animateId === card.revealId) {
+                triggerRevealCardAnimation(btn);
+            }
+        });
+
+        const previewCard = reveal.previewId ? cards.find(card => card.revealId === reveal.previewId) : null;
+        patchPackPreview(opening, previewCard);
+    }
+
+    function patchPackPreview(opening, previewCard) {
+        const existing = opening.querySelector('.reveal-preview');
+        if (!previewCard) {
+            existing?.remove();
+            return;
         }
+        const markup = renderRevealPreview(previewCard);
+        if (existing) existing.outerHTML = markup;
+        else opening.insertAdjacentHTML('beforeend', markup);
+    }
+
+    function triggerRevealCardAnimation(cardEl) {
+        if (!cardEl) return;
+        cardEl.classList.remove('is-animating');
+        void cardEl.offsetWidth;
+        cardEl.classList.add('is-animating');
+        const finish = (event) => {
+            if (event.target !== cardEl) return;
+            cardEl.classList.remove('is-animating');
+        };
+        cardEl.addEventListener('animationend', finish, { once: true });
     }
 
     function ensurePackReveal(latest) {
@@ -2173,10 +2272,10 @@
         };
     }
 
-    function renderRevealCard(card, revealed, newlyRevealed = false, packId = '', index = 0) {
+    function renderRevealCard(card, revealed, packId = '', index = 0) {
         const rarity = card.rarity || 'COMMON';
         const element = card.element || 'FIRE';
-        return `<button class="reveal-card ${revealed ? 'is-revealed' : ''} ${newlyRevealed ? 'is-new-reveal' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
+        return `<button class="reveal-card ${revealed ? 'is-revealed' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
             <span class="rarity-burst" aria-hidden="true"></span>
             <span class="reveal-face reveal-back">
                 <strong>Tap to reveal</strong>
@@ -2208,6 +2307,13 @@
         const reveal = ensurePackReveal(latest);
         reveal.previewId = revealId;
         reveal.lastRevealedId = '';
+        const result = document.getElementById('packResult');
+        const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
+        const opening = result?.querySelector('.pack-opening');
+        if (opening && opening.dataset.packKey === packSessionKey(latest)) {
+            patchPackPreview(opening, cards.find(card => card.revealId === revealId));
+            return;
+        }
         renderPackResult();
     }
 
@@ -2216,6 +2322,12 @@
         if (!reveal) return;
         reveal.previewId = '';
         reveal.lastRevealedId = '';
+        const latest = state.progression?.packHistory?.[0];
+        const opening = document.getElementById('packResult')?.querySelector('.pack-opening');
+        if (latest && opening && opening.dataset.packKey === packSessionKey(latest)) {
+            patchPackPreview(opening, null);
+            return;
+        }
         renderPackResult();
     }
 
@@ -2280,16 +2392,50 @@
         renderPackResult();
     }
 
-    function clearPackResult() {
+    function hidePackResultDom() {
         destroyGachaParticles();
-        state.packReveal = null;
         document.body.classList.remove('gacha-active');
         const result = document.getElementById('packResult');
         if (result) {
             result.classList.add('hidden');
             result.innerHTML = '';
         }
-        navigateHub('shop');
+    }
+
+    function shouldShowPackOpening() {
+        if (!state.packReveal) return false;
+        const latest = state.progression?.packHistory?.[0];
+        if (!latest) return false;
+        return state.packOpeningDismissedKey !== packSessionKey(latest);
+    }
+
+    function syncShopPackView() {
+        if (state.route !== 'shop') {
+            if (!shouldShowPackOpening()) hidePackResultDom();
+            else {
+                document.getElementById('packResult')?.classList.add('hidden');
+                document.body.classList.remove('gacha-active');
+            }
+            return;
+        }
+        if (state.shopView === 'cardpack' && shouldShowPackOpening()) {
+            renderPackResult();
+            return;
+        }
+        hidePackResultDom();
+        if (state.shopView === 'cardpack') {
+            state.shopView = 'browse';
+            history.replaceState(null, '', hubPath('shop', 'browse'));
+        }
+    }
+
+    function clearPackResult() {
+        const latest = state.progression?.packHistory?.[0];
+        if (latest) state.packOpeningDismissedKey = packSessionKey(latest);
+        state.packReveal = null;
+        hidePackResultDom();
+        navigateHub('shop', { shopView: 'browse', replace: true });
+        renderShop();
     }
 
     function revealCardEnergyCost(card) {
@@ -2440,12 +2586,23 @@
 
     function navigateHub(route, options = {}) {
         const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
-        if (route === state.route) {
-            focusRouteTarget(options.focus);
-            return;
-        }
+        const nextShopView = route === 'shop' ? (options.shopView || state.shopView || 'browse') : 'browse';
+        const nextPath = `${hubPath(route, nextShopView)}${hash}`;
+        const samePlace = route === state.route && (route !== 'shop' || nextShopView === state.shopView);
+
         state.route = route;
-        history.pushState(null, '', `${route === 'home' ? '/home' : `/${route}`}${hash}`);
+        state.shopView = nextShopView;
+
+        if (options.replace) {
+            if (`${location.pathname}${location.hash}` !== nextPath) {
+                history.replaceState(null, '', nextPath);
+            }
+        } else if (!samePlace) {
+            history.pushState(null, '', nextPath);
+        } else if (`${location.pathname}${location.hash}` !== nextPath) {
+            history.replaceState(null, '', nextPath);
+        }
+
         setActiveRoute();
         renderSections();
         renderRoute();
@@ -2825,10 +2982,39 @@
         const key = DECK_ASSET_KEYS.find(element => elements.includes(element));
         return key ? DECK_ASSET_PATHS[key] : null;
     }
+    function parseHubRoute(path) {
+        const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
+        const head = segments[0] || 'home';
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse' };
+        if (head === 'shop') {
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse' };
+        }
+        if (['cards', 'decks', 'social', 'profile'].includes(head)) {
+            return { route: head, shopView: 'browse' };
+        }
+        return { route: 'home', shopView: 'browse' };
+    }
+
+    function hubPath(route, shopView = 'browse') {
+        if (route === 'home') return '/home';
+        if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
+        return `/${route}`;
+    }
+
+    function applyRouteFromLocation(path = location.pathname) {
+        const parsed = parseHubRoute(path);
+        state.route = parsed.route;
+        state.shopView = parsed.shopView;
+        if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
+            state.shopView = 'browse';
+            if (location.pathname !== hubPath('shop', 'browse')) {
+                history.replaceState(null, '', hubPath('shop', 'browse'));
+            }
+        }
+    }
+
     function routeFromPath(path) {
-        const route = String(path || '/home').replace(/^\/+/, '').split('/')[0] || 'home';
-        if (route === 'lobbies') return 'social';
-        return ['cards', 'decks', 'social', 'profile', 'shop'].includes(route) ? route : 'home';
+        return parseHubRoute(path).route;
     }
     function elementColor(element) { return ELEMENT_COLORS[element] || '#f05b2f'; }
     function rarityColor(rarity) { return RARITY_COLORS[rarity] || RARITY_COLORS.COMMON; }
@@ -3425,6 +3611,10 @@
     document.getElementById('messageSendForm')?.addEventListener('submit', sendChatMessage);
 
     document.addEventListener('click', (event) => {
+        if (event.target.closest('[data-clear-pack-result]')) {
+            clearPackResult();
+            return;
+        }
         const packButton = event.target.closest('[data-pack-id]');
         if (packButton) choosePack(packButton.dataset.packId);
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
@@ -3442,6 +3632,5 @@
             else revealPackCard(revealId, { openPreview: false });
         }
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();
-        if (event.target.closest('[data-clear-pack-result]')) clearPackResult();
     });
 })();
