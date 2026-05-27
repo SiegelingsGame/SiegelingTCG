@@ -2819,6 +2819,68 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
 window.showPhaseTransitionBanner = showPhaseTransitionBanner;
 window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
 
+function showTurnChangeToast(state) {
+    if (!state || state.gameOver) {
+        return;
+    }
+    const isYourTurn = state.activeSide === 'PLAYER';
+    const opponentName = state.enemyName || 'Opponent';
+    const toast = {
+        kind: 'TURN',
+        label: isYourTurn ? 'Your turn' : `${opponentName}'s turn`,
+        subtitle: isYourTurn
+            ? 'Take your setup actions.'
+            : 'Waiting for your opponent to finish their turn.',
+        actorName: isYourTurn ? (state.playerName || 'You') : opponentName,
+        targetName: '',
+        side: isYourTurn ? 'PLAYER' : 'ENEMY',
+        knightElement: isYourTurn
+            ? state.player?.trainer?.element
+            : state.enemy?.trainer?.element,
+        elementColor: isYourTurn
+            ? state.player?.trainer?.element
+            : state.enemy?.trainer?.element
+    };
+    if (window.SieglingsActionQueue?.showToast) {
+        window.SieglingsActionQueue.showToast(toast, 2800);
+        return;
+    }
+    const stack = document.getElementById('sieglingsToastStack');
+    if (!stack) {
+        return;
+    }
+    const node = document.createElement('div');
+    node.className = `sgl-toast sgl-toast-${isYourTurn ? 'player' : 'enemy'}`;
+    node.innerHTML = `
+        <div class="sgl-toast-body">
+            <div class="sgl-toast-line">
+                <span class="sgl-toast-action">${escapeHtml(toast.label)}</span>
+            </div>
+            <div class="sgl-toast-sub">${escapeHtml(toast.subtitle)}</div>
+        </div>
+    `;
+    stack.appendChild(node);
+    requestAnimationFrame(() => node.classList.add('visible'));
+    setTimeout(() => {
+        node.classList.remove('visible');
+        node.classList.add('leaving');
+        setTimeout(() => node.remove(), 240);
+    }, 2800);
+}
+
+function maybeNotifyTurnChange(prevState, nextState) {
+    if (!prevState || !nextState || nextState.gameOver) {
+        return;
+    }
+    if (prevState.activeSide === nextState.activeSide) {
+        return;
+    }
+    if (nextState.currentPhase !== 'SETUP') {
+        return;
+    }
+    showTurnChangeToast(nextState);
+}
+
 function applyStartedMultiplayerState(data) {
     clearRoomExpiryTimer();
     clearExternalSocketElementMemory();
@@ -5141,6 +5203,9 @@ function getHandCardLockReason(card) {
     if (!gameState || !card) {
         return '';
     }
+    if (gameState.activeSide !== 'PLAYER' && !isHandHiddenForPhase()) {
+        return 'Wait for your turn.';
+    }
     if (isBoardPreviewCard(card)) {
         return 'This Siegeling is already on the board.';
     }
@@ -5470,6 +5535,7 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     const prevState = gameState;
     gameState = data;
     if (endpoint !== 'new' && prevState) {
+        maybeNotifyTurnChange(prevState, data);
         if (window.SieglingsActionQueue) {
             window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
         } else {
@@ -5905,7 +5971,9 @@ function startRoomPolling() {
             if (!gameState) {
                 applyStartedMultiplayerState(data);
             } else {
+                const prevState = gameState;
                 gameState = data;
+                maybeNotifyTurnChange(prevState, data);
                 render();
             }
         } else if (data.loadoutPhase) {
@@ -7026,12 +7094,22 @@ function renderDomLegacy() {
     const btnEndTurn = document.getElementById('btnEndTurn');
     const battlePhaseActive = phase === 'BATTLE' && !over;
     const drawButtonActsAsEndTurn = phase === 'SETUP' && playerActive && !over;
+    const opponentSetupTurn = phase === 'SETUP' && !playerActive && !over;
     if (drawButtonActsAsEndTurn) {
         onDrawComplete();
+    } else if (opponentSetupTurn) {
+        resetDrawButton();
+        btnDraw.innerHTML = 'Opponents Turn';
+        btnDraw.disabled = true;
+        btnDraw.onclick = null;
+        btnDraw.classList.remove('ab-drawn');
     } else {
         resetDrawButton();
     }
-    btnDraw.disabled = over || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
+    btnDraw.disabled = over || opponentSetupTurn || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
+    if (btnEndTurn) {
+        btnEndTurn.textContent = playerActive ? 'End Turn' : 'Opponent\'s Turn';
+    }
     btnEndTurn.disabled = over || !playerActive || phase !== 'SETUP';
     btnDraw.classList.toggle('hidden', battlePhaseActive);
     btnBattle.classList.toggle('hidden', !battlePhaseActive);
@@ -7627,9 +7705,11 @@ function setTextIfExists(id, val) {
 function onDrawComplete() {
     const btn = document.getElementById('btnDraw');
     if (!btn) return;
+    const playerActive = gameState?.activeSide === 'PLAYER';
     btn.classList.add('ab-drawn');
-    btn.innerHTML = '&#9197; End Turn';
-    btn.onclick = endTurn;
+    btn.innerHTML = playerActive ? '&#9197; End Turn' : 'Opponent\'s Turn';
+    btn.onclick = playerActive ? endTurn : null;
+    btn.disabled = !playerActive;
 }
 
 function resetDrawButton() {
@@ -8863,8 +8943,10 @@ function renderHand() {
         }
         return;
     }
+    const opponentTurn = gameState.activeSide !== 'PLAYER';
     if (handTray) {
         handTray.classList.remove('battle-queue-mode');
+        handTray.classList.toggle('opponent-turn', opponentTurn);
     }
     if (container) {
         container.classList.remove('hidden');
@@ -8889,6 +8971,7 @@ function renderHand() {
         const placementLocked = isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING';
         const interactionClass = [
             isSelected ? ' selected' : '',
+            opponentTurn ? ' opponent-turn' : '',
             lockReason ? ' interaction-locked' : '',
             openingLocked ? ' opening-locked' : '',
             placementLocked ? ' placement-locked' : '',

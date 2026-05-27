@@ -5479,6 +5479,20 @@ body.placement-active .board-cell.legal {
     box-shadow: 0 0 14px rgba(226, 183, 20, 0.35);
 }
 
+.hand-card.opponent-turn,
+.hand-tray.opponent-turn .hand-card {
+    opacity: 0.42;
+    filter: grayscale(0.9) saturate(0.35) brightness(0.72);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.hand-card.opponent-turn:hover,
+.hand-tray.opponent-turn .hand-card:hover {
+    transform: none;
+    box-shadow: none;
+}
+
 .hand-card.interaction-locked {
     opacity: 0.38;
     filter: grayscale(0.22) saturate(0.75);
