@@ -2118,13 +2118,20 @@ function updateResponsiveLayoutVars(force = false) {
     const desktopGridGapCount = desktop
         ? hideEnemyHudRail ? 2 : 3
         : 0;
+    const desktopShortViewport = desktop && viewportHeight <= 1100;
     const boardMaxWidth = desktop
         ? Math.round(clampNumber(viewportHeight * 0.45, 360, 620))
         : 420;
     const boardHeightOffset = desktop
-        ? Math.round(clampNumber(viewportHeight * 0.1, 82, 148))
+        ? Math.round(clampNumber(
+            viewportHeight * (desktopShortViewport ? 0.075 : 0.1),
+            desktopShortViewport ? 72 : 82,
+            desktopShortViewport ? 108 : 148
+        ))
         : 124;
-    const boardHeightRatio = desktop ? 1.38 : 2.72;
+    const boardHeightRatio = desktop
+        ? (desktopShortViewport ? 1.22 : 1.38)
+        : 2.72;
     const topBarHeight = desktop
         ? Math.round(document.querySelector('.top-bar')?.getBoundingClientRect().height || 36)
         : 0;

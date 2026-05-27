@@ -3161,6 +3161,7 @@ body.battle-phase-active .battlefield::after {
         gap: clamp(6px, 0.45vw, 10px);
         padding: clamp(8px, 0.75vw, 12px) clamp(12px, 0.9vw, 18px);
         margin: 0 auto;
+        font-size: clamp(10px, calc(100cqw / 26), 14.5px);
     }
 
     #playerGrid.board-grid {
@@ -3172,9 +3173,55 @@ body.battle-phase-active .battlefield::after {
         padding: 4px;
     }
 
+    .board-card .card-name {
+        font-size: 0.82em;
+        line-height: 1.12;
+    }
+
+    .bc-inner {
+        inset: 6px;
+    }
+
+    .bc-stats-box {
+        padding: 3px 2px 2px;
+    }
+
+    .card-stats {
+        font-size: 0.7em;
+        gap: 2px;
+    }
+
+    .row-tag {
+        font-size: 0.52em;
+    }
+
     .external-energy-point {
         width: 14px;
         height: 14px;
+    }
+
+    @media (max-height: 1100px) {
+        .battlefield {
+            gap: clamp(4px, 0.7vh, 10px);
+        }
+
+        .bf-half {
+            gap: clamp(4px, 0.55vh, 8px);
+        }
+
+        .board-label {
+            margin: 0;
+            font-size: 0.62em;
+        }
+
+        .board-grid {
+            gap: clamp(5px, 0.4vw, 8px);
+            padding: clamp(6px, 0.6vw, 10px) clamp(10px, 0.75vw, 14px);
+        }
+
+        #playerGrid.board-grid {
+            padding-bottom: clamp(16px, 2.2vh, 30px);
+        }
     }
 
     .desktop-menu {
