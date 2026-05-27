@@ -382,8 +382,8 @@ const TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
 const DASHBOARD_ACCESS_PASSWORD = 'Aviators4!';
 const targetArrowPreviewState = {
     active: false,
-    source: null,
-    targets: [],
+    sourceCell: null,
+    targetCells: [],
     kind: 'default',
     startedAt: 0,
     dashPhase: 0,
@@ -1344,7 +1344,7 @@ function getDomCellCenter(isPlayer, row, col) {
 
 function drawDomTargetingPreview(timestamp) {
     const state = targetArrowPreviewState;
-    if (!state.active || !state.source || state.targets.length === 0) {
+    if (!state.active || !state.sourceCell || state.targetCells.length === 0) {
         return;
     }
     const svg = ensureDomTargetingPreviewLayer();
@@ -1359,6 +1359,26 @@ function drawDomTargetingPreview(timestamp) {
     svg.setAttribute('width', String(width));
     svg.setAttribute('height', String(height));
 
+    // Resolve live cell centers every frame so the arrows track the board as it
+    // resizes, scrolls, or reflows instead of pointing at stale cached pixels.
+    const source = getDomCellCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
+    const targets = [];
+    state.targetCells.forEach((cell) => {
+        const center = getDomCellCenter(cell.isPlayer, cell.row, cell.col);
+        if (center) {
+            targets.push({ x: center.x, y: center.y, appearedAt: cell.appearedAt });
+        }
+    });
+    if (!source || targets.length === 0) {
+        // Layout is mid-change (cells momentarily hidden / zero-size). Skip this
+        // frame but keep the loop alive so the arrows snap back once it settles.
+        svg.innerHTML = '';
+        if (state.active && !state.reducedMotion) {
+            state.raf = window.requestAnimationFrame(drawDomTargetingPreview);
+        }
+        return;
+    }
+
     const elapsed = Math.max(0, timestamp - state.startedAt);
     const palette = TARGET_ARROW_PALETTES[state.kind] || TARGET_ARROW_PALETTES.default;
     const sceneCenterY = height / 2;
@@ -1366,15 +1386,15 @@ function drawDomTargetingPreview(timestamp) {
     const shapes = [];
     state.dashPhase = state.reducedMotion ? 0 : (elapsed * 0.0006) % 1;
 
-    state.targets.forEach((target, index) => {
+    targets.forEach((target, index) => {
         const alpha = state.reducedMotion ? 1 : targetArrowClamp((elapsed - target.appearedAt) / TARGET_ARROW_FADE_MS, 0, 1);
         if (alpha <= 0) {
             return;
         }
-        const control = targetArrowControlPoint(state.source, target, sceneCenterY);
-        const path = targetArrowPath(state.source, control, target);
+        const control = targetArrowControlPoint(source, target, sceneCenterY);
+        const path = targetArrowPath(source, control, target);
         const gradId = `targetArrowGrad${index}`;
-        defs.push(`<linearGradient id="${gradId}" gradientUnits="userSpaceOnUse" x1="${state.source.x.toFixed(1)}" y1="${state.source.y.toFixed(1)}" x2="${target.x.toFixed(1)}" y2="${target.y.toFixed(1)}"><stop offset="0%" stop-color="${palette.source}"/><stop offset="100%" stop-color="${palette.target}"/></linearGradient>`);
+        defs.push(`<linearGradient id="${gradId}" gradientUnits="userSpaceOnUse" x1="${source.x.toFixed(1)}" y1="${source.y.toFixed(1)}" x2="${target.x.toFixed(1)}" y2="${target.y.toFixed(1)}"><stop offset="0%" stop-color="${palette.source}"/><stop offset="100%" stop-color="${palette.target}"/></linearGradient>`);
 
         shapes.push(`<path d="${path}" fill="none" stroke="${palette.glow}" stroke-width="10" stroke-linecap="round" opacity="${(0.18 * alpha).toFixed(3)}"/>`);
         shapes.push(`<path d="${path}" fill="none" stroke="url(#${gradId})" stroke-width="2.5" stroke-linecap="round" opacity="${(0.94 * alpha).toFixed(3)}"/>`);
@@ -1385,7 +1405,7 @@ function drawDomTargetingPreview(timestamp) {
             shapes.push(`<path d="${path}" fill="none" pathLength="1" stroke="${dashColor}" stroke-width="4" stroke-linecap="round" stroke-dasharray="0.06 0.106" stroke-dashoffset="${dashOffset.toFixed(3)}" opacity="${(0.72 * alpha).toFixed(3)}"/>`);
         }
 
-        const tail = targetArrowQuadPoint(state.source, control, target, 0.965);
+        const tail = targetArrowQuadPoint(source, control, target, 0.965);
         const angle = Math.atan2(target.y - tail.y, target.x - tail.x);
         const size = 14;
         const spread = 0.52;
@@ -1405,8 +1425,8 @@ function drawDomTargetingPreview(timestamp) {
         shapes.push(`<circle cx="${target.x.toFixed(1)}" cy="${target.y.toFixed(1)}" r="${ringRadius.toFixed(1)}" fill="none" stroke="${palette.target}" stroke-width="2" opacity="${(ringAlpha * alpha).toFixed(3)}"/>`);
     });
 
-    shapes.push(`<circle cx="${state.source.x.toFixed(1)}" cy="${state.source.y.toFixed(1)}" r="12" fill="${palette.source}" opacity="0.16"/>`);
-    shapes.push(`<circle cx="${state.source.x.toFixed(1)}" cy="${state.source.y.toFixed(1)}" r="5" fill="${palette.source}" opacity="0.5"/>`);
+    shapes.push(`<circle cx="${source.x.toFixed(1)}" cy="${source.y.toFixed(1)}" r="12" fill="${palette.source}" opacity="0.16"/>`);
+    shapes.push(`<circle cx="${source.x.toFixed(1)}" cy="${source.y.toFixed(1)}" r="5" fill="${palette.source}" opacity="0.5"/>`);
     svg.innerHTML = `<defs>${defs.join('')}</defs>${shapes.join('')}`;
     svg.classList.add('is-active');
 
@@ -1415,8 +1435,8 @@ function drawDomTargetingPreview(timestamp) {
     }
 }
 
-function showDomTargetingPreview(source, targets, kind) {
-    if (!source || !Array.isArray(targets) || targets.length === 0) {
+function showDomTargetingPreview(sourceCell, targetCells, kind) {
+    if (!sourceCell || !Array.isArray(targetCells) || targetCells.length === 0) {
         clearDomTargetingPreview();
         return;
     }
@@ -1424,13 +1444,18 @@ function showDomTargetingPreview(source, targets, kind) {
         window.cancelAnimationFrame(targetArrowPreviewState.raf);
     }
     targetArrowPreviewState.active = true;
-    targetArrowPreviewState.source = { x: Number(source.x) || 0, y: Number(source.y) || 0 };
-    targetArrowPreviewState.targets = targets
+    targetArrowPreviewState.sourceCell = {
+        isPlayer: Boolean(sourceCell.isPlayer),
+        row: sourceCell.row,
+        col: sourceCell.col
+    };
+    targetArrowPreviewState.targetCells = targetCells
         .filter(Boolean)
         .slice(0, 9)
-        .map((target, index) => ({
-            x: Number(target.x) || 0,
-            y: Number(target.y) || 0,
+        .map((cell, index) => ({
+            isPlayer: Boolean(cell.isPlayer),
+            row: cell.row,
+            col: cell.col,
             appearedAt: index * TARGET_ARROW_STAGGER_MS
         }));
     targetArrowPreviewState.kind = TARGET_ARROW_PALETTES[kind] ? kind : 'default';
@@ -1444,8 +1469,8 @@ function clearDomTargetingPreview() {
         window.cancelAnimationFrame(targetArrowPreviewState.raf);
     }
     targetArrowPreviewState.active = false;
-    targetArrowPreviewState.source = null;
-    targetArrowPreviewState.targets = [];
+    targetArrowPreviewState.sourceCell = null;
+    targetArrowPreviewState.targetCells = [];
     targetArrowPreviewState.raf = 0;
     const svg = document.querySelector('.target-arrow-dom-layer');
     if (svg) {
@@ -1455,8 +1480,8 @@ function clearDomTargetingPreview() {
 }
 
 const targetPreviewController = {
-    show(source, targets, kind) {
-        showDomTargetingPreview(source, targets, kind);
+    show(sourceCell, targetCells, kind) {
+        showDomTargetingPreview(sourceCell, targetCells, kind);
     },
     clear() {
         clearDomTargetingPreview();
@@ -1465,6 +1490,18 @@ const targetPreviewController = {
         return getDomCellCenter(isPlayer, row, col);
     }
 };
+
+// Keep targeting arrows aligned when the layout changes. The animation loop
+// already re-resolves cell positions every frame, but reduced-motion mode draws
+// a single static frame, so it needs an explicit redraw on resize/scroll/rotate.
+function refreshTargetingPreviewOnLayoutChange() {
+    if (targetArrowPreviewState.active && targetArrowPreviewState.reducedMotion) {
+        drawDomTargetingPreview(performance.now());
+    }
+}
+window.addEventListener('resize', refreshTargetingPreviewOnLayoutChange);
+window.addEventListener('orientationchange', refreshTargetingPreviewOnLayoutChange);
+window.addEventListener('scroll', refreshTargetingPreviewOnLayoutChange, true);
 
 function clearTargetingPreview() {
     targetPreviewController.clear();
@@ -1477,6 +1514,14 @@ function sourceCellCenter() {
         return null;
     }
     return targetPreviewController.cellCenter(true, pending.row, pending.col);
+}
+
+function sourceCellDescriptor() {
+    const pending = gameState?.pendingBattle;
+    if (!pending || pending.row == null || pending.col == null) {
+        return null;
+    }
+    return { isPlayer: true, row: pending.row, col: pending.col };
 }
 
 function collectPreviewCells(board, isPlayer) {
@@ -1570,15 +1615,13 @@ function showBattleAbilityPreview(ability, selectedRow = -1) {
 }
 
 function showBattleTargetCellsPreview(ability, cells) {
-    const src = sourceCellCenter();
-    const targets = (cells || [])
-        .map((target) => targetPreviewController.cellCenter(target.isPlayer, target.row, target.col))
-        .filter(Boolean);
-    if (!src || targets.length === 0) {
+    const sourceCell = sourceCellDescriptor();
+    const targetCells = (cells || []).filter(Boolean);
+    if (!sourceCell || targetCells.length === 0) {
         clearTargetingPreview();
         return;
     }
-    targetPreviewController.show(src, targets, effectKindFor(ability));
+    targetPreviewController.show(sourceCell, targetCells, effectKindFor(ability));
     applyMatchupBadgesForCells(ability, cells || []);
 }
 
