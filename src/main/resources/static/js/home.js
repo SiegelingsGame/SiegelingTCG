@@ -168,6 +168,17 @@
         render();
         focusRouteTarget(routeFocusFromHash());
         syncAuthRouteIntent();
+        openSharedProfileFromUrl();
+    }
+
+    function openSharedProfileFromUrl() {
+        const params = new URLSearchParams(location.search);
+        const profileId = params.get('profile');
+        if (!profileId) return;
+        params.delete('profile');
+        const query = params.toString();
+        history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
+        openPlayerProfile(profileId);
     }
 
     function bindEvents() {
@@ -221,6 +232,12 @@
         document.getElementById('saveCustomDeckBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
+        document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
+        document.getElementById('optionsModal')?.addEventListener('click', (event) => {
+            if (event.target.id === 'optionsModal') { closeOptions(); return; }
+            handleOptionsClick(event);
+        });
+        document.getElementById('optionsModal')?.addEventListener('submit', handleOptionsSubmit);
         document.getElementById('trayBackdrop')?.addEventListener('click', closeTrays);
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
@@ -618,7 +635,6 @@
             </section>
 
             <section class="command-grid">
-                ${renderArenaGuidePanel()}
                 ${renderHomeLeaderboardsPanel()}
 
                 <article class="command-panel quick-play-panel">
@@ -684,20 +700,6 @@
             </section>
         `;
         bindHomeDashboardActions(el);
-    }
-
-    function renderArenaGuidePanel() {
-        return `<article class="command-panel arena-guide-panel">
-            <div class="command-panel-head">
-                <div><span class="eyebrow">Welcome to the Arena</span><h3>Build links, wake sockets, command momentum</h3></div>
-            </div>
-            <p>Siegelings is a board-first card battle game. Place Siegelings during setup, connect matching notches, then spend the elemental energy those links create.</p>
-            <div class="arena-guide-steps">
-                <div><strong>1</strong><span>Notches can wake external sockets and feed your energy pool.</span></div>
-                <div><strong>2</strong><span>Matching internal links strengthen your board network.</span></div>
-                <div><strong>3</strong><span>Deck choice and SiegeKnight timing shape the battle plan.</span></div>
-            </div>
-        </article>`;
     }
 
     function renderHomeLeaderboardsPanel() {
@@ -2094,15 +2096,17 @@
         const reveal = ensurePackReveal(latest);
         const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
         const revealedCount = reveal.revealed.size;
+        const heading = gachaHeading(cards[0]?.element || 'FIRE', cards.length);
+        const previewCard = reveal.previewId ? cards.find(card => card.revealId === reveal.previewId) : null;
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
         result.innerHTML = `<section class="pack-opening" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')}">
             <div class="gacha-particles" aria-hidden="true"></div>
             <div class="pack-opening-head">
                 <div>
-                    <span class="eyebrow">Gacha reveal</span>
-                    <h2>${escapeHtml(latest.packName)} opened</h2>
-                    <p>${revealedCount}/${cards.length} cards revealed. Flip cards one at a time, or reveal the whole pack.</p>
+                    <span class="eyebrow">${escapeHtml(heading.eyebrow)}</span>
+                    <h2>${escapeHtml(heading.title)}</h2>
+                    <p>${escapeHtml(heading.sub)} <span class="pack-progress">${revealedCount}/${cards.length} unsealed</span></p>
                 </div>
                 <div class="pack-opening-actions">
                     <button class="ghost-btn" type="button" data-reveal-all-pack>Reveal All</button>
@@ -2113,6 +2117,7 @@
             <div class="gacha-stage">
                 ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), reveal.lastRevealedId === card.revealId, latest.packId, index)).join('')}
             </div>
+            ${previewCard ? renderRevealPreview(previewCard) : ''}
         </section>`;
         const opening = result.querySelector('.pack-opening');
         if (opening) {
@@ -2130,6 +2135,7 @@
                 openedAt: latest.openedAt,
                 revealed: new Set(),
                 lastRevealedId: '',
+                previewId: '',
                 sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
             };
         }
@@ -2186,8 +2192,68 @@
         const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
         reveal.revealed.add(revealId);
         reveal.lastRevealedId = revealId;
+        reveal.previewId = revealId;
         reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
         renderPackResult();
+    }
+
+    function closePackPreview() {
+        const reveal = state.packReveal;
+        if (!reveal) return;
+        reveal.previewId = '';
+        reveal.lastRevealedId = '';
+        renderPackResult();
+    }
+
+    function gachaHeading(element, count) {
+        const lore = {
+            FIRE: { title: 'Relics of the Flame Uncovered', sub: 'Embers stir within the seal — each one waiting to ignite.' },
+            EARTH: { title: 'Stones of the Old World Stir', sub: 'Ancient roots tremble — something buried longs to wake.' },
+            WIND: { title: 'Whispers of the Gale Gather', sub: 'The air hums with hidden names yet to be spoken.' },
+            WATER: { title: 'Tides of the Deep Surface', sub: 'From the abyss, forgotten currents rise to be claimed.' },
+            ICE: { title: 'Frostbound Relics Awaken', sub: 'Beneath the rime, sealed power begins to thaw.' },
+            SHADOW: { title: 'Secrets of the Veil Emerge', sub: 'Shapes shift in the dark, eager to be seen.' },
+            ELECTRIC: { title: 'A Charge of Fates Crackles', sub: 'Static gathers — destiny waits for the spark.' },
+            METAL: { title: 'Forged Legacies Unsealed', sub: 'Cold steel remembers the hands that shaped it.' },
+            UNDEAD: { title: 'The Restless Are Summoned', sub: 'What was buried does not stay still for long.' },
+            PSYCHIC: { title: 'Echoes of the Mind Converge', sub: 'Thoughts not your own press against the seal.' }
+        };
+        const entry = lore[String(element || '').toUpperCase()] || { title: 'Relics Uncovered', sub: 'Unknown powers wait beyond the seal.' };
+        const words = ['no', 'a single', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+        const pulses = words[count] || `${count}`;
+        return {
+            eyebrow: 'Gacha reveal',
+            title: entry.title,
+            sub: `${pulses.charAt(0).toUpperCase() + pulses.slice(1)} ancient pulses resonate within — tap each to reveal its fate. ${entry.sub}`
+        };
+    }
+
+    function renderRevealPreview(card) {
+        const element = card.element || 'FIRE';
+        const rarity = card.rarity || 'COMMON';
+        const isSiegling = card.type === 'SIEGLING';
+        const abilities = card.abilities || (card.ability ? [card.ability] : []);
+        const flavor = creatureDescriptionFor(card);
+        const cost = revealCardEnergyCost(card);
+        return `<div class="reveal-preview" data-preview-backdrop style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)}">
+            <div class="reveal-preview-card" role="dialog" aria-modal="true" aria-label="${escapeAttr(card.name || 'Card')} preview">
+                <button class="reveal-preview-close" type="button" data-close-preview aria-label="Back to pack">&times;</button>
+                <div class="reveal-preview-art">
+                    ${isSiegling ? renderRevealNotches(card.notches) : ''}
+                    ${renderRevealCardArt(element)}
+                </div>
+                <div class="reveal-preview-body">
+                    <small>${escapeHtml(format(card.type))} / ${escapeHtml(format(element))}</small>
+                    <h3>${escapeHtml(card.name || 'Unknown Card')}</h3>
+                    <span class="reveal-rarity">${escapeHtml(format(rarity))}</span>
+                    ${isSiegling ? `<div class="reveal-preview-stats"><span>HP ${escapeHtml(card.health ?? '-')}</span><span>SPD ${escapeHtml(card.speed ?? '-')}</span></div>` : ''}
+                    <div class="reveal-preview-cost">${cost > 0 ? `Cost ${cost} ${escapeHtml(format(card.costElement || element))}` : 'No energy cost'}</div>
+                    ${flavor ? `<p class="reveal-preview-flavor">${escapeHtml(flavor)}</p>` : ''}
+                    ${abilities.length ? abilities.map(a => `<p class="reveal-preview-ability"><strong>${escapeHtml(a.name || 'Ability')}</strong> ${escapeHtml(a.description || '')}</p>`).join('') : ''}
+                </div>
+                <button class="ghost-btn reveal-preview-back" type="button" data-close-preview>Back to pack</button>
+            </div>
+        </div>`;
     }
 
     function revealAllPackCards() {
@@ -2418,6 +2484,8 @@
 
     function renderHudTools() {
         const binder = isBinderRoute();
+        const optionsBtn = document.getElementById('optionsBtn');
+        optionsBtn?.classList.toggle('hidden', state.route !== 'home');
         const filterBtn = document.getElementById('filterTrayBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
         const filterTray = document.getElementById('filterTray');
@@ -3058,6 +3126,8 @@
         const body = document.getElementById('viewProfileBody');
         if (!modal || !body) return;
         const prefs = data.profileSettings || {};
+        const myEmail = state.profile?.user?.email || '';
+        const isSelf = Boolean(myEmail && String(myEmail).toLowerCase() === String(userId).toLowerCase());
         const theme = elementThemes[normalizeProfileElement(prefs.favoriteElement)] || elementThemes.Fire;
         body.innerHTML = `<div class="view-profile-modal-head">
             <div>
@@ -3088,7 +3158,10 @@
             </section>
             ${data.isFriend ? `<div class="profile-edit-actions">
                 <button class="primary-btn profile-theme-btn" type="button" id="viewProfileMessageBtn">Message</button>
-            </div>` : '<p class="profile-muted">Add this player as a friend to send messages.</p>'}
+            </div>` : isSelf ? '<p class="profile-muted">This is your own profile. Share it from Options to let others add you.</p>'
+                : `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAddFriendBtn">Add Friend</button>
+            </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`}
         </div>`;
         modal.classList.remove('hidden');
         document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
@@ -3097,11 +3170,227 @@
             navigateHub('social');
             openMessageComposer(userId);
         });
+        document.getElementById('viewProfileAddFriendBtn')?.addEventListener('click', () => addFriendByEmail(userId));
+    }
+
+    async function addFriendByEmail(email) {
+        const msg = document.getElementById('viewProfileFriendMsg');
+        if (!state.profile?.authenticated) {
+            closePlayerProfile();
+            openAuth();
+            return;
+        }
+        const data = await fetchJson('/api/profile/friends', { method: 'POST', body: JSON.stringify({ email }) });
+        if (data?.error) {
+            if (msg) { msg.textContent = data.error; msg.style.color = '#ff7676'; }
+            return;
+        }
+        state.profile = data;
+        state.progression = data.progression || state.progression;
+        const btn = document.getElementById('viewProfileAddFriendBtn');
+        if (btn) { btn.textContent = 'Friend Added'; btn.disabled = true; }
+        if (msg) { msg.textContent = 'Added to your friends list.'; msg.style.color = ''; }
+        renderFriends();
     }
 
     function closePlayerProfile() {
         state.viewingProfile = null;
         document.getElementById('viewProfileModal')?.classList.add('hidden');
+    }
+
+    const GUIDE_SECTIONS = [
+        {
+            id: 'arena',
+            label: 'The Arena',
+            title: 'Build links, wake sockets, command momentum',
+            html: `<p>Siegelings is a board-first card battle game. Place Siegelings during setup, connect matching notches, then spend the elemental energy those links create.</p>
+                <ol class="guide-list">
+                    <li><strong>Notches wake sockets.</strong> Each Siegeling has notches on its edges. When a notch lines up with an open socket on the board, it wakes and feeds your energy pool.</li>
+                    <li><strong>Matching links strengthen the network.</strong> Connecting notches of the same element between your Siegelings reinforces your board and unlocks stronger plays.</li>
+                    <li><strong>Deck choice and SiegeKnight timing shape the plan.</strong> Lead with the right deck, then time your SiegeKnight to swing momentum when the board is set.</li>
+                </ol>`
+        },
+        {
+            id: 'app',
+            label: 'Using the App',
+            title: 'Find your way around the binder hub',
+            html: `<ul class="guide-list">
+                    <li><strong>Home</strong> — your command hub with collection stats, daily leaderboards, and quick play.</li>
+                    <li><strong>Play</strong> — pick a loadout and start a PVE battle or a 1v1 lobby.</li>
+                    <li><strong>Cards</strong> — your owned binder by default. Use the <em>Show unowned</em> toggle in Filters to browse the full catalog, then filter by element, type, rarity, and energy cost.</li>
+                    <li><strong>Decks</strong> — run premade decks right away; custom deckbuilding unlocks once your binder holds 30 owned copies. Save custom lists to your deck binder.</li>
+                    <li><strong>Social</strong> — friends, messaging, open lobbies, and player profiles.</li>
+                    <li><strong>Shop</strong> — spend Siegecoins on packs. Opening a pack starts the gacha reveal; tap each card to flip it.</li>
+                    <li><strong>Profile</strong> — customize your avatar, favorite element, title, bio, and card back.</li>
+                    <li><strong>Options</strong> — this menu: the full guide, your shareable profile QR, and admin access.</li>
+                </ul>
+                <p class="guide-note">Earn <strong>Remnants</strong> from opening packs and winning matches, then craft specific cards from the Cards menu.</p>`
+        },
+        {
+            id: 'elements',
+            label: 'Elemental Affinity',
+            title: 'Elements and how they connect',
+            html: `<p>Every Siegeling, spell, and trap belongs to an element. Notches carry an element too — matching the element of a notch to its neighbor forms a stronger link and a cleaner energy feed.</p>
+                <div class="guide-elements">
+                    <span class="guide-el" style="--gc:#f05b2f">Fire</span>
+                    <span class="guide-el" style="--gc:#3c8ed8">Water</span>
+                    <span class="guide-el" style="--gc:#7ad9e7">Ice</span>
+                    <span class="guide-el" style="--gc:#64c987">Wind</span>
+                    <span class="guide-el" style="--gc:#a7773d">Earth</span>
+                    <span class="guide-el" style="--gc:#6d4a9e">Shadow</span>
+                    <span class="guide-el" style="--gc:#f5cf3d">Electric</span>
+                    <span class="guide-el" style="--gc:#aeb5b8">Metal</span>
+                    <span class="guide-el" style="--gc:#9f7c73">Undead</span>
+                    <span class="guide-el" style="--gc:#db73b4">Psychic</span>
+                    <span class="guide-el" style="--gc:#95a5a6">Neutral</span>
+                </div>
+                <p class="guide-note">Lean into one or two elements so your notches line up and your energy pool stays focused, or splash for flexible answers at the cost of weaker links.</p>`
+        },
+        {
+            id: 'energy',
+            label: 'Energy in Battle',
+            title: 'How energy is made and spent',
+            html: `<ol class="guide-list">
+                    <li><strong>Place a Siegeling.</strong> During setup and each turn you commit Siegelings to the board.</li>
+                    <li><strong>Notches wake sockets.</strong> A notch touching an open socket wakes it, generating elemental energy of that notch's element into your pool.</li>
+                    <li><strong>Matching links compound.</strong> When two Siegelings connect on a shared element, the link feeds energy more efficiently and reinforces both cards.</li>
+                    <li><strong>Spend energy.</strong> Energy in your pool pays for abilities, spells, and traps. Most cards cost a specific amount of a specific element — build the pool that matches your hand.</li>
+                </ol>
+                <p class="guide-note">Energy is generated by your board, not handed out for free — the better your notch network, the more you can spend each turn.</p>`
+        },
+        {
+            id: 'spells-traps',
+            label: 'Spells & Traps',
+            title: 'One-shot effects and reactive defense',
+            html: `<ul class="guide-list">
+                    <li><strong>Spells</strong> are cast from your hand for an immediate effect — damage, buffs, energy swings, or board control. They cost energy from your pool and resolve right away.</li>
+                    <li><strong>Traps</strong> are set ahead of time and spring when their condition is met (such as an opponent attacking or playing into them). Set them early, then let your opponent walk into the trigger.</li>
+                    <li><strong>Reactions</strong> — some cards require a specific reaction or combo to fire. Check a card's detail panel for its cost element, required reaction, and ability text.</li>
+                </ul>
+                <p class="guide-note">Hold a trap when you read an incoming play, and chain spells off a strong energy turn for a momentum swing.</p>`
+        }
+    ];
+
+    function openOptions() {
+        state.optionsView = 'menu';
+        renderOptions();
+        document.getElementById('optionsModal')?.classList.remove('hidden');
+    }
+
+    function closeOptions() {
+        document.getElementById('optionsModal')?.classList.add('hidden');
+    }
+
+    function renderOptions() {
+        const body = document.getElementById('optionsBody');
+        if (!body) return;
+        const view = state.optionsView || 'menu';
+        if (view === 'menu') {
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Home</span><h2 id="optionsTitle">Options</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-close>Close</button>
+                </div>
+                <div class="options-menu">
+                    <button class="options-menu-item" type="button" data-options-view="guide">
+                        <span class="options-menu-icon">&#128214;</span>
+                        <span><strong>Guide</strong><small>Arena, app, elements, energy, spells &amp; traps</small></span>
+                    </button>
+                    <button class="options-menu-item" type="button" data-options-view="share">
+                        <span class="options-menu-icon">&#128279;</span>
+                        <span><strong>Share Profile</strong><small>Show a QR code so others can view and friend you</small></span>
+                    </button>
+                    <button class="options-menu-item" type="button" data-options-view="admin">
+                        <span class="options-menu-icon">&#9881;</span>
+                        <span><strong>Admin</strong><small>Password-protected dashboard access</small></span>
+                    </button>
+                </div>`;
+        } else if (view === 'guide') {
+            const activeId = state.guideTab && GUIDE_SECTIONS.some(s => s.id === state.guideTab) ? state.guideTab : GUIDE_SECTIONS[0].id;
+            const section = GUIDE_SECTIONS.find(s => s.id === activeId);
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Guide</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                <div class="guide-tabs">
+                    ${GUIDE_SECTIONS.map(s => `<button class="guide-tab${s.id === activeId ? ' active' : ''}" type="button" data-guide-tab="${s.id}">${escapeHtml(s.label)}</button>`).join('')}
+                </div>
+                <div class="guide-content">
+                    <h3>${escapeHtml(section.title)}</h3>
+                    ${section.html}
+                </div>`;
+        } else if (view === 'share') {
+            const email = state.profile?.user?.email || '';
+            const authed = Boolean(state.profile?.authenticated && email);
+            const link = authed ? `${location.origin}/home?profile=${encodeURIComponent(email)}` : '';
+            let qrMarkup = '<p class="guide-note">Sign in to generate your shareable profile code.</p>';
+            if (authed) {
+                if (typeof qrcode === 'function') {
+                    try {
+                        const qr = qrcode(0, 'M');
+                        qr.addData(link);
+                        qr.make();
+                        qrMarkup = `<div class="share-qr">${qr.createImgTag(5, 8)}</div>`;
+                    } catch (err) {
+                        qrMarkup = '<p class="guide-note">Could not generate a QR code right now.</p>';
+                    }
+                } else {
+                    qrMarkup = '<p class="guide-note">QR generator unavailable.</p>';
+                }
+            }
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Share Profile</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                <div class="share-profile">
+                    ${qrMarkup}
+                    ${authed ? `<p class="guide-note">Scan to open ${escapeHtml(state.profile?.user?.displayName || 'this')} profile, where you can send a friend request.</p>
+                    <div class="share-link-row">
+                        <input class="search-input" id="shareProfileLink" type="text" readonly value="${escapeAttr(link)}">
+                        <button class="primary-btn" type="button" id="copyShareLinkBtn">Copy link</button>
+                    </div>` : ''}
+                </div>`;
+        } else if (view === 'admin') {
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Admin</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                <form class="admin-access" id="optionsAdminForm">
+                    <p class="guide-note">Enter the admin password to open the card dashboard.</p>
+                    <input class="search-input" id="optionsAdminPassword" type="password" placeholder="Password" autocomplete="off">
+                    <p class="admin-error" id="optionsAdminError"></p>
+                    <button class="primary-btn" type="submit">Unlock Dashboard</button>
+                </form>`;
+        }
+    }
+
+    function handleOptionsClick(event) {
+        if (event.target.closest('[data-options-close]')) { closeOptions(); return; }
+        const viewBtn = event.target.closest('[data-options-view]');
+        if (viewBtn) { state.optionsView = viewBtn.dataset.optionsView; renderOptions(); return; }
+        const tabBtn = event.target.closest('[data-guide-tab]');
+        if (tabBtn) { state.guideTab = tabBtn.dataset.guideTab; renderOptions(); return; }
+        if (event.target.closest('#copyShareLinkBtn')) {
+            const input = document.getElementById('shareProfileLink');
+            if (input) {
+                input.select();
+                navigator.clipboard?.writeText(input.value).catch(() => {});
+                const btn = document.getElementById('copyShareLinkBtn');
+                if (btn) { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy link'; }, 1600); }
+            }
+        }
+    }
+
+    function handleOptionsSubmit(event) {
+        const form = event.target.closest('#optionsAdminForm');
+        if (!form) return;
+        event.preventDefault();
+        const pass = document.getElementById('optionsAdminPassword')?.value || '';
+        if (pass === 'Aviators4!') {
+            window.location.href = '/card-dashboard.html';
+        } else {
+            const err = document.getElementById('optionsAdminError');
+            if (err) err.textContent = 'Incorrect password.';
+        }
     }
 
     document.getElementById('closeMessageComposeBtn')?.addEventListener('click', () => {
@@ -3116,6 +3405,11 @@
         if (packButton) choosePack(packButton.dataset.packId);
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
+        if (event.target.closest('[data-close-preview]') || event.target.matches('[data-preview-backdrop]')) {
+            closePackPreview();
+            return;
+        }
+        if (state.packReveal?.previewId) return;
         const revealButton = event.target.closest('[data-reveal-card]');
         if (revealButton) revealPackCard(revealButton.dataset.revealCard, revealButton);
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();

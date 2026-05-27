@@ -31,6 +31,7 @@
         <div class="nav-actions">
             <button class="ghost-btn hud-tool hidden" id="filterTrayBtn" type="button">Filters</button>
             <button class="ghost-btn hud-tool hidden" id="cardTrayBtn" type="button">Card View</button>
+            <button class="ghost-btn hud-tool hidden" id="optionsBtn" type="button" aria-label="Options"><svg class="options-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg> Options</button>
             <button class="ghost-btn" id="joinByCodeBtn" type="button">Join by Code</button>
             <button class="primary-btn" id="playNowBtn" type="button">Play</button>
             <span class="gold-pill" id="goldPill"><span class="coin-value"><img class="coin-icon" src="/img/ui/siegel-coin.png" alt="" aria-hidden="true"><span>100</span><small>Coins</small></span></span>
@@ -211,6 +212,8 @@
         <div class="chip-wrap" id="rarityFilters"></div>
         <div class="filter-label">Energy Cost</div>
         <div class="chip-wrap" id="energyCostFilters"></div>
+        <div class="filter-label">Collection</div>
+        <button class="ghost-btn filter-toggle" id="showUnownedToggle" type="button" aria-pressed="false">Show unowned</button>
         <select class="search-input" id="cardSortSelect">
             <option value="owned-desc">Sort: Owned first</option>
             <option value="name-asc">Sort: Name</option>
@@ -225,6 +228,10 @@
     <div id="editProfileModalHost"></div>
     <div class="profile-modal hidden" id="viewProfileModal" role="dialog" aria-modal="true" aria-labelledby="viewProfileTitle">
         <div class="profile-edit-panel profile-panel" id="viewProfileBody"></div>
+    </div>
+
+    <div class="profile-modal hidden" id="optionsModal" role="dialog" aria-modal="true" aria-labelledby="optionsTitle">
+        <div class="profile-edit-panel profile-panel options-panel" id="optionsBody"></div>
     </div>
 
     <div class="auth-modal hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
@@ -252,7 +259,8 @@
     </div>
 </div>
 
+<script src="/js/qrcode-vendor.js?v=1"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
-<script src="/js/home.js?v=35"></script>
+<script src="/js/home.js?v=36"></script>
 </body>
 </html>

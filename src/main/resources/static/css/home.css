@@ -2480,6 +2480,28 @@ body.gacha-active {
     animation: revealCardEnter 0.62s cubic-bezier(.2, .8, .2, 1) both;
     animation-delay: calc(var(--slot, 0) * 80ms);
     cursor: pointer;
+    --glow: rgba(255, 255, 255, 0.85);
+}
+
+.reveal-card::before {
+    content: "";
+    position: absolute;
+    inset: -16%;
+    z-index: -1;
+    border-radius: 26px;
+    pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) 60%, transparent), transparent 78%);
+    filter: blur(7px);
+    opacity: 0;
+    animation: gachaCardPulse 2.8s ease-in-out infinite;
+    animation-delay: calc(var(--slot, 0) * 260ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reveal-card::before {
+        animation: none;
+        opacity: 0.4;
+    }
 }
 
 .reveal-card:focus-visible {
@@ -2537,6 +2559,13 @@ body.gacha-active {
 .reveal-card.is-revealed {
     cursor: default;
     border-color: color-mix(in srgb, var(--rarity) 54%, rgba(255, 255, 255, 0.15));
+    --glow: var(--rarity);
+}
+
+.reveal-card.is-revealed::before {
+    inset: -20%;
+    filter: blur(9px);
+    animation-duration: 2.2s;
 }
 
 .reveal-card.is-animating {
@@ -2681,8 +2710,157 @@ body.gacha-active {
     text-transform: uppercase;
 }
 
+.filter-toggle {
+    width: 100%;
+    justify-content: center;
+}
+
+.filter-toggle.active {
+    border-color: var(--accent);
+    color: #0b1020;
+    background: var(--accent);
+    font-weight: 800;
+}
+
+.pack-progress {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    vertical-align: middle;
+}
+
+.reveal-preview {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    padding: clamp(16px, 4vw, 48px);
+    background: rgba(3, 6, 14, 0.72);
+    backdrop-filter: blur(8px);
+    animation: revealPreviewIn 0.22s ease both;
+}
+
+.reveal-preview-card {
+    position: relative;
+    width: min(94vw, 420px);
+    max-height: 90vh;
+    overflow: auto;
+    display: grid;
+    gap: 14px;
+    padding: clamp(18px, 3vw, 28px);
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--rarity) 60%, rgba(255, 255, 255, 0.15));
+    background: linear-gradient(180deg, rgba(16, 24, 46, 0.98), rgba(4, 7, 16, 0.98));
+    box-shadow:
+        0 0 60px color-mix(in srgb, var(--rarity) 34%, transparent),
+        0 30px 80px rgba(0, 0, 0, 0.6);
+    animation: revealPreviewCardIn 0.34s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.reveal-preview-art {
+    position: relative;
+    aspect-ratio: 5 / 7;
+    border-radius: 12px;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background:
+        radial-gradient(circle at 50% 20%, color-mix(in srgb, var(--el) 40%, transparent), transparent 55%),
+        linear-gradient(180deg, rgba(20, 28, 52, 0.9), rgba(4, 7, 16, 0.95));
+    border: 1px solid color-mix(in srgb, var(--rarity) 44%, rgba(255, 255, 255, 0.18));
+}
+
+.reveal-preview-art .element-icon-art {
+    width: 56%;
+    height: auto;
+}
+
+.reveal-preview-body {
+    display: grid;
+    gap: 8px;
+}
+
+.reveal-preview-body small {
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+}
+
+.reveal-preview-body h3 {
+    margin: 0;
+    font-size: clamp(20px, 3vw, 28px);
+}
+
+.reveal-preview-stats {
+    display: flex;
+    gap: 12px;
+    font-weight: 800;
+}
+
+.reveal-preview-cost {
+    color: var(--text-dim);
+}
+
+.reveal-preview-flavor {
+    margin: 4px 0 0;
+    font-style: italic;
+    color: color-mix(in srgb, var(--text) 78%, transparent);
+}
+
+.reveal-preview-ability {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.reveal-preview-ability strong {
+    color: var(--rarity);
+}
+
+.reveal-preview-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(5, 8, 18, 0.6);
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.reveal-preview-back {
+    justify-self: stretch;
+}
+
+@keyframes revealPreviewIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes revealPreviewCardIn {
+    from { opacity: 0; transform: translateY(14px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+}
+
 @keyframes gachaSpin {
     to { transform: rotate(360deg); }
+}
+
+@keyframes gachaCardPulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.95); }
+    50% { opacity: 0.75; transform: scale(1.05); }
 }
 
 @keyframes gachaParticles {
@@ -4095,3 +4273,100 @@ body.gacha-active {
     justify-content: space-between;
     gap: 12px;
 }
+
+/* Options menu + guides */
+.options-icon { vertical-align: -3px; margin-right: 4px; }
+
+.options-panel { max-width: 560px; }
+
+.options-menu {
+    display: grid;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.options-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    padding: 16px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.options-menu-item:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+
+.options-menu-item strong { display: block; font-size: 15px; }
+.options-menu-item small { color: var(--text-dim); }
+.options-menu-icon { font-size: 26px; line-height: 1; }
+
+.guide-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 14px;
+}
+
+.guide-tab {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.guide-tab.active {
+    border-color: var(--accent);
+    color: #0b1020;
+    background: var(--accent);
+    font-weight: 700;
+}
+
+.guide-content h3 { margin: 0 0 10px; }
+.guide-content p { color: var(--text); line-height: 1.55; }
+.guide-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; line-height: 1.5; }
+.guide-list li strong { color: var(--accent); }
+.guide-note {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--accent);
+    background: rgba(255, 215, 0, 0.06);
+    border-radius: 0 8px 8px 0;
+    color: var(--text-dim);
+}
+
+.guide-elements { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.guide-el {
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0b1020;
+    background: var(--gc, #95a5a6);
+}
+
+.share-profile { display: grid; gap: 14px; justify-items: center; text-align: center; }
+.share-qr {
+    background: #fff;
+    padding: 14px;
+    border-radius: 14px;
+    display: inline-block;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.share-qr img { display: block; width: 220px; height: 220px; image-rendering: pixelated; }
+.share-link-row { display: flex; gap: 8px; width: 100%; }
+.share-link-row .search-input { flex: 1; }
+
+.admin-access { display: grid; gap: 12px; margin-top: 8px; }
+.admin-error { color: #ff7676; min-height: 16px; margin: 0; }
