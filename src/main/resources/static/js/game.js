@@ -3214,7 +3214,7 @@ function getInteractionHintState() {
                 if (focusedCard.evolvesFromName) {
                     hints.push(`After ${focusedCard.evolvesFromName} survives a full battle phase in that form, play this on it to evolve.`);
                 } else if (gameState?.currentPhase === 'SETUP' && !gameState?.playerPlacementUsed) {
-                    hints.push('Highlighted slots show where this Siegeling can be placed.');
+                    hints.push('Drag onto a highlighted cell to place, or tap the eye button for the full card preview.');
                 }
             } else if (focusedCard.type === 'TRAP') {
                 hints.push('Traps stay hidden until their trigger condition is met.');
@@ -5103,7 +5103,7 @@ function getInteractionBannerState() {
         return {
             kind: 'place',
             label: 'Placement',
-            message: `Drag ${selectedCard.name} onto a highlighted slot, or tap a slot to place.`
+            message: `Drag ${selectedCard.name} onto a highlighted slot, or tap a slot to place. Use the eye button for the full card preview.`
         };
     }
     if (gameState.currentPhase === 'SETUP' && gameState.playerPlacementUsed) {
@@ -8848,6 +8848,9 @@ function activateCardDragSession() {
     cardDragSuppressClickUntil = Date.now() + 500;
     document.body.classList.add('card-drag-active');
     hideTooltip();
+    if (activeDrawer === 'selected') {
+        closeDrawer(true);
+    }
     ensureHandCardSelectedForDrag(handIndex);
 
     const sourceEl = getHandCardSourceElement(handIndex);
@@ -9691,15 +9694,8 @@ function selectCard(handIndexOrCardId) {
     selectedHandIndex = handIndex;
     clearTargetMode();
 
-    const autoOpenMobilePreview = () => {
-        if (isMobileLayout()) {
-            openDrawer('selected');
-        }
-    };
-
     if (lockReason) {
         updateSelectedInfo(card, lockReason);
-        autoOpenMobilePreview();
         render();
         return;
     }
@@ -9718,7 +9714,6 @@ function selectCard(handIndexOrCardId) {
                     message: `Select an enemy Siegeling to move, then an empty enemy cell.`
                 };
                 updateSelectedInfo(card, targetContext.message);
-                autoOpenMobilePreview();
                 render();
                 return;
             }
@@ -9730,7 +9725,6 @@ function selectCard(handIndexOrCardId) {
                 callback: (row, col) => castSpell(card.id, row, col)
             };
             updateSelectedInfo(card, targetContext.message);
-            autoOpenMobilePreview();
             render();
             return;
         } else {
@@ -9740,7 +9734,6 @@ function selectCard(handIndexOrCardId) {
     }
 
     updateSelectedInfo(card);
-    autoOpenMobilePreview();
     render();
 }
 
