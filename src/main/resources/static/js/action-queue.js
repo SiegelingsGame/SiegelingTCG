@@ -499,9 +499,10 @@
     }
     function parseEvolutionFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(?:(.+?)\s+)?evolved\s+(.+?)\s+into\s+(.+?)[.!]?$/i);
+        // Server logs "<base> evolved into <evolved>!" (older builds: "evolved to").
+        const m = text.match(/^(.+?)\s+evolved\s+(?:in)?to\s+(.+?)[.!]?$/i);
         if (!m) return null;
-        return { actor: (m[1] || '').trim(), from: m[2].trim(), to: m[3].trim() };
+        return { from: m[1].trim(), to: m[2].trim() };
     }
     function diffPlacements(prev, next, isPlayer) {
         const out = [];
@@ -1271,7 +1272,7 @@
                     kind: 'PLAY',
                     side,
                     actorName: isEvolution ? p.evolutionFrom.name : actorName,
-                    label: isEvolution ? 'evolved to' : undefined,
+                    label: isEvolution ? 'evolved into' : undefined,
                     targetName: p.cell.name || 'Card',
                     knightElement: knight,
                     elementColor: normalizeElement(p.cell.element) || knight,
