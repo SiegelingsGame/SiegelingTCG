@@ -214,12 +214,23 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
-            GameState state = gameService.newGame(options.playerDeckId(), options.playerTrainerId(), options.customDeckCards());
-            attachAuthenticatedSoloUser(state, authorizationHeader);
+            GameService.SoloHandle handle = gameService.newSoloGame(options);
+            attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
+            Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));
+            resp.put("soloToken", handle.token());
+            return resp;
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
-        return buildStateResponse(gameService.getState(), true, null);
+    }
+
+    /** Resolves the caller's solo game from its token, or fails if none is active. */
+    private GameState requireSoloState(String soloToken) {
+        GameState state = gameService.getSoloGame(soloToken);
+        if (state == null) {
+            throw new IllegalArgumentException("No active game. Start a new game first.");
+        }
+        return state;
     }
 
     @GetMapping("/api/match/rooms")
@@ -259,6 +270,7 @@ public class GameController {
     @ResponseBody
     public Map<String, Object> mulligan(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                         @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                        @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                         @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                         @RequestBody Map<String, Object> req) {
         if (roomId != null && playerToken != null) {
@@ -272,17 +284,23 @@ public class GameController {
             }
         }
 
-        List<Integer> indices = parseMulliganIndices(req, gameService.getState(), true);
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        gameService.resolveOpeningMulligan(indices);
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            List<Integer> indices = parseMulliganIndices(req, state, true);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.resolveOpeningMulligan(state, true, indices);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @GetMapping("/api/game/state")
     @ResponseBody
     public Map<String, Object> getState(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                         @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                        @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                         @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         if (roomId != null && playerToken != null) {
             try {
@@ -296,17 +314,20 @@ public class GameController {
             }
         }
 
-        if (gameService.getState() == null) {
-            return Map.of("error", "No active game. Start a new game first.");
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
         }
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
     }
 
     @PostMapping("/api/game/draw")
     @ResponseBody
     public Map<String, Object> draw(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                    @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                     @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         if (roomId != null && playerToken != null) {
             try {
@@ -317,16 +338,22 @@ public class GameController {
             }
         }
 
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        gameService.playerDraw();
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.draw(state, true);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/place")
     @ResponseBody
     public Map<String, Object> place(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                      @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                     @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                      @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                      @RequestBody Map<String, Object> req) {
         String cardId = (String) req.get("cardId");
@@ -342,16 +369,22 @@ public class GameController {
             }
         }
 
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        gameService.placeSiegling(cardId, row, col);
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.placeSiegling(state, true, cardId, row, col);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/cast")
     @ResponseBody
     public Map<String, Object> cast(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                    @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                     @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                     @RequestBody Map<String, Object> req) {
         String cardId = (String) req.get("cardId");
@@ -369,16 +402,22 @@ public class GameController {
             }
         }
 
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        gameService.castSpell(cardId, targetRow, targetCol, destRow, destCol);
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.castSpell(state, true, cardId, targetRow, targetCol, destRow, destCol);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/claim")
     @ResponseBody
     public Map<String, Object> claim(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                      @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                     @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                      @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                      @RequestBody Map<String, Object> req) {
         int row = (int) req.get("row");
@@ -393,16 +432,22 @@ public class GameController {
             }
         }
 
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        gameService.claimSiegling(row, col);
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.claimSiegling(state, true, row, col);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/trainer")
     @ResponseBody
     public Map<String, Object> useTrainer(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                           @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                          @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                           @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                           @RequestBody Map<String, Object> req) {
         int targetRow = req.containsKey("targetRow") ? (int) req.get("targetRow") : -1;
@@ -417,16 +462,22 @@ public class GameController {
             }
         }
 
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        gameService.useTrainerAbility(targetRow, targetCol);
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.useTrainerAbility(state, true, targetRow, targetCol);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/battle")
     @ResponseBody
     public Map<String, Object> battle(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                       @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                      @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                       @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         if (roomId != null && playerToken != null) {
             try {
@@ -437,16 +488,22 @@ public class GameController {
             }
         }
 
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        gameService.executeBattle();
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.executeBattle(state);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/battle/action")
     @ResponseBody
     public Map<String, Object> battleAction(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                             @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                            @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                             @RequestBody Map<String, Object> req) {
         int abilityIndex = (int) req.get("abilityIndex");
@@ -462,16 +519,22 @@ public class GameController {
             }
         }
 
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        gameService.submitBattleAction(abilityIndex, targetRow, targetCol);
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.submitBattleAction(state, true, abilityIndex, targetRow, targetCol);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/endturn")
     @ResponseBody
     public Map<String, Object> endTurn(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                        @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                       @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
                                        @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         if (roomId != null && playerToken != null) {
             try {
@@ -482,16 +545,22 @@ public class GameController {
             }
         }
 
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        gameService.endTurn();
-        attachAuthenticatedSoloUser(gameService.getState(), authorizationHeader);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.endTurn(state, true);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @GetMapping("/api/game/placements")
     @ResponseBody
     public List<int[]> getPlacements(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
-                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                     @RequestHeader(value = "X-Solo-Token", required = false) String soloToken) {
         if (roomId != null && playerToken != null) {
             try {
                 return multiplayerService.getLegalPlacements(roomId, playerToken);
@@ -499,7 +568,12 @@ public class GameController {
                 return List.of();
             }
         }
-        return gameService.getPlayerLegalPlacements();
+        try {
+            GameState state = requireSoloState(soloToken);
+            return gameService.getLegalPlacements(state, true);
+        } catch (IllegalArgumentException ex) {
+            return List.of();
+        }
     }
 
     private void attachAuthenticatedSoloUser(GameState state, String authorizationHeader) {
