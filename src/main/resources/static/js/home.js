@@ -1598,14 +1598,19 @@
 
         list.innerHTML = visibleFriends.length
             ? visibleFriends.map(friend => {
-                const presence = state.friendPresence[friend.email] || {};
+                const presence = friendPresenceRow(friend);
                 const prefs = presence.profileSettings || {};
+                const displayName = resolveFriendDisplayName(friend, presence);
                 const online = Boolean(presence.presence?.online);
                 const status = presence.presence?.status || 'OFFLINE';
+                const statusLabel = online ? status.replace('_', ' ') : 'Offline';
+                const email = String(friend.email || '').trim();
+                const showEmail = email && displayName.toLowerCase() !== email.toLowerCase();
+                const subtitle = showEmail ? `${email} · ${statusLabel}` : statusLabel;
                 return `<article class="friend-tile social-friend-tile">
                 <div class="friend-avatar-wrap">
                     ${renderPlayerAvatar({
-                        displayName: prefs.displayName || friend.displayName || friend.email,
+                        displayName,
                         avatarMode: prefs.avatarMode,
                         avatar: prefs.avatar,
                         avatarUrl: prefs.avatarUrl,
@@ -1614,8 +1619,8 @@
                     <span class="presence-dot ${online ? (status === 'IN_GAME' ? 'in-game' : 'online') : ''}" title="${escapeHtml(status)}"></span>
                 </div>
                 <div class="friend-copy">
-                    <strong>${escapeHtml(prefs.displayName || friend.displayName || friend.email)}</strong>
-                    <span>${escapeHtml(friend.email)} · ${online ? escapeHtml(status.replace('_', ' ')) : 'Offline'}</span>
+                    <strong>${escapeHtml(displayName)}</strong>
+                    <span>${escapeHtml(subtitle)}</span>
                 </div>
                 <div class="friend-actions">
                     <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
@@ -1677,8 +1682,22 @@
         list.querySelectorAll('[data-deny-request]').forEach(btn => btn.addEventListener('click', () => respondToFriendRequest(btn.dataset.denyRequest, 'deny')));
     }
 
+    function friendPresenceRow(friend) {
+        const key = friend?.userId || friend?.email;
+        return key ? (state.friendPresence[key] || {}) : {};
+    }
+
+    function resolveFriendDisplayName(friend, presence = friendPresenceRow(friend)) {
+        const prefs = presence.profileSettings || {};
+        const name = String(prefs.displayName || friend?.displayName || '').trim();
+        if (name) return name;
+        const email = String(friend?.email || '').trim();
+        const at = email.indexOf('@');
+        return at > 0 ? email.slice(0, at) : (email || 'Player');
+    }
+
     function friendInitial(friend) {
-        return String(friend.displayName || friend.email || 'S').trim().slice(0, 1).toUpperCase();
+        return resolveFriendDisplayName(friend).slice(0, 1).toUpperCase();
     }
 
     function renderProfile() {
@@ -4137,6 +4156,7 @@
         const map = {};
         (data.friends || []).forEach(row => {
             if (row.userId) map[row.userId] = row;
+            if (row.email) map[row.email] = row;
         });
         state.friendPresence = map;
     }
