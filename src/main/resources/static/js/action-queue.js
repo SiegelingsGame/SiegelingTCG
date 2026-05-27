@@ -1054,11 +1054,13 @@
                 ? [
                     '#hudRailPlayer .hud-hp-row',
                     '.mobile-hud-player',
+                    '.safe-hp-player',
                     '.tb-hp-player'
                 ]
                 : [
                     '#hudRailEnemy .hud-hp-row',
                     '.mobile-hud-enemy',
+                    '.safe-hp-enemy',
                     '.tb-hp-enemy'
                 ];
             const candidates = selectors

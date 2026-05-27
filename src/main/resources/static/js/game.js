@@ -4101,6 +4101,15 @@ function syncEntryOverlays() {
     if (welcomeVisible) {
         refreshWelcomeLeaderboards();
     }
+    if (gameState) {
+        updateSafeAreaHpStrip(gameState);
+    } else {
+        const strip = document.getElementById('safeHpStrip');
+        if (strip) {
+            strip.hidden = true;
+            strip.setAttribute('aria-hidden', 'true');
+        }
+    }
 }
 
 function localCalendarDateKey() {
@@ -7024,6 +7033,42 @@ function renderEnergyDetailPanel() {
     panel.innerHTML = html;
 }
 
+const SAFE_AREA_HP_MAX = 50;
+
+function getSafeAreaHpTierColor(pct) {
+    if (pct > 60) return '#34c759';
+    if (pct > 35) return '#ffcc00';
+    if (pct > 15) return '#ff9500';
+    return '#ff3b30';
+}
+
+function updateSafeAreaHpStrip(state) {
+    const strip = document.getElementById('safeHpStrip');
+    if (!strip || !state) return;
+
+    const mobileGameplay = window.matchMedia('(max-width: 767px)').matches
+        && document.body.classList.contains('gameplay-active');
+    strip.hidden = !mobileGameplay;
+    strip.setAttribute('aria-hidden', mobileGameplay ? 'false' : 'true');
+    if (!mobileGameplay) return;
+
+    const eHealth = Number(state.enemy?.health ?? 0);
+    const pHealth = Number(state.player?.health ?? 0);
+    const ePct = Math.max(0, Math.min(100, Math.round((eHealth / SAFE_AREA_HP_MAX) * 100)));
+    const pPct = Math.max(0, Math.min(100, Math.round((pHealth / SAFE_AREA_HP_MAX) * 100)));
+
+    const eFill = document.getElementById('safeHpFillEnemy');
+    const pFill = document.getElementById('safeHpFillPlayer');
+    if (eFill) {
+        eFill.style.width = `${ePct}%`;
+        eFill.style.backgroundColor = getSafeAreaHpTierColor(ePct);
+    }
+    if (pFill) {
+        pFill.style.width = `${pPct}%`;
+        pFill.style.backgroundColor = getSafeAreaHpTierColor(pPct);
+    }
+}
+
 function updateHudRails(state) {
     if (!state) return;
     const p = state.player || {};
@@ -7173,6 +7218,7 @@ function updateMobileHud(state) {
     setTextIfExists('mobileStatPlayerTab', state.playerName || p.name || 'Player');
     setTextIfExists('mobileStatEnemyTab', state.enemyName || e.name || 'AI');
     syncMobileHudSheetSide();
+    updateSafeAreaHpStrip(state);
 }
 
 function updateMobileHudSide(label, playerData, ids) {
@@ -10431,6 +10477,7 @@ syncDesktopInspectTabUi();
     const onLayoutModeBoundsChange = () => {
         scheduleBoardLinkConnectorRefresh();
         setTimeout(scheduleBoardLinkConnectorRefresh, 200);
+        if (gameState) updateSafeAreaHpStrip(gameState);
     };
 
     const connect = () => {
@@ -10448,6 +10495,7 @@ syncDesktopInspectTabUi();
     }
 
     const mqListeners = [
+        window.matchMedia('(max-width: 767px)'),
         window.matchMedia('(max-width: 900px)'),
         window.matchMedia('(min-width: 980px)'),
         window.matchMedia('(orientation: landscape) and (max-height: 600px)'),
