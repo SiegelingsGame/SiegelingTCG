@@ -54,6 +54,10 @@ public class GameState {
     private boolean playerMulliganUsed = false;
     private boolean enemyMulliganUsed = false;
     private boolean matchHistoryRecorded = false;
+    /** NORMAL or FORFEIT when the match ends. */
+    private String endReason = "NORMAL";
+    /** Display name of the player who forfeited, if any. */
+    private String forfeitedBy;
 
     private List<String> gameLog = new ArrayList<>();
 
@@ -295,4 +299,8 @@ public class GameState {
     public boolean isEnemyMulliganUsed() { return enemyMulliganUsed; }
     public boolean isMatchHistoryRecorded() { return matchHistoryRecorded; }
     public void setMatchHistoryRecorded(boolean matchHistoryRecorded) { this.matchHistoryRecorded = matchHistoryRecorded; }
+    public String getEndReason() { return endReason; }
+    public void setEndReason(String endReason) { this.endReason = endReason; }
+    public String getForfeitedBy() { return forfeitedBy; }
+    public void setForfeitedBy(String forfeitedBy) { this.forfeitedBy = forfeitedBy; }
 }

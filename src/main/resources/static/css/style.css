@@ -1272,6 +1272,15 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     transition: all 0.15s;
 }
 .ab-icon:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+
+.ab-icon.ab-quit-label {
+    width: auto;
+    min-width: 44px;
+    padding: 0 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
 .ab-icon-active {
     color: #f3f8ff;
     border-color: rgba(80, 160, 255, 0.56);
@@ -6174,13 +6183,98 @@ body.placement-active .board-cell.legal {
     border: 3px solid var(--accent);
     border-radius: 12px;
     padding: 40px;
-    text-align: center;
+    text-align: left;
+    max-width: min(520px, 94vw);
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .game-over-box h2 {
     font-size: 2em;
     color: var(--accent);
     margin-bottom: 10px;
+    text-align: center;
+}
+
+.game-over-subtext {
+    text-align: center;
+    color: var(--text-muted, #9ab);
+    margin: 0 0 16px;
+    font-size: 0.95rem;
+}
+
+.game-over-stats,
+.game-over-rewards,
+.game-over-record {
+    margin: 12px 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.game-over-stats h3,
+.game-over-rewards h3,
+.game-over-record h3 {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-align: center;
+}
+
+.game-over-stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+}
+
+.game-over-stat-grid span:nth-child(odd) {
+    color: var(--text-muted, #9ab);
+}
+
+.game-over-rematch-status {
+    text-align: center;
+    font-size: 0.88rem;
+    color: #c8d4ea;
+    min-height: 1.2em;
+    margin: 8px 0 4px;
+}
+
+.game-over-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 18px;
+}
+
+.match-notice-toast {
+    position: fixed;
+    top: calc(72px + env(safe-area-inset-top, 0px));
+    left: 50%;
+    transform: translateX(-50%) translateY(-12px);
+    z-index: 2100;
+    max-width: min(420px, 92vw);
+    padding: 12px 18px;
+    border-radius: 12px;
+    background: rgba(12, 22, 44, 0.96);
+    border: 1px solid rgba(246, 216, 120, 0.45);
+    color: #f4f7ff;
+    font-size: 0.92rem;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.match-notice-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
 }
 
 .loadout-overlay {
