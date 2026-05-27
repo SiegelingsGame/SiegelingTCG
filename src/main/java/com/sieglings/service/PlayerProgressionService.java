@@ -25,6 +25,8 @@ public class PlayerProgressionService {
     public static final int SOLO_WIN_REMNANTS = 20;
     public static final int ONLINE_WIN_REMNANTS = 30;
 
+    public record CardGrantOutcome(Card card, boolean grantedCopy, int remnantsAwarded, int ownedAfter) {}
+
     @Autowired
     private PlayerProgressionStore store;
 
@@ -50,10 +52,10 @@ public class PlayerProgressionService {
             throw new IllegalArgumentException("Starter pack has already been chosen.");
         }
         PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
-        grantCards(progression, result.cards());
+        List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
         grantRemnants(progression, PACK_OPEN_REMNANTS);
         progression.setStarterPackId(result.pack().id());
-        addPackHistory(progression, result, 0, "STARTER");
+        addPackHistory(progression, result, outcomes, 0, "STARTER");
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -68,9 +70,9 @@ public class PlayerProgressionService {
             throw new IllegalArgumentException("Not enough Siegecoins for that pack.");
         }
         progression.setGold(progression.getGold() - result.pack().price());
-        grantCards(progression, result.cards());
+        List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
         grantRemnants(progression, PACK_OPEN_REMNANTS);
-        addPackHistory(progression, result, result.pack().price(), "SHOP");
+        addPackHistory(progression, result, outcomes, result.pack().price(), "SHOP");
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -108,7 +110,7 @@ public class PlayerProgressionService {
             throw new IllegalArgumentException("Not enough Siegecoins for that daily card.");
         }
         progression.setGold(progression.getGold() - offer.price());
-        grantCards(progression, List.of(offer.card()));
+        grantCardsWithCap(progression, List.of(offer.card()));
         List<String> purchased = new ArrayList<>(progression.getPurchasedDailyOfferIds());
         purchased.add(0, offer.id());
         progression.setPurchasedDailyOfferIds(purchased.stream().limit(90).toList());
@@ -126,8 +128,12 @@ public class PlayerProgressionService {
         if (progression.getRemnants() < cost) {
             throw new IllegalArgumentException("Not enough Remnants to craft " + card.getName() + ".");
         }
+        int owned = progression.getOwnedCards().getOrDefault(card.getId(), 0);
+        if (owned >= cardDefinitionService.getDeckBuilderMaxCopies()) {
+            throw new IllegalArgumentException("You already own the maximum copies of " + card.getName() + ".");
+        }
         progression.setRemnants(progression.getRemnants() - cost);
-        grantCards(progression, List.of(card));
+        grantCardsWithCap(progression, List.of(card));
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -223,12 +229,31 @@ public class PlayerProgressionService {
         return progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum();
     }
 
-    private void grantCards(PlayerProgressionEntity progression, List<Card> cards) {
+    public List<CardGrantOutcome> grantCardsWithCap(PlayerProgressionEntity progression, List<Card> cards) {
+        int maxCopies = cardDefinitionService.getDeckBuilderMaxCopies();
         Map<String, Integer> owned = new LinkedHashMap<>(progression.getOwnedCards());
+        List<CardGrantOutcome> outcomes = new ArrayList<>();
+        int remnantsFromDuplicates = 0;
         for (Card card : cards) {
-            owned.merge(card.getId(), 1, Integer::sum);
+            String cardId = card.getId();
+            int current = owned.getOrDefault(cardId, 0);
+            if (current < maxCopies) {
+                int next = current + 1;
+                owned.put(cardId, next);
+                outcomes.add(new CardGrantOutcome(card, true, 0, next));
+            } else {
+                int remnants = duplicateRemnantValue(card);
+                remnantsFromDuplicates += remnants;
+                outcomes.add(new CardGrantOutcome(card, false, remnants, current));
+            }
         }
         progression.setOwnedCards(owned);
+        grantRemnants(progression, remnantsFromDuplicates);
+        return outcomes;
+    }
+
+    public int duplicateRemnantValue(Card card) {
+        return Math.max(25, craftCost(card) / 5);
     }
 
     private void grantRemnants(PlayerProgressionEntity progression, int amount) {
@@ -259,20 +284,33 @@ public class PlayerProgressionService {
         };
     }
 
-    private void addPackHistory(PlayerProgressionEntity progression, PackCatalogService.PackOpenResult result, int price, String source) {
+    private void addPackHistory(PlayerProgressionEntity progression,
+                                PackCatalogService.PackOpenResult result,
+                                List<CardGrantOutcome> outcomes,
+                                int price,
+                                String source) {
         Map<String, Object> entry = new LinkedHashMap<>();
         entry.put("packId", result.pack().id());
         entry.put("packName", result.pack().name());
         entry.put("source", source);
         entry.put("price", price);
         entry.put("openedAt", Instant.now().toString());
-        entry.put("cards", result.cards().stream().map(card -> Map.of(
-                "id", card.getId(),
-                "name", card.getName(),
-                "type", card.getCardType().name(),
-                "element", card.getElement().name(),
-                "rarity", card.getRarity().name()
-        )).toList());
+        int remnantsFromDuplicates = outcomes.stream().mapToInt(CardGrantOutcome::remnantsAwarded).sum();
+        entry.put("remnantsFromDuplicates", remnantsFromDuplicates);
+        entry.put("cards", outcomes.stream().map(outcome -> {
+            Card card = outcome.card();
+            Map<String, Object> cardEntry = new LinkedHashMap<>();
+            cardEntry.put("id", card.getId());
+            cardEntry.put("name", card.getName());
+            cardEntry.put("type", card.getCardType().name());
+            cardEntry.put("element", card.getElement().name());
+            cardEntry.put("rarity", card.getRarity().name());
+            cardEntry.put("granted", outcome.grantedCopy());
+            cardEntry.put("duplicateAtCap", !outcome.grantedCopy());
+            cardEntry.put("remnantsAwarded", outcome.remnantsAwarded());
+            cardEntry.put("ownedAfter", outcome.ownedAfter());
+            return cardEntry;
+        }).toList());
         List<Map<String, Object>> history = new ArrayList<>();
         history.add(entry);
         history.addAll(progression.getPackHistory());
