@@ -1740,8 +1740,7 @@
         const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
         const collection = collectionSummary();
         const savedDecks = state.profile?.savedDecks || [];
-        const realHistory = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
-        const battles = realHistory.length ? realHistory : mockBattles(prefs.favoriteElement);
+        const battles = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
         const record = battleRecord(battles);
         return {
             user,
@@ -1750,7 +1749,6 @@
             collection,
             savedDecks,
             battles,
-            usingMockBattles: !realHistory.length,
             record,
             rank: 'Bronze III',
             level: Math.max(1, Math.floor((state.progression?.ownedTotal || 0) / 12) + 1),
@@ -1841,7 +1839,7 @@
         return `<section class="profile-panel battle-record-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Battle Record</span><h3>Season Snapshot</h3></div>
-                ${view.usingMockBattles ? '<span class="profile-soft-pill">Sample history</span>' : '<span class="profile-soft-pill">Live history</span>'}
+                <span class="profile-soft-pill">${view.battles.length ? 'Live history' : 'No matches yet'}</span>
             </div>
             <div class="battle-record-layout">
                 <div class="win-ring" style="--win:${record.winRate}">
@@ -1865,16 +1863,18 @@
                 <span class="profile-soft-pill">${view.battles.length} entries</span>
             </div>
             <div class="battle-list">
-                ${view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
-                    <div class="battle-result">${escapeHtml(battle.result)}</div>
-                    <div class="battle-main">
-                        <strong>${escapeHtml(battle.opponentName)}</strong>
-                        <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
-                    </div>
-                    ${renderElementBadge(battle.element)}
-                    <div class="battle-meta"><span>${escapeHtml(battle.date)}</span><span>${escapeHtml(battle.duration)}</span></div>
-                    <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
-                </article>`).join('')}
+                ${view.battles.length
+                    ? view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
+                        <div class="battle-result">${escapeHtml(battle.result)}</div>
+                        <div class="battle-main">
+                            <strong>${escapeHtml(battle.opponentName)}</strong>
+                            <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
+                        </div>
+                        ${renderElementBadge(battle.element)}
+                        <div class="battle-meta"><span>${escapeHtml(battle.date)}</span>${battle.duration ? `<span>${escapeHtml(battle.duration)}</span>` : ''}</div>
+                        <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
+                    </article>`).join('')
+                    : '<div class="social-empty-state"><strong>No battles recorded yet</strong><span>Finish a PVE or PVP match while signed in and it will appear here.</span></div>'}
             </div>
         </section>`;
     }
@@ -2141,29 +2141,10 @@
             opponentType: matchType.includes('PVP') || matchType.includes('PLAYER') ? 'Player' : 'AI',
             deckUsed: row.loadoutLabel || row.trainerName || 'Battle Loadout',
             element: inferElementFromText(row.loadoutLabel || row.trainerName || '', fallbackElement),
-            date: formatProfileDate(row.finishedAt) || `Match ${index + 1}`,
-            duration: row.turnNumber ? `${row.turnNumber} turns` : '8 min',
+            date: formatProfileDate(row.finishedAt) || '',
+            duration: row.turnNumber ? `${row.turnNumber} turns` : '',
             reward: result === 'WIN' ? '+25' : '+5'
         };
-    }
-
-    function mockBattles(favoriteElement) {
-        return [
-            ['WIN', 'Mira of Glasspeak', 'AI', 'Starter Clash', favoriteElement, 'Today', '7 min', '+25'],
-            ['LOSS', 'Rowan Vale', 'Player', 'Root and Spark', 'Earth', 'Yesterday', '11 min', '+5'],
-            ['WIN', 'Cinder Scout', 'AI', 'Molten Trial', 'Fire', 'May 22', '9 min', '+25'],
-            ['WIN', 'Aster Gale', 'Player', 'Skyhook Tempo', 'Wind', 'May 20', '6 min', '+25'],
-            ['LOSS', 'Frost Regent', 'AI', 'Crystal Ward', 'Ice', 'May 18', '13 min', '+5']
-        ].map(([result, opponentName, opponentType, deckUsed, element, date, duration, reward]) => ({
-            result,
-            opponentName,
-            opponentType,
-            deckUsed,
-            element,
-            date,
-            duration,
-            reward
-        }));
     }
 
     function inferElementFromText(text, fallback) {
