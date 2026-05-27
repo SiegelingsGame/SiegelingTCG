@@ -163,12 +163,17 @@
         renderGold();
         renderHomeDashboard();
         bindCatalogSync();
-        await loadAll();
-        await syncCatalogIfVersionChanged();
-        render();
-        focusRouteTarget(routeFocusFromHash());
-        syncAuthRouteIntent();
-        openSharedProfileFromUrl();
+        try {
+            await loadAll();
+            await syncCatalogIfVersionChanged();
+            render();
+            focusRouteTarget(routeFocusFromHash());
+            syncAuthRouteIntent();
+        } catch (err) {
+            console.error('Init load failed', err);
+        } finally {
+            openSharedProfileFromUrl();
+        }
     }
 
     function openSharedProfileFromUrl() {
@@ -3122,12 +3127,21 @@
     }
 
     async function openPlayerProfile(userId) {
-        const data = await fetchJson(`/api/social/players/${encodeURIComponent(userId)}/profile`);
-        if (data?.error) return alert(data.error);
-        state.viewingProfile = data;
         const modal = document.getElementById('viewProfileModal');
         const body = document.getElementById('viewProfileBody');
         if (!modal || !body) return;
+        const data = await fetchJson(`/api/social/players/${encodeURIComponent(userId)}/profile`).catch(() => ({ error: 'Could not load this profile.' }));
+        if (data?.error) {
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Player Profile</span><h2 id="viewProfileTitle">Profile unavailable</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" id="closeViewProfileBtn">Close</button>
+                </div>
+                <p class="profile-muted">${escapeHtml(data.error || 'This player could not be found.')}</p>`;
+            modal.classList.remove('hidden');
+            document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
+            return;
+        }
+        state.viewingProfile = data;
         const prefs = data.profileSettings || {};
         const myEmail = state.profile?.user?.email || '';
         const isSelf = Boolean(myEmail && String(myEmail).toLowerCase() === String(userId).toLowerCase());
