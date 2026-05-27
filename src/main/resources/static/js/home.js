@@ -1576,7 +1576,6 @@
                 const prefs = presence.profileSettings || {};
                 const online = Boolean(presence.presence?.online);
                 const status = presence.presence?.status || 'OFFLINE';
-                const awaitingAcceptance = friend.mutual === false;
                 return `<article class="friend-tile social-friend-tile">
                 <div class="friend-avatar-wrap">
                     ${renderPlayerAvatar({
@@ -1590,11 +1589,11 @@
                 </div>
                 <div class="friend-copy">
                     <strong>${escapeHtml(prefs.displayName || friend.displayName || friend.email)}</strong>
-                    <span>${escapeHtml(friend.email)} · ${awaitingAcceptance ? 'Awaiting acceptance' : (online ? escapeHtml(status.replace('_', ' ')) : 'Offline')}</span>
+                    <span>${escapeHtml(friend.email)} · ${online ? escapeHtml(status.replace('_', ' ')) : 'Offline'}</span>
                 </div>
                 <div class="friend-actions">
                     <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
-                    ${awaitingAcceptance ? '' : `<button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>`}
+                    <button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>
                     <button class="ghost-btn compact-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}">Remove</button>
                 </div>
             </article>`;
@@ -3031,10 +3030,24 @@
         if (state.token) headers.Authorization = `Bearer ${state.token}`;
         try {
             const resp = await fetch(path, { ...options, headers });
-            return await resp.json();
+            const raw = await resp.text();
+            let data = null;
+            if (raw) {
+                try {
+                    data = JSON.parse(raw);
+                } catch (parseError) {
+                    console.error(parseError);
+                    return { error: resp.ok ? 'Unexpected server response.' : (raw.trim() || resp.statusText || 'Request failed') };
+                }
+            }
+            if (!resp.ok) {
+                const message = data?.error || data?.message || resp.statusText || 'Request failed';
+                return { ...(data || {}), error: message };
+            }
+            return data;
         } catch (error) {
             console.error(error);
-            return null;
+            return { error: 'Network error. Check your connection and try again.' };
         }
     }
 
@@ -3710,6 +3723,7 @@
             renderMessageThreads();
             return;
         }
+        await syncProfile();
         await Promise.all([
             refreshRooms(forceRooms),
             refreshFriendPresence(),
@@ -3720,6 +3734,7 @@
             await checkHostLobbyForBattle();
         }
         renderFriends();
+        renderFriendRequests();
         renderMessageThreads();
         renderSocialActiveLobby();
     }
@@ -3791,8 +3806,9 @@
         if (title) title.textContent = `Chat with ${friend?.displayName || peerId}`;
         compose?.classList.remove('hidden');
         const data = await fetchJson(`/api/social/messages/with/${encodeURIComponent(peerId)}`);
-        if (data?.error) {
-            if (log) log.innerHTML = `<div class="social-empty-state">${escapeHtml(data.error)}</div>`;
+        if (!data || data?.error) {
+            const message = data?.error || 'Could not load this chat.';
+            if (log) log.innerHTML = `<div class="social-empty-state">${escapeHtml(message)}</div>`;
             return;
         }
         if (log) {

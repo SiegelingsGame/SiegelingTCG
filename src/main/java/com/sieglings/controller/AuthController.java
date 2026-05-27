@@ -272,11 +272,13 @@ public class AuthController {
                     if (friendUser == null) {
                         return null;
                     }
-                    boolean mutual = FriendRequestService.areMutualFriends(user, friendUser);
+                    if (!FriendRequestService.areMutualFriends(user, friendUser)) {
+                        return null;
+                    }
                     Map<String, Object> friend = new LinkedHashMap<>();
                     friend.put("email", email);
                     friend.put("displayName", friendUser.getDisplayName());
-                    friend.put("mutual", mutual);
+                    friend.put("mutual", true);
                     return friend;
                 })
                 .filter(java.util.Objects::nonNull)

@@ -50,6 +50,21 @@ class FriendRequestServiceTest {
     }
 
     @Test
+    void syncLegacyPendingRequestsBackfillsInviteForOneWayFriend() throws Exception {
+        AccountUser alice = user("alice@example.com", "Alice");
+        AccountUser bob = user("bob@example.com", "Bob");
+        alice.setFriendEmails(List.of(bob.getId()));
+        InMemoryUserStore userStore = new InMemoryUserStore(alice, bob);
+        InMemoryRequestStore requestStore = new InMemoryRequestStore();
+        FriendRequestService service = createService(requestStore, userStore);
+
+        service.syncLegacyPendingRequests(alice);
+
+        assertTrue(requestStore.findPending(alice.getId(), bob.getId()).isPresent());
+        assertEquals(1, service.listIncoming(bob).size());
+    }
+
+    @Test
     void sendRequestRejectsWhenIncomingRequestExists() throws Exception {
         AccountUser alice = user("alice@example.com", "Alice");
         AccountUser bob = user("bob@example.com", "Bob");

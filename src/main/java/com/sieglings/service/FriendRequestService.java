@@ -78,13 +78,36 @@ public class FriendRequestService {
         return recipient;
     }
 
+    public void syncLegacyPendingRequests(AccountUser user) {
+        if (user == null || user.getFriendEmails() == null) {
+            return;
+        }
+        for (String email : user.getFriendEmails()) {
+            AccountUser peer = userStore.findById(email).orElse(null);
+            if (peer == null || areMutualFriends(user, peer)) {
+                continue;
+            }
+            if (requestStore.findPending(user.getId(), peer.getId()).isPresent()
+                    || requestStore.findPending(peer.getId(), user.getId()).isPresent()) {
+                continue;
+            }
+            FriendRequestEntity request = new FriendRequestEntity();
+            request.setFromUserId(user.getId());
+            request.setToUserId(peer.getId());
+            request.setCreatedAt(Instant.now());
+            requestStore.save(request);
+        }
+    }
+
     public List<Map<String, Object>> listIncoming(AccountUser user) {
+        syncLegacyPendingRequests(user);
         return requestStore.listIncoming(user.getId()).stream()
                 .map(request -> serializeRequest(request, user))
                 .toList();
     }
 
     public List<Map<String, Object>> listOutgoing(AccountUser user) {
+        syncLegacyPendingRequests(user);
         return requestStore.listOutgoing(user.getId()).stream()
                 .map(request -> serializeRequest(request, user))
                 .toList();
