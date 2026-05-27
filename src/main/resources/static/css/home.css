@@ -1247,24 +1247,22 @@ select.search-input { color-scheme: dark; }
 }
 
 .command-hero-stat-icon {
-    width: 52px;
-    height: 52px;
-    display: grid;
-    place-items: center;
+    width: 56px;
+    height: 56px;
+    display: block;
     flex-shrink: 0;
     border-radius: 999px;
-    border: 2px solid rgba(255, 215, 0, 0.42);
-    background:
-        radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.2), transparent 42%),
-        linear-gradient(145deg, rgba(255, 215, 0, 0.24), rgba(20, 28, 48, 0.95));
-    box-shadow: 0 0 16px rgba(255, 215, 0, 0.18);
+    overflow: hidden;
+    background: transparent;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 .command-hero-stat-icon img {
-    width: 38px;
-    height: 38px;
-    object-fit: contain;
-    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: center;
 }
 
 .command-hero-stat-copy {

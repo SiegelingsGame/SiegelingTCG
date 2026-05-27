@@ -9,13 +9,13 @@
     const MULTIPLAYER_SESSION_KEY = 'sieglingsMultiplayerSession';
     const PLAYER_NAME_KEY = 'sieglingsPlayerName';
     const SOCIAL_POLL_MS = 12 * 1000;
-    const COIN_ICON_PATH = '/img/ui/siegel-coin.png';
+    const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const HERO_STAT_ICONS = {
         coins: COIN_ICON_PATH,
-        cards: '/img/packs/siegeling-back.png',
-        decks: '/img/decks/deck-icon-fire.png',
-        remnants: '/img/legendary/legendary-fire.png',
-        collection: '/img/packs/spell-card-back.png'
+        remnants: '/img/ui/home-stats/remnants.png',
+        collection: '/img/ui/home-stats/collection.png',
+        cards: '/img/ui/home-stats/cards.png',
+        decks: '/img/ui/home-stats/decks.png'
     };
     const memoryCache = {};
     const ELEMENT_COLORS = {
