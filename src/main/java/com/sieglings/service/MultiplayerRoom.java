@@ -58,7 +58,7 @@ public class MultiplayerRoom {
     public void touch() { updatedAt = Instant.now(); }
 
     public boolean isExpired(Instant now) {
-        return expiresAt != null && expiresAt.isBefore(now);
+        return !isStarted() && expiresAt != null && expiresAt.isBefore(now);
     }
 
     public boolean hasGuest() {
