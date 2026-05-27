@@ -3742,9 +3742,31 @@
         return null;
     }
 
-    function renderLobbyWaitingRoom() {
-        const root = document.getElementById('lobbyWaitingRoot');
-        if (!root) return;
+    function isLobbyChatInputFocused() {
+        const input = document.getElementById('lobbyChatInput');
+        return Boolean(input && document.activeElement === input);
+    }
+
+    function lobbyChatLogHtml(messages = []) {
+        const chatLines = (messages || []).slice(-24).map(line => {
+            const role = String(line.role || '');
+            const css = role === 'system' ? 'system' : '';
+            return `<div class="lobby-chat-line ${css}"><strong>${escapeHtml(line.author || 'Player')}:</strong> ${escapeHtml(line.text || '')}</div>`;
+        }).join('');
+        return chatLines || '<div class="lobby-chat-line system">Say hello while you wait.</div>';
+    }
+
+    function renderLobbyChatLog() {
+        const chatLog = document.getElementById('lobbyChatLog');
+        if (!chatLog) return;
+        const nextHtml = lobbyChatLogHtml(state.lobbyStatus?.lobbyChat);
+        if (chatLog.innerHTML === nextHtml) return;
+        const stickToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight < 48;
+        chatLog.innerHTML = nextHtml;
+        if (stickToBottom) chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function lobbyWaitingContext() {
         const status = state.lobbyStatus;
         const session = currentLobbySession();
         const roomId = state.lobbyRoomId || status?.roomId || '';
@@ -3759,11 +3781,6 @@
         const players = status?.players || [];
         const hostPlayer = players.find(player => player.role === 'host') || { name: status?.hostName || 'Host', ready: false };
         const guestPlayer = players.find(player => player.role === 'guest');
-        const chatLines = (status?.lobbyChat || []).slice(-24).map(line => {
-            const role = String(line.role || '');
-            const css = role === 'system' ? 'system' : '';
-            return `<div class="lobby-chat-line ${css}"><strong>${escapeHtml(line.author || 'Player')}:</strong> ${escapeHtml(line.text || '')}</div>`;
-        }).join('');
         const statusLabel = status?.started
             ? 'Match starting — opening Play...'
             : !status?.guestJoined
@@ -3771,6 +3788,103 @@
                 : viewerReady
                     ? 'Waiting for opponent to confirm'
                     : 'Pick your deck and knight, then start match';
+        return {
+            status,
+            session,
+            roomId,
+            isHost,
+            viewerReady,
+            selectedDeck,
+            selectedTrainer,
+            deckOptions,
+            trainerOptions,
+            hostPlayer,
+            guestPlayer,
+            statusLabel
+        };
+    }
+
+    function bindLobbyWaitingRoomControls() {
+        document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
+        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
+        document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
+            const hostLobby = readHostLobby();
+            if (hostLobby) void closeHostLobby(hostLobby);
+        });
+        document.getElementById('lobbyChatForm')?.addEventListener('submit', (event) => {
+            event.preventDefault();
+            void sendLobbyChat();
+        });
+    }
+
+    function updateLobbyWaitingRoom() {
+        const root = document.getElementById('lobbyWaitingRoot');
+        if (!root || !root.querySelector('#lobbyChatInput')) {
+            renderLobbyWaitingRoom();
+            return;
+        }
+        const ctx = lobbyWaitingContext();
+        const statusLine = root.querySelector('.lobby-waiting-head .social-muted-inline');
+        if (statusLine) statusLine.textContent = `Room ${ctx.roomId} · ${ctx.statusLabel}`;
+        const pill = root.querySelector('.lobby-status-pill');
+        if (pill) pill.textContent = `${ctx.status?.guestJoined ? '2 / 2' : '1 / 2'} players`;
+        const players = root.querySelector('.lobby-players');
+        if (players) {
+            players.innerHTML = `${renderLobbyPlayerSlot(ctx.hostPlayer, 'Host')}${ctx.guestPlayer
+                ? renderLobbyPlayerSlot(ctx.guestPlayer, 'Guest')
+                : renderLobbyPlayerSlot({ name: 'Waiting for player...', ready: false }, 'Open slot', true)}`;
+        }
+        const deckSelect = document.getElementById('lobbyDeckSelect');
+        if (deckSelect) {
+            deckSelect.disabled = ctx.viewerReady || Boolean(ctx.status?.started);
+            if (deckSelect.value !== ctx.selectedDeck) deckSelect.value = ctx.selectedDeck;
+        }
+        const trainerSelect = document.getElementById('lobbyTrainerSelect');
+        if (trainerSelect) {
+            trainerSelect.disabled = ctx.viewerReady || Boolean(ctx.status?.started);
+            if (trainerSelect.value !== ctx.selectedTrainer) trainerSelect.value = ctx.selectedTrainer;
+        }
+        const readyBtn = document.getElementById('lobbyReadyBtn');
+        if (readyBtn) {
+            readyBtn.disabled = !ctx.session || ctx.viewerReady || Boolean(ctx.status?.started);
+            readyBtn.textContent = ctx.viewerReady ? 'Ready' : 'Start Match';
+        }
+        const chatInput = document.getElementById('lobbyChatInput');
+        if (chatInput) chatInput.disabled = !ctx.session;
+        renderLobbyChatLog();
+        let invite = document.getElementById('lobbyInviteLink');
+        if (ctx.status?.shareUrl) {
+            const inviteHtml = `Invite link: <a href="${escapeAttr(ctx.status.shareUrl)}">${escapeHtml(ctx.status.shareUrl)}</a>`;
+            if (invite) {
+                invite.innerHTML = inviteHtml;
+            } else {
+                invite = document.createElement('p');
+                invite.id = 'lobbyInviteLink';
+                invite.className = 'social-muted-inline';
+                invite.innerHTML = inviteHtml;
+                root.querySelector('.lobby-chat-compose')?.insertAdjacentElement('afterend', invite);
+            }
+        } else if (invite) {
+            invite.remove();
+        }
+    }
+
+    function renderLobbyWaitingRoom() {
+        const root = document.getElementById('lobbyWaitingRoot');
+        if (!root) return;
+        const ctx = lobbyWaitingContext();
+        const {
+            status,
+            session,
+            roomId,
+            isHost,
+            viewerReady,
+            deckOptions,
+            trainerOptions,
+            hostPlayer,
+            guestPlayer,
+            statusLabel
+        } = ctx;
 
         root.innerHTML = `<div class="lobby-waiting-head">
             <div>
@@ -3799,27 +3913,18 @@
             </section>
             <section class="lobby-panel">
                 <div class="social-panel-head"><div><span class="eyebrow">Lobby Chat</span><h2>Say hello</h2></div></div>
-                <div class="lobby-chat-log" id="lobbyChatLog">${chatLines || '<div class="lobby-chat-line system">Say hello while you wait.</div>'}</div>
+                <div class="lobby-chat-log" id="lobbyChatLog">${lobbyChatLogHtml(status?.lobbyChat)}</div>
                 <form class="lobby-chat-compose" id="lobbyChatForm">
                     <input class="search-input" id="lobbyChatInput" type="text" maxlength="120" placeholder="Message the lobby" ${session ? '' : 'disabled'}>
                     <button class="primary-btn" type="submit">Send</button>
                 </form>
-                ${status?.shareUrl ? `<p class="social-muted-inline">Invite link: <a href="${escapeAttr(status.shareUrl)}">${escapeHtml(status.shareUrl)}</a></p>` : ''}
+                ${status?.shareUrl ? `<p class="social-muted-inline" id="lobbyInviteLink">Invite link: <a href="${escapeAttr(status.shareUrl)}">${escapeHtml(status.shareUrl)}</a></p>` : ''}
             </section>
         </div>`;
 
         const chatLog = document.getElementById('lobbyChatLog');
         if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
-        document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
-        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
-        document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
-            const hostLobby = readHostLobby();
-            if (hostLobby) void closeHostLobby(hostLobby);
-        });
-        document.getElementById('lobbyChatForm')?.addEventListener('submit', (event) => {
-            event.preventDefault();
-            void sendLobbyChat();
-        });
+        bindLobbyWaitingRoomControls();
     }
 
     function renderLobbyPlayerSlot(player, label, empty = false) {
@@ -3887,7 +3992,7 @@
         if (state.lobbyStatus) {
             state.lobbyStatus.lobbyChat = data.lobbyChat || [];
         }
-        renderLobbyWaitingRoom();
+        renderLobbyChatLog();
     }
 
     function leaveLobbyWaitingRoom() {
@@ -3925,7 +4030,11 @@
             launchOnlineBattleFromSocial(session, status);
             return;
         }
-        renderLobbyWaitingRoom();
+        if (isLobbyChatInputFocused()) {
+            updateLobbyWaitingRoom();
+        } else {
+            renderLobbyWaitingRoom();
+        }
     }
 
     function saveMultiplayerSession(session) {
