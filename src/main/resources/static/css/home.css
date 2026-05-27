@@ -504,6 +504,34 @@ select.search-input { color-scheme: dark; }
     font-size: 10px;
 }
 
+.binder-owned-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: 3px 5px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(8, 12, 24, 0.72);
+    color: rgba(255, 246, 218, 0.72);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.binder-owned-chip.is-owned {
+    border-color: color-mix(in srgb, var(--el, #f5c15a) 42%, rgba(255, 255, 255, 0.18));
+    color: #fff6da;
+    background: color-mix(in srgb, var(--el, #f5c15a) 16%, rgba(8, 12, 24, 0.82));
+}
+
+.binder-card-stats .binder-owned-chip {
+    grid-column: 1 / -1;
+    width: 100%;
+}
+
 .daily-card-compact .binder-card-meta,
 .daily-card-compact .binder-card-cost {
     font-size: 9px;
@@ -2803,6 +2831,107 @@ body.gacha-active {
 
 .reveal-card.is-animating .rarity-burst {
     animation: rarityBurst 0.88s ease-out both;
+}
+
+.reveal-dust-burst {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.reveal-card.is-dissolving {
+    pointer-events: none;
+    z-index: 3;
+}
+
+.reveal-card.is-dissolving .reveal-front {
+    animation: remnantCardCrumble 1.05s cubic-bezier(.4, 0, .2, 1) both;
+}
+
+.reveal-card.is-dissolving .reveal-dust-burst .remnant-dust-speck {
+    position: absolute;
+    left: 50%;
+    top: 52%;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--rarity) 72%, #fff6da);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--rarity) 40%, transparent);
+    animation: remnantDustSpeck 0.95s ease-out var(--delay, 0s) both;
+}
+
+.reveal-card.is-remnant-resolved {
+    cursor: default;
+    border-color: color-mix(in srgb, #f5c15a 58%, rgba(255, 255, 255, 0.18));
+}
+
+.reveal-card.is-remnant-resolved .reveal-back {
+    display: none;
+}
+
+.reveal-remnant-face {
+    transform: rotateY(0deg) !important;
+    place-items: center;
+    text-align: center;
+    padding: 18px;
+    background:
+        radial-gradient(circle at 50% 24%, color-mix(in srgb, #f5c15a 34%, transparent), transparent 48%),
+        linear-gradient(180deg, rgba(24, 18, 8, 0.98), rgba(8, 10, 18, 0.98));
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, #f5c15a 42%, transparent),
+        0 0 28px color-mix(in srgb, #f5c15a 24%, transparent);
+}
+
+.reveal-remnant-face .reveal-card-copy strong {
+    font-size: clamp(18px, 2.4vw, 24px);
+    color: #fff6da;
+}
+
+.remnant-sigil {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    margin-bottom: 8px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, #f5c15a 50%, rgba(255, 255, 255, 0.2));
+    background: rgba(8, 10, 18, 0.72);
+    color: #f5c15a;
+    font-size: 15px;
+    font-weight: 950;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    box-shadow: 0 0 24px color-mix(in srgb, #f5c15a 28%, transparent);
+}
+
+.pack-duplicate-note {
+    display: block;
+    margin-top: 6px;
+    color: #f5c15a;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .02em;
+}
+
+@keyframes remnantCardCrumble {
+    0% { opacity: 1; transform: rotateY(360deg) scale(1); filter: blur(0); }
+    55% { opacity: 0.72; transform: rotateY(380deg) scale(0.94); filter: blur(1px); }
+    100% { opacity: 0; transform: rotateY(400deg) scale(0.72); filter: blur(8px); }
+}
+
+@keyframes remnantDustSpeck {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+    18% { opacity: 1; }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reveal-card.is-dissolving .reveal-front,
+    .reveal-card.is-dissolving .reveal-dust-burst .remnant-dust-speck {
+        animation: none;
+    }
 }
 
 .reveal-card.rarity-rare.is-animating .rarity-burst,

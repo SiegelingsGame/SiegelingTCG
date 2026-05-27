@@ -55,6 +55,7 @@
     };
     const RARITY_ORDER = { COMMON: 1, UNCOMMON: 2, RARE: 3, EPIC: 4, LEGENDARY: 5 };
     const REMNANT_CRAFT_COSTS = { COMMON: 500, UNCOMMON: 1000, RARE: 2000, EPIC: 4000, LEGENDARY: 8000 };
+    const DUPLICATE_REMNANT_PREVIEW = { COMMON: 100, UNCOMMON: 200, RARE: 400, EPIC: 800, LEGENDARY: 1600 };
     const RARITY_COLORS = {
         COMMON: '#b8c0cc',
         UNCOMMON: '#64c987',
@@ -1280,26 +1281,33 @@
         </article>`;
     }
 
+    function renderOwnedStatChip(card) {
+        const owned = ownedCount(card.id);
+        const label = owned > 0 ? `Owned x${owned}` : 'Unowned';
+        return `<span class="binder-owned-chip${owned > 0 ? ' is-owned' : ''}">${escapeHtml(label)}</span>`;
+    }
+
     function renderShopCardStats(card) {
+        const ownedChip = renderOwnedStatChip(card);
         const type = String(card?.type || '').toUpperCase();
         if (type === 'SIEGLING') {
             const hp = card.health ?? card.hp ?? '-';
             const speed = card.speed ?? card.spd ?? '-';
-            return `<div class="binder-card-stats"><span>HP:${escapeHtml(hp)}</span><span>SPD:${escapeHtml(speed)}</span></div>`;
+            return `<div class="binder-card-stats"><span>HP:${escapeHtml(hp)}</span><span>SPD:${escapeHtml(speed)}</span>${ownedChip}</div>`;
         }
         if (type === 'SPELL') {
             const reaction = format(card.requiredReaction || 'None');
             const row = card.preferredRow ? format(card.preferredRow) : 'Any row';
-            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(row)}</span></div>`;
+            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(row)}</span>${ownedChip}</div>`;
         }
         if (type === 'TRAP') {
             const reaction = format(card.requiredReaction || 'Trigger');
             const bucket = card.trapBucketAmount
                 ? `${card.trapBucketAmount} ${format(card.trapBucketElement || card.element)}`
                 : 'Trap set';
-            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
+            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span>${ownedChip}</div>`;
         }
-        return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(card.type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span></div>`;
+        return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(card.type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span>${ownedChip}</div>`;
     }
 
     function shopCardDescriptionFor(card) {
@@ -2163,6 +2171,7 @@
             packId: latest.packId,
             openedAt: latest.openedAt,
             revealed: new Set(),
+            dissolvedRemnants: new Set(),
             lastRevealedId: '',
             previewId: '',
             sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
@@ -2198,7 +2207,6 @@
         const sessionKey = packSessionKey(latest);
         const opening = result.querySelector('.pack-opening');
         const sameSession = opening?.dataset.packKey === sessionKey;
-
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
 
@@ -2230,13 +2238,18 @@
     }
 
     function buildPackOpeningMarkup({ latest, cards, reveal, heading, revealedCount, previewCard, sessionKey }) {
+        const duplicateRemnants = Number(latest.remnantsFromDuplicates) || cards.reduce((sum, card) => sum + (Number(card.remnantsAwarded) || 0), 0);
+        const duplicateCount = cards.filter(card => card.duplicateAtCap).length;
+        const duplicateNote = duplicateCount
+            ? ` <span class="pack-duplicate-note">${duplicateCount} pull${duplicateCount === 1 ? '' : 's'} at the 3-copy limit become Remnants${duplicateRemnants ? ` (+${duplicateRemnants.toLocaleString()}).` : '.'}</span>`
+            : '';
         return `<section class="pack-opening" data-pack-key="${escapeAttr(sessionKey)}" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')}">
             <div class="gacha-particles" aria-hidden="true"></div>
             <div class="pack-opening-head">
                 <div>
                     <span class="eyebrow">${escapeHtml(heading.eyebrow)}</span>
                     <h2>${escapeHtml(heading.title)}</h2>
-                    <p>${escapeHtml(heading.sub)} <span class="pack-progress">${revealedCount}/${cards.length} unsealed</span></p>
+                    <p>${escapeHtml(heading.sub)} <span class="pack-progress">${revealedCount}/${cards.length} unsealed</span>${duplicateNote}</p>
                 </div>
                 <div class="pack-opening-actions">
                     <button class="ghost-btn" type="button" data-reveal-all-pack>Reveal All</button>
@@ -2275,7 +2288,15 @@
             const wasRevealed = btn.classList.contains('is-revealed');
             btn.classList.toggle('is-revealed', revealed);
             if (revealed && !wasRevealed && animateId === card.revealId) {
-                triggerRevealCardAnimation(btn);
+                if (card.duplicateAtCap && card.remnantsAwarded > 0 && !reveal.dissolvedRemnants.has(card.revealId)) {
+                    window.setTimeout(() => playRemnantDissolve(btn, card, () => renderPackResult()), 720);
+                } else {
+                    triggerRevealCardAnimation(btn);
+                }
+            }
+            if (reveal.dissolvedRemnants.has(card.revealId)) {
+                btn.classList.add('is-remnant-resolved');
+                btn.disabled = true;
             }
         });
 
@@ -2315,16 +2336,21 @@
                 packId: latest.packId,
                 openedAt: latest.openedAt,
                 revealed: new Set(),
+                dissolvedRemnants: new Set(),
                 lastRevealedId: '',
                 previewId: '',
                 sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
             };
+        } else if (!state.packReveal.dissolvedRemnants) {
+            state.packReveal.dissolvedRemnants = new Set();
         }
         return state.packReveal;
     }
 
     function enrichPackCard(card, index) {
         const catalogCard = findCard(card.id) || {};
+        const duplicateAtCap = Boolean(card.duplicateAtCap ?? (card.granted === false && Number(card.remnantsAwarded) > 0));
+        const remnantsAwarded = Number(card.remnantsAwarded) || (duplicateAtCap ? duplicateRemnantPreview(card.rarity || catalogCard.rarity) : 0);
         return {
             ...catalogCard,
             ...card,
@@ -2338,32 +2364,112 @@
             speed: catalogCard.speed ?? card.speed,
             preferredRow: catalogCard.preferredRow || card.preferredRow,
             costAmount: catalogCard.costAmount ?? card.costAmount,
-            costElement: catalogCard.costElement || card.costElement || card.element || catalogCard.element
+            costElement: catalogCard.costElement || card.costElement || card.element || catalogCard.element,
+            duplicateAtCap,
+            remnantsAwarded
         };
+    }
+
+    function duplicateRemnantPreview(rarity) {
+        return DUPLICATE_REMNANT_PREVIEW[String(rarity || 'COMMON').toUpperCase()] || DUPLICATE_REMNANT_PREVIEW.COMMON;
+    }
+
+    function isRemnantDissolved(revealId) {
+        return Boolean(state.packReveal?.dissolvedRemnants?.has(revealId));
+    }
+
+    function renderRevealRemnantFace(card) {
+        const remnants = Number(card.remnantsAwarded) || duplicateRemnantPreview(card.rarity);
+        return `<span class="reveal-face reveal-front reveal-remnant-face">
+            <span class="remnant-dust-layer" aria-hidden="true"></span>
+            <span class="remnant-sigil">Rem</span>
+            <span class="reveal-card-copy">
+                <small>Max copies owned</small>
+                <strong>+${escapeHtml(remnants.toLocaleString())} Remnants</strong>
+                <span class="reveal-rarity">${escapeHtml(card.name || 'Card')} turned to dust</span>
+            </span>
+        </span>`;
     }
 
     function renderRevealCard(card, revealed, packId = '', index = 0) {
         const rarity = card.rarity || 'COMMON';
         const element = card.element || 'FIRE';
-        return `<button class="reveal-card ${revealed ? 'is-revealed' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
+        const dissolved = isRemnantDissolved(card.revealId);
+        const remnantPull = Boolean(card.duplicateAtCap && card.remnantsAwarded > 0);
+        const showRemnantFace = remnantPull && revealed && dissolved;
+        const ownedPreview = Math.max(1, Math.min(3, ownedCount(card.id) || (revealed && !remnantPull ? 1 : 0)));
+        if (showRemnantFace) {
+            return `<button class="reveal-card is-revealed is-remnant-pull is-remnant-resolved rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="true" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}" disabled aria-label="${escapeAttr(card.name || 'Card')} converted into Remnants">
+                <span class="rarity-burst" aria-hidden="true"></span>
+                <span class="reveal-dust-burst" aria-hidden="true"></span>
+                <span class="reveal-face reveal-back" aria-hidden="true"></span>
+                ${renderRevealRemnantFace(card)}
+            </button>`;
+        }
+        return `<button class="reveal-card${revealed ? ' is-revealed' : ''}${remnantPull ? ' is-remnant-pull' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="${remnantPull ? 'true' : 'false'}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
             <span class="rarity-burst" aria-hidden="true"></span>
+            <span class="reveal-dust-burst" aria-hidden="true"></span>
             <span class="reveal-face reveal-back">
                 <strong>Tap to reveal</strong>
+                <small>${remnantPull ? 'May become Remnants' : `${escapeHtml(format(rarity))} pulse`}</small>
             </span>
             <span class="reveal-face reveal-front">
                 <div class="card-tile binder-card gacha-card-front" style="--el:${elementColor(element)}">
-                    ${renderBinderCardShell(card, { ownedOverride: 1 })}
+                    ${renderBinderCardShell(card, { ownedOverride: ownedPreview })}
                 </div>
             </span>
         </button>`;
+    }
+
+    function spawnRemnantDust(cardEl) {
+        const host = cardEl.querySelector('.reveal-dust-burst');
+        if (!host) return;
+        host.innerHTML = '';
+        const count = 18;
+        for (let i = 0; i < count; i += 1) {
+            const speck = document.createElement('span');
+            speck.className = 'remnant-dust-speck';
+            const angle = (Math.PI * 2 * i) / count;
+            const distance = 28 + Math.random() * 42;
+            speck.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+            speck.style.setProperty('--dy', `${Math.sin(angle) * distance - 18}px`);
+            speck.style.setProperty('--delay', `${Math.random() * 0.18}s`);
+            host.appendChild(speck);
+        }
+    }
+
+    function playRemnantDissolve(cardEl, card, onDone) {
+        if (!cardEl || !card?.duplicateAtCap) {
+            onDone?.();
+            return;
+        }
+        cardEl.classList.add('is-revealed', 'is-animating', 'is-dissolving');
+        spawnRemnantDust(cardEl);
+        window.setTimeout(() => {
+            const reveal = state.packReveal;
+            if (reveal) reveal.dissolvedRemnants.add(card.revealId);
+            cardEl.classList.remove('is-dissolving', 'is-animating', 'is-new-reveal');
+            cardEl.classList.add('is-remnant-resolved');
+            cardEl.disabled = true;
+            const remnants = Number(card.remnantsAwarded) || duplicateRemnantPreview(card.rarity);
+            cardEl.innerHTML = `<span class="rarity-burst" aria-hidden="true"></span><span class="reveal-dust-burst" aria-hidden="true"></span>
+                <span class="reveal-face reveal-back" aria-hidden="true"></span>
+                ${renderRevealRemnantFace(card).trim()}`;
+            cardEl.setAttribute('aria-label', `${card.name || 'Card'} converted into ${remnants} Remnants`);
+            renderGold();
+            onDone?.();
+        }, 1180);
     }
 
     function revealPackCard(revealId, options = {}) {
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
+        if (reveal.dissolvedRemnants.has(revealId)) return;
         const index = latest.cards.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId);
         const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
+        if (!card) return;
+        if (reveal.revealed.has(revealId)) return;
         reveal.revealed.add(revealId);
         reveal.lastRevealedId = revealId;
         if (options.openPreview) reveal.previewId = revealId;
@@ -2456,10 +2562,20 @@
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
-        latest.cards.forEach((card, index) => reveal.revealed.add(`${card.id || 'card'}-${index}`));
+        const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
+        cards.forEach(card => reveal.revealed.add(card.revealId));
         reveal.lastRevealedId = '';
         reveal.sparkColor = elementColor(latest.cards?.[0]?.element || 'FIRE');
         renderPackResult();
+        const result = document.getElementById('packResult');
+        cards.filter(card => card.duplicateAtCap && card.remnantsAwarded > 0).forEach((card, order) => {
+            window.setTimeout(() => {
+                const button = result?.querySelector(`[data-reveal-card="${CSS.escape(card.revealId)}"]`);
+                if (button && !reveal.dissolvedRemnants.has(card.revealId)) {
+                    playRemnantDissolve(button, card, () => renderPackResult());
+                }
+            }, 520 + order * 420);
+        });
     }
 
     function hidePackResultDom() {
@@ -3895,9 +4011,17 @@
         const revealButton = event.target.closest('[data-reveal-card]');
         if (revealButton) {
             const revealId = revealButton.dataset.revealCard;
+            if (state.packReveal?.dissolvedRemnants?.has(revealId)) return;
             const alreadyRevealed = Boolean(state.packReveal?.revealed?.has?.(revealId));
-            if (alreadyRevealed) openPackPreview(revealId);
-            else revealPackCard(revealId, { openPreview: false });
+            if (alreadyRevealed) {
+                const latest = state.progression?.packHistory?.[0];
+                const index = latest?.cards?.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId) ?? -1;
+                const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
+                if (card?.duplicateAtCap && card?.remnantsAwarded > 0) return;
+                openPackPreview(revealId);
+            } else {
+                revealPackCard(revealId, { openPreview: false });
+            }
         }
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();
     });
