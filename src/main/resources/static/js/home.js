@@ -1288,15 +1288,17 @@
         }
         const normalized = String(element || 'NEUTRAL').toLowerCase();
         const label = format(element || 'NEUTRAL');
-        const tokensToDraw = Math.min(amount, 6);
+        const tokensToDraw = Math.min(amount, 12);
         const tokenStyle = notchIconStyle(element || 'NEUTRAL');
-        let tokens = '';
-        for (let i = 0; i < tokensToDraw; i += 1) {
-            tokens += `<span class="energy-token notch-token token-${escapeAttr(normalized)}" style="${tokenStyle}"></span>`;
+        const token = `<span class="energy-token notch-token token-${escapeAttr(normalized)}" style="${tokenStyle}"></span>`;
+        let rows = '';
+        for (let drawn = 0; drawn < tokensToDraw; drawn += 6) {
+            const lineCount = Math.min(6, tokensToDraw - drawn);
+            rows += `<span class="binder-card-cost-emblems-row">${token.repeat(lineCount)}</span>`;
         }
         const overflow = amount > tokensToDraw ? `<span class="binder-card-cost-count">+${amount - tokensToDraw}</span>` : '';
         return `<div class="binder-card-cost binder-card-cost-emblems" aria-label="Cost ${amount} ${escapeAttr(label)} energy">
-            <span class="binder-card-cost-emblems-row">${tokens}${overflow}</span>
+            ${rows}${overflow}
         </div>`;
     }
 

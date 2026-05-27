@@ -823,23 +823,21 @@ select.search-input { color-scheme: dark; }
 }
 
 .binder-card-cost-emblems {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
     text-align: center;
     min-height: 16px;
     padding: 0 2px;
 }
 
 .binder-card-cost-emblems-row {
-    display: inline-flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: nowrap;
-    flex: 0 0 auto;
+    display: block;
+    text-align: center;
     white-space: nowrap;
     font-size: 0;
+}
+
+.binder-card-cost-emblems-row + .binder-card-cost-emblems-row {
+    margin-top: 3px;
 }
 
 .binder-card-cost-emblems .energy-token {
