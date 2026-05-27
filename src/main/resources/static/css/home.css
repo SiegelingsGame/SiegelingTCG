@@ -5024,11 +5024,42 @@ body.gacha-active {
     border-radius: 12px;
     font-size: 13px;
     line-height: 1.35;
+    display: grid;
+    gap: 4px;
+}
+
+.message-bubble-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11px;
+    line-height: 1.2;
+    opacity: 0.82;
+}
+
+.message-bubble-sender {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.message-bubble-time {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    opacity: 0.9;
+}
+
+.message-bubble-text {
+    line-height: 1.35;
 }
 
 .message-bubble.mine {
     justify-self: end;
     background: rgba(61, 132, 255, 0.28);
+}
+
+.message-bubble.mine .message-bubble-meta {
+    flex-direction: row-reverse;
 }
 
 .message-bubble.theirs {

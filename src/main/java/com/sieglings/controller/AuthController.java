@@ -2,6 +2,7 @@ package com.sieglings.controller;
 
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
+import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.entity.SavedDeckEntity;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
@@ -277,7 +278,16 @@ public class AuthController {
                     }
                     Map<String, Object> friend = new LinkedHashMap<>();
                     friend.put("email", email);
-                    friend.put("displayName", friendUser.getDisplayName());
+                    friend.put("userId", friendUser.getId());
+                    String displayName = friendUser.getDisplayName();
+                    if (profileSettingsService != null) {
+                        ProfileSettingsEntity settings = profileSettingsService.getOrCreate(friendUser);
+                        String settingsName = settings.getDisplayName();
+                        if (settingsName != null && !settingsName.isBlank()) {
+                            displayName = settingsName;
+                        }
+                    }
+                    friend.put("displayName", displayName);
                     friend.put("mutual", true);
                     return friend;
                 })

@@ -1598,14 +1598,19 @@
 
         list.innerHTML = visibleFriends.length
             ? visibleFriends.map(friend => {
-                const presence = state.friendPresence[friend.email] || {};
+                const presence = friendPresenceRow(friend);
                 const prefs = presence.profileSettings || {};
+                const displayName = resolveFriendDisplayName(friend, presence);
                 const online = Boolean(presence.presence?.online);
                 const status = presence.presence?.status || 'OFFLINE';
+                const statusLabel = online ? status.replace('_', ' ') : 'Offline';
+                const email = String(friend.email || '').trim();
+                const showEmail = email && displayName.toLowerCase() !== email.toLowerCase();
+                const subtitle = showEmail ? `${email} · ${statusLabel}` : statusLabel;
                 return `<article class="friend-tile social-friend-tile">
                 <div class="friend-avatar-wrap">
                     ${renderPlayerAvatar({
-                        displayName: prefs.displayName || friend.displayName || friend.email,
+                        displayName,
                         avatarMode: prefs.avatarMode,
                         avatar: prefs.avatar,
                         avatarUrl: prefs.avatarUrl,
@@ -1614,8 +1619,8 @@
                     <span class="presence-dot ${online ? (status === 'IN_GAME' ? 'in-game' : 'online') : ''}" title="${escapeHtml(status)}"></span>
                 </div>
                 <div class="friend-copy">
-                    <strong>${escapeHtml(prefs.displayName || friend.displayName || friend.email)}</strong>
-                    <span>${escapeHtml(friend.email)} · ${online ? escapeHtml(status.replace('_', ' ')) : 'Offline'}</span>
+                    <strong>${escapeHtml(displayName)}</strong>
+                    <span>${escapeHtml(subtitle)}</span>
                 </div>
                 <div class="friend-actions">
                     <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
@@ -1677,8 +1682,22 @@
         list.querySelectorAll('[data-deny-request]').forEach(btn => btn.addEventListener('click', () => respondToFriendRequest(btn.dataset.denyRequest, 'deny')));
     }
 
+    function friendPresenceRow(friend) {
+        const key = friend?.userId || friend?.email;
+        return key ? (state.friendPresence[key] || {}) : {};
+    }
+
+    function resolveFriendDisplayName(friend, presence = friendPresenceRow(friend)) {
+        const prefs = presence.profileSettings || {};
+        const name = String(prefs.displayName || friend?.displayName || '').trim();
+        if (name) return name;
+        const email = String(friend?.email || '').trim();
+        const at = email.indexOf('@');
+        return at > 0 ? email.slice(0, at) : (email || 'Player');
+    }
+
     function friendInitial(friend) {
-        return String(friend.displayName || friend.email || 'S').trim().slice(0, 1).toUpperCase();
+        return resolveFriendDisplayName(friend).slice(0, 1).toUpperCase();
     }
 
     function renderProfile() {
@@ -1740,8 +1759,7 @@
         const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
         const collection = collectionSummary();
         const savedDecks = state.profile?.savedDecks || [];
-        const realHistory = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
-        const battles = realHistory.length ? realHistory : mockBattles(prefs.favoriteElement);
+        const battles = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
         const record = battleRecord(battles);
         return {
             user,
@@ -1750,7 +1768,6 @@
             collection,
             savedDecks,
             battles,
-            usingMockBattles: !realHistory.length,
             record,
             rank: 'Bronze III',
             level: Math.max(1, Math.floor((state.progression?.ownedTotal || 0) / 12) + 1),
@@ -1841,7 +1858,7 @@
         return `<section class="profile-panel battle-record-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Battle Record</span><h3>Season Snapshot</h3></div>
-                ${view.usingMockBattles ? '<span class="profile-soft-pill">Sample history</span>' : '<span class="profile-soft-pill">Live history</span>'}
+                <span class="profile-soft-pill">${view.battles.length ? 'Live history' : 'No matches yet'}</span>
             </div>
             <div class="battle-record-layout">
                 <div class="win-ring" style="--win:${record.winRate}">
@@ -1865,16 +1882,18 @@
                 <span class="profile-soft-pill">${view.battles.length} entries</span>
             </div>
             <div class="battle-list">
-                ${view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
-                    <div class="battle-result">${escapeHtml(battle.result)}</div>
-                    <div class="battle-main">
-                        <strong>${escapeHtml(battle.opponentName)}</strong>
-                        <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
-                    </div>
-                    ${renderElementBadge(battle.element)}
-                    <div class="battle-meta"><span>${escapeHtml(battle.date)}</span><span>${escapeHtml(battle.duration)}</span></div>
-                    <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
-                </article>`).join('')}
+                ${view.battles.length
+                    ? view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
+                        <div class="battle-result">${escapeHtml(battle.result)}</div>
+                        <div class="battle-main">
+                            <strong>${escapeHtml(battle.opponentName)}</strong>
+                            <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
+                        </div>
+                        ${renderElementBadge(battle.element)}
+                        <div class="battle-meta"><span>${escapeHtml(battle.date)}</span>${battle.duration ? `<span>${escapeHtml(battle.duration)}</span>` : ''}</div>
+                        <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
+                    </article>`).join('')
+                    : '<div class="social-empty-state"><strong>No battles recorded yet</strong><span>Finish a PVE or PVP match while signed in and it will appear here.</span></div>'}
             </div>
         </section>`;
     }
@@ -2141,29 +2160,10 @@
             opponentType: matchType.includes('PVP') || matchType.includes('PLAYER') ? 'Player' : 'AI',
             deckUsed: row.loadoutLabel || row.trainerName || 'Battle Loadout',
             element: inferElementFromText(row.loadoutLabel || row.trainerName || '', fallbackElement),
-            date: formatProfileDate(row.finishedAt) || `Match ${index + 1}`,
-            duration: row.turnNumber ? `${row.turnNumber} turns` : '8 min',
+            date: formatProfileDate(row.finishedAt) || '',
+            duration: row.turnNumber ? `${row.turnNumber} turns` : '',
             reward: result === 'WIN' ? '+25' : '+5'
         };
-    }
-
-    function mockBattles(favoriteElement) {
-        return [
-            ['WIN', 'Mira of Glasspeak', 'AI', 'Starter Clash', favoriteElement, 'Today', '7 min', '+25'],
-            ['LOSS', 'Rowan Vale', 'Player', 'Root and Spark', 'Earth', 'Yesterday', '11 min', '+5'],
-            ['WIN', 'Cinder Scout', 'AI', 'Molten Trial', 'Fire', 'May 22', '9 min', '+25'],
-            ['WIN', 'Aster Gale', 'Player', 'Skyhook Tempo', 'Wind', 'May 20', '6 min', '+25'],
-            ['LOSS', 'Frost Regent', 'AI', 'Crystal Ward', 'Ice', 'May 18', '13 min', '+5']
-        ].map(([result, opponentName, opponentType, deckUsed, element, date, duration, reward]) => ({
-            result,
-            opponentName,
-            opponentType,
-            deckUsed,
-            element,
-            date,
-            duration,
-            reward
-        }));
     }
 
     function inferElementFromText(text, fallback) {
@@ -3742,9 +3742,31 @@
         return null;
     }
 
-    function renderLobbyWaitingRoom() {
-        const root = document.getElementById('lobbyWaitingRoot');
-        if (!root) return;
+    function isLobbyChatInputFocused() {
+        const input = document.getElementById('lobbyChatInput');
+        return Boolean(input && document.activeElement === input);
+    }
+
+    function lobbyChatLogHtml(messages = []) {
+        const chatLines = (messages || []).slice(-24).map(line => {
+            const role = String(line.role || '');
+            const css = role === 'system' ? 'system' : '';
+            return `<div class="lobby-chat-line ${css}"><strong>${escapeHtml(line.author || 'Player')}:</strong> ${escapeHtml(line.text || '')}</div>`;
+        }).join('');
+        return chatLines || '<div class="lobby-chat-line system">Say hello while you wait.</div>';
+    }
+
+    function renderLobbyChatLog() {
+        const chatLog = document.getElementById('lobbyChatLog');
+        if (!chatLog) return;
+        const nextHtml = lobbyChatLogHtml(state.lobbyStatus?.lobbyChat);
+        if (chatLog.innerHTML === nextHtml) return;
+        const stickToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight < 48;
+        chatLog.innerHTML = nextHtml;
+        if (stickToBottom) chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function lobbyWaitingContext() {
         const status = state.lobbyStatus;
         const session = currentLobbySession();
         const roomId = state.lobbyRoomId || status?.roomId || '';
@@ -3759,11 +3781,6 @@
         const players = status?.players || [];
         const hostPlayer = players.find(player => player.role === 'host') || { name: status?.hostName || 'Host', ready: false };
         const guestPlayer = players.find(player => player.role === 'guest');
-        const chatLines = (status?.lobbyChat || []).slice(-24).map(line => {
-            const role = String(line.role || '');
-            const css = role === 'system' ? 'system' : '';
-            return `<div class="lobby-chat-line ${css}"><strong>${escapeHtml(line.author || 'Player')}:</strong> ${escapeHtml(line.text || '')}</div>`;
-        }).join('');
         const statusLabel = status?.started
             ? 'Match starting — opening Play...'
             : !status?.guestJoined
@@ -3771,6 +3788,103 @@
                 : viewerReady
                     ? 'Waiting for opponent to confirm'
                     : 'Pick your deck and knight, then start match';
+        return {
+            status,
+            session,
+            roomId,
+            isHost,
+            viewerReady,
+            selectedDeck,
+            selectedTrainer,
+            deckOptions,
+            trainerOptions,
+            hostPlayer,
+            guestPlayer,
+            statusLabel
+        };
+    }
+
+    function bindLobbyWaitingRoomControls() {
+        document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
+        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
+        document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
+            const hostLobby = readHostLobby();
+            if (hostLobby) void closeHostLobby(hostLobby);
+        });
+        document.getElementById('lobbyChatForm')?.addEventListener('submit', (event) => {
+            event.preventDefault();
+            void sendLobbyChat();
+        });
+    }
+
+    function updateLobbyWaitingRoom() {
+        const root = document.getElementById('lobbyWaitingRoot');
+        if (!root || !root.querySelector('#lobbyChatInput')) {
+            renderLobbyWaitingRoom();
+            return;
+        }
+        const ctx = lobbyWaitingContext();
+        const statusLine = root.querySelector('.lobby-waiting-head .social-muted-inline');
+        if (statusLine) statusLine.textContent = `Room ${ctx.roomId} · ${ctx.statusLabel}`;
+        const pill = root.querySelector('.lobby-status-pill');
+        if (pill) pill.textContent = `${ctx.status?.guestJoined ? '2 / 2' : '1 / 2'} players`;
+        const players = root.querySelector('.lobby-players');
+        if (players) {
+            players.innerHTML = `${renderLobbyPlayerSlot(ctx.hostPlayer, 'Host')}${ctx.guestPlayer
+                ? renderLobbyPlayerSlot(ctx.guestPlayer, 'Guest')
+                : renderLobbyPlayerSlot({ name: 'Waiting for player...', ready: false }, 'Open slot', true)}`;
+        }
+        const deckSelect = document.getElementById('lobbyDeckSelect');
+        if (deckSelect) {
+            deckSelect.disabled = ctx.viewerReady || Boolean(ctx.status?.started);
+            if (deckSelect.value !== ctx.selectedDeck) deckSelect.value = ctx.selectedDeck;
+        }
+        const trainerSelect = document.getElementById('lobbyTrainerSelect');
+        if (trainerSelect) {
+            trainerSelect.disabled = ctx.viewerReady || Boolean(ctx.status?.started);
+            if (trainerSelect.value !== ctx.selectedTrainer) trainerSelect.value = ctx.selectedTrainer;
+        }
+        const readyBtn = document.getElementById('lobbyReadyBtn');
+        if (readyBtn) {
+            readyBtn.disabled = !ctx.session || ctx.viewerReady || Boolean(ctx.status?.started);
+            readyBtn.textContent = ctx.viewerReady ? 'Ready' : 'Start Match';
+        }
+        const chatInput = document.getElementById('lobbyChatInput');
+        if (chatInput) chatInput.disabled = !ctx.session;
+        renderLobbyChatLog();
+        let invite = document.getElementById('lobbyInviteLink');
+        if (ctx.status?.shareUrl) {
+            const inviteHtml = `Invite link: <a href="${escapeAttr(ctx.status.shareUrl)}">${escapeHtml(ctx.status.shareUrl)}</a>`;
+            if (invite) {
+                invite.innerHTML = inviteHtml;
+            } else {
+                invite = document.createElement('p');
+                invite.id = 'lobbyInviteLink';
+                invite.className = 'social-muted-inline';
+                invite.innerHTML = inviteHtml;
+                root.querySelector('.lobby-chat-compose')?.insertAdjacentElement('afterend', invite);
+            }
+        } else if (invite) {
+            invite.remove();
+        }
+    }
+
+    function renderLobbyWaitingRoom() {
+        const root = document.getElementById('lobbyWaitingRoot');
+        if (!root) return;
+        const ctx = lobbyWaitingContext();
+        const {
+            status,
+            session,
+            roomId,
+            isHost,
+            viewerReady,
+            deckOptions,
+            trainerOptions,
+            hostPlayer,
+            guestPlayer,
+            statusLabel
+        } = ctx;
 
         root.innerHTML = `<div class="lobby-waiting-head">
             <div>
@@ -3799,27 +3913,18 @@
             </section>
             <section class="lobby-panel">
                 <div class="social-panel-head"><div><span class="eyebrow">Lobby Chat</span><h2>Say hello</h2></div></div>
-                <div class="lobby-chat-log" id="lobbyChatLog">${chatLines || '<div class="lobby-chat-line system">Say hello while you wait.</div>'}</div>
+                <div class="lobby-chat-log" id="lobbyChatLog">${lobbyChatLogHtml(status?.lobbyChat)}</div>
                 <form class="lobby-chat-compose" id="lobbyChatForm">
                     <input class="search-input" id="lobbyChatInput" type="text" maxlength="120" placeholder="Message the lobby" ${session ? '' : 'disabled'}>
                     <button class="primary-btn" type="submit">Send</button>
                 </form>
-                ${status?.shareUrl ? `<p class="social-muted-inline">Invite link: <a href="${escapeAttr(status.shareUrl)}">${escapeHtml(status.shareUrl)}</a></p>` : ''}
+                ${status?.shareUrl ? `<p class="social-muted-inline" id="lobbyInviteLink">Invite link: <a href="${escapeAttr(status.shareUrl)}">${escapeHtml(status.shareUrl)}</a></p>` : ''}
             </section>
         </div>`;
 
         const chatLog = document.getElementById('lobbyChatLog');
         if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
-        document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
-        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
-        document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
-            const hostLobby = readHostLobby();
-            if (hostLobby) void closeHostLobby(hostLobby);
-        });
-        document.getElementById('lobbyChatForm')?.addEventListener('submit', (event) => {
-            event.preventDefault();
-            void sendLobbyChat();
-        });
+        bindLobbyWaitingRoomControls();
     }
 
     function renderLobbyPlayerSlot(player, label, empty = false) {
@@ -3887,7 +3992,7 @@
         if (state.lobbyStatus) {
             state.lobbyStatus.lobbyChat = data.lobbyChat || [];
         }
-        renderLobbyWaitingRoom();
+        renderLobbyChatLog();
     }
 
     async function leaveLobbyWaitingRoom() {
@@ -3942,7 +4047,11 @@
             launchOnlineBattleFromSocial(session, status);
             return;
         }
-        renderLobbyWaitingRoom();
+        if (isLobbyChatInputFocused()) {
+            updateLobbyWaitingRoom();
+        } else {
+            renderLobbyWaitingRoom();
+        }
     }
 
     function saveMultiplayerSession(session) {
@@ -4154,6 +4263,7 @@
         const map = {};
         (data.friends || []).forEach(row => {
             if (row.userId) map[row.userId] = row;
+            if (row.email) map[row.email] = row;
         });
         state.friendPresence = map;
     }
@@ -4193,6 +4303,30 @@
         }
     }
 
+    function chatMessageSenderLabel(message, peerId) {
+        if (message?.mine) return 'You';
+        const senderId = message?.senderId || peerId;
+        const friend = (state.profile?.friends || []).find(row => row.email === senderId);
+        if (friend?.displayName) return friend.displayName;
+        const peer = (state.profile?.friends || []).find(row => row.email === peerId);
+        return peer?.displayName || senderId || 'Friend';
+    }
+
+    function renderChatMessageBubble(message, peerId) {
+        const sender = chatMessageSenderLabel(message, peerId);
+        const when = message?.createdAt ? formatDateTime(message.createdAt) : '';
+        const timeMarkup = when
+            ? `<time class="message-bubble-time" datetime="${escapeAttr(message.createdAt)}">${escapeHtml(when)}</time>`
+            : '';
+        return `<div class="message-bubble ${message.mine ? 'mine' : 'theirs'}">
+            <div class="message-bubble-meta">
+                <span class="message-bubble-sender">${escapeHtml(sender)}</span>
+                ${timeMarkup}
+            </div>
+            <div class="message-bubble-text">${escapeHtml(message.text || '')}</div>
+        </div>`;
+    }
+
     async function openMessageComposer(peerId, focusInput = true) {
         if (!state.profile?.authenticated) return openAuth();
         state.activeChatPeer = peerId;
@@ -4210,7 +4344,7 @@
         }
         if (log) {
             log.innerHTML = (data.messages || []).length
-                ? data.messages.map(message => `<div class="message-bubble ${message.mine ? 'mine' : 'theirs'}">${escapeHtml(message.text)}</div>`).join('')
+                ? data.messages.map(message => renderChatMessageBubble(message, peerId)).join('')
                 : '<div class="social-empty-state"><span>Say hello to start the conversation.</span></div>';
             log.scrollTop = log.scrollHeight;
         }
