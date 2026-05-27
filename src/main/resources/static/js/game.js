@@ -2403,9 +2403,12 @@ function updateResponsiveLayoutVars(force = false) {
     const heightLimitedBoardWidth = desktop
         ? Math.max(0, ((desktopArenaHeight - boardHeightOffset) / 2) / boardHeightRatio)
         : boardMaxWidth;
-    const desktopBoardTargetWidth = desktop
+    let desktopBoardTargetWidth = desktop
         ? Math.round(Math.min(boardMaxWidth, heightLimitedBoardWidth || boardMaxWidth))
         : boardMaxWidth;
+    if (desktopShortViewport && desktopBoardTargetWidth > 0) {
+        desktopBoardTargetWidth = Math.max(280, desktopBoardTargetWidth - 2);
+    }
     let desktopArenaColumnWidth = desktop
         ? Math.round(clampNumber(
             desktopBoardTargetWidth + clampNumber(desktopBoardTargetWidth * 0.85, 300, 560),
