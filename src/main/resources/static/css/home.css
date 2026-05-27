@@ -461,14 +461,16 @@ select.search-input { color-scheme: dark; }
 
 .daily-card-front.binder-card {
     width: 100%;
-    min-height: 0;
-    aspect-ratio: 5 / 7;
+    min-height: 286px;
+    aspect-ratio: auto;
     cursor: default;
 }
 
 .daily-card-compact .binder-card-shell {
     gap: 6px;
     padding: 8px;
+    min-height: 100%;
+    grid-template-rows: auto minmax(68px, auto) minmax(0, 1fr);
 }
 
 .daily-card-compact .binder-card-header {
@@ -490,11 +492,14 @@ select.search-input { color-scheme: dark; }
     aspect-ratio: 4 / 3;
 }
 
-.daily-card-compact .binder-card-body {
-    gap: 4px;
+.daily-card-compact .binder-card-body,
+.shop-card-body {
+    gap: 5px;
+    min-height: 0;
 }
 
-.daily-card-compact .binder-card-stats span {
+.daily-card-compact .binder-card-stats span,
+.shop-card-stats-alt span {
     padding: 3px 4px;
     font-size: 10px;
 }
@@ -502,6 +507,33 @@ select.search-input { color-scheme: dark; }
 .daily-card-compact .binder-card-meta,
 .daily-card-compact .binder-card-cost {
     font-size: 9px;
+}
+
+.daily-card-compact .binder-card-description,
+.daily-card-compact .shop-card-description {
+    height: auto;
+    min-height: 30px;
+    max-height: 36px;
+    margin-top: 2px;
+    font-size: 8px;
+    line-height: 1.16;
+    -webkit-line-clamp: 3;
+}
+
+.shop-card-ability {
+    min-height: 14px;
+    color: rgba(255, 246, 218, 0.9);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .03em;
+    line-height: 1.2;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.shop-card-stats-alt span {
+    font-size: 9px;
+    letter-spacing: .02em;
 }
 
 .daily-offer-tile .primary-btn {

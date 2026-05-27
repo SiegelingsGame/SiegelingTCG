@@ -533,8 +533,6 @@
     function renderBinderCardShell(card, options = {}) {
         const owned = Number.isFinite(options.ownedOverride) ? options.ownedOverride : ownedCount(card.id);
         const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
-        const hp = card.health ?? card.hp ?? '-';
-        const speed = card.speed ?? card.spd ?? '-';
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const isSiegling = card.type === 'SIEGLING';
@@ -547,11 +545,12 @@
                 <div class="binder-card-art">
                     ${renderElementIcon(card.element)}
                 </div>
-                <div class="binder-card-body">
-                    ${isSiegling ? `<div class="binder-card-stats"><span>HP:${escapeHtml(hp)}</span><span>SPD:${escapeHtml(speed)}</span></div>` : ''}
+                <div class="binder-card-body shop-card-body">
+                    ${renderShopCardStats(card)}
                     <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${owned ? `Owned x${owned}` : 'Unowned'}</div>
                     <div class="binder-card-cost">${cost > 0 ? `Cost ${cost} ${escapeHtml(format(costElement))}` : 'No energy cost'}</div>
-                    ${isSiegling ? renderBinderCardDescription(card) : ''}
+                    ${renderShopCardAbilityLine(card)}
+                    ${renderShopCardDescription(card)}
                 </div>
             </div>`;
     }
@@ -1251,13 +1250,13 @@
             name: offer.cardName || catalogCard.name,
             type: offer.type || catalogCard.type,
             element: offer.element || catalogCard.element || 'FIRE',
-            rarity: offer.rarity || catalogCard.rarity || 'COMMON'
+            rarity: offer.rarity || catalogCard.rarity || 'COMMON',
+            notches: catalogCard.notches || [],
+            abilities: catalogCard.abilities || (catalogCard.ability ? [catalogCard.ability] : [])
         };
         const purchased = state.progression?.purchasedDailyOfferIds?.includes(offer.id);
         const owned = ownedCount(card.id);
         const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
-        const hp = card.health ?? card.hp ?? '-';
-        const speed = card.speed ?? card.spd ?? '-';
         const isSiegling = card.type === 'SIEGLING';
         return `<article class="daily-offer-tile" style="--el:${elementColor(card.element)};--rarity:${rarityColor(card.rarity)}">
             <div class="daily-card-front binder-card daily-card-compact">
@@ -1268,15 +1267,61 @@
                         <span>${escapeHtml(typeLabel)}</span>
                     </div>
                     <div class="binder-card-art">${renderElementIcon(card.element)}</div>
-                    <div class="binder-card-body">
-                        ${isSiegling ? `<div class="binder-card-stats"><span>HP:${escapeHtml(hp)}</span><span>SPD:${escapeHtml(speed)}</span></div>` : ''}
+                    <div class="binder-card-body shop-card-body">
+                        ${renderShopCardStats(card)}
                         <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / Owned x${owned}</div>
-                        <div class="binder-card-cost">${cardEnergyCost(card) > 0 ? `Cost ${cardEnergyCost(card)} ${escapeHtml(format(card.costElement || card.element))}` : 'No energy cost'}</div>
+                        <div class="binder-card-cost">${cardEnergyCost(card) > 0 ? `Cost ${cardEnergyCost(card)} ${escapeHtml(format(card.costElement || card.trapBucketElement || card.element))}` : 'No energy cost'}</div>
+                        ${renderShopCardAbilityLine(card)}
+                        ${renderShopCardDescription(card)}
                     </div>
                 </div>
             </div>
             <button class="primary-btn" type="button" data-daily-offer-id="${escapeAttr(offer.id)}" ${purchased ? 'disabled' : ''}>${purchased ? 'Purchased' : renderCoinAmount(offer.price, '')}</button>
         </article>`;
+    }
+
+    function renderShopCardStats(card) {
+        const type = String(card?.type || '').toUpperCase();
+        if (type === 'SIEGLING') {
+            const hp = card.health ?? card.hp ?? '-';
+            const speed = card.speed ?? card.spd ?? '-';
+            return `<div class="binder-card-stats"><span>HP:${escapeHtml(hp)}</span><span>SPD:${escapeHtml(speed)}</span></div>`;
+        }
+        if (type === 'SPELL') {
+            const reaction = format(card.requiredReaction || 'None');
+            const row = card.preferredRow ? format(card.preferredRow) : 'Any row';
+            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(row)}</span></div>`;
+        }
+        if (type === 'TRAP') {
+            const reaction = format(card.requiredReaction || 'Trigger');
+            const bucket = card.trapBucketAmount
+                ? `${card.trapBucketAmount} ${format(card.trapBucketElement || card.element)}`
+                : 'Trap set';
+            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
+        }
+        return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(card.type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span></div>`;
+    }
+
+    function shopCardDescriptionFor(card) {
+        const flavor = creatureDescriptionFor(card);
+        if (flavor && flavor !== 'Description coming soon.') return flavor;
+        const abilities = card?.abilities || (card?.ability ? [card.ability] : []);
+        const primary = abilities[0];
+        if (primary?.description) return polishFlavorText(primary.description);
+        if (primary?.name) return primary.name;
+        return flavor;
+    }
+
+    function renderShopCardDescription(card) {
+        const description = shopCardDescriptionFor(card);
+        return `<div class="binder-card-description shop-card-description" title="${escapeAttr(description)}">${escapeHtml(description)}</div>`;
+    }
+
+    function renderShopCardAbilityLine(card) {
+        const abilities = card?.abilities || (card?.ability ? [card.ability] : []);
+        const primary = abilities[0];
+        if (!primary?.name) return '';
+        return `<div class="shop-card-ability">${escapeHtml(primary.name)}</div>`;
     }
 
     function renderPackTile(pack) {
