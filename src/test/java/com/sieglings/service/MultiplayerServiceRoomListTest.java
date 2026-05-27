@@ -2,9 +2,11 @@ package com.sieglings.service;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class MultiplayerServiceRoomListTest {
 
@@ -17,5 +19,19 @@ class MultiplayerServiceRoomListTest {
 
         assertEquals(1, rooms.size());
         assertEquals("Host", rooms.get(0).getHostName());
+    }
+
+    @Test
+    void startedRoomDoesNotExpireOnOpenLobbyDeadline() {
+        MultiplayerRoom room = new MultiplayerRoom(
+                "ABC123",
+                "HOSTTOKEN",
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, "Blazing Core")
+        );
+        room.setExpiresAt(Instant.now().minusSeconds(1));
+        room.setGameState(new com.sieglings.model.GameState());
+
+        assertFalse(room.isExpired(Instant.now()));
     }
 }
