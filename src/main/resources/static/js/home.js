@@ -2359,6 +2359,14 @@
         return state.packReveal;
     }
 
+    function particleThemeForElement(element) {
+        const normalized = String(element || 'FIRE').toUpperCase();
+        if (normalized === 'EARTH') return 'earth';
+        if (normalized === 'ICE' || normalized === 'WATER') return 'ice';
+        if (normalized === 'WIND') return 'wind';
+        return 'fire';
+    }
+
     function enrichPackCard(card, index) {
         const catalogCard = findCard(card.id) || {};
         const duplicateAtCap = Boolean(card.duplicateAtCap ?? (card.granted === false && Number(card.remnantsAwarded) > 0));
@@ -2486,6 +2494,7 @@
         reveal.lastRevealedId = revealId;
         if (options.openPreview) reveal.previewId = revealId;
         reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
+        reveal.particleElement = card?.element || reveal.particleElement;
         renderPackResult();
     }
 
@@ -2578,6 +2587,7 @@
         cards.forEach(card => reveal.revealed.add(card.revealId));
         reveal.lastRevealedId = '';
         reveal.sparkColor = elementColor(latest.cards?.[0]?.element || 'FIRE');
+        reveal.particleElement = latest.cards?.[0]?.element || reveal.particleElement || 'FIRE';
         renderPackResult();
         const result = document.getElementById('packResult');
         cards.filter(card => card.duplicateAtCap && card.remnantsAwarded > 0).forEach((card, order) => {
