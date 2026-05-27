@@ -1811,6 +1811,87 @@ function previewCellHover(isPlayer, row, col) {
     showBattleTargetCellsPreview(ability, cells);
 }
 
+function getBattleAbilityDisplayName(ability) {
+    return String(ability?.name || 'Move').trim() || 'Move';
+}
+
+function getBattleAbilityEffectLine(ability) {
+    const name = getBattleAbilityDisplayName(ability);
+    let desc = String(ability?.description || '').trim();
+    if (desc && name && desc.toLowerCase().startsWith(name.toLowerCase())) {
+        desc = desc.slice(name.length).replace(/^[\s:–—-]+/, '').trim();
+    }
+    if (desc) {
+        return desc;
+    }
+    const effect = formatAbilityEffectLabel(ability);
+    if (effect) {
+        return effect;
+    }
+    const target = formatAbilityTargetLabel(ability);
+    return target || 'Resolves after you finish targeting.';
+}
+
+function getBattleTargetingEffectCategory(ability) {
+    const effectType = String(ability?.effectType || '').trim().toLowerCase();
+    if (effectType === 'player_damage') {
+        return 'player';
+    }
+    if (effectType === 'move_link') {
+        return 'move';
+    }
+    const kind = effectKindFor(ability);
+    if (kind === 'heal' || effectType === 'heal' || effectType === 'shield') {
+        return 'heal';
+    }
+    if (kind === 'buff' || /boost|shield|draw/.test(effectType)) {
+        return 'buff';
+    }
+    if (kind === 'freeze' || /freeze|slow|speed_zero/.test(effectType)) {
+        return 'control';
+    }
+    if (kind === 'damage' || effectType === 'destroy' || effectType === 'damage') {
+        return 'damage';
+    }
+    return kind || 'default';
+}
+
+function buildBattleTargetingArrowHint(ability, targetSide, selectedRow = -1) {
+    const category = getBattleTargetingEffectCategory(ability);
+    const previewCells = getBattleTargetingPreviewCells(ability);
+    const hasArrowPreview = previewCells.length > 0 && Boolean(sourceCellCenter());
+
+    if (targetSide === 'row-enemy' || targetSide === 'row-ally') {
+        if (selectedRow < 0) {
+            return hasArrowPreview
+                ? 'Preview arrows fan out from your ACTING Siegeling toward valid rows. Tap any highlighted card in the row you want.'
+                : 'Tap any highlighted Siegeling in the row you want to affect.';
+        }
+        return hasArrowPreview
+            ? 'Arrows show which enemies in this row your move will hit. Confirm when ready.'
+            : 'Every Siegeling in the selected row will be affected.';
+    }
+
+    if (!hasArrowPreview) {
+        return 'Valid targets are highlighted on the board. Tap one to continue.';
+    }
+
+    switch (category) {
+        case 'heal':
+            return 'Follow the green preview arrow from your ACTING Siegeling to the ally you want to heal, then tap that card.';
+        case 'buff':
+            return 'Follow the blue preview arrow from your ACTING Siegeling to the ally you want to empower, then tap that card.';
+        case 'control':
+            return 'Follow the icy preview arrow from your ACTING Siegeling to the enemy you want to slow or freeze, then tap that card.';
+        case 'move':
+            return 'Follow the purple preview arrow to see where the forced movement will pull an enemy, then tap the highlighted target.';
+        case 'damage':
+            return 'Follow the orange attack arrow from your ACTING Siegeling to a highlighted enemy. Tap that card to strike. Weakness badges mean +1 damage.';
+        default:
+            return 'Follow the glowing preview arrow from your ACTING Siegeling to a highlighted target on the board, then tap that card.';
+    }
+}
+
 function buildBattleTargetMessage(targetSide, ability, selectedRow = -1) {
     return buildBattleTargetingInstruction(targetSide, ability, selectedRow).banner;
 }
@@ -1818,84 +1899,128 @@ function buildBattleTargetMessage(targetSide, ability, selectedRow = -1) {
 function buildBattleTargetingInstruction(targetSide, ability, selectedRow = -1) {
     const weakness = formatBattleAbilityWeaknessPreview(ability, selectedRow);
     const weaknessSuffix = weakness ? ` ${weakness}` : '';
-    const moveSummary = (ability?.description && String(ability.description).trim()) || ability?.name || 'Selected move';
-    const detail = `${moveSummary}${weaknessSuffix}`;
+    const moveName = getBattleAbilityDisplayName(ability);
+    const effectLine = getBattleAbilityEffectLine(ability);
+    const category = getBattleTargetingEffectCategory(ability);
+    const arrowHint = buildBattleTargetingArrowHint(ability, targetSide, selectedRow);
+    const targetLabel = formatAbilityTargetLabel(ability);
+    const base = {
+        moveName,
+        effectLine,
+        arrowHint,
+        banner: '',
+        trayStateLabel: 'Pick Target',
+        headline: 'Choose a target',
+        steps: []
+    };
 
     if (targetSide === 'row-enemy') {
         if (selectedRow >= 0) {
             const rowName = ROW_NAMES[selectedRow] || 'Selected';
             const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
-            const targetLine = targets.length > 0 ? ` Targets: ${targets.join(', ')}.` : '';
+            const targetLine = targets.length > 0 ? ` Hits: ${targets.join(', ')}.` : '';
             return {
-                banner: `${rowName} enemy row selected. Confirm the row or change it.${weaknessSuffix}`,
-                headline: `Confirm ${rowName} enemy row`,
+                ...base,
+                trayStateLabel: 'Confirm Row',
+                banner: `${rowName} enemy row locked in.${weaknessSuffix}`,
+                headline: `Confirm ${rowName} row attack`,
                 steps: [
-                    'Every Siegeling in that row will be affected.',
-                    'Use Confirm Row to queue the action, or Change Row to pick again.',
-                    'Pass skips this action if you want a different move instead.'
+                    `${moveName} will hit every enemy Siegeling in the ${rowName} row.`,
+                    arrowHint,
+                    'Tap Confirm Row to queue the attack, or Change Row to pick a different row.',
+                    'Tap Cancel below to return to the move list.'
                 ],
-                detail: `${detail}${targetLine}`
+                effectLine: `${effectLine}${targetLine}${weaknessSuffix}`
             };
         }
         return {
-            banner: `Select a card in an enemy row.${weaknessSuffix}`,
-            headline: 'Pick an enemy row',
+            ...base,
+            trayStateLabel: 'Choose Row',
+            banner: `Pick an enemy row for ${moveName}.${weaknessSuffix}`,
+            headline: category === 'damage' ? 'Pick a row to attack' : 'Pick an enemy row',
             steps: [
-                'Tap any enemy Siegeling in the row you want to hit.',
-                'Highlighted enemy cards show valid rows.',
-                'Pass skips this action if you want a different move instead.'
-            ],
-            detail
+                `${moveName}: ${effectLine}`,
+                arrowHint,
+                'Tap any enemy Siegeling in the row you want — the whole row is included.',
+                'Tap Cancel below to pick a different move.'
+            ]
         };
     }
+
     if (targetSide === 'row-ally') {
         if (selectedRow >= 0) {
             const rowName = ROW_NAMES[selectedRow] || 'Selected';
             const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
-            const targetLine = targets.length > 0 ? ` Targets: ${targets.join(', ')}.` : '';
+            const targetLine = targets.length > 0 ? ` Helps: ${targets.join(', ')}.` : '';
             return {
-                banner: `${rowName} friendly row selected. Confirm the row or change it.`,
-                headline: `Confirm ${rowName} friendly row`,
+                ...base,
+                trayStateLabel: 'Confirm Row',
+                banner: `${rowName} friendly row locked in.`,
+                headline: `Confirm ${rowName} row support`,
                 steps: [
-                    'Every Siegeling in that row will be affected.',
-                    'Use Confirm Row to queue the action, or Change Row to pick again.',
-                    'Pass skips this action if you want a different move instead.'
+                    `${moveName} will affect every ally Siegeling in the ${rowName} row.`,
+                    arrowHint,
+                    'Tap Confirm Row to queue the action, or Change Row to pick a different row.',
+                    'Tap Cancel below to return to the move list.'
                 ],
-                detail: `${detail}${targetLine}`
+                effectLine: `${effectLine}${targetLine}`
             };
         }
         return {
-            banner: 'Select a card in a friendly row.',
-            headline: 'Pick a friendly row',
+            ...base,
+            trayStateLabel: 'Choose Row',
+            banner: `Pick a friendly row for ${moveName}.`,
+            headline: category === 'heal' || category === 'buff' ? 'Pick a row to support' : 'Pick a friendly row',
             steps: [
-                'Tap any of your Siegelings in the row you want to affect.',
-                'Highlighted allies show valid rows.',
-                'Pass skips this action if you want a different move instead.'
-            ],
-            detail
+                `${moveName}: ${effectLine}`,
+                arrowHint,
+                'Tap any of your Siegelings in the row you want — the whole row is included.',
+                'Tap Cancel below to pick a different move.'
+            ]
         };
     }
+
     if (targetSide === 'ally') {
+        const allyHeadline = category === 'heal'
+            ? 'Pick an ally to heal'
+            : category === 'buff'
+                ? 'Pick an ally to empower'
+                : 'Pick a friendly Siegeling';
         return {
-            banner: `Select a friendly target for ${ability?.name || 'this move'}.${weaknessSuffix}`,
-            headline: 'Select a friendly Siegeling',
+            ...base,
+            trayStateLabel: category === 'heal' ? 'Pick Ally' : 'Pick Ally',
+            banner: `Select an ally for ${moveName}.`,
+            headline: allyHeadline,
             steps: [
-                'Tap one of your Siegelings on your board.',
-                'Only highlighted allies can be targeted.',
-                'Pass skips this action if you want a different move instead.'
-            ],
-            detail
+                `${moveName}: ${effectLine}`,
+                targetLabel ? `Targeting: ${targetLabel}.` : '',
+                arrowHint,
+                'Only your highlighted Siegelings can be selected.',
+                'Tap Cancel below to pick a different move.'
+            ].filter(Boolean)
         };
     }
+
+    const enemyHeadline = category === 'control'
+        ? 'Pick an enemy to hinder'
+        : category === 'move'
+            ? 'Pick an enemy to move'
+            : category === 'damage'
+                ? 'Pick an enemy to hit'
+                : 'Pick an enemy Siegeling';
+
     return {
-        banner: `Select an enemy target for ${ability?.name || 'this move'}.${weaknessSuffix}`,
-        headline: 'Select an enemy Siegeling',
+        ...base,
+        trayStateLabel: 'Pick Target',
+        banner: `Select an enemy for ${moveName}.${weaknessSuffix}`,
+        headline: enemyHeadline,
         steps: [
-            'Tap a highlighted enemy card on the board.',
-            'Matchup badges show strong or weak hits when relevant.',
-            'Pass skips this action if you want a different move instead.'
-        ],
-        detail
+            `${moveName}: ${effectLine}`,
+            targetLabel ? `Targeting: ${targetLabel}.` : '',
+            arrowHint,
+            weakness ? weakness : '',
+            'Tap Cancel below to pick a different move.'
+        ].filter(Boolean)
     };
 }
 
@@ -1907,10 +2032,14 @@ function renderBattleTargetingTray(pending, ability) {
     let html = '<div class="battle-targeting-tray">';
     html += '<div class="battle-targeting-move">';
     html += '<div class="battle-targeting-move-label">Selected move</div>';
-    html += `<div class="battle-targeting-move-name">${escapeHtml(ability?.name || 'Ability')}</div>`;
-    html += `<div class="battle-targeting-move-desc">${escapeHtml(instructions.detail)}</div>`;
+    html += `<div class="battle-targeting-move-name">${escapeHtml(instructions.moveName)}</div>`;
+    html += `<div class="battle-targeting-move-desc">${escapeHtml(instructions.effectLine)}</div>`;
     html += '</div>';
     html += `<div class="battle-targeting-headline">${escapeHtml(instructions.headline)}</div>`;
+    html += '<div class="battle-targeting-arrow-callout" role="status">';
+    html += '<span class="battle-targeting-arrow-icon" aria-hidden="true">↗</span>';
+    html += `<span class="battle-targeting-arrow-text">${escapeHtml(instructions.arrowHint)}</span>`;
+    html += '</div>';
     html += '<ul class="battle-targeting-steps">';
     instructions.steps.forEach((step) => {
         html += `<li>${escapeHtml(step)}</li>`;
@@ -1922,10 +2051,9 @@ function renderBattleTargetingTray(pending, ability) {
     }
 
     html += '<div class="battle-targeting-actions">';
-    html += '<button class="battle-targeting-cancel" type="button" onclick="cancelBattleTargetSelection()">Cancel — pick another move</button>';
-    html += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute('Pass this turn without using an ability. No energy cost.')}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">Pass (skip ability)</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
+    html += '<button class="battle-targeting-cancel" type="button" onclick="cancelBattleTargetSelection()">Cancel — choose a different move</button>';
     html += '</div>';
-    html += `<div class="battle-targeting-footnote">Acting: ${escapeHtml(pending?.name || 'Siegeling')}</div>`;
+    html += `<div class="battle-targeting-footnote">Acting Siegeling: ${escapeHtml(pending?.name || 'Siegeling')}</div>`;
     html += '</div>';
     return html;
 }
@@ -4808,7 +4936,7 @@ function getInteractionBannerState() {
     if (targetMode && targetContext) {
         const ability = targetContext.mode === 'battle' ? getActiveBattleTargetAbility() : null;
         const message = ability && targetContext.mode === 'battle'
-            ? buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow()).headline
+            ? buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow()).banner
             : targetContext.message;
         return {
             kind: 'target',
@@ -9133,20 +9261,23 @@ function renderBattlePanel() {
         const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
         for (const ability of sortedAbilities) {
             const disabled = ability.affordable ? '' : 'disabled';
-            const desc = (ability.description && String(ability.description).trim()) || ability.name;
+            const moveName = getBattleAbilityDisplayName(ability);
+            const effectLine = getBattleAbilityEffectLine(ability);
             const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
-            const tip = ability.description
-                ? `${ability.name} - ${ability.description}${weaknessPreview ? ` ${weaknessPreview}` : ''}`
-                : ability.name;
-            actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-name">${escapeHtml(desc)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
+            const tip = `${moveName}: ${effectLine}${weaknessPreview ? ` ${weaknessPreview}` : ''}`;
+            actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">${escapeHtml(moveName)}</span><span class="battle-ability-effect">${escapeHtml(effectLine)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
         }
-        const passDesc = 'Pass this turn without using an ability. No energy cost.';
-        actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passDesc)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(passDesc)}</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
+        const passTip = 'Pass: Skip this action without spending energy.';
+        actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passTip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">Pass</span><span class="battle-ability-effect">Skip this action without spending energy.</span></span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
         bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
     }
 
+    const targetingShellLabel = battleTargeting && activeTargetAbility
+        ? buildBattleTargetingInstruction(targetContext.side, activeTargetAbility, getRowSelectSelectedRow()).trayStateLabel
+        : 'Acting Now';
+
     setPanelHtml(buildQueueShell(
-        battleTargeting ? 'Choose Target' : 'Acting Now',
+        targetingShellLabel,
         battleTargeting ? 'targeting' : 'live',
         bodyHtml,
         { expanded: true, cardTitle: pending.name }

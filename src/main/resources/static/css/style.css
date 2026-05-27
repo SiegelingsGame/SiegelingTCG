@@ -2295,9 +2295,28 @@ body.card-drag-active #playerGrid {
     text-align: left;
 }
 
-.battle-ability-name {
+.battle-ability-name,
+.battle-ability-move-name {
     text-align: left;
     line-height: 1.15;
+    font-weight: 800;
+}
+
+.battle-ability-move-name {
+    font-size: 1.02em;
+    letter-spacing: 0.02em;
+}
+
+.battle-ability-effect {
+    text-align: left;
+    line-height: 1.28;
+    font-size: 0.88em;
+    font-weight: 600;
+    color: rgba(10, 18, 34, 0.82);
+}
+
+.battle-pass-btn .battle-ability-effect {
+    color: rgba(233, 240, 255, 0.88);
 }
 
 .battle-ability-weakness {
@@ -5669,6 +5688,37 @@ body.placement-active .board-cell.legal {
     font-weight: 800;
     color: #ffd4d4;
     line-height: 1.25;
+}
+
+.battle-targeting-arrow-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 188, 92, 0.34);
+    background: rgba(255, 138, 78, 0.08);
+}
+
+.battle-targeting-arrow-icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(255, 188, 92, 0.18);
+    color: #ffd77e;
+    font-size: 1.1em;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.battle-targeting-arrow-text {
+    font-size: 0.78em;
+    line-height: 1.35;
+    color: rgba(255, 236, 200, 0.95);
 }
 
 .battle-targeting-steps {
