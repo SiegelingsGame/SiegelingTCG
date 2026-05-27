@@ -117,6 +117,17 @@
     function stripLogPrefix(line) {
         return String(line || '').trim().replace(/^\[Turn\s+\d+\s+\w+\]\s*/i, '');
     }
+    function formatPhaseLabelFallback(phase) {
+        switch (String(phase || '').toUpperCase()) {
+            case 'DRAW': return 'Draw Phase';
+            case 'SETUP': return 'Setup Phase';
+            case 'BATTLE': return 'Battle Phase';
+            case 'MULLIGAN': return 'Opening Hand';
+            default:
+                if (!phase) return 'Phase Shift';
+                return `${String(phase).charAt(0)}${String(phase).slice(1).toLowerCase()} Phase`;
+        }
+    }
 
     // ── Toast Renderer ────────────────────────────────────────────────────────
     class ToastRenderer {
@@ -848,6 +859,9 @@
             this.queue = [];
             if (this.activeToast) { this.activeToast.dismiss(); this.activeToast = null; }
             this.toasts.clear();
+            if (typeof window.hidePhaseTransitionBanner === 'function') {
+                window.hidePhaseTransitionBanner();
+            }
             this.processing = false;
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
@@ -1214,9 +1228,11 @@
             // Battle-phase pacing: damage, destruction and ability animations
             // fire back-to-back as one solid block.
             const BATTLE_GAP_MS  = 220;
-            const PHASE_GAP_MS   = 360;
+            const PHASE_GAP_MS   = this.speed === 'fast' ? 200 : 420;
+            const PHASE_BANNER_MS = this.speed === 'fast' ? 1100 : 2000;
             const FIRST_PLAY_GAP = this.speed === 'fast' ? 120 : 360;
             const NEXT_PLAY_GAP  = this.speed === 'fast' ? 80 : 160;
+            const ENEMY_PLACEMENT_MS = this.speed === 'fast' ? 420 : 1000;
             let phaseTransitionQueued = false;
 
             // Multi-target label helper. Server damage events from the same
@@ -1245,6 +1261,10 @@
                 this._placementInProgress = true;
                 const placementIsPlayer = side === 'PLAYER';
                 const isEvolution = Boolean(p.evolutionFrom);
+                const placementKey = this.registerPendingPlacement(
+                    placementIsPlayer, p.row, p.col, p.cell
+                );
+                const enemyPaced = side === 'ENEMY';
                 this.enqueueAction({
                     kind: 'PLAY',
                     side,
@@ -1255,22 +1275,23 @@
                     elementColor: normalizeElement(p.cell.element) || knight,
                     source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
                     portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP
+                    placementKey,
+                    minActionMs: enemyPaced ? ENEMY_PLACEMENT_MS : null,
+                    gapAfterMs: enemyPaced
+                        ? 0
+                        : (isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP)
                 });
             };
 
             const enqueuePhaseTransitionAction = () => {
                 if (!phaseChanged || phaseTransitionQueued) return;
                 phaseTransitionQueued = true;
-                const phaseLabel = String(nextState.currentPhase).charAt(0)
-                    + String(nextState.currentPhase).slice(1).toLowerCase();
                 this.enqueueAction({
                     kind: 'PHASE',
+                    phase: nextState.currentPhase,
+                    activeSide: nextState.activeSide || 'PLAYER',
                     side: nextState.activeSide || 'PLAYER',
-                    actorName: `${phaseLabel} Phase`,
-                    knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
-                    elementColor: 'NEUTRAL',
-                    holdMs: this.timings().toastDismissMs,
+                    holdMs: PHASE_BANNER_MS,
                     gapAfterMs: PHASE_GAP_MS
                 });
             };
@@ -1728,6 +1749,7 @@
 
         async _playAction(action) {
             const t = this.timings();
+            const startedAt = Date.now();
             const knight = elementHex(action.knightElement);
             const elColor = elementHex(action.elementColor || action.knightElement);
 
@@ -1737,14 +1759,29 @@
             this.syncPendingPlacements();
 
             if (action.kind === 'PHASE') {
-                this.activeToast = this.toasts.show({
-                    ...action,
-                    label: '',
-                    actorName: action.actorName,
-                    targetName: ''
-                }, t.toastDismissMs);
+                if (this.activeToast) {
+                    this.activeToast.dismiss();
+                    this.activeToast = null;
+                }
+                const holdMs = action.holdMs || 2000;
+                if (typeof window.showPhaseTransitionBanner === 'function' && action.phase) {
+                    await window.showPhaseTransitionBanner(
+                        action.phase,
+                        action.activeSide,
+                        holdMs
+                    );
+                } else {
+                    const phaseLabel = formatPhaseLabelFallback(action.phase);
+                    this.activeToast = this.toasts.show({
+                        ...action,
+                        label: '',
+                        actorName: phaseLabel,
+                        targetName: ''
+                    }, holdMs);
+                    await sleep(t.toastEnterMs);
+                }
                 const phaseGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
-                await sleep(t.toastEnterMs + phaseGap);
+                await sleep(phaseGap);
                 return;
             }
 
@@ -2140,6 +2177,11 @@
             // 5. Inter-action gap. Each action may carry its own
             // gapAfterMs (battle actions tight, placements long, phase
             // transitions medium); fall back to the speed-tier default.
+            if (action.minActionMs) {
+                const elapsed = Date.now() - startedAt;
+                const remaining = action.minActionMs - elapsed;
+                if (remaining > 0) await sleep(remaining);
+            }
             const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
             await sleep(gap);
         }

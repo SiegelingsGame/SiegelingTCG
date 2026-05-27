@@ -1811,22 +1811,267 @@ function previewCellHover(isPlayer, row, col) {
     showBattleTargetCellsPreview(ability, cells);
 }
 
+function getBattleAbilityDisplayName(ability) {
+    return String(ability?.name || 'Move').trim() || 'Move';
+}
+
+function getBattleAbilityEffectLine(ability) {
+    const name = getBattleAbilityDisplayName(ability);
+    let desc = String(ability?.description || '').trim();
+    if (desc && name && desc.toLowerCase().startsWith(name.toLowerCase())) {
+        desc = desc.slice(name.length).replace(/^[\s:–—-]+/, '').trim();
+    }
+    if (desc) {
+        return desc;
+    }
+    const effect = formatAbilityEffectLabel(ability);
+    if (effect) {
+        return effect;
+    }
+    const target = formatAbilityTargetLabel(ability);
+    return target || 'Resolves after you finish targeting.';
+}
+
+function getBattleTargetingEffectCategory(ability) {
+    const effectType = String(ability?.effectType || '').trim().toLowerCase();
+    if (effectType === 'player_damage') {
+        return 'player';
+    }
+    if (effectType === 'move_link') {
+        return 'move';
+    }
+    const kind = effectKindFor(ability);
+    if (kind === 'heal' || effectType === 'heal' || effectType === 'shield') {
+        return 'heal';
+    }
+    if (kind === 'buff' || /boost|shield|draw/.test(effectType)) {
+        return 'buff';
+    }
+    if (kind === 'freeze' || /freeze|slow|speed_zero/.test(effectType)) {
+        return 'control';
+    }
+    if (kind === 'damage' || effectType === 'destroy' || effectType === 'damage') {
+        return 'damage';
+    }
+    return kind || 'default';
+}
+
+function buildBattleTargetingArrowHint(ability, targetSide, selectedRow = -1) {
+    const category = getBattleTargetingEffectCategory(ability);
+    const previewCells = getBattleTargetingPreviewCells(ability);
+    const hasArrowPreview = previewCells.length > 0 && Boolean(sourceCellCenter());
+
+    if (targetSide === 'row-enemy' || targetSide === 'row-ally') {
+        if (selectedRow < 0) {
+            return hasArrowPreview
+                ? 'Preview arrows fan out from your ACTING Siegeling toward valid rows. Tap any highlighted card in the row you want.'
+                : 'Tap any highlighted Siegeling in the row you want to affect.';
+        }
+        return hasArrowPreview
+            ? 'Arrows show which enemies in this row your move will hit. Confirm when ready.'
+            : 'Every Siegeling in the selected row will be affected.';
+    }
+
+    if (!hasArrowPreview) {
+        return 'Valid targets are highlighted on the board. Tap one to continue.';
+    }
+
+    switch (category) {
+        case 'heal':
+            return 'Follow the green preview arrow from your ACTING Siegeling to the ally you want to heal, then tap that card.';
+        case 'buff':
+            return 'Follow the blue preview arrow from your ACTING Siegeling to the ally you want to empower, then tap that card.';
+        case 'control':
+            return 'Follow the icy preview arrow from your ACTING Siegeling to the enemy you want to slow or freeze, then tap that card.';
+        case 'move':
+            return 'Follow the purple preview arrow to see where the forced movement will pull an enemy, then tap the highlighted target.';
+        case 'damage':
+            return 'Follow the orange attack arrow from your ACTING Siegeling to a highlighted enemy. Tap that card to strike. Weakness badges mean +1 damage.';
+        default:
+            return 'Follow the glowing preview arrow from your ACTING Siegeling to a highlighted target on the board, then tap that card.';
+    }
+}
+
 function buildBattleTargetMessage(targetSide, ability, selectedRow = -1) {
+    return buildBattleTargetingInstruction(targetSide, ability, selectedRow).banner;
+}
+
+function buildBattleTargetingInstruction(targetSide, ability, selectedRow = -1) {
     const weakness = formatBattleAbilityWeaknessPreview(ability, selectedRow);
-    const suffix = weakness ? ` ${weakness}` : '';
+    const weaknessSuffix = weakness ? ` ${weakness}` : '';
+    const moveName = getBattleAbilityDisplayName(ability);
+    const effectLine = getBattleAbilityEffectLine(ability);
+    const category = getBattleTargetingEffectCategory(ability);
+    const arrowHint = buildBattleTargetingArrowHint(ability, targetSide, selectedRow);
+    const targetLabel = formatAbilityTargetLabel(ability);
+    const base = {
+        moveName,
+        effectLine,
+        arrowHint,
+        banner: '',
+        trayStateLabel: 'Pick Target',
+        headline: 'Choose a target',
+        steps: []
+    };
+
     if (targetSide === 'row-enemy') {
         if (selectedRow >= 0) {
-            return `${ROW_NAMES[selectedRow] || 'Selected'} enemy row selected. Confirm the row or change it.${suffix}`;
+            const rowName = ROW_NAMES[selectedRow] || 'Selected';
+            const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
+            const targetLine = targets.length > 0 ? ` Hits: ${targets.join(', ')}.` : '';
+            return {
+                ...base,
+                trayStateLabel: 'Confirm Row',
+                banner: `${rowName} enemy row locked in.${weaknessSuffix}`,
+                headline: `Confirm ${rowName} row attack`,
+                steps: [
+                    `${moveName} will hit every enemy Siegeling in the ${rowName} row.`,
+                    arrowHint,
+                    'Tap Confirm Row to queue the attack, or Change Row to pick a different row.',
+                    'Tap Cancel below to return to the move list.'
+                ],
+                effectLine: `${effectLine}${targetLine}${weaknessSuffix}`
+            };
         }
-        return `Select a card in an enemy row.${suffix}`;
+        return {
+            ...base,
+            trayStateLabel: 'Choose Row',
+            banner: `Pick an enemy row for ${moveName}.${weaknessSuffix}`,
+            headline: category === 'damage' ? 'Pick a row to attack' : 'Pick an enemy row',
+            steps: [
+                `${moveName}: ${effectLine}`,
+                arrowHint,
+                'Tap any enemy Siegeling in the row you want — the whole row is included.',
+                'Tap Cancel below to pick a different move.'
+            ]
+        };
     }
+
     if (targetSide === 'row-ally') {
         if (selectedRow >= 0) {
-            return `${ROW_NAMES[selectedRow] || 'Selected'} friendly row selected. Confirm the row or change it.`;
+            const rowName = ROW_NAMES[selectedRow] || 'Selected';
+            const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
+            const targetLine = targets.length > 0 ? ` Helps: ${targets.join(', ')}.` : '';
+            return {
+                ...base,
+                trayStateLabel: 'Confirm Row',
+                banner: `${rowName} friendly row locked in.`,
+                headline: `Confirm ${rowName} row support`,
+                steps: [
+                    `${moveName} will affect every ally Siegeling in the ${rowName} row.`,
+                    arrowHint,
+                    'Tap Confirm Row to queue the action, or Change Row to pick a different row.',
+                    'Tap Cancel below to return to the move list.'
+                ],
+                effectLine: `${effectLine}${targetLine}`
+            };
         }
-        return 'Select a card in a friendly row.';
+        return {
+            ...base,
+            trayStateLabel: 'Choose Row',
+            banner: `Pick a friendly row for ${moveName}.`,
+            headline: category === 'heal' || category === 'buff' ? 'Pick a row to support' : 'Pick a friendly row',
+            steps: [
+                `${moveName}: ${effectLine}`,
+                arrowHint,
+                'Tap any of your Siegelings in the row you want — the whole row is included.',
+                'Tap Cancel below to pick a different move.'
+            ]
+        };
     }
-    return `Queue a ${targetSide} target for ${ability.name}.${suffix}`;
+
+    if (targetSide === 'ally') {
+        const allyHeadline = category === 'heal'
+            ? 'Pick an ally to heal'
+            : category === 'buff'
+                ? 'Pick an ally to empower'
+                : 'Pick a friendly Siegeling';
+        return {
+            ...base,
+            trayStateLabel: category === 'heal' ? 'Pick Ally' : 'Pick Ally',
+            banner: `Select an ally for ${moveName}.`,
+            headline: allyHeadline,
+            steps: [
+                `${moveName}: ${effectLine}`,
+                targetLabel ? `Targeting: ${targetLabel}.` : '',
+                arrowHint,
+                'Only your highlighted Siegelings can be selected.',
+                'Tap Cancel below to pick a different move.'
+            ].filter(Boolean)
+        };
+    }
+
+    const enemyHeadline = category === 'control'
+        ? 'Pick an enemy to hinder'
+        : category === 'move'
+            ? 'Pick an enemy to move'
+            : category === 'damage'
+                ? 'Pick an enemy to hit'
+                : 'Pick an enemy Siegeling';
+
+    return {
+        ...base,
+        trayStateLabel: 'Pick Target',
+        banner: `Select an enemy for ${moveName}.${weaknessSuffix}`,
+        headline: enemyHeadline,
+        steps: [
+            `${moveName}: ${effectLine}`,
+            targetLabel ? `Targeting: ${targetLabel}.` : '',
+            arrowHint,
+            weakness ? weakness : '',
+            'Tap Cancel below to pick a different move.'
+        ].filter(Boolean)
+    };
+}
+
+function renderBattleTargetingTray(pending, ability) {
+    const targetSide = targetContext?.side;
+    const selectedRow = getRowSelectSelectedRow();
+    const instructions = buildBattleTargetingInstruction(targetSide, ability, selectedRow);
+
+    let html = '<div class="battle-targeting-tray">';
+    html += '<div class="battle-targeting-move">';
+    html += '<div class="battle-targeting-move-label">Selected move</div>';
+    html += `<div class="battle-targeting-move-name">${escapeHtml(instructions.moveName)}</div>`;
+    html += `<div class="battle-targeting-move-desc">${escapeHtml(instructions.effectLine)}</div>`;
+    html += '</div>';
+    html += `<div class="battle-targeting-headline">${escapeHtml(instructions.headline)}</div>`;
+    html += '<div class="battle-targeting-arrow-callout" role="status">';
+    html += '<span class="battle-targeting-arrow-icon" aria-hidden="true">↗</span>';
+    html += `<span class="battle-targeting-arrow-text">${escapeHtml(instructions.arrowHint)}</span>`;
+    html += '</div>';
+    html += '<ul class="battle-targeting-steps">';
+    instructions.steps.forEach((step) => {
+        html += `<li>${escapeHtml(step)}</li>`;
+    });
+    html += '</ul>';
+
+    if (isRowSelectBattleTargetContext()) {
+        html += renderRowSelectBattleConfirm();
+    }
+
+    html += '<div class="battle-targeting-actions">';
+    html += '<button class="battle-targeting-cancel" type="button" onclick="cancelBattleTargetSelection()">Cancel — choose a different move</button>';
+    html += '</div>';
+    html += `<div class="battle-targeting-footnote">Acting Siegeling: ${escapeHtml(pending?.name || 'Siegeling')}</div>`;
+    html += '</div>';
+    return html;
+}
+
+function cancelBattleTargetSelection() {
+    if (!isBattleTargetSelectionActive()) {
+        return;
+    }
+    clearTargetingPreview();
+    clearTargetMode();
+    render();
+    if (isPortraitMobileHudLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
+    } else if (isMobileLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
+    }
 }
 
 function renderBattleAbilityCostEmblems(ability) {
@@ -2051,8 +2296,18 @@ function resolveApiBaseUrl(url) {
     }
 }
 
-function isCompactLandscapeLayout() {
+function isPhoneLandscapeLayout() {
     return window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches;
+}
+
+function isTabletLandscapeLayout() {
+    return window.matchMedia(
+        '(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)'
+    ).matches;
+}
+
+function isCompactLandscapeLayout() {
+    return isPhoneLandscapeLayout() || isTabletLandscapeLayout();
 }
 
 function isDesktopSidebarLayout() {
@@ -2071,7 +2326,10 @@ function getViewportModeLabel() {
     if (isDesktopSidebarLayout()) {
         return 'Desktop Dock';
     }
-    if (isCompactLandscapeLayout()) {
+    if (isTabletLandscapeLayout()) {
+        return 'iPad Landscape';
+    }
+    if (isPhoneLandscapeLayout()) {
         return 'Landscape';
     }
     return 'Portrait';
@@ -2198,6 +2456,8 @@ function updateResponsiveLayoutVars(force = false) {
             Math.min(96, desktopHandFiveCardFitWidth),
             Math.max(96, desktopHandFiveCardFitWidth)
         ))
+        : isTabletLandscapeLayout()
+        ? Math.round(clampNumber(viewportHeight * 0.14, 88, 118))
         : compactLandscape
         ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
         : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
@@ -2285,6 +2545,78 @@ let _drawerCloseTimers = [];
 
 function isBattleTargetSelectionActive() {
     return Boolean(targetMode && targetContext && targetContext.mode === 'battle');
+}
+
+function isMobileBattleTargetingCameraActive() {
+    return isBattleTargetSelectionActive() && isPortraitMobileHudLayout();
+}
+
+function renderMobileTargetingHud() {
+    const hud = document.getElementById('mobileTargetingHud');
+    if (!hud) {
+        return;
+    }
+    if (!isMobileBattleTargetingCameraActive()) {
+        hud.classList.add('hidden');
+        hud.innerHTML = '';
+        return;
+    }
+
+    const ability = getActiveBattleTargetAbility();
+    const pending = gameState?.pendingBattle;
+    if (!ability || !pending) {
+        hud.classList.add('hidden');
+        hud.innerHTML = '';
+        return;
+    }
+
+    const instructions = buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow());
+    let html = '<div class="mobile-targeting-hud-inner">';
+    html += `<div class="mobile-targeting-hud-kicker">${escapeHtml(instructions.trayStateLabel)}</div>`;
+    html += `<div class="mobile-targeting-hud-move">${escapeHtml(instructions.moveName)}</div>`;
+    html += `<div class="mobile-targeting-hud-effect">${escapeHtml(instructions.effectLine)}</div>`;
+    html += `<div class="mobile-targeting-hud-arrow">${escapeHtml(instructions.arrowHint)}</div>`;
+    if (isRowSelectBattleTargetContext()) {
+        html += renderRowSelectBattleConfirm();
+    }
+    html += '</div>';
+    hud.innerHTML = html;
+    hud.classList.remove('hidden');
+    window.requestAnimationFrame(() => {
+        if (!isMobileBattleTargetingCameraActive()) {
+            document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
+            return;
+        }
+        const stack = Math.ceil(hud.getBoundingClientRect().height + 10);
+        document.documentElement.style.setProperty('--mobile-targeting-hud-stack', `${stack}px`);
+        syncMobileTargetingArenaScale();
+    });
+}
+
+function syncMobileTargetingArenaScale() {
+    if (!isMobileBattleTargetingCameraActive()) {
+        document.documentElement.style.removeProperty('--mobile-targeting-arena-scale');
+        document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
+        return;
+    }
+    const board = document.getElementById('boardArea');
+    if (!board) {
+        return;
+    }
+    const run = () => {
+        if (!isMobileBattleTargetingCameraActive()) {
+            return;
+        }
+        const available = board.clientHeight;
+        const content = board.scrollHeight;
+        if (available <= 0 || content <= 0) {
+            return;
+        }
+        const scale = Math.min(1, (available - 4) / content);
+        document.documentElement.style.setProperty('--mobile-targeting-arena-scale', scale.toFixed(3));
+        scheduleBoardLinkConnectorRefresh();
+    };
+    window.requestAnimationFrame(() => window.requestAnimationFrame(run));
 }
 
 function shouldUseDesktopBattleDrawer() {
@@ -2395,18 +2727,23 @@ function getPhaseTransitionKicker(phase, activeSide) {
     return 'Phase Shift';
 }
 
-function showPhaseTransitionBanner(phase, activeSide) {
-    // The real-time playback system shows phase changes via the action-queue
-    // toast. When it's available, suppress the old top-of-screen banner so we
-    // don't double up.
-    if (window.SieglingsActionQueue) {
-        return;
+function hidePhaseTransitionBanner() {
+    const banner = document.getElementById('phaseTransitionBanner');
+    if (!banner) return;
+    if (phaseTransitionTimer) {
+        clearTimeout(phaseTransitionTimer);
+        phaseTransitionTimer = null;
     }
+    banner.classList.remove('visible');
+    banner.classList.add('hidden');
+}
+
+function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     const banner = document.getElementById('phaseTransitionBanner');
     const kicker = document.getElementById('phaseTransitionKicker');
     const title = document.getElementById('phaseTransitionTitle');
     if (!banner || !kicker || !title || !phase) {
-        return;
+        return Promise.resolve();
     }
 
     if (phaseTransitionTimer) {
@@ -2414,6 +2751,7 @@ function showPhaseTransitionBanner(phase, activeSide) {
         phaseTransitionTimer = null;
     }
 
+    const holdMs = Math.max(1200, Number(durationMs) || 2000);
     banner.className = `phase-transition-banner ${String(phase).toLowerCase()}`;
     kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
     title.textContent = formatPhaseLabel(phase);
@@ -2421,14 +2759,20 @@ function showPhaseTransitionBanner(phase, activeSide) {
     window.SieglingsSounds?.play('phase', 0.5);
     requestAnimationFrame(() => banner.classList.add('visible'));
 
-    phaseTransitionTimer = setTimeout(() => {
-        banner.classList.remove('visible');
+    return new Promise((resolve) => {
         phaseTransitionTimer = setTimeout(() => {
-            banner.classList.add('hidden');
-            phaseTransitionTimer = null;
-        }, 320);
-    }, 1800);
+            banner.classList.remove('visible');
+            phaseTransitionTimer = setTimeout(() => {
+                banner.classList.add('hidden');
+                phaseTransitionTimer = null;
+                resolve();
+            }, 360);
+        }, holdMs);
+    });
 }
+
+window.showPhaseTransitionBanner = showPhaseTransitionBanner;
+window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
 
 /* ============================================================
    CARD INSPECTOR â€” full-detail overlay when tapping hand card
@@ -2562,24 +2906,63 @@ function closeCardPreviewSurfaces() {
     }
 }
 
+function getTrainerAbilityLockReason(trainer = gameState?.player?.trainer) {
+    if (!gameState || !trainer?.active) {
+        return 'No active SiegeKnight ability is available right now.';
+    }
+    if (isOpeningPlacementOnlyTurn()) {
+        return 'Turn 1 starts with a Siegeling placement.';
+    }
+    if (!trainer.canUseActive) {
+        if (gameState.currentPhase === 'BATTLE') {
+            return 'Your SiegeKnight active was already used this round and refreshes after battle.';
+        }
+        if (trainer.oncePerGame) {
+            return 'This ultimate can only be used once per match.';
+        }
+        return 'Your SiegeKnight active was already used this round.';
+    }
+    if (gameState.activeSide !== 'PLAYER') {
+        return 'Wait for your turn before using your SiegeKnight ability.';
+    }
+    if (targetMode) {
+        if (targetContext?.mode === 'battle') {
+            return 'Finish queueing the current battle action first.';
+        }
+        if (targetContext?.mode !== 'trainer') {
+            return 'Finish the current target selection first.';
+        }
+    }
+    if (gameState.currentPhase === 'BATTLE') {
+        if (gameState.battleWaitingOn === 'ENEMY') {
+            return 'Wait for the opponent to finish the current battle action.';
+        }
+        if (gameState.pendingBattle) {
+            return 'Queue this Siegeling\'s battle action before using your SiegeKnight active.';
+        }
+    }
+    const targetSide = getAbilityTargetSide(trainer.active);
+    if (targetSide && !abilityHasAvailableTarget(trainer.active)) {
+        return targetSide
+            ? `No ${targetSide} targets are available right now.`
+            : 'This ability has no valid target right now.';
+    }
+    return '';
+}
+
 function canUseTrainerAbility(trainer = gameState?.player?.trainer) {
-    return Boolean(
-        trainer
-        && trainer.active
-        && trainer.canUseActive
-        && !isOpeningPlacementOnlyTurn()
-        && abilityHasAvailableTarget(trainer.active)
-    );
+    return Boolean(trainer && trainer.active && !getTrainerAbilityLockReason(trainer));
 }
 
 function buildTrainerAbilityHint(trainer) {
     if (!trainer?.active) {
         return 'No active SiegeKnight ability is ready right now.';
     }
-    const targetSide = getAbilityTargetSide(trainer.active);
-    if (targetSide && !abilityHasAvailableTarget(trainer.active)) {
-        return `No ${targetSide} targets are available right now.`;
+    const lockReason = getTrainerAbilityLockReason(trainer);
+    if (lockReason) {
+        return lockReason;
     }
+    const targetSide = getAbilityTargetSide(trainer.active);
     if (targetSide) {
         const article = /^[aeiou]/i.test(targetSide) ? 'an' : 'a';
         return `Using this will close the popup and let you pick ${article} ${targetSide} target on the board.`;
@@ -2632,11 +3015,14 @@ function renderTrainerAbilityPopup() {
         copy.textContent = `${activeDescription} ${availability}`.trim();
     }
     if (useBtn) {
-        const canUse = canUseTrainerAbility(trainer);
+        const lockReason = getTrainerAbilityLockReason(trainer);
+        const canUse = !lockReason;
         useBtn.disabled = !canUse;
         useBtn.textContent = !trainer.active
             ? 'No Active Ability'
-            : (abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability');
+            : (canUse
+                ? (abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability')
+                : 'Unavailable');
     }
 }
 function openTrainerAbilityPopup() {
@@ -2707,6 +3093,10 @@ function submitDashboardAccess(event) {
 }
 
 function activateTrainerAbilityFromPopup() {
+    const trainer = gameState?.player?.trainer;
+    if (!canUseTrainerAbility(trainer)) {
+        return;
+    }
     closeTrainerAbilityPopup();
     onTrainerUse();
 }
@@ -2875,8 +3265,15 @@ function renderHintPanel() {
 function syncActionBarAttention() {
     const hintButton = document.getElementById('btnHint');
     const previewButton = document.getElementById('btnSelectedPreview');
+    const cancelMoveButton = document.getElementById('btnCancelBattleMove');
+    const targetingCamera = isMobileBattleTargetingCameraActive();
     const hintState = getInteractionHintState();
     const focusedCard = getFocusedPreviewCard();
+
+    cancelMoveButton?.classList.toggle('hidden', !targetingCamera);
+    if (cancelMoveButton) {
+        cancelMoveButton.hidden = !targetingCamera;
+    }
 
     hintButton?.classList.toggle('ab-icon-live', hintState.available);
     hintButton?.classList.toggle('ab-icon-pulse', hintState.available);
@@ -4683,10 +5080,14 @@ function getInteractionBannerState() {
         };
     }
     if (targetMode && targetContext) {
+        const ability = targetContext.mode === 'battle' ? getActiveBattleTargetAbility() : null;
+        const message = ability && targetContext.mode === 'battle'
+            ? buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow()).banner
+            : targetContext.message;
         return {
             kind: 'target',
             label: 'Targeting',
-            message: targetContext.message
+            message
         };
     }
     if (isPlacementSelectionActive()) {
@@ -4725,6 +5126,11 @@ function getInteractionBannerState() {
 function renderInteractionBanner() {
     const banner = document.getElementById('interactionBanner');
     if (!banner) {
+        return;
+    }
+    if (isMobileBattleTargetingCameraActive()) {
+        banner.className = 'interaction-banner hidden';
+        banner.innerHTML = '';
         return;
     }
     const state = getInteractionBannerState();
@@ -4798,13 +5204,16 @@ function applyInteractionState() {
     const placementActive = isPlacementSelectionActive();
     const handHidden = isHandHiddenForPhase();
     const battlePhaseActive = Boolean(gameState && gameState.currentPhase === 'BATTLE');
+    const mobileTargetingCamera = isMobileBattleTargetingCameraActive();
 
     body.classList.toggle('targeting-active', targetingActive);
     body.classList.toggle('placement-active', placementActive);
     body.classList.toggle('battle-phase-active', battlePhaseActive);
+    body.classList.toggle('mobile-battle-targeting-camera', mobileTargetingCamera);
 
     boardArea?.classList.toggle('targeting-active', targetingActive);
     boardArea?.classList.toggle('placement-active', placementActive);
+    boardArea?.classList.toggle('mobile-targeting-camera-board', mobileTargetingCamera);
     if (!targetingActive) {
         clearTargetingPreview();
     }
@@ -4814,6 +5223,8 @@ function applyInteractionState() {
 
     renderInteractionBanner();
     renderHintPanel();
+    renderMobileTargetingHud();
+    syncMobileTargetingArenaScale();
     syncActionBarAttention();
     maybeTriggerInteractionFeedback();
 }
@@ -6459,7 +6870,7 @@ function renderDomLegacy() {
     if (activeDrawer === 'battle' && phase !== 'BATTLE') {
         closeDrawer(true);
     }
-    if (phaseChanged) {
+    if (phaseChanged && !window.SieglingsActionQueue) {
         showPhaseTransitionBanner(phase, gameState.activeSide);
     }
 
@@ -6502,6 +6913,7 @@ window.previewCellHover = previewCellHover;
 window.handleTargetCellPointerLeave = handleTargetCellPointerLeave;
 window.confirmRowSelectBattleTarget = confirmRowSelectBattleTarget;
 window.clearRowSelectBattleTarget = clearRowSelectBattleTarget;
+window.cancelBattleTargetSelection = cancelBattleTargetSelection;
 window.clearTargetingPreview = clearTargetingPreview;
 
 function renderEnergy(containerId, playerData) {
@@ -8908,6 +9320,13 @@ function renderRowSelectBattleOverlay() {
     if (overlays.length === 0) {
         return;
     }
+    if (isBattleTargetSelectionActive()) {
+        overlays.forEach((overlay) => {
+            overlay.className = 'battle-row-confirm-overlay hidden';
+            overlay.innerHTML = '';
+        });
+        return;
+    }
     const html = renderRowSelectBattleConfirm();
     overlays.forEach((overlay) => {
         if (!html) {
@@ -8987,29 +9406,35 @@ function renderBattlePanel() {
         openDrawer('battle');
     }
 
+    const battleTargeting = isBattleTargetSelectionActive();
+    const activeTargetAbility = battleTargeting ? getActiveBattleTargetAbility() : null;
     let bodyHtml = '';
-    if (targetMode && targetContext && targetContext.mode === 'battle') {
-        bodyHtml += `<div class="battle-hint battle-hint-compact">${escapeHtml(targetContext.message)} Pass skips this step.</div>`;
+
+    if (battleTargeting && activeTargetAbility) {
+        bodyHtml += renderBattleTargetingTray(pending, activeTargetAbility);
+    } else {
+        let actionsHtml = '';
+        const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
+        for (const ability of sortedAbilities) {
+            const disabled = ability.affordable ? '' : 'disabled';
+            const moveName = getBattleAbilityDisplayName(ability);
+            const effectLine = getBattleAbilityEffectLine(ability);
+            const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
+            const tip = `${moveName}: ${effectLine}${weaknessPreview ? ` ${weaknessPreview}` : ''}`;
+            actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">${escapeHtml(moveName)}</span><span class="battle-ability-effect">${escapeHtml(effectLine)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
+        }
+        const passTip = 'Pass: Skip this action without spending energy.';
+        actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passTip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">Pass</span><span class="battle-ability-effect">Skip this action without spending energy.</span></span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
+        bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
     }
 
-    let actionsHtml = '';
-    const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
-    for (const ability of sortedAbilities) {
-        const disabled = ability.affordable ? '' : 'disabled';
-        const desc = (ability.description && String(ability.description).trim()) || ability.name;
-        const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
-        const tip = ability.description
-            ? `${ability.name} - ${ability.description}${weaknessPreview ? ` ${weaknessPreview}` : ''}`
-            : ability.name;
-        actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-name">${escapeHtml(desc)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
-    }
-    const passDesc = 'Pass this turn without using an ability. No energy cost.';
-    actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passDesc)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(passDesc)}</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
-    bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
+    const targetingShellLabel = battleTargeting && activeTargetAbility
+        ? buildBattleTargetingInstruction(targetContext.side, activeTargetAbility, getRowSelectSelectedRow()).trayStateLabel
+        : 'Acting Now';
 
     setPanelHtml(buildQueueShell(
-        targetMode && targetContext && targetContext.mode === 'battle' ? 'Queue Target' : 'Acting Now',
-        targetMode && targetContext && targetContext.mode === 'battle' ? 'targeting' : 'live',
+        targetingShellLabel,
+        battleTargeting ? 'targeting' : 'live',
         bodyHtml,
         { expanded: true, cardTitle: pending.name }
     ));
@@ -9039,8 +9464,12 @@ function chooseBattleAbility(index) {
         selectedRow: -1,
         message: buildBattleTargetMessage(targetSide, ability)
     };
-    if (activeDrawer === 'battle') {
+    if (isPortraitMobileHudLayout()) {
         closeDrawer(true);
+        closeMobileHudSheet();
+    } else if (isMobileLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
     }
     render();
     scheduleBattleTargetingPreview(ability);
@@ -9359,6 +9788,8 @@ function onTargetSelected(row, col, fromPlayerBoard) {
             if (ability) {
                 scheduleBattleTargetingPreview(ability);
             }
+            renderMobileTargetingHud();
+            syncMobileTargetingArenaScale();
             return;
         }
         if (targetContext.side === 'enemy' && fromPlayerBoard) {
@@ -9931,6 +10362,10 @@ document.addEventListener('keydown', (e) => {
             cleanupCardDragSession();
             return;
         }
+        if (isBattleTargetSelectionActive()) {
+            cancelBattleTargetSelection();
+            return;
+        }
         closeDrawer(true);
         closeMobileHudSheet();
         closeClaimPopup();
@@ -9953,6 +10388,7 @@ window.addEventListener('resize', () => {
     syncMobileInfoTab();
     syncMobileHudSheetSide();
     syncFocusedCardUi();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -9972,6 +10408,7 @@ window.addEventListener('resize', () => {
     syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -9983,6 +10420,7 @@ window.addEventListener('orientationchange', () => {
     syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -10012,7 +10450,8 @@ syncDesktopInspectTabUi();
     const mqListeners = [
         window.matchMedia('(max-width: 900px)'),
         window.matchMedia('(min-width: 980px)'),
-        window.matchMedia('(orientation: landscape) and (max-height: 600px)')
+        window.matchMedia('(orientation: landscape) and (max-height: 600px)'),
+        window.matchMedia('(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)')
     ];
     mqListeners.forEach((mq) => {
         if (typeof mq.addEventListener === 'function') {

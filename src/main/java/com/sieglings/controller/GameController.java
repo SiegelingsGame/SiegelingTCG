@@ -820,11 +820,7 @@ public class GameController {
             ));
         }
         if (trainer.getActiveAbility() != null) {
-            m.put("active", Map.of(
-                    "name", trainer.getActiveAbility().getName(),
-                    "description", trainer.getActiveAbility().getDescription(),
-                    "targetType", trainer.getActiveAbility().getTargetType().name()
-            ));
+            m.put("active", serializeAbility(trainer.getActiveAbility()));
             m.put("canUseActive", trainer.canUseActive());
         }
 
