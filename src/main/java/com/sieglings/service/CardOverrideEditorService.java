@@ -32,6 +32,7 @@ public class CardOverrideEditorService {
     private final CardDefinitionService cardDefinitionService;
     private final LiveElementCatalogService liveElementCatalogService;
     private final MovesPoolService movesPoolService;
+    private final PackCatalogService packCatalogService;
 
     public CardOverrideEditorService(ObjectMapper objectMapper,
                                      CardOverrideStorageService storageService,
@@ -40,7 +41,8 @@ public class CardOverrideEditorService {
                                      CardEditorAuthService authService,
                                      CardDefinitionService cardDefinitionService,
                                      LiveElementCatalogService liveElementCatalogService,
-                                     MovesPoolService movesPoolService) {
+                                     MovesPoolService movesPoolService,
+                                     PackCatalogService packCatalogService) {
         this.objectMapper = objectMapper;
         this.storageService = storageService;
         this.presetDeckCatalogService = presetDeckCatalogService;
@@ -49,6 +51,7 @@ public class CardOverrideEditorService {
         this.cardDefinitionService = cardDefinitionService;
         this.liveElementCatalogService = liveElementCatalogService;
         this.movesPoolService = movesPoolService;
+        this.packCatalogService = packCatalogService;
     }
 
     public Map<String, Object> loadEditorState(String editorToken) {
@@ -130,6 +133,7 @@ public class CardOverrideEditorService {
         response.put("firestoreError", storageService.getFirestoreInitializationError());
         response.put("auth", authSnapshot);
         response.put("metadata", buildMetadata());
+        response.put("catalogVersion", storageService.getCatalogRevision());
         return response;
     }
 
@@ -180,6 +184,7 @@ public class CardOverrideEditorService {
         ObjectNode live = objectMapper.createObjectNode();
         live.set("elements", objectMapper.valueToTree(liveElementCatalogService.buildEditorPayload()));
         data.set("liveElements", live);
+        data.set("packs", objectMapper.valueToTree(packCatalogService.serializePacks()));
         return data;
     }
 
@@ -235,14 +240,19 @@ public class CardOverrideEditorService {
         return List.of(
                 effect(AbilityEffectKeys.DAMAGE, "Damage", "Deals damage to the resolved target or targets.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES", "ENEMY_PLAYER")),
                 effect(AbilityEffectKeys.PLAYER_DAMAGE, "Player Damage", "Deals direct damage to the opposing player.", List.of("ENEMY_PLAYER")),
+                effect(AbilityEffectKeys.DRAW, "Draw", "Draws cards from the user's deck equal to the effect value.", List.of("SELF")),
                 effect(AbilityEffectKeys.HEAL, "Heal", "Restores health up to the target's max health.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "SELF")),
+                effect(AbilityEffectKeys.SHIELD, "Shield", "Grants temporary shield health that absorbs damage before HP.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "SELF")),
                 effect(AbilityEffectKeys.FREEZE, "Freeze", "Applies the freeze status.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),
                 effect(AbilityEffectKeys.SPEED_ZERO, "Speed Zero", "Sets effective Speed to 0 for the turn.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),
+                effect(AbilityEffectKeys.SLOW, "Slow", "Reduces the resolved target's Speed by the effect value for the turn.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),
                 effect(AbilityEffectKeys.DAMAGE_BOOST, "Damage Boost", "Adds temporary attack damage.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
-                effect(AbilityEffectKeys.HEALTH_BOOST, "Health Boost", "Adds temporary max health and heals by the same amount.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
+                effect(AbilityEffectKeys.HEALTH_BOOST, "Max Health Boost", "Permanently raises current and max health.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST, "Connected Allies Damage Boost", "Buffs allied Sieglings that share a direct active link with the source card.", List.of("SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, "Connected Allies Health Boost", "Gives directly linked allied Sieglings extra max health.", List.of("SELF")),
+                effect(AbilityEffectKeys.CONNECTED_ALLIES_SHIELD, "Connected Allies Shield", "Grants temporary shield health to directly linked allied Sieglings.", List.of("SELF")),
                 effect(AbilityEffectKeys.SPEED_BOOST, "Speed Boost", "Adds temporary speed.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
+                effect(AbilityEffectKeys.CONNECTED_ALLIES_SLOW, "Connected Allies Slow", "Reduces directly linked allied Sieglings' Speed by the effect value for the turn.", List.of("SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST, "Connected Allies Speed Boost", "Gives directly linked allied Sieglings extra speed.", List.of("SELF")),
                 effect(AbilityEffectKeys.DESTROY, "Destroy", "Defeats the resolved target immediately.", List.of("SINGLE_ENEMY", "ROW_SELECT_ENEMIES")),
                 effect(AbilityEffectKeys.MOVE_LINK, "Move Link", "SELF: move along links. Spell/trap + SINGLE_ENEMY: move that enemy to any empty cell on its board (client sends destRow/destCol).", List.of("SELF", "SINGLE_ENEMY"))

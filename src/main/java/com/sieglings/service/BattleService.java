@@ -49,6 +49,9 @@ public class BattleService {
     @Autowired
     private MovesPoolService movesPoolService;
 
+    @Autowired
+    private MatchHistoryService matchHistoryService;
+
     public void initializeBattle(GameState state) {
         state.log("=== BATTLE PHASE ===");
 
@@ -72,6 +75,7 @@ public class BattleService {
         }
 
         while (state.getBattleCursor() < state.getBattleQueue().size()) {
+            reorderRemainingBattleQueue(state);
             String instanceId = state.getBattleQueue().get(state.getBattleCursor());
             state.setBattleCursor(state.getBattleCursor() + 1);
 
@@ -107,6 +111,24 @@ public class BattleService {
         }
 
         finishBattle(state);
+    }
+
+    private void reorderRemainingBattleQueue(GameState state) {
+        int cursor = state.getBattleCursor();
+        List<String> queue = state.getBattleQueue();
+        if (queue == null || cursor < 0 || cursor >= queue.size() - 1) {
+            return;
+        }
+
+        List<String> remaining = new ArrayList<>(queue.subList(cursor, queue.size()));
+        remaining.sort(Comparator.comparingInt((String id) -> {
+            CardInstance ci = state.findByInstanceId(id);
+            return ci == null || !ci.isAlive() ? Integer.MIN_VALUE : ci.getEffectiveSpeed();
+        }).reversed());
+
+        for (int i = 0; i < remaining.size(); i++) {
+            queue.set(cursor + i, remaining.get(i));
+        }
     }
 
     public CardInstance getPendingAttacker(GameState state) {
@@ -496,6 +518,10 @@ public class BattleService {
         } else if (state.getEnemy().getHealth() <= 0) {
             state.setGameOver(true);
             state.setWinner(state.getPlayer().getName());
+        }
+
+        if (state.isGameOver() && matchHistoryService != null) {
+            matchHistoryService.recordCompletedGame(state);
         }
     }
 }

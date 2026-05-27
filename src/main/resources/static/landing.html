@@ -5,7 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Siegelings — A PartyChatGaming Experience</title>
     <meta name="description" content="Collect Siegelings. Build your deck. Command SiegeKnights. The premier elemental TCG by PartyChatGaming.">
-    <link rel="stylesheet" href="/css/landing.css?v=3">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+    <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0a1530">
+    <link rel="stylesheet" href="/css/landing.css?v=18">
 </head>
 <body class="landing-body">
 
@@ -23,7 +29,6 @@
     <div class="hero-bg" aria-hidden="true">
         <div class="hero-bg-layer hero-bg-far"   data-parallax="0.04"></div>
         <div class="hero-bg-layer hero-bg-mid"   data-parallax="0.08"></div>
-        <div class="hero-bg-layer hero-bg-near"  data-parallax="0.16"></div>
         <div class="hero-vignette"></div>
         <div class="hero-element-orb el-fire"     style="--x:8%;--y:60%"></div>
         <div class="hero-element-orb el-ice"      style="--x:14%;--y:18%"></div>
@@ -34,16 +39,13 @@
 
     <div class="hero-content">
         <div class="siegelings-logo" id="siegelingsLogo" aria-label="Siegelings">
-            <img class="siegelings-logo-img" src="" alt=""
-                 data-asset="siegelings-logo"
-                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
             <div class="siegelings-logo-fallback">
                 <div class="siegelings-crown" aria-hidden="true">
                     <span class="crown-spike"></span><span class="crown-spike"></span>
                     <span class="crown-spike crown-spike-main"></span>
                     <span class="crown-spike"></span><span class="crown-spike"></span>
                 </div>
-                <div class="siegelings-wordmark">SIEGELINGS</div>
+                <div class="siegelings-wordmark" data-text="SIEGELINGS">SIEGELINGS</div>
                 <div class="siegelings-underline" aria-hidden="true"></div>
             </div>
         </div>
@@ -51,10 +53,12 @@
         <p class="hero-tagline">Collect. Command. Conquer.</p>
 
         <div class="hero-ctas">
-            <a class="cta cta-primary" href="/index.html" id="ctaPlay">
+            <a class="cta cta-primary" href="/play" id="ctaPlay">
                 <span class="cta-glow" aria-hidden="true"></span>
                 <span class="cta-label">Play Now</span>
-                <span class="cta-arrow" aria-hidden="true">▶</span>
+            </a>
+            <a class="cta cta-login" href="/login" id="ctaLogin">
+                <span class="cta-label">Log In</span>
             </a>
             <button class="cta cta-ghost" type="button" id="ctaTrailer">
                 <span class="cta-label">Watch Trailer</span>
@@ -99,7 +103,7 @@
 <section class="creatures" id="creatures">
     <div class="creatures-header">
         <span class="creatures-kicker">Featured Siegelings</span>
-        <h2 class="creatures-title">Meet the elementals</h2>
+        <h2 class="creatures-title">Meet the Legendary Siegelings</h2>
     </div>
 
     <div class="creature-grid" id="creatureGrid">
@@ -152,6 +156,16 @@
     </div>
 </div>
 
-<script src="/js/landing.js?v=2"></script>
+<script src="/js/landing-particles.js?v=5"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
+<script src="/js/landing.js?v=16"></script>
+<script type="module" src="/js/legendary-viewport.js?v=18"></script>
 </body>
 </html>

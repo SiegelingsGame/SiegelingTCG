@@ -26,8 +26,8 @@ function HandNotches({ notches, small }) {
   for (const n of notches || []) {
     if (n?.direction) map[n.direction] = n;
   }
-  const edge = small ? "3px" : "5px";
-  const corner = small ? "8px" : "12px";
+  const edge = small ? "4px" : "6px";
+  const corner = small ? "5px" : "7px";
   return (
     <div
       className="hand-notches"
@@ -505,7 +505,6 @@ function LoadoutScreen({
   const canStart = Boolean(deck && trainer);
 
   return (
-    <>
     <div className="screen" style={{ background: "var(--bg-deep)" }}>
       <ParticleBG intensity={0.4} />
       <div style={{ position: "relative", zIndex: 1, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border-dim)" }}>
@@ -652,33 +651,6 @@ function LoadoutScreen({
         </p>
       </div>
     </div>
-    {startingMatch && (
-      <div
-        role="status"
-        aria-live="polite"
-        aria-busy="true"
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 400,
-          background: "rgba(6,10,18,0.88)",
-          backdropFilter: "blur(8px)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 16,
-          padding: 24,
-        }}
-      >
-        <div className="spinner" />
-        <p style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: 1 }}>Starting game…</p>
-        <p style={{ fontSize: 12, color: "var(--text-secondary)", textAlign: "center", maxWidth: 280, lineHeight: 1.5 }}>
-          Creating the match on the server. This usually takes a second or two.
-        </p>
-      </div>
-    )}
-    </>
   );
 }
 
@@ -1028,6 +1000,209 @@ function GameOverScreen({ won, onLobby }) {
   );
 }
 
+const LOADING_GATE_FLAVOR = [
+  "Siegelings feed on raw elemental energy.",
+  "A SiegeKnight never retreats from the arena.",
+  "Element advantage changes everything.",
+  "Every notch you link decides what spells you can cast.",
+  "The crown belongs to whoever holds the field.",
+  "Beware the silence between phases.",
+];
+
+function LoadingGateKnight({ info, side }) {
+  const el = elStyle(info?.element);
+  const isRight = side === "right";
+  return (
+    <div
+      style={{
+        position: "relative",
+        background: `linear-gradient(160deg, ${el.color}26, ${el.color}08, var(--bg-card))`,
+        border: `1.5px solid ${el.color}90`,
+        borderRadius: 14,
+        padding: "18px 12px 14px",
+        textAlign: "center",
+        boxShadow: `0 0 28px ${el.color}40, inset 0 0 24px ${el.color}1a`,
+        animation: `slideUp 0.45s cubic-bezier(0.2,0.8,0.3,1) ${isRight ? "0.12s" : "0s"} both`,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: `radial-gradient(circle at 50% 30%, ${el.color}33, transparent 70%)`,
+          pointerEvents: "none",
+        }}
+      />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{ fontSize: 44, marginBottom: 6, color: el.color, textShadow: `0 0 18px ${el.color}aa` }}>{el.icon}</div>
+        <div style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: 1, color: "var(--text-primary)" }}>
+          {info?.trainerName || (isRight ? "Opponent" : "Player")}
+        </div>
+        {info?.name && info.name !== info.trainerName && (
+          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+            {info.name}
+          </div>
+        )}
+        <div
+          style={{
+            marginTop: 8,
+            display: "inline-block",
+            padding: "2px 8px",
+            borderRadius: 999,
+            fontSize: 9,
+            fontFamily: "'Orbitron', sans-serif",
+            letterSpacing: 2,
+            color: el.color,
+            textTransform: "uppercase",
+            border: `1px solid ${el.color}66`,
+            background: `${el.color}12`,
+          }}
+        >
+          {el.name}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoadingGateScreen({ player, opponent }) {
+  const [flavorIdx, setFlavorIdx] = useState(0);
+  const [pct, setPct] = useState(6);
+
+  useEffect(() => {
+    setFlavorIdx(Math.floor(Math.random() * LOADING_GATE_FLAVOR.length));
+    const id = setInterval(() => {
+      setFlavorIdx((i) => (i + 1) % LOADING_GATE_FLAVOR.length);
+    }, 2600);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPct((p) => {
+        if (p >= 92) return p;
+        return Math.min(92, p + (92 - p) * 0.08 + Math.random() * 1.4);
+      });
+    }, 220);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div
+      className="screen"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      style={{
+        background: "radial-gradient(ellipse at 50% 40%, #0F1B3D, #060A12)",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <ParticleBG intensity={0.9} />
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          width: "100%",
+          maxWidth: 480,
+          padding: "0 20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 28,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <p
+            style={{
+              fontFamily: "'Rajdhani', sans-serif",
+              fontSize: 11,
+              color: "var(--text-dim)",
+              letterSpacing: 4,
+              textTransform: "uppercase",
+            }}
+          >
+            SiegeKnight Gate
+          </p>
+          <h1
+            style={{
+              fontFamily: "'Orbitron', sans-serif",
+              fontWeight: 900,
+              fontSize: 26,
+              letterSpacing: 5,
+              marginTop: 4,
+            }}
+          >
+            SIEGLINGS
+          </h1>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 10 }}>
+          <LoadingGateKnight info={player} side="left" />
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(245,158,11,0.4), rgba(245,158,11,0.05))",
+              border: "1.5px solid rgba(245,158,11,0.6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "'Orbitron', sans-serif",
+              fontWeight: 900,
+              color: "var(--accent-gold)",
+              fontSize: 18,
+              letterSpacing: 1,
+              boxShadow: "0 0 24px rgba(245,158,11,0.35)",
+              animation: "pulse 1.8s ease-in-out infinite",
+            }}
+          >
+            VS
+          </div>
+          <LoadingGateKnight info={opponent} side="right" />
+        </div>
+        <div>
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              height: 6,
+              background: "rgba(100,140,200,0.15)",
+              borderRadius: 3,
+              overflow: "hidden",
+              border: "1px solid var(--border-dim)",
+            }}
+          >
+            <div
+              style={{
+                width: `${pct}%`,
+                height: "100%",
+                background: "linear-gradient(90deg, var(--accent-blue), var(--accent-cyan))",
+                transition: "width 0.25s ease-out",
+                boxShadow: "0 0 12px rgba(6,182,212,0.6)",
+              }}
+            />
+          </div>
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--text-secondary)",
+              textAlign: "center",
+              marginTop: 14,
+              fontStyle: "italic",
+              minHeight: 16,
+            }}
+          >
+            {LOADING_GATE_FLAVOR[flavorIdx]}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState("splash");
   const [playerName, setPlayerName] = useState("Player");
@@ -1043,6 +1218,7 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [won, setWon] = useState(false);
   const [roomInfo, setRoomInfo] = useState(null);
+  const [loadingGateInfo, setLoadingGateInfo] = useState(null);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -1090,11 +1266,32 @@ export default function App() {
   async function startMatch(deckId, trainerId, deckName, trainerName) {
     setMatchStartError("");
     setStartingMatch(true);
+    const trainer = gameOptions?.trainers?.find((t) => t.id === trainerId);
+    setLoadingGateInfo({
+      player: {
+        name: playerName || "Player",
+        element: trainer?.element || "NEUTRAL",
+        trainerName: trainer?.name || trainerName || "SiegeKnight",
+      },
+      opponent: {
+        name: roomInfo?.mode === "online" ? "Online rival" : "AI Adversary",
+        element: "NEUTRAL",
+        trainerName: roomInfo?.mode === "online" ? "Awaiting…" : "AI",
+      },
+    });
+    setScreen("loadingGate");
+    const startedAt = performance.now();
+    const minDurationMs = 1500;
+    const awaitMin = async () => {
+      const remaining = minDurationMs - (performance.now() - startedAt);
+      if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+    };
     try {
       if (roomInfo?.mode === "online" && multiplayerSession?.roomId) {
         const st = await getMatchStatus();
         if (st.error) throw new Error(st.error);
         if (st.started && st.currentPhase) {
+          await awaitMin();
           setGameState(st);
           if (st.mulligan?.youPending && st.currentPhase === "MULLIGAN") {
             setMulliganPick(new Set());
@@ -1103,6 +1300,7 @@ export default function App() {
           return;
         }
         showToast("Waiting for opponent…");
+        await awaitMin();
         setScreen("roomwait");
         return;
       }
@@ -1113,6 +1311,7 @@ export default function App() {
         loadoutLabel: `${deckName || deckId} · ${trainerName || trainerId}`,
       };
       const data = await apiGame("new", "POST", body, { omitMultiplayerHeaders: true });
+      await awaitMin();
       setGameState(data);
       if (data.mulligan?.youPending && data.currentPhase === "MULLIGAN") {
         setMulliganPick(new Set());
@@ -1122,6 +1321,7 @@ export default function App() {
       }
     } catch (e) {
       setMatchStartError(e.message || String(e));
+      setScreen("loadout");
     } finally {
       setStartingMatch(false);
     }
@@ -1199,6 +1399,9 @@ export default function App() {
           defaultDeckId={gameOptions?.defaultDeckId}
           defaultTrainerId={gameOptions?.defaultTrainerId}
         />
+      )}
+      {screen === "loadingGate" && (
+        <LoadingGateScreen player={loadingGateInfo?.player} opponent={loadingGateInfo?.opponent} />
       )}
       {screen === "roomwait" && (
         <div className="screen" style={{ alignItems: "center", justifyContent: "center", background: "var(--bg-deep)" }}>

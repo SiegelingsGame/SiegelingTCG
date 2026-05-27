@@ -128,8 +128,10 @@ public class PlacementService {
         if (existing != null && candidate.isEvolutionCard() && candidate.getEvolvesFromId().equals(existing.getCard().getId())) {
             placedCard.setNotches(mergeNotches(existing.getNotches(), placedCard.getNotches()));
             CardInstance evolved = new CardInstance(placedCard, row, col, owner);
-            int damageTaken = existing.getCard().getHealth() - existing.getCurrentHealth();
-            evolved.setCurrentHealth(Math.max(1, placedCard.getHealth() - Math.max(0, damageTaken)));
+            int permanentHealthBoost = existing.getPermanentHealthBoost();
+            int damageTaken = existing.getEffectiveMaxHealth() - existing.getCurrentHealth();
+            evolved.addMaxHealthBoost(permanentHealthBoost);
+            evolved.setCurrentHealth(Math.max(1, evolved.getEffectiveMaxHealth() - Math.max(0, damageTaken)));
             evolved.setPlacementOrder(existing.getPlacementOrder());
             // New form: no same-turn chain evolve; must go through a full battle phase in this stage first.
             evolved.setBattlePhasesSeen(0);

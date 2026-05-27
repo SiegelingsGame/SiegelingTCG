@@ -6,7 +6,11 @@ import com.sieglings.persistence.entity.SavedDeckEntity;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
+import com.sieglings.service.PlayerProgressionService;
+import com.sieglings.service.ProfileSettingsService;
 import com.sieglings.service.SavedDeckService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,6 +25,11 @@ import java.util.Map;
 @RestController
 public class AuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
+    private static final String UNAVAILABLE_MESSAGE =
+            "The account service is temporarily unavailable. Please try again in a moment.";
+
     @Autowired
     private AccountService accountService;
 
@@ -33,6 +42,12 @@ public class AuthController {
     @Autowired
     private CardDefinitionService cardDefinitionService;
 
+    @Autowired
+    private PlayerProgressionService playerProgressionService;
+
+    @Autowired
+    private ProfileSettingsService profileSettingsService;
+
     @PostMapping("/api/auth/register")
     public Map<String, Object> register(@RequestBody Map<String, Object> req) {
         try {
@@ -44,6 +59,9 @@ public class AuthController {
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
+        } catch (RuntimeException ex) {
+            log.error("Registration failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE, "authenticated", false);
         }
     }
 
@@ -57,6 +75,26 @@ public class AuthController {
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
+        } catch (RuntimeException ex) {
+            log.error("Login failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE, "authenticated", false);
+        }
+    }
+
+    @PostMapping("/api/auth/reset-password")
+    public Map<String, Object> resetPassword(@RequestBody Map<String, Object> req) {
+        try {
+            AccountService.SessionView session = accountService.resetPassword(
+                    (String) req.get("email"),
+                    (String) req.get("resetCode"),
+                    (String) req.get("password")
+            );
+            return buildProfileResponse(session.user(), session.token());
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage(), "authenticated", false);
+        } catch (RuntimeException ex) {
+            log.error("Password reset failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE, "authenticated", false);
         }
     }
 
@@ -109,6 +147,30 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/api/profile/friends")
+    public Map<String, Object> addFriend(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                         @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            AccountUser updated = accountService.addFriend(user, (String) req.get("email"));
+            return buildProfileResponse(updated, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/profile/friends/delete")
+    public Map<String, Object> deleteFriend(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                            @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            AccountUser updated = accountService.removeFriend(user, (String) req.get("email"));
+            return buildProfileResponse(updated, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     private Map<String, Object> buildProfileResponse(AccountUser user, String token) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("authenticated", true);
@@ -120,9 +182,59 @@ public class AuthController {
                 "email", user.getEmail(),
                 "displayName", user.getDisplayName()
         ));
-        response.put("savedDecks", savedDeckService.listDecks(user).stream().map(this::serializeSavedDeck).toList());
-        response.put("matchHistory", matchHistoryService.listRecent(user).stream().map(this::serializeMatchHistory).toList());
+        response.put("friends", loadFriends(user));
+        response.put("savedDecks", loadSavedDecks(user));
+        response.put("matchHistory", loadMatchHistory(user));
+        if (playerProgressionService != null) {
+            try {
+                response.put("progression", playerProgressionService.serialize(playerProgressionService.getOrCreate(user)));
+            } catch (RuntimeException ex) {
+                log.warn("Unable to load progression for authenticated user {}", user.getId(), ex);
+            }
+        }
+        if (profileSettingsService != null) {
+            try {
+                profileSettingsService.findSerializedIfPresent(user)
+                        .ifPresent(settings -> response.put("profileSettings", settings));
+            } catch (RuntimeException ex) {
+                log.warn("Unable to load profile settings for authenticated user {}", user.getId(), ex);
+            }
+        }
         return response;
+    }
+
+    private List<Map<String, Object>> loadFriends(AccountUser user) {
+        return (user.getFriendEmails() == null ? List.<String>of() : user.getFriendEmails()).stream()
+                .map(email -> {
+                    Map<String, Object> friend = new LinkedHashMap<>();
+                    friend.put("email", email);
+                    try {
+                        AccountUser friendUser = accountService.findByEmail(email);
+                        friend.put("displayName", friendUser == null ? email : friendUser.getDisplayName());
+                    } catch (RuntimeException ex) {
+                        friend.put("displayName", email);
+                    }
+                    return friend;
+                })
+                .toList();
+    }
+
+    private List<Map<String, Object>> loadSavedDecks(AccountUser user) {
+        try {
+            return savedDeckService.listDecks(user).stream().map(this::serializeSavedDeck).toList();
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load saved decks for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> loadMatchHistory(AccountUser user) {
+        try {
+            return matchHistoryService.listRecent(user).stream().map(this::serializeMatchHistory).toList();
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load match history for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
     }
 
     private Map<String, Object> serializeSavedDeck(SavedDeckEntity deck) {
@@ -151,6 +263,13 @@ public class AuthController {
         response.put("loadoutLabel", history.getLoadoutLabel());
         response.put("trainerName", history.getTrainerName());
         response.put("turnNumber", history.getTurnNumber());
+        response.put("spellsCast", history.getSpellsCast());
+        response.put("trapsSprung", history.getTrapsSprung());
+        response.put("siegelingsDefeated", history.getSiegelingsDefeated());
+        response.put("playerHealthRemaining", history.getPlayerHealthRemaining());
+        response.put("opponentHealthRemaining", history.getOpponentHealthRemaining());
+        response.put("playerEnergyRemaining", history.getPlayerEnergyRemaining());
+        response.put("gameLog", history.getGameLog() == null ? java.util.List.of() : history.getGameLog());
         return response;
     }
 }

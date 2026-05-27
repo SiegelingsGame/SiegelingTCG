@@ -55,6 +55,12 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface ResetPasswordRequest {
+  email: string;
+  resetCode: string;
+  password: string;
+}
+
 export interface SaveDeckRequest {
   /** Optional existing deck id for updates. */
   id?: string | null;

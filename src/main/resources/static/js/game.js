@@ -2,7 +2,7 @@ let gameState = null;
 
 /**
  * Remembers the last element that activated each perimeter socket so the socket
- * keeps its color as a reference after the Siegling is removed. A new notch
+ * keeps its color as a reference after the Siegeling is removed. A new notch
  * connection to the same socket overwrites the stored element.
  */
 // External sockets are active only while a notch currently touches them.
@@ -29,7 +29,9 @@ let selectedBuilderPreviewId = null;
 let matchMode = 'solo';
 let onlineRoomMode = 'create';
 let multiplayerSession = loadSavedMultiplayerSession();
+let soloSessionToken = loadSavedSoloToken();
 let roomPollHandle = null;
+let roomExpiryTimeoutHandle = null;
 let currentRoomStatus = null;
 let mobileInfoTab = 'battle';
 let mobileHudSheetSide = 'enemy';
@@ -37,6 +39,7 @@ let mobileHudSheetOpen = false;
 let mulliganSelectedIndices = new Set();
 let mulliganHandSig = '';
 let loadoutErrorMessage = '';
+let liveCatalogRefreshPromise = null;
 let loadoutStartPending = false;
 let lastInteractionCueKey = '';
 let transientMessageTimer = null;
@@ -48,16 +51,40 @@ let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
 let handTouchGesture = null;
+/** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
+let cardDragSession = null;
+let cardDragSuppressClickUntil = 0;
+const CARD_DRAG_THRESHOLD_PX = 10;
 let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
 let handSelectorScaleFrame = null;
 let previewCardScaleFrame = null;
+const DECK_ART_ASSET_KEYS = ['FIRE', 'EARTH', 'WIND', 'WATER', 'ICE'];
+const DECK_ART_ASSETS = {
+    FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
+    EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
+    WIND: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
+    WATER: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
+    ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
+};
 let handTouchSuppressHandIndex = null;
 let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
+const PENDING_HOME_LOADOUT_STORAGE_KEY = 'sieglingsPendingLoadout';
+
+(function redirectLegacyPlayRoomLinks() {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (!room || !window.location.pathname.endsWith('/play')) {
+        return;
+    }
+    params.delete('room');
+    const query = params.toString();
+    window.location.replace(`/social?room=${encodeURIComponent(room.trim().toUpperCase())}${query ? `&${query}` : ''}`);
+})();
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 const BATTLE_AUTO_ADVANCE_DELAY_MS = 1550;
@@ -72,7 +99,7 @@ const LEADERBOARD_TABS = [
     { id: 'matchesPlayed', label: 'Matches' },
     { id: 'spellsCast', label: 'Spells' },
     { id: 'trapsSprung', label: 'Traps' },
-    { id: 'siegelingsDefeated', label: 'Sieglings' },
+    { id: 'siegelingsDefeated', label: 'Siegelings' },
     { id: 'pvpWinRate', label: 'PVP W/L' }
 ];
 let welcomeLeaderboardState = {
@@ -90,6 +117,17 @@ let authState = {
 };
 let selectedSavedDeckId = null;
 let lastProfileRefreshKey = '';
+let socialOnlineLaunchRoomId = '';
+let playLobbyState = {
+    active: false,
+    mode: 'create',
+    ready: false,
+    opponentReady: false,
+    countdown: 0,
+    chatMessages: []
+};
+let playLobbyCountdownTimer = null;
+let playLobbyOpponentTimer = null;
 const ROW_NAMES = ['Back', 'Middle', 'Front'];
 const TARGET_TYPES = {
     SINGLE_ENEMY: 'enemy',
@@ -101,14 +139,19 @@ const EFFECT_KIND_MAP = {
     damage: 'damage',
     player_damage: 'damage',
     destroy: 'damage',
+    draw: 'buff',
     heal: 'heal',
+    shield: 'buff',
     damage_boost: 'buff',
     health_boost: 'buff',
     speed_boost: 'buff',
     connected_allies_damage_boost: 'buff',
     connected_allies_health_boost: 'buff',
+    connected_allies_shield: 'buff',
+    connected_allies_slow: 'freeze',
     connected_allies_speed_boost: 'buff',
     freeze: 'freeze',
+    slow: 'freeze',
     speed_zero: 'freeze',
     move_link: 'move'
 };
@@ -220,7 +263,7 @@ const LOADOUT_DECK_THEMES = {
 const STATUS_BADGE_PALETTE = {
     FREEZE:       '#7adfff',
     SPEED_ZERO:   '#a0b0c0',
-    HEALTH_BOOST: '#3ce08a',
+    HEALTH_BOOST: '#a8b0ba',
     DAMAGE_BOOST: '#ff5544',
     SPEED_BOOST:  '#7adfff',
     WEAK:         '#ff6080',
@@ -230,7 +273,7 @@ const STATUS_BADGE_PALETTE = {
 const STATUS_BADGE_LABEL = {
     FREEZE: 'Frozen — cannot act',
     SPEED_ZERO: 'Speed Zero — acts last',
-    HEALTH_BOOST: 'Health Boost',
+    HEALTH_BOOST: 'Shield',
     DAMAGE_BOOST: 'Damage Boost',
     SPEED_BOOST: 'Speed Boost',
     WEAK: 'Weak to Attack',
@@ -240,55 +283,88 @@ const STATUS_BADGE_LABEL = {
 const STATUS_BADGE_SVG = {
     FREEZE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-fz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff6ff"/><stop offset="50%" stop-color="#5fb8e8"/><stop offset="100%" stop-color="#1a4a7a"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#5fb8e8" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-fz-bg)" stroke="#dff6ff" stroke-width="2"/><g stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none" class="sb-spin"><line x1="42" y1="20" x2="42" y2="64"/><line x1="22" y1="42" x2="62" y2="42"/><line x1="27" y1="27" x2="57" y2="57"/><line x1="57" y1="27" x2="27" y2="57"/><path d="M42 20 L37 26 M42 20 L47 26 M42 64 L37 58 M42 64 L47 58 M22 42 L28 37 M22 42 L28 47 M62 42 L56 37 M62 42 L56 47"/></g><circle cx="42" cy="42" r="3" fill="#fff"/></svg>`,
     SPEED_ZERO: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#a0b0c0"/><stop offset="50%" stop-color="#4a5a78"/><stop offset="100%" stop-color="#1a2030"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#4a5a78" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sz-bg)" stroke="#a0b0c0" stroke-width="2"/><g stroke="#5a6a80" stroke-width="2" stroke-linejoin="round" fill="#7a8aa0" opacity=".7"><path d="M48 18 L34 40 L42 40 L36 50"/><path d="M40 50 L48 38 L42 38 L48 28"/></g><circle cx="42" cy="46" r="14" fill="none" stroke="#fff" stroke-width="3.5"/><line x1="32" y1="36" x2="52" y2="56" stroke="#ff5544" stroke-width="3.5" stroke-linecap="round"/></svg>`,
-    HEALTH_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-hp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d5ffe8"/><stop offset="50%" stop-color="#3ce08a"/><stop offset="100%" stop-color="#1a5a3a"/></radialGradient><linearGradient id="sb-hp-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#a8ffd0"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ce08a" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-hp-bg)" stroke="#d5ffe8" stroke-width="2"/><path d="M42 60 C 42 60 22 48 22 36 C 22 28 28 23 33 23 C 37 23 41 26 42 30 C 43 26 47 23 51 23 C 56 23 62 28 62 36 C 62 48 42 60 42 60 Z" fill="url(#sb-hp-heart)" stroke="#fff" stroke-width="1.5" class="sb-float"/><ellipse cx="35" cy="32" rx="3" ry="5" fill="#fff" opacity=".7" transform="rotate(-25 35 32)"/></svg>`,
+    HEALTH_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sh-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f3f6fa"/><stop offset="55%" stop-color="#a8b0ba"/><stop offset="100%" stop-color="#4a5360"/></radialGradient><linearGradient id="sb-sh-face" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#b8c0ca"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a8b0ba" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sh-bg)" stroke="#f3f6fa" stroke-width="2"/><path d="M42 18 L62 26 L62 42 C 62 54 54 64 42 70 C 30 64 22 54 22 42 L22 26 Z" fill="url(#sb-sh-face)" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" class="sb-float"/><path d="M42 23 L42 64" stroke="#77808c" stroke-width="2" opacity=".55"/></svg>`,
     DAMAGE_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dmg-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffe0c0"/><stop offset="50%" stop-color="#ff6633"/><stop offset="100%" stop-color="#5a1a0a"/></radialGradient><linearGradient id="sb-dmg-sword" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#ffd8a0"/><stop offset="100%" stop-color="#c87040"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ff5533" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dmg-bg)" stroke="#ffe0c0" stroke-width="2"/><g stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><g transform="rotate(45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g><g transform="rotate(-45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g></g><circle cx="42" cy="42" r="4" fill="#fff8c0" class="sb-flicker"/></svg>`,
     SPEED_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff8ff"/><stop offset="50%" stop-color="#3ad8ff"/><stop offset="100%" stop-color="#1a5a7a"/></radialGradient><linearGradient id="sb-sp-bolt" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#fff8c0"/><stop offset="100%" stop-color="#7adfff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad8ff" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sp-bg)" stroke="#dff8ff" stroke-width="2"/><g stroke="#dff8ff" stroke-width="1.5" stroke-linecap="round" opacity=".5"><line x1="22" y1="32" x2="30" y2="32"/><line x1="20" y1="42" x2="32" y2="42"/><line x1="22" y1="52" x2="30" y2="52"/></g><path d="M48 18 L32 44 L42 44 L36 64 L56 36 L46 36 Z" fill="url(#sb-sp-bolt)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
     WEAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffd0d8"/><stop offset="50%" stop-color="#a02038"/><stop offset="100%" stop-color="#3a0a18"/></radialGradient><linearGradient id="sb-wk-shield" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ff6080"/><stop offset="100%" stop-color="#5a0a18"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a02038" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wk-bg)" stroke="#ffd0d8" stroke-width="2"/><g class="sb-floatdn"><path d="M42 22 L58 28 L58 44 C 58 54 50 60 42 64 C 34 60 26 54 26 44 L26 28 Z" fill="url(#sb-wk-shield)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M42 24 L38 34 L44 38 L36 48 L46 52 L40 62" stroke="#fff8c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g transform="translate(60 60)"><circle r="9" fill="#1a0a18" stroke="#ff6080" stroke-width="1.5"/><path d="M0 -4 L0 4 M-3 1 L0 4 L3 1" stroke="#ff6080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
     STRONG: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-st-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff4c0"/><stop offset="50%" stop-color="#e8a020"/><stop offset="100%" stop-color="#5a3a08"/></radialGradient><linearGradient id="sb-st-star" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#ffe080"/><stop offset="100%" stop-color="#e8a020"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ffd060" opacity=".3" class="sb-pulse"/><g class="sb-spin-rev" opacity=".55"><line x1="42" y1="6" x2="42" y2="14" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="42" y1="70" x2="42" y2="78" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="42" x2="14" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="70" y1="42" x2="78" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/></g><circle cx="42" cy="42" r="34" fill="url(#sb-st-bg)" stroke="#fff4c0" stroke-width="2"/><polygon points="42,20 47,35 63,35 50,44 55,60 42,51 29,60 34,44 21,35 37,35" fill="url(#sb-st-star)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-float"/><g transform="translate(60 60)"><circle r="9" fill="#3a2008" stroke="#ffe080" stroke-width="1.5"/><path d="M0 4 L0 -4 M-3 -1 L0 -4 L3 -1" stroke="#ffe080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`
 };
 
-function renderStatusBadge(kind, amount) {
+function getShieldInfo(cell, hpOverride, maxHpOverride) {
+    const shieldHp = Number(cell?.shieldHp);
+    const total = Number.isFinite(shieldHp) ? Math.max(0, shieldHp) : 0;
+    const intact = total;
+    const depleted = 0;
+    const state = total <= 0
+        ? 'none'
+        : 'intact';
+    const intactPct = total > 0 ? 100 : 0;
+    return { active: total > 0, total, intact, depleted, state, intactPct };
+}
+
+function renderShieldChip(info) {
+    if (!info?.active || info.intact <= 0) return '';
+    const stateClass = ` stat-shield--${info.state}`;
+    const title = info.depleted > 0
+        ? `Shield +${info.total}: ${info.intact} intact, ${info.depleted} depleted`
+        : `Shield +${info.total}: intact`;
+    return `<span class="stat-shield${stateClass}" title="${title}" data-shield-state="${info.state}" style="--shield-intact-pct:${info.intactPct}%"><span class="stat-shield-icon" aria-hidden="true"></span><span class="stat-shield-value">+${info.total}</span></span>`;
+}
+
+function renderStatusBadge(kind, amount, options = {}) {
     const svg = STATUS_BADGE_SVG[kind];
     if (!svg) return '';
     const color = STATUS_BADGE_PALETTE[kind] || '#fff';
     const label = STATUS_BADGE_LABEL[kind] || kind;
-    const tooltip = amount > 0 ? `${label} +${amount}` : label;
+    const shieldState = options.shieldState || '';
+    const shieldStateText = kind === 'HEALTH_BOOST' && shieldState && shieldState !== 'intact'
+        ? ` (${shieldState})`
+        : '';
+    const tooltip = amount > 0 ? `${label} +${amount}${shieldStateText}` : `${label}${shieldStateText}`;
     const numHtml = amount > 0
         ? `<span class="sb-num" style="--sb-color:${color}">+${amount}</span>`
         : '';
-    return `<span class="sb-badge" style="--sb-color:${color}" title="${tooltip}" data-status="${kind}">${svg}${numHtml}</span>`;
+    const shieldAttr = shieldState ? ` data-shield-state="${shieldState}"` : '';
+    return `<span class="sb-badge" style="--sb-color:${color}" title="${tooltip}" data-status="${kind}"${shieldAttr}>${svg}${numHtml}</span>`;
 }
 
 function renderStatusBadgesForCell(cell) {
     if (!cell) return '';
     const statuses = Array.isArray(cell.statuses) ? cell.statuses : [];
-    const printedHp = Number(cell.printedHealth);
     const printedSpd = Number(cell.printedSpeed);
-    const maxHp = Number(cell.maxHp);
     const spd = Number(cell.spd);
     const dmgBoost = Number(cell.damageBoost) || 0;
+    const shieldInfo = getShieldInfo(cell);
 
     const items = [];
     const seen = new Set();
-    const push = (kind, amount) => {
+    const push = (kind, amount, options = {}) => {
         if (seen.has(kind)) return;
         seen.add(kind);
-        items.push(renderStatusBadge(kind, amount));
+        items.push(renderStatusBadge(kind, amount, options));
     };
 
     statuses.forEach((raw) => {
         const kind = String(raw || '').toUpperCase();
+        // HEALTH_BOOST is the shield buff. Skip it once the shield is
+        // spent (no remaining absorb) so the badge clears alongside the
+        // grey HP background and the plate overlay — even if the
+        // underlying status is still on the card server-side.
+        if (kind === 'HEALTH_BOOST' && shieldInfo.intact <= 0) return;
         let amount = 0;
-        if (kind === 'HEALTH_BOOST' && Number.isFinite(maxHp) && Number.isFinite(printedHp)) {
-            amount = Math.max(0, maxHp - printedHp);
+        if (kind === 'HEALTH_BOOST') {
+            amount = shieldInfo.total;
         } else if (kind === 'DAMAGE_BOOST') {
             amount = dmgBoost;
         } else if (kind === 'SPEED_BOOST' && Number.isFinite(spd) && Number.isFinite(printedSpd)) {
             amount = Math.max(0, spd - printedSpd);
         }
-        push(kind, amount);
+        push(kind, amount, kind === 'HEALTH_BOOST' ? { shieldState: shieldInfo.state } : {});
     });
 
+    if (!seen.has('HEALTH_BOOST') && shieldInfo.active && shieldInfo.intact > 0) {
+        push('HEALTH_BOOST', shieldInfo.total, { shieldState: shieldInfo.state });
+    }
     // Inferred SPEED_BOOST when speed is buffed but no explicit status flag (backend may not yet emit it)
     if (!seen.has('SPEED_BOOST') && !seen.has('SPEED_ZERO') && Number.isFinite(spd) && Number.isFinite(printedSpd) && spd > printedSpd) {
         push('SPEED_BOOST', spd - printedSpd);
@@ -303,10 +379,11 @@ function renderStatusBadgesForCell(cell) {
 const TARGET_ARROW_STAGGER_MS = 40;
 const TARGET_ARROW_FADE_MS = 200;
 const TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
+const DASHBOARD_ACCESS_PASSWORD = 'Aviators4!';
 const targetArrowPreviewState = {
     active: false,
-    source: null,
-    targets: [],
+    sourceCell: null,
+    targetCells: [],
     kind: 'default',
     startedAt: 0,
     dashPhase: 0,
@@ -444,9 +521,9 @@ function sieglingPlacementLockMessage() {
     const used = gameState.setupSieglingActionsUsed;
     const budget = gameState.setupSieglingActionBudget;
     if (used != null && budget != null) {
-        return `No setup placements left (${used}/${budget}; 1 base + 1 per energy in your pool when you entered setup).`;
+        return `No setup actions left (${used}/${budget}; 1 base + 1 per energy in your pool when you entered setup). End the turn to continue.`;
     }
-    return 'No Siegling setup actions left this turn.';
+    return 'No setup actions left this turn. End the turn to continue.';
 }
 
 function isPlacementBudgetLockedForCard(card) {
@@ -462,7 +539,7 @@ const CARD_ART_BY_KEY = Object.freeze({
 const WELCOME_SLIDES = [
     {
         title: '1. Notches can wake external sockets',
-        copy: 'When you place a Siegling, any notch that points off the board lines up with a perimeter socket. That live connection feeds your energy pool the same way it does in a real match.',
+        copy: 'When you place a Siegeling, any notch that points off the board lines up with a perimeter socket. That live connection feeds your energy pool the same way it does in a real match.',
         visual: `
             <div class="tutorial-visual tutorial-board">
                 <div class="tutorial-arena-mid tutorial-arena-external-demo">
@@ -507,7 +584,7 @@ const WELCOME_SLIDES = [
     },
     {
         title: '2. Same element, straight link',
-        copy: 'When opposite notches share an element, the arena draws a simple horizontal bar between them—exactly the same connector style you see between linked Sieglings in play.',
+        copy: 'When opposite notches share an element, the arena draws a simple horizontal bar between them—exactly the same connector style you see between linked Siegelings in play.',
         visual: `
             <div class="tutorial-visual tutorial-links">
                 <div class="tutorial-arena-mid tutorial-arena-compact">
@@ -565,7 +642,7 @@ const WELCOME_SLIDES = [
     },
     {
         title: '4. Battle mode in motion',
-        copy: 'After setup, battle turns your board into combat: Sieglings strike in speed order, abilities resolve, and HP ticks down on both sides—this is the same two-board view you fight on.',
+        copy: 'After setup, battle turns your board into combat: Siegelings strike in speed order, abilities resolve, and HP ticks down on both sides—this is the same two-board view you fight on.',
         visual: `
             <div class="tutorial-visual tutorial-battle">
                 <div class="tutorial-battle-snapshot">
@@ -775,7 +852,7 @@ function clearArenaSelection() {
 }
 
 /**
- * Focus a Siegling on either board for the live preview / Card Preview drawer.
+ * Focus a Siegeling on either board for the live preview / Card Preview drawer.
  * Second click on the same piece clears selection.
  */
 function onArenaCardClick(isPlayer, row, col, event) {
@@ -863,11 +940,11 @@ function cancelBoardCardLongPress() {
 
 function openSelectedCardDrawer() {
     const card = getFocusedPreviewCard();
-    updateSelectedInfo(card, card ? null : 'Hover, select a hand card, or click a Siegling on the board.');
+    updateSelectedInfo(card, card ? null : 'Hover, select a hand card, or click a Siegeling on the board.');
     openDrawer('selected');
 }
 
-/** Compact move rows from server (`moves` on Sieglings) or fall back to ability objects. */
+/** Compact move rows from server (`moves` on Siegelings) or fall back to ability objects. */
 function getSieglingMovesForDisplay(card) {
     if (!card || card.type !== "SIEGLING") {
         return [];
@@ -981,6 +1058,8 @@ function renderBoardCellCombatStatsInner(cell) {
     const maxHp = cell.maxHp;
     const hp = cell.hp;
     const spd = cell.spd;
+    // Shield is tracked separately (shieldHp); the asterisk flags a
+    // permanent max-health boost (maxHp above the printed value).
     const hpBuffed = Number.isFinite(printedHp) && maxHp > printedHp;
     const spdBuffed = Number.isFinite(printedSpd) && spd !== printedSpd;
 
@@ -1265,7 +1344,7 @@ function getDomCellCenter(isPlayer, row, col) {
 
 function drawDomTargetingPreview(timestamp) {
     const state = targetArrowPreviewState;
-    if (!state.active || !state.source || state.targets.length === 0) {
+    if (!state.active || !state.sourceCell || state.targetCells.length === 0) {
         return;
     }
     const svg = ensureDomTargetingPreviewLayer();
@@ -1280,6 +1359,26 @@ function drawDomTargetingPreview(timestamp) {
     svg.setAttribute('width', String(width));
     svg.setAttribute('height', String(height));
 
+    // Resolve live cell centers every frame so the arrows track the board as it
+    // resizes, scrolls, or reflows instead of pointing at stale cached pixels.
+    const source = getDomCellCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
+    const targets = [];
+    state.targetCells.forEach((cell) => {
+        const center = getDomCellCenter(cell.isPlayer, cell.row, cell.col);
+        if (center) {
+            targets.push({ x: center.x, y: center.y, appearedAt: cell.appearedAt });
+        }
+    });
+    if (!source || targets.length === 0) {
+        // Layout is mid-change (cells momentarily hidden / zero-size). Skip this
+        // frame but keep the loop alive so the arrows snap back once it settles.
+        svg.innerHTML = '';
+        if (state.active && !state.reducedMotion) {
+            state.raf = window.requestAnimationFrame(drawDomTargetingPreview);
+        }
+        return;
+    }
+
     const elapsed = Math.max(0, timestamp - state.startedAt);
     const palette = TARGET_ARROW_PALETTES[state.kind] || TARGET_ARROW_PALETTES.default;
     const sceneCenterY = height / 2;
@@ -1287,15 +1386,15 @@ function drawDomTargetingPreview(timestamp) {
     const shapes = [];
     state.dashPhase = state.reducedMotion ? 0 : (elapsed * 0.0006) % 1;
 
-    state.targets.forEach((target, index) => {
+    targets.forEach((target, index) => {
         const alpha = state.reducedMotion ? 1 : targetArrowClamp((elapsed - target.appearedAt) / TARGET_ARROW_FADE_MS, 0, 1);
         if (alpha <= 0) {
             return;
         }
-        const control = targetArrowControlPoint(state.source, target, sceneCenterY);
-        const path = targetArrowPath(state.source, control, target);
+        const control = targetArrowControlPoint(source, target, sceneCenterY);
+        const path = targetArrowPath(source, control, target);
         const gradId = `targetArrowGrad${index}`;
-        defs.push(`<linearGradient id="${gradId}" gradientUnits="userSpaceOnUse" x1="${state.source.x.toFixed(1)}" y1="${state.source.y.toFixed(1)}" x2="${target.x.toFixed(1)}" y2="${target.y.toFixed(1)}"><stop offset="0%" stop-color="${palette.source}"/><stop offset="100%" stop-color="${palette.target}"/></linearGradient>`);
+        defs.push(`<linearGradient id="${gradId}" gradientUnits="userSpaceOnUse" x1="${source.x.toFixed(1)}" y1="${source.y.toFixed(1)}" x2="${target.x.toFixed(1)}" y2="${target.y.toFixed(1)}"><stop offset="0%" stop-color="${palette.source}"/><stop offset="100%" stop-color="${palette.target}"/></linearGradient>`);
 
         shapes.push(`<path d="${path}" fill="none" stroke="${palette.glow}" stroke-width="10" stroke-linecap="round" opacity="${(0.18 * alpha).toFixed(3)}"/>`);
         shapes.push(`<path d="${path}" fill="none" stroke="url(#${gradId})" stroke-width="2.5" stroke-linecap="round" opacity="${(0.94 * alpha).toFixed(3)}"/>`);
@@ -1306,7 +1405,7 @@ function drawDomTargetingPreview(timestamp) {
             shapes.push(`<path d="${path}" fill="none" pathLength="1" stroke="${dashColor}" stroke-width="4" stroke-linecap="round" stroke-dasharray="0.06 0.106" stroke-dashoffset="${dashOffset.toFixed(3)}" opacity="${(0.72 * alpha).toFixed(3)}"/>`);
         }
 
-        const tail = targetArrowQuadPoint(state.source, control, target, 0.965);
+        const tail = targetArrowQuadPoint(source, control, target, 0.965);
         const angle = Math.atan2(target.y - tail.y, target.x - tail.x);
         const size = 14;
         const spread = 0.52;
@@ -1326,8 +1425,8 @@ function drawDomTargetingPreview(timestamp) {
         shapes.push(`<circle cx="${target.x.toFixed(1)}" cy="${target.y.toFixed(1)}" r="${ringRadius.toFixed(1)}" fill="none" stroke="${palette.target}" stroke-width="2" opacity="${(ringAlpha * alpha).toFixed(3)}"/>`);
     });
 
-    shapes.push(`<circle cx="${state.source.x.toFixed(1)}" cy="${state.source.y.toFixed(1)}" r="12" fill="${palette.source}" opacity="0.16"/>`);
-    shapes.push(`<circle cx="${state.source.x.toFixed(1)}" cy="${state.source.y.toFixed(1)}" r="5" fill="${palette.source}" opacity="0.5"/>`);
+    shapes.push(`<circle cx="${source.x.toFixed(1)}" cy="${source.y.toFixed(1)}" r="12" fill="${palette.source}" opacity="0.16"/>`);
+    shapes.push(`<circle cx="${source.x.toFixed(1)}" cy="${source.y.toFixed(1)}" r="5" fill="${palette.source}" opacity="0.5"/>`);
     svg.innerHTML = `<defs>${defs.join('')}</defs>${shapes.join('')}`;
     svg.classList.add('is-active');
 
@@ -1336,8 +1435,8 @@ function drawDomTargetingPreview(timestamp) {
     }
 }
 
-function showDomTargetingPreview(source, targets, kind) {
-    if (!source || !Array.isArray(targets) || targets.length === 0) {
+function showDomTargetingPreview(sourceCell, targetCells, kind) {
+    if (!sourceCell || !Array.isArray(targetCells) || targetCells.length === 0) {
         clearDomTargetingPreview();
         return;
     }
@@ -1345,13 +1444,18 @@ function showDomTargetingPreview(source, targets, kind) {
         window.cancelAnimationFrame(targetArrowPreviewState.raf);
     }
     targetArrowPreviewState.active = true;
-    targetArrowPreviewState.source = { x: Number(source.x) || 0, y: Number(source.y) || 0 };
-    targetArrowPreviewState.targets = targets
+    targetArrowPreviewState.sourceCell = {
+        isPlayer: Boolean(sourceCell.isPlayer),
+        row: sourceCell.row,
+        col: sourceCell.col
+    };
+    targetArrowPreviewState.targetCells = targetCells
         .filter(Boolean)
         .slice(0, 9)
-        .map((target, index) => ({
-            x: Number(target.x) || 0,
-            y: Number(target.y) || 0,
+        .map((cell, index) => ({
+            isPlayer: Boolean(cell.isPlayer),
+            row: cell.row,
+            col: cell.col,
             appearedAt: index * TARGET_ARROW_STAGGER_MS
         }));
     targetArrowPreviewState.kind = TARGET_ARROW_PALETTES[kind] ? kind : 'default';
@@ -1365,8 +1469,8 @@ function clearDomTargetingPreview() {
         window.cancelAnimationFrame(targetArrowPreviewState.raf);
     }
     targetArrowPreviewState.active = false;
-    targetArrowPreviewState.source = null;
-    targetArrowPreviewState.targets = [];
+    targetArrowPreviewState.sourceCell = null;
+    targetArrowPreviewState.targetCells = [];
     targetArrowPreviewState.raf = 0;
     const svg = document.querySelector('.target-arrow-dom-layer');
     if (svg) {
@@ -1376,8 +1480,8 @@ function clearDomTargetingPreview() {
 }
 
 const targetPreviewController = {
-    show(source, targets, kind) {
-        showDomTargetingPreview(source, targets, kind);
+    show(sourceCell, targetCells, kind) {
+        showDomTargetingPreview(sourceCell, targetCells, kind);
     },
     clear() {
         clearDomTargetingPreview();
@@ -1386,6 +1490,18 @@ const targetPreviewController = {
         return getDomCellCenter(isPlayer, row, col);
     }
 };
+
+// Keep targeting arrows aligned when the layout changes. The animation loop
+// already re-resolves cell positions every frame, but reduced-motion mode draws
+// a single static frame, so it needs an explicit redraw on resize/scroll/rotate.
+function refreshTargetingPreviewOnLayoutChange() {
+    if (targetArrowPreviewState.active && targetArrowPreviewState.reducedMotion) {
+        drawDomTargetingPreview(performance.now());
+    }
+}
+window.addEventListener('resize', refreshTargetingPreviewOnLayoutChange);
+window.addEventListener('orientationchange', refreshTargetingPreviewOnLayoutChange);
+window.addEventListener('scroll', refreshTargetingPreviewOnLayoutChange, true);
 
 function clearTargetingPreview() {
     targetPreviewController.clear();
@@ -1398,6 +1514,14 @@ function sourceCellCenter() {
         return null;
     }
     return targetPreviewController.cellCenter(true, pending.row, pending.col);
+}
+
+function sourceCellDescriptor() {
+    const pending = gameState?.pendingBattle;
+    if (!pending || pending.row == null || pending.col == null) {
+        return null;
+    }
+    return { isPlayer: true, row: pending.row, col: pending.col };
 }
 
 function collectPreviewCells(board, isPlayer) {
@@ -1491,15 +1615,13 @@ function showBattleAbilityPreview(ability, selectedRow = -1) {
 }
 
 function showBattleTargetCellsPreview(ability, cells) {
-    const src = sourceCellCenter();
-    const targets = (cells || [])
-        .map((target) => targetPreviewController.cellCenter(target.isPlayer, target.row, target.col))
-        .filter(Boolean);
-    if (!src || targets.length === 0) {
+    const sourceCell = sourceCellDescriptor();
+    const targetCells = (cells || []).filter(Boolean);
+    if (!sourceCell || targetCells.length === 0) {
         clearTargetingPreview();
         return;
     }
-    targetPreviewController.show(src, targets, effectKindFor(ability));
+    targetPreviewController.show(sourceCell, targetCells, effectKindFor(ability));
     applyMatchupBadgesForCells(ability, cells || []);
 }
 
@@ -1733,22 +1855,267 @@ function previewCellHover(isPlayer, row, col) {
     showBattleTargetCellsPreview(ability, cells);
 }
 
+function getBattleAbilityDisplayName(ability) {
+    return String(ability?.name || 'Move').trim() || 'Move';
+}
+
+function getBattleAbilityEffectLine(ability) {
+    const name = getBattleAbilityDisplayName(ability);
+    let desc = String(ability?.description || '').trim();
+    if (desc && name && desc.toLowerCase().startsWith(name.toLowerCase())) {
+        desc = desc.slice(name.length).replace(/^[\s:–—-]+/, '').trim();
+    }
+    if (desc) {
+        return desc;
+    }
+    const effect = formatAbilityEffectLabel(ability);
+    if (effect) {
+        return effect;
+    }
+    const target = formatAbilityTargetLabel(ability);
+    return target || 'Resolves after you finish targeting.';
+}
+
+function getBattleTargetingEffectCategory(ability) {
+    const effectType = String(ability?.effectType || '').trim().toLowerCase();
+    if (effectType === 'player_damage') {
+        return 'player';
+    }
+    if (effectType === 'move_link') {
+        return 'move';
+    }
+    const kind = effectKindFor(ability);
+    if (kind === 'heal' || effectType === 'heal' || effectType === 'shield') {
+        return 'heal';
+    }
+    if (kind === 'buff' || /boost|shield|draw/.test(effectType)) {
+        return 'buff';
+    }
+    if (kind === 'freeze' || /freeze|slow|speed_zero/.test(effectType)) {
+        return 'control';
+    }
+    if (kind === 'damage' || effectType === 'destroy' || effectType === 'damage') {
+        return 'damage';
+    }
+    return kind || 'default';
+}
+
+function buildBattleTargetingArrowHint(ability, targetSide, selectedRow = -1) {
+    const category = getBattleTargetingEffectCategory(ability);
+    const previewCells = getBattleTargetingPreviewCells(ability);
+    const hasArrowPreview = previewCells.length > 0 && Boolean(sourceCellCenter());
+
+    if (targetSide === 'row-enemy' || targetSide === 'row-ally') {
+        if (selectedRow < 0) {
+            return hasArrowPreview
+                ? 'Preview arrows fan out from your ACTING Siegeling toward valid rows. Tap any highlighted card in the row you want.'
+                : 'Tap any highlighted Siegeling in the row you want to affect.';
+        }
+        return hasArrowPreview
+            ? 'Arrows show which enemies in this row your move will hit. Confirm when ready.'
+            : 'Every Siegeling in the selected row will be affected.';
+    }
+
+    if (!hasArrowPreview) {
+        return 'Valid targets are highlighted on the board. Tap one to continue.';
+    }
+
+    switch (category) {
+        case 'heal':
+            return 'Follow the green preview arrow from your ACTING Siegeling to the ally you want to heal, then tap that card.';
+        case 'buff':
+            return 'Follow the blue preview arrow from your ACTING Siegeling to the ally you want to empower, then tap that card.';
+        case 'control':
+            return 'Follow the icy preview arrow from your ACTING Siegeling to the enemy you want to slow or freeze, then tap that card.';
+        case 'move':
+            return 'Follow the purple preview arrow to see where the forced movement will pull an enemy, then tap the highlighted target.';
+        case 'damage':
+            return 'Follow the orange attack arrow from your ACTING Siegeling to a highlighted enemy. Tap that card to strike. Weakness badges mean +1 damage.';
+        default:
+            return 'Follow the glowing preview arrow from your ACTING Siegeling to a highlighted target on the board, then tap that card.';
+    }
+}
+
 function buildBattleTargetMessage(targetSide, ability, selectedRow = -1) {
+    return buildBattleTargetingInstruction(targetSide, ability, selectedRow).banner;
+}
+
+function buildBattleTargetingInstruction(targetSide, ability, selectedRow = -1) {
     const weakness = formatBattleAbilityWeaknessPreview(ability, selectedRow);
-    const suffix = weakness ? ` ${weakness}` : '';
+    const weaknessSuffix = weakness ? ` ${weakness}` : '';
+    const moveName = getBattleAbilityDisplayName(ability);
+    const effectLine = getBattleAbilityEffectLine(ability);
+    const category = getBattleTargetingEffectCategory(ability);
+    const arrowHint = buildBattleTargetingArrowHint(ability, targetSide, selectedRow);
+    const targetLabel = formatAbilityTargetLabel(ability);
+    const base = {
+        moveName,
+        effectLine,
+        arrowHint,
+        banner: '',
+        trayStateLabel: 'Pick Target',
+        headline: 'Choose a target',
+        steps: []
+    };
+
     if (targetSide === 'row-enemy') {
         if (selectedRow >= 0) {
-            return `${ROW_NAMES[selectedRow] || 'Selected'} enemy row selected. Confirm the row or change it.${suffix}`;
+            const rowName = ROW_NAMES[selectedRow] || 'Selected';
+            const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
+            const targetLine = targets.length > 0 ? ` Hits: ${targets.join(', ')}.` : '';
+            return {
+                ...base,
+                trayStateLabel: 'Confirm Row',
+                banner: `${rowName} enemy row locked in.${weaknessSuffix}`,
+                headline: `Confirm ${rowName} row attack`,
+                steps: [
+                    `${moveName} will hit every enemy Siegeling in the ${rowName} row.`,
+                    arrowHint,
+                    'Tap Confirm Row to queue the attack, or Change Row to pick a different row.',
+                    'Tap Cancel below to return to the move list.'
+                ],
+                effectLine: `${effectLine}${targetLine}${weaknessSuffix}`
+            };
         }
-        return `Select a card in an enemy row.${suffix}`;
+        return {
+            ...base,
+            trayStateLabel: 'Choose Row',
+            banner: `Pick an enemy row for ${moveName}.${weaknessSuffix}`,
+            headline: category === 'damage' ? 'Pick a row to attack' : 'Pick an enemy row',
+            steps: [
+                `${moveName}: ${effectLine}`,
+                arrowHint,
+                'Tap any enemy Siegeling in the row you want — the whole row is included.',
+                'Tap Cancel below to pick a different move.'
+            ]
+        };
     }
+
     if (targetSide === 'row-ally') {
         if (selectedRow >= 0) {
-            return `${ROW_NAMES[selectedRow] || 'Selected'} friendly row selected. Confirm the row or change it.`;
+            const rowName = ROW_NAMES[selectedRow] || 'Selected';
+            const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
+            const targetLine = targets.length > 0 ? ` Helps: ${targets.join(', ')}.` : '';
+            return {
+                ...base,
+                trayStateLabel: 'Confirm Row',
+                banner: `${rowName} friendly row locked in.`,
+                headline: `Confirm ${rowName} row support`,
+                steps: [
+                    `${moveName} will affect every ally Siegeling in the ${rowName} row.`,
+                    arrowHint,
+                    'Tap Confirm Row to queue the action, or Change Row to pick a different row.',
+                    'Tap Cancel below to return to the move list.'
+                ],
+                effectLine: `${effectLine}${targetLine}`
+            };
         }
-        return 'Select a card in a friendly row.';
+        return {
+            ...base,
+            trayStateLabel: 'Choose Row',
+            banner: `Pick a friendly row for ${moveName}.`,
+            headline: category === 'heal' || category === 'buff' ? 'Pick a row to support' : 'Pick a friendly row',
+            steps: [
+                `${moveName}: ${effectLine}`,
+                arrowHint,
+                'Tap any of your Siegelings in the row you want — the whole row is included.',
+                'Tap Cancel below to pick a different move.'
+            ]
+        };
     }
-    return `Queue a ${targetSide} target for ${ability.name}.${suffix}`;
+
+    if (targetSide === 'ally') {
+        const allyHeadline = category === 'heal'
+            ? 'Pick an ally to heal'
+            : category === 'buff'
+                ? 'Pick an ally to empower'
+                : 'Pick a friendly Siegeling';
+        return {
+            ...base,
+            trayStateLabel: category === 'heal' ? 'Pick Ally' : 'Pick Ally',
+            banner: `Select an ally for ${moveName}.`,
+            headline: allyHeadline,
+            steps: [
+                `${moveName}: ${effectLine}`,
+                targetLabel ? `Targeting: ${targetLabel}.` : '',
+                arrowHint,
+                'Only your highlighted Siegelings can be selected.',
+                'Tap Cancel below to pick a different move.'
+            ].filter(Boolean)
+        };
+    }
+
+    const enemyHeadline = category === 'control'
+        ? 'Pick an enemy to hinder'
+        : category === 'move'
+            ? 'Pick an enemy to move'
+            : category === 'damage'
+                ? 'Pick an enemy to hit'
+                : 'Pick an enemy Siegeling';
+
+    return {
+        ...base,
+        trayStateLabel: 'Pick Target',
+        banner: `Select an enemy for ${moveName}.${weaknessSuffix}`,
+        headline: enemyHeadline,
+        steps: [
+            `${moveName}: ${effectLine}`,
+            targetLabel ? `Targeting: ${targetLabel}.` : '',
+            arrowHint,
+            weakness ? weakness : '',
+            'Tap Cancel below to pick a different move.'
+        ].filter(Boolean)
+    };
+}
+
+function renderBattleTargetingTray(pending, ability) {
+    const targetSide = targetContext?.side;
+    const selectedRow = getRowSelectSelectedRow();
+    const instructions = buildBattleTargetingInstruction(targetSide, ability, selectedRow);
+
+    let html = '<div class="battle-targeting-tray">';
+    html += '<div class="battle-targeting-move">';
+    html += '<div class="battle-targeting-move-label">Selected move</div>';
+    html += `<div class="battle-targeting-move-name">${escapeHtml(instructions.moveName)}</div>`;
+    html += `<div class="battle-targeting-move-desc">${escapeHtml(instructions.effectLine)}</div>`;
+    html += '</div>';
+    html += `<div class="battle-targeting-headline">${escapeHtml(instructions.headline)}</div>`;
+    html += '<div class="battle-targeting-arrow-callout" role="status">';
+    html += '<span class="battle-targeting-arrow-icon" aria-hidden="true">↗</span>';
+    html += `<span class="battle-targeting-arrow-text">${escapeHtml(instructions.arrowHint)}</span>`;
+    html += '</div>';
+    html += '<ul class="battle-targeting-steps">';
+    instructions.steps.forEach((step) => {
+        html += `<li>${escapeHtml(step)}</li>`;
+    });
+    html += '</ul>';
+
+    if (isRowSelectBattleTargetContext()) {
+        html += renderRowSelectBattleConfirm();
+    }
+
+    html += '<div class="battle-targeting-actions">';
+    html += '<button class="battle-targeting-cancel" type="button" onclick="cancelBattleTargetSelection()">Cancel — choose a different move</button>';
+    html += '</div>';
+    html += `<div class="battle-targeting-footnote">Acting Siegeling: ${escapeHtml(pending?.name || 'Siegeling')}</div>`;
+    html += '</div>';
+    return html;
+}
+
+function cancelBattleTargetSelection() {
+    if (!isBattleTargetSelectionActive()) {
+        return;
+    }
+    clearTargetingPreview();
+    clearTargetMode();
+    render();
+    if (isPortraitMobileHudLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
+    } else if (isMobileLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
+    }
 }
 
 function renderBattleAbilityCostEmblems(ability) {
@@ -1885,7 +2252,14 @@ function renderShowcaseCard(card, options = {}) {
         : `${formatElementLabel(card.element)} ${card.type}`.trim();
     const labelText = options.labelText
         || [card.type, formatElementLabel(card.element)].filter(Boolean).join(' / ');
-    const classes = ['hand-card', elemClass, options.cardClass].filter(Boolean).join(' ');
+    // Shield treatment for previews of *board* cards — same rule as the
+    // board: visible only while there's remaining absorb. The badge,
+    // grey stats-line, and is-shielded class all clear together once
+    // the buffer is spent.
+    const showcaseShield = getShieldInfo(card);
+    const showcaseHasShield = showcaseShield.active && showcaseShield.intact > 0;
+    const classes = ['hand-card', elemClass, options.cardClass,
+        showcaseHasShield ? 'has-shield' : ''].filter(Boolean).join(' ');
     const detailEntries = getCardPreviewEntries(card);
     const statLine = getCardSummaryStatLine(card);
     const bodyMode = options.bodyMode || 'full';
@@ -1907,8 +2281,14 @@ function renderShowcaseCard(card, options = {}) {
     html += renderCardArt(card, options.artVariant || 'preview', fallbackArtLabel);
     if (bodyMode !== 'hidden') {
         html += `<div class="hand-card-body">`;
+        // Surface the shield badge (and any other active status badges)
+        // when this preview reflects a board card. Hand cards have no
+        // statuses array so this renders nothing for those.
+        if (Array.isArray(card.statuses) && card.statuses.length > 0) {
+            html += renderStatusBadgesForCell(card);
+        }
         if (statLine) {
-            html += `<div class="card-detail card-stats-line">${escapeHtml(statLine)}</div>`;
+            html += `<div class="card-detail card-stats-line${showcaseHasShield ? ' is-shielded' : ''}">${escapeHtml(statLine)}</div>`;
         }
         visibleDetailEntries.forEach((entry) => {
             if (entry.html) {
@@ -1960,8 +2340,18 @@ function resolveApiBaseUrl(url) {
     }
 }
 
-function isCompactLandscapeLayout() {
+function isPhoneLandscapeLayout() {
     return window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches;
+}
+
+function isTabletLandscapeLayout() {
+    return window.matchMedia(
+        '(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)'
+    ).matches;
+}
+
+function isCompactLandscapeLayout() {
+    return isPhoneLandscapeLayout() || isTabletLandscapeLayout();
 }
 
 function isDesktopSidebarLayout() {
@@ -1980,7 +2370,10 @@ function getViewportModeLabel() {
     if (isDesktopSidebarLayout()) {
         return 'Desktop Dock';
     }
-    if (isCompactLandscapeLayout()) {
+    if (isTabletLandscapeLayout()) {
+        return 'iPad Landscape';
+    }
+    if (isPhoneLandscapeLayout()) {
         return 'Landscape';
     }
     return 'Portrait';
@@ -2031,13 +2424,20 @@ function updateResponsiveLayoutVars(force = false) {
     const desktopGridGapCount = desktop
         ? hideEnemyHudRail ? 2 : 3
         : 0;
+    const desktopShortViewport = desktop && viewportHeight <= 1100;
     const boardMaxWidth = desktop
         ? Math.round(clampNumber(viewportHeight * 0.45, 360, 620))
         : 420;
     const boardHeightOffset = desktop
-        ? Math.round(clampNumber(viewportHeight * 0.1, 82, 148))
+        ? Math.round(clampNumber(
+            viewportHeight * (desktopShortViewport ? 0.075 : 0.1),
+            desktopShortViewport ? 72 : 82,
+            desktopShortViewport ? 108 : 148
+        ))
         : 124;
-    const boardHeightRatio = desktop ? 1.38 : 2.72;
+    const boardHeightRatio = desktop
+        ? (desktopShortViewport ? 1.22 : 1.38)
+        : 2.72;
     const topBarHeight = desktop
         ? Math.round(document.querySelector('.top-bar')?.getBoundingClientRect().height || 36)
         : 0;
@@ -2047,9 +2447,12 @@ function updateResponsiveLayoutVars(force = false) {
     const heightLimitedBoardWidth = desktop
         ? Math.max(0, ((desktopArenaHeight - boardHeightOffset) / 2) / boardHeightRatio)
         : boardMaxWidth;
-    const desktopBoardTargetWidth = desktop
+    let desktopBoardTargetWidth = desktop
         ? Math.round(Math.min(boardMaxWidth, heightLimitedBoardWidth || boardMaxWidth))
         : boardMaxWidth;
+    if (desktopShortViewport && desktopBoardTargetWidth > 0) {
+        desktopBoardTargetWidth = Math.max(280, desktopBoardTargetWidth - 2);
+    }
     let desktopArenaColumnWidth = desktop
         ? Math.round(clampNumber(
             desktopBoardTargetWidth + clampNumber(desktopBoardTargetWidth * 0.85, 300, 560),
@@ -2097,6 +2500,8 @@ function updateResponsiveLayoutVars(force = false) {
             Math.min(96, desktopHandFiveCardFitWidth),
             Math.max(96, desktopHandFiveCardFitWidth)
         ))
+        : isTabletLandscapeLayout()
+        ? Math.round(clampNumber(viewportHeight * 0.14, 88, 118))
         : compactLandscape
         ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
         : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
@@ -2184,6 +2589,78 @@ let _drawerCloseTimers = [];
 
 function isBattleTargetSelectionActive() {
     return Boolean(targetMode && targetContext && targetContext.mode === 'battle');
+}
+
+function isMobileBattleTargetingCameraActive() {
+    return isBattleTargetSelectionActive() && isPortraitMobileHudLayout();
+}
+
+function renderMobileTargetingHud() {
+    const hud = document.getElementById('mobileTargetingHud');
+    if (!hud) {
+        return;
+    }
+    if (!isMobileBattleTargetingCameraActive()) {
+        hud.classList.add('hidden');
+        hud.innerHTML = '';
+        return;
+    }
+
+    const ability = getActiveBattleTargetAbility();
+    const pending = gameState?.pendingBattle;
+    if (!ability || !pending) {
+        hud.classList.add('hidden');
+        hud.innerHTML = '';
+        return;
+    }
+
+    const instructions = buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow());
+    let html = '<div class="mobile-targeting-hud-inner">';
+    html += `<div class="mobile-targeting-hud-kicker">${escapeHtml(instructions.trayStateLabel)}</div>`;
+    html += `<div class="mobile-targeting-hud-move">${escapeHtml(instructions.moveName)}</div>`;
+    html += `<div class="mobile-targeting-hud-effect">${escapeHtml(instructions.effectLine)}</div>`;
+    html += `<div class="mobile-targeting-hud-arrow">${escapeHtml(instructions.arrowHint)}</div>`;
+    if (isRowSelectBattleTargetContext()) {
+        html += renderRowSelectBattleConfirm();
+    }
+    html += '</div>';
+    hud.innerHTML = html;
+    hud.classList.remove('hidden');
+    window.requestAnimationFrame(() => {
+        if (!isMobileBattleTargetingCameraActive()) {
+            document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
+            return;
+        }
+        const stack = Math.ceil(hud.getBoundingClientRect().height + 10);
+        document.documentElement.style.setProperty('--mobile-targeting-hud-stack', `${stack}px`);
+        syncMobileTargetingArenaScale();
+    });
+}
+
+function syncMobileTargetingArenaScale() {
+    if (!isMobileBattleTargetingCameraActive()) {
+        document.documentElement.style.removeProperty('--mobile-targeting-arena-scale');
+        document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
+        return;
+    }
+    const board = document.getElementById('boardArea');
+    if (!board) {
+        return;
+    }
+    const run = () => {
+        if (!isMobileBattleTargetingCameraActive()) {
+            return;
+        }
+        const available = board.clientHeight;
+        const content = board.scrollHeight;
+        if (available <= 0 || content <= 0) {
+            return;
+        }
+        const scale = Math.min(1, (available - 4) / content);
+        document.documentElement.style.setProperty('--mobile-targeting-arena-scale', scale.toFixed(3));
+        scheduleBoardLinkConnectorRefresh();
+    };
+    window.requestAnimationFrame(() => window.requestAnimationFrame(run));
 }
 
 function shouldUseDesktopBattleDrawer() {
@@ -2294,18 +2771,23 @@ function getPhaseTransitionKicker(phase, activeSide) {
     return 'Phase Shift';
 }
 
-function showPhaseTransitionBanner(phase, activeSide) {
-    // The real-time playback system shows phase changes via the action-queue
-    // toast. When it's available, suppress the old top-of-screen banner so we
-    // don't double up.
-    if (window.SieglingsActionQueue) {
-        return;
+function hidePhaseTransitionBanner() {
+    const banner = document.getElementById('phaseTransitionBanner');
+    if (!banner) return;
+    if (phaseTransitionTimer) {
+        clearTimeout(phaseTransitionTimer);
+        phaseTransitionTimer = null;
     }
+    banner.classList.remove('visible');
+    banner.classList.add('hidden');
+}
+
+function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     const banner = document.getElementById('phaseTransitionBanner');
     const kicker = document.getElementById('phaseTransitionKicker');
     const title = document.getElementById('phaseTransitionTitle');
     if (!banner || !kicker || !title || !phase) {
-        return;
+        return Promise.resolve();
     }
 
     if (phaseTransitionTimer) {
@@ -2313,6 +2795,7 @@ function showPhaseTransitionBanner(phase, activeSide) {
         phaseTransitionTimer = null;
     }
 
+    const holdMs = Math.max(1200, Number(durationMs) || 2000);
     banner.className = `phase-transition-banner ${String(phase).toLowerCase()}`;
     kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
     title.textContent = formatPhaseLabel(phase);
@@ -2320,14 +2803,20 @@ function showPhaseTransitionBanner(phase, activeSide) {
     window.SieglingsSounds?.play('phase', 0.5);
     requestAnimationFrame(() => banner.classList.add('visible'));
 
-    phaseTransitionTimer = setTimeout(() => {
-        banner.classList.remove('visible');
+    return new Promise((resolve) => {
         phaseTransitionTimer = setTimeout(() => {
-            banner.classList.add('hidden');
-            phaseTransitionTimer = null;
-        }, 320);
-    }, 1800);
+            banner.classList.remove('visible');
+            phaseTransitionTimer = setTimeout(() => {
+                banner.classList.add('hidden');
+                phaseTransitionTimer = null;
+                resolve();
+            }, 360);
+        }, holdMs);
+    });
 }
+
+window.showPhaseTransitionBanner = showPhaseTransitionBanner;
+window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
 
 /* ============================================================
    CARD INSPECTOR â€” full-detail overlay when tapping hand card
@@ -2391,6 +2880,64 @@ function closeCardInspector(event) {
     if (overlay) overlay.classList.add('hidden');
 }
 
+// Most-recent match history list, stashed when the welcome screen renders
+// so openMatchDetail can look up the clicked entry by index.
+let latestMatchHistory = [];
+
+function openMatchDetail(index) {
+    const entry = latestMatchHistory[index];
+    const overlay = document.getElementById('matchDetailOverlay');
+    const content = document.getElementById('matchDetailContent');
+    if (!entry || !overlay || !content) return;
+
+    const resultClass = String(entry.result || '').toLowerCase();
+    const finishedAt = entry.finishedAt ? new Date(entry.finishedAt) : null;
+    const finishedLabel = finishedAt && !isNaN(finishedAt.getTime())
+        ? finishedAt.toLocaleString()
+        : '';
+    const ph = Number(entry.playerHealthRemaining);
+    const oh = Number(entry.opponentHealthRemaining);
+    const en = Number(entry.playerEnergyRemaining);
+
+    const statRow = (label, value) =>
+        `<div class="match-detail-stat"><span class="md-stat-label">${escapeHtml(label)}</span><span class="md-stat-value">${escapeHtml(String(value))}</span></div>`;
+
+    const logLines = Array.isArray(entry.gameLog) ? entry.gameLog : [];
+    const logHtml = logLines.length > 0
+        ? `<div class="match-detail-log">${logLines.map((line) =>
+                `<div class="md-log-line">${escapeHtml(line)}</div>`
+            ).join('')}</div>`
+        : '<div class="identity-note">No turn-by-turn breakdown was recorded for this match.</div>';
+
+    content.innerHTML = `
+        <div class="match-detail-header result-${escapeHtmlAttribute(resultClass)}">
+            <div class="match-detail-result history-result-${escapeHtmlAttribute(resultClass)}">${escapeHtml(entry.result || 'Result')}</div>
+            <div class="match-detail-sub">${escapeHtml(entry.loadoutLabel || 'Loadout')} vs ${escapeHtml(entry.opponentName || 'Opponent')}</div>
+            ${finishedLabel ? `<div class="match-detail-date">${escapeHtml(finishedLabel)}</div>` : ''}
+        </div>
+        <div class="match-detail-stats">
+            ${statRow('Your Health', Number.isFinite(ph) ? ph : '—')}
+            ${statRow('Opponent Health', Number.isFinite(oh) ? oh : '—')}
+            ${statRow('Energy Left', Number.isFinite(en) ? en : '—')}
+            ${statRow('Turns', entry.turnNumber ?? '—')}
+            ${statRow('SiegeKnight', entry.trainerName || '—')}
+            ${statRow('Match Type', entry.matchType || '—')}
+            ${statRow('Spells Cast', entry.spellsCast ?? 0)}
+            ${statRow('Traps Sprung', entry.trapsSprung ?? 0)}
+            ${statRow('Siegelings Defeated', entry.siegelingsDefeated ?? 0)}
+        </div>
+        <div class="match-detail-log-title">Game Breakdown</div>
+        ${logHtml}
+    `;
+    overlay.classList.remove('hidden');
+}
+
+function closeMatchDetail(event) {
+    if (event) event.stopPropagation();
+    const overlay = document.getElementById('matchDetailOverlay');
+    if (overlay) overlay.classList.add('hidden');
+}
+
 function closeCardPreviewSurfaces() {
     if (activeDrawer === 'selected') {
         closeDrawer();
@@ -2403,24 +2950,63 @@ function closeCardPreviewSurfaces() {
     }
 }
 
+function getTrainerAbilityLockReason(trainer = gameState?.player?.trainer) {
+    if (!gameState || !trainer?.active) {
+        return 'No active SiegeKnight ability is available right now.';
+    }
+    if (isOpeningPlacementOnlyTurn()) {
+        return 'Turn 1 starts with a Siegeling placement.';
+    }
+    if (!trainer.canUseActive) {
+        if (gameState.currentPhase === 'BATTLE') {
+            return 'Your SiegeKnight active was already used this round and refreshes after battle.';
+        }
+        if (trainer.oncePerGame) {
+            return 'This ultimate can only be used once per match.';
+        }
+        return 'Your SiegeKnight active was already used this round.';
+    }
+    if (gameState.activeSide !== 'PLAYER') {
+        return 'Wait for your turn before using your SiegeKnight ability.';
+    }
+    if (targetMode) {
+        if (targetContext?.mode === 'battle') {
+            return 'Finish queueing the current battle action first.';
+        }
+        if (targetContext?.mode !== 'trainer') {
+            return 'Finish the current target selection first.';
+        }
+    }
+    if (gameState.currentPhase === 'BATTLE') {
+        if (gameState.battleWaitingOn === 'ENEMY') {
+            return 'Wait for the opponent to finish the current battle action.';
+        }
+        if (gameState.pendingBattle) {
+            return 'Queue this Siegeling\'s battle action before using your SiegeKnight active.';
+        }
+    }
+    const targetSide = getAbilityTargetSide(trainer.active);
+    if (targetSide && !abilityHasAvailableTarget(trainer.active)) {
+        return targetSide
+            ? `No ${targetSide} targets are available right now.`
+            : 'This ability has no valid target right now.';
+    }
+    return '';
+}
+
 function canUseTrainerAbility(trainer = gameState?.player?.trainer) {
-    return Boolean(
-        trainer
-        && trainer.active
-        && trainer.canUseActive
-        && !isOpeningPlacementOnlyTurn()
-        && abilityHasAvailableTarget(trainer.active)
-    );
+    return Boolean(trainer && trainer.active && !getTrainerAbilityLockReason(trainer));
 }
 
 function buildTrainerAbilityHint(trainer) {
     if (!trainer?.active) {
         return 'No active SiegeKnight ability is ready right now.';
     }
-    const targetSide = getAbilityTargetSide(trainer.active);
-    if (targetSide && !abilityHasAvailableTarget(trainer.active)) {
-        return `No ${targetSide} targets are available right now.`;
+    const lockReason = getTrainerAbilityLockReason(trainer);
+    if (lockReason) {
+        return lockReason;
     }
+    const targetSide = getAbilityTargetSide(trainer.active);
     if (targetSide) {
         const article = /^[aeiou]/i.test(targetSide) ? 'an' : 'a';
         return `Using this will close the popup and let you pick ${article} ${targetSide} target on the board.`;
@@ -2473,11 +3059,14 @@ function renderTrainerAbilityPopup() {
         copy.textContent = `${activeDescription} ${availability}`.trim();
     }
     if (useBtn) {
-        const canUse = canUseTrainerAbility(trainer);
+        const lockReason = getTrainerAbilityLockReason(trainer);
+        const canUse = !lockReason;
         useBtn.disabled = !canUse;
         useBtn.textContent = !trainer.active
             ? 'No Active Ability'
-            : (abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability');
+            : (canUse
+                ? (abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability')
+                : 'Unavailable');
     }
 }
 function openTrainerAbilityPopup() {
@@ -2503,7 +3092,55 @@ function closeTrainerAbilityPopup(event) {
     }
 }
 
+function openDashboardAccess() {
+    const overlay = document.getElementById('dashboardAccessOverlay');
+    const input = document.getElementById('dashboardAccessPassword');
+    const error = document.getElementById('dashboardAccessError');
+    if (!overlay || !input) {
+        window.location.href = '/card-dashboard.html';
+        return;
+    }
+    if (error) {
+        error.textContent = '';
+    }
+    input.value = '';
+    overlay.classList.remove('hidden');
+    overlay.setAttribute('aria-hidden', 'false');
+    setTimeout(() => input.focus(), 0);
+}
+
+function closeDashboardAccess(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const overlay = document.getElementById('dashboardAccessOverlay');
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+}
+
+function submitDashboardAccess(event) {
+    event.preventDefault();
+    const input = document.getElementById('dashboardAccessPassword');
+    const error = document.getElementById('dashboardAccessError');
+    const password = input?.value || '';
+    if (password === DASHBOARD_ACCESS_PASSWORD) {
+        window.location.href = '/card-dashboard.html';
+        return;
+    }
+    if (error) {
+        error.textContent = 'Incorrect password.';
+    }
+    input?.select();
+}
+
 function activateTrainerAbilityFromPopup() {
+    const trainer = gameState?.player?.trainer;
+    if (!canUseTrainerAbility(trainer)) {
+        return;
+    }
     closeTrainerAbilityPopup();
     onTrainerUse();
 }
@@ -2538,7 +3175,7 @@ function renderClaimPopup() {
         title.textContent = `Claim ${card.name}?`;
     }
     if (tier) {
-        tier.textContent = `${formatElementLabel(card.element)} Siegling`;
+        tier.textContent = `${formatElementLabel(card.element)} Siegeling`;
     }
     if (description) {
         description.textContent = `This removes ${card.name} from your board and grants 1 temporary ${formatElementLabel(card.element)} energy for this turn.`;
@@ -2611,7 +3248,7 @@ function getInteractionHintState() {
     if (focusedCard) {
         if (isBoardPreviewCard(focusedCard)) {
             hints.push(
-                `${boardCardOwnershipLabel(focusedCard)} Siegling — ${focusedCard.hp ?? '?'}/${focusedCard.maxHp ?? '?'} HP.`
+                `${boardCardOwnershipLabel(focusedCard)} Siegeling — ${focusedCard.hp ?? '?'}/${focusedCard.maxHp ?? '?'} HP.`
             );
         } else {
             const lockReason = getHandCardLockReason(focusedCard);
@@ -2621,7 +3258,7 @@ function getInteractionHintState() {
                 if (focusedCard.evolvesFromName) {
                     hints.push(`After ${focusedCard.evolvesFromName} survives a full battle phase in that form, play this on it to evolve.`);
                 } else if (gameState?.currentPhase === 'SETUP' && !gameState?.playerPlacementUsed) {
-                    hints.push('Highlighted slots show where this Siegling can be placed.');
+                    hints.push('Drag onto a highlighted cell to place, or tap the eye button for the full card preview.');
                 }
             } else if (focusedCard.type === 'TRAP') {
                 hints.push('Traps stay hidden until their trigger condition is met.');
@@ -2651,7 +3288,7 @@ function renderHintPanel() {
     const hintState = getInteractionHintState();
     if (!hintState.available) {
         panel.innerHTML = `
-            <div class="hint-drawer-copy">Select or hover a hand card, or click a Siegling on either board, to see contextual help.</div>
+            <div class="hint-drawer-copy">Select or hover a hand card, or click a Siegeling on either board, to see contextual help.</div>
             <div class="hint-list">
                 <div class="hint-item">The eye button opens the live card preview drawer when something is focused.</div>
             </div>
@@ -2672,8 +3309,15 @@ function renderHintPanel() {
 function syncActionBarAttention() {
     const hintButton = document.getElementById('btnHint');
     const previewButton = document.getElementById('btnSelectedPreview');
+    const cancelMoveButton = document.getElementById('btnCancelBattleMove');
+    const targetingCamera = isMobileBattleTargetingCameraActive();
     const hintState = getInteractionHintState();
     const focusedCard = getFocusedPreviewCard();
+
+    cancelMoveButton?.classList.toggle('hidden', !targetingCamera);
+    if (cancelMoveButton) {
+        cancelMoveButton.hidden = !targetingCamera;
+    }
 
     hintButton?.classList.toggle('ab-icon-live', hintState.available);
     hintButton?.classList.toggle('ab-icon-pulse', hintState.available);
@@ -2727,7 +3371,7 @@ function syncSetupActionsCounter() {
     if (valueEl) {
         valueEl.textContent = `${remaining}/${budget}`;
     }
-    el.title = `${remaining} Siegling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used).`;
+    el.title = `${remaining} Siegeling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used).`;
     el.classList.toggle('is-zero', remaining === 0);
 
     const playerActive = gs.activeSide === 'PLAYER';
@@ -2755,7 +3399,7 @@ function syncSetupActionsCounter() {
 let desktopInspectTab = 'card';
 
 function setDesktopInspectTab(tab) {
-    const next = tab === 'deck' ? 'deck' : 'card';
+    const next = tab === 'deck' ? 'deck' : tab === 'log' ? 'log' : 'card';
     desktopInspectTab = next;
     syncDesktopInspectTabUi();
 }
@@ -2763,15 +3407,22 @@ function setDesktopInspectTab(tab) {
 function syncDesktopInspectTabUi() {
     const cardTab = document.getElementById('tabDesktopInspectCard');
     const deckTab = document.getElementById('tabDesktopInspectDeck');
+    const logTab = document.getElementById('tabDesktopInspectLog');
     const cardPane = document.getElementById('desktopInspectPaneCard');
     const deckPane = document.getElementById('desktopInspectPaneDeck');
+    const logPane = document.getElementById('desktopInspectPaneLog');
     const isCard = desktopInspectTab === 'card';
+    const isDeck = desktopInspectTab === 'deck';
+    const isLog = desktopInspectTab === 'log';
     cardTab?.classList.toggle('is-active', isCard);
-    deckTab?.classList.toggle('is-active', !isCard);
+    deckTab?.classList.toggle('is-active', isDeck);
+    logTab?.classList.toggle('is-active', isLog);
     cardTab?.setAttribute('aria-selected', isCard ? 'true' : 'false');
-    deckTab?.setAttribute('aria-selected', isCard ? 'false' : 'true');
+    deckTab?.setAttribute('aria-selected', isDeck ? 'true' : 'false');
+    logTab?.setAttribute('aria-selected', isLog ? 'true' : 'false');
     cardPane?.classList.toggle('is-active', isCard);
-    deckPane?.classList.toggle('is-active', !isCard);
+    deckPane?.classList.toggle('is-active', isDeck);
+    logPane?.classList.toggle('is-active', isLog);
     if (cardPane) {
         if (isCard) {
             cardPane.removeAttribute('hidden');
@@ -2780,10 +3431,17 @@ function syncDesktopInspectTabUi() {
         }
     }
     if (deckPane) {
-        if (isCard) {
-            deckPane.setAttribute('hidden', '');
-        } else {
+        if (isDeck) {
             deckPane.removeAttribute('hidden');
+        } else {
+            deckPane.setAttribute('hidden', '');
+        }
+    }
+    if (logPane) {
+        if (isLog) {
+            logPane.removeAttribute('hidden');
+        } else {
+            logPane.setAttribute('hidden', '');
         }
     }
     if (isCard) {
@@ -2832,12 +3490,12 @@ function getDesktopPreviewNote(card, lockReason) {
         return lockReason;
     }
     if (!card) {
-        return 'Hover, select a hand card, or click a Siegling on either board to inspect it here.';
+        return 'Hover, select a hand card, or click a Siegeling on either board to inspect it here.';
     }
     if (isBoardPreviewCard(card)) {
         const own = boardCardOwnershipLabel(card);
         const phases = Number(card.battlePhasesSeen || 0);
-        return `${own} Siegling in play — ${card.hp}/${card.maxHp} HP · ${phases} battle phase(s) survived.`;
+        return `${own} Siegeling in play — ${card.hp}/${card.maxHp} HP · ${phases} battle phase(s) survived.`;
     }
     if (card.type === 'SIEGLING') {
         if (card.evolvesFromName) {
@@ -2847,9 +3505,9 @@ function getDesktopPreviewNote(card, lockReason) {
             return sieglingPlacementLockMessage();
         }
         if (gameState?.currentPhase === 'SETUP') {
-            return 'Highlighted board cells show where this Siegling can expand next.';
+            return 'Highlighted board cells show where this Siegeling can expand next.';
         }
-        return 'Siegling battle actions resolve automatically in speed order during battle.';
+        return 'Siegeling battle actions resolve automatically in speed order during battle.';
     }
     if (card.type === 'TRAP') {
         return 'Traps stay hidden until their trigger condition is met.';
@@ -2883,7 +3541,7 @@ function getFocusedCardSummary(card, lockReason) {
     }
     if (isBoardPreviewCard(card)) {
         const own = boardCardOwnershipLabel(card);
-        return `${own} Siegling on board — HP ${card.hp}/${card.maxHp}. Eye button opens the full preview.`;
+        return `${own} Siegeling on board — HP ${card.hp}/${card.maxHp}. Eye button opens the full preview.`;
     }
     if (!isPlayerHandCard(card)) {
         return 'Board card details update live as links, statuses, and battle order change.';
@@ -2943,19 +3601,15 @@ function renderDesktopActionHistory() {
         ? gameState.gameLog.filter(isBattlePhaseLogEntry).slice(0, 5)
         : [];
     if (battleLines.length === 0) {
-        history.innerHTML = `
-            <div class="desktop-battle-log-title">Battle log</div>
-            <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>`;
+        history.innerHTML = '<div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>';
         return;
     }
 
-    history.innerHTML = `
-        <div class="desktop-battle-log-title">Battle log</div>
-        ${battleLines.map((entry, index) => `
+    history.innerHTML = battleLines.map((entry, index) => `
         <div class="desktop-history-entry${index === 0 ? ' current' : ''}">
             <span class="desktop-history-dot"></span>
             <span>${escapeHtml(entry)}</span>
-        </div>`).join('')}`;
+        </div>`).join('');
 }
 
 function syncFocusedEnergyCue() {
@@ -2987,7 +3641,7 @@ function renderDesktopCardPreviewPanel() {
 
     const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
     if (!focusedCard) {
-        panel.innerHTML = '<div class="desktop-empty-state">Hover or click a Siegling on either board, or select a hand card, to inspect it here.</div>';
+        panel.innerHTML = '<div class="desktop-empty-state">Hover or click a Siegeling on either board, or select a hand card, to inspect it here.</div>';
         return;
     }
 
@@ -3134,10 +3788,14 @@ function formatDeckSectionLabel(type) {
         case 'TRAP':
             return 'Traps';
         case 'SIEGLING':
-            return 'Sieglings';
+            return 'Siegelings';
         default:
             return type || 'Cards';
     }
+}
+
+function formatBuilderTypeFilterLabel(type) {
+    return String(type || '').toUpperCase() === 'SIEGLING' ? 'SIEGELING' : (type || 'CARD');
 }
 
 function getDeckCardMonogram(name) {
@@ -3279,6 +3937,29 @@ function loadSavedMultiplayerSession() {
     }
 }
 
+const SOLO_SESSION_TOKEN_KEY = 'sieglingsSoloSessionToken';
+
+function loadSavedSoloToken() {
+    try {
+        return localStorage.getItem(SOLO_SESSION_TOKEN_KEY) || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function setSoloSessionToken(token) {
+    soloSessionToken = token || null;
+    try {
+        if (soloSessionToken) {
+            localStorage.setItem(SOLO_SESSION_TOKEN_KEY, soloSessionToken);
+        } else {
+            localStorage.removeItem(SOLO_SESSION_TOKEN_KEY);
+        }
+    } catch (e) {
+        /* storage unavailable; in-memory token still works for this session */
+    }
+}
+
 function saveMultiplayerSession() {
     if (!multiplayerSession) {
         localStorage.removeItem('sieglingsMultiplayerSession');
@@ -3291,7 +3972,13 @@ function clearMultiplayerSession() {
     multiplayerSession = null;
     currentRoomStatus = null;
     clearRoomPolling();
+    clearRoomExpiryTimer();
     saveMultiplayerSession();
+    try {
+        localStorage.removeItem('sieglingsHostLobby');
+    } catch (_error) {
+        // ignore storage failures
+    }
 }
 
 function clearRoomPolling() {
@@ -3300,6 +3987,83 @@ function clearRoomPolling() {
         roomPollHandle = null;
     }
 }
+
+function clearRoomExpiryTimer() {
+    if (roomExpiryTimeoutHandle) {
+        clearTimeout(roomExpiryTimeoutHandle);
+        roomExpiryTimeoutHandle = null;
+    }
+}
+
+function scheduleRoomExpiryClose(status = currentRoomStatus) {
+    clearRoomExpiryTimer();
+    if (!status?.roomId || status.started || !status.expiresAt) {
+        return;
+    }
+    const remainingMs = new Date(status.expiresAt).getTime() - Date.now();
+    if (!Number.isFinite(remainingMs)) {
+        return;
+    }
+    roomExpiryTimeoutHandle = setTimeout(() => {
+        void closeUnfilledLobby('Lobby expired before another player joined.');
+    }, Math.max(0, remainingMs));
+}
+
+async function closeUnfilledLobby(message = '') {
+    const session = multiplayerSession;
+    const status = currentRoomStatus;
+    if (status?.started || gameState?.multiplayer) {
+        return;
+    }
+    if (session?.roomId && session?.playerToken) {
+        try {
+            await fetchJson(apiUrls('/api/match/close'), {
+                method: 'POST',
+                headers: getAuthHeaders({
+                    'Content-Type': 'application/json',
+                    'X-Room-Id': session.roomId,
+                    'X-Player-Token': session.playerToken
+                }),
+                body: JSON.stringify({ roomId: session.roomId })
+            });
+        } catch (e) {
+            console.warn('Could not close expired lobby remotely; clearing local room.', e);
+        }
+    }
+    clearMultiplayerSession();
+    gameState = null;
+    loadoutErrorMessage = message;
+    if (welcomeDismissed) {
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    }
+}
+
+async function leaveOnlineMatch() {
+    const session = multiplayerSession;
+    if (session?.roomId && session?.playerToken) {
+        try {
+            await fetchJson(apiUrls('/api/match/close'), {
+                method: 'POST',
+                headers: getAuthHeaders({
+                    'Content-Type': 'application/json',
+                    'X-Room-Id': session.roomId,
+                    'X-Player-Token': session.playerToken
+                }),
+                body: JSON.stringify({ roomId: session.roomId })
+            });
+        } catch (e) {
+            console.warn('Could not close remote room; leaving locally.', e);
+        }
+    }
+    clearMultiplayerSession();
+    gameState = null;
+    mulliganSelectedIndices.clear();
+    mulliganHandSig = '';
+    openLoadoutSelector();
+}
+window.leaveOnlineMatch = leaveOnlineMatch;
 
 function loadSavedAuthToken() {
     try {
@@ -3344,7 +4108,15 @@ function getJoinRoomCodeFromUrl() {
 }
 
 function isInviteJoinFlow() {
-    return Boolean(getJoinRoomCodeFromUrl());
+    return Boolean(socialOnlineLaunchRoomId);
+}
+
+function isSocialBattleLaunch() {
+    return Boolean(socialOnlineLaunchRoomId || multiplayerSession?.roomId);
+}
+
+function shouldShowOnlineLoadoutOnPlay() {
+    return false;
 }
 
 function loadSavedPlayerName() {
@@ -3387,6 +4159,7 @@ function syncEntryOverlays() {
     const showingGameplay = Boolean(gameState);
     const welcomeVisible = !showingGameplay && !welcomeDismissed;
 
+    document.body?.classList.toggle('gameplay-active', showingGameplay);
     welcomeOverlay?.classList.toggle('visible', welcomeVisible);
     loadoutOverlay?.classList.toggle('visible', !showingGameplay && welcomeDismissed);
     if (!gameState?.mulligan?.active) {
@@ -3394,6 +4167,15 @@ function syncEntryOverlays() {
     }
     if (welcomeVisible) {
         refreshWelcomeLeaderboards();
+    }
+    if (gameState) {
+        updateSafeAreaHpStrip(gameState);
+    } else {
+        const strip = document.getElementById('safeHpStrip');
+        if (strip) {
+            strip.hidden = true;
+            strip.setAttribute('aria-hidden', 'true');
+        }
     }
 }
 
@@ -3571,6 +4353,211 @@ function playAsGuest() {
     dismissWelcome();
 }
 
+function startPlaySolo() {
+    matchMode = 'solo';
+    onlineRoomMode = 'create';
+    resetPlayLobbyState(false);
+    dismissWelcome();
+}
+
+function resetPlayLobbyState(shouldRender = true) {
+    if (playLobbyCountdownTimer) {
+        clearInterval(playLobbyCountdownTimer);
+        playLobbyCountdownTimer = null;
+    }
+    if (playLobbyOpponentTimer) {
+        clearTimeout(playLobbyOpponentTimer);
+        playLobbyOpponentTimer = null;
+    }
+    playLobbyState = {
+        active: false,
+        mode: 'create',
+        ready: false,
+        opponentReady: false,
+        countdown: 0,
+        chatMessages: []
+    };
+    if (shouldRender) {
+        renderPlayLobby();
+    }
+}
+
+function openPlayLobby(mode = 'create') {
+    matchMode = 'online';
+    onlineRoomMode = mode === 'join' ? 'join' : 'create';
+    playLobbyState.active = true;
+    playLobbyState.mode = onlineRoomMode;
+    playLobbyState.ready = false;
+    playLobbyState.opponentReady = onlineRoomMode === 'join';
+    playLobbyState.countdown = 0;
+    playLobbyState.chatMessages = defaultLobbyMessages();
+    const roomInput = document.getElementById('playLobbyRoomCodeInput');
+    const loadoutRoomInput = document.getElementById('roomCodeInput');
+    if (roomInput && loadoutRoomInput && loadoutRoomInput.value) {
+        roomInput.value = loadoutRoomInput.value;
+    }
+    renderPlayLobby();
+}
+
+function defaultLobbyMessages() {
+    const name = getPlayEntryName();
+    if (onlineRoomMode === 'join') {
+        return [
+            { by: 'system', text: 'Invite found. Confirm when both players are ready to pick loadouts.' },
+            { by: 'opponent', text: 'I am here. Let us lock in.' }
+        ];
+    }
+    return [
+        { by: 'system', text: `${name} opened a 1v1 lobby.` },
+        { by: 'system', text: 'Share the invite code, chat while you wait, then both players confirm.' }
+    ];
+}
+
+function getPlayEntryName() {
+    return authState.profile?.user?.displayName || loadSavedPlayerName() || 'You';
+}
+
+function getPlayEntryEmail() {
+    return authState.profile?.user?.email || 'Guest session';
+}
+
+function renderPlayLobby() {
+    const card = document.getElementById('playLobbyCard');
+    if (!card) {
+        return;
+    }
+    const active = playLobbyState.active;
+    const mode = playLobbyState.mode || onlineRoomMode || 'create';
+    const joinCode = getJoinRoomCodeFromUrl()?.toUpperCase() || '';
+    const lobbyCode = currentRoomStatus?.roomId || joinCode || document.getElementById('playLobbyRoomCodeInput')?.value?.trim()?.toUpperCase() || '';
+    const opponentName = mode === 'join' ? 'Inviting Player' : (playLobbyState.opponentReady ? 'Opponent' : 'Waiting...');
+    const statusText = active
+        ? playLobbyState.countdown > 0
+            ? `Selection opens in ${playLobbyState.countdown}`
+            : playLobbyState.ready && playLobbyState.opponentReady
+                ? 'Both players confirmed. Starting selection.'
+                : playLobbyState.ready
+                    ? 'You confirmed. Waiting on the other player.'
+                    : 'Enter the room, chat, and confirm when ready.'
+        : 'Create or join a 1v1 lobby to stage the match before loadout selection.';
+    const chatMessages = active && playLobbyState.chatMessages.length
+        ? playLobbyState.chatMessages
+        : active
+            ? defaultLobbyMessages()
+            : [{ by: 'system', text: 'Create or join a lobby to open the chat room and ready check.' }];
+
+    card.innerHTML = `
+        <div class="play-lobby-head">
+            <div>
+                <span class="welcome-card-kicker">${active ? (mode === 'join' ? 'Joined Lobby' : 'Lobby Open') : 'Lobby'}</span>
+                <h3>${active ? 'Pre-match room' : 'Create a room experience'}</h3>
+            </div>
+            <span class="play-lobby-code">${escapeHtml(lobbyCode || (mode === 'join' ? 'Enter code' : 'Code after loadout'))}</span>
+        </div>
+        <div class="play-lobby-status">${escapeHtml(statusText)}</div>
+        <div class="play-lobby-players">
+            ${renderLobbyPlayerCard('You', getPlayEntryName(), getPlayEntryEmail(), playLobbyState.ready)}
+            ${renderLobbyPlayerCard('Opponent', opponentName, mode === 'join' ? 'Connected by invite' : 'Invite pending', playLobbyState.opponentReady)}
+        </div>
+        <div class="play-lobby-controls${active ? '' : ' is-muted'}">
+            <label class="online-field ${mode === 'join' ? '' : 'hidden'}">
+                <span>Lobby Code</span>
+                <input type="text" id="playLobbyRoomCodeInput" maxlength="6" placeholder="ABC123" value="${escapeHtmlAttribute(lobbyCode)}" oninput="syncPlayLobbyRoomCode()">
+            </label>
+            <div class="play-lobby-chat">
+                <div class="play-lobby-chat-log">
+                    ${chatMessages.map(renderLobbyChatMessage).join('')}
+                </div>
+                <form class="play-lobby-chat-form" onsubmit="sendPlayLobbyChat(event)">
+                    <input type="text" id="playLobbyChatInput" maxlength="96" placeholder="Message lobby" ${active ? '' : 'disabled'}>
+                    <button class="btn" type="submit" ${active ? '' : 'disabled'}>Send</button>
+                </form>
+            </div>
+            <div class="play-lobby-actions">
+                <button class="btn welcome-dashboard-btn" type="button" onclick="openPlayLobby('${mode === 'join' ? 'create' : 'join'}')">${mode === 'join' ? 'Host Instead' : 'Join Instead'}</button>
+                <button class="btn welcome-guest-btn" type="button" onclick="resetPlayLobbyState()">Cancel</button>
+                <button class="btn btn-primary" type="button" ${active ? '' : 'disabled'} onclick="confirmPlayLobbyReady()">${playLobbyState.ready ? 'Ready Confirmed' : 'Confirm Ready'}</button>
+            </div>
+        </div>
+    `;
+}
+
+function renderLobbyPlayerCard(role, name, detail, ready) {
+    return `<article class="play-lobby-player${ready ? ' is-ready' : ''}">
+        <span>${escapeHtml(role)}</span>
+        <strong>${escapeHtml(name)}</strong>
+        <small>${escapeHtml(detail)}</small>
+        <em>${ready ? 'Ready' : 'Not ready'}</em>
+    </article>`;
+}
+
+function renderLobbyChatMessage(message) {
+    const by = message.by === 'opponent' ? 'Opponent' : message.by === 'you' ? 'You' : 'System';
+    return `<div class="play-lobby-chat-row ${escapeHtmlAttribute(message.by || 'system')}"><strong>${escapeHtml(by)}</strong><span>${escapeHtml(message.text || '')}</span></div>`;
+}
+
+function syncPlayLobbyRoomCode() {
+    const value = document.getElementById('playLobbyRoomCodeInput')?.value?.trim()?.toUpperCase() || '';
+    const loadoutInput = document.getElementById('roomCodeInput');
+    if (loadoutInput) {
+        loadoutInput.value = value;
+    }
+}
+
+function sendPlayLobbyChat(event) {
+    event?.preventDefault?.();
+    const input = document.getElementById('playLobbyChatInput');
+    const text = input?.value?.trim() || '';
+    if (!text) {
+        return;
+    }
+    playLobbyState.chatMessages.push({ by: 'you', text });
+    if (input) {
+        input.value = '';
+    }
+    renderPlayLobby();
+}
+
+function confirmPlayLobbyReady() {
+    if (!playLobbyState.active || playLobbyState.countdown > 0) {
+        return;
+    }
+    playLobbyState.ready = true;
+    if (!playLobbyState.opponentReady) {
+        playLobbyState.chatMessages.push({ by: 'system', text: 'You confirmed. Waiting for the other player to confirm.' });
+        playLobbyOpponentTimer = setTimeout(() => {
+            playLobbyState.opponentReady = true;
+            playLobbyState.chatMessages.push({ by: 'opponent', text: 'Ready on my side.' });
+            beginPlayLobbyCountdown();
+        }, 800);
+        renderPlayLobby();
+        return;
+    }
+    beginPlayLobbyCountdown();
+}
+
+function beginPlayLobbyCountdown() {
+    if (!playLobbyState.ready || !playLobbyState.opponentReady || playLobbyCountdownTimer) {
+        renderPlayLobby();
+        return;
+    }
+    playLobbyState.countdown = 3;
+    renderPlayLobby();
+    playLobbyCountdownTimer = setInterval(() => {
+        playLobbyState.countdown -= 1;
+        if (playLobbyState.countdown <= 0) {
+            clearInterval(playLobbyCountdownTimer);
+            playLobbyCountdownTimer = null;
+            playLobbyState.active = false;
+            playLobbyState.countdown = 0;
+            syncPlayLobbyRoomCode();
+            dismissWelcome();
+            return;
+        }
+        renderPlayLobby();
+    }, 900);
+}
+
 function setAuthMode(mode) {
     authMode = mode;
     authState.error = '';
@@ -3581,14 +4568,18 @@ async function submitAuth(mode) {
     const email = document.getElementById('welcomeEmailInput')?.value?.trim() || '';
     const password = document.getElementById('welcomePasswordInput')?.value || '';
     const displayName = document.getElementById('welcomeDisplayNameInput')?.value?.trim() || '';
+    const resetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
     authState.loading = true;
     authState.error = '';
     renderWelcomeAuth();
 
     const body = mode === 'register'
         ? { email, password, displayName }
+        : mode === 'reset-password'
+        ? { email, password, resetCode }
         : { email, password };
-    const data = await fetchJson(apiUrls(`/api/auth/${mode}`), {
+    const endpoint = mode === 'reset-password' ? '/api/auth/reset-password' : `/api/auth/${mode}`;
+    const data = await fetchJson(apiUrls(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -3604,6 +4595,12 @@ async function submitAuth(mode) {
     saveAuthToken(data.token || '');
     authState.profile = data;
     authState.error = '';
+    // After signing in or creating an account, send players to the Home hub
+    // (skip when joining via an invite link, where they intend to play right away).
+    if ((mode === 'login' || mode === 'register') && data.authenticated && !isInviteJoinFlow()) {
+        window.location.href = '/home';
+        return;
+    }
     hydrateSavedPlayerName();
     renderWelcomeAuth();
     renderSavedDecks();
@@ -3628,7 +4625,14 @@ async function syncAuthProfile(silent = false) {
 
     const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET' });
     authState.loading = false;
-    if (!data || !data.authenticated) {
+    if (!data) {
+        if (!silent) {
+            renderWelcomeAuth();
+            renderSavedDecks();
+        }
+        return false;
+    }
+    if (!data.authenticated) {
         clearAuthState();
         return false;
     }
@@ -3673,16 +4677,29 @@ function renderWelcomeAuth() {
         `;
 
         const recent = authState.profile.matchHistory || [];
+        // Stash for the detail modal — opened by clicking a row.
+        latestMatchHistory = recent;
         historyCard.innerHTML = `
             <div class="welcome-card-kicker">Recent Battles</div>
             <h3>Match history follows this login</h3>
             ${recent.length > 0
-                ? `<div class="welcome-history-list">${recent.slice(0, 4).map(entry => `
-                    <div class="welcome-history-row">
-                        <strong>${escapeHtml(entry.result)}</strong>
+                ? `<div class="welcome-history-list">${recent.slice(0, 6).map((entry, idx) => {
+                    const resultClass = String(entry.result || '').toLowerCase();
+                    const ph = Number(entry.playerHealthRemaining);
+                    const oh = Number(entry.opponentHealthRemaining);
+                    const en = Number(entry.playerEnergyRemaining);
+                    const metaBits = [];
+                    if (Number.isFinite(ph) && Number.isFinite(oh)) metaBits.push(`&hearts; ${ph} vs ${oh}`);
+                    if (Number.isFinite(en)) metaBits.push(`&#9889; ${en}`);
+                    if (entry.turnNumber) metaBits.push(`T${entry.turnNumber}`);
+                    return `
+                    <button class="welcome-history-row history-row-clickable result-${escapeHtmlAttribute(resultClass)}" type="button" onclick="openMatchDetail(${idx})">
+                        <strong class="history-result-${escapeHtmlAttribute(resultClass)}">${escapeHtml(entry.result)}</strong>
                         <span>${escapeHtml(entry.loadoutLabel)} vs ${escapeHtml(entry.opponentName)}</span>
-                    </div>
-                `).join('')}</div>`
+                        ${metaBits.length ? `<span class="history-row-meta">${metaBits.join(' &middot; ')}</span>` : ''}
+                    </button>
+                `;
+                }).join('')}</div>`
                 : '<div class="identity-note">Your finished games will appear here after the first recorded match.</div>'}
         `;
         return;
@@ -3691,14 +4708,20 @@ function renderWelcomeAuth() {
     const draftEmail = document.getElementById('welcomeEmailInput')?.value || '';
     const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
     const draftPassword = document.getElementById('welcomePasswordInput')?.value || '';
+    const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
+    const authTitle = authMode === 'login'
+        ? 'Pick up where you left off'
+        : authMode === 'register'
+        ? 'Save decks with your email'
+        : 'Set a new password';
 
     authCard.innerHTML = `
-        <div class="welcome-auth-tabs">
-            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" onclick="setAuthMode('login')">Log In</button>
-            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" onclick="setAuthMode('register')">Register</button>
-        </div>
-        <div class="welcome-card-kicker">Account</div>
+        <div class="welcome-eyebrow">ACCOUNT</div>
         <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+        <div class="welcome-auth-tabs">
+            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
+            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
+        </div>
         <label class="online-field">
             <span>Email</span>
             <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
@@ -3709,26 +4732,32 @@ function renderWelcomeAuth() {
                 <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}">
             </label>
         ` : ''}
+        ${authMode === 'reset-password' ? `
+            <label class="online-field">
+                <span>Reset Code</span>
+                <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
+            </label>
+        ` : ''}
         <label class="online-field">
-            <span>Password</span>
+            <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
             <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
         </label>
         ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
         <div class="welcome-auth-actions">
-            <button class="btn btn-primary" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
+            <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
                 ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
             </button>
-            <button class="btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
+            <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
         </div>
     `;
 
     historyCard.innerHTML = `
-        <div class="welcome-card-kicker">Why Sign In</div>
+        <div class="welcome-eyebrow">WHY SIGN IN</div>
         <h3>Keep your armory between sessions</h3>
         <div class="welcome-benefits">
-            <div class="welcome-benefit">Save custom decks and named preset loadouts.</div>
-            <div class="welcome-benefit">See your recent wins, losses, and deck history.</div>
-            <div class="welcome-benefit">Load the same builds again after you log back in.</div>
+            <div class="welcome-benefit">Save custom decks and named loadouts.</div>
+            <div class="welcome-benefit">Track your wins, matches, and deck history.</div>
+            <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
         </div>
     `;
 }
@@ -3921,11 +4950,22 @@ function getPlayerEnergyAmount(element) {
     return Number(gameState.player[energyKey] || 0);
 }
 
+function getPlayerTotalSpendableEnergy() {
+    if (!gameState?.player) {
+        return 0;
+    }
+    return ENERGY_ORDER.reduce((total, [key]) => total + Number(gameState.player[`${key}Energy`] || 0), 0);
+}
+
 function canAffordCard(card) {
     if (!card?.costElement || !card.costAmount) {
         return true;
     }
-    return getPlayerEnergyAmount(card.costElement) >= Number(card.costAmount);
+    const costAmount = Number(card.costAmount);
+    if (String(card.costElement).toUpperCase() === 'NEUTRAL') {
+        return getPlayerTotalSpendableEnergy() >= costAmount;
+    }
+    return getPlayerEnergyAmount(card.costElement) >= costAmount;
 }
 
 function countBoardSieglings(board = gameState?.playerBoard || []) {
@@ -4048,7 +5088,7 @@ function getHandCardLockReason(card) {
         return '';
     }
     if (isBoardPreviewCard(card)) {
-        return 'This Siegling is already on the board.';
+        return 'This Siegeling is already on the board.';
     }
     if (gameState.currentPhase === 'MULLIGAN') {
         return 'Choose cards to redraw (optional) or keep your opening hand.';
@@ -4063,7 +5103,7 @@ function getHandCardLockReason(card) {
         return 'Finish the current target selection first.';
     }
     if (isOpeningPlacementOnlyTurn() && card.type !== 'SIEGLING') {
-        return 'Turn 1 starts with a Siegling placement.';
+        return 'Turn 1 starts with a Siegeling placement.';
     }
     if (gameState.currentPhase !== 'SETUP') {
         return 'Cards can only be played during setup.';
@@ -4084,7 +5124,7 @@ function getHandCardLockReason(card) {
         const targetSide = getAbilityTargetSide(card.ability);
         return targetSide ? `No ${targetSide} targets are available right now.` : 'This card has no valid target right now.';
     }
-    if (isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING') {
+    if (isPlacementBudgetLockedForCard(card)) {
         return sieglingPlacementLockMessage();
     }
     if (card.type === 'SIEGLING' && card.evolvesFromId) {
@@ -4097,7 +5137,7 @@ function getHandCardLockReason(card) {
         }
     }
     if (card.type === 'SIEGLING' && getLegalPlacementsForCard(card).length === 0) {
-        return 'No legal placement available for this Siegling.';
+        return 'No legal placement available for this Siegeling.';
     }
     return '';
 }
@@ -4116,31 +5156,35 @@ function getInteractionBannerState() {
         };
     }
     if (targetMode && targetContext) {
+        const ability = targetContext.mode === 'battle' ? getActiveBattleTargetAbility() : null;
+        const message = ability && targetContext.mode === 'battle'
+            ? buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow()).banner
+            : targetContext.message;
         return {
             kind: 'target',
             label: 'Targeting',
-            message: targetContext.message
+            message
         };
     }
     if (isPlacementSelectionActive()) {
         return {
             kind: 'place',
             label: 'Placement',
-            message: `Place ${selectedCard.name} on a highlighted slot.`
+            message: `Drag ${selectedCard.name} onto a highlighted slot, or tap a slot to place. Use the eye button for the full card preview.`
         };
     }
     if (gameState.currentPhase === 'SETUP' && gameState.playerPlacementUsed) {
         return {
             kind: 'locked',
-            label: 'Placements done',
-            message: 'No Siegling setup actions left this turn. Cast spells, set traps, use your SiegeKnight, or end setup.'
+            label: 'Setup actions done',
+            message: 'No setup actions left this turn. Use your SiegeKnight ability or end the setup phase.'
         };
     }
     if (gameState.currentPhase === 'SETUP' && getClaimableSieglings().length > 0) {
         return {
             kind: 'place',
             label: 'Claim',
-            message: 'Tap one of your battle-tested Sieglings to claim it and gain 1 temporary energy of its element this turn.'
+            message: 'Tap one of your battle-tested Siegelings to claim it and gain 1 temporary energy of its element this turn.'
         };
     }
     if (gameState.currentPhase === 'BATTLE') {
@@ -4148,7 +5192,7 @@ function getInteractionBannerState() {
             kind: 'battle',
             label: 'Battle Action',
             message: gameState.pendingBattle
-                ? 'Queue one action for the acting Siegling. The hand HUD now hosts the live battle queue.'
+                ? 'Queue one action for the acting Siegeling. The hand HUD now hosts the live battle queue.'
                 : 'Battle is resolving in speed order. The hand HUD stays in queue mode until setup returns.'
         };
     }
@@ -4158,6 +5202,11 @@ function getInteractionBannerState() {
 function renderInteractionBanner() {
     const banner = document.getElementById('interactionBanner');
     if (!banner) {
+        return;
+    }
+    if (isMobileBattleTargetingCameraActive()) {
+        banner.className = 'interaction-banner hidden';
+        banner.innerHTML = '';
         return;
     }
     const state = getInteractionBannerState();
@@ -4231,13 +5280,16 @@ function applyInteractionState() {
     const placementActive = isPlacementSelectionActive();
     const handHidden = isHandHiddenForPhase();
     const battlePhaseActive = Boolean(gameState && gameState.currentPhase === 'BATTLE');
+    const mobileTargetingCamera = isMobileBattleTargetingCameraActive();
 
     body.classList.toggle('targeting-active', targetingActive);
     body.classList.toggle('placement-active', placementActive);
     body.classList.toggle('battle-phase-active', battlePhaseActive);
+    body.classList.toggle('mobile-battle-targeting-camera', mobileTargetingCamera);
 
     boardArea?.classList.toggle('targeting-active', targetingActive);
     boardArea?.classList.toggle('placement-active', placementActive);
+    boardArea?.classList.toggle('mobile-targeting-camera-board', mobileTargetingCamera);
     if (!targetingActive) {
         clearTargetingPreview();
     }
@@ -4247,6 +5299,8 @@ function applyInteractionState() {
 
     renderInteractionBanner();
     renderHintPanel();
+    renderMobileTargetingHud();
+    syncMobileTargetingArenaScale();
     syncActionBarAttention();
     maybeTriggerInteractionFeedback();
 }
@@ -4324,12 +5378,15 @@ function scheduleBattleAutoAdvance() {
         }
     }, BATTLE_AUTO_ADVANCE_DELAY_MS);
 }
+window.scheduleBattleAutoAdvance = scheduleBattleAutoAdvance;
 
 async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
     const opts = { method, headers: getAuthHeaders({ 'Content-Type': 'application/json' }) };
     if (multiplayerSession?.roomId && multiplayerSession?.playerToken) {
         opts.headers['X-Room-Id'] = multiplayerSession.roomId;
         opts.headers['X-Player-Token'] = multiplayerSession.playerToken;
+    } else if (soloSessionToken) {
+        opts.headers['X-Solo-Token'] = soloSessionToken;
     }
     if (body) opts.body = JSON.stringify(body);
 
@@ -4352,6 +5409,7 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
 
     if (endpoint === 'new') {
+        setSoloSessionToken(data.soloToken || null);
         clearExternalSocketElementMemory();
     }
 
@@ -4421,8 +5479,9 @@ async function loadGameOptions() {
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();
-        const [data] = await Promise.all([
+        const [data, editorState] = await Promise.all([
             fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS),
             syncAuthProfile(true)
         ]);
         if (!data) {
@@ -4430,12 +5489,13 @@ async function loadGameOptions() {
             syncEntryOverlays();
             return;
         }
-        gameOptions = data;
+        gameOptions = filterGameOptionsToDashboardCards(data, editorState);
         loadoutErrorMessage = '';
         selectedDeckId = data.defaultDeckId;
         selectedTrainerId = data.defaultTrainerId;
         builderCounts = {};
         loadoutMode = 'preset';
+        applyPendingHomeLoadout();
         hydrateOnlineStateFromUrl();
         hydrateSavedPlayerName();
         renderWelcomeTutorial();
@@ -4451,6 +5511,68 @@ async function loadGameOptions() {
         showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
         syncEntryOverlays();
     }
+}
+
+async function refreshLiveGameOptions() {
+    if (!gameOptions) {
+        return loadGameOptions();
+    }
+    if (liveCatalogRefreshPromise) {
+        return liveCatalogRefreshPromise;
+    }
+    liveCatalogRefreshPromise = (async () => {
+        const [data, editorState] = await Promise.all([
+            fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS)
+        ]);
+        if (!data) {
+            return;
+        }
+        gameOptions = filterGameOptionsToDashboardCards(data, editorState);
+        loadoutErrorMessage = '';
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    })().catch((error) => {
+        console.error('Failed to refresh live game options:', error);
+    }).finally(() => {
+        liveCatalogRefreshPromise = null;
+    });
+    return liveCatalogRefreshPromise;
+}
+
+function filterGameOptionsToDashboardCards(options, editorState) {
+    const catalog = Array.isArray(options?.cardCatalog) ? options.cardCatalog : [];
+    const dashboardCards = Array.isArray(editorState?.data?.cards) ? editorState.data.cards : [];
+    if (!catalog.length || !dashboardCards.length) {
+        return options;
+    }
+
+    const dashboardIds = new Set(
+        dashboardCards
+            .map(card => normalizeDashboardCardId(card?.id))
+            .filter(Boolean)
+    );
+    if (dashboardIds.size === 0) {
+        return options;
+    }
+
+    const filteredCatalog = catalog.filter(card => dashboardIds.has(normalizeDashboardCardId(card?.id)));
+    if (filteredCatalog.length === 0) {
+        return options;
+    }
+    if (filteredCatalog.length !== catalog.length) {
+        console.info(`Filtered ${catalog.length - filteredCatalog.length} deleted dashboard card(s) from deck builder catalog.`);
+    }
+    return {
+        ...options,
+        cardCatalog: filteredCatalog
+    };
+}
+
+function normalizeDashboardCardId(id) {
+    const normalized = String(id || '').trim().toLowerCase();
+    return normalized || null;
 }
 
 async function newGame() {
@@ -4539,6 +5661,22 @@ function openLoadoutSelector() {
     syncEntryOverlays();
 }
 
+function returnToPlayMain() {
+    if (loadoutStartPending) {
+        return;
+    }
+    clearMultiplayerSession();
+    currentRoomStatus = null;
+    loadoutErrorMessage = '';
+    welcomeDismissed = false;
+    resetPlayLobbyState(false);
+    document.getElementById('gameOverOverlay')?.classList.remove('visible');
+    syncEntryOverlays();
+    renderWelcomeTutorial();
+    renderWelcomeAuth();
+    renderWelcomeLeaderboards();
+}
+
 function selectDeckOption(deckId) {
     detachSavedDeckSelection();
     selectedDeckId = deckId;
@@ -4563,6 +5701,7 @@ function switchLoadoutMode(mode) {
 function setMatchMode(mode) {
     matchMode = mode;
     currentRoomStatus = null;
+    loadoutErrorMessage = '';
     if (mode === 'solo') {
         clearMultiplayerSession();
     } else {
@@ -4575,6 +5714,7 @@ function setMatchMode(mode) {
 function setOnlineRoomMode(mode) {
     onlineRoomMode = mode;
     currentRoomStatus = null;
+    loadoutErrorMessage = '';
     clearMultiplayerSession();
     hydrateOnlineStateFromUrl();
     renderLoadoutOptions();
@@ -4582,13 +5722,53 @@ function setOnlineRoomMode(mode) {
 }
 
 function hydrateOnlineStateFromUrl() {
-    const roomCodeInput = document.getElementById('roomCodeInput');
     const joinCode = getJoinRoomCodeFromUrl();
     if (joinCode) {
-        matchMode = 'online';
+        window.location.replace(`/social?room=${encodeURIComponent(joinCode.trim().toUpperCase())}`);
+    }
+}
+
+function applyPendingHomeLoadout() {
+    let pending = null;
+    try {
+        const raw = localStorage.getItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
+        pending = raw ? JSON.parse(raw) : null;
+        localStorage.removeItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
+    } catch (e) {
+        localStorage.removeItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
+        return;
+    }
+    if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
+        return;
+    }
+    // Arrived from the Home hub with a chosen loadout — skip the welcome and go straight to the loadout.
+    welcomeDismissed = true;
+    if (pending.trainerId && gameOptions?.trainers?.some(trainer => trainer.id === pending.trainerId)) {
+        selectedTrainerId = pending.trainerId;
+    }
+    if (Array.isArray(pending.customDeckCards) && pending.customDeckCards.length) {
+        loadoutMode = 'builder';
+        builderCounts = buildCountsFromCardList(pending.customDeckCards);
+        const input = document.getElementById('saveDeckNameInput');
+        if (input && pending.loadoutLabel) {
+            input.value = pending.loadoutLabel;
+        }
+    } else if (pending.deckId && gameOptions?.decks?.some(deck => deck.id === pending.deckId)) {
+        loadoutMode = 'preset';
+        selectedDeckId = pending.deckId;
+    }
+    matchMode = pending.mode === 'online' ? 'online' : 'solo';
+    if (matchMode === 'online') {
         onlineRoomMode = 'join';
-        if (roomCodeInput && !roomCodeInput.value) {
-            roomCodeInput.value = joinCode.toUpperCase();
+        if (pending.roomId) {
+            socialOnlineLaunchRoomId = String(pending.roomId).toUpperCase();
+            const roomCodeInput = document.getElementById('roomCodeInput');
+            if (roomCodeInput) {
+                roomCodeInput.value = socialOnlineLaunchRoomId;
+            }
+        }
+        if (pending.battleLaunch) {
+            welcomeDismissed = true;
         }
     }
 }
@@ -4598,27 +5778,44 @@ async function resumeMultiplayerSession() {
         return false;
     }
 
+    const reconnectingSocialLaunch = isSocialBattleLaunch();
     const data = await fetchRoomStatus();
     if (!data || data.error) {
+        if (reconnectingSocialLaunch) {
+            loadoutErrorMessage = data?.error || 'Could not reconnect to the online match. Check the room in Social, then try joining again.';
+        }
         clearMultiplayerSession();
         return false;
     }
 
     matchMode = 'online';
     currentRoomStatus = data;
-    startRoomPolling();
     if (data.started) {
+        startRoomPolling();
         if (!gameState) {
             clearExternalSocketElementMemory();
         }
         gameState = data;
         render();
     } else {
+        if (isRoomStatusExpired(data)) {
+            await closeUnfilledLobby('Lobby expired before another player joined.');
+            return false;
+        }
+        startRoomPolling();
+        scheduleRoomExpiryClose(data);
         renderLoadoutOptions();
         updateLoadoutSummary();
         syncEntryOverlays();
     }
     return true;
+}
+
+function isRoomStatusExpired(status) {
+    if (!status?.expiresAt || status.started) {
+        return false;
+    }
+    return new Date(status.expiresAt).getTime() <= Date.now();
 }
 
 async function fetchRoomStatus() {
@@ -4639,16 +5836,30 @@ function startRoomPolling() {
     roomPollHandle = setInterval(async () => {
         const data = await fetchRoomStatus();
         if (!data || data.error) {
+            if (currentRoomStatus?.roomId && !currentRoomStatus?.started && !gameState?.multiplayer) {
+                void closeUnfilledLobby(data?.error || 'Lobby closed before another player joined.');
+            } else if (gameState?.multiplayer || currentRoomStatus?.started) {
+                console.warn(data?.error || 'Room status polling failed.');
+                clearMultiplayerSession();
+                gameState = null;
+                openLoadoutSelector();
+            }
             return;
         }
         currentRoomStatus = data;
         if (data.started) {
+            clearRoomExpiryTimer();
             if (!gameState) {
                 clearExternalSocketElementMemory();
             }
             gameState = data;
             render();
         } else {
+            if (isRoomStatusExpired(data)) {
+                void closeUnfilledLobby('Lobby expired before another player joined.');
+                return;
+            }
+            scheduleRoomExpiryClose(data);
             renderOnlineStatus();
             updateLoadoutSummary();
             syncEntryOverlays();
@@ -4725,15 +5936,17 @@ function renderLoadoutOptions() {
         const primaryElement = deckTheme.element || deck.elements?.[0] || 'NEUTRAL';
         const primaryHex = getElementHex(primaryElement);
         const traits = (deckTheme.traits || []).slice(0, 3);
+        const deckArt = deckArtAssetForElements(deck.elements);
 
         /* Build spine bands â€“ each element gets its own colored band with a sigil inside */
         const spineBands = deck.elements.map(el => {
             const c = getElementHex(el);
             return `<div class="spine-band" style="background:${c}"></div>`;
         }).join('');
-        const faceSigils = buildDeckFaceSigils(deck.elements);
+        const faceSigils = deckArt ? '' : buildDeckFaceSigils(deck.elements);
+        const artStyle = deckArt?.back ? `;--deck-art:url('${deckArt.back}')` : '';
 
-        return `<button type="button" class="deck-card${selected} ${elClasses}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
+        return `<button type="button" class="deck-card${selected} ${elClasses}${deckArt ? ' has-deck-art' : ''}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}${artStyle}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
             <div class="deck-card-spine">${spineBands}</div>
             ${faceSigils}
             <span class="deck-card-state">${deck.id === selectedDeckId ? 'Selected' : escapeHtml(deckTheme.playstyle)}</span>
@@ -4770,10 +5983,14 @@ function renderLoadoutOptions() {
         </button>`;
     }).join('');
 
+    const hideOnlineLoadout = !shouldShowOnlineLoadoutOnPlay();
     overlay?.classList.toggle('invite-flow', inviteFlow);
     loadoutBox?.classList.toggle('invite-focused', inviteFlow);
-    matchModeTabs?.classList.toggle('hidden', inviteFlow);
-    roomModeTabs?.classList.toggle('hidden', inviteFlow);
+    matchModeTabs?.classList.toggle('hidden', inviteFlow || hideOnlineLoadout);
+    roomModeTabs?.classList.toggle('hidden', inviteFlow || hideOnlineLoadout);
+    if (hideOnlineLoadout && matchMode === 'online' && !multiplayerSession?.roomId && !inviteFlow) {
+        matchMode = 'solo';
+    }
 
     if (inviteFlow) {
         const inviteCode = getCurrentRoomCode() || getJoinRoomCodeFromUrl()?.toUpperCase() || '';
@@ -4805,7 +6022,7 @@ function renderLoadoutOptions() {
     onlineMatchTab.setAttribute('aria-pressed', matchMode === 'online' ? 'true' : 'false');
     soloMatchTab.classList.toggle('hidden', inviteFlow);
     onlineMatchTab.classList.toggle('hidden', inviteFlow);
-    onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online');
+    onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online' || hideOnlineLoadout);
     hostRoomTab.classList.toggle('active', onlineRoomMode === 'create');
     joinRoomTab.classList.toggle('active', onlineRoomMode === 'join');
     hostRoomTab.setAttribute('aria-pressed', onlineRoomMode === 'create' ? 'true' : 'false');
@@ -5011,7 +6228,7 @@ function renderDeckBuilder() {
     const typeFilters = ['ALL', 'SIEGLING', 'SPELL', 'TRAP'];
     typeFiltersEl.innerHTML = typeFilters.map(filter => {
         const active = builderTypeFilter === filter ? ' active' : '';
-        return `<button class="builder-filter${active}" onclick="setBuilderTypeFilter('${filter}')">${filter}</button>`;
+        return `<button class="builder-filter${active}" onclick="setBuilderTypeFilter('${filter}')">${formatBuilderTypeFilterLabel(filter)}</button>`;
     }).join('');
 
     const filteredCards = gameOptions.cardCatalog.filter(card => {
@@ -5127,6 +6344,13 @@ function updateLoadoutSummary() {
         return;
     }
 
+    if (loadoutErrorMessage && matchMode === 'online') {
+        const canRetryOnlineStart = Boolean(multiplayerSession?.roomId || (onlineRoomMode === 'join' && getCurrentRoomCode()));
+        summary.textContent = loadoutErrorMessage;
+        syncLoadoutStartButton(startBtn, loadoutStartPending || !canRetryOnlineStart, startButtonLabel);
+        return;
+    }
+
     if (loadoutMode === 'builder') {
         const cardCount = getBuilderCardCount();
         const elementList = collectBuilderElements();
@@ -5165,11 +6389,36 @@ async function startSelectedGame() {
     if (loadoutMode === 'builder' && getBuilderCardCount() < gameOptions.deckBuilder.minDeckSize) return;
 
     loadoutStartPending = true;
+    loadoutErrorMessage = '';
     updateLoadoutSummary();
 
     try {
         if (matchMode === 'online') {
-            if (onlineRoomMode === 'create') {
+            if (multiplayerSession?.roomId) {
+                const data = await fetchRoomStatus();
+                if (data?.started) {
+                    loadoutErrorMessage = '';
+                    clearExternalSocketElementMemory();
+                    gameState = data;
+                    render();
+                    return;
+                }
+                if (data && !data.error) {
+                    currentRoomStatus = data;
+                    startRoomPolling();
+                    if (isRoomStatusExpired(data)) {
+                        await closeUnfilledLobby('Lobby expired before another player joined.');
+                    } else {
+                        scheduleRoomExpiryClose(data);
+                        renderLoadoutOptions();
+                        syncEntryOverlays();
+                    }
+                    return;
+                }
+                loadoutErrorMessage = data?.error || 'Could not reconnect to the online match. Check the room in Social, then try again.';
+                return;
+            }
+            if (onlineRoomMode === 'create' && !isInviteJoinFlow()) {
                 await createRoom();
             } else {
                 await joinRoom();
@@ -5211,10 +6460,12 @@ async function createRoom() {
         body: JSON.stringify(body)
     }, LOADOUT_ACTION_TIMEOUT_MS);
     if (!data || data.error) {
-        console.error(data?.error || 'Unable to create room.');
-        return;
+        loadoutErrorMessage = data?.error || 'Unable to create room. Please try again from Social.';
+        console.error(loadoutErrorMessage);
+        return false;
     }
 
+    loadoutErrorMessage = '';
     multiplayerSession = {
         roomId: data.roomId,
         playerToken: data.playerToken,
@@ -5222,15 +6473,29 @@ async function createRoom() {
     };
     currentRoomStatus = data;
     saveMultiplayerSession();
+    try {
+        localStorage.setItem('sieglingsHostLobby', JSON.stringify({
+            roomId: data.roomId,
+            playerToken: data.playerToken,
+            expiresAt: data.expiresAt || null
+        }));
+    } catch (_error) {
+        // ignore storage failures
+    }
     startRoomPolling();
+    scheduleRoomExpiryClose(data);
     renderLoadoutOptions();
     updateLoadoutSummary();
     syncEntryOverlays();
+    return true;
 }
 
 async function joinRoom() {
     const roomId = getCurrentRoomCode();
-    if (!roomId) return;
+    if (!roomId) {
+        loadoutErrorMessage = 'Enter a room code or return to Social to choose an online match.';
+        return false;
+    }
 
     savePlayerName(getCurrentPlayerName());
     const body = {
@@ -5244,10 +6509,12 @@ async function joinRoom() {
         body: JSON.stringify(body)
     }, LOADOUT_ACTION_TIMEOUT_MS);
     if (!data || data.error) {
-        console.error(data?.error || 'Unable to join room.');
-        return;
+        loadoutErrorMessage = data?.error || 'Unable to join room. Check the room in Social, then try again.';
+        console.error(loadoutErrorMessage);
+        return false;
     }
 
+    loadoutErrorMessage = '';
     multiplayerSession = {
         roomId: data.roomId,
         playerToken: data.playerToken,
@@ -5258,14 +6525,17 @@ async function joinRoom() {
     startRoomPolling();
 
     if (data.started) {
+        clearRoomExpiryTimer();
         clearExternalSocketElementMemory();
         gameState = data;
         render();
     } else {
+        scheduleRoomExpiryClose(data);
         renderLoadoutOptions();
         updateLoadoutSummary();
         syncEntryOverlays();
     }
+    return true;
 }
 
 async function copyRoomShareLink() {
@@ -5370,7 +6640,11 @@ function renderBuilderPreviewCard(card) {
 
 function getBuilderSelectedCards() {
     const cards = [];
+    const availableIds = new Set((gameOptions?.cardCatalog || []).map(card => card.id));
     for (const [cardId, count] of Object.entries(builderCounts)) {
+        if (!availableIds.has(cardId)) {
+            continue;
+        }
         for (let i = 0; i < count; i++) {
             cards.push(cardId);
         }
@@ -5629,13 +6903,13 @@ function renderDomLegacy() {
     if (phase === 'BATTLE') {
         if (playerBattlePending) {
             battleLabel = 'Battle Action';
-            battleTitle = 'Open the live queue prompt for the Siegling that is currently acting by speed.';
+            battleTitle = 'Open the live queue prompt for the Siegeling that is currently acting by speed.';
         } else if (enemyBattlePending) {
             battleLabel = 'Queue Locked';
             battleTitle = 'Review battle status while the opponent resolves the current speed action.';
         } else {
             battleLabel = 'Queue Live';
-            battleTitle = 'Review the live battle queue. Sieglings resolve abilities in speed order until the phase ends.';
+            battleTitle = 'Review the live battle queue. Siegelings resolve abilities in speed order until the phase ends.';
         }
     }
     btnBattle.disabled = over;
@@ -5648,7 +6922,7 @@ function renderDomLegacy() {
             ? battleHandViewOpen ? 'View Battle Action' : 'View Hand'
             : getSelectedBattlePreviewCard()
                 ? 'Preview selected card abilities'
-                : 'Preview Siegling battle abilities';
+                : 'Preview Siegeling battle abilities';
         btnBattlePanel.innerHTML = phase === 'BATTLE'
             ? battleHandViewOpen ? '&#9876;' : '&#127183;'
             : '&#9876;';
@@ -5717,7 +6991,7 @@ function renderDomLegacy() {
     if (activeDrawer === 'battle' && phase !== 'BATTLE') {
         closeDrawer(true);
     }
-    if (phaseChanged) {
+    if (phaseChanged && !window.SieglingsActionQueue) {
         showPhaseTransitionBanner(phase, gameState.activeSide);
     }
 
@@ -5760,6 +7034,7 @@ window.previewCellHover = previewCellHover;
 window.handleTargetCellPointerLeave = handleTargetCellPointerLeave;
 window.confirmRowSelectBattleTarget = confirmRowSelectBattleTarget;
 window.clearRowSelectBattleTarget = clearRowSelectBattleTarget;
+window.cancelBattleTargetSelection = cancelBattleTargetSelection;
 window.clearTargetingPreview = clearTargetingPreview;
 
 function renderEnergy(containerId, playerData) {
@@ -5870,6 +7145,42 @@ function renderEnergyDetailPanel() {
     panel.innerHTML = html;
 }
 
+const SAFE_AREA_HP_MAX = 50;
+
+function getSafeAreaHpTierColor(pct) {
+    if (pct > 60) return '#34c759';
+    if (pct > 35) return '#ffcc00';
+    if (pct > 15) return '#ff9500';
+    return '#ff3b30';
+}
+
+function updateSafeAreaHpStrip(state) {
+    const strip = document.getElementById('safeHpStrip');
+    if (!strip || !state) return;
+
+    const mobileGameplay = window.matchMedia('(max-width: 767px)').matches
+        && document.body.classList.contains('gameplay-active');
+    strip.hidden = !mobileGameplay;
+    strip.setAttribute('aria-hidden', mobileGameplay ? 'false' : 'true');
+    if (!mobileGameplay) return;
+
+    const eHealth = Number(state.enemy?.health ?? 0);
+    const pHealth = Number(state.player?.health ?? 0);
+    const ePct = Math.max(0, Math.min(100, Math.round((eHealth / SAFE_AREA_HP_MAX) * 100)));
+    const pPct = Math.max(0, Math.min(100, Math.round((pHealth / SAFE_AREA_HP_MAX) * 100)));
+
+    const eFill = document.getElementById('safeHpFillEnemy');
+    const pFill = document.getElementById('safeHpFillPlayer');
+    if (eFill) {
+        eFill.style.width = `${ePct}%`;
+        eFill.style.backgroundColor = getSafeAreaHpTierColor(ePct);
+    }
+    if (pFill) {
+        pFill.style.width = `${pPct}%`;
+        pFill.style.backgroundColor = getSafeAreaHpTierColor(pPct);
+    }
+}
+
 function updateHudRails(state) {
     if (!state) return;
     const p = state.player || {};
@@ -5887,8 +7198,20 @@ function updateHudRails(state) {
 
     const pBar = document.getElementById('railPlayerHpBar');
     const eBar = document.getElementById('railEnemyHpBar');
-    if (pBar) pBar.style.width = `${pPct}%`;
-    if (eBar) eBar.style.width = `${ePct}%`;
+    if (pBar) {
+        pBar.style.width = `${pPct}%`;
+        const pColor = p.trainer?.element ? getElementHex(p.trainer.element) : null;
+        pBar.style.background = pColor
+            ? `linear-gradient(90deg, ${hexToRgba(pColor, 0.55)}, ${pColor})`
+            : '';
+    }
+    if (eBar) {
+        eBar.style.width = `${ePct}%`;
+        const eColor = e.trainer?.element ? getElementHex(e.trainer.element) : null;
+        eBar.style.background = eColor
+            ? `linear-gradient(90deg, ${hexToRgba(eColor, 0.55)}, ${eColor})`
+            : '';
+    }
 
     setTextIfExists('railPlayerHandSize', p.handSize ?? (Array.isArray(p.hand) ? p.hand.length : 0));
     setTextIfExists('railPlayerDeckSize', p.deckSize ?? 0);
@@ -6007,6 +7330,7 @@ function updateMobileHud(state) {
     setTextIfExists('mobileStatPlayerTab', state.playerName || p.name || 'Player');
     setTextIfExists('mobileStatEnemyTab', state.enemyName || e.name || 'AI');
     syncMobileHudSheetSide();
+    updateSafeAreaHpStrip(state);
 }
 
 function updateMobileHudSide(label, playerData, ids) {
@@ -6022,6 +7346,7 @@ function updateMobileHudSide(label, playerData, ids) {
         trainerAbility
     ].filter(Boolean).join(' - ');
     const hpBar = document.getElementById(ids.hpBarId);
+    const trainerColor = trainer?.element ? getElementHex(trainer.element) : null;
 
     setTextIfExists(ids.nameId, ids.name || label);
     setTextIfExists(ids.handId, handSize);
@@ -6031,7 +7356,10 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.statDeckId, deckSize);
     setTextIfExists(ids.knightNameId, trainer?.name || '-');
     setTextIfExists(ids.knightInfoId, trainerInfo);
-    if (hpBar) hpBar.style.width = `${pct}%`;
+    if (hpBar) {
+        hpBar.style.width = `${pct}%`;
+        hpBar.style.background = trainerColor || '';
+    }
 
     const icon = document.getElementById(ids.knightIconId);
     if (icon) icon.innerHTML = elementEmoji(trainer?.element);
@@ -6329,6 +7657,11 @@ function buildDeckFaceSigils(elements) {
     return `<div class="deck-card-sigils count-${elements.length}">${sigils}</div>`;
 }
 
+function deckArtAssetForElements(elements = []) {
+    const key = DECK_ART_ASSET_KEYS.find(element => elements.includes(element));
+    return key ? DECK_ART_ASSETS[key] : null;
+}
+
 function getDeckSigilPlacements(count) {
     switch (count) {
         case 1:
@@ -6594,7 +7927,28 @@ function renderBoard(gridId, board, isPlayer) {
                 html += `<div class="bc-name-box"><span class="card-name">${cell.name}</span></div>`;
                 html += renderStatusBadgesForCell(cell);
                 html += `<div class="bc-stats-box">`;
-                html += `<div class="hp-bar"><div class="hp-fill" style="width:${(cell.hp / cell.maxHp) * 100}%"></div></div>`;
+                {
+                    // Temporary shields are tracked separately from max HP
+                    // (shieldHp), so the bar can show permanent max-health
+                    // boosts normally. Shield points overlay the green HP bar
+                    // with grey metal plates — one per shield point — that
+                    // animate off as the shield breaks.
+                    const _barMax = Number(cell.maxHp);
+                    const _barHp = Number(cell.hp);
+                    const _pct = _barMax > 0 ? Math.max(0, Math.min(100, (_barHp / _barMax) * 100)) : 0;
+                    const _shield = Math.max(0, Number(cell.shieldHp) || 0);
+                    const _platesHtml = _shield > 0
+                        ? `<div class="shield-plates" data-shield="${_shield}">${
+                                Array.from({ length: _shield },
+                                    (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
+                                ).join('')
+                            }</div>`
+                        : '';
+                    html += `<div class="hp-bar${_shield > 0 ? ' is-shielded' : ''}">`
+                        + `<div class="hp-fill" style="width:${_pct}%"></div>`
+                        + _platesHtml
+                        + `</div>`;
+                }
                 const combat = renderBoardCellCombatStatsInner(cell);
                 html += `<div class="card-stats">`;
                 html += `<span class="stat stat-hp">${combat.hpInner}</span>`;
@@ -7213,6 +8567,13 @@ function buildZigZagPath(x1, y1, x2, y2, amplitude, count) {
 }
 
 const ALL_DIRECTIONS = ['TOP', 'TOP_RIGHT', 'RIGHT', 'BOTTOM_RIGHT', 'BOTTOM', 'BOTTOM_LEFT', 'LEFT', 'TOP_LEFT'];
+const NOTCH_ICON_PATHS = {
+    FIRE: '/img/notches/notch-fire.png',
+    EARTH: '/img/notches/notch-earth.png',
+    WIND: '/img/notches/notch-wind.png',
+    ICE: '/img/notches/notch-ice.png',
+    SHADOW: '/img/notches/notch-shadow.png'
+};
 
 function renderBoardNotches(notches, options) {
     const notchMap = {};
@@ -7228,7 +8589,7 @@ function renderBoardNotches(notches, options) {
             if (options.board) {
                 stateClass = getNotchStateClass(notch, { ...options, isBoard: true });
             }
-            html += `<div class="bc-notch bc-notch-${dir} filled ${elemClass} ${stateClass}"></div>`;
+            html += `<div class="bc-notch bc-notch-${dir} filled ${elemClass} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
         } else {
             html += `<div class="bc-notch bc-notch-${dir} empty"></div>`;
         }
@@ -7247,7 +8608,7 @@ function renderHandNotches(notches) {
         const notch = notchMap[dir];
         if (notch) {
             const elemClass = notch.element.toLowerCase();
-            html += `<div class="notch-dot ${elemClass} notch-${dir}"></div>`;
+            html += `<div class="notch-dot ${elemClass} notch-${dir}" style="${notchIconStyle(notch.element)}"></div>`;
         } else {
             html += `<div class="notch-dot notch-${dir}"></div>`;
         }
@@ -7270,11 +8631,21 @@ function renderNotches(notches, options = {}) {
             stateClass = getNotchStateClass(notch, options);
         }
 
-        html += `<div class="notch-dot ${elemClass} notch-${notch.direction} ${stateClass}"></div>`;
+        html += `<div class="notch-dot ${elemClass} notch-${notch.direction} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
     }
 
     html += `</div>`;
     return html;
+}
+
+function notchIconPath(element) {
+    const normalized = String(element || '').toUpperCase();
+    return NOTCH_ICON_PATHS[normalized] || `/img/elements/element-${normalized.toLowerCase()}.svg`;
+}
+
+function notchIconStyle(element) {
+    const normalized = String(element || 'NEUTRAL').toUpperCase();
+    return `--notch:${getElementHex(normalized)};--notch-icon:url('${notchIconPath(normalized)}');`;
 }
 
 function getNotchStateClass(notch, options) {
@@ -7381,13 +8752,16 @@ function renderHand() {
             placementLocked ? ' placement-locked' : '',
             targetMode ? ' target-lock' : ''
         ].join('');
-        const onclick = `onclick="selectCard(${handIndex})"`;
+        const onclick = `onclick="handleHandCardClick(event, ${handIndex})"`;
+        const pointerEvents = canHandCardDragPlace(handIndex)
+            ? `onpointerdown="handleHandCardPointerDown(event, ${handIndex})"`
+            : '';
         const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, ${handIndex})" onmouseleave="handleHandCardPointerLeave(${handIndex})"`;
         const touchEvents = `ontouchstart="handleHandCardTouchStart(event, ${handIndex})" ontouchmove="handleHandCardTouchMove(event, ${handIndex})" ontouchend="handleHandCardTouchEnd(event, ${handIndex})"`;
         const fallbackArtLabel = card.type === 'SIEGLING'
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${hoverEvents} ${touchEvents}>`;
+        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
@@ -7504,8 +8878,238 @@ function handleHandCardPointerLeave(handIndex) {
     hideTooltip();
 }
 
+function canHandCardDragPlace(handIndex) {
+    if (!gameState || gameState.currentPhase !== 'SETUP' || gameState.activeSide !== 'PLAYER' || targetMode) {
+        return false;
+    }
+    const card = gameState.player.hand?.[handIndex];
+    if (!card || card.type !== 'SIEGLING') {
+        return false;
+    }
+    if (getHandCardLockReason(card)) {
+        return false;
+    }
+    return getLegalPlacementsForCard(card).length > 0;
+}
+
+function ensureHandCardSelectedForDrag(handIndex) {
+    const hand = gameState?.player?.hand || [];
+    const card = hand[handIndex];
+    if (!card) {
+        return;
+    }
+    if (selectedHandIndex === handIndex && selectedCard?.id === card.id) {
+        return;
+    }
+    selectedCard = card;
+    selectedHandIndex = handIndex;
+    clearTargetMode();
+    updateSelectedInfo(card);
+    render();
+}
+
+function stripHandCardInteractionAttributes(el) {
+    if (!el) {
+        return;
+    }
+    [
+        'onclick',
+        'onpointerdown',
+        'onmouseenter',
+        'onmouseleave',
+        'ontouchstart',
+        'ontouchmove',
+        'ontouchend'
+    ].forEach((attr) => el.removeAttribute(attr));
+}
+
+function findLegalPlacementCellAt(clientX, clientY) {
+    const stack = typeof document.elementsFromPoint === 'function'
+        ? document.elementsFromPoint(clientX, clientY)
+        : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
+    for (const el of stack) {
+        const cell = el.closest?.('#playerGrid .board-cell.legal');
+        if (cell) {
+            return cell;
+        }
+    }
+    return null;
+}
+
+function clearCardDragBoardHover() {
+    document.querySelectorAll('#playerGrid .board-cell.drag-hover')
+        .forEach((cell) => cell.classList.remove('drag-hover'));
+}
+
+function positionCardDragGhost(clientX, clientY) {
+    const ghost = cardDragSession?.ghost;
+    if (!ghost) {
+        return;
+    }
+    ghost.style.left = `${clientX}px`;
+    ghost.style.top = `${clientY}px`;
+}
+
+function activateCardDragSession() {
+    if (!cardDragSession || cardDragSession.active) {
+        return;
+    }
+    const { handIndex } = cardDragSession;
+
+    cardDragSession.active = true;
+    cardDragSuppressClickUntil = Date.now() + 500;
+    document.body.classList.add('card-drag-active');
+    hideTooltip();
+    if (activeDrawer === 'selected') {
+        closeDrawer(true);
+    }
+    ensureHandCardSelectedForDrag(handIndex);
+
+    const sourceEl = getHandCardSourceElement(handIndex);
+    if (!sourceEl) {
+        cleanupCardDragSession();
+        return;
+    }
+    cardDragSession.sourceEl = sourceEl;
+
+    const sourceRect = sourceEl.getBoundingClientRect();
+    const ghost = sourceEl.cloneNode(true);
+    stripHandCardInteractionAttributes(ghost);
+    ghost.classList.add('card-drag-ghost');
+    ghost.style.width = `${sourceRect.width}px`;
+    ghost.style.height = `${sourceRect.height}px`;
+    positionCardDragGhost(cardDragSession.startX, cardDragSession.startY);
+
+    const layer = document.getElementById('handLiftLayer');
+    if (layer) {
+        layer.innerHTML = '';
+        layer.classList.remove('hidden');
+        layer.appendChild(ghost);
+    } else {
+        document.body.appendChild(ghost);
+    }
+
+    sourceEl.classList.add('is-drag-source');
+    cardDragSession.ghost = ghost;
+    updateHandLiftLayer();
+}
+
+function cleanupCardDragSession() {
+    if (!cardDragSession) {
+        return;
+    }
+    cardDragSession.sourceEl?.classList?.remove('is-drag-source');
+    cardDragSession.ghost?.remove();
+    const layer = document.getElementById('handLiftLayer');
+    if (layer && !layer.querySelector('.lifted-card-clone')) {
+        layer.innerHTML = '';
+        layer.classList.add('hidden');
+    }
+    clearCardDragBoardHover();
+    document.body.classList.remove('card-drag-active');
+    cardDragSession = null;
+    stopHandSelectorAutoScroll();
+    updateHandLiftLayer();
+}
+
+function updateCardDragBoardHover(clientX, clientY) {
+    clearCardDragBoardHover();
+    const cell = findLegalPlacementCellAt(clientX, clientY);
+    if (cell) {
+        cell.classList.add('drag-hover');
+    }
+}
+
+function handleHandCardPointerDown(event, handIndex) {
+    if (!canHandCardDragPlace(handIndex)) {
+        return;
+    }
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+    }
+    cleanupCardDragSession();
+    cardDragSession = {
+        handIndex,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        active: false,
+        ghost: null,
+        sourceEl: event.currentTarget
+    };
+    try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+    } catch (_) {
+        /* ignore */
+    }
+}
+
+function handleCardDragPointerMove(event) {
+    if (!cardDragSession || event.pointerId !== cardDragSession.pointerId) {
+        return;
+    }
+    const dx = event.clientX - cardDragSession.startX;
+    const dy = event.clientY - cardDragSession.startY;
+    if (!cardDragSession.active) {
+        if (Math.hypot(dx, dy) < CARD_DRAG_THRESHOLD_PX) {
+            return;
+        }
+        activateCardDragSession();
+    }
+    event.preventDefault();
+    stopHandSelectorAutoScroll();
+    positionCardDragGhost(event.clientX, event.clientY);
+    updateCardDragBoardHover(event.clientX, event.clientY);
+}
+
+function handleCardDragPointerEnd(event) {
+    if (!cardDragSession || event.pointerId !== cardDragSession.pointerId) {
+        return;
+    }
+
+    const wasActive = cardDragSession.active;
+    const handIndex = cardDragSession.handIndex;
+
+    if (wasActive) {
+        const targetCell = findLegalPlacementCellAt(event.clientX, event.clientY);
+        if (targetCell) {
+            const row = Number(targetCell.dataset.row);
+            const col = Number(targetCell.dataset.col);
+            if (Number.isInteger(row) && Number.isInteger(col)) {
+                ensureHandCardSelectedForDrag(handIndex);
+                placeCard(row, col);
+            }
+        }
+        cleanupCardDragSession();
+        event.preventDefault();
+        return;
+    }
+
+    cleanupCardDragSession();
+
+    if (isMobileLayout()) {
+        event.preventDefault();
+        event.stopPropagation();
+        selectCard(handIndex);
+        handTouchSuppressHandIndex = handIndex;
+        handTouchSuppressUntil = Date.now() + 500;
+    }
+}
+
+function handleHandCardClick(event, handIndex) {
+    if (Date.now() < cardDragSuppressClickUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+    }
+    selectCard(handIndex);
+}
+
 function handleHandCardTouchStart(event, handIndex) {
-    if (!isMobileLayout()) {
+    if (!isMobileLayout() || cardDragSession) {
+        return;
+    }
+    if (canHandCardDragPlace(handIndex)) {
         return;
     }
     const touch = event.changedTouches?.[0];
@@ -7521,7 +9125,7 @@ function handleHandCardTouchStart(event, handIndex) {
 }
 
 function handleHandCardTouchMove(event, handIndex) {
-    if (!isMobileLayout() || !handTouchGesture || handTouchGesture.handIndex !== handIndex) {
+    if (!isMobileLayout() || cardDragSession || !handTouchGesture || handTouchGesture.handIndex !== handIndex) {
         return;
     }
     const touch = event.changedTouches?.[0];
@@ -7534,7 +9138,7 @@ function handleHandCardTouchMove(event, handIndex) {
 }
 
 function handleHandCardTouchEnd(event, handIndex) {
-    if (!isMobileLayout()) {
+    if (!isMobileLayout() || cardDragSession) {
         return;
     }
     const shouldSelect = Boolean(handTouchGesture && handTouchGesture.handIndex === handIndex && !handTouchGesture.moved);
@@ -7554,6 +9158,7 @@ function renderMulliganOverlay() {
     const preview = document.getElementById('mulliganHandPreview');
     const copy = document.getElementById('mulliganCopy');
     const actions = document.getElementById('mulliganActions');
+    const waitActions = document.getElementById('mulliganWaitActions');
     if (!overlay || !preview || !copy || !actions) {
         return;
     }
@@ -7562,6 +9167,7 @@ function renderMulliganOverlay() {
         overlay.classList.remove('visible');
         preview.innerHTML = '';
         mulliganHandSig = '';
+        waitActions?.classList.add('hidden');
         return;
     }
 
@@ -7583,6 +9189,7 @@ function renderMulliganOverlay() {
     }
 
     actions.classList.toggle('hidden', !gameState.mulligan.youPending);
+    waitActions?.classList.toggle('hidden', !gameState.multiplayer || gameState.mulligan.youPending);
     const redrawBtn = document.getElementById('btnMulliganRedraw');
     if (redrawBtn && gameState.mulligan.youPending) {
         const n = mulliganSelectedIndices.size;
@@ -7796,7 +9403,7 @@ function renderSelectedCardBattlePreview(card) {
     const abilities = getSelectedCardBattlePreviewAbilities(card);
     const lockReason = getHandCardLockReason(card);
     const fallback = card?.type === 'SIEGLING'
-        ? 'Basic strike only. No printed battle ability is available for this Siegling.'
+        ? 'Basic strike only. No printed battle ability is available for this Siegeling.'
         : 'No printed ability text is available for this card.';
 
     let html = '<div class="battle-standby-preview battle-selected-preview">';
@@ -7823,12 +9430,12 @@ function renderStandbyBattleAbilityPreview() {
 
     const entries = getStandbyBattlePreviewCards();
     if (entries.length === 0) {
-        return '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Place a Siegling to preview its battle abilities here.</div><div class="battle-hint">When battle begins, this panel becomes the live speed-order action queue.</div>';
+        return '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Place a Siegeling to preview its battle abilities here.</div><div class="battle-hint">When battle begins, this panel becomes the live speed-order action queue.</div>';
     }
 
     let html = '<div class="battle-standby-preview">';
     html += '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Review your board abilities before ending setup.</div>';
-    html += '<div class="battle-hint">Listed in projected speed order. Energy availability is checked again when each Siegling acts.</div>';
+    html += '<div class="battle-hint">Listed in projected speed order. Energy availability is checked again when each Siegeling acts.</div>';
     html += '<div class="battle-standby-list">';
     for (const entry of entries) {
         const card = entry.card;
@@ -7842,10 +9449,10 @@ function renderStandbyBattleAbilityPreview() {
             .map(buildStandbyAbilityEntryFromAbility);
         html += `<article class="battle-standby-card ${elementClass}">`;
         html += '<div class="battle-standby-card-head">';
-        html += `<div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Siegling')}</div><div class="battle-standby-card-meta">HP ${escapeHtml(String(hp))}/${escapeHtml(String(maxHp))} | SPD ${escapeHtml(String(speed))} | ${escapeHtml(rowLabel)}</div></div>`;
+        html += `<div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Siegeling')}</div><div class="battle-standby-card-meta">HP ${escapeHtml(String(hp))}/${escapeHtml(String(maxHp))} | SPD ${escapeHtml(String(speed))} | ${escapeHtml(rowLabel)}</div></div>`;
         html += `<div class="battle-standby-order">#${entries.indexOf(entry) + 1}</div>`;
         html += '</div>';
-        html += renderStandbyAbilityRows(abilities, 'Basic strike only. No printed battle ability is available for this Siegling.');
+        html += renderStandbyAbilityRows(abilities, 'Basic strike only. No printed battle ability is available for this Siegeling.');
         html += '</article>';
     }
     html += '</div>';
@@ -7872,6 +9479,13 @@ function renderRowSelectBattleOverlay() {
         document.getElementById('battleRowConfirmOverlay')
     ].filter(Boolean);
     if (overlays.length === 0) {
+        return;
+    }
+    if (isBattleTargetSelectionActive()) {
+        overlays.forEach((overlay) => {
+            overlay.className = 'battle-row-confirm-overlay hidden';
+            overlay.innerHTML = '';
+        });
         return;
     }
     const html = renderRowSelectBattleConfirm();
@@ -7928,7 +9542,7 @@ function renderBattlePanel() {
             setPanelHtml(buildQueueShell(
                 'Await Opponent',
                 'waiting',
-                '<div class="battle-attacker"><strong>Queue locked.</strong> The opponent is resolving the current speed action.</div><div class="battle-hint">The hand HUD will reopen your queue prompt as soon as the next acting Siegling is ready.</div>'
+                '<div class="battle-attacker"><strong>Queue locked.</strong> The opponent is resolving the current speed action.</div><div class="battle-hint">The hand HUD will reopen your queue prompt as soon as the next acting Siegeling is ready.</div>'
             ));
             return;
         }
@@ -7936,7 +9550,7 @@ function renderBattlePanel() {
             setPanelHtml(buildQueueShell(
                 'Resolving',
                 'waiting',
-                '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegling arrives, this panel flips into queue mode automatically.</div>'
+                '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
             ));
             return;
         }
@@ -7953,29 +9567,35 @@ function renderBattlePanel() {
         openDrawer('battle');
     }
 
+    const battleTargeting = isBattleTargetSelectionActive();
+    const activeTargetAbility = battleTargeting ? getActiveBattleTargetAbility() : null;
     let bodyHtml = '';
-    if (targetMode && targetContext && targetContext.mode === 'battle') {
-        bodyHtml += `<div class="battle-hint battle-hint-compact">${escapeHtml(targetContext.message)} Pass skips this step.</div>`;
+
+    if (battleTargeting && activeTargetAbility) {
+        bodyHtml += renderBattleTargetingTray(pending, activeTargetAbility);
+    } else {
+        let actionsHtml = '';
+        const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
+        for (const ability of sortedAbilities) {
+            const disabled = ability.affordable ? '' : 'disabled';
+            const moveName = getBattleAbilityDisplayName(ability);
+            const effectLine = getBattleAbilityEffectLine(ability);
+            const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
+            const tip = `${moveName}: ${effectLine}${weaknessPreview ? ` ${weaknessPreview}` : ''}`;
+            actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">${escapeHtml(moveName)}</span><span class="battle-ability-effect">${escapeHtml(effectLine)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
+        }
+        const passTip = 'Pass: Skip this action without spending energy.';
+        actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passTip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">Pass</span><span class="battle-ability-effect">Skip this action without spending energy.</span></span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
+        bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
     }
 
-    let actionsHtml = '';
-    const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
-    for (const ability of sortedAbilities) {
-        const disabled = ability.affordable ? '' : 'disabled';
-        const desc = (ability.description && String(ability.description).trim()) || ability.name;
-        const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
-        const tip = ability.description
-            ? `${ability.name} - ${ability.description}${weaknessPreview ? ` ${weaknessPreview}` : ''}`
-            : ability.name;
-        actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-name">${escapeHtml(desc)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
-    }
-    const passDesc = 'Pass this turn without using an ability. No energy cost.';
-    actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passDesc)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(passDesc)}</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
-    bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
+    const targetingShellLabel = battleTargeting && activeTargetAbility
+        ? buildBattleTargetingInstruction(targetContext.side, activeTargetAbility, getRowSelectSelectedRow()).trayStateLabel
+        : 'Acting Now';
 
     setPanelHtml(buildQueueShell(
-        targetMode && targetContext && targetContext.mode === 'battle' ? 'Queue Target' : 'Acting Now',
-        targetMode && targetContext && targetContext.mode === 'battle' ? 'targeting' : 'live',
+        targetingShellLabel,
+        battleTargeting ? 'targeting' : 'live',
         bodyHtml,
         { expanded: true, cardTitle: pending.name }
     ));
@@ -8005,8 +9625,12 @@ function chooseBattleAbility(index) {
         selectedRow: -1,
         message: buildBattleTargetMessage(targetSide, ability)
     };
-    if (activeDrawer === 'battle') {
+    if (isPortraitMobileHudLayout()) {
         closeDrawer(true);
+        closeMobileHudSheet();
+    } else if (isMobileLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
     }
     render();
     scheduleBattleTargetingPreview(ability);
@@ -8182,15 +9806,8 @@ function selectCard(handIndexOrCardId) {
     selectedHandIndex = handIndex;
     clearTargetMode();
 
-    const autoOpenMobilePreview = () => {
-        if (isMobileLayout()) {
-            openDrawer('selected');
-        }
-    };
-
     if (lockReason) {
         updateSelectedInfo(card, lockReason);
-        autoOpenMobilePreview();
         render();
         return;
     }
@@ -8206,10 +9823,9 @@ function selectCard(handIndexOrCardId) {
                     side: 'enemy',
                     step: 'pickEnemy',
                     cardId: card.id,
-                    message: `Select an enemy Siegling to move, then an empty enemy cell.`
+                    message: `Select an enemy Siegeling to move, then an empty enemy cell.`
                 };
                 updateSelectedInfo(card, targetContext.message);
-                autoOpenMobilePreview();
                 render();
                 return;
             }
@@ -8221,7 +9837,6 @@ function selectCard(handIndexOrCardId) {
                 callback: (row, col) => castSpell(card.id, row, col)
             };
             updateSelectedInfo(card, targetContext.message);
-            autoOpenMobilePreview();
             render();
             return;
         } else {
@@ -8231,7 +9846,6 @@ function selectCard(handIndexOrCardId) {
     }
 
     updateSelectedInfo(card);
-    autoOpenMobilePreview();
     render();
 }
 
@@ -8325,6 +9939,8 @@ function onTargetSelected(row, col, fromPlayerBoard) {
             if (ability) {
                 scheduleBattleTargetingPreview(ability);
             }
+            renderMobileTargetingHud();
+            syncMobileTargetingArenaScale();
             return;
         }
         if (targetContext.side === 'enemy' && fromPlayerBoard) {
@@ -8390,7 +10006,7 @@ function onTrainerUse() {
 function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
     if (!card && !msg) {
-        el.innerHTML = 'Select a hand card or click a Siegling on either board to preview it here.';
+        el.innerHTML = 'Select a hand card or click a Siegeling on either board to preview it here.';
         return;
     }
 
@@ -8415,7 +10031,7 @@ function updateSelectedInfo(card, msg) {
         } else if (isBoardPreviewCard(card)) {
             const own = boardCardOwnershipLabel(card);
             const phases = Number(card.battlePhasesSeen || 0);
-            html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
+            html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`
@@ -8644,6 +10260,10 @@ function getLiftedHandIndex() {
 }
 
 function handleHandSelectorPointerMove(event) {
+    if (cardDragSession?.active) {
+        stopHandSelectorAutoScroll();
+        return;
+    }
     if (isHandHiddenForPhase()) {
         stopHandSelectorAutoScroll();
         return;
@@ -8726,6 +10346,76 @@ function handleHandSelectorPointerMove(event) {
     handAutoScrollFrame = window.requestAnimationFrame(tick);
 }
 
+function normalizeWheelDelta(event, axis) {
+    const raw = axis === 'x' ? event.deltaX : event.deltaY;
+    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        return raw * 18;
+    }
+    if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        return raw * window.innerHeight;
+    }
+    return raw;
+}
+
+function getHandSelectorWheelScroller() {
+    const cards = document.getElementById('playerHand');
+    const tray = document.getElementById('handTray');
+    const candidates = [cards, tray].filter(Boolean);
+    for (const el of candidates) {
+        if (el.classList.contains('hidden')) {
+            continue;
+        }
+        const styles = window.getComputedStyle(el);
+        const canOverflowX = styles.overflowX === 'auto' || styles.overflowX === 'scroll' || styles.overflowX === 'overlay';
+        const canOverflowY = styles.overflowY === 'auto' || styles.overflowY === 'scroll' || styles.overflowY === 'overlay';
+        const canScrollX = canOverflowX && el.scrollWidth > el.clientWidth + 4;
+        const canScrollY = canOverflowY && el.scrollHeight > el.clientHeight + 4;
+        if (canScrollX || canScrollY) {
+            return { el, canScrollX, canScrollY };
+        }
+    }
+    return null;
+}
+
+function handleHandSelectorWheel(event) {
+    if (isHandHiddenForPhase()) {
+        return;
+    }
+
+    const scroller = getHandSelectorWheelScroller();
+    if (!scroller) {
+        return;
+    }
+
+    const { el, canScrollX, canScrollY } = scroller;
+    const rawDeltaX = normalizeWheelDelta(event, 'x');
+    const rawDeltaY = normalizeWheelDelta(event, 'y');
+    const preferHorizontal = canScrollX && (!canScrollY || Math.abs(rawDeltaX) >= Math.abs(rawDeltaY));
+    const axis = preferHorizontal ? 'x' : 'y';
+    let delta = axis === 'x' ? rawDeltaX : rawDeltaY;
+
+    if (axis === 'x' && Math.abs(delta) < 0.5) {
+        delta = rawDeltaY;
+    }
+    if (axis === 'y' && Math.abs(delta) < 0.5) {
+        delta = rawDeltaX;
+    }
+    if (Math.abs(delta) < 0.5) {
+        return;
+    }
+
+    const prop = axis === 'x' ? 'scrollLeft' : 'scrollTop';
+    const max = axis === 'x'
+        ? Math.max(0, el.scrollWidth - el.clientWidth)
+        : Math.max(0, el.scrollHeight - el.clientHeight);
+    const before = el[prop];
+    el[prop] = clampNumber(before + delta, 0, max);
+    if (Math.abs(el[prop] - before) > 0.5) {
+        stopHandSelectorAutoScroll();
+        event.preventDefault();
+    }
+}
+
 function stopHandSelectorAutoScroll() {
     handAutoScrollDirection = 0;
     handAutoScrollAxis = null;
@@ -8743,6 +10433,11 @@ function getHandCardSourceElement(handIndex) {
 function updateHandLiftLayer() {
     const layer = document.getElementById('handLiftLayer');
     if (!layer) {
+        return;
+    }
+
+    if (cardDragSession?.active) {
+        layer.classList.remove('hidden');
         return;
     }
 
@@ -8814,10 +10509,19 @@ function clearTargetMode() {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        if (cardDragSession) {
+            cleanupCardDragSession();
+            return;
+        }
+        if (isBattleTargetSelectionActive()) {
+            cancelBattleTargetSelection();
+            return;
+        }
         closeDrawer(true);
         closeMobileHudSheet();
         closeClaimPopup();
         closeTrainerAbilityPopup();
+        closeMatchDetail();
         selectedCard = null;
         selectedHandIndex = null;
         clearTargetMode();
@@ -8835,6 +10539,7 @@ window.addEventListener('resize', () => {
     syncMobileInfoTab();
     syncMobileHudSheetSide();
     syncFocusedCardUi();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -8854,6 +10559,7 @@ window.addEventListener('resize', () => {
     syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -8865,6 +10571,7 @@ window.addEventListener('orientationchange', () => {
     syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -8875,6 +10582,7 @@ syncDesktopInspectTabUi();
     const onLayoutModeBoundsChange = () => {
         scheduleBoardLinkConnectorRefresh();
         setTimeout(scheduleBoardLinkConnectorRefresh, 200);
+        if (gameState) updateSafeAreaHpStrip(gameState);
     };
 
     const connect = () => {
@@ -8892,9 +10600,11 @@ syncDesktopInspectTabUi();
     }
 
     const mqListeners = [
+        window.matchMedia('(max-width: 767px)'),
         window.matchMedia('(max-width: 900px)'),
         window.matchMedia('(min-width: 980px)'),
-        window.matchMedia('(orientation: landscape) and (max-height: 600px)')
+        window.matchMedia('(orientation: landscape) and (max-height: 600px)'),
+        window.matchMedia('(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)')
     ];
     mqListeners.forEach((mq) => {
         if (typeof mq.addEventListener === 'function') {
@@ -8909,10 +10619,21 @@ syncDesktopInspectTabUi();
     }
 })();
 
+(function setupCardDragPointerListeners() {
+    document.addEventListener('pointermove', handleCardDragPointerMove, { passive: false });
+    document.addEventListener('pointerup', handleCardDragPointerEnd);
+    document.addEventListener('pointercancel', handleCardDragPointerEnd);
+})();
+
 renderDesktopMenuMeta();
 renderDesktopActionHistory();
 renderWelcomeTutorial();
 renderWelcomeAuth();
 syncEntryOverlays();
+if (typeof SieglingsCatalogSync !== 'undefined') {
+    SieglingsCatalogSync.onCatalogPublished(() => {
+        refreshLiveGameOptions();
+    });
+}
 loadGameOptions();
 

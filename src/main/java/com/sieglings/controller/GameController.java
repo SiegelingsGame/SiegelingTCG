@@ -15,13 +15,16 @@ import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.persistence.entity.AccountUser;
+import com.sieglings.service.CardOverrideStorageService;
 import com.sieglings.service.EnergyService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.GameService;
+import com.sieglings.service.MatchHistoryService;
 import com.sieglings.service.MovesPoolService;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.MultiplayerRoom;
 import com.sieglings.service.MultiplayerService;
+import com.sieglings.service.PlayerProgressionService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -61,6 +64,15 @@ public class GameController {
     @Autowired
     private MovesPoolService movesPoolService;
 
+    @Autowired
+    private MatchHistoryService matchHistoryService;
+
+    @Autowired
+    private PlayerProgressionService playerProgressionService;
+
+    @Autowired
+    private CardOverrideStorageService cardOverrideStorageService;
+
     @GetMapping("/api/game/options")
     @ResponseBody
     public Map<String, Object> getOptions() {
@@ -76,7 +88,8 @@ public class GameController {
                 "name", deck.name(),
                 "description", deck.description(),
                 "elements", deck.elements().stream().map(Enum::name).toList(),
-                "recommendedTrainerId", deck.recommendedTrainerId()
+                "recommendedTrainerId", deck.recommendedTrainerId(),
+                "cards", deckCardCounts(deck.id())
         )).toList());
         resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
         resp.put("deckBuilder", Map.of(
@@ -87,7 +100,14 @@ public class GameController {
         resp.put("liveElements", gameService.getActiveLiveElementNames());
         resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
         resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
+        resp.put("catalogVersion", cardOverrideStorageService.getCatalogRevision());
         return resp;
+    }
+
+    @GetMapping("/api/game/catalog-version")
+    @ResponseBody
+    public Map<String, Object> getCatalogVersion() {
+        return Map.of("catalogVersion", cardOverrideStorageService.getCatalogRevision());
     }
 
     /**
@@ -110,7 +130,8 @@ public class GameController {
                 "name", deck.name(),
                 "description", deck.description(),
                 "elements", deck.elements().stream().map(Enum::name).toList(),
-                "recommendedTrainerId", deck.recommendedTrainerId()
+                "recommendedTrainerId", deck.recommendedTrainerId(),
+                "cards", deckCardCounts(deck.id())
         )).toList());
         resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
         resp.put("deckBuilder", Map.of(
@@ -132,6 +153,7 @@ public class GameController {
             String playerName = req == null ? null : (String) req.get("playerName");
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
+            validateStartOwnership(user, options);
             MultiplayerService.RoomSession session = multiplayerService.createRoom(playerName, options, user == null ? null : user.getId());
             return buildRoomMeta(multiplayerService.requireRoom(session.roomId()), session, request);
         } catch (IllegalArgumentException ex) {
@@ -149,6 +171,7 @@ public class GameController {
             String playerName = req == null ? null : (String) req.get("playerName");
             GameService.StartOptions options = parseStartOptions(req, "deck_water_wind", "trainer06");
             AccountUser user = accountService.findUser(authorizationHeader);
+            validateStartOwnership(user, options);
             MultiplayerService.RoomSession session = multiplayerService.joinRoom(roomId, playerName, options, user == null ? null : user.getId());
             MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
             Map<String, Object> resp = buildRoomMeta(room, session, request);
@@ -189,21 +212,66 @@ public class GameController {
                                        @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         try {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
-            GameState state = gameService.newGame(options.playerDeckId(), options.playerTrainerId(), options.customDeckCards());
             AccountUser user = accountService.findUser(authorizationHeader);
-            if (user != null) {
-                state.getPlayer().setAccountUserId(user.getId());
-            }
+            validateStartOwnership(user, options);
+            GameService.SoloHandle handle = gameService.newSoloGame(options);
+            attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
+            Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));
+            resp.put("soloToken", handle.token());
+            return resp;
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
-        return buildStateResponse(gameService.getState(), true, null);
+    }
+
+    /** Resolves the caller's solo game from its token, or fails if none is active. */
+    private GameState requireSoloState(String soloToken) {
+        GameState state = gameService.getSoloGame(soloToken);
+        if (state == null) {
+            throw new IllegalArgumentException("No active game. Start a new game first.");
+        }
+        return state;
+    }
+
+    @GetMapping("/api/match/rooms")
+    @ResponseBody
+    public Map<String, Object> listRooms() {
+        return Map.of("rooms", multiplayerService.listOpenRooms().stream().map(this::serializeOpenRoom).toList());
+    }
+
+    @PostMapping("/api/match/close")
+    @ResponseBody
+    public Map<String, Object> closeMatch(@RequestBody(required = false) Map<String, Object> req,
+                                          @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                          @RequestHeader(value = "X-Room-Id", required = false) String roomIdHeader,
+                                          @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            if (roomId == null || roomId.isBlank()) {
+                roomId = roomIdHeader;
+            }
+            AccountUser user = accountService.findUser(authorizationHeader);
+            MultiplayerRoom room = multiplayerService.requireRoom(roomId);
+            boolean hostTokenMatches = playerToken != null && room.isHostToken(playerToken);
+            boolean signedInHost = user != null
+                    && room.getHostUserId() != null
+                    && room.getHostUserId().equals(user.getId());
+            if (!hostTokenMatches && !signedInHost) {
+                throw new IllegalArgumentException("Only the host can close this lobby.");
+            }
+            multiplayerService.closeRoom(roomId, room.getHostUserId());
+            return Map.of("ok", true, "roomId", roomId);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/mulligan")
     @ResponseBody
     public Map<String, Object> mulligan(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                         @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                        @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                        @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                         @RequestBody Map<String, Object> req) {
         if (roomId != null && playerToken != null) {
             try {
@@ -216,15 +284,24 @@ public class GameController {
             }
         }
 
-        List<Integer> indices = parseMulliganIndices(req, gameService.getState(), true);
-        gameService.resolveOpeningMulligan(indices);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            List<Integer> indices = parseMulliganIndices(req, state, true);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.resolveOpeningMulligan(state, true, indices);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @GetMapping("/api/game/state")
     @ResponseBody
     public Map<String, Object> getState(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
-                                        @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+                                        @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                        @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                        @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         if (roomId != null && playerToken != null) {
             try {
                 MultiplayerRoom room = multiplayerService.requireAuthorizedRoom(roomId, playerToken);
@@ -237,16 +314,21 @@ public class GameController {
             }
         }
 
-        if (gameService.getState() == null) {
-            return Map.of("error", "No active game. Start a new game first.");
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
         }
-        return buildStateResponse(gameService.getState(), true, null);
     }
 
     @PostMapping("/api/game/draw")
     @ResponseBody
     public Map<String, Object> draw(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
-                                    @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+                                    @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                    @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                    @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         if (roomId != null && playerToken != null) {
             try {
                 GameState state = multiplayerService.draw(roomId, playerToken);
@@ -256,14 +338,23 @@ public class GameController {
             }
         }
 
-        gameService.playerDraw();
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.draw(state, true);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/place")
     @ResponseBody
     public Map<String, Object> place(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                      @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                     @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                     @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                      @RequestBody Map<String, Object> req) {
         String cardId = (String) req.get("cardId");
         int row = (int) req.get("row");
@@ -278,14 +369,23 @@ public class GameController {
             }
         }
 
-        gameService.placeSiegling(cardId, row, col);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.placeSiegling(state, true, cardId, row, col);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/cast")
     @ResponseBody
     public Map<String, Object> cast(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                    @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                    @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                     @RequestBody Map<String, Object> req) {
         String cardId = (String) req.get("cardId");
         int targetRow = req.containsKey("targetRow") ? ((Number) req.get("targetRow")).intValue() : -1;
@@ -302,14 +402,23 @@ public class GameController {
             }
         }
 
-        gameService.castSpell(cardId, targetRow, targetCol, destRow, destCol);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.castSpell(state, true, cardId, targetRow, targetCol, destRow, destCol);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/claim")
     @ResponseBody
     public Map<String, Object> claim(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                      @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                     @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                     @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                      @RequestBody Map<String, Object> req) {
         int row = (int) req.get("row");
         int col = (int) req.get("col");
@@ -323,14 +432,23 @@ public class GameController {
             }
         }
 
-        gameService.claimSiegling(row, col);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.claimSiegling(state, true, row, col);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/trainer")
     @ResponseBody
     public Map<String, Object> useTrainer(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                           @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                          @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                          @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                           @RequestBody Map<String, Object> req) {
         int targetRow = req.containsKey("targetRow") ? (int) req.get("targetRow") : -1;
         int targetCol = req.containsKey("targetCol") ? (int) req.get("targetCol") : -1;
@@ -344,14 +462,23 @@ public class GameController {
             }
         }
 
-        gameService.useTrainerAbility(targetRow, targetCol);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.useTrainerAbility(state, true, targetRow, targetCol);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/battle")
     @ResponseBody
     public Map<String, Object> battle(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
-                                      @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+                                      @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                      @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                      @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         if (roomId != null && playerToken != null) {
             try {
                 GameState state = multiplayerService.battle(roomId, playerToken);
@@ -361,14 +488,23 @@ public class GameController {
             }
         }
 
-        gameService.executeBattle();
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.executeBattle(state);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/battle/action")
     @ResponseBody
     public Map<String, Object> battleAction(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
                                             @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                            @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                             @RequestBody Map<String, Object> req) {
         int abilityIndex = (int) req.get("abilityIndex");
         int targetRow = req.containsKey("targetRow") ? (int) req.get("targetRow") : -1;
@@ -383,14 +519,23 @@ public class GameController {
             }
         }
 
-        gameService.submitBattleAction(abilityIndex, targetRow, targetCol);
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.submitBattleAction(state, true, abilityIndex, targetRow, targetCol);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/game/endturn")
     @ResponseBody
     public Map<String, Object> endTurn(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
-                                       @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+                                       @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                       @RequestHeader(value = "X-Solo-Token", required = false) String soloToken,
+                                       @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         if (roomId != null && playerToken != null) {
             try {
                 GameState state = multiplayerService.endTurn(roomId, playerToken);
@@ -400,14 +545,22 @@ public class GameController {
             }
         }
 
-        gameService.endTurn();
-        return buildStateResponse(gameService.getState(), true, null);
+        try {
+            GameState state = requireSoloState(soloToken);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            gameService.endTurn(state, true);
+            attachAuthenticatedSoloUser(state, authorizationHeader);
+            return buildStateResponse(state, true, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @GetMapping("/api/game/placements")
     @ResponseBody
     public List<int[]> getPlacements(@RequestHeader(value = "X-Room-Id", required = false) String roomId,
-                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+                                     @RequestHeader(value = "X-Player-Token", required = false) String playerToken,
+                                     @RequestHeader(value = "X-Solo-Token", required = false) String soloToken) {
         if (roomId != null && playerToken != null) {
             try {
                 return multiplayerService.getLegalPlacements(roomId, playerToken);
@@ -415,7 +568,29 @@ public class GameController {
                 return List.of();
             }
         }
-        return gameService.getPlayerLegalPlacements();
+        try {
+            GameState state = requireSoloState(soloToken);
+            return gameService.getLegalPlacements(state, true);
+        } catch (IllegalArgumentException ex) {
+            return List.of();
+        }
+    }
+
+    private void attachAuthenticatedSoloUser(GameState state, String authorizationHeader) {
+        if (state == null) {
+            return;
+        }
+        Player player = state.getPlayer();
+        if (player != null && (player.getAccountUserId() == null || player.getAccountUserId().isBlank())) {
+            AccountUser user = accountService.findUser(authorizationHeader);
+            if (user == null) {
+                return;
+            }
+            player.setAccountUserId(user.getId());
+        }
+        if (state.isGameOver()) {
+            matchHistoryService.recordCompletedGame(state);
+        }
     }
 
     private Map<String, Object> buildStateResponse(GameState gs, boolean viewerIsPlayer, String roomId) {
@@ -496,12 +671,33 @@ public class GameController {
                 : room.getHostName());
         resp.put("guestJoined", room.hasGuest());
         resp.put("shareUrl", buildShareUrl(request, room.getRoomId()));
+        resp.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
+        resp.put("format", room.getFormat() == null ? "PVP" : room.getFormat());
         return resp;
     }
 
     private String buildShareUrl(HttpServletRequest request, String roomId) {
         String baseUrl = resolveRequestOrigin(request);
-        return baseUrl + "/?room=" + roomId;
+        return baseUrl + "/social?room=" + roomId;
+    }
+
+    private Map<String, Object> serializeOpenRoom(MultiplayerRoom room) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("roomId", room.getRoomId());
+        out.put("hostName", room.getHostName());
+        out.put("playerCount", room.hasGuest() ? 2 : 1);
+        out.put("maxPlayers", 2);
+        out.put("format", "PVP 1v1");
+        out.put("status", room.isStarted() ? "Started" : "Open");
+        out.put("updatedAt", room.getUpdatedAt() == null ? null : room.getUpdatedAt().toString());
+        out.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
+        out.put("format", room.getFormat() == null ? "PVP" : room.getFormat());
+        if (room.getHostOptions() != null) {
+            out.put("deckId", room.getHostOptions().playerDeckId());
+            out.put("trainerId", room.getHostOptions().playerTrainerId());
+            out.put("custom", room.getHostOptions().customDeckCards() != null && !room.getHostOptions().customDeckCards().isEmpty());
+        }
+        return out;
     }
 
     private String resolveRequestOrigin(HttpServletRequest request) {
@@ -600,6 +796,25 @@ public class GameController {
         return serializeCards(player.getHand());
     }
 
+    /** Ordered id+count summary of a preset deck so clients can preview its contents. */
+    private List<Map<String, Object>> deckCardCounts(String deckId) {
+        try {
+            List<Card> cards = gameService.buildDeckById(deckId);
+            Map<String, Long> counts = new LinkedHashMap<>();
+            for (Card card : cards) {
+                counts.merge(card.getId(), 1L, Long::sum);
+            }
+            return counts.entrySet().stream().map(entry -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("id", entry.getKey());
+                m.put("count", entry.getValue());
+                return (Map<String, Object>) m;
+            }).toList();
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
+    }
+
     private List<Map<String, Object>> serializeCards(List<Card> cards) {
         List<Map<String, Object>> serialized = new ArrayList<>();
         for (Card card : cards) {
@@ -679,11 +894,7 @@ public class GameController {
             ));
         }
         if (trainer.getActiveAbility() != null) {
-            m.put("active", Map.of(
-                    "name", trainer.getActiveAbility().getName(),
-                    "description", trainer.getActiveAbility().getDescription(),
-                    "targetType", trainer.getActiveAbility().getTargetType().name()
-            ));
+            m.put("active", serializeAbility(trainer.getActiveAbility()));
             m.put("canUseActive", trainer.canUseActive());
         }
 
@@ -725,6 +936,7 @@ public class GameController {
                 m.put("rarity", ci.getCard().getRarity().name());
                 m.put("hp", ci.getCurrentHealth());
                 m.put("maxHp", ci.getEffectiveMaxHealth());
+                m.put("shieldHp", ci.getTemporaryShield());
                 m.put("printedHealth", ci.getCard().getHealth());
                 m.put("printedSpeed", ci.getCard().getSpeed());
                 m.put("damageBoost", ci.getDamageBoost());
@@ -880,6 +1092,16 @@ public class GameController {
                 customDeckCards,
                 loadoutLabel
         );
+    }
+
+    private void validateStartOwnership(AccountUser user, GameService.StartOptions options) {
+        if (options.customDeckCards() == null || options.customDeckCards().isEmpty()) {
+            return;
+        }
+        if (user == null) {
+            throw new IllegalArgumentException("Sign in to use custom decks.");
+        }
+        playerProgressionService.validateCustomDeckOwnership(user, options.customDeckCards());
     }
 
     @SuppressWarnings("unchecked")

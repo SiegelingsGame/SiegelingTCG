@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sieglings Card, Siegeknight, And Deck Dashboard</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+    <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0a1530">
     <link rel="stylesheet" href="/css/card-dashboard.css?v=9">
 </head>
 <body>
@@ -21,7 +27,8 @@
             <button class="btn btn-primary" id="saveProjectBtn" type="button">Save Changes</button>
             <button class="btn btn-secondary" id="downloadJsonBtn" type="button">Download JSON</button>
             <button class="btn btn-secondary" id="copyJsonBtn" type="button">Copy JSON</button>
-            <a class="btn btn-ghost" href="/">Back To Game</a>
+            <a class="btn btn-ghost" href="/home">Back To Home</a>
+            <a class="btn btn-ghost" href="/play" target="_blank" rel="noopener">Open Game In New Tab</a>
         </div>
     </header>
 
@@ -88,6 +95,7 @@
         <button class="page-tab" id="showActionsBtn" type="button" data-editor-page="ACTION">Spell / Trap Page</button>
         <button class="page-tab" id="showTrainersBtn" type="button" data-editor-page="TRAINERS">Siegeknights</button>
         <button class="page-tab" id="showDecksBtn" type="button" data-editor-page="DECKS">Premade Decks</button>
+        <button class="page-tab" id="showPacksBtn" type="button" data-editor-page="PACKS">Packs</button>
         <button class="page-tab" id="showLiveElementsBtn" type="button" data-editor-page="LIVE_ELEMENTS">Live Elements</button>
         <button class="page-tab" id="showMovesPoolBtn" type="button" data-editor-page="MOVES_POOL">Shared Abilities</button>
     </section>
@@ -255,7 +263,7 @@
                             <label id="moveDraftTargetRowWrap"><span>Target row</span><select id="moveDraftTargetRowSelect"></select></label>
                             <label><span>Effect</span><select id="moveDraftEffectSelect"></select></label>
                             <label><span>Effect value</span><input type="number" id="moveDraftEffectValueInput" step="1"></label>
-                            <label><span>Energy cost</span><input type="number" id="moveDraftEnergyInput" min="0" max="6" step="1"></label>
+                            <label><span>Energy cost</span><input type="number" id="moveDraftEnergyInput" min="0" step="1"></label>
                             <label class="full-width"><span>Description</span><textarea id="moveDraftDescInput" rows="2"></textarea></label>
                             <label><span>Passive</span><select id="moveDraftPassiveSelect"><option value="false">No</option><option value="true">Yes</option></select></label>
                             <div class="inline-actions full-width">
@@ -729,6 +737,28 @@
         </div>
     </section>
 
+    <section class="deck-workspace hidden" id="packWorkspace">
+        <div class="panel deck-editor-panel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">Shop</div>
+                    <h2>Pack Groups</h2>
+                </div>
+            </div>
+            <p class="section-help">Starter and shop packs are generated from live cards by element. Each opened pack contains five cards: 2-3 Sieglings, 1-2 traps, and 1-2 spells from the selected elements.</p>
+            <div class="deck-card-list" id="packList"></div>
+            <div class="panel preview-panel">
+                <div class="panel-heading sub-heading">
+                    <div>
+                        <div class="section-kicker">Export</div>
+                        <h3>packs JSON</h3>
+                    </div>
+                </div>
+                <textarea id="packsJsonPreview" readonly spellcheck="false" rows="14"></textarea>
+            </div>
+        </div>
+    </section>
+
     <section class="deck-workspace hidden" id="movesPoolWorkspace">
         <aside class="panel deck-list-panel">
             <div class="panel-heading">
@@ -863,6 +893,7 @@
 <datalist id="cardIdOptions"></datalist>
 
 <script src="/js/config.js"></script>
-<script src="/js/card-dashboard.js?v=15"></script>
+<script src="/js/catalog-sync.js?v=1"></script>
+<script src="/js/card-dashboard.js?v=23"></script>
 </body>
 </html>

@@ -51,8 +51,12 @@ public class AIService {
         state.log("AI Setup phase.");
         // Setup phase: try to place Sieglings and cast spells
         aiPlaceSieglings(state);
-        aiCastSpells(state);
-        aiUseTraps(state);
+        if (!state.isSieglingSetupBudgetExhausted(false)) {
+            aiCastSpells(state);
+        }
+        if (!state.isSieglingSetupBudgetExhausted(false)) {
+            aiUseTraps(state);
+        }
     }
 
     private void aiPlaceSieglings(GameState state) {
@@ -87,7 +91,7 @@ public class AIService {
                 state.recordSieglingSetupActionConsumed(false);
                 state.getEnemy().removeFromHand(card);
                 if (evolutionPlacement && existing != null) {
-                    state.log(existing.getName() + " evolved to " + siegling.getName() + "!");
+                    state.log(existing.getName() + " evolved into " + siegling.getName() + "!");
                 } else {
                     state.log("AI places " + siegling.getName() + " at row " + rowName(chosen[0]) + " col " + chosen[1]);
                 }
@@ -153,6 +157,7 @@ public class AIService {
 
             // Spend energy from pool (restores at next phase)
             energyService.spendEnergy(state, false, spell.getCostElement(), spell.getCostAmount());
+            state.recordSieglingSetupActionConsumed(false);
             state.removeDeadSieglings();
             break; // Cast 1 spell per turn max
         }
@@ -207,6 +212,7 @@ public class AIService {
 
             // Spend energy from pool (restores at next phase)
             energyService.spendEnergy(state, false, trap.getCostElement(), trap.getCostAmount());
+            state.recordSieglingSetupActionConsumed(false);
             state.removeDeadSieglings();
             break; // Spring 1 trap per turn max
         }

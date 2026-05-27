@@ -3,7 +3,6 @@ package com.sieglings.persistence.firestore;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -12,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,15 +33,19 @@ public class MatchHistoryStore {
             QuerySnapshot snapshot = client.requireFirestore()
                     .collection(client.matchesCollection())
                     .whereEqualTo("userId", userId)
-                    .orderBy("finishedAt", Query.Direction.DESCENDING)
-                    .limit(12)
                     .get()
                     .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             List<MatchHistoryEntity> out = new ArrayList<>();
             for (QueryDocumentSnapshot doc : snapshot.getDocuments()) {
                 out.add(toMatch(doc.getId(), doc));
             }
-            return out;
+            return out.stream()
+                    .sorted(Comparator.comparing(
+                            MatchHistoryEntity::getFinishedAt,
+                            Comparator.nullsLast(Comparator.reverseOrder())
+                    ))
+                    .limit(12)
+                    .toList();
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to load match history from Firestore.", ex);
         }
@@ -85,6 +89,16 @@ public class MatchHistoryStore {
         payload.put("spellsCast", match.getSpellsCast());
         payload.put("trapsSprung", match.getTrapsSprung());
         payload.put("siegelingsDefeated", match.getSiegelingsDefeated());
+        payload.put("playerHealthRemaining", match.getPlayerHealthRemaining());
+        payload.put("opponentHealthRemaining", match.getOpponentHealthRemaining());
+        payload.put("playerEnergyRemaining", match.getPlayerEnergyRemaining());
+        // Cap the stored log so a single match doc stays well under the 1MB
+        // Firestore limit even for very long games.
+        List<String> log = match.getGameLog();
+        if (log != null && log.size() > 60) {
+            log = new ArrayList<>(log.subList(log.size() - 60, log.size()));
+        }
+        payload.put("gameLog", log == null ? List.of() : log);
         try {
             matchDoc(match.getId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             return match;
@@ -113,7 +127,24 @@ public class MatchHistoryStore {
         match.setSpellsCast(readInt(snapshot, "spellsCast"));
         match.setTrapsSprung(readInt(snapshot, "trapsSprung"));
         match.setSiegelingsDefeated(readInt(snapshot, "siegelingsDefeated"));
+        match.setPlayerHealthRemaining(readInt(snapshot, "playerHealthRemaining"));
+        match.setOpponentHealthRemaining(readInt(snapshot, "opponentHealthRemaining"));
+        match.setPlayerEnergyRemaining(readInt(snapshot, "playerEnergyRemaining"));
+        match.setGameLog(readStringList(snapshot, "gameLog"));
         return match;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> readStringList(DocumentSnapshot snapshot, String key) {
+        Object value = snapshot.get(key);
+        if (value instanceof List<?> list) {
+            List<String> out = new ArrayList<>();
+            for (Object item : list) {
+                if (item != null) out.add(String.valueOf(item));
+            }
+            return out;
+        }
+        return new ArrayList<>();
     }
 
     private int readInt(DocumentSnapshot snapshot, String key) {

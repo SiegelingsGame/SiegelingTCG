@@ -21,14 +21,47 @@
         ]
       }
     ],
-    "redirects": [
-      {
-        "source": "/",
-        "destination": "/landing.html",
-        "type": 302
-      }
-    ],
     "rewrites": [
+      {
+        "source": "/landing",
+        "destination": "/landing.html"
+      },
+      {
+        "source": "/home",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/login",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/social",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/cards",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/decks",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/lobbies",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/profile",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/shop",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/play",
+        "destination": "/play.html"
+      },
       {
         "source": "/api/cards/editor",
         "function": {

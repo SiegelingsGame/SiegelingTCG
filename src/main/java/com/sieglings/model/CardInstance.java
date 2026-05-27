@@ -17,7 +17,8 @@ public class CardInstance {
     private SieglingCard card;
     private int currentHealth;
     private int currentSpeed;
-    private int temporaryHealthBuff;
+    private int permanentHealthBoost;
+    private int temporaryShield;
     private int temporaryDamageBuff;
     private int trainerPassiveHealthBuff;
     private int trainerPassiveDamageBuff;
@@ -59,13 +60,14 @@ public class CardInstance {
     }
 
     public int getEffectiveSpeed() {
+        if (isSpeedZero()) {
+            return 0;
+        }
         return Math.max(0, currentSpeed + trainerPassiveSpeedBuff);
     }
 
     public int getEffectiveMaxHealth() {
-        int maxHealth = card.getHealth() + temporaryHealthBuff + trainerPassiveHealthBuff;
-        if (temporaryHealthBuff == 0 && trainerPassiveHealthBuff == 0 && statusEffects.contains(StatusEffect.HEALTH_BOOST)) maxHealth += 1;
-        return maxHealth;
+        return card.getHealth() + permanentHealthBoost + trainerPassiveHealthBuff;
     }
 
     public int getDamageBoost() {
@@ -91,9 +93,18 @@ public class CardInstance {
     }
 
     public void addHealthBuff(int amount) {
+        addMaxHealthBoost(amount);
+    }
+
+    public void addMaxHealthBoost(int amount) {
         if (amount <= 0) return;
-        temporaryHealthBuff += amount;
+        permanentHealthBoost += amount;
         currentHealth += amount;
+    }
+
+    public void addShield(int amount) {
+        if (amount <= 0) return;
+        temporaryShield += amount;
         statusEffects.add(StatusEffect.HEALTH_BOOST);
     }
 
@@ -105,11 +116,6 @@ public class CardInstance {
             currentHealth += delta;
         }
         currentHealth = Math.min(currentHealth, getEffectiveMaxHealth());
-        if (trainerPassiveHealthBuff > 0) {
-            statusEffects.add(StatusEffect.HEALTH_BOOST);
-        } else if (temporaryHealthBuff == 0) {
-            statusEffects.remove(StatusEffect.HEALTH_BOOST);
-        }
     }
 
     public void setTrainerPassiveDamageBuff(int amount) {
@@ -137,7 +143,16 @@ public class CardInstance {
     }
 
     public void takeRawDamage(int amount) {
-        currentHealth = Math.max(0, currentHealth - amount);
+        int remaining = Math.max(0, amount);
+        if (temporaryShield > 0 && remaining > 0) {
+            int blocked = Math.min(temporaryShield, remaining);
+            temporaryShield -= blocked;
+            remaining -= blocked;
+            if (temporaryShield == 0) {
+                statusEffects.remove(StatusEffect.HEALTH_BOOST);
+            }
+        }
+        currentHealth = Math.max(0, currentHealth - remaining);
     }
 
     public void healDamage(int amount) {
@@ -146,10 +161,8 @@ public class CardInstance {
 
     public void clearTemporaryEffects() {
         temporaryDamageBuff = 0;
-        temporaryHealthBuff = 0;
-        if (trainerPassiveHealthBuff == 0) {
-            statusEffects.remove(StatusEffect.HEALTH_BOOST);
-        }
+        temporaryShield = 0;
+        statusEffects.remove(StatusEffect.HEALTH_BOOST);
         if (trainerPassiveDamageBuff == 0 && auraDamageBoost == 0) {
             statusEffects.remove(StatusEffect.DAMAGE_BOOST);
         }
@@ -167,7 +180,9 @@ public class CardInstance {
     public void setCurrentHealth(int currentHealth) { this.currentHealth = currentHealth; }
     public int getCurrentSpeed() { return currentSpeed; }
     public void setCurrentSpeed(int currentSpeed) { this.currentSpeed = Math.max(0, currentSpeed); }
-    public int getTemporaryHealthBuff() { return temporaryHealthBuff; }
+    public int getTemporaryHealthBuff() { return permanentHealthBoost; }
+    public int getPermanentHealthBoost() { return permanentHealthBoost; }
+    public int getTemporaryShield() { return temporaryShield; }
     public int getTemporaryDamageBuff() { return temporaryDamageBuff; }
     public int getTrainerPassiveHealthBuff() { return trainerPassiveHealthBuff; }
     public int getTrainerPassiveDamageBuff() { return trainerPassiveDamageBuff; }

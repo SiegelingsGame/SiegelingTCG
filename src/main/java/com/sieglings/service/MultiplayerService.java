@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,17 +27,28 @@ public class MultiplayerService {
     @Autowired
     private GameService gameService;
 
+    @Autowired(required = false)
+    private LobbyPersistenceService lobbyPersistenceService;
+
     public synchronized RoomSession createRoom(String playerName, GameService.StartOptions options, String accountUserId) {
         String roomId = generateRoomId();
         String token = generateToken();
         MultiplayerRoom room = new MultiplayerRoom(roomId, token, safeName(playerName, "Host"), options);
         room.setHostUserId(accountUserId);
+        room.setFormat("PVP");
         rooms.put(roomId, room);
+        if (lobbyPersistenceService != null) {
+            lobbyPersistenceService.registerOpenLobby(room, accountUserId);
+        } else {
+            Instant now = Instant.now();
+            room.setCreatedAt(now);
+            room.setExpiresAt(now.plus(LobbyPersistenceService.OPEN_LOBBY_TTL));
+        }
         return new RoomSession(roomId, token, true, false);
     }
 
     public synchronized RoomSession joinRoom(String roomId, String playerName, GameService.StartOptions options, String accountUserId) {
-        MultiplayerRoom room = requireRoom(roomId);
+        MultiplayerRoom room = requireJoinableRoom(roomId);
         if (room.isStarted()) {
             throw new IllegalArgumentException("That room has already started.");
         }
@@ -63,19 +75,73 @@ public class MultiplayerService {
         }
         room.setGameState(gameState);
         room.touch();
+        if (lobbyPersistenceService != null) {
+            lobbyPersistenceService.markStarted(roomId);
+        }
         return new RoomSession(roomId, token, false, true);
     }
 
+    public synchronized void closeRoom(String roomId, String hostUserId) {
+        if (lobbyPersistenceService != null) {
+            lobbyPersistenceService.closeLobby(roomId, hostUserId);
+        } else {
+            MultiplayerRoom room = rooms.get(roomId);
+            if (room != null) {
+                room.setClosed(true);
+            }
+            removeRoom(roomId);
+        }
+    }
+
+    public List<MultiplayerRoom> listOpenRooms() {
+        Instant now = Instant.now();
+        purgeExpiredRooms(now);
+        return rooms.values().stream()
+                .filter(room -> !room.isClosed())
+                .filter(room -> !room.isExpired(now))
+                .filter(room -> !room.isStarted())
+                .filter(room -> !room.hasGuest())
+                .sorted((left, right) -> right.getUpdatedAt().compareTo(left.getUpdatedAt()))
+                .toList();
+    }
+
     public MultiplayerRoom getRoom(String roomId) {
-        return rooms.get(roomId);
+        MultiplayerRoom room = rooms.get(roomId);
+        if (room != null && room.isExpired(Instant.now())) {
+            removeRoom(roomId);
+            return null;
+        }
+        return room;
     }
 
     public MultiplayerRoom requireRoom(String roomId) {
-        MultiplayerRoom room = rooms.get(roomId);
+        MultiplayerRoom room = getRoom(roomId);
         if (room == null) {
             throw new IllegalArgumentException("Room not found.");
         }
         return room;
+    }
+
+    public MultiplayerRoom requireJoinableRoom(String roomId) {
+        Instant now = Instant.now();
+        MultiplayerRoom room = requireRoom(roomId);
+        if (room.isClosed() || room.isExpired(now)) {
+            throw new IllegalArgumentException("That lobby has expired.");
+        }
+        if (lobbyPersistenceService != null && !lobbyPersistenceService.isJoinable(roomId, now)) {
+            throw new IllegalArgumentException("That lobby is no longer available.");
+        }
+        return room;
+    }
+
+    public void removeRoom(String roomId) {
+        if (roomId != null) {
+            rooms.remove(roomId);
+        }
+    }
+
+    public void purgeExpiredRooms(Instant now) {
+        rooms.values().removeIf(room -> room.isExpired(now) || room.isClosed());
     }
 
     public boolean viewerIsPlayer(String roomId, String token) {

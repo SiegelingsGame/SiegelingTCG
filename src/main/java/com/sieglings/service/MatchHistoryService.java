@@ -6,6 +6,8 @@ import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.firestore.AccountUserStore;
 import com.sieglings.persistence.firestore.MatchHistoryStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -16,11 +18,16 @@ import java.util.UUID;
 @Service
 public class MatchHistoryService {
 
+    private static final Logger logger = LoggerFactory.getLogger(MatchHistoryService.class);
+
     @Autowired
     private MatchHistoryStore matchHistoryStore;
 
     @Autowired
     private AccountUserStore accountUserStore;
+
+    @Autowired
+    private PlayerProgressionService playerProgressionService;
 
     public List<MatchHistoryEntity> listRecent(AccountUser user) {
         return matchHistoryStore.findTop12ByUserOrderByFinishedAtDesc(user.getId());
@@ -40,11 +47,13 @@ public class MatchHistoryService {
         Player player = isPlayerSide ? state.getPlayer() : state.getEnemy();
         Player opponent = isPlayerSide ? state.getEnemy() : state.getPlayer();
         if (player.getAccountUserId() == null || player.getAccountUserId().isBlank()) {
+            logger.info("Skipping match history for {} side because no account user id is attached.", isPlayerSide ? "player" : "enemy");
             return;
         }
 
         AccountUser user = accountUserStore.findById(player.getAccountUserId()).orElse(null);
         if (user == null) {
+            logger.warn("Skipping match history for missing account user id {}.", player.getAccountUserId());
             return;
         }
 
@@ -64,7 +73,20 @@ public class MatchHistoryService {
         history.setSpellsCast(player.getSpellsCastThisMatch());
         history.setTrapsSprung(player.getTrapsSprungThisMatch());
         history.setSiegelingsDefeated(player.getOpponentSieglingsDefeatedThisMatch());
+        history.setPlayerHealthRemaining(player.getHealth());
+        history.setOpponentHealthRemaining(opponent.getHealth());
+        history.setPlayerEnergyRemaining(totalEnergy(player));
+        history.setGameLog(state.getGameLog() == null ? List.of() : List.copyOf(state.getGameLog()));
         matchHistoryStore.save(history);
+        playerProgressionService.awardMatchGold(history);
+        logger.info("Recorded {} match history {} for user {}.", history.getMatchType(), history.getId(), user.getId());
+    }
+
+    private int totalEnergy(Player player) {
+        return player.getFireEnergy() + player.getEarthEnergy() + player.getWindEnergy()
+                + player.getWaterEnergy() + player.getIceEnergy() + player.getShadowEnergy()
+                + player.getElectricEnergy() + player.getMetalEnergy() + player.getUndeadEnergy()
+                + player.getPsychicEnergy();
     }
 
     private String resolveResult(GameState state, String playerName) {

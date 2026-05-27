@@ -18,12 +18,47 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BattleServiceTest {
+
+    @Test
+    void battleDamageThatEndsGameRecordsMatchHistoryImmediately() throws Exception {
+        BattleService battleService = createBattleService();
+        AtomicInteger recordCalls = new AtomicInteger();
+        setField(battleService, "matchHistoryService", new MatchHistoryService() {
+            @Override
+            public void recordCompletedGame(GameState state) {
+                recordCalls.incrementAndGet();
+                state.setMatchHistoryRecorded(true);
+            }
+        });
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        Player enemy = new Player("AI", false);
+        enemy.setHealth(1);
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard attackerCard = new SieglingCard("splashfin", "Splashfin", Element.WATER, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance attacker = new CardInstance(attackerCard, 1, 1, true);
+        state.setAt(true, 1, 1, attacker);
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+        battleService.resolvePlayerAction(state, 0, -1, -1);
+
+        assertTrue(state.isGameOver());
+        assertEquals("Player", state.getWinner());
+        assertEquals(1, recordCalls.get());
+        assertTrue(state.isMatchHistoryRecorded());
+    }
 
     @Test
     void automaticBattleActionPausesBeforeNextCreatureActs() throws Exception {
@@ -80,6 +115,73 @@ class BattleServiceTest {
 
         assertFalse(state.isBattleActionPausePending());
         assertTrue(state.getBattleQueue().isEmpty(), "The follow-up advance should finish and clear the battle queue.");
+    }
+
+    @Test
+    void speedChangesReorderUnactedBattleQueue() throws Exception {
+        BattleService battleService = createBattleService();
+        MovesPoolService pool = getField(battleService, "movesPoolService");
+
+        String uprootMoveId = "test:dracosleaf:uproot";
+        pool.registerLegacyManualMove(uprootMoveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Uproot",
+                "Set 1 enemy's Speed to 0",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.SPEED_ZERO,
+                1,
+                false,
+                null,
+                0,
+                null
+        ), Element.EARTH);
+        String pylmeMoveId = "test:pylme:strike";
+        pool.registerLegacyManualMove(pylmeMoveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Pylme Strike",
+                "Deal 1 damage to 1 enemy",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                AbilityEffectKeys.DAMAGE,
+                1,
+                false,
+                null,
+                0,
+                null
+        ), Element.EARTH);
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        player.setEarthEnergy(1);
+        state.setPlayer(player);
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard dracosleafCard = new SieglingCard("dracosleaf", "Dracosleaf", Element.EARTH, Rarity.COMMON, 10, 12, List.of(), Row.BACK);
+        dracosleafCard.setMoveIds(List.of(uprootMoveId));
+        CardInstance dracosleaf = new CardInstance(dracosleafCard, 0, 1, false);
+        state.setAt(false, 0, 1, dracosleaf);
+
+        SieglingCard breezeeCard = new SieglingCard("breezee", "Breezee", Element.WIND, Rarity.COMMON, 10, 10, List.of(), Row.FRONT);
+        CardInstance breezee = new CardInstance(breezeeCard, 2, 1, true);
+        state.setAt(true, 2, 1, breezee);
+
+        SieglingCard pylmeCard = new SieglingCard("pylme", "Pylme", Element.EARTH, Rarity.COMMON, 10, 9, List.of(), Row.MIDDLE);
+        pylmeCard.setMoveIds(List.of(pylmeMoveId));
+        CardInstance pylme = new CardInstance(pylmeCard, 1, 1, true);
+        state.setAt(true, 1, 1, pylme);
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+
+        assertTrue(state.isBattleActionPausePending(), "The speed-zero action should pause before choosing the next actor.");
+        assertEquals(0, breezee.getEffectiveSpeed(), "The first AI action should reduce Breezee's speed.");
+
+        battleService.advanceBattle(state);
+
+        assertEquals(pylme.getInstanceId(), state.getPendingBattleInstanceId(),
+                "Remaining battle order should be rebuilt from current Speed before the next actor is selected.");
     }
 
     @Test

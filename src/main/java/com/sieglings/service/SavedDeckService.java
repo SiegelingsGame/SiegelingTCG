@@ -26,6 +26,9 @@ public class SavedDeckService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private PlayerProgressionService playerProgressionService;
+
     public List<SavedDeckEntity> listDecks(AccountUser user) {
         return savedDeckStore.findByUserOrderByUpdatedAtDesc(user.getId());
     }
@@ -34,6 +37,7 @@ public class SavedDeckService {
                                     List<String> customDeckCards, String name, String existingId) {
         String normalizedName = normalizeName(name);
         validateLoadout(deckId, trainerId, customDeckCards);
+        playerProgressionService.validateCustomDeckOwnership(user, customDeckCards);
 
         SavedDeckEntity deck = existingId == null || existingId.isBlank()
                 ? new SavedDeckEntity()

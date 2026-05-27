@@ -3,6 +3,7 @@ package com.sieglings.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.Arrays;
@@ -27,5 +28,23 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedMethods("GET", "POST", "OPTIONS")
                 .allowedHeaders("*")
                 .maxAge(3600);
+    }
+
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        registry.addRedirectViewController("/", "/landing");
+        registry.addViewController("/landing").setViewName("forward:/landing.html");
+        registry.addViewController("/home").setViewName("forward:/home.html");
+        registry.addViewController("/cards").setViewName("forward:/home.html");
+        registry.addViewController("/decks").setViewName("forward:/home.html");
+        registry.addViewController("/lobbies").setViewName("forward:/home.html");
+        registry.addViewController("/social").setViewName("forward:/home.html");
+        registry.addViewController("/profile").setViewName("forward:/home.html");
+        registry.addViewController("/shop").setViewName("forward:/home.html");
+        registry.addViewController("/shop/cardpack").setViewName("forward:/home.html");
+        registry.addViewController("/login").setViewName("forward:/home.html");
+        registry.addViewController("/play").setViewName("forward:/play.html");
+        registry.addRedirectViewController("/card_dashboard", "/card-dashboard.html");
+        registry.addRedirectViewController("/card-dashboard", "/card-dashboard.html");
     }
 }

@@ -45,11 +45,32 @@
         PLAY:    'plays',
         ABILITY: 'uses',
         ATTACK:  'attacks',
+        HEAL:    'heals',
+        SHIELD:  'shields',
+        STATUS_APPLY: 'gains',
         BLOCK:   'blocks',
         EFFECT:  'effect',
         DESTROY: 'is destroyed',
         PHASE:   'phase'
     };
+
+    // Friendly label for each status kind. Used in STATUS_APPLY toasts so
+    // status-only events read as "Pylme gains Frozen" instead of dropping
+    // into the misleading "Player attacks Pylme" path.
+    const STATUS_DISPLAY = {
+        FREEZE:       'Frozen',
+        SPEED_ZERO:   'Stunned',
+        WEAK:         'Weakened',
+        STRONG:       'Strengthened',
+        HEALTH_BOOST: 'Shield',
+        DAMAGE_BOOST: 'Damage Boost',
+        SPEED_BOOST:  'Speed Boost'
+    };
+    function formatStatusLabel(status) {
+        const k = String(status || '').toUpperCase();
+        if (STATUS_DISPLAY[k]) return STATUS_DISPLAY[k];
+        return k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, ' ');
+    }
 
     const TIMING_NORMAL = {
         highlightMs: 400,
@@ -96,6 +117,17 @@
     function stripLogPrefix(line) {
         return String(line || '').trim().replace(/^\[Turn\s+\d+\s+\w+\]\s*/i, '');
     }
+    function formatPhaseLabelFallback(phase) {
+        switch (String(phase || '').toUpperCase()) {
+            case 'DRAW': return 'Draw Phase';
+            case 'SETUP': return 'Setup Phase';
+            case 'BATTLE': return 'Battle Phase';
+            case 'MULLIGAN': return 'Opening Hand';
+            default:
+                if (!phase) return 'Phase Shift';
+                return `${String(phase).charAt(0)}${String(phase).slice(1).toLowerCase()} Phase`;
+        }
+    }
 
     // ── Toast Renderer ────────────────────────────────────────────────────────
     class ToastRenderer {
@@ -129,11 +161,33 @@
             const labelText = (toast.label != null)
                 ? toast.label
                 : (ACTION_LABEL[toast.kind] || toast.kind || '');
-            const damagePart = (toast.amount > 0)
-                ? `<span class="sgl-toast-damage" style="color:${elHex}">-${toast.amount}</span>`
-                : '';
             const subtitle = toast.subtitle ? `<div class="sgl-toast-sub">${escapeHtml(toast.subtitle)}</div>` : '';
             const portraitHtml = toast.portraitHtml || `<span class="sgl-toast-sigil">${elementSigil(toast.elementColor || toast.knightElement)}</span>`;
+
+            // Default sign — heals and shields gain HP, everything else loses
+            // it. Callers can override via toast.amountSign.
+            const amountSign = toast.amountSign
+                || (toast.kind === 'HEAL' || toast.kind === 'SHIELD' ? '+' : '-');
+
+            // Split the damage chip so the player can see what was absorbed
+            // by a shield versus what reached HP. When the queue passes both
+            // shieldBroken and hpLoss, those win over the raw amount.
+            const shieldBroken = Number(toast.shieldBroken) || 0;
+            const hpLoss = Number(toast.hpLoss);
+            const hasSplit = Number.isFinite(hpLoss) || shieldBroken > 0;
+            const visibleDamage = hasSplit
+                ? (Number.isFinite(hpLoss) ? hpLoss : (toast.amount - shieldBroken))
+                : (Number(toast.amount) || 0);
+            const shieldPart = shieldBroken > 0
+                ? `<span class="sgl-toast-shield" title="Shield absorbed ${shieldBroken}">`
+                    + `<svg viewBox="0 0 16 16" aria-hidden="true">`
+                    + `<path d="M8 1 L14 3.4 V8 C14 11.5 11 13.7 8 15 C5 13.7 2 11.5 2 8 V3.4 Z" `
+                    + `fill="currentColor" stroke="#ffffff" stroke-width="1" stroke-linejoin="round"/>`
+                    + `</svg>-${shieldBroken}</span>`
+                : '';
+            const damagePart = (visibleDamage > 0)
+                ? `<span class="sgl-toast-damage" style="color:${elHex}">${escapeHtml(amountSign)}${visibleDamage}</span>`
+                : '';
 
             node.innerHTML = `
                 <div class="sgl-toast-portrait">${portraitHtml}</div>
@@ -142,6 +196,7 @@
                         <span class="sgl-toast-actor">${escapeHtml(toast.actorName || '')}</span>
                         <span class="sgl-toast-action">${escapeHtml(labelText)}</span>
                         <span class="sgl-toast-target">${escapeHtml(toast.targetName || '')}</span>
+                        ${shieldPart}
                         ${damagePart}
                     </div>
                     ${subtitle}
@@ -185,6 +240,23 @@
         setTimeout(() => {
             card.classList.remove('sgl-acting', 'sgl-acting-attack', 'sgl-acting-play');
         }, Math.max(120, durationMs || 600));
+    }
+
+    // Animate the right-most N shield plates on a board cell so the player
+    // sees the absorb buffer chipping away as a hit lands. The plates are
+    // rendered by game.js's render(); we just toggle the breaking class.
+    // Re-renders triggered by the queue/state update will replace the DOM
+    // with the new (smaller) plate count, picking up where this leaves off.
+    function breakShieldPlates(isPlayer, row, col, count) {
+        if (!count || count <= 0) return;
+        const cellEl = findCellEl(isPlayer, row, col);
+        if (!cellEl) return;
+        const plates = cellEl.querySelectorAll('.shield-plates .shield-plate');
+        if (!plates || !plates.length) return;
+        const start = Math.max(0, plates.length - count);
+        for (let i = start; i < plates.length; i++) {
+            plates[i].classList.add('sgl-plate-breaking');
+        }
     }
 
     function flashImpact(isPlayer, row, col, elementHexValue) {
@@ -269,7 +341,7 @@
         SPEED_ZERO:   { className: 'sgl-status-speed-zero',   element: 'METAL',    duration: 700  },
         WEAK:         { className: 'sgl-status-weak',         element: 'SHADOW',   duration: 700  },
         STRONG:       { className: 'sgl-status-strong',       element: 'NEUTRAL',  duration: 700  },
-        HEALTH_BOOST: { className: 'sgl-status-health-boost', element: 'WIND',     duration: 700  },
+        HEALTH_BOOST: { className: 'sgl-status-health-boost', element: 'METAL',    duration: 700  },
         DAMAGE_BOOST: { className: 'sgl-status-damage-boost', element: 'FIRE',     duration: 700  },
         SPEED_BOOST:  { className: 'sgl-status-speed-boost',  element: 'ELECTRIC', duration: 700  }
     };
@@ -289,6 +361,77 @@
             card.classList.remove(profile.className);
             card.classList.remove('sgl-status-applied');
         }, profile.duration);
+    }
+
+    // Spawn a glowing green "+" cross overlay with outward particles on a
+    // board cell. Anchored as a fixed-position element so a re-render of
+    // the cell's innerHTML won't destroy the animation.
+    function spawnHealCross(isPlayer, row, col, durationMs) {
+        const cellEl = findCellEl(isPlayer, row, col);
+        if (!cellEl) return null;
+        const rect = cellEl.getBoundingClientRect();
+        if (!rect || rect.width === 0 || rect.height === 0) return null;
+        const overlay = document.createElement('div');
+        overlay.className = 'sgl-heal-cross';
+        overlay.style.position = 'fixed';
+        overlay.style.left = `${rect.left}px`;
+        overlay.style.top = `${rect.top}px`;
+        overlay.style.width = `${rect.width}px`;
+        overlay.style.height = `${rect.height}px`;
+
+        const PARTICLE_COUNT = 10;
+        const particles = [];
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            const angle = (Math.PI * 2 * i) / PARTICLE_COUNT + (Math.random() - 0.5) * 0.35;
+            const distance = 32 + Math.random() * 28;
+            const dx = Math.cos(angle) * distance;
+            const dy = Math.sin(angle) * distance - 12;
+            const size = 6 + Math.random() * 5;
+            const delay = Math.random() * 180;
+            particles.push(
+                `<span class="sgl-heal-particle"
+                    style="left:50%;top:50%;width:${size}px;height:${size}px;
+                           --p-dx:${dx.toFixed(1)}px;--p-dy:${dy.toFixed(1)}px;
+                           animation-delay:${delay}ms"></span>`
+            );
+        }
+
+        overlay.innerHTML = `
+            <div class="sgl-heal-glow" aria-hidden="true"></div>
+            <svg class="sgl-heal-icon" viewBox="0 0 100 100" aria-hidden="true">
+                <defs>
+                    <linearGradient id="sgl-heal-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#ecffe8" />
+                        <stop offset="55%" stop-color="#5eff8e" />
+                        <stop offset="100%" stop-color="#1faa55" />
+                    </linearGradient>
+                </defs>
+                <rect x="40" y="14" width="20" height="72" rx="6" fill="url(#sgl-heal-grad)" stroke="#ffffff" stroke-width="2" />
+                <rect x="14" y="40" width="72" height="20" rx="6" fill="url(#sgl-heal-grad)" stroke="#ffffff" stroke-width="2" />
+            </svg>
+            ${particles.join('')}
+        `;
+        document.body.appendChild(overlay);
+
+        const reposition = () => {
+            const r = cellEl.getBoundingClientRect();
+            if (!r) return;
+            overlay.style.left = `${r.left}px`;
+            overlay.style.top = `${r.top}px`;
+            overlay.style.width = `${r.width}px`;
+            overlay.style.height = `${r.height}px`;
+        };
+        window.addEventListener('resize', reposition);
+        const scrollHandler = () => reposition();
+        window.addEventListener('scroll', scrollHandler, true);
+
+        const total = Math.max(900, durationMs || 1400);
+        setTimeout(() => {
+            window.removeEventListener('resize', reposition);
+            window.removeEventListener('scroll', scrollHandler, true);
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }, total);
+        return overlay;
     }
 
     // ── Diff helpers ──────────────────────────────────────────────────────────
@@ -356,7 +499,8 @@
     }
     function parseEvolutionFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(.+?)\s+evolved\s+to\s+(.+?)!?$/i);
+        // Server logs "<base> evolved into <evolved>!" (older builds: "evolved to").
+        const m = text.match(/^(.+?)\s+evolved\s+(?:in)?to\s+(.+?)[.!]?$/i);
         if (!m) return null;
         return { from: m[1].trim(), to: m[2].trim() };
     }
@@ -380,6 +524,61 @@
         }
         return out;
     }
+    function diffHealing(prev, next, isPlayer) {
+        const out = [];
+        if (!prev || !next) return out;
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const p = prev[r]?.[c];
+                const n = next[r]?.[c];
+                if (!p || !n) continue;
+                const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
+                    || (p.id && n.id && p.id === n.id)
+                    || (String(p.name || '') === String(n.name || '') && p.name);
+                const prevHp = p.hp ?? 0;
+                const nextHp = n.hp ?? 0;
+                const prevShield = Number(p.shieldHp ?? 0);
+                const nextShield = Number(n.shieldHp ?? 0);
+                const shieldGained = Number.isFinite(prevShield) && Number.isFinite(nextShield) && nextShield > prevShield;
+                if (same && nextHp > prevHp && !shieldGained) {
+                    out.push({
+                        isPlayer, row: r, col: c,
+                        amount: nextHp - prevHp,
+                        element: normalizeElement(n.element || p.element),
+                        name: n.name || p.name || '',
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                    });
+                }
+            }
+        }
+        return out;
+    }
+    function diffShields(prev, next, isPlayer) {
+        const out = [];
+        if (!prev || !next) return out;
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const p = prev[r]?.[c];
+                const n = next[r]?.[c];
+                if (!p || !n) continue;
+                const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
+                    || (p.id && n.id && p.id === n.id)
+                    || (String(p.name || '') === String(n.name || '') && p.name);
+                const prevShield = Number(p.shieldHp ?? 0);
+                const nextShield = Number(n.shieldHp ?? 0);
+                if (same && Number.isFinite(prevShield) && Number.isFinite(nextShield) && nextShield > prevShield) {
+                    out.push({
+                        isPlayer, row: r, col: c,
+                        amount: nextShield - prevShield,
+                        element: normalizeElement(n.element || p.element),
+                        name: n.name || p.name || '',
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                    });
+                }
+            }
+        }
+        return out;
+    }
     function diffStatuses(prev, next, isPlayer) {
         const out = [];
         if (!next) return out;
@@ -391,6 +590,9 @@
                 const pStatuses = new Set((p?.statuses || []).map((s) => String(s).toUpperCase()));
                 const nStatuses = (n.statuses || []).map((s) => String(s).toUpperCase());
                 for (const s of nStatuses) {
+                    if (s === 'HEALTH_BOOST') {
+                        continue;
+                    }
                     if (!pStatuses.has(s)) {
                         out.push({
                             isPlayer, row: r, col: c,
@@ -416,15 +618,30 @@
                 const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
                     || (p.id && n.id && p.id === n.id)
                     || (String(p.name || '') === String(n.name || '') && p.name);
+                if (!same) continue;
                 const prevHp = p.hp ?? 0;
                 const nextHp = n.hp ?? 0;
-                if (same && nextHp < prevHp) {
+                const prevShield = Math.max(0, Number(p.shieldHp ?? 0) || 0);
+                const nextShield = Math.max(0, Number(n.shieldHp ?? 0) || 0);
+                if (same && (nextHp < prevHp || nextShield < prevShield)) {
+                    const shieldBroken = Math.max(0, prevShield - nextShield);
+                    const hpLoss = Math.max(0, prevHp - nextHp);
                     out.push({
                         isPlayer, row: r, col: c,
-                        amount: prevHp - nextHp,
+                        amount: shieldBroken + hpLoss,
+                        shieldBroken,
+                        hpLoss,
+                        shieldFullyBroken: prevShield > 0 && nextShield === 0,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
-                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
+                        prevHp,
+                        nextHp,
+                        prevShield,
+                        nextShield,
+                        prevMaxHp: p.maxHp,
+                        nextMaxHp: n.maxHp,
+                        printedHealth: n.printedHealth ?? p.printedHealth
                     });
                 }
             }
@@ -485,6 +702,47 @@
             amount: parseInt(m[2], 10),
             target: m[3].trim()
         };
+    }
+
+    // Healing log shapes:
+    //   "Cleansing Breath heals Sundile for 4 (HP: 12)"
+    //   "Cleansing Breath restores 4 HP to Sundile"
+    //   "Sundile is healed for 4"
+    function parseHealFromLog(line) {
+        const text = String(line || '').trim();
+        let m = text.match(/^(.+?)\s+heals\s+(.+?)\s+(?:for|by)\s+(\d+)(?:\s*\([^)]*\))?\.?$/i);
+        if (m) return { abilityOrSource: m[1].trim(), target: m[2].trim(), amount: parseInt(m[3], 10) };
+        m = text.match(/^(.+?)\s+restores\s+(\d+)\s+HP\s+to\s+(.+?)(?:\s*\([^)]*\))?\.?$/i);
+        if (m) return { abilityOrSource: m[1].trim(), target: m[3].trim(), amount: parseInt(m[2], 10) };
+        m = text.match(/^(.+?)\s+is\s+healed\s+for\s+(\d+)(?:\s*\([^)]*\))?\.?$/i);
+        if (m) return { abilityOrSource: '', target: m[1].trim(), amount: parseInt(m[2], 10) };
+        return null;
+    }
+
+    function resolveHealerFromLogs(prevPlayer, prevEnemy, healedCell, newLogs) {
+        const wantedTarget = String(healedCell?.name || '').trim().toLowerCase();
+        if (!wantedTarget) return null;
+        for (const line of newLogs) {
+            const m = parseHealFromLog(line);
+            if (!m) continue;
+            if (m.target.toLowerCase() !== wantedTarget) continue;
+            for (const usesLine of newLogs) {
+                const u = parseAbilityFromLog(usesLine);
+                if (!u || u.kind !== 'ABILITY') continue;
+                if (u.name.toLowerCase() !== m.abilityOrSource.toLowerCase()) continue;
+                const onPlayer = findCellByName(prevPlayer, u.actor);
+                if (onPlayer) return { ...onPlayer, isPlayer: true };
+                const onEnemy = findCellByName(prevEnemy, u.actor);
+                if (onEnemy) return { ...onEnemy, isPlayer: false };
+            }
+            if (m.abilityOrSource) {
+                const directPlayer = findCellByName(prevPlayer, m.abilityOrSource);
+                if (directPlayer) return { ...directPlayer, isPlayer: true };
+                const directEnemy = findCellByName(prevEnemy, m.abilityOrSource);
+                if (directEnemy) return { ...directEnemy, isPlayer: false };
+            }
+        }
+        return null;
     }
 
     // Resolve the attacker for a given damaged cell from the new log entries.
@@ -568,6 +826,11 @@
             // the player can't see new cards appear before earlier battle
             // animations finish.
             this.pendingPlacements = new Map();
+            // Map<key, { isPlayer, row, col, displayHp, finalHp, maxHp, element }>
+            // Board renders receive the server's post-damage state immediately;
+            // these entries keep that resolved HP visible while the matching
+            // attack animation finishes.
+            this.pendingHealthChanges = new Map();
             this._pendingSyncScheduled = false;
             this._loadSpeed();
             this._installPlacementObserver();
@@ -597,13 +860,20 @@
             this.queue = [];
             if (this.activeToast) { this.activeToast.dismiss(); this.activeToast = null; }
             this.toasts.clear();
+            if (typeof window.hidePhaseTransitionBanner === 'function') {
+                window.hidePhaseTransitionBanner();
+            }
             this.processing = false;
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
+            this.settleAllPendingHealth();
         }
 
         // ── Pending-placement registry ────────────────────────────────────
         _placementKey(isPlayer, row, col, instanceId) {
+            return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${instanceId || ''}`;
+        }
+        _healthKey(isPlayer, row, col, instanceId) {
             return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${instanceId || ''}`;
         }
         registerPendingPlacement(isPlayer, row, col, cell) {
@@ -652,6 +922,114 @@
                 }
             }
         }
+        renderHealthInner(entry, hp, maxHp) {
+            const safeHp = Math.max(0, Number.isFinite(Number(hp)) ? Number(hp) : 0);
+            const safeMax = Math.max(0, Number.isFinite(Number(maxHp)) ? Number(maxHp) : 0);
+            return `${safeHp}/<span class="stat-hp-max">${safeMax}</span>`;
+        }
+        syncShieldVisualsToHealth(card, entry, shieldHp) {
+            if (!card) return;
+            const intactShield = Math.max(0, Number.isFinite(Number(shieldHp)) ? Number(shieldHp) : 0);
+            const totalShield = intactShield;
+            const shieldBadge = card.querySelector('.status-icons .sb-badge[data-status="HEALTH_BOOST"]');
+            if (intactShield <= 0) {
+                shieldBadge?.remove();
+                const statusIcons = card.querySelector('.status-icons');
+                if (statusIcons && !statusIcons.querySelector('.sb-badge')) {
+                    statusIcons.remove();
+                }
+            } else if (shieldBadge) {
+                shieldBadge.setAttribute('data-shield-state', 'intact');
+                shieldBadge.title = `Shield +${totalShield}`;
+                const num = shieldBadge.querySelector('.sb-num');
+                if (num) num.textContent = `+${totalShield}`;
+            }
+            const hpBar = card.querySelector('.hp-bar');
+            const plates = hpBar?.querySelector('.shield-plates');
+            if (!hpBar) return;
+            if (intactShield <= 0) {
+                hpBar.classList.remove('is-shielded');
+                plates?.remove();
+                return;
+            }
+            hpBar.classList.add('is-shielded');
+            if (!plates) return;
+            plates.dataset.shield = String(intactShield);
+            const current = plates.querySelectorAll('.shield-plate').length;
+            if (current === intactShield) return;
+            plates.innerHTML = Array.from(
+                { length: intactShield },
+                (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
+            ).join('');
+        }
+        applyHealthToDom(entry, hp, maxHp) {
+            if (!entry) return;
+            const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+            const card = cellEl?.querySelector('.board-card');
+            if (!card) return;
+            const resolvedMax = Number.isFinite(Number(maxHp)) ? Number(maxHp) : Number(entry.maxHp);
+            const resolvedHp = Number.isFinite(Number(hp)) ? Number(hp) : Number(entry.finalHp);
+            const resolvedShield = Number.isFinite(Number(entry.displayShield)) ? Number(entry.displayShield) : Number(entry.finalShield ?? 0);
+            const barMax = resolvedMax;
+            const barHp = resolvedHp;
+            const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
+            const fill = card.querySelector('.hp-fill');
+            if (fill) fill.style.width = `${pct}%`;
+            const hpStat = card.querySelector('.stat-hp');
+            if (hpStat) hpStat.innerHTML = this.renderHealthInner(entry, resolvedHp, resolvedMax);
+            this.syncShieldVisualsToHealth(card, entry, resolvedShield);
+        }
+        registerPendingHealth(target) {
+            if (!target || target.destroysTarget) return null;
+            const prevHp = Number(target.prevHp);
+            const nextHp = Number(target.nextHp);
+            if (!Number.isFinite(prevHp) || !Number.isFinite(nextHp) || nextHp >= prevHp) {
+                return null;
+            }
+            const id = String(target.instanceId || '');
+            const key = this._healthKey(target.isPlayer, target.row, target.col, id);
+            const maxHp = Number.isFinite(Number(target.nextMaxHp))
+                ? Number(target.nextMaxHp)
+                : Number(target.prevMaxHp);
+            this.pendingHealthChanges.set(key, {
+                isPlayer: target.isPlayer,
+                row: target.row,
+                col: target.col,
+                instanceId: id,
+                displayHp: nextHp,
+                finalHp: nextHp,
+                displayShield: Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0,
+                finalShield: Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0,
+                maxHp,
+                printedHealth: target.printedHealth,
+                element: target.element
+            });
+            this.syncPendingHealth();
+            return key;
+        }
+        releasePendingHealth(key) {
+            if (!key) return;
+            const entry = this.pendingHealthChanges.get(key);
+            if (!entry) return;
+            this.pendingHealthChanges.delete(key);
+            this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+        }
+        releasePendingHealthForTargets(targets) {
+            for (const target of targets || []) {
+                this.releasePendingHealth(target?.pendingHealthKey);
+            }
+        }
+        settleAllPendingHealth() {
+            for (const [key, entry] of Array.from(this.pendingHealthChanges.entries())) {
+                this.pendingHealthChanges.delete(key);
+                this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+            }
+        }
+        syncPendingHealth() {
+            for (const entry of this.pendingHealthChanges.values()) {
+                this.applyHealthToDom(entry, entry.displayHp, entry.maxHp);
+            }
+        }
         _installPlacementObserver() {
             // Re-apply hidden state whenever the board grids are re-rendered.
             const attach = () => {
@@ -673,11 +1051,31 @@
 
         // ── Health-bar helpers (for direct-attack animations) ──────────────
         _getHealthBarEl(isPlayer) {
-            const desktop = document.querySelector(isPlayer ? '.tb-hp-player' : '.tb-hp-enemy');
-            if (desktop && desktop.offsetParent !== null) return desktop;
-            const mobile = document.querySelector(isPlayer ? '.mobile-hud-player' : '.mobile-hud-enemy');
-            if (mobile && mobile.offsetParent !== null) return mobile;
-            return desktop || mobile || null;
+            const selectors = isPlayer
+                ? [
+                    '#hudRailPlayer .hud-hp-row',
+                    '.mobile-hud-player',
+                    '.safe-hp-player',
+                    '.tb-hp-player'
+                ]
+                : [
+                    '#hudRailEnemy .hud-hp-row',
+                    '.mobile-hud-enemy',
+                    '.safe-hp-enemy',
+                    '.tb-hp-enemy'
+                ];
+            const candidates = selectors
+                .map((selector) => document.querySelector(selector))
+                .filter(Boolean);
+            return candidates.find((el) => {
+                const r = el.getBoundingClientRect();
+                const style = window.getComputedStyle(el);
+                return r.width > 0
+                    && r.height > 0
+                    && style.visibility !== 'hidden'
+                    && style.display !== 'none'
+                    && style.opacity !== '0';
+            }) || candidates[0] || null;
         }
         _getHealthBarCenter(isPlayer) {
             const el = this._getHealthBarEl(isPlayer);
@@ -691,6 +1089,31 @@
             el.style.setProperty('--sgl-hp-impact', elementHexValue || ELEMENT_HEX.NEUTRAL);
             el.classList.add('sgl-hp-impact');
             setTimeout(() => el.classList.remove('sgl-hp-impact'), 720);
+        }
+
+        // Where to launch a "sourceless" projectile from when we can't
+        // identify the attacking cell (e.g. an AI counter-attack whose log
+        // line shape doesn't match the parser). Picks a point on the
+        // attacker's side of the board so the projectile still flies the
+        // right direction toward the target.
+        _getFallbackProjectileOrigin(attackerIsPlayer) {
+            const grid = document.getElementById(attackerIsPlayer ? 'playerGrid' : 'enemyGrid');
+            if (grid) {
+                const r = grid.getBoundingClientRect();
+                if (r && r.width > 0 && r.height > 0) {
+                    return {
+                        x: r.left + r.width / 2,
+                        // Top edge of player grid / bottom edge of enemy grid
+                        // so the projectile starts "near the line" and flies
+                        // across the board rather than from inside the grid.
+                        y: attackerIsPlayer ? r.top + r.height * 0.15 : r.top + r.height * 0.85
+                    };
+                }
+            }
+            return {
+                x: window.innerWidth / 2,
+                y: attackerIsPlayer ? window.innerHeight * 0.75 : window.innerHeight * 0.25
+            };
         }
 
         enqueueAction(action) {
@@ -808,9 +1231,11 @@
             // Battle-phase pacing: damage, destruction and ability animations
             // fire back-to-back as one solid block.
             const BATTLE_GAP_MS  = 220;
-            const PHASE_GAP_MS   = 360;
+            const PHASE_GAP_MS   = this.speed === 'fast' ? 200 : 420;
+            const PHASE_BANNER_MS = this.speed === 'fast' ? 1100 : 2000;
             const FIRST_PLAY_GAP = this.speed === 'fast' ? 120 : 360;
             const NEXT_PLAY_GAP  = this.speed === 'fast' ? 80 : 160;
+            const ENEMY_PLACEMENT_MS = this.speed === 'fast' ? 420 : 1000;
             let phaseTransitionQueued = false;
 
             // Multi-target label helper. Server damage events from the same
@@ -839,32 +1264,37 @@
                 this._placementInProgress = true;
                 const placementIsPlayer = side === 'PLAYER';
                 const isEvolution = Boolean(p.evolutionFrom);
+                const placementKey = this.registerPendingPlacement(
+                    placementIsPlayer, p.row, p.col, p.cell
+                );
+                const enemyPaced = side === 'ENEMY';
                 this.enqueueAction({
                     kind: 'PLAY',
                     side,
                     actorName: isEvolution ? p.evolutionFrom.name : actorName,
-                    label: isEvolution ? 'evolved to' : undefined,
+                    label: isEvolution ? 'evolved into' : undefined,
                     targetName: p.cell.name || 'Card',
                     knightElement: knight,
                     elementColor: normalizeElement(p.cell.element) || knight,
                     source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
                     portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP
+                    placementKey,
+                    minActionMs: enemyPaced ? ENEMY_PLACEMENT_MS : null,
+                    gapAfterMs: enemyPaced
+                        ? 0
+                        : (isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP)
                 });
             };
 
             const enqueuePhaseTransitionAction = () => {
                 if (!phaseChanged || phaseTransitionQueued) return;
                 phaseTransitionQueued = true;
-                const phaseLabel = String(nextState.currentPhase).charAt(0)
-                    + String(nextState.currentPhase).slice(1).toLowerCase();
                 this.enqueueAction({
                     kind: 'PHASE',
+                    phase: nextState.currentPhase,
+                    activeSide: nextState.activeSide || 'PLAYER',
                     side: nextState.activeSide || 'PLAYER',
-                    actorName: `${phaseLabel} Phase`,
-                    knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
-                    elementColor: 'NEUTRAL',
-                    holdMs: this.timings().toastDismissMs,
+                    holdMs: PHASE_BANNER_MS,
                     gapAfterMs: PHASE_GAP_MS
                 });
             };
@@ -889,11 +1319,23 @@
                         isPlayer: defenderIsPlayer,
                         row: t.row, col: t.col,
                         amount: t.amount,
+                        shieldBroken: Number(t.shieldBroken) || 0,
+                        hpLoss: Number(t.hpLoss) || 0,
+                        shieldFullyBroken: !!t.shieldFullyBroken,
                         element: t.element,
                         name: t.name,
                         destroysTarget: !!destroyed,
-                        ghostCell: destroyed?.cell || null
+                        ghostCell: destroyed?.cell || null,
+                        instanceId: t.instanceId,
+                        prevHp: t.prevHp,
+                        nextHp: t.nextHp,
+                        prevShield: t.prevShield,
+                        nextShield: t.nextShield,
+                        prevMaxHp: t.prevMaxHp,
+                        nextMaxHp: t.nextMaxHp,
+                        printedHealth: t.printedHealth
                     };
+                    targetEntry.pendingHealthKey = this.registerPendingHealth(targetEntry);
                     const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || sideKnight;
                     const key = srcRef
                         ? `S:${srcRef.row}:${srcRef.col}:${srcRef.cell?.instanceId || srcRef.cell?.id || ''}`
@@ -978,44 +1420,105 @@
             const enqueueAttackGroup = (group, side, knight, defaultActorName, defenderLabel) => {
                 const { srcRef, srcElement, targets } = group;
                 if (!targets.length) return;
-                const actorName = srcRef?.cell?.name || srcRef?.pending?.name || defaultActorName;
-                if (actorName) enqueuedAttackerNames.add(actorName);
+                // Only treat the toast as an "active attack" when we
+                // actually identified a source cell. Without one (trap/aura
+                // damage, effect tick, unparseable AI log line), the toast
+                // becomes "<Target> takes -N" so it doesn't read as if the
+                // player just clicked an attack.
+                const realAttacker = srcRef?.cell?.name || srcRef?.pending?.name;
+                if (realAttacker) enqueuedAttackerNames.add(realAttacker);
+                const sourcePayload = srcRef
+                    ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col }
+                    : null;
+
+                // Status-only group (e.g. an enemy aura applies Weak to a
+                // newly-placed player Siegling with no HP change). Don't
+                // route through the ATTACK path — that produces phantom
+                // "AI attacks X" toasts even though no attack happened.
+                // Emit a STATUS_APPLY action per affected target instead.
+                const hasDamage = targets.some((tt) => Number(tt.amount) > 0);
+                if (!hasDamage) {
+                    for (const t of targets) {
+                        if (!t.statuses || !t.statuses.length) continue;
+                        const primaryStatus = t.statuses[0];
+                        const statusEl = statusProfile(primaryStatus).element;
+                        const labelText = t.statuses.map(formatStatusLabel).join(', ');
+                        this.enqueueAction({
+                            kind: 'STATUS_APPLY',
+                            side,
+                            actorName: t.name,
+                            targetName: labelText,
+                            knightElement: knight,
+                            elementColor: statusEl,
+                            source: sourcePayload,
+                            target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || statusEl },
+                            statuses: t.statuses.slice(),
+                            gapAfterMs: BATTLE_GAP_MS
+                        });
+                    }
+                    return;
+                }
+
                 if (targets.length === 1) {
                     const t = targets[0];
+                    // "Broke <Target>'s +N Shield - M Damage dealt" toast
+                    // when this hit fully consumed the shield buffer.
+                    const broke = t.shieldFullyBroken && t.shieldBroken > 0;
                     this.enqueueAction({
                         kind: 'ATTACK',
                         side,
-                        actorName,
-                        targetName: t.name,
+                        actorName: broke
+                            ? `Broke ${t.name}'s`
+                            : (realAttacker || t.name),
+                        targetName: broke
+                            ? ''
+                            : (realAttacker ? t.name : ''),
+                        label: broke
+                            ? undefined
+                            : (realAttacker ? undefined : 'takes'),
                         amount: t.amount,
+                        shieldBroken: t.shieldBroken,
+                        hpLoss: t.hpLoss,
+                        shieldFullyBroken: t.shieldFullyBroken,
                         knightElement: knight,
                         elementColor: srcElement,
-                        source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                        source: sourcePayload,
                         target: { isPlayer: t.isPlayer, row: t.row, col: t.col, element: t.element || srcElement },
                         destroysTarget: t.destroysTarget,
                         ghostCell: t.ghostCell,
+                        pendingHealthKey: t.pendingHealthKey,
                         statuses: t.statuses && t.statuses.length ? t.statuses.slice() : null,
                         gapAfterMs: BATTLE_GAP_MS
                     });
                     return;
                 }
-                // Multi-target: simultaneous barrage
+                // Multi-target: simultaneous barrage. Aggregate shield/HP
+                // damage across the targets so the toast can show the total.
                 const totalDmg = targets.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
+                const totalShieldBroken = targets.reduce((sum, tt) => sum + (Number(tt.shieldBroken) || 0), 0);
+                const totalHpLoss = targets.reduce((sum, tt) => sum + (Number(tt.hpLoss) || 0), 0);
+                const groupLabel = describeTargets(targets, defenderLabel);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side,
-                    actorName,
-                    targetName: describeTargets(targets, defenderLabel),
+                    actorName: realAttacker || groupLabel,
+                    targetName: realAttacker ? groupLabel : '',
+                    label: realAttacker ? undefined : 'takes',
                     amount: totalDmg,
+                    shieldBroken: totalShieldBroken,
+                    hpLoss: totalHpLoss,
                     knightElement: knight,
                     elementColor: srcElement,
-                    source: srcRef ? { isPlayer: side === 'PLAYER', row: srcRef.row, col: srcRef.col } : null,
+                    source: sourcePayload,
                     targets: targets.map((tt) => ({
                         isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
                         element: tt.element || srcElement,
                         amount: tt.amount,
+                        shieldBroken: tt.shieldBroken,
+                        hpLoss: tt.hpLoss,
                         destroysTarget: tt.destroysTarget,
                         ghostCell: tt.ghostCell,
+                        pendingHealthKey: tt.pendingHealthKey,
                         statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null
                     })),
                     gapAfterMs: BATTLE_GAP_MS
@@ -1072,6 +1575,59 @@
                     });
                 }
             }
+
+            // Healing events — HP increases on cells that survived the diff.
+            // Queued after damage/destruction/ability so it plays during the
+            // BATTLE block but doesn't pre-empt attack animations.
+            const healingOnPlayer = diffHealing(prevPlayer, nextPlayer, true);
+            const healingOnEnemy  = diffHealing(prevEnemy,  nextEnemy,  false);
+            const shieldsOnPlayer = diffShields(prevPlayer, nextPlayer, true);
+            const shieldsOnEnemy  = diffShields(prevEnemy,  nextEnemy,  false);
+            const queueHeal = (h) => {
+                const healerRef = resolveHealerFromLogs(prevPlayer, prevEnemy, h, newLogs);
+                const targetIsPlayer = h.isPlayer;
+                const ownerKnight = targetIsPlayer ? playerKnight : enemyKnight;
+                // The healer's side drives the toast side / knight color.
+                const side = healerRef ? (healerRef.isPlayer ? 'PLAYER' : 'ENEMY')
+                                       : (targetIsPlayer ? 'PLAYER' : 'ENEMY');
+                const knight = side === 'PLAYER' ? playerKnight : enemyKnight;
+                this.enqueueAction({
+                    kind: 'HEAL',
+                    side,
+                    actorName: healerRef?.cell?.name
+                        || (side === 'PLAYER' ? playerName : enemyName),
+                    targetName: h.name,
+                    amount: h.amount,
+                    knightElement: knight,
+                    elementColor: 'WIND', // green for the projectile + floater
+                    source: healerRef
+                        ? { isPlayer: healerRef.isPlayer, row: healerRef.row, col: healerRef.col }
+                        : null,
+                    target: { isPlayer: h.isPlayer, row: h.row, col: h.col, element: ownerKnight },
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            };
+            const queueShield = (h) => {
+                const targetIsPlayer = h.isPlayer;
+                const side = targetIsPlayer ? 'PLAYER' : 'ENEMY';
+                const knight = side === 'PLAYER' ? playerKnight : enemyKnight;
+                this.enqueueAction({
+                    kind: 'SHIELD',
+                    side,
+                    actorName: side === 'PLAYER' ? playerName : enemyName,
+                    targetName: h.name,
+                    amount: h.amount,
+                    amountSign: '+',
+                    knightElement: knight,
+                    elementColor: 'METAL',
+                    target: { isPlayer: h.isPlayer, row: h.row, col: h.col, element: 'METAL' },
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            };
+            for (const h of healingOnPlayer) queueHeal(h);
+            for (const h of healingOnEnemy)  queueHeal(h);
+            for (const h of shieldsOnPlayer) queueShield(h);
+            for (const h of shieldsOnEnemy)  queueShield(h);
 
             // Phase change toast — appended AFTER the just-ended phase's
             // animations and BEFORE the new phase's placements, so the toast
@@ -1196,6 +1752,7 @@
 
         async _playAction(action) {
             const t = this.timings();
+            const startedAt = Date.now();
             const knight = elementHex(action.knightElement);
             const elColor = elementHex(action.elementColor || action.knightElement);
 
@@ -1205,14 +1762,29 @@
             this.syncPendingPlacements();
 
             if (action.kind === 'PHASE') {
-                this.activeToast = this.toasts.show({
-                    ...action,
-                    label: '',
-                    actorName: action.actorName,
-                    targetName: ''
-                }, t.toastDismissMs);
+                if (this.activeToast) {
+                    this.activeToast.dismiss();
+                    this.activeToast = null;
+                }
+                const holdMs = action.holdMs || 2000;
+                if (typeof window.showPhaseTransitionBanner === 'function' && action.phase) {
+                    await window.showPhaseTransitionBanner(
+                        action.phase,
+                        action.activeSide,
+                        holdMs
+                    );
+                } else {
+                    const phaseLabel = formatPhaseLabelFallback(action.phase);
+                    this.activeToast = this.toasts.show({
+                        ...action,
+                        label: '',
+                        actorName: phaseLabel,
+                        targetName: ''
+                    }, holdMs);
+                    await sleep(t.toastEnterMs);
+                }
                 const phaseGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
-                await sleep(t.toastEnterMs + phaseGap);
+                await sleep(phaseGap);
                 return;
             }
 
@@ -1266,6 +1838,7 @@
                 }
                 await sleep(t.projectileMs);
 
+                this.releasePendingHealthForTargets(action.targets);
                 for (const tgt of action.targets) {
                     const ghostEntry = ghosts.find((g) => g.target === tgt);
                     const tgtColor = elementHex(tgt.element || action.elementColor || action.knightElement);
@@ -1281,6 +1854,9 @@
                             tgt.amount,
                             tgt.element || action.elementColor || action.knightElement
                         );
+                    }
+                    if (tgt.shieldBroken > 0) {
+                        breakShieldPlates(tgt.isPlayer, tgt.row, tgt.col, tgt.shieldBroken);
                     }
                     if (tgt.statuses && tgt.statuses.length) {
                         for (const status of tgt.statuses) {
@@ -1304,9 +1880,90 @@
                 return;
             }
 
+            // 2a-status. STATUS_APPLY — status-only events (aura debuffs,
+            // boost auras) that the queue used to mis-classify as attacks.
+            // Fires a short projectile from the caster (if one was
+            // identified) and lands the status-specific overlay on the
+            // target. Never shows the "X attacks Y" verb, never spawns a
+            // damage floater.
+            if (action.kind === 'STATUS_APPLY' && action.target) {
+                if (action.source && window.SieglingsFx?.attackCell) {
+                    window.SieglingsFx.attackCell(
+                        action.source.isPlayer, action.source.row, action.source.col,
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        action.elementColor || action.knightElement,
+                        { duration: t.projectileMs }
+                    );
+                    await sleep(t.projectileMs);
+                }
+                if (action.statuses && action.statuses.length) {
+                    for (const status of action.statuses) {
+                        applyStatusVisual(
+                            action.target.isPlayer, action.target.row, action.target.col,
+                            status
+                        );
+                    }
+                }
+                await sleep(t.impactMs);
+                const statusGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(statusGap);
+                return;
+            }
+
+            // 2a-heal. HEAL — green projectile (when there's an identified
+            // healer) and a glowing green "+" cross with outward particles on
+            // the target. Damage floater is replaced with a green "+N" gain.
+            if (action.kind === 'HEAL' && action.target) {
+                if (action.source && window.SieglingsFx?.attackCell) {
+                    window.SieglingsFx.attackCell(
+                        action.source.isPlayer, action.source.row, action.source.col,
+                        action.target.isPlayer, action.target.row, action.target.col,
+                        'WIND',
+                        { duration: t.projectileMs }
+                    );
+                    await sleep(t.projectileMs);
+                }
+                spawnHealCross(action.target.isPlayer, action.target.row, action.target.col, 1400);
+                if (action.amount && window.SieglingsFx?.floatingDamage) {
+                    // floatingDamage formats as "-N"; use floatingText for "+N"
+                    const cellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
+                    if (cellEl && window.SieglingsFx.floatingText) {
+                        const r = cellEl.getBoundingClientRect();
+                        window.SieglingsFx.floatingText(
+                            r.left + r.width / 2,
+                            r.top + r.height * 0.3,
+                            `+${action.amount}`,
+                            '#5eff8e', 30
+                        );
+                    }
+                }
+                await sleep(t.impactMs);
+                const healGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(healGap);
+                return;
+            }
+
             // 2b. Direct attack on the enemy/player HP bar — no cell target,
             // so we fire the projectile to the bar's screen coordinates and
             // shake/flash the bar on impact.
+            if (action.kind === 'SHIELD' && action.target) {
+                applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, 'HEALTH_BOOST');
+                const cellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
+                if (action.amount && cellEl && window.SieglingsFx?.floatingText) {
+                    const r = cellEl.getBoundingClientRect();
+                    window.SieglingsFx.floatingText(
+                        r.left + r.width / 2,
+                        r.top + r.height * 0.3,
+                        `+${action.amount}`,
+                        '#a8b0ba', 30
+                    );
+                }
+                await sleep(t.impactMs);
+                const shieldGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(shieldGap);
+                return;
+            }
+
             if (action.kind === 'ATTACK' && action.source && action.target?.healthBar
                 && window.SieglingsFx?.attackPoint) {
                 const barCenter = this._getHealthBarCenter(action.target.isPlayer);
@@ -1369,6 +2026,7 @@
                 );
                 await sleep(t.projectileMs);
 
+                this.releasePendingHealth(action.pendingHealthKey);
                 // 4. Impact: hit flash on target + floating damage + screen shake
                 if (ghost) {
                     ghost.style.setProperty('--sgl-impact-color', elColor);
@@ -1382,6 +2040,9 @@
                         action.target.isPlayer, action.target.row, action.target.col,
                         action.amount, action.elementColor || action.knightElement
                     );
+                }
+                if (action.shieldBroken > 0) {
+                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
                 }
                 if (action.statuses && action.statuses.length) {
                     for (const status of action.statuses) {
@@ -1425,14 +2086,29 @@
                 return;
             } else if (action.kind === 'ATTACK' && action.target) {
                 // Damage event without an identified source (effect tick,
-                // counterattack, etc.). Still show impact + ghost + floater so
-                // the player sees the consequence.
+                // AI attack whose log shape the parser didn't recognize, etc.).
+                // We still fire a projectile from a fallback origin on the
+                // attacker's side so the user sees the element-colored
+                // particle trail flying across the board, and follow up with
+                // the usual impact + ghost + floater.
                 let ghost = null;
                 if (action.destroysTarget && action.ghostCell) {
                     ghost = spawnGhost(
                         action.target.isPlayer, action.target.row, action.target.col,
                         action.ghostCell, knight, elColor
                     );
+                }
+                const targetCellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
+                if (targetCellEl && window.SieglingsFx?.attackBetween) {
+                    const tr = targetCellEl.getBoundingClientRect();
+                    const origin = this._getFallbackProjectileOrigin(action.side === 'PLAYER');
+                    window.SieglingsFx.attackBetween(
+                        origin.x, origin.y,
+                        tr.left + tr.width / 2, tr.top + tr.height / 2,
+                        action.elementColor || action.knightElement,
+                        { duration: t.projectileMs }
+                    );
+                    await sleep(t.projectileMs);
                 }
                 if (window.SieglingsFx?.impactAt) {
                     window.SieglingsFx.impactAt(
@@ -1451,6 +2127,9 @@
                         action.target.isPlayer, action.target.row, action.target.col,
                         action.amount, action.elementColor || action.knightElement
                     );
+                }
+                if (action.shieldBroken > 0) {
+                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
                 }
                 if (action.statuses && action.statuses.length) {
                     for (const status of action.statuses) {
@@ -1501,6 +2180,11 @@
             // 5. Inter-action gap. Each action may carry its own
             // gapAfterMs (battle actions tight, placements long, phase
             // transitions medium); fall back to the speed-tier default.
+            if (action.minActionMs) {
+                const elapsed = Date.now() - startedAt;
+                const remaining = action.minActionMs - elapsed;
+                if (remaining > 0) await sleep(remaining);
+            }
             const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
             await sleep(gap);
         }
@@ -1545,6 +2229,7 @@
         window.render = function () {
             const result = orig.apply(this, arguments);
             try { queue.syncPendingPlacements(); } catch (_) {}
+            try { queue.syncPendingHealth(); } catch (_) {}
             return result;
         };
         window.__sglRenderHookInstalled = true;

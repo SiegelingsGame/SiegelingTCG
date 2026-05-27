@@ -10,8 +10,32 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  deploy-cloud-run:
+    name: Cloud Run Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Backend To Cloud Run
+        run: |
+          gcloud run deploy sieglings-tcg-api \
+            --source . \
+            --region us-central1 \
+            --project siegelingstcgtesting \
+            --quiet
+
   deploy-firebase:
     name: Firebase Deploy
+    needs: deploy-cloud-run
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

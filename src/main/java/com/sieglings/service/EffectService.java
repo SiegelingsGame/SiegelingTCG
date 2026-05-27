@@ -68,6 +68,11 @@ public class EffectService {
             }
         }
 
+        if (AbilityEffectKeys.DRAW.equals(ability.getEffectType())) {
+            applyDrawEffect(state, ability, isPlayerSource, Math.max(0, ability.getEffectValue()));
+            return;
+        }
+
         if (ability.getTargetType() == TargetType.ENEMY_PLAYER) {
             applyPlayerEffect(state, ability, isPlayerSource);
             return;
@@ -166,6 +171,7 @@ public class EffectService {
         String effectType = ability.getEffectType();
         boolean teamStatBuff = AbilityEffectKeys.DAMAGE_BOOST.equals(effectType)
                 || AbilityEffectKeys.HEALTH_BOOST.equals(effectType)
+                || AbilityEffectKeys.SHIELD.equals(effectType)
                 || AbilityEffectKeys.SPEED_BOOST.equals(effectType);
         if (!teamStatBuff) {
             return targets;
@@ -201,6 +207,14 @@ public class EffectService {
             applyConnectedAlliesHealthBoost(state, ability, source, Math.max(1, value));
             return;
         }
+        if (AbilityEffectKeys.CONNECTED_ALLIES_SHIELD.equals(effectType)) {
+            applyConnectedAlliesShield(state, ability, source, Math.max(1, value));
+            return;
+        }
+        if (AbilityEffectKeys.CONNECTED_ALLIES_SLOW.equals(effectType)) {
+            applyConnectedAlliesSlow(state, ability, source, Math.max(1, value));
+            return;
+        }
         if (AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST.equals(effectType)) {
             applyConnectedAlliesSpeedBoost(state, ability, source, Math.max(1, value));
             return;
@@ -226,6 +240,11 @@ public class EffectService {
                     state.log(ability.getName() + " heals " + target.getName() + " for " + value
                             + " (HP: " + target.getCurrentHealth() + ")");
                 }
+                case AbilityEffectKeys.SHIELD -> {
+                    target.addShield(Math.max(1, value));
+                    state.log(ability.getName() + " grants " + target.getName() + " " + Math.max(1, value) + " Shield"
+                            + " (HP: " + target.getCurrentHealth() + "/" + target.getEffectiveMaxHealth() + ")");
+                }
                 case AbilityEffectKeys.FREEZE -> {
                     target.getStatusEffects().add(StatusEffect.FREEZE);
                     state.log(ability.getName() + " freezes " + target.getName() + "!");
@@ -235,12 +254,21 @@ public class EffectService {
                     target.getStatusEffects().add(StatusEffect.SPEED_ZERO);
                     state.log(ability.getName() + " reduces " + target.getName() + "'s Speed to 0!");
                 }
+                case AbilityEffectKeys.SLOW -> {
+                    int reduction = Math.max(1, value);
+                    target.setCurrentSpeed(target.getCurrentSpeed() - reduction);
+                    if (target.getCurrentSpeed() == 0) {
+                        target.getStatusEffects().add(StatusEffect.SPEED_ZERO);
+                    }
+                    state.log(ability.getName() + " reduces " + target.getName() + "'s Speed by " + reduction
+                            + " (SPD: " + target.getEffectiveSpeed() + ")");
+                }
                 case AbilityEffectKeys.DAMAGE_BOOST -> {
                     target.addDamageBuff(Math.max(1, value));
                     state.log(ability.getName() + " boosts " + target.getName() + "'s attack damage by " + Math.max(1, value) + "!");
                 }
                 case AbilityEffectKeys.HEALTH_BOOST -> {
-                    target.addHealthBuff(Math.max(1, value));
+                    target.addMaxHealthBoost(Math.max(1, value));
                     state.log(ability.getName() + " raises " + target.getName() + "'s max Health by " + Math.max(1, value)
                             + " (HP: " + target.getCurrentHealth() + "/" + target.getEffectiveMaxHealth() + ")");
                 }
@@ -286,6 +314,25 @@ public class EffectService {
         }
     }
 
+    private void applyDrawEffect(GameState state, Ability ability, boolean isPlayerSource, int count) {
+        var actor = isPlayerSource ? state.getPlayer() : state.getEnemy();
+        int drawn = 0;
+        for (int i = 0; i < count; i++) {
+            if (actor.drawCard() != null) {
+                drawn++;
+            } else {
+                break;
+            }
+        }
+        if (drawn > 0) {
+            state.log(ability.getName() + " draws " + actor.getName() + " " + drawn + " card" + (drawn == 1 ? "" : "s") + ".");
+        } else if (count > 0) {
+            state.log(ability.getName() + " could not draw because " + actor.getName() + "'s deck is empty.");
+        } else {
+            state.log(ability.getName() + " draws no cards.");
+        }
+    }
+
     private void applyConnectedAlliesHealthBoost(GameState state, Ability ability, CardInstance source, int value) {
         if (source == null) {
             state.log(ability.getName() + " has no source card to trace connected allies.");
@@ -299,7 +346,7 @@ public class EffectService {
         }
 
         for (CardInstance ally : connectedAllies) {
-            ally.addHealthBuff(value);
+            ally.addMaxHealthBoost(value);
             state.log(ability.getName() + " raises " + ally.getName() + "'s max Health by " + value
                     + " through a direct link"
                     + " (HP: " + ally.getCurrentHealth() + "/" + ally.getEffectiveMaxHealth() + ")");
@@ -325,6 +372,26 @@ public class EffectService {
         }
     }
 
+    private void applyConnectedAlliesShield(GameState state, Ability ability, CardInstance source, int value) {
+        if (source == null) {
+            state.log(ability.getName() + " has no source card to trace connected allies.");
+            return;
+        }
+
+        List<CardInstance> connectedAllies = placementService.getDirectlyConnectedAllies(state, source);
+        if (connectedAllies.isEmpty()) {
+            state.log(ability.getName() + " found no directly linked allies.");
+            return;
+        }
+
+        for (CardInstance ally : connectedAllies) {
+            ally.addShield(value);
+            state.log(ability.getName() + " grants " + ally.getName() + " " + value + " Shield"
+                    + " through a direct link"
+                    + " (HP: " + ally.getCurrentHealth() + "/" + ally.getEffectiveMaxHealth() + ")");
+        }
+    }
+
     private void applyConnectedAlliesSpeedBoost(GameState state, Ability ability, CardInstance source, int value) {
         if (source == null) {
             state.log(ability.getName() + " has no source card to trace connected allies.");
@@ -344,6 +411,29 @@ public class EffectService {
             }
             state.log(ability.getName() + " raises " + ally.getName() + "'s Speed by " + value
                     + " through a direct link.");
+        }
+    }
+
+    private void applyConnectedAlliesSlow(GameState state, Ability ability, CardInstance source, int value) {
+        if (source == null) {
+            state.log(ability.getName() + " has no source card to trace connected allies.");
+            return;
+        }
+
+        List<CardInstance> connectedAllies = placementService.getDirectlyConnectedAllies(state, source);
+        if (connectedAllies.isEmpty()) {
+            state.log(ability.getName() + " found no directly linked allies.");
+            return;
+        }
+
+        for (CardInstance ally : connectedAllies) {
+            ally.setCurrentSpeed(ally.getCurrentSpeed() - value);
+            if (ally.getCurrentSpeed() == 0) {
+                ally.getStatusEffects().add(StatusEffect.SPEED_ZERO);
+            }
+            state.log(ability.getName() + " reduces " + ally.getName() + "'s Speed by " + value
+                    + " through a direct link"
+                    + " (SPD: " + ally.getEffectiveSpeed() + ")");
         }
     }
 
