@@ -1808,21 +1808,135 @@ function previewCellHover(isPlayer, row, col) {
 }
 
 function buildBattleTargetMessage(targetSide, ability, selectedRow = -1) {
+    return buildBattleTargetingInstruction(targetSide, ability, selectedRow).banner;
+}
+
+function buildBattleTargetingInstruction(targetSide, ability, selectedRow = -1) {
     const weakness = formatBattleAbilityWeaknessPreview(ability, selectedRow);
-    const suffix = weakness ? ` ${weakness}` : '';
+    const weaknessSuffix = weakness ? ` ${weakness}` : '';
+    const moveSummary = (ability?.description && String(ability.description).trim()) || ability?.name || 'Selected move';
+    const detail = `${moveSummary}${weaknessSuffix}`;
+
     if (targetSide === 'row-enemy') {
         if (selectedRow >= 0) {
-            return `${ROW_NAMES[selectedRow] || 'Selected'} enemy row selected. Confirm the row or change it.${suffix}`;
+            const rowName = ROW_NAMES[selectedRow] || 'Selected';
+            const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
+            const targetLine = targets.length > 0 ? ` Targets: ${targets.join(', ')}.` : '';
+            return {
+                banner: `${rowName} enemy row selected. Confirm the row or change it.${weaknessSuffix}`,
+                headline: `Confirm ${rowName} enemy row`,
+                steps: [
+                    'Every Siegeling in that row will be affected.',
+                    'Use Confirm Row to queue the action, or Change Row to pick again.',
+                    'Pass skips this action if you want a different move instead.'
+                ],
+                detail: `${detail}${targetLine}`
+            };
         }
-        return `Select a card in an enemy row.${suffix}`;
+        return {
+            banner: `Select a card in an enemy row.${weaknessSuffix}`,
+            headline: 'Pick an enemy row',
+            steps: [
+                'Tap any enemy Siegeling in the row you want to hit.',
+                'Highlighted enemy cards show valid rows.',
+                'Pass skips this action if you want a different move instead.'
+            ],
+            detail
+        };
     }
     if (targetSide === 'row-ally') {
         if (selectedRow >= 0) {
-            return `${ROW_NAMES[selectedRow] || 'Selected'} friendly row selected. Confirm the row or change it.`;
+            const rowName = ROW_NAMES[selectedRow] || 'Selected';
+            const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
+            const targetLine = targets.length > 0 ? ` Targets: ${targets.join(', ')}.` : '';
+            return {
+                banner: `${rowName} friendly row selected. Confirm the row or change it.`,
+                headline: `Confirm ${rowName} friendly row`,
+                steps: [
+                    'Every Siegeling in that row will be affected.',
+                    'Use Confirm Row to queue the action, or Change Row to pick again.',
+                    'Pass skips this action if you want a different move instead.'
+                ],
+                detail: `${detail}${targetLine}`
+            };
         }
-        return 'Select a card in a friendly row.';
+        return {
+            banner: 'Select a card in a friendly row.',
+            headline: 'Pick a friendly row',
+            steps: [
+                'Tap any of your Siegelings in the row you want to affect.',
+                'Highlighted allies show valid rows.',
+                'Pass skips this action if you want a different move instead.'
+            ],
+            detail
+        };
     }
-    return `Queue a ${targetSide} target for ${ability.name}.${suffix}`;
+    if (targetSide === 'ally') {
+        return {
+            banner: `Select a friendly target for ${ability?.name || 'this move'}.${weaknessSuffix}`,
+            headline: 'Select a friendly Siegeling',
+            steps: [
+                'Tap one of your Siegelings on your board.',
+                'Only highlighted allies can be targeted.',
+                'Pass skips this action if you want a different move instead.'
+            ],
+            detail
+        };
+    }
+    return {
+        banner: `Select an enemy target for ${ability?.name || 'this move'}.${weaknessSuffix}`,
+        headline: 'Select an enemy Siegeling',
+        steps: [
+            'Tap a highlighted enemy card on the board.',
+            'Matchup badges show strong or weak hits when relevant.',
+            'Pass skips this action if you want a different move instead.'
+        ],
+        detail
+    };
+}
+
+function renderBattleTargetingTray(pending, ability) {
+    const targetSide = targetContext?.side;
+    const selectedRow = getRowSelectSelectedRow();
+    const instructions = buildBattleTargetingInstruction(targetSide, ability, selectedRow);
+
+    let html = '<div class="battle-targeting-tray">';
+    html += '<div class="battle-targeting-move">';
+    html += '<div class="battle-targeting-move-label">Selected move</div>';
+    html += `<div class="battle-targeting-move-name">${escapeHtml(ability?.name || 'Ability')}</div>`;
+    html += `<div class="battle-targeting-move-desc">${escapeHtml(instructions.detail)}</div>`;
+    html += '</div>';
+    html += `<div class="battle-targeting-headline">${escapeHtml(instructions.headline)}</div>`;
+    html += '<ul class="battle-targeting-steps">';
+    instructions.steps.forEach((step) => {
+        html += `<li>${escapeHtml(step)}</li>`;
+    });
+    html += '</ul>';
+
+    if (isRowSelectBattleTargetContext()) {
+        html += renderRowSelectBattleConfirm();
+    }
+
+    html += '<div class="battle-targeting-actions">';
+    html += '<button class="battle-targeting-cancel" type="button" onclick="cancelBattleTargetSelection()">Cancel — pick another move</button>';
+    html += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute('Pass this turn without using an ability. No energy cost.')}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">Pass (skip ability)</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
+    html += '</div>';
+    html += `<div class="battle-targeting-footnote">Acting: ${escapeHtml(pending?.name || 'Siegeling')}</div>`;
+    html += '</div>';
+    return html;
+}
+
+function cancelBattleTargetSelection() {
+    if (!isBattleTargetSelectionActive()) {
+        return;
+    }
+    clearTargetingPreview();
+    clearTargetMode();
+    render();
+    if (isMobileLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
+    }
 }
 
 function renderBattleAbilityCostEmblems(ability) {
@@ -4659,10 +4773,14 @@ function getInteractionBannerState() {
         };
     }
     if (targetMode && targetContext) {
+        const ability = targetContext.mode === 'battle' ? getActiveBattleTargetAbility() : null;
+        const message = ability && targetContext.mode === 'battle'
+            ? buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow()).headline
+            : targetContext.message;
         return {
             kind: 'target',
             label: 'Targeting',
-            message: targetContext.message
+            message
         };
     }
     if (isPlacementSelectionActive()) {
@@ -6478,6 +6596,7 @@ window.previewCellHover = previewCellHover;
 window.handleTargetCellPointerLeave = handleTargetCellPointerLeave;
 window.confirmRowSelectBattleTarget = confirmRowSelectBattleTarget;
 window.clearRowSelectBattleTarget = clearRowSelectBattleTarget;
+window.cancelBattleTargetSelection = cancelBattleTargetSelection;
 window.clearTargetingPreview = clearTargetingPreview;
 
 function renderEnergy(containerId, playerData) {
@@ -8654,6 +8773,13 @@ function renderRowSelectBattleOverlay() {
     if (overlays.length === 0) {
         return;
     }
+    if (isBattleTargetSelectionActive()) {
+        overlays.forEach((overlay) => {
+            overlay.className = 'battle-row-confirm-overlay hidden';
+            overlay.innerHTML = '';
+        });
+        return;
+    }
     const html = renderRowSelectBattleConfirm();
     overlays.forEach((overlay) => {
         if (!html) {
@@ -8733,29 +8859,32 @@ function renderBattlePanel() {
         openDrawer('battle');
     }
 
+    const battleTargeting = isBattleTargetSelectionActive();
+    const activeTargetAbility = battleTargeting ? getActiveBattleTargetAbility() : null;
     let bodyHtml = '';
-    if (targetMode && targetContext && targetContext.mode === 'battle') {
-        bodyHtml += `<div class="battle-hint battle-hint-compact">${escapeHtml(targetContext.message)} Pass skips this step.</div>`;
-    }
 
-    let actionsHtml = '';
-    const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
-    for (const ability of sortedAbilities) {
-        const disabled = ability.affordable ? '' : 'disabled';
-        const desc = (ability.description && String(ability.description).trim()) || ability.name;
-        const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
-        const tip = ability.description
-            ? `${ability.name} - ${ability.description}${weaknessPreview ? ` ${weaknessPreview}` : ''}`
-            : ability.name;
-        actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-name">${escapeHtml(desc)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
+    if (battleTargeting && activeTargetAbility) {
+        bodyHtml += renderBattleTargetingTray(pending, activeTargetAbility);
+    } else {
+        let actionsHtml = '';
+        const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
+        for (const ability of sortedAbilities) {
+            const disabled = ability.affordable ? '' : 'disabled';
+            const desc = (ability.description && String(ability.description).trim()) || ability.name;
+            const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
+            const tip = ability.description
+                ? `${ability.name} - ${ability.description}${weaknessPreview ? ` ${weaknessPreview}` : ''}`
+                : ability.name;
+            actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-name">${escapeHtml(desc)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
+        }
+        const passDesc = 'Pass this turn without using an ability. No energy cost.';
+        actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passDesc)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(passDesc)}</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
+        bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
     }
-    const passDesc = 'Pass this turn without using an ability. No energy cost.';
-    actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passDesc)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(passDesc)}</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
-    bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
 
     setPanelHtml(buildQueueShell(
-        targetMode && targetContext && targetContext.mode === 'battle' ? 'Queue Target' : 'Acting Now',
-        targetMode && targetContext && targetContext.mode === 'battle' ? 'targeting' : 'live',
+        battleTargeting ? 'Choose Target' : 'Acting Now',
+        battleTargeting ? 'targeting' : 'live',
         bodyHtml,
         { expanded: true, cardTitle: pending.name }
     ));
@@ -8785,8 +8914,9 @@ function chooseBattleAbility(index) {
         selectedRow: -1,
         message: buildBattleTargetMessage(targetSide, ability)
     };
-    if (activeDrawer === 'battle') {
-        closeDrawer(true);
+    if (isMobileLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
     }
     render();
     scheduleBattleTargetingPreview(ability);
@@ -9664,6 +9794,10 @@ function clearTargetMode() {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        if (isBattleTargetSelectionActive()) {
+            cancelBattleTargetSelection();
+            return;
+        }
         closeDrawer(true);
         closeMobileHudSheet();
         closeClaimPopup();
