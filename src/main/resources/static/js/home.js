@@ -6,6 +6,8 @@
     const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
     const ROOM_CACHE_TTL_MS = 20 * 1000;
     const HOST_LOBBY_KEY = 'sieglingsHostLobby';
+    const MULTIPLAYER_SESSION_KEY = 'sieglingsMultiplayerSession';
+    const PLAYER_NAME_KEY = 'sieglingsPlayerName';
     const SOCIAL_POLL_MS = 12 * 1000;
     const COIN_ICON_PATH = '/img/ui/siegel-coin.png';
     const memoryCache = {};
@@ -143,6 +145,10 @@
         activeChatPeer: null,
         viewingProfile: null,
         socialPollTimer: null,
+        lobbyBusy: false,
+        hostLobbyStatus: null,
+        battleRedirectPending: false,
+        hostLobbyPollTimer: null,
         packReveal: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
@@ -166,6 +172,7 @@
     async function init() {
         bindEvents();
         hydrateProfilePrefsFromCache();
+        hydrateRoomInviteFromUrl();
         applyRouteFromLocation();
         setActiveRoute();
         renderSections();
@@ -179,6 +186,7 @@
             render();
             focusRouteTarget(routeFocusFromHash());
             syncAuthRouteIntent();
+            ensureHostLobbyPolling();
         } catch (err) {
             console.error('Init load failed', err);
         } finally {
@@ -1413,8 +1421,16 @@
         const hostLobby = readHostLobby();
         const name = profileDisplayName();
         const deck = selectedDeckId();
+        const shareUrl = hostLobby?.shareUrl || buildSocialRoomShareUrl(hostLobby?.roomId);
+        const status = state.hostLobbyStatus;
+        const guestWaiting = hostLobby?.roomId && !status?.started;
         if (hostLobby?.roomId) {
             const expiresLabel = formatLobbyExpiry(hostLobby.expiresAt);
+            const statusLine = status?.started
+                ? 'Match started — opening Play'
+                : status?.guestJoined
+                    ? 'Opponent joined — starting battle'
+                    : 'Waiting for an opponent on this invite link';
             card.innerHTML = `<div class="social-active-content">
                 <div>
                     <span class="eyebrow">Your Active Lobby</span>
@@ -1422,19 +1438,16 @@
                     <span>Room code <strong>${escapeHtml(hostLobby.roomId)}</strong></span>
                     <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
                     ${expiresLabel ? `<span>${escapeHtml(expiresLabel)}</span>` : ''}
+                    ${shareUrl ? `<span class="social-invite-url">Invite: <a href="${escapeAttr(shareUrl)}">${escapeHtml(shareUrl)}</a></span>` : ''}
+                    <span>${escapeHtml(statusLine)}</span>
                 </div>
-                <div class="social-active-status"><strong>1 / 2</strong><span>Waiting for opponent</span></div>
+                <div class="social-active-status"><strong>${status?.guestJoined ? '2' : '1'} / 2</strong><span>${guestWaiting ? 'Share the invite link' : 'Battle ready'}</span></div>
                 <div class="friend-actions">
-                    <button class="primary-btn" id="activeLobbyResumeBtn" type="button">Open Table</button>
+                    ${shareUrl ? '<button class="ghost-btn" id="activeLobbyCopyBtn" type="button">Copy Invite Link</button>' : ''}
                     <button class="ghost-btn" id="activeLobbyCloseBtn" type="button">Close Lobby</button>
                 </div>
             </div>`;
-            document.getElementById('activeLobbyResumeBtn')?.addEventListener('click', () => goPlay({
-                mode: 'online',
-                onlineRoomMode: 'create',
-                roomId: hostLobby.roomId,
-                deckId: selectedDeckId()
-            }));
+            document.getElementById('activeLobbyCopyBtn')?.addEventListener('click', () => copyLobbyInvite(shareUrl));
             document.getElementById('activeLobbyCloseBtn')?.addEventListener('click', () => closeHostLobby(hostLobby));
             return;
         }
@@ -1443,9 +1456,10 @@
                 <span class="eyebrow">Your Active Lobby</span>
                 <h2>${escapeHtml(name)}'s table</h2>
                 <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
+                <span class="social-muted-inline">Lobbies live on Social. When someone joins, Play opens for both players.</span>
             </div>
             <div class="social-active-status"><strong>0 / 2</strong><span>No open table yet</span></div>
-            <button class="primary-btn" id="activeLobbyCreateBtn" type="button">Start Hosting</button>
+            <button class="primary-btn" id="activeLobbyCreateBtn" type="button" ${state.lobbyBusy ? 'disabled' : ''}>${state.lobbyBusy ? 'Creating...' : 'Start Hosting'}</button>
         </div>`;
         document.getElementById('activeLobbyCreateBtn')?.addEventListener('click', createLobbyFromHome);
     }
@@ -2548,8 +2562,49 @@
         renderFriends();
     }
 
-    function createLobbyFromHome() {
-        goPlay({ mode: 'online', onlineRoomMode: 'create', deckId: selectedDeckId() });
+    async function createLobbyFromHome() {
+        if (state.lobbyBusy) return;
+        const existing = readHostLobby();
+        if (existing?.roomId) {
+            navigateHub('social', { focus: 'lobby' });
+            renderSocialActiveLobby();
+            return;
+        }
+        if (!state.options?.decks?.length) {
+            alert('Deck options are still loading. Try again in a moment.');
+            return;
+        }
+        state.lobbyBusy = true;
+        renderSocialActiveLobby();
+        try {
+            const data = await fetchJson('/api/match/create', {
+                method: 'POST',
+                body: JSON.stringify(buildSocialMatchBody())
+            });
+            if (data?.error) {
+                alert(data.error);
+                return;
+            }
+            writeHostLobby({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                expiresAt: data.expiresAt || null,
+                shareUrl: data.shareUrl || buildSocialRoomShareUrl(data.roomId)
+            });
+            saveMultiplayerSession({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                viewerSide: data.viewerSide || 'PLAYER'
+            });
+            state.hostLobbyStatus = data;
+            navigateHub('social', { focus: 'lobby' });
+            await refreshRooms(true);
+            renderSocialActiveLobby();
+            ensureHostLobbyPolling();
+        } finally {
+            state.lobbyBusy = false;
+            renderSocialActiveLobby();
+        }
     }
 
     function quickJoinFirstRoom() {
@@ -2560,10 +2615,36 @@
         joinRoomFromHome();
     }
 
-    function joinRoomFromHome() {
+    async function joinRoomFromHome() {
         const room = document.getElementById('roomCodeInput')?.value?.trim()?.toUpperCase();
         if (!room) return;
-        goPlay({ mode: 'online', onlineRoomMode: 'join', roomId: room, deckId: selectedDeckId() });
+        if (!state.options?.decks?.length) {
+            alert('Deck options are still loading. Try again in a moment.');
+            return;
+        }
+        if (state.lobbyBusy) return;
+        state.lobbyBusy = true;
+        try {
+            const data = await fetchJson('/api/match/join', {
+                method: 'POST',
+                body: JSON.stringify({ ...buildSocialMatchBody(), roomId: room })
+            });
+            if (data?.error) {
+                alert(data.error);
+                return;
+            }
+            saveMultiplayerSession({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                viewerSide: data.viewerSide || 'PLAYER'
+            });
+            launchOnlineBattleFromSocial({
+                roomId: data.roomId,
+                playerToken: data.playerToken
+            }, data);
+        } finally {
+            state.lobbyBusy = false;
+        }
     }
 
     function queuePlayLoadout(payload = {}) {
@@ -2572,8 +2653,9 @@
             deckId: payload.deckId || selectedDeckId(),
             trainerId: payload.trainerId || state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id,
             mode: payload.mode || 'solo',
-            onlineRoomMode: payload.onlineRoomMode || 'create',
+            onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
+            battleLaunch: Boolean(payload.battleLaunch),
             customDeckCards: payload.customDeckCards || null,
             loadoutLabel: payload.loadoutLabel || ''
         }));
@@ -3139,6 +3221,129 @@
         return `<div class="${escapeAttr(className)}" aria-hidden="true">${escapeHtml((prefs.avatar || initials(displayName)).slice(0, 1))}</div>`;
     }
 
+    function hydrateRoomInviteFromUrl() {
+        const params = new URLSearchParams(location.search);
+        const room = params.get('room');
+        if (!room) return;
+        params.delete('room');
+        const query = params.toString();
+        const nextPath = `${hubPath('social')}${query ? `?${query}` : ''}#socialActiveLobby`;
+        history.replaceState(null, '', nextPath);
+        state.route = 'social';
+        const input = document.getElementById('roomCodeInput');
+        if (input) input.value = room.trim().toUpperCase();
+    }
+
+    function buildSocialMatchBody() {
+        return {
+            deckId: selectedDeckId(),
+            trainerId: selectedTrainerId(),
+            playerName: socialBattleName(),
+            loadoutLabel: ''
+        };
+    }
+
+    function selectedTrainerId() {
+        return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
+    }
+
+    function socialBattleName() {
+        return state.profile?.user?.displayName || loadStoredPlayerName() || 'Player';
+    }
+
+    function loadStoredPlayerName() {
+        try {
+            return localStorage.getItem(PLAYER_NAME_KEY) || '';
+        } catch (_error) {
+            return '';
+        }
+    }
+
+    function buildSocialRoomShareUrl(roomId) {
+        if (!roomId) return '';
+        return `${location.origin}/social?room=${encodeURIComponent(roomId)}`;
+    }
+
+    function saveMultiplayerSession(session) {
+        if (!session?.roomId || !session?.playerToken) return;
+        try {
+            localStorage.setItem(MULTIPLAYER_SESSION_KEY, JSON.stringify(session));
+        } catch (_error) {
+            // ignore storage failures
+        }
+    }
+
+    async function fetchMatchStatus(lobby) {
+        if (!lobby?.roomId || !lobby?.playerToken) return null;
+        return fetchJson('/api/match/status', {
+            headers: {
+                'X-Room-Id': lobby.roomId,
+                'X-Player-Token': lobby.playerToken
+            }
+        });
+    }
+
+    function ensureHostLobbyPolling() {
+        if (!readHostLobby()?.roomId) {
+            stopHostLobbyPolling();
+            return;
+        }
+        if (state.hostLobbyPollTimer) return;
+        state.hostLobbyPollTimer = window.setInterval(() => {
+            void checkHostLobbyForBattle();
+        }, 3000);
+        void checkHostLobbyForBattle();
+    }
+
+    function stopHostLobbyPolling() {
+        if (!state.hostLobbyPollTimer) return;
+        window.clearInterval(state.hostLobbyPollTimer);
+        state.hostLobbyPollTimer = null;
+    }
+
+    async function checkHostLobbyForBattle() {
+        const lobby = readHostLobby();
+        if (!lobby?.roomId) {
+            stopHostLobbyPolling();
+            return;
+        }
+        const status = await fetchMatchStatus(lobby);
+        if (!status || status.error) return;
+        state.hostLobbyStatus = status;
+        if (status.started) {
+            launchOnlineBattleFromSocial(lobby, status);
+        }
+    }
+
+    function launchOnlineBattleFromSocial(lobby, status) {
+        if (!lobby?.roomId || !lobby?.playerToken || state.battleRedirectPending) return;
+        state.battleRedirectPending = true;
+        saveMultiplayerSession({
+            roomId: lobby.roomId,
+            playerToken: lobby.playerToken,
+            viewerSide: status?.viewerSide || 'PLAYER'
+        });
+        localStorage.removeItem(HOST_LOBBY_KEY);
+        state.hostLobbyStatus = null;
+        stopHostLobbyPolling();
+        goPlay({
+            mode: 'online',
+            roomId: lobby.roomId,
+            deckId: selectedDeckId(),
+            trainerId: selectedTrainerId(),
+            battleLaunch: true
+        });
+    }
+
+    async function copyLobbyInvite(url) {
+        if (!url) return;
+        try {
+            await navigator.clipboard.writeText(url);
+        } catch (_error) {
+            window.prompt('Copy this invite link:', url);
+        }
+    }
+
     function formatLobbyExpiry(expiresAt) {
         if (!expiresAt) return '';
         const remainingMs = new Date(expiresAt).getTime() - Date.now();
@@ -3166,6 +3371,7 @@
     function writeHostLobby(lobby) {
         if (!lobby?.roomId) {
             localStorage.removeItem(HOST_LOBBY_KEY);
+            state.hostLobbyStatus = null;
             return;
         }
         localStorage.setItem(HOST_LOBBY_KEY, JSON.stringify(lobby));
@@ -3186,6 +3392,9 @@
         });
         if (data?.error) return alert(data.error);
         localStorage.removeItem(HOST_LOBBY_KEY);
+        state.hostLobbyStatus = null;
+        state.battleRedirectPending = false;
+        stopHostLobbyPolling();
         await refreshRooms(true);
         renderSocialActiveLobby();
     }
@@ -3217,6 +3426,9 @@
             refreshMessageThreads(),
             sendPresenceHeartbeat()
         ]);
+        if (readHostLobby()?.roomId) {
+            await checkHostLobbyForBattle();
+        }
         renderFriends();
         renderMessageThreads();
         renderSocialActiveLobby();
@@ -3426,10 +3638,10 @@
             title: 'Find your way around the binder hub',
             html: `<ul class="guide-list">
                     <li><strong>Home</strong> — your command hub with collection stats, daily leaderboards, and quick play.</li>
-                    <li><strong>Play</strong> — pick a loadout and start a PVE battle or a 1v1 lobby.</li>
+                    <li><strong>Play</strong> — solo PVE and live 1v1 battles after a Social lobby fills.</li>
                     <li><strong>Cards</strong> — your owned binder by default. Use the <em>Show unowned</em> toggle in Filters to browse the full catalog, then filter by element, type, rarity, and energy cost.</li>
                     <li><strong>Decks</strong> — run premade decks right away; custom deckbuilding unlocks once your binder holds 30 owned copies. Save custom lists to your deck binder.</li>
-                    <li><strong>Social</strong> — friends, messaging, open lobbies, and player profiles.</li>
+                    <li><strong>Social</strong> — create and join 1v1 lobbies, friends, messaging, and player profiles.</li>
                     <li><strong>Shop</strong> — spend Siegecoins on packs. Opening a pack starts the gacha reveal; tap each card to flip it.</li>
                     <li><strong>Profile</strong> — customize your avatar, favorite element, title, bio, and card back.</li>
                     <li><strong>Options</strong> — this menu: the full guide, your shareable profile QR, and admin access.</li>

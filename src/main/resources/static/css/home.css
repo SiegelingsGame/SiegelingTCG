@@ -2034,6 +2034,18 @@ select.search-input { color-scheme: dark; }
     font-weight: 800;
 }
 
+.social-invite-url a {
+    color: #9ed8ff;
+    word-break: break-all;
+}
+
+.social-muted-inline {
+    display: block;
+    margin-top: 4px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
 .social-active-status {
     text-align: center;
 }
