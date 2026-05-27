@@ -1320,6 +1320,39 @@ body {
     filter: drop-shadow(0 34px 34px rgba(0, 0, 0, 0.36));
 }
 
+.hand-card.is-drag-source {
+    opacity: 0.12;
+}
+
+.card-drag-ghost {
+    position: fixed;
+    margin: 0;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    transform: translate(-50%, -58%) scale(1.06);
+    transition: none !important;
+    z-index: 620;
+    filter: drop-shadow(0 28px 36px rgba(0, 0, 0, 0.42));
+    touch-action: none;
+}
+
+body.card-drag-active {
+    user-select: none;
+    cursor: grabbing;
+}
+
+body.card-drag-active .hand-tray,
+body.card-drag-active #playerGrid {
+    touch-action: none;
+}
+
+#playerGrid .board-cell.legal.drag-hover {
+    box-shadow: 0 0 0 3px rgba(226, 183, 20, 0.72), 0 0 24px rgba(226, 183, 20, 0.34);
+    transform: translateY(-4px) scale(1.04);
+    z-index: 6;
+}
+
 /* ============================================================
    DRAWER SYSTEM — slide-up modals
    ============================================================ */
