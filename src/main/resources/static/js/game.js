@@ -109,6 +109,8 @@ let welcomeLeaderboardState = {
     error: ''
 };
 let authMode = 'login';
+let authRegisterStep = 'credentials';
+let registerDraft = { email: '', password: '' };
 let authState = {
     token: loadSavedAuthToken(),
     profile: null,
@@ -4560,13 +4562,44 @@ function beginPlayLobbyCountdown() {
 
 function setAuthMode(mode) {
     authMode = mode;
+    authRegisterStep = 'credentials';
+    authState.error = '';
+    renderWelcomeAuth();
+}
+
+function beginRegisterDisplayName() {
+    const email = document.getElementById('welcomeEmailInput')?.value?.trim() || '';
+    const password = document.getElementById('welcomePasswordInput')?.value || '';
+    if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
+        authState.error = 'Enter a valid email address.';
+        renderWelcomeAuth();
+        return;
+    }
+    if (!password || password.length < 6) {
+        authState.error = 'Passwords must be at least 6 characters.';
+        renderWelcomeAuth();
+        return;
+    }
+    registerDraft = { email, password };
+    authRegisterStep = 'display-name';
+    authState.error = '';
+    renderWelcomeAuth();
+}
+
+function backRegisterCredentials() {
+    authRegisterStep = 'credentials';
     authState.error = '';
     renderWelcomeAuth();
 }
 
 async function submitAuth(mode) {
-    const email = document.getElementById('welcomeEmailInput')?.value?.trim() || '';
-    const password = document.getElementById('welcomePasswordInput')?.value || '';
+    const onRegisterNameStep = mode === 'register' && authRegisterStep === 'display-name';
+    const email = onRegisterNameStep
+        ? registerDraft.email
+        : document.getElementById('welcomeEmailInput')?.value?.trim() || '';
+    const password = onRegisterNameStep
+        ? registerDraft.password
+        : document.getElementById('welcomePasswordInput')?.value || '';
     const displayName = document.getElementById('welcomeDisplayNameInput')?.value?.trim() || '';
     const resetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
     authState.loading = true;
@@ -4595,6 +4628,8 @@ async function submitAuth(mode) {
     saveAuthToken(data.token || '');
     authState.profile = data;
     authState.error = '';
+    authRegisterStep = 'credentials';
+    registerDraft = { email: '', password: '' };
     // After signing in or creating an account, send players to the Home hub
     // (skip when joining via an invite link, where they intend to play right away).
     if ((mode === 'login' || mode === 'register') && data.authenticated && !isInviteJoinFlow()) {
@@ -4705,51 +4740,64 @@ function renderWelcomeAuth() {
         return;
     }
 
-    const draftEmail = document.getElementById('welcomeEmailInput')?.value || '';
+    const draftEmail = document.getElementById('welcomeEmailInput')?.value || registerDraft.email || '';
     const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
-    const draftPassword = document.getElementById('welcomePasswordInput')?.value || '';
+    const draftPassword = document.getElementById('welcomePasswordInput')?.value || registerDraft.password || '';
     const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
-    const authTitle = authMode === 'login'
-        ? 'Pick up where you left off'
-        : authMode === 'register'
-        ? 'Save decks with your email'
-        : 'Set a new password';
+    const onRegisterNameStep = authMode === 'register' && authRegisterStep === 'display-name';
 
-    authCard.innerHTML = `
-        <div class="welcome-eyebrow">ACCOUNT</div>
-        <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
-        <div class="welcome-auth-tabs">
-            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
-            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
-        </div>
-        <label class="online-field">
-            <span>Email</span>
-            <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
-        </label>
-        ${authMode === 'register' ? `
+    if (onRegisterNameStep) {
+        authCard.innerHTML = `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>Choose your display name</h3>
+            <div class="welcome-auth-meta">${escapeHtml(registerDraft.email)}</div>
             <label class="online-field">
                 <span>Display Name</span>
-                <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}">
+                <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}" autofocus>
             </label>
-        ` : ''}
-        ${authMode === 'reset-password' ? `
-            <label class="online-field">
-                <span>Reset Code</span>
-                <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
-            </label>
-        ` : ''}
-        <label class="online-field">
-            <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
-            <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
-        </label>
-        ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
-        <div class="welcome-auth-actions">
-            <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
-                ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
-            </button>
+            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
+            <div class="welcome-auth-actions">
+                <button class="btn welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="backRegisterCredentials()">Back</button>
+                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('register')">
+                    ${authState.loading ? 'Working...' : 'Confirm'}
+                </button>
+            </div>
             <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
-        </div>
-    `;
+        `;
+    } else {
+        const primaryAuthAction = authMode === 'register'
+            ? 'beginRegisterDisplayName()'
+            : `submitAuth('${authMode}')`;
+        authCard.innerHTML = `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+            <div class="welcome-auth-tabs">
+                <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
+                <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
+            </div>
+            <label class="online-field">
+                <span>Email</span>
+                <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
+            </label>
+            ${authMode === 'reset-password' ? `
+                <label class="online-field">
+                    <span>Reset Code</span>
+                    <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
+                </label>
+            ` : ''}
+            <label class="online-field">
+                <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
+                <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
+            </label>
+            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
+            <div class="welcome-auth-actions">
+                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="${primaryAuthAction}">
+                    ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Register')}
+                </button>
+                <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
+            </div>
+        `;
+    }
 
     historyCard.innerHTML = `
         <div class="welcome-eyebrow">WHY SIGN IN</div>
