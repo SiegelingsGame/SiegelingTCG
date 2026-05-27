@@ -3236,10 +3236,12 @@ body.battle-phase-active .battlefield::after {
     @media (max-height: 1100px) {
         .battlefield {
             gap: clamp(4px, 0.7vh, 10px);
+            padding-bottom: 8px;
         }
 
         .bf-half {
             gap: clamp(4px, 0.55vh, 8px);
+            flex-shrink: 0;
         }
 
         .board-label {
@@ -3253,7 +3255,7 @@ body.battle-phase-active .battlefield::after {
         }
 
         #playerGrid.board-grid {
-            padding-bottom: clamp(16px, 2.2vh, 30px);
+            padding-bottom: clamp(24px, 3vh, 40px);
         }
     }
 
