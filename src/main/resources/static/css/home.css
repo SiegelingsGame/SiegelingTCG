@@ -826,6 +826,7 @@ select.search-input { color-scheme: dark; }
     display: flex;
     align-items: center;
     justify-content: center;
+    text-align: center;
     min-height: 16px;
     padding: 0 2px;
 }
@@ -837,12 +838,16 @@ select.search-input { color-scheme: dark; }
     justify-content: center;
     flex-wrap: nowrap;
     flex: 0 0 auto;
-    gap: 3px;
+    white-space: nowrap;
+    font-size: 0;
 }
 
 .binder-card-cost-emblems .energy-token {
+    display: inline-block;
+    vertical-align: middle;
     width: 14px;
     height: 14px;
+    margin: 0 1.5px;
     border-radius: 50%;
     border: 1px solid rgba(210, 224, 240, 0.42);
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
@@ -857,6 +862,9 @@ select.search-input { color-scheme: dark; }
 }
 
 .binder-card-cost-count {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 1.5px;
     color: rgba(255, 246, 218, 0.82);
     font-size: 9px;
     font-weight: 900;
