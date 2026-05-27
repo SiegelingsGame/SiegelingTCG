@@ -3995,10 +3995,27 @@
         renderLobbyChatLog();
     }
 
-    function leaveLobbyWaitingRoom() {
+    async function leaveLobbyWaitingRoom() {
+        const session = currentLobbySession();
         stopLobbyPolling();
+        if (session?.role === 'guest' && session.roomId && session.playerToken && !state.lobbyStatus?.started) {
+            try {
+                await fetchJson('/api/match/leave', {
+                    method: 'POST',
+                    headers: {
+                        'X-Room-Id': session.roomId,
+                        'X-Player-Token': session.playerToken
+                    },
+                    body: JSON.stringify({ roomId: session.roomId })
+                });
+            } catch (error) {
+                console.warn('Unable to leave lobby', error);
+            }
+        }
         clearLobbySession();
+        state.lobbyRoomId = null;
         navigateHub('social');
+        void refreshRooms(true);
     }
 
     function startLobbyPolling() {
