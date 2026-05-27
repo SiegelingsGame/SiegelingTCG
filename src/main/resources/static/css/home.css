@@ -2710,6 +2710,138 @@ body.gacha-active {
     text-transform: uppercase;
 }
 
+.pack-progress {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    vertical-align: middle;
+}
+
+.reveal-preview {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    padding: clamp(16px, 4vw, 48px);
+    background: rgba(3, 6, 14, 0.72);
+    backdrop-filter: blur(8px);
+    animation: revealPreviewIn 0.22s ease both;
+}
+
+.reveal-preview-card {
+    position: relative;
+    width: min(94vw, 420px);
+    max-height: 90vh;
+    overflow: auto;
+    display: grid;
+    gap: 14px;
+    padding: clamp(18px, 3vw, 28px);
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--rarity) 60%, rgba(255, 255, 255, 0.15));
+    background: linear-gradient(180deg, rgba(16, 24, 46, 0.98), rgba(4, 7, 16, 0.98));
+    box-shadow:
+        0 0 60px color-mix(in srgb, var(--rarity) 34%, transparent),
+        0 30px 80px rgba(0, 0, 0, 0.6);
+    animation: revealPreviewCardIn 0.34s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.reveal-preview-art {
+    position: relative;
+    aspect-ratio: 5 / 7;
+    border-radius: 12px;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background:
+        radial-gradient(circle at 50% 20%, color-mix(in srgb, var(--el) 40%, transparent), transparent 55%),
+        linear-gradient(180deg, rgba(20, 28, 52, 0.9), rgba(4, 7, 16, 0.95));
+    border: 1px solid color-mix(in srgb, var(--rarity) 44%, rgba(255, 255, 255, 0.18));
+}
+
+.reveal-preview-art .element-icon-art {
+    width: 56%;
+    height: auto;
+}
+
+.reveal-preview-body {
+    display: grid;
+    gap: 8px;
+}
+
+.reveal-preview-body small {
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+}
+
+.reveal-preview-body h3 {
+    margin: 0;
+    font-size: clamp(20px, 3vw, 28px);
+}
+
+.reveal-preview-stats {
+    display: flex;
+    gap: 12px;
+    font-weight: 800;
+}
+
+.reveal-preview-cost {
+    color: var(--text-dim);
+}
+
+.reveal-preview-flavor {
+    margin: 4px 0 0;
+    font-style: italic;
+    color: color-mix(in srgb, var(--text) 78%, transparent);
+}
+
+.reveal-preview-ability {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.reveal-preview-ability strong {
+    color: var(--rarity);
+}
+
+.reveal-preview-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(5, 8, 18, 0.6);
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.reveal-preview-back {
+    justify-self: stretch;
+}
+
+@keyframes revealPreviewIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes revealPreviewCardIn {
+    from { opacity: 0; transform: translateY(14px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+}
+
 @keyframes gachaSpin {
     to { transform: rotate(360deg); }
 }

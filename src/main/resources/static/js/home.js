@@ -2094,15 +2094,17 @@
         const reveal = ensurePackReveal(latest);
         const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
         const revealedCount = reveal.revealed.size;
+        const heading = gachaHeading(cards[0]?.element || 'FIRE', cards.length);
+        const previewCard = reveal.previewId ? cards.find(card => card.revealId === reveal.previewId) : null;
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
         result.innerHTML = `<section class="pack-opening" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')}">
             <div class="gacha-particles" aria-hidden="true"></div>
             <div class="pack-opening-head">
                 <div>
-                    <span class="eyebrow">Gacha reveal</span>
-                    <h2>${escapeHtml(latest.packName)} opened</h2>
-                    <p>${revealedCount}/${cards.length} cards revealed. Flip cards one at a time, or reveal the whole pack.</p>
+                    <span class="eyebrow">${escapeHtml(heading.eyebrow)}</span>
+                    <h2>${escapeHtml(heading.title)}</h2>
+                    <p>${escapeHtml(heading.sub)} <span class="pack-progress">${revealedCount}/${cards.length} unsealed</span></p>
                 </div>
                 <div class="pack-opening-actions">
                     <button class="ghost-btn" type="button" data-reveal-all-pack>Reveal All</button>
@@ -2113,6 +2115,7 @@
             <div class="gacha-stage">
                 ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), reveal.lastRevealedId === card.revealId, latest.packId, index)).join('')}
             </div>
+            ${previewCard ? renderRevealPreview(previewCard) : ''}
         </section>`;
         const opening = result.querySelector('.pack-opening');
         if (opening) {
@@ -2130,6 +2133,7 @@
                 openedAt: latest.openedAt,
                 revealed: new Set(),
                 lastRevealedId: '',
+                previewId: '',
                 sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
             };
         }
@@ -2186,8 +2190,68 @@
         const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
         reveal.revealed.add(revealId);
         reveal.lastRevealedId = revealId;
+        reveal.previewId = revealId;
         reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
         renderPackResult();
+    }
+
+    function closePackPreview() {
+        const reveal = state.packReveal;
+        if (!reveal) return;
+        reveal.previewId = '';
+        reveal.lastRevealedId = '';
+        renderPackResult();
+    }
+
+    function gachaHeading(element, count) {
+        const lore = {
+            FIRE: { title: 'Relics of the Flame Uncovered', sub: 'Embers stir within the seal — each one waiting to ignite.' },
+            EARTH: { title: 'Stones of the Old World Stir', sub: 'Ancient roots tremble — something buried longs to wake.' },
+            WIND: { title: 'Whispers of the Gale Gather', sub: 'The air hums with hidden names yet to be spoken.' },
+            WATER: { title: 'Tides of the Deep Surface', sub: 'From the abyss, forgotten currents rise to be claimed.' },
+            ICE: { title: 'Frostbound Relics Awaken', sub: 'Beneath the rime, sealed power begins to thaw.' },
+            SHADOW: { title: 'Secrets of the Veil Emerge', sub: 'Shapes shift in the dark, eager to be seen.' },
+            ELECTRIC: { title: 'A Charge of Fates Crackles', sub: 'Static gathers — destiny waits for the spark.' },
+            METAL: { title: 'Forged Legacies Unsealed', sub: 'Cold steel remembers the hands that shaped it.' },
+            UNDEAD: { title: 'The Restless Are Summoned', sub: 'What was buried does not stay still for long.' },
+            PSYCHIC: { title: 'Echoes of the Mind Converge', sub: 'Thoughts not your own press against the seal.' }
+        };
+        const entry = lore[String(element || '').toUpperCase()] || { title: 'Relics Uncovered', sub: 'Unknown powers wait beyond the seal.' };
+        const words = ['no', 'a single', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+        const pulses = words[count] || `${count}`;
+        return {
+            eyebrow: 'Gacha reveal',
+            title: entry.title,
+            sub: `${pulses.charAt(0).toUpperCase() + pulses.slice(1)} ancient pulses resonate within — tap each to reveal its fate. ${entry.sub}`
+        };
+    }
+
+    function renderRevealPreview(card) {
+        const element = card.element || 'FIRE';
+        const rarity = card.rarity || 'COMMON';
+        const isSiegling = card.type === 'SIEGLING';
+        const abilities = card.abilities || (card.ability ? [card.ability] : []);
+        const flavor = creatureDescriptionFor(card);
+        const cost = revealCardEnergyCost(card);
+        return `<div class="reveal-preview" data-preview-backdrop style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)}">
+            <div class="reveal-preview-card" role="dialog" aria-modal="true" aria-label="${escapeAttr(card.name || 'Card')} preview">
+                <button class="reveal-preview-close" type="button" data-close-preview aria-label="Back to pack">&times;</button>
+                <div class="reveal-preview-art">
+                    ${isSiegling ? renderRevealNotches(card.notches) : ''}
+                    ${renderRevealCardArt(element)}
+                </div>
+                <div class="reveal-preview-body">
+                    <small>${escapeHtml(format(card.type))} / ${escapeHtml(format(element))}</small>
+                    <h3>${escapeHtml(card.name || 'Unknown Card')}</h3>
+                    <span class="reveal-rarity">${escapeHtml(format(rarity))}</span>
+                    ${isSiegling ? `<div class="reveal-preview-stats"><span>HP ${escapeHtml(card.health ?? '-')}</span><span>SPD ${escapeHtml(card.speed ?? '-')}</span></div>` : ''}
+                    <div class="reveal-preview-cost">${cost > 0 ? `Cost ${cost} ${escapeHtml(format(card.costElement || element))}` : 'No energy cost'}</div>
+                    ${flavor ? `<p class="reveal-preview-flavor">${escapeHtml(flavor)}</p>` : ''}
+                    ${abilities.length ? abilities.map(a => `<p class="reveal-preview-ability"><strong>${escapeHtml(a.name || 'Ability')}</strong> ${escapeHtml(a.description || '')}</p>`).join('') : ''}
+                </div>
+                <button class="ghost-btn reveal-preview-back" type="button" data-close-preview>Back to pack</button>
+            </div>
+        </div>`;
     }
 
     function revealAllPackCards() {
@@ -3116,6 +3180,11 @@
         if (packButton) choosePack(packButton.dataset.packId);
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
+        if (event.target.closest('[data-close-preview]') || event.target.matches('[data-preview-backdrop]')) {
+            closePackPreview();
+            return;
+        }
+        if (state.packReveal?.previewId) return;
         const revealButton = event.target.closest('[data-reveal-card]');
         if (revealButton) revealPackCard(revealButton.dataset.revealCard, revealButton);
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();
