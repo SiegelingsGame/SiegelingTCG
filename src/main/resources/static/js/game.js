@@ -29,6 +29,7 @@ let selectedBuilderPreviewId = null;
 let matchMode = 'solo';
 let onlineRoomMode = 'create';
 let multiplayerSession = loadSavedMultiplayerSession();
+let soloSessionToken = loadSavedSoloToken();
 let roomPollHandle = null;
 let roomExpiryTimeoutHandle = null;
 let currentRoomStatus = null;
@@ -3893,6 +3894,29 @@ function loadSavedMultiplayerSession() {
     }
 }
 
+const SOLO_SESSION_TOKEN_KEY = 'sieglingsSoloSessionToken';
+
+function loadSavedSoloToken() {
+    try {
+        return localStorage.getItem(SOLO_SESSION_TOKEN_KEY) || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function setSoloSessionToken(token) {
+    soloSessionToken = token || null;
+    try {
+        if (soloSessionToken) {
+            localStorage.setItem(SOLO_SESSION_TOKEN_KEY, soloSessionToken);
+        } else {
+            localStorage.removeItem(SOLO_SESSION_TOKEN_KEY);
+        }
+    } catch (e) {
+        /* storage unavailable; in-memory token still works for this session */
+    }
+}
+
 function saveMultiplayerSession() {
     if (!multiplayerSession) {
         localStorage.removeItem('sieglingsMultiplayerSession');
@@ -5318,6 +5342,8 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     if (multiplayerSession?.roomId && multiplayerSession?.playerToken) {
         opts.headers['X-Room-Id'] = multiplayerSession.roomId;
         opts.headers['X-Player-Token'] = multiplayerSession.playerToken;
+    } else if (soloSessionToken) {
+        opts.headers['X-Solo-Token'] = soloSessionToken;
     }
     if (body) opts.body = JSON.stringify(body);
 
@@ -5340,6 +5366,7 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
 
     if (endpoint === 'new') {
+        setSoloSessionToken(data.soloToken || null);
         clearExternalSocketElementMemory();
     }
 
