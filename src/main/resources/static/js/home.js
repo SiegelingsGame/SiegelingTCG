@@ -10,6 +10,13 @@
     const PLAYER_NAME_KEY = 'sieglingsPlayerName';
     const SOCIAL_POLL_MS = 12 * 1000;
     const COIN_ICON_PATH = '/img/ui/siegel-coin.png';
+    const HERO_STAT_ICONS = {
+        coins: COIN_ICON_PATH,
+        cards: '/img/packs/siegeling-back.png',
+        decks: '/img/decks/deck-icon-fire.png',
+        remnants: '/img/legendary/legendary-fire.png',
+        collection: '/img/packs/spell-card-back.png'
+    };
     const memoryCache = {};
     const ELEMENT_COLORS = {
         FIRE: '#f05b2f', EARTH: '#a7773d', WIND: '#64c987', WATER: '#3c8ed8', ICE: '#7ad9e7',
@@ -622,17 +629,27 @@
         const recentDecks = savedDecks.slice(0, 3);
         const missions = homeDailyMissions();
         const missionLog = homeMissionLog();
+        const displayName = (state.profile?.user?.displayName || 'Siegelord').toUpperCase();
         el.innerHTML = `
             <section class="command-hero">
-                <div class="command-hero-copy">
-                    <span class="eyebrow">Welcome back, ${escapeHtml(state.profile?.user?.displayName || 'Siegelord')}</span>
-                    <h2>Your Siege Awaits</h2>
-                    <p>Battle, build, collect, and keep your daily momentum moving from one command table.</p>
+                <div class="command-hero-top">
+                    <div class="command-hero-copy">
+                        <p class="command-hero-welcome">Welcome back, ${escapeHtml(displayName)}</p>
+                        <h2>Your Siege Awaits</h2>
+                        <p class="command-hero-tagline">Battle, build, collect, and keep your daily momentum moving from one command table.</p>
+                    </div>
+                    <div class="command-hero-actions">
+                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="cards"><span>Cards</span>Owned Cards</button>
+                        <button class="primary-btn command-hero-btn command-hero-btn-primary" type="button" data-home-action="pve"><span>Play</span>Start Match</button>
+                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="decks"><span>Deck</span>Deck Builder</button>
+                    </div>
                 </div>
-                <div class="command-hero-actions">
-                    <button class="ghost-btn command-hero-btn" type="button" data-home-action="cards"><span>Cards</span>Owned Cards</button>
-                    <button class="primary-btn command-hero-btn" type="button" data-home-action="pve"><span>Play</span>Start Match</button>
-                    <button class="ghost-btn command-hero-btn" type="button" data-home-action="decks"><span>Deck</span>Deck Builder</button>
+                <div class="command-hero-stats" aria-label="Account resources">
+                    ${homeHeroStatChip(HERO_STAT_ICONS.coins, 'Siegecoins', coins.toLocaleString(), 'Available')}
+                    ${homeHeroStatChip(HERO_STAT_ICONS.cards, 'Owned Cards', ownedTotal.toLocaleString(), 'Total copies')}
+                    ${homeHeroStatChip(HERO_STAT_ICONS.decks, 'Custom Decks', `${customSlotsUsed} / ${customSlotsMax}`, 'Slots used')}
+                    ${homeHeroStatChip(HERO_STAT_ICONS.remnants, 'Remnants', remnants.toLocaleString(), 'Craft currency')}
+                    ${homeHeroStatChip(HERO_STAT_ICONS.collection, 'Collection', `${collection.completion}%`, 'Set completion')}
                 </div>
             </section>
 
@@ -657,25 +674,8 @@
                 </a>
             </section>
 
-            <section class="command-count-row">
-                ${homeCountTile(coinIconMarkup(), 'Siegecoins', coins.toLocaleString(), 'Available', true)}
-                ${homeCountTile('Card', 'Owned Cards', ownedTotal.toLocaleString(), 'Total copies')}
-                ${homeCountTile('Deck', 'Custom Decks', `${customSlotsUsed} / ${customSlotsMax}`, 'Slots used')}
-                ${homeCountTile('Rem', 'Remnants', remnants.toLocaleString(), 'Craft currency')}
-                ${homeCountTile('Set', 'Collection', `${collection.completion}%`, 'Set completion')}
-            </section>
-
             <section class="command-grid">
                 ${renderHomeLeaderboardsPanel()}
-
-                <article class="command-panel quick-play-panel">
-                    <div class="command-panel-head"><div><span class="eyebrow">Quick Play</span><h3>Jump into battle</h3></div></div>
-                    <p>Choose a match mode and start playing with your current loadout.</p>
-                    <div class="quick-play-actions">
-                        <button class="command-mode-card active" type="button" data-home-action="pve"><strong>PVE Battle</strong><span>Fight AI opponents</span></button>
-                        <button class="command-mode-card" type="button" data-home-action="social"><strong>Browse Social</strong><span>Join open rooms</span></button>
-                    </div>
-                </article>
 
                 <article class="command-panel daily-missions-panel">
                     <div class="command-panel-head">
@@ -776,6 +776,17 @@
         return `<article class="command-count-card">
             <span class="count-icon">${iconIsMarkup ? icon : escapeHtml(icon)}</span>
             <div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong><em>${escapeHtml(hint)}</em></div>
+        </article>`;
+    }
+
+    function homeHeroStatChip(iconSrc, label, value, hint) {
+        return `<article class="command-hero-stat">
+            <span class="command-hero-stat-icon"><img src="${escapeAttr(iconSrc)}" alt="" aria-hidden="true"></span>
+            <div class="command-hero-stat-copy">
+                <small>${escapeHtml(label)}</small>
+                <strong>${escapeHtml(value)}</strong>
+                <em>${escapeHtml(hint)}</em>
+            </div>
         </article>`;
     }
 
