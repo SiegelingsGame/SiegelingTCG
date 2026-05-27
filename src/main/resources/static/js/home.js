@@ -549,7 +549,7 @@
                 <div class="binder-card-body shop-card-body">
                     ${renderShopCardStats(card)}
                     <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${owned ? `Owned x${owned}` : 'Unowned'}</div>
-                    <div class="binder-card-cost">${cost > 0 ? `Cost ${cost} ${escapeHtml(format(costElement))}` : 'No energy cost'}</div>
+                    ${renderBinderCardEnergyCost(cost, costElement)}
                     ${renderShopCardAbilityLine(card)}
                     ${renderShopCardDescription(card)}
                 </div>
@@ -1271,7 +1271,7 @@
                     <div class="binder-card-body shop-card-body">
                         ${renderShopCardStats(card)}
                         <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / Owned x${owned}</div>
-                        <div class="binder-card-cost">${cardEnergyCost(card) > 0 ? `Cost ${cardEnergyCost(card)} ${escapeHtml(format(card.costElement || card.trapBucketElement || card.element))}` : 'No energy cost'}</div>
+                        ${renderBinderCardEnergyCost(cardEnergyCost(card), card.costElement || card.trapBucketElement || card.element)}
                         ${renderShopCardAbilityLine(card)}
                         ${renderShopCardDescription(card)}
                     </div>
@@ -1281,33 +1281,44 @@
         </article>`;
     }
 
-    function renderOwnedStatChip(card) {
-        const owned = ownedCount(card.id);
-        const label = owned > 0 ? `Owned x${owned}` : 'Unowned';
-        return `<span class="binder-owned-chip${owned > 0 ? ' is-owned' : ''}">${escapeHtml(label)}</span>`;
+    function renderBinderCardEnergyCost(cost, element) {
+        const amount = Number(cost);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return '<div class="binder-card-cost binder-card-cost-empty">No energy cost</div>';
+        }
+        const normalized = String(element || 'NEUTRAL').toLowerCase();
+        const label = format(element || 'NEUTRAL');
+        const tokensToDraw = Math.min(amount, 6);
+        let tokens = '';
+        for (let i = 0; i < tokensToDraw; i += 1) {
+            tokens += `<span class="energy-token solid-token token-${escapeAttr(normalized)}"></span>`;
+        }
+        const overflow = amount > tokensToDraw ? `<span class="binder-card-cost-count">+${amount - tokensToDraw}</span>` : '';
+        return `<div class="binder-card-cost binder-card-cost-emblems" aria-label="Cost ${amount} ${escapeAttr(label)} energy">
+            <span class="binder-card-cost-emblems-row">${tokens}${overflow}</span>
+        </div>`;
     }
 
     function renderShopCardStats(card) {
-        const ownedChip = renderOwnedStatChip(card);
         const type = String(card?.type || '').toUpperCase();
         if (type === 'SIEGLING') {
             const hp = card.health ?? card.hp ?? '-';
             const speed = card.speed ?? card.spd ?? '-';
-            return `<div class="binder-card-stats"><span>HP:${escapeHtml(hp)}</span><span>SPD:${escapeHtml(speed)}</span>${ownedChip}</div>`;
+            return `<div class="binder-card-stats"><span>HP:${escapeHtml(hp)}</span><span>SPD:${escapeHtml(speed)}</span></div>`;
         }
         if (type === 'SPELL') {
             const reaction = format(card.requiredReaction || 'None');
             const row = card.preferredRow ? format(card.preferredRow) : 'Any row';
-            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(row)}</span>${ownedChip}</div>`;
+            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(row)}</span></div>`;
         }
         if (type === 'TRAP') {
             const reaction = format(card.requiredReaction || 'Trigger');
             const bucket = card.trapBucketAmount
                 ? `${card.trapBucketAmount} ${format(card.trapBucketElement || card.element)}`
                 : 'Trap set';
-            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span>${ownedChip}</div>`;
+            return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
         }
-        return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(card.type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span>${ownedChip}</div>`;
+        return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(card.type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span></div>`;
     }
 
     function shopCardDescriptionFor(card) {
