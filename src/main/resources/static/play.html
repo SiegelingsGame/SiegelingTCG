@@ -112,6 +112,8 @@
         </div>
     </div>
 
+    <div class="mobile-targeting-hud hidden" id="mobileTargetingHud" aria-live="polite" aria-atomic="true"></div>
+
     <aside class="hud-rail hud-rail-enemy" id="hudRailEnemy" aria-label="Enemy player info">
         <div class="hud-rail-stripe"></div>
 
@@ -227,6 +229,7 @@
         <div class="action-bar" id="actionBar">
             <div class="action-bar-btns" id="actionButtons">
                 <button class="ab-btn ab-trainer ab-primary" id="btnTrainerAbility" onclick="openTrainerAbilityPopup()">&#9876; Knight</button>
+                <button class="ab-btn ab-cancel-move ab-primary hidden" id="btnCancelBattleMove" type="button" onclick="cancelBattleTargetSelection()" hidden>Cancel Move</button>
                 <button class="ab-btn ab-draw ab-primary" id="btnDraw" onclick="playerDraw()">&#127183; Draw</button>
                 <button class="ab-btn ab-battle" id="btnBattle" onclick="executeBattle()" title="Battle starts automatically after both players finish Setup.">Auto Battle</button>
                 <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
@@ -249,9 +252,9 @@
                     <span class="ab-action-counter-label">Act</span>
                     <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
                 </span>
-                <button class="ab-icon" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
-                <button class="ab-icon" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
-                <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
+                <button class="ab-icon ab-targeting-keep" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
+                <button class="ab-icon ab-targeting-keep" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
+                <button class="ab-icon ab-targeting-keep" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
                 <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
                 <button class="ab-icon" id="btnMuteSound" onclick="toggleSieglingsMute()" title="Toggle Sound" aria-label="Toggle Sound">&#128266;</button>
