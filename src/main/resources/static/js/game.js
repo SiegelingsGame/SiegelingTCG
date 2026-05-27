@@ -50,6 +50,10 @@ let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
 let handTouchGesture = null;
+/** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
+let cardDragSession = null;
+let cardDragSuppressClickUntil = 0;
+const CARD_DRAG_THRESHOLD_PX = 10;
 let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
@@ -2232,13 +2236,20 @@ function updateResponsiveLayoutVars(force = false) {
     const desktopGridGapCount = desktop
         ? hideEnemyHudRail ? 2 : 3
         : 0;
+    const desktopShortViewport = desktop && viewportHeight <= 1100;
     const boardMaxWidth = desktop
         ? Math.round(clampNumber(viewportHeight * 0.45, 360, 620))
         : 420;
     const boardHeightOffset = desktop
-        ? Math.round(clampNumber(viewportHeight * 0.1, 82, 148))
+        ? Math.round(clampNumber(
+            viewportHeight * (desktopShortViewport ? 0.075 : 0.1),
+            desktopShortViewport ? 72 : 82,
+            desktopShortViewport ? 108 : 148
+        ))
         : 124;
-    const boardHeightRatio = desktop ? 1.38 : 2.72;
+    const boardHeightRatio = desktop
+        ? (desktopShortViewport ? 1.22 : 1.38)
+        : 2.72;
     const topBarHeight = desktop
         ? Math.round(document.querySelector('.top-bar')?.getBoundingClientRect().height || 36)
         : 0;
@@ -3058,7 +3069,7 @@ function syncSetupActionsCounter() {
 let desktopInspectTab = 'card';
 
 function setDesktopInspectTab(tab) {
-    const next = tab === 'deck' ? 'deck' : 'card';
+    const next = tab === 'deck' ? 'deck' : tab === 'log' ? 'log' : 'card';
     desktopInspectTab = next;
     syncDesktopInspectTabUi();
 }
@@ -3066,15 +3077,22 @@ function setDesktopInspectTab(tab) {
 function syncDesktopInspectTabUi() {
     const cardTab = document.getElementById('tabDesktopInspectCard');
     const deckTab = document.getElementById('tabDesktopInspectDeck');
+    const logTab = document.getElementById('tabDesktopInspectLog');
     const cardPane = document.getElementById('desktopInspectPaneCard');
     const deckPane = document.getElementById('desktopInspectPaneDeck');
+    const logPane = document.getElementById('desktopInspectPaneLog');
     const isCard = desktopInspectTab === 'card';
+    const isDeck = desktopInspectTab === 'deck';
+    const isLog = desktopInspectTab === 'log';
     cardTab?.classList.toggle('is-active', isCard);
-    deckTab?.classList.toggle('is-active', !isCard);
+    deckTab?.classList.toggle('is-active', isDeck);
+    logTab?.classList.toggle('is-active', isLog);
     cardTab?.setAttribute('aria-selected', isCard ? 'true' : 'false');
-    deckTab?.setAttribute('aria-selected', isCard ? 'false' : 'true');
+    deckTab?.setAttribute('aria-selected', isDeck ? 'true' : 'false');
+    logTab?.setAttribute('aria-selected', isLog ? 'true' : 'false');
     cardPane?.classList.toggle('is-active', isCard);
-    deckPane?.classList.toggle('is-active', !isCard);
+    deckPane?.classList.toggle('is-active', isDeck);
+    logPane?.classList.toggle('is-active', isLog);
     if (cardPane) {
         if (isCard) {
             cardPane.removeAttribute('hidden');
@@ -3083,10 +3101,17 @@ function syncDesktopInspectTabUi() {
         }
     }
     if (deckPane) {
-        if (isCard) {
-            deckPane.setAttribute('hidden', '');
-        } else {
+        if (isDeck) {
             deckPane.removeAttribute('hidden');
+        } else {
+            deckPane.setAttribute('hidden', '');
+        }
+    }
+    if (logPane) {
+        if (isLog) {
+            logPane.removeAttribute('hidden');
+        } else {
+            logPane.setAttribute('hidden', '');
         }
     }
     if (isCard) {
@@ -3246,19 +3271,15 @@ function renderDesktopActionHistory() {
         ? gameState.gameLog.filter(isBattlePhaseLogEntry).slice(0, 5)
         : [];
     if (battleLines.length === 0) {
-        history.innerHTML = `
-            <div class="desktop-battle-log-title">Battle log</div>
-            <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>`;
+        history.innerHTML = '<div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>';
         return;
     }
 
-    history.innerHTML = `
-        <div class="desktop-battle-log-title">Battle log</div>
-        ${battleLines.map((entry, index) => `
+    history.innerHTML = battleLines.map((entry, index) => `
         <div class="desktop-history-entry${index === 0 ? ' current' : ''}">
             <span class="desktop-history-dot"></span>
             <span>${escapeHtml(entry)}</span>
-        </div>`).join('')}`;
+        </div>`).join('');
 }
 
 function syncFocusedEnergyCue() {
@@ -4787,7 +4808,7 @@ function getInteractionBannerState() {
         return {
             kind: 'place',
             label: 'Placement',
-            message: `Place ${selectedCard.name} on a highlighted slot.`
+            message: `Drag ${selectedCard.name} onto a highlighted slot, or tap a slot to place.`
         };
     }
     if (gameState.currentPhase === 'SETUP' && gameState.playerPlacementUsed) {
@@ -8277,13 +8298,16 @@ function renderHand() {
             placementLocked ? ' placement-locked' : '',
             targetMode ? ' target-lock' : ''
         ].join('');
-        const onclick = `onclick="selectCard(${handIndex})"`;
+        const onclick = `onclick="handleHandCardClick(event, ${handIndex})"`;
+        const pointerEvents = canHandCardDragPlace(handIndex)
+            ? `onpointerdown="handleHandCardPointerDown(event, ${handIndex})"`
+            : '';
         const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, ${handIndex})" onmouseleave="handleHandCardPointerLeave(${handIndex})"`;
         const touchEvents = `ontouchstart="handleHandCardTouchStart(event, ${handIndex})" ontouchmove="handleHandCardTouchMove(event, ${handIndex})" ontouchend="handleHandCardTouchEnd(event, ${handIndex})"`;
         const fallbackArtLabel = card.type === 'SIEGLING'
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${hoverEvents} ${touchEvents}>`;
+        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
@@ -8400,8 +8424,235 @@ function handleHandCardPointerLeave(handIndex) {
     hideTooltip();
 }
 
+function canHandCardDragPlace(handIndex) {
+    if (!gameState || gameState.currentPhase !== 'SETUP' || gameState.activeSide !== 'PLAYER' || targetMode) {
+        return false;
+    }
+    const card = gameState.player.hand?.[handIndex];
+    if (!card || card.type !== 'SIEGLING') {
+        return false;
+    }
+    if (getHandCardLockReason(card)) {
+        return false;
+    }
+    return getLegalPlacementsForCard(card).length > 0;
+}
+
+function ensureHandCardSelectedForDrag(handIndex) {
+    const hand = gameState?.player?.hand || [];
+    const card = hand[handIndex];
+    if (!card) {
+        return;
+    }
+    if (selectedHandIndex === handIndex && selectedCard?.id === card.id) {
+        return;
+    }
+    selectedCard = card;
+    selectedHandIndex = handIndex;
+    clearTargetMode();
+    updateSelectedInfo(card);
+    render();
+}
+
+function stripHandCardInteractionAttributes(el) {
+    if (!el) {
+        return;
+    }
+    [
+        'onclick',
+        'onpointerdown',
+        'onmouseenter',
+        'onmouseleave',
+        'ontouchstart',
+        'ontouchmove',
+        'ontouchend'
+    ].forEach((attr) => el.removeAttribute(attr));
+}
+
+function findLegalPlacementCellAt(clientX, clientY) {
+    const stack = typeof document.elementsFromPoint === 'function'
+        ? document.elementsFromPoint(clientX, clientY)
+        : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
+    for (const el of stack) {
+        const cell = el.closest?.('#playerGrid .board-cell.legal');
+        if (cell) {
+            return cell;
+        }
+    }
+    return null;
+}
+
+function clearCardDragBoardHover() {
+    document.querySelectorAll('#playerGrid .board-cell.drag-hover')
+        .forEach((cell) => cell.classList.remove('drag-hover'));
+}
+
+function positionCardDragGhost(clientX, clientY) {
+    const ghost = cardDragSession?.ghost;
+    if (!ghost) {
+        return;
+    }
+    ghost.style.left = `${clientX}px`;
+    ghost.style.top = `${clientY}px`;
+}
+
+function activateCardDragSession() {
+    if (!cardDragSession || cardDragSession.active) {
+        return;
+    }
+    const { handIndex } = cardDragSession;
+
+    cardDragSession.active = true;
+    cardDragSuppressClickUntil = Date.now() + 500;
+    document.body.classList.add('card-drag-active');
+    hideTooltip();
+    ensureHandCardSelectedForDrag(handIndex);
+
+    const sourceEl = getHandCardSourceElement(handIndex);
+    if (!sourceEl) {
+        cleanupCardDragSession();
+        return;
+    }
+    cardDragSession.sourceEl = sourceEl;
+
+    const sourceRect = sourceEl.getBoundingClientRect();
+    const ghost = sourceEl.cloneNode(true);
+    stripHandCardInteractionAttributes(ghost);
+    ghost.classList.add('card-drag-ghost');
+    ghost.style.width = `${sourceRect.width}px`;
+    ghost.style.height = `${sourceRect.height}px`;
+    positionCardDragGhost(cardDragSession.startX, cardDragSession.startY);
+
+    const layer = document.getElementById('handLiftLayer');
+    if (layer) {
+        layer.innerHTML = '';
+        layer.classList.remove('hidden');
+        layer.appendChild(ghost);
+    } else {
+        document.body.appendChild(ghost);
+    }
+
+    sourceEl.classList.add('is-drag-source');
+    cardDragSession.ghost = ghost;
+    updateHandLiftLayer();
+}
+
+function cleanupCardDragSession() {
+    if (!cardDragSession) {
+        return;
+    }
+    cardDragSession.sourceEl?.classList?.remove('is-drag-source');
+    cardDragSession.ghost?.remove();
+    const layer = document.getElementById('handLiftLayer');
+    if (layer && !layer.querySelector('.lifted-card-clone')) {
+        layer.innerHTML = '';
+        layer.classList.add('hidden');
+    }
+    clearCardDragBoardHover();
+    document.body.classList.remove('card-drag-active');
+    cardDragSession = null;
+    stopHandSelectorAutoScroll();
+    updateHandLiftLayer();
+}
+
+function updateCardDragBoardHover(clientX, clientY) {
+    clearCardDragBoardHover();
+    const cell = findLegalPlacementCellAt(clientX, clientY);
+    if (cell) {
+        cell.classList.add('drag-hover');
+    }
+}
+
+function handleHandCardPointerDown(event, handIndex) {
+    if (!canHandCardDragPlace(handIndex)) {
+        return;
+    }
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+    }
+    cleanupCardDragSession();
+    cardDragSession = {
+        handIndex,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        active: false,
+        ghost: null,
+        sourceEl: event.currentTarget
+    };
+    try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+    } catch (_) {
+        /* ignore */
+    }
+}
+
+function handleCardDragPointerMove(event) {
+    if (!cardDragSession || event.pointerId !== cardDragSession.pointerId) {
+        return;
+    }
+    const dx = event.clientX - cardDragSession.startX;
+    const dy = event.clientY - cardDragSession.startY;
+    if (!cardDragSession.active) {
+        if (Math.hypot(dx, dy) < CARD_DRAG_THRESHOLD_PX) {
+            return;
+        }
+        activateCardDragSession();
+    }
+    event.preventDefault();
+    stopHandSelectorAutoScroll();
+    positionCardDragGhost(event.clientX, event.clientY);
+    updateCardDragBoardHover(event.clientX, event.clientY);
+}
+
+function handleCardDragPointerEnd(event) {
+    if (!cardDragSession || event.pointerId !== cardDragSession.pointerId) {
+        return;
+    }
+
+    const wasActive = cardDragSession.active;
+    const handIndex = cardDragSession.handIndex;
+
+    if (wasActive) {
+        const targetCell = findLegalPlacementCellAt(event.clientX, event.clientY);
+        if (targetCell) {
+            const row = Number(targetCell.dataset.row);
+            const col = Number(targetCell.dataset.col);
+            if (Number.isInteger(row) && Number.isInteger(col)) {
+                ensureHandCardSelectedForDrag(handIndex);
+                placeCard(row, col);
+            }
+        }
+        cleanupCardDragSession();
+        event.preventDefault();
+        return;
+    }
+
+    cleanupCardDragSession();
+
+    if (isMobileLayout()) {
+        event.preventDefault();
+        event.stopPropagation();
+        selectCard(handIndex);
+        handTouchSuppressHandIndex = handIndex;
+        handTouchSuppressUntil = Date.now() + 500;
+    }
+}
+
+function handleHandCardClick(event, handIndex) {
+    if (Date.now() < cardDragSuppressClickUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+    }
+    selectCard(handIndex);
+}
+
 function handleHandCardTouchStart(event, handIndex) {
-    if (!isMobileLayout()) {
+    if (!isMobileLayout() || cardDragSession) {
+        return;
+    }
+    if (canHandCardDragPlace(handIndex)) {
         return;
     }
     const touch = event.changedTouches?.[0];
@@ -8417,7 +8668,7 @@ function handleHandCardTouchStart(event, handIndex) {
 }
 
 function handleHandCardTouchMove(event, handIndex) {
-    if (!isMobileLayout() || !handTouchGesture || handTouchGesture.handIndex !== handIndex) {
+    if (!isMobileLayout() || cardDragSession || !handTouchGesture || handTouchGesture.handIndex !== handIndex) {
         return;
     }
     const touch = event.changedTouches?.[0];
@@ -8430,7 +8681,7 @@ function handleHandCardTouchMove(event, handIndex) {
 }
 
 function handleHandCardTouchEnd(event, handIndex) {
-    if (!isMobileLayout()) {
+    if (!isMobileLayout() || cardDragSession) {
         return;
     }
     const shouldSelect = Boolean(handTouchGesture && handTouchGesture.handIndex === handIndex && !handTouchGesture.moved);
@@ -9554,6 +9805,10 @@ function getLiftedHandIndex() {
 }
 
 function handleHandSelectorPointerMove(event) {
+    if (cardDragSession?.active) {
+        stopHandSelectorAutoScroll();
+        return;
+    }
     if (isHandHiddenForPhase()) {
         stopHandSelectorAutoScroll();
         return;
@@ -9726,6 +9981,11 @@ function updateHandLiftLayer() {
         return;
     }
 
+    if (cardDragSession?.active) {
+        layer.classList.remove('hidden');
+        return;
+    }
+
     document.querySelectorAll('#playerHand .hand-card.is-lift-source')
         .forEach(card => card.classList.remove('is-lift-source'));
     layer.innerHTML = '';
@@ -9794,6 +10054,10 @@ function clearTargetMode() {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        if (cardDragSession) {
+            cleanupCardDragSession();
+            return;
+        }
         if (isBattleTargetSelectionActive()) {
             cancelBattleTargetSelection();
             return;
@@ -9892,6 +10156,12 @@ syncDesktopInspectTabUi();
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', scheduleBoardLinkConnectorRefresh);
     }
+})();
+
+(function setupCardDragPointerListeners() {
+    document.addEventListener('pointermove', handleCardDragPointerMove, { passive: false });
+    document.addEventListener('pointerup', handleCardDragPointerEnd);
+    document.addEventListener('pointercancel', handleCardDragPointerEnd);
 })();
 
 renderDesktopMenuMeta();
