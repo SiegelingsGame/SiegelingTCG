@@ -83,7 +83,7 @@ const PENDING_HOME_LOADOUT_STORAGE_KEY = 'sieglingsPendingLoadout';
     }
     params.delete('room');
     const query = params.toString();
-    window.location.replace(`/social?room=${encodeURIComponent(room.trim().toUpperCase())}${query ? `&${query}` : ''}`);
+    window.location.replace(`/social/lobby/${encodeURIComponent(room.trim().toUpperCase())}${query ? `?${query}` : ''}`);
 })();
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
@@ -6857,11 +6857,7 @@ async function createRoom() {
     } catch (_error) {
         // ignore storage failures
     }
-    startRoomPolling();
-    scheduleRoomExpiryClose(data);
-    renderLoadoutOptions();
-    updateLoadoutSummary();
-    syncEntryOverlays();
+    window.location.href = `/social/lobby/${encodeURIComponent(data.roomId)}`;
     return true;
 }
 
@@ -6897,19 +6893,25 @@ async function joinRoom() {
     };
     currentRoomStatus = data;
     saveMultiplayerSession();
-    startRoomPolling();
+    try {
+        localStorage.setItem('sieglingsLobbySession', JSON.stringify({
+            roomId: data.roomId,
+            playerToken: data.playerToken,
+            role: 'guest'
+        }));
+    } catch (_error) {
+        // ignore storage failures
+    }
 
     if (data.started) {
         clearRoomExpiryTimer();
         clearExternalSocketElementMemory();
         gameState = data;
+        startRoomPolling();
         render();
-    } else {
-        scheduleRoomExpiryClose(data);
-        renderLoadoutOptions();
-        updateLoadoutSummary();
-        syncEntryOverlays();
+        return true;
     }
+    window.location.href = `/social/lobby/${encodeURIComponent(data.roomId)}`;
     return true;
 }
 
