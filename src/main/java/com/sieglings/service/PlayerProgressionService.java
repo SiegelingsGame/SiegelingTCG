@@ -162,6 +162,25 @@ public class PlayerProgressionService {
         store.save(progression);
     }
 
+    public Map<String, Integer> describeEarnedRewards(AccountUser user, String matchType, String result) {
+        Map<String, Integer> rewards = new LinkedHashMap<>();
+        rewards.put("goldEarned", 0);
+        rewards.put("remnantsEarned", 0);
+        rewards.put("streakBonus", 0);
+        if (user == null || result == null || !"WIN".equalsIgnoreCase(result)) {
+            return rewards;
+        }
+        PlayerProgressionEntity progression = getOrCreate(user);
+        boolean online = "ONLINE".equalsIgnoreCase(matchType);
+        int streak = online ? progression.getOnlineWinStreak() : progression.getSoloWinStreak();
+        int base = online ? ONLINE_WIN_GOLD : SOLO_WIN_GOLD;
+        int streakBonus = WIN_STREAK_GOLD * streak;
+        rewards.put("goldEarned", base + streakBonus);
+        rewards.put("remnantsEarned", online ? ONLINE_WIN_REMNANTS : SOLO_WIN_REMNANTS);
+        rewards.put("streakBonus", streakBonus);
+        return rewards;
+    }
+
     private int calculateMatchReward(PlayerProgressionEntity progression, MatchHistoryEntity history) {
         boolean online = "ONLINE".equalsIgnoreCase(history.getMatchType());
         boolean win = "WIN".equalsIgnoreCase(history.getResult());
