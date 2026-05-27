@@ -35,13 +35,12 @@ public class PlayerProgressionService {
     private CardDefinitionService cardDefinitionService;
 
     public PlayerProgressionEntity getOrCreate(AccountUser user) {
-        PlayerProgressionEntity progression = store.findByUserId(user.getId()).orElseGet(() -> {
+        return store.findByUserId(user.getId()).orElseGet(() -> {
             PlayerProgressionEntity created = new PlayerProgressionEntity();
             created.setUserId(user.getId());
             created.setGold(STARTING_GOLD);
-            return created;
+            return store.save(created);
         });
-        return store.save(progression);
     }
 
     public PlayerProgressionEntity chooseStarterPack(AccountUser user, String packId) {

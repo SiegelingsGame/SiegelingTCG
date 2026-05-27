@@ -21,10 +21,27 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerProgressionServiceTest {
+
+    @Test
+    void getOrCreateDoesNotOverwriteExistingProgressionOnRead() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity existing = new PlayerProgressionEntity();
+        existing.setUserId("player@example.com");
+        existing.setGold(250);
+        store.saved = existing;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        PlayerProgressionEntity progression = service.getOrCreate(user());
+
+        assertSame(existing, progression);
+        assertEquals(0, store.saveCount);
+        assertEquals(250, progression.getGold());
+    }
 
     @Test
     void starterPackCanOnlyBeChosenOnceAndGrantsFiveCards() throws Exception {
@@ -168,6 +185,7 @@ class PlayerProgressionServiceTest {
 
     private static class FakeProgressionStore extends PlayerProgressionStore {
         private PlayerProgressionEntity saved;
+        private int saveCount;
 
         @Override
         public Optional<PlayerProgressionEntity> findByUserId(String userId) {
@@ -176,6 +194,7 @@ class PlayerProgressionServiceTest {
 
         @Override
         public PlayerProgressionEntity save(PlayerProgressionEntity progression) {
+            saveCount++;
             saved = progression;
             return progression;
         }

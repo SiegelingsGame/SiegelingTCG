@@ -37,6 +37,7 @@ let mobileHudSheetOpen = false;
 let mulliganSelectedIndices = new Set();
 let mulliganHandSig = '';
 let loadoutErrorMessage = '';
+let liveCatalogRefreshPromise = null;
 let loadoutStartPending = false;
 let lastInteractionCueKey = '';
 let transientMessageTimer = null;
@@ -4896,6 +4897,34 @@ async function loadGameOptions() {
     }
 }
 
+async function refreshLiveGameOptions() {
+    if (!gameOptions) {
+        return loadGameOptions();
+    }
+    if (liveCatalogRefreshPromise) {
+        return liveCatalogRefreshPromise;
+    }
+    liveCatalogRefreshPromise = (async () => {
+        const [data, editorState] = await Promise.all([
+            fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS)
+        ]);
+        if (!data) {
+            return;
+        }
+        gameOptions = filterGameOptionsToDashboardCards(data, editorState);
+        loadoutErrorMessage = '';
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    })().catch((error) => {
+        console.error('Failed to refresh live game options:', error);
+    }).finally(() => {
+        liveCatalogRefreshPromise = null;
+    });
+    return liveCatalogRefreshPromise;
+}
+
 function filterGameOptionsToDashboardCards(options, editorState) {
     const catalog = Array.isArray(options?.cardCatalog) ? options.cardCatalog : [];
     const dashboardCards = Array.isArray(editorState?.data?.cards) ? editorState.data.cards : [];
@@ -9599,7 +9628,7 @@ renderWelcomeAuth();
 syncEntryOverlays();
 if (typeof SieglingsCatalogSync !== 'undefined') {
     SieglingsCatalogSync.onCatalogPublished(() => {
-        loadGameOptions();
+        refreshLiveGameOptions();
     });
 }
 loadGameOptions();
