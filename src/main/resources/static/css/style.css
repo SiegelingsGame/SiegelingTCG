@@ -5783,7 +5783,7 @@ body.placement-active .board-cell.legal {
         position: fixed;
         left: 8px;
         right: 8px;
-        bottom: calc(var(--mobile-targeting-bar-height) + env(safe-area-inset-bottom, 0px) + 8px);
+        bottom: calc(var(--mobile-targeting-bar-height) + env(safe-area-inset-bottom, 0px) + 6px);
         z-index: 185;
         pointer-events: none;
     }
@@ -5881,7 +5881,7 @@ body.placement-active .board-cell.legal {
         top: env(safe-area-inset-top, 0px);
         left: 0;
         right: 0;
-        bottom: calc(var(--mobile-targeting-bar-height) + env(safe-area-inset-bottom, 0px) + 8px);
+        bottom: calc(var(--mobile-targeting-bar-height) + var(--mobile-targeting-hud-stack, 72px) + env(safe-area-inset-bottom, 0px));
         width: 100%;
         max-width: none;
         margin: 0;

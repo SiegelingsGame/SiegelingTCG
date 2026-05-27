@@ -2578,6 +2578,7 @@ function renderMobileTargetingHud() {
 function syncMobileTargetingArenaScale() {
     if (!isMobileBattleTargetingCameraActive()) {
         document.documentElement.style.removeProperty('--mobile-targeting-arena-scale');
+        document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
         return;
     }
     const board = document.getElementById('boardArea');
