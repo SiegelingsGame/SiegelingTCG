@@ -2586,24 +2586,63 @@ function closeCardPreviewSurfaces() {
     }
 }
 
+function getTrainerAbilityLockReason(trainer = gameState?.player?.trainer) {
+    if (!gameState || !trainer?.active) {
+        return 'No active SiegeKnight ability is available right now.';
+    }
+    if (isOpeningPlacementOnlyTurn()) {
+        return 'Turn 1 starts with a Siegeling placement.';
+    }
+    if (!trainer.canUseActive) {
+        if (gameState.currentPhase === 'BATTLE') {
+            return 'Your SiegeKnight active was already used this round and refreshes after battle.';
+        }
+        if (trainer.oncePerGame) {
+            return 'This ultimate can only be used once per match.';
+        }
+        return 'Your SiegeKnight active was already used this round.';
+    }
+    if (gameState.activeSide !== 'PLAYER') {
+        return 'Wait for your turn before using your SiegeKnight ability.';
+    }
+    if (targetMode) {
+        if (targetContext?.mode === 'battle') {
+            return 'Finish queueing the current battle action first.';
+        }
+        if (targetContext?.mode !== 'trainer') {
+            return 'Finish the current target selection first.';
+        }
+    }
+    if (gameState.currentPhase === 'BATTLE') {
+        if (gameState.battleWaitingOn === 'ENEMY') {
+            return 'Wait for the opponent to finish the current battle action.';
+        }
+        if (gameState.pendingBattle) {
+            return 'Queue this Siegeling\'s battle action before using your SiegeKnight active.';
+        }
+    }
+    const targetSide = getAbilityTargetSide(trainer.active);
+    if (targetSide && !abilityHasAvailableTarget(trainer.active)) {
+        return targetSide
+            ? `No ${targetSide} targets are available right now.`
+            : 'This ability has no valid target right now.';
+    }
+    return '';
+}
+
 function canUseTrainerAbility(trainer = gameState?.player?.trainer) {
-    return Boolean(
-        trainer
-        && trainer.active
-        && trainer.canUseActive
-        && !isOpeningPlacementOnlyTurn()
-        && abilityHasAvailableTarget(trainer.active)
-    );
+    return Boolean(trainer && trainer.active && !getTrainerAbilityLockReason(trainer));
 }
 
 function buildTrainerAbilityHint(trainer) {
     if (!trainer?.active) {
         return 'No active SiegeKnight ability is ready right now.';
     }
-    const targetSide = getAbilityTargetSide(trainer.active);
-    if (targetSide && !abilityHasAvailableTarget(trainer.active)) {
-        return `No ${targetSide} targets are available right now.`;
+    const lockReason = getTrainerAbilityLockReason(trainer);
+    if (lockReason) {
+        return lockReason;
     }
+    const targetSide = getAbilityTargetSide(trainer.active);
     if (targetSide) {
         const article = /^[aeiou]/i.test(targetSide) ? 'an' : 'a';
         return `Using this will close the popup and let you pick ${article} ${targetSide} target on the board.`;
@@ -2656,11 +2695,14 @@ function renderTrainerAbilityPopup() {
         copy.textContent = `${activeDescription} ${availability}`.trim();
     }
     if (useBtn) {
-        const canUse = canUseTrainerAbility(trainer);
+        const lockReason = getTrainerAbilityLockReason(trainer);
+        const canUse = !lockReason;
         useBtn.disabled = !canUse;
         useBtn.textContent = !trainer.active
             ? 'No Active Ability'
-            : (abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability');
+            : (canUse
+                ? (abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability')
+                : 'Unavailable');
     }
 }
 function openTrainerAbilityPopup() {
@@ -2731,6 +2773,10 @@ function submitDashboardAccess(event) {
 }
 
 function activateTrainerAbilityFromPopup() {
+    const trainer = gameState?.player?.trainer;
+    if (!canUseTrainerAbility(trainer)) {
+        return;
+    }
     closeTrainerAbilityPopup();
     onTrainerUse();
 }
