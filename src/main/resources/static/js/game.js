@@ -2944,7 +2944,7 @@ function syncSetupActionsCounter() {
 let desktopInspectTab = 'card';
 
 function setDesktopInspectTab(tab) {
-    const next = tab === 'deck' ? 'deck' : 'card';
+    const next = tab === 'deck' ? 'deck' : tab === 'log' ? 'log' : 'card';
     desktopInspectTab = next;
     syncDesktopInspectTabUi();
 }
@@ -2952,15 +2952,22 @@ function setDesktopInspectTab(tab) {
 function syncDesktopInspectTabUi() {
     const cardTab = document.getElementById('tabDesktopInspectCard');
     const deckTab = document.getElementById('tabDesktopInspectDeck');
+    const logTab = document.getElementById('tabDesktopInspectLog');
     const cardPane = document.getElementById('desktopInspectPaneCard');
     const deckPane = document.getElementById('desktopInspectPaneDeck');
+    const logPane = document.getElementById('desktopInspectPaneLog');
     const isCard = desktopInspectTab === 'card';
+    const isDeck = desktopInspectTab === 'deck';
+    const isLog = desktopInspectTab === 'log';
     cardTab?.classList.toggle('is-active', isCard);
-    deckTab?.classList.toggle('is-active', !isCard);
+    deckTab?.classList.toggle('is-active', isDeck);
+    logTab?.classList.toggle('is-active', isLog);
     cardTab?.setAttribute('aria-selected', isCard ? 'true' : 'false');
-    deckTab?.setAttribute('aria-selected', isCard ? 'false' : 'true');
+    deckTab?.setAttribute('aria-selected', isDeck ? 'true' : 'false');
+    logTab?.setAttribute('aria-selected', isLog ? 'true' : 'false');
     cardPane?.classList.toggle('is-active', isCard);
-    deckPane?.classList.toggle('is-active', !isCard);
+    deckPane?.classList.toggle('is-active', isDeck);
+    logPane?.classList.toggle('is-active', isLog);
     if (cardPane) {
         if (isCard) {
             cardPane.removeAttribute('hidden');
@@ -2969,10 +2976,17 @@ function syncDesktopInspectTabUi() {
         }
     }
     if (deckPane) {
-        if (isCard) {
-            deckPane.setAttribute('hidden', '');
-        } else {
+        if (isDeck) {
             deckPane.removeAttribute('hidden');
+        } else {
+            deckPane.setAttribute('hidden', '');
+        }
+    }
+    if (logPane) {
+        if (isLog) {
+            logPane.removeAttribute('hidden');
+        } else {
+            logPane.setAttribute('hidden', '');
         }
     }
     if (isCard) {
@@ -3132,19 +3146,15 @@ function renderDesktopActionHistory() {
         ? gameState.gameLog.filter(isBattlePhaseLogEntry).slice(0, 5)
         : [];
     if (battleLines.length === 0) {
-        history.innerHTML = `
-            <div class="desktop-battle-log-title">Battle log</div>
-            <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>`;
+        history.innerHTML = '<div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>';
         return;
     }
 
-    history.innerHTML = `
-        <div class="desktop-battle-log-title">Battle log</div>
-        ${battleLines.map((entry, index) => `
+    history.innerHTML = battleLines.map((entry, index) => `
         <div class="desktop-history-entry${index === 0 ? ' current' : ''}">
             <span class="desktop-history-dot"></span>
             <span>${escapeHtml(entry)}</span>
-        </div>`).join('')}`;
+        </div>`).join('');
 }
 
 function syncFocusedEnergyCue() {

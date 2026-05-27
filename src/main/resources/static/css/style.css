@@ -3246,13 +3246,16 @@ body.battle-phase-active .battlefield::after {
     .desktop-action-history {
         display: grid;
         gap: 8px;
-        padding: 12px;
-        border-radius: 18px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        background:
-            linear-gradient(180deg, rgba(9, 15, 30, 0.42), rgba(13, 21, 40, 0.68)),
-            radial-gradient(circle at top right, rgba(80, 160, 255, 0.1), transparent 42%);
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+        align-content: start;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 2px 4px 2px 0;
+    }
+
+    .desktop-inspect-pane-log .desktop-action-history {
+        padding-right: 6px;
     }
 
     .desktop-battle-log-title {
@@ -3414,6 +3417,14 @@ body.battle-phase-active .battlefield::after {
         flex: 1 1 auto;
         gap: 8px;
         min-height: 0;
+    }
+
+    .desktop-inspect-pane-log {
+        overflow: hidden;
+    }
+
+    .desktop-inspect-pane-log .desktop-action-history {
+        scrollbar-gutter: stable;
     }
 
     .desktop-preview-layout {
