@@ -225,9 +225,14 @@
         card.style.setProperty('--sgl-pulse-glow', hexWithAlpha(knight, 0.65));
         card.classList.add('sgl-acting');
         if (kind === 'ATTACK') card.classList.add('sgl-acting-attack');
-        if (kind === 'PLAY')   card.classList.add('sgl-acting-play');
+        if (kind === 'PLAY') {
+            card.classList.add('sgl-acting-play');
+            if (!isPlayer) card.classList.add('sgl-acting-play-enemy');
+        }
         setTimeout(() => {
-            card.classList.remove('sgl-acting', 'sgl-acting-attack', 'sgl-acting-play');
+            card.classList.remove(
+                'sgl-acting', 'sgl-acting-attack', 'sgl-acting-play', 'sgl-acting-play-enemy'
+            );
         }, Math.max(120, durationMs || 600));
     }
 
@@ -1214,7 +1219,8 @@
             // Battle-phase pacing: damage, destruction and ability animations
             // fire back-to-back as one solid block.
             const BATTLE_GAP_MS  = 220;
-            const PHASE_GAP_MS   = 360;
+            const PHASE_GAP_MS   = 480;
+            const ENEMY_PLAY_GAP = this.speed === 'fast' ? 400 : 1000;
             const FIRST_PLAY_GAP = this.speed === 'fast' ? 120 : 360;
             const NEXT_PLAY_GAP  = this.speed === 'fast' ? 80 : 160;
             let phaseTransitionQueued = false;
@@ -1245,6 +1251,12 @@
                 this._placementInProgress = true;
                 const placementIsPlayer = side === 'PLAYER';
                 const isEvolution = Boolean(p.evolutionFrom);
+                const placementKey = this.registerPendingPlacement(
+                    placementIsPlayer, p.row, p.col, p.cell
+                );
+                const playGap = side === 'ENEMY'
+                    ? ENEMY_PLAY_GAP
+                    : (isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP);
                 this.enqueueAction({
                     kind: 'PLAY',
                     side,
@@ -1255,7 +1267,8 @@
                     elementColor: normalizeElement(p.cell.element) || knight,
                     source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
                     portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP
+                    placementKey,
+                    gapAfterMs: playGap
                 });
             };
 
@@ -1267,6 +1280,8 @@
                 this.enqueueAction({
                     kind: 'PHASE',
                     side: nextState.activeSide || 'PLAYER',
+                    phase: nextState.currentPhase,
+                    activeSide: nextState.activeSide || 'PLAYER',
                     actorName: `${phaseLabel} Phase`,
                     knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
                     elementColor: 'NEUTRAL',
@@ -1737,14 +1752,17 @@
             this.syncPendingPlacements();
 
             if (action.kind === 'PHASE') {
-                this.activeToast = this.toasts.show({
-                    ...action,
-                    label: '',
-                    actorName: action.actorName,
-                    targetName: ''
-                }, t.toastDismissMs);
+                if (this.activeToast) this.activeToast.dismiss();
+                if (typeof window.showPhaseTransitionBanner === 'function') {
+                    window.showPhaseTransitionBanner(action.phase, action.activeSide, true);
+                } else if (window.SieglingsFx?.phaseFlash) {
+                    window.SieglingsFx.phaseFlash(
+                        String(action.phase || action.actorName || 'Phase'),
+                        action.knightElement
+                    );
+                }
                 const phaseGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
-                await sleep(t.toastEnterMs + phaseGap);
+                await sleep(2400 + phaseGap);
                 return;
             }
 
@@ -2126,6 +2144,7 @@
                 }
                 await sleep(t.impactMs);
             } else if (action.kind === 'PLAY' && action.source) {
+                window.SieglingsSounds?.play('place', action.side === 'ENEMY' ? 0.45 : 0.55);
                 if (window.SieglingsFx?.impactAt) {
                     window.SieglingsFx.impactAt(
                         action.source.isPlayer, action.source.row, action.source.col,

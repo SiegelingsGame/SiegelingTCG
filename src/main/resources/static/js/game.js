@@ -2381,11 +2381,10 @@ function getPhaseTransitionKicker(phase, activeSide) {
     return 'Phase Shift';
 }
 
-function showPhaseTransitionBanner(phase, activeSide) {
-    // The real-time playback system shows phase changes via the action-queue
-    // toast. When it's available, suppress the old top-of-screen banner so we
-    // don't double up.
-    if (window.SieglingsActionQueue) {
+function showPhaseTransitionBanner(phase, activeSide, fromQueue) {
+    // When the action queue is driving playback it calls this with fromQueue=true.
+    // Suppress the render()-time call so we don't flash the banner twice.
+    if (!fromQueue && window.SieglingsActionQueue) {
         return;
     }
     const banner = document.getElementById('phaseTransitionBanner');
@@ -2407,14 +2406,16 @@ function showPhaseTransitionBanner(phase, activeSide) {
     window.SieglingsSounds?.play('phase', 0.5);
     requestAnimationFrame(() => banner.classList.add('visible'));
 
+    const holdMs = fromQueue ? 2400 : 1800;
     phaseTransitionTimer = setTimeout(() => {
         banner.classList.remove('visible');
         phaseTransitionTimer = setTimeout(() => {
             banner.classList.add('hidden');
             phaseTransitionTimer = null;
-        }, 320);
-    }, 1800);
+        }, 360);
+    }, holdMs);
 }
+window.showPhaseTransitionBanner = showPhaseTransitionBanner;
 
 /* ============================================================
    CARD INSPECTOR â€” full-detail overlay when tapping hand card

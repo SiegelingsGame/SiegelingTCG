@@ -435,102 +435,147 @@ body {
     position: fixed;
     left: 0;
     right: 0;
-    top: clamp(76px, 14vh, 132px);
+    top: 50%;
     display: flex;
     justify-content: center;
-    padding: 0 20px;
-    z-index: 720;
+    padding: 0;
+    z-index: 900;
     pointer-events: none;
     opacity: 0;
-    transform: translateY(-18px) scale(0.98);
-    transition: opacity 0.28s ease, transform 0.32s ease;
+    transform: translateY(-50%) scale(0.94);
+    transition: opacity 0.36s ease, transform 0.42s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.phase-transition-banner::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.52);
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.36s ease;
 }
 
 .phase-transition-banner.visible {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(-50%) scale(1);
+}
+
+.phase-transition-banner.visible::before {
+    opacity: 1;
 }
 
 .phase-transition-banner-inner {
-    width: min(1120px, 100%);
-    padding: 18px 28px 20px;
-    border-radius: 18px;
-    border: 1px solid rgba(255, 215, 0, 0.34);
+    width: 100%;
+    max-width: none;
+    padding: 32px 40px 36px;
+    border-radius: 0;
+    border-top: 3px solid rgba(255, 215, 0, 0.72);
+    border-bottom: 3px solid rgba(255, 215, 0, 0.72);
+    border-left: none;
+    border-right: none;
     background:
-        linear-gradient(180deg, rgba(6, 10, 20, 0.88), rgba(12, 18, 34, 0.94)),
-        radial-gradient(circle at center, rgba(255, 215, 0, 0.08), transparent 58%);
+        linear-gradient(180deg, rgba(4, 8, 18, 0.94), rgba(10, 16, 32, 0.97)),
+        radial-gradient(circle at center, rgba(255, 215, 0, 0.12), transparent 62%);
     box-shadow:
-        0 18px 44px rgba(0, 0, 0, 0.28),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-        inset 0 0 26px rgba(255, 215, 0, 0.08);
+        0 0 80px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 0 40px rgba(255, 215, 0, 0.1);
     text-align: center;
 }
 
 .phase-transition-banner-kicker {
-    font-size: 0.74em;
+    font-size: 0.82em;
     text-transform: uppercase;
-    letter-spacing: 0.34em;
-    color: rgba(255, 215, 0, 0.78);
-    margin-bottom: 8px;
+    letter-spacing: 0.42em;
+    color: rgba(255, 215, 0, 0.82);
+    margin-bottom: 12px;
 }
 
 .phase-transition-banner-title {
-    font-size: clamp(2rem, 4.8vw, 3.8rem);
+    font-size: clamp(2.4rem, 6.5vw, 4.6rem);
     font-weight: 900;
     line-height: 1;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: #f7e8a7;
+    letter-spacing: 0.16em;
+    color: #ffe566;
     text-shadow:
-        0 0 14px rgba(255, 215, 0, 0.24),
-        0 2px 20px rgba(0, 0, 0, 0.34);
+        0 0 24px rgba(255, 215, 0, 0.38),
+        0 0 48px rgba(255, 215, 0, 0.16),
+        0 3px 24px rgba(0, 0, 0, 0.45);
 }
 
 .phase-transition-banner.draw .phase-transition-banner-inner {
-    border-color: rgba(80, 160, 255, 0.4);
+    border-top-color: rgba(80, 160, 255, 0.75);
+    border-bottom-color: rgba(80, 160, 255, 0.75);
     box-shadow:
-        0 18px 44px rgba(0, 0, 0, 0.28),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-        inset 0 0 30px rgba(80, 160, 255, 0.12);
+        0 0 80px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 0 40px rgba(80, 160, 255, 0.16);
+}
+
+.phase-transition-banner.draw .phase-transition-banner-title {
+    color: #9fd4ff;
+    text-shadow:
+        0 0 24px rgba(80, 160, 255, 0.42),
+        0 0 48px rgba(80, 160, 255, 0.18),
+        0 3px 24px rgba(0, 0, 0, 0.45);
 }
 
 .phase-transition-banner.setup .phase-transition-banner-inner {
-    border-color: rgba(88, 255, 145, 0.36);
+    border-top-color: rgba(88, 255, 145, 0.68);
+    border-bottom-color: rgba(88, 255, 145, 0.68);
     box-shadow:
-        0 18px 44px rgba(0, 0, 0, 0.28),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-        inset 0 0 30px rgba(88, 255, 145, 0.1);
+        0 0 80px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 0 40px rgba(88, 255, 145, 0.14);
+}
+
+.phase-transition-banner.setup .phase-transition-banner-title {
+    color: #9dffc0;
+    text-shadow:
+        0 0 24px rgba(88, 255, 145, 0.38),
+        0 0 48px rgba(88, 255, 145, 0.16),
+        0 3px 24px rgba(0, 0, 0, 0.45);
 }
 
 .phase-transition-banner.battle .phase-transition-banner-inner {
-    border-color: rgba(255, 119, 72, 0.44);
+    border-top-color: rgba(255, 119, 72, 0.78);
+    border-bottom-color: rgba(255, 119, 72, 0.78);
     background:
-        linear-gradient(180deg, rgba(16, 8, 7, 0.9), rgba(26, 12, 10, 0.96)),
-        radial-gradient(circle at center, rgba(255, 94, 58, 0.14), transparent 58%);
+        linear-gradient(180deg, rgba(16, 8, 7, 0.95), rgba(26, 12, 10, 0.98)),
+        radial-gradient(circle at center, rgba(255, 94, 58, 0.18), transparent 62%);
     box-shadow:
-        0 18px 44px rgba(0, 0, 0, 0.28),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-        inset 0 0 34px rgba(255, 94, 58, 0.14);
+        0 0 80px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 0 44px rgba(255, 94, 58, 0.18);
+}
+
+.phase-transition-banner.battle .phase-transition-banner-title {
+    color: #ffb088;
+    text-shadow:
+        0 0 24px rgba(255, 94, 58, 0.44),
+        0 0 48px rgba(255, 94, 58, 0.2),
+        0 3px 24px rgba(0, 0, 0, 0.45);
 }
 
 @media (max-width: 900px) {
     .phase-transition-banner {
-        top: calc(56px + env(safe-area-inset-top, 0px));
-        padding: 0 10px;
+        top: 50%;
+        padding: 0;
     }
 
     .phase-transition-banner-inner {
-        padding: 14px 16px 16px;
-        border-radius: 14px;
+        padding: 22px 16px 26px;
     }
 
     .phase-transition-banner-kicker {
-        font-size: 0.62em;
-        letter-spacing: 0.26em;
+        font-size: 0.68em;
+        letter-spacing: 0.28em;
     }
 
     .phase-transition-banner-title {
-        letter-spacing: 0.08em;
+        letter-spacing: 0.1em;
     }
 }
 
@@ -9897,7 +9942,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     transition: transform 220ms ease, box-shadow 220ms ease;
 }
 .board-card.sgl-acting-attack { animation: sgl-attack-lunge 360ms cubic-bezier(0.4, 0, 0.6, 1); }
-.board-card.sgl-acting-play   { animation: sgl-play-slide 420ms cubic-bezier(0.2, 0.8, 0.3, 1); }
+.board-card.sgl-acting-play   { animation: sgl-play-slide 520ms cubic-bezier(0.2, 0.8, 0.3, 1); }
+.board-card.sgl-acting-play-enemy { animation: sgl-play-slide-enemy 520ms cubic-bezier(0.2, 0.8, 0.3, 1); }
 
 @keyframes sgl-attack-lunge {
     0%   { transform: scale(1.02) translateY(0); }
@@ -9906,8 +9952,13 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     100% { transform: scale(1.08) translateY(0); }
 }
 @keyframes sgl-play-slide {
-    0%   { transform: scale(0.6) translateY(28px); opacity: 0.4; }
-    60%  { transform: scale(1.12) translateY(-2px); opacity: 1; }
+    0%   { transform: scale(0.55) translateY(36px); opacity: 0; }
+    55%  { transform: scale(1.14) translateY(-3px); opacity: 1; }
+    100% { transform: scale(1.08) translateY(0); opacity: 1; }
+}
+@keyframes sgl-play-slide-enemy {
+    0%   { transform: scale(0.55) translateY(-36px); opacity: 0; }
+    55%  { transform: scale(1.14) translateY(3px); opacity: 1; }
     100% { transform: scale(1.08) translateY(0); opacity: 1; }
 }
 
