@@ -8,6 +8,8 @@ import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
 import com.sieglings.service.PlayerProgressionService;
 import com.sieglings.service.ProfileSettingsService;
+import com.sieglings.service.FriendRequestService;
+import com.sieglings.service.PresenceService;
 import com.sieglings.service.SavedDeckService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +49,12 @@ public class AuthController {
 
     @Autowired
     private ProfileSettingsService profileSettingsService;
+
+    @Autowired
+    private FriendRequestService friendRequestService;
+
+    @Autowired
+    private PresenceService presenceService;
 
     @PostMapping("/api/auth/register")
     public Map<String, Object> register(@RequestBody Map<String, Object> req) {
@@ -100,6 +108,10 @@ public class AuthController {
 
     @PostMapping("/api/auth/logout")
     public Map<String, Object> logout(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        AccountUser user = accountService.findUser(authorizationHeader);
+        if (user != null) {
+            presenceService.markOffline(user);
+        }
         accountService.logout(authorizationHeader);
         return Map.of("ok", true, "authenticated", false);
     }
@@ -148,11 +160,35 @@ public class AuthController {
     }
 
     @PostMapping("/api/profile/friends")
-    public Map<String, Object> addFriend(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
-                                         @RequestBody Map<String, Object> req) {
+    public Map<String, Object> sendFriendRequest(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                                   @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            AccountUser updated = accountService.addFriend(user, (String) req.get("email"));
+            AccountUser updated = accountService.sendFriendRequest(user, (String) req.get("email"));
+            return buildProfileResponse(updated, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/profile/friends/accept")
+    public Map<String, Object> acceptFriendRequest(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                                   @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            AccountUser updated = accountService.acceptFriendRequest(user, (String) req.get("fromUserId"));
+            return buildProfileResponse(updated, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/profile/friends/deny")
+    public Map<String, Object> denyFriendRequest(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                                 @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            AccountUser updated = accountService.denyFriendRequest(user, (String) req.get("fromUserId"));
             return buildProfileResponse(updated, null);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
@@ -183,6 +219,8 @@ public class AuthController {
                 "displayName", user.getDisplayName()
         ));
         response.put("friends", loadFriends(user));
+        response.put("incomingFriendRequests", loadIncomingFriendRequests(user));
+        response.put("outgoingFriendRequests", loadOutgoingFriendRequests(user));
         response.put("savedDecks", loadSavedDecks(user));
         response.put("matchHistory", loadMatchHistory(user));
         if (playerProgressionService != null) {
@@ -203,19 +241,47 @@ public class AuthController {
         return response;
     }
 
+    private List<Map<String, Object>> loadIncomingFriendRequests(AccountUser user) {
+        if (friendRequestService == null) {
+            return List.of();
+        }
+        try {
+            return friendRequestService.listIncoming(user);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load incoming friend requests for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> loadOutgoingFriendRequests(AccountUser user) {
+        if (friendRequestService == null) {
+            return List.of();
+        }
+        try {
+            return friendRequestService.listOutgoing(user);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load outgoing friend requests for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
+    }
+
     private List<Map<String, Object>> loadFriends(AccountUser user) {
         return (user.getFriendEmails() == null ? List.<String>of() : user.getFriendEmails()).stream()
                 .map(email -> {
+                    AccountUser friendUser = accountService.findByEmail(email);
+                    if (friendUser == null) {
+                        return null;
+                    }
+                    if (!FriendRequestService.areMutualFriends(user, friendUser)) {
+                        return null;
+                    }
                     Map<String, Object> friend = new LinkedHashMap<>();
                     friend.put("email", email);
-                    try {
-                        AccountUser friendUser = accountService.findByEmail(email);
-                        friend.put("displayName", friendUser == null ? email : friendUser.getDisplayName());
-                    } catch (RuntimeException ex) {
-                        friend.put("displayName", email);
-                    }
+                    friend.put("displayName", friendUser.getDisplayName());
+                    friend.put("mutual", true);
                     return friend;
                 })
+                .filter(java.util.Objects::nonNull)
                 .toList();
     }
 

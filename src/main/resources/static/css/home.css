@@ -2504,6 +2504,41 @@ select.search-input { color-scheme: dark; }
     color: var(--wind);
 }
 
+.friend-request-list {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.friend-request-tile {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.friend-request-copy strong {
+    display: block;
+    font-size: 13px;
+}
+
+.friend-request-copy span {
+    display: block;
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+.friend-request-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .friend-tile,
 .social-friend-tile {
     display: grid;

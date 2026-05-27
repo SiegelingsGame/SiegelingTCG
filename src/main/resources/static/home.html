@@ -156,11 +156,18 @@
                             <input class="search-input" id="friendSearchInput" type="search" placeholder="Search friends...">
                             <div class="friend-list" id="friendList"></div>
                         </section>
+                        <section class="social-panel social-card" id="friendRequestsPanel">
+                            <div class="social-panel-head">
+                                <div><span class="eyebrow">Requests</span><h2>Pending invites</h2></div>
+                                <span class="social-soft-pill" id="friendRequestCountLabel">0 pending</span>
+                            </div>
+                            <div class="friend-request-list" id="friendRequestList"></div>
+                        </section>
                         <section class="social-panel social-card">
-                            <div class="social-panel-head"><div><span class="eyebrow">Add Friend</span><h2>Invite a player</h2></div></div>
+                            <div class="social-panel-head"><div><span class="eyebrow">Add Friend</span><h2>Send a request</h2></div></div>
                             <form class="friend-add-row" id="friendAddForm">
                                 <input class="search-input" id="friendEmailInput" type="email" placeholder="friend@email.com">
-                                <button class="primary-btn" type="submit">Add</button>
+                                <button class="primary-btn" type="submit">Send Request</button>
                             </form>
                             <div class="friend-message" id="friendMessage"></div>
                         </section>

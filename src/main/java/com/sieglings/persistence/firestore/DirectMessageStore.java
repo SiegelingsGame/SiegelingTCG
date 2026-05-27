@@ -3,7 +3,6 @@ package com.sieglings.persistence.firestore;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.sieglings.persistence.entity.DirectMessageEntity;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,19 +30,21 @@ public class DirectMessageStore {
             return List.of();
         }
         try {
-            Query query = client.requireFirestore()
+            List<QueryDocumentSnapshot> docs = client.requireFirestore()
                     .collection(client.directMessagesCollection())
                     .whereEqualTo("threadId", threadId)
-                    .orderBy("createdAt", Query.Direction.ASCENDING)
-                    .limit(MESSAGE_PAGE_SIZE);
-            if (since != null) {
-                query = query.whereGreaterThan("createdAt", toTimestamp(since));
-            }
-            List<QueryDocumentSnapshot> docs = query.get().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS).getDocuments();
+                    .limit(MESSAGE_PAGE_SIZE)
+                    .get()
+                    .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .getDocuments();
             List<DirectMessageEntity> results = new ArrayList<>();
             for (QueryDocumentSnapshot snapshot : docs) {
-                results.add(toEntity(snapshot.getId(), snapshot));
+                DirectMessageEntity message = toEntity(snapshot.getId(), snapshot);
+                if (since == null || message.getCreatedAt() == null || message.getCreatedAt().isAfter(since)) {
+                    results.add(message);
+                }
             }
+            results.sort(Comparator.comparing(DirectMessageEntity::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
             return results;
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to load direct messages from Firestore.", ex);
@@ -57,7 +59,6 @@ public class DirectMessageStore {
             List<QueryDocumentSnapshot> sent = client.requireFirestore()
                     .collection(client.directMessagesCollection())
                     .whereEqualTo("senderId", userId)
-                    .orderBy("createdAt", Query.Direction.DESCENDING)
                     .limit(limit)
                     .get()
                     .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -65,7 +66,6 @@ public class DirectMessageStore {
             List<QueryDocumentSnapshot> received = client.requireFirestore()
                     .collection(client.directMessagesCollection())
                     .whereEqualTo("recipientId", userId)
-                    .orderBy("createdAt", Query.Direction.DESCENDING)
                     .limit(limit)
                     .get()
                     .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
