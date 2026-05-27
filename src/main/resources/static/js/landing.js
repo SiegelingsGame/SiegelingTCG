@@ -31,10 +31,10 @@
     }
 
     const FEATURED_SIEGELINGS = [
-        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png'  },
-        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png'   },
-        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png'  },
-        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png' },
+        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png',  model: '/assets/models/Model_Pylord.fbx' },
+        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png',   model: '/assets/models/Model_Glaciemperor.fbx' },
+        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png',  model: '/assets/models/Aerovane.fbx' },
+        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png', model: '/assets/models/Model_Gymstone.fbx' },
     ];
 
     const FLAVOR_LINES = [
@@ -51,20 +51,31 @@
         if (!grid) return;
         const html = FEATURED_SIEGELINGS.map((s) => {
             const elKey = String(s.element).toLowerCase();
-            return `
-                <article class="creature-card" data-element="${elKey}"
-                         style="--creature-color: var(--element-${elKey}); --creature-glow: var(--element-${elKey}-glow, rgba(255,255,255,0.4))">
-                    <div class="creature-portrait" aria-hidden="true">
+            const hasModel = Boolean(s.model);
+            const portrait = hasModel
+                ? `<div class="creature-portrait creature-model-viewport" data-model-viewport data-active-element="${elKey}" aria-hidden="true">
+                        <canvas aria-label="Animated ${escapeAttr(s.name)} model viewport"></canvas>
+                        <img class="creature-model-poster" src="${escapeAttr(s.art)}" alt="" loading="lazy">
+                        <div class="legendary-loading">Summoning model</div>
+                   </div>`
+                : `<div class="creature-portrait" aria-hidden="true">
                         <img src="${escapeAttr(s.art)}" alt="" loading="lazy">
-                    </div>
+                   </div>`;
+            return `
+                <button class="creature-card" type="button" data-element="${elKey}"
+                         data-name="${escapeAttr(s.name)}" data-art="${escapeAttr(s.art)}" data-model="${escapeAttr(s.model || '')}"
+                         aria-label="Show ${escapeAttr(s.name)} in the legendary viewport"
+                         style="--creature-color: var(--element-${elKey}); --creature-glow: var(--element-${elKey}-glow, rgba(255,255,255,0.4))">
+                    ${portrait}
                     <div class="creature-name">${escapeHtml(s.name)}</div>
                     <div class="creature-card-footer">
                         <span class="creature-element">${s.element}</span>
                     </div>
-                </article>
+                </button>
             `;
         }).join('');
         grid.innerHTML = html;
+        document.dispatchEvent(new CustomEvent('sieglings:legendary-grid-rendered'));
     }
 
     function escapeHtml(value) {
