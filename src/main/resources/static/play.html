@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=105">
+    <link rel="stylesheet" href="/css/style.css?v=106">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -235,6 +235,18 @@
                 <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
             </div>
             <div class="action-bar-aux">
+                <details class="play-hub-menu-flyout" id="playHubMenuFlyout">
+                    <summary class="ab-icon" title="Site menu" aria-label="Site menu">&#9776;</summary>
+                    <div class="play-hub-menu-panel" role="menu" aria-label="Siegelings hub navigation">
+                        <a href="/home" role="menuitem">Home</a>
+                        <a class="active" href="/play" role="menuitem" aria-current="page">Play</a>
+                        <a href="/cards" role="menuitem">Cards</a>
+                        <a href="/decks" role="menuitem">Decks</a>
+                        <a href="/social" role="menuitem">Social</a>
+                        <a href="/profile" role="menuitem">Profile</a>
+                        <a href="/shop" role="menuitem">Shop</a>
+                    </div>
+                </details>
                 <a class="ab-icon" href="/home" title="Back to Home" aria-label="Back to Home">&#8592;</a>
                 <span id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" title="Setup actions remaining this turn">
                     <span class="ab-action-counter-label">Act</span>
@@ -650,7 +662,7 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=123"></script>
+    <script src="/js/game.js?v=122"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
     <script src="/js/action-queue.js?v=22"></script>
