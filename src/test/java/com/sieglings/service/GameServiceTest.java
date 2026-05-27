@@ -136,7 +136,7 @@ class GameServiceTest {
         gameService.placeSiegling(state, true, "pylook", 2, 1);
 
         assertTrue(
-                state.getGameLog().stream().anyMatch(entry -> entry.endsWith("Emberpup evolved to Pylook!")),
+                state.getGameLog().stream().anyMatch(entry -> entry.endsWith("Emberpup evolved into Pylook!")),
                 "Evolution should be logged as the base evolving into the new form."
         );
     }

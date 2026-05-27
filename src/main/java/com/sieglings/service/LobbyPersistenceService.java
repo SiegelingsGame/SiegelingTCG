@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.persistence.entity.LobbyEntity;
+import com.sieglings.persistence.firestore.FirestoreUserDataClient;
 import com.sieglings.persistence.firestore.LobbyStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -16,6 +17,9 @@ public class LobbyPersistenceService {
 
     @Autowired
     private LobbyStore lobbyStore;
+
+    @Autowired
+    private FirestoreUserDataClient firestoreUserDataClient;
 
     @Lazy
     @Autowired
@@ -69,6 +73,10 @@ public class LobbyPersistenceService {
     @Scheduled(fixedRate = 60_000)
     public void purgeExpiredLobbies() {
         Instant now = Instant.now();
+        if (!firestoreUserDataClient.isAvailable()) {
+            multiplayerService.purgeExpiredRooms(now);
+            return;
+        }
         for (LobbyEntity lobby : lobbyStore.listOpenLobbies(now)) {
             if (lobby.getExpiresAt() != null && lobby.getExpiresAt().isBefore(now)) {
                 lobby.setClosed(true);

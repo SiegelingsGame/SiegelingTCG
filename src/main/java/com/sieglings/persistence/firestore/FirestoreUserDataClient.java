@@ -82,6 +82,11 @@ public class FirestoreUserDataClient {
         }
     }
 
+    public boolean isAvailable() {
+        ensureInitialized();
+        return firestore != null;
+    }
+
     public Firestore requireFirestore() {
         ensureInitialized();
         if (firestore == null) {

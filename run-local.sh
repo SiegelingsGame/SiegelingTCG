@@ -16,9 +16,14 @@ echo "Java version:"
 java -version
 echo
 
-export PORT="${PORT:-8081}"
+export PORT="${PORT:-8080}"
 echo "Using port ${PORT}"
-echo "Open in browser: http://127.0.0.1:${PORT}/shop"
+echo "Open in browser: http://127.0.0.1:${PORT}/"
+echo "  Play:  http://127.0.0.1:${PORT}/play"
+echo "  Shop:  http://127.0.0.1:${PORT}/shop"
+echo
+echo "Accounts, saved decks, and online lobbies need Google Application Default Credentials."
+echo "After a fresh OS install, run once: ./scripts/firestore-adc-login.sh"
 echo
 
 if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -q ":${PORT} "; then
