@@ -435,55 +435,61 @@ body {
     position: fixed;
     left: 0;
     right: 0;
-    top: clamp(76px, 14vh, 132px);
+    top: 50%;
     display: flex;
     justify-content: center;
-    padding: 0 20px;
-    z-index: 720;
+    align-items: center;
+    padding: 0;
+    z-index: 860;
     pointer-events: none;
     opacity: 0;
-    transform: translateY(-18px) scale(0.98);
-    transition: opacity 0.28s ease, transform 0.32s ease;
+    transform: translateY(calc(-50% - 12px)) scale(0.94);
+    transition: opacity 0.34s ease, transform 0.38s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
 .phase-transition-banner.visible {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(-50%) scale(1);
 }
 
 .phase-transition-banner-inner {
-    width: min(1120px, 100%);
-    padding: 18px 28px 20px;
-    border-radius: 18px;
-    border: 1px solid rgba(255, 215, 0, 0.34);
+    width: 100%;
+    max-width: none;
+    padding: 22px 28px 26px;
+    border-radius: 0;
+    border-top: 3px solid rgba(255, 215, 0, 0.72);
+    border-bottom: 3px solid rgba(255, 215, 0, 0.72);
+    border-left: none;
+    border-right: none;
     background:
-        linear-gradient(180deg, rgba(6, 10, 20, 0.88), rgba(12, 18, 34, 0.94)),
-        radial-gradient(circle at center, rgba(255, 215, 0, 0.08), transparent 58%);
+        linear-gradient(180deg, rgba(4, 8, 18, 0.94), rgba(10, 16, 30, 0.97)),
+        radial-gradient(circle at center, rgba(255, 215, 0, 0.12), transparent 62%);
     box-shadow:
-        0 18px 44px rgba(0, 0, 0, 0.28),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-        inset 0 0 26px rgba(255, 215, 0, 0.08);
+        0 0 60px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 0 40px rgba(255, 215, 0, 0.1);
     text-align: center;
 }
 
 .phase-transition-banner-kicker {
-    font-size: 0.74em;
+    font-size: 0.78em;
     text-transform: uppercase;
-    letter-spacing: 0.34em;
-    color: rgba(255, 215, 0, 0.78);
-    margin-bottom: 8px;
+    letter-spacing: 0.42em;
+    color: rgba(255, 215, 0, 0.82);
+    margin-bottom: 10px;
 }
 
 .phase-transition-banner-title {
-    font-size: clamp(2rem, 4.8vw, 3.8rem);
+    font-size: clamp(2.4rem, 7.2vw, 4.6rem);
     font-weight: 900;
     line-height: 1;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: #f7e8a7;
+    letter-spacing: 0.16em;
+    color: #ffe88a;
     text-shadow:
-        0 0 14px rgba(255, 215, 0, 0.24),
-        0 2px 20px rgba(0, 0, 0, 0.34);
+        0 0 22px rgba(255, 215, 0, 0.42),
+        0 0 48px rgba(255, 140, 40, 0.18),
+        0 3px 24px rgba(0, 0, 0, 0.45);
 }
 
 .phase-transition-banner.draw .phase-transition-banner-inner {
@@ -515,13 +521,12 @@ body {
 
 @media (max-width: 900px) {
     .phase-transition-banner {
-        top: calc(56px + env(safe-area-inset-top, 0px));
-        padding: 0 10px;
+        top: 50%;
+        padding: 0;
     }
 
     .phase-transition-banner-inner {
-        padding: 14px 16px 16px;
-        border-radius: 14px;
+        padding: 16px 14px 18px;
     }
 
     .phase-transition-banner-kicker {
@@ -2840,10 +2845,6 @@ body.battle-phase-active .battlefield::after {
     .m-empty {
         color: var(--text-dim);
         font-size: 0.62em;
-    }
-
-    .phase-transition-banner {
-        top: calc(58px + env(safe-area-inset-top, 0px));
     }
 
     .action-bar {
@@ -9300,13 +9301,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .phase-badge { font-size: 0.50em; padding: 1px 6px; }
     .tb-turn { font-size: 0.54em; }
 
-    .phase-transition-banner {
-        top: calc(30px + env(safe-area-inset-top, 0px));
-        padding: 0 10px;
-    }
     .phase-transition-banner-inner {
-        padding: 12px 16px 14px;
-        border-radius: 12px;
+        padding: 14px 12px 16px;
     }
     .phase-transition-banner-kicker {
         font-size: 0.60em;
