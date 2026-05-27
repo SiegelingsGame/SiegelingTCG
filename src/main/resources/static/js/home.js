@@ -504,17 +504,15 @@
         });
     }
 
-    function renderCardTile(card) {
-        const selected = card.id === state.selectedCardId ? ' selected' : '';
-        const owned = ownedCount(card.id);
+    function renderBinderCardShell(card, options = {}) {
+        const owned = Number.isFinite(options.ownedOverride) ? options.ownedOverride : ownedCount(card.id);
         const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
         const hp = card.health ?? card.hp ?? '-';
         const speed = card.speed ?? card.spd ?? '-';
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const isSiegling = card.type === 'SIEGLING';
-        return `<button class="card-tile binder-card${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-            ${isSiegling ? renderBinderNotches(card.notches) : ''}
+        return `${isSiegling ? renderBinderNotches(card.notches) : ''}
             <div class="binder-card-shell">
                 <div class="binder-card-header">
                     <strong>${escapeHtml(card.name)}</strong>
@@ -529,7 +527,13 @@
                     <div class="binder-card-cost">${cost > 0 ? `Cost ${cost} ${escapeHtml(format(costElement))}` : 'No energy cost'}</div>
                     ${isSiegling ? renderBinderCardDescription(card) : ''}
                 </div>
-            </div>
+            </div>`;
+    }
+
+    function renderCardTile(card) {
+        const selected = card.id === state.selectedCardId ? ' selected' : '';
+        return `<button class="card-tile binder-card${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+            ${renderBinderCardShell(card)}
         </button>`;
     }
 
@@ -2172,27 +2176,20 @@
     function renderRevealCard(card, revealed, newlyRevealed = false, packId = '', index = 0) {
         const rarity = card.rarity || 'COMMON';
         const element = card.element || 'FIRE';
-        const isSiegling = card.type === 'SIEGLING';
         return `<button class="reveal-card ${revealed ? 'is-revealed' : ''} ${newlyRevealed ? 'is-new-reveal' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
             <span class="rarity-burst" aria-hidden="true"></span>
             <span class="reveal-face reveal-back">
                 <strong>Tap to reveal</strong>
             </span>
             <span class="reveal-face reveal-front">
-                ${isSiegling ? renderRevealNotches(card.notches) : ''}
-                <span class="reveal-card-art">${renderRevealCardArt(element)}</span>
-                <span class="reveal-card-copy">
-                    <small>${escapeHtml(format(card.type))} / ${escapeHtml(format(element))}</small>
-                    <strong>${escapeHtml(card.name || 'Unknown Card')}</strong>
-                    <span class="reveal-rarity">${escapeHtml(format(rarity))}</span>
-                    ${isSiegling ? `<span class="reveal-stats">HP ${escapeHtml(card.health ?? '-')} / SPD ${escapeHtml(card.speed ?? '-')}</span>` : ''}
-                    <span class="reveal-cost">${revealCardEnergyCost(card) > 0 ? `Cost ${revealCardEnergyCost(card)} ${escapeHtml(format(card.costElement || element))}` : 'No energy cost'}</span>
-                </span>
+                <div class="card-tile binder-card gacha-card-front" style="--el:${elementColor(element)}">
+                    ${renderBinderCardShell(card, { ownedOverride: 1 })}
+                </div>
             </span>
         </button>`;
     }
 
-    function revealPackCard(revealId, triggerEl = null) {
+    function revealPackCard(revealId, options = {}) {
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
@@ -2200,8 +2197,17 @@
         const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
         reveal.revealed.add(revealId);
         reveal.lastRevealedId = revealId;
-        reveal.previewId = revealId;
+        if (options.openPreview) reveal.previewId = revealId;
         reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
+        renderPackResult();
+    }
+
+    function openPackPreview(revealId) {
+        const latest = state.progression?.packHistory?.[0];
+        if (!latest) return;
+        const reveal = ensurePackReveal(latest);
+        reveal.previewId = revealId;
+        reveal.lastRevealedId = '';
         renderPackResult();
     }
 
@@ -2283,6 +2289,7 @@
             result.classList.add('hidden');
             result.innerHTML = '';
         }
+        navigateHub('shop');
     }
 
     function revealCardEnergyCost(card) {
@@ -3428,7 +3435,12 @@
         }
         if (state.packReveal?.previewId) return;
         const revealButton = event.target.closest('[data-reveal-card]');
-        if (revealButton) revealPackCard(revealButton.dataset.revealCard, revealButton);
+        if (revealButton) {
+            const revealId = revealButton.dataset.revealCard;
+            const alreadyRevealed = Boolean(state.packReveal?.revealed?.has?.(revealId));
+            if (alreadyRevealed) openPackPreview(revealId);
+            else revealPackCard(revealId, { openPreview: false });
+        }
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();
         if (event.target.closest('[data-clear-pack-result]')) clearPackResult();
     });
