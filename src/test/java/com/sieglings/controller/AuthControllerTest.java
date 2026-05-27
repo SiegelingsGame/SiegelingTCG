@@ -34,6 +34,8 @@ class AuthControllerTest {
         assertFalse(response.containsKey("token"));
         assertEquals(List.of(), response.get("savedDecks"));
         assertEquals(List.of(), response.get("matchHistory"));
+        assertEquals(List.of(), response.get("incomingFriendRequests"));
+        assertEquals(List.of(), response.get("outgoingFriendRequests"));
     }
 
     @Test
@@ -55,6 +57,8 @@ class AuthControllerTest {
         assertEquals("session-token", response.get("token"));
         assertEquals(List.of(), response.get("savedDecks"));
         assertEquals(List.of(), response.get("matchHistory"));
+        assertEquals(List.of(), response.get("incomingFriendRequests"));
+        assertEquals(List.of(), response.get("outgoingFriendRequests"));
     }
 
     private AuthController createController(AccountService accountService) throws Exception {

@@ -9,6 +9,7 @@
     const MULTIPLAYER_SESSION_KEY = 'sieglingsMultiplayerSession';
     const PLAYER_NAME_KEY = 'sieglingsPlayerName';
     const SOCIAL_POLL_MS = 12 * 1000;
+    const PRESENCE_HEARTBEAT_MS = 45 * 1000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const HERO_STAT_ICONS = {
         coins: COIN_ICON_PATH,
@@ -153,6 +154,7 @@
         activeChatPeer: null,
         viewingProfile: null,
         socialPollTimer: null,
+        presenceTimer: null,
         lobbyBusy: false,
         hostLobbyStatus: null,
         battleRedirectPending: false,
@@ -334,6 +336,7 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            stopPresenceHeartbeat();
             return null;
         }
         const data = await fetchJson('/api/auth/me');
@@ -344,10 +347,12 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            stopPresenceHeartbeat();
             return null;
         }
         state.profile = data;
         state.progression = data.progression || null;
+        startPresenceHeartbeat();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
             state.profilePrefs = { ...defaultProfilePrefs(data.user || {}), ...serverPrefs };
@@ -384,6 +389,7 @@
         safeRender(renderProfile);
         safeRender(renderRooms);
         safeRender(renderFriends);
+        safeRender(renderFriendRequests);
         safeRender(renderGold);
         safeRender(renderHudTools);
         safeRender(renderAuthModal);
@@ -404,6 +410,7 @@
         } else if (state.route === 'social') {
             renderRooms();
             renderFriends();
+            renderFriendRequests();
             renderMessageThreads();
             startSocialPolling();
         } else {
@@ -1569,6 +1576,7 @@
                 const prefs = presence.profileSettings || {};
                 const online = Boolean(presence.presence?.online);
                 const status = presence.presence?.status || 'OFFLINE';
+                const awaitingAcceptance = friend.mutual === false;
                 return `<article class="friend-tile social-friend-tile">
                 <div class="friend-avatar-wrap">
                     ${renderPlayerAvatar({
@@ -1582,11 +1590,11 @@
                 </div>
                 <div class="friend-copy">
                     <strong>${escapeHtml(prefs.displayName || friend.displayName || friend.email)}</strong>
-                    <span>${escapeHtml(friend.email)} · ${online ? escapeHtml(status.replace('_', ' ')) : 'Offline'}</span>
+                    <span>${escapeHtml(friend.email)} · ${awaitingAcceptance ? 'Awaiting acceptance' : (online ? escapeHtml(status.replace('_', ' ')) : 'Offline')}</span>
                 </div>
                 <div class="friend-actions">
                     <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
-                    <button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>
+                    ${awaitingAcceptance ? '' : `<button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>`}
                     <button class="ghost-btn compact-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}">Remove</button>
                 </div>
             </article>`;
@@ -1596,6 +1604,52 @@
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
         list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => openPlayerProfile(btn.dataset.viewProfile)));
         list.querySelectorAll('[data-message-friend]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.messageFriend)));
+    }
+
+    function renderFriendRequests() {
+        const list = document.getElementById('friendRequestList');
+        const count = document.getElementById('friendRequestCountLabel');
+        const panel = document.getElementById('friendRequestsPanel');
+        if (!list) return;
+
+        const incoming = state.profile?.incomingFriendRequests || [];
+        const outgoing = state.profile?.outgoingFriendRequests || [];
+        const pendingCount = incoming.length;
+
+        if (count) count.textContent = `${pendingCount} pending`;
+        if (panel) panel.classList.toggle('hidden', !state.profile?.authenticated);
+
+        if (!state.profile?.authenticated) {
+            list.innerHTML = '<div class="social-empty-state"><strong>Sign in to manage requests</strong></div>';
+            return;
+        }
+
+        if (!incoming.length && !outgoing.length) {
+            list.innerHTML = '<div class="social-empty-state"><strong>No pending requests</strong><span>Friend invites you send or receive will show up here.</span></div>';
+            return;
+        }
+
+        const incomingHtml = incoming.map(request => `<article class="friend-request-tile">
+            <div class="friend-request-copy">
+                <strong>${escapeHtml(request.displayName || request.peerEmail)}</strong>
+                <span>${escapeHtml(request.peerEmail)} wants to be friends</span>
+            </div>
+            <div class="friend-request-actions">
+                <button class="primary-btn compact-btn" type="button" data-accept-request="${escapeAttr(request.fromUserId)}">Accept</button>
+                <button class="ghost-btn compact-btn" type="button" data-deny-request="${escapeAttr(request.fromUserId)}">Decline</button>
+            </div>
+        </article>`).join('');
+
+        const outgoingHtml = outgoing.map(request => `<article class="friend-request-tile">
+            <div class="friend-request-copy">
+                <strong>${escapeHtml(request.displayName || request.peerEmail)}</strong>
+                <span>Request sent · waiting for approval</span>
+            </div>
+        </article>`).join('');
+
+        list.innerHTML = incomingHtml + outgoingHtml;
+        list.querySelectorAll('[data-accept-request]').forEach(btn => btn.addEventListener('click', () => respondToFriendRequest(btn.dataset.acceptRequest, 'accept')));
+        list.querySelectorAll('[data-deny-request]').forEach(btn => btn.addEventListener('click', () => respondToFriendRequest(btn.dataset.denyRequest, 'deny')));
     }
 
     function friendInitial(friend) {
@@ -2730,10 +2784,31 @@
         state.profile = data;
         state.progression = data.progression || state.progression;
         if (input) input.value = '';
-        setFriendMessage('Friend added.', 'success');
+        setFriendMessage('Friend request sent.', 'success');
         renderProfileMini();
         renderFriends();
+        renderFriendRequests();
         renderProfile();
+    }
+
+    async function respondToFriendRequest(fromUserId, action) {
+        if (!state.profile?.authenticated) return openAuth();
+        const path = action === 'accept' ? '/api/profile/friends/accept' : '/api/profile/friends/deny';
+        const data = await fetchJson(path, { method: 'POST', body: JSON.stringify({ fromUserId }) });
+        if (data?.error) {
+            setFriendMessage(data.error, 'error');
+            return;
+        }
+        state.profile = data;
+        state.progression = data.progression || state.progression;
+        setFriendMessage(action === 'accept' ? 'Friend request accepted.' : 'Friend request declined.', 'success');
+        renderFriends();
+        renderFriendRequests();
+        renderProfile();
+        if (action === 'accept') {
+            await refreshFriendPresence();
+            renderFriends();
+        }
     }
 
     async function removeFriend(email) {
@@ -2747,6 +2822,7 @@
         state.progression = data.progression || state.progression;
         setFriendMessage('Friend removed.', 'success');
         renderFriends();
+        renderFriendRequests();
         renderProfile();
     }
 
@@ -3113,11 +3189,17 @@
         cacheProfilePrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
+        startPresenceHeartbeat();
         await ensurePacksLoaded();
         render();
     }
 
     async function logout() {
+        stopPresenceHeartbeat();
+        try {
+            await fetchJson('/api/social/presence/offline', { method: 'POST' });
+        } catch (_ignored) {
+        }
         await fetchJson('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
@@ -3606,6 +3688,20 @@
         }
     }
 
+    function startPresenceHeartbeat() {
+        stopPresenceHeartbeat();
+        if (!state.profile?.authenticated) return;
+        void sendPresenceHeartbeat();
+        state.presenceTimer = window.setInterval(() => sendPresenceHeartbeat(), PRESENCE_HEARTBEAT_MS);
+    }
+
+    function stopPresenceHeartbeat() {
+        if (state.presenceTimer) {
+            window.clearInterval(state.presenceTimer);
+            state.presenceTimer = null;
+        }
+    }
+
     async function refreshSocialData(forceRooms) {
         if (!state.profile?.authenticated) {
             state.friendPresence = {};
@@ -3775,8 +3871,13 @@
             ${data.isFriend ? `<div class="profile-edit-actions">
                 <button class="primary-btn profile-theme-btn" type="button" id="viewProfileMessageBtn">Message</button>
             </div>` : isSelf ? '<p class="profile-muted">This is your own profile. Share it from Options to let others add you.</p>'
+                : data.incomingFriendRequest ? `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAcceptBtn">Accept Request</button>
+                <button class="ghost-btn profile-theme-btn" type="button" id="viewProfileDenyBtn">Decline</button>
+            </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`
+                : data.outgoingFriendRequest ? '<p class="profile-muted">Friend request sent. Waiting for them to accept.</p>'
                 : `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAddFriendBtn">Add Friend</button>
+                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAddFriendBtn">Send Friend Request</button>
             </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`}
         </div>`;
         modal.classList.remove('hidden');
@@ -3787,6 +3888,14 @@
             openMessageComposer(userId);
         });
         document.getElementById('viewProfileAddFriendBtn')?.addEventListener('click', () => addFriendByEmail(userId));
+        document.getElementById('viewProfileAcceptBtn')?.addEventListener('click', async () => {
+            await respondToFriendRequest(userId, 'accept');
+            closePlayerProfile();
+        });
+        document.getElementById('viewProfileDenyBtn')?.addEventListener('click', async () => {
+            await respondToFriendRequest(userId, 'deny');
+            closePlayerProfile();
+        });
     }
 
     async function addFriendByEmail(email) {
@@ -3804,9 +3913,10 @@
         state.profile = data;
         state.progression = data.progression || state.progression;
         const btn = document.getElementById('viewProfileAddFriendBtn');
-        if (btn) { btn.textContent = 'Friend Added'; btn.disabled = true; }
-        if (msg) { msg.textContent = 'Added to your friends list.'; msg.style.color = ''; }
+        if (btn) { btn.textContent = 'Request Sent'; btn.disabled = true; }
+        if (msg) { msg.textContent = 'They will need to accept before you can message.'; msg.style.color = ''; }
         renderFriends();
+        renderFriendRequests();
     }
 
     function closePlayerProfile() {

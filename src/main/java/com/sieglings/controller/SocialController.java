@@ -7,6 +7,7 @@ import com.sieglings.persistence.entity.UserPresenceEntity;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.PresenceService;
 import com.sieglings.service.ProfileSettingsService;
+import com.sieglings.service.FriendRequestService;
 import com.sieglings.service.PublicProfileService;
 import com.sieglings.service.SocialMessagingService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,6 +77,17 @@ public class SocialController {
             String currentRoomId = req == null ? null : (String) req.get("currentRoomId");
             UserPresenceEntity presence = presenceService.heartbeat(user, status, currentRoomId);
             return Map.of("presence", presenceService.serialize(presence, Instant.now()));
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/social/presence/offline")
+    public Map<String, Object> markOffline(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            presenceService.markOffline(user);
+            return Map.of("ok", true);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }

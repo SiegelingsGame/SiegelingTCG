@@ -3,6 +3,7 @@ package com.sieglings.service;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.DirectMessageEntity;
 import com.sieglings.persistence.firestore.DirectMessageStore;
+import com.sieglings.persistence.firestore.AccountUserStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -10,11 +11,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 public class SocialMessagingService {
@@ -25,6 +24,9 @@ public class SocialMessagingService {
 
   @Autowired
   private AccountService accountService;
+
+  @Autowired
+  private AccountUserStore userStore;
 
   public DirectMessageEntity send(AccountUser sender, String recipientId, String text) {
     String recipient = normalizeUserId(recipientId);
@@ -76,10 +78,12 @@ public class SocialMessagingService {
   }
 
   private void ensureCanMessage(AccountUser user, String peerId) {
-    Set<String> allowed = new LinkedHashSet<>(user.getFriendEmails() == null ? List.of() : user.getFriendEmails());
-    allowed.add(user.getId());
-    if (!allowed.contains(peerId)) {
-      throw new IllegalArgumentException("You can only message players on your friends list.");
+    if (peerId.equals(user.getId())) {
+      return;
+    }
+    AccountUser peer = userStore.findById(peerId).orElse(null);
+    if (peer == null || !FriendRequestService.areMutualFriends(user, peer)) {
+      throw new IllegalArgumentException("You can only message mutual friends.");
     }
   }
 
