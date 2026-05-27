@@ -50,6 +50,7 @@ let arenaSelection = null;
 let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
+let coinFlipDismissedRoomId = null;
 let handTouchGesture = null;
 /** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
 let cardDragSession = null;
@@ -2818,6 +2819,59 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
 window.showPhaseTransitionBanner = showPhaseTransitionBanner;
 window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
 
+function applyStartedMultiplayerState(data) {
+    clearRoomExpiryTimer();
+    clearExternalSocketElementMemory();
+    const roomId = data?.roomId || multiplayerSession?.roomId;
+    if (data?.multiplayer && roomId && coinFlipDismissedRoomId !== roomId) {
+        coinFlipDismissedRoomId = roomId;
+        showCoinFlipOverlay(data).then(() => {
+            gameState = data;
+            render();
+        });
+        return;
+    }
+    gameState = data;
+    render();
+}
+
+function showCoinFlipOverlay(state) {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('coinFlipOverlay');
+        const title = document.getElementById('coinFlipTitle');
+        const copy = document.getElementById('coinFlipCopy');
+        const coin = document.getElementById('coinFlipAnim');
+        if (!overlay || !title || !copy) {
+            resolve();
+            return;
+        }
+
+        const viewerFirst = state.viewerGoesFirst === true || state.firstPlayer === 'PLAYER';
+        const winnerName = state.coinFlipWinnerName
+            || (viewerFirst ? (state.playerName || 'You') : (state.enemyName || 'Opponent'));
+        title.textContent = viewerFirst ? 'You go first!' : `${winnerName} goes first!`;
+        copy.textContent = viewerFirst
+            ? 'You won the coin flip and take the first turn this round.'
+            : `${winnerName} won the coin flip and takes the first turn this round.`;
+
+        coin?.classList.add('spinning');
+        overlay.classList.remove('hidden');
+        requestAnimationFrame(() => overlay.classList.add('visible'));
+        window.SieglingsSounds?.play('phase', 0.55);
+
+        setTimeout(() => {
+            coin?.classList.remove('spinning');
+            setTimeout(() => {
+                overlay.classList.remove('visible');
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                    resolve();
+                }, 320);
+            }, 2200);
+        }, 1400);
+    });
+}
+
 /* ============================================================
    CARD INSPECTOR â€” full-detail overlay when tapping hand card
    ============================================================ */
@@ -4116,7 +4170,7 @@ function isSocialBattleLaunch() {
 }
 
 function shouldShowOnlineLoadoutOnPlay() {
-    return false;
+    return matchMode === 'online' || Boolean(multiplayerSession?.roomId) || Boolean(socialOnlineLaunchRoomId);
 }
 
 function loadSavedPlayerName() {
@@ -5759,16 +5813,14 @@ function applyPendingHomeLoadout() {
     }
     matchMode = pending.mode === 'online' ? 'online' : 'solo';
     if (matchMode === 'online') {
-        onlineRoomMode = 'join';
+        welcomeDismissed = true;
+        onlineRoomMode = pending.roomId ? 'join' : 'create';
         if (pending.roomId) {
             socialOnlineLaunchRoomId = String(pending.roomId).toUpperCase();
             const roomCodeInput = document.getElementById('roomCodeInput');
             if (roomCodeInput) {
                 roomCodeInput.value = socialOnlineLaunchRoomId;
             }
-        }
-        if (pending.battleLaunch) {
-            welcomeDismissed = true;
         }
     }
 }
@@ -5789,14 +5841,16 @@ async function resumeMultiplayerSession() {
     }
 
     matchMode = 'online';
+    welcomeDismissed = true;
     currentRoomStatus = data;
     if (data.started) {
         startRoomPolling();
-        if (!gameState) {
-            clearExternalSocketElementMemory();
-        }
-        gameState = data;
-        render();
+        applyStartedMultiplayerState(data);
+    } else if (data.loadoutPhase) {
+        startRoomPolling();
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
     } else {
         if (isRoomStatusExpired(data)) {
             await closeUnfilledLobby('Lobby expired before another player joined.');
@@ -5848,12 +5902,16 @@ function startRoomPolling() {
         }
         currentRoomStatus = data;
         if (data.started) {
-            clearRoomExpiryTimer();
             if (!gameState) {
-                clearExternalSocketElementMemory();
+                applyStartedMultiplayerState(data);
+            } else {
+                gameState = data;
+                render();
             }
-            gameState = data;
-            render();
+        } else if (data.loadoutPhase) {
+            renderLoadoutOptions();
+            updateLoadoutSummary();
+            syncEntryOverlays();
         } else {
             if (isRoomStatusExpired(data)) {
                 void closeUnfilledLobby('Lobby expired before another player joined.');
@@ -6001,11 +6059,17 @@ function renderLoadoutOptions() {
         inviteRoomBadge.classList.remove('hidden');
         playerIdentityNote.textContent = 'This is the name your opponent will see when you join.';
     } else if (matchMode === 'online') {
-        loadoutKicker.textContent = onlineRoomMode === 'create' ? 'Online Match' : 'Join Online Match';
-        loadoutTitle.textContent = onlineRoomMode === 'create' ? 'Create Your Room' : 'Choose Your Match Loadout';
-        loadoutSubtitle.textContent = onlineRoomMode === 'create'
-            ? 'Enter your name, pick your favorite deck, and choose the SiegeKnight you want to lead your room.'
-            : 'Enter your name, choose the build you want to bring, and then join the room.';
+        if (currentRoomStatus?.loadoutPhase) {
+            loadoutKicker.textContent = 'Match Loadout';
+            loadoutTitle.textContent = 'Choose Deck & SiegeKnight';
+            loadoutSubtitle.textContent = 'Lock in your build. The match begins once both players confirm their loadouts.';
+        } else {
+            loadoutKicker.textContent = onlineRoomMode === 'create' ? 'Online Match' : 'Join Online Match';
+            loadoutTitle.textContent = onlineRoomMode === 'create' ? 'Create Your Room' : 'Choose Your Match Loadout';
+            loadoutSubtitle.textContent = onlineRoomMode === 'create'
+                ? 'Enter your name, pick your favorite deck, and choose the SiegeKnight you want to lead your room.'
+                : 'Enter your name, choose the build you want to bring, and then join the room.';
+        }
         inviteRoomBadge.classList.add('hidden');
         playerIdentityNote.textContent = 'This name is shown in online matches and saved on this device.';
     } else {
@@ -6199,6 +6263,17 @@ function renderOnlineStatus() {
     }
 
     const roomLabel = `<strong>${currentRoomStatus.roomId}</strong>`;
+    if (currentRoomStatus.loadoutPhase) {
+        const opponent = escapeHtml(currentRoomStatus.enemyName || 'Opponent');
+        if (currentRoomStatus.viewerLoadoutReady && !currentRoomStatus.opponentLoadoutReady) {
+            statusEl.innerHTML = `Room ${roomLabel}: waiting for ${opponent} to lock in deck and SiegeKnight.`;
+        } else if (!currentRoomStatus.viewerLoadoutReady && currentRoomStatus.opponentLoadoutReady) {
+            statusEl.innerHTML = `${opponent} is ready. Choose your deck and SiegeKnight, then lock in your loadout.`;
+        } else {
+            statusEl.innerHTML = `Both players are in room ${roomLabel}. Pick your deck and SiegeKnight, then lock in your loadout.`;
+        }
+        return;
+    }
     if (!currentRoomStatus.started) {
         statusEl.innerHTML = `Room ${roomLabel} is waiting for Player 2.<span class="room-meta-line">Share: <a href="${currentRoomStatus.shareUrl}" target="_blank">${currentRoomStatus.shareUrl}</a></span><span class="room-meta-line"><button class="btn btn-primary" type="button" onclick="copyRoomShareLink()">Copy Invite Link</button></span>`;
         return;
@@ -6280,6 +6355,9 @@ function renderDeckBuilder() {
 
 function getLoadoutStartButtonLabel() {
     if (matchMode === 'online') {
+        if (currentRoomStatus?.loadoutPhase) {
+            return currentRoomStatus.viewerLoadoutReady ? 'Waiting for opponent...' : 'Lock Loadout';
+        }
         return isInviteJoinFlow() ? 'Join Match' : (onlineRoomMode === 'create' ? 'Create Room' : 'Join Room');
     }
     return 'Start Battle';
@@ -6287,6 +6365,9 @@ function getLoadoutStartButtonLabel() {
 
 function getLoadoutStartButtonBusyLabel() {
     if (matchMode === 'online') {
+        if (currentRoomStatus?.loadoutPhase) {
+            return 'Locking loadout...';
+        }
         return onlineRoomMode === 'create' ? 'Creating Room...' : (isInviteJoinFlow() ? 'Joining Match...' : 'Joining Room...');
     }
     return 'Starting Battle...';
@@ -6335,6 +6416,19 @@ function updateLoadoutSummary() {
     if (needsPlayerName && !playerName) {
         summary.innerHTML = 'Enter the name you want to use online, then finish choosing your deck and SiegeKnight.';
         syncLoadoutStartButton(startBtn, true, startButtonLabel);
+        return;
+    }
+
+    if (matchMode === 'online' && currentRoomStatus?.loadoutPhase) {
+        const opponent = escapeHtml(currentRoomStatus.enemyName || 'Opponent');
+        if (currentRoomStatus.viewerLoadoutReady) {
+            summary.innerHTML = `Loadout locked. Waiting for <strong>${opponent}</strong> to finish choosing deck and SiegeKnight.`;
+        } else if (currentRoomStatus.opponentLoadoutReady) {
+            summary.innerHTML = `<strong>${opponent}</strong> is ready. Lock in your deck and SiegeKnight to start the match.`;
+        } else {
+            summary.innerHTML = `Both players are in room <strong>${currentRoomStatus.roomId}</strong>. Choose your deck and SiegeKnight, then lock in your loadout.`;
+        }
+        syncLoadoutStartButton(startBtn, loadoutStartPending || currentRoomStatus.viewerLoadoutReady, startButtonLabel);
         return;
     }
 
@@ -6395,17 +6489,26 @@ async function startSelectedGame() {
     try {
         if (matchMode === 'online') {
             if (multiplayerSession?.roomId) {
+                if (currentRoomStatus?.loadoutPhase && !currentRoomStatus.viewerLoadoutReady) {
+                    await submitMatchLoadout();
+                    return;
+                }
                 const data = await fetchRoomStatus();
                 if (data?.started) {
                     loadoutErrorMessage = '';
-                    clearExternalSocketElementMemory();
-                    gameState = data;
-                    render();
+                    currentRoomStatus = data;
+                    applyStartedMultiplayerState(data);
                     return;
                 }
                 if (data && !data.error) {
                     currentRoomStatus = data;
                     startRoomPolling();
+                    if (data.loadoutPhase) {
+                        renderLoadoutOptions();
+                        updateLoadoutSummary();
+                        syncEntryOverlays();
+                        return;
+                    }
                     if (isRoomStatusExpired(data)) {
                         await closeUnfilledLobby('Lobby expired before another player joined.');
                     } else {
@@ -6525,16 +6628,55 @@ async function joinRoom() {
     startRoomPolling();
 
     if (data.started) {
-        clearRoomExpiryTimer();
-        clearExternalSocketElementMemory();
-        gameState = data;
-        render();
+        applyStartedMultiplayerState(data);
+    } else if (data.loadoutPhase) {
+        welcomeDismissed = true;
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
     } else {
         scheduleRoomExpiryClose(data);
         renderLoadoutOptions();
         updateLoadoutSummary();
         syncEntryOverlays();
     }
+    return true;
+}
+
+async function submitMatchLoadout() {
+    if (!multiplayerSession?.roomId || !multiplayerSession?.playerToken) {
+        loadoutErrorMessage = 'Online session missing. Return to Social and rejoin the lobby.';
+        return false;
+    }
+
+    savePlayerName(getCurrentPlayerName());
+    const data = await fetchJson(apiUrls('/api/match/ready'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Room-Id': multiplayerSession.roomId,
+            'X-Player-Token': multiplayerSession.playerToken
+        },
+        body: JSON.stringify({
+            ...getSelectedLoadoutBody(),
+            playerName: getCurrentPlayerName()
+        })
+    }, LOADOUT_ACTION_TIMEOUT_MS);
+
+    if (!data || data.error) {
+        loadoutErrorMessage = data?.error || 'Unable to lock in loadout. Try again.';
+        return false;
+    }
+
+    loadoutErrorMessage = '';
+    currentRoomStatus = data;
+    if (data.started) {
+        applyStartedMultiplayerState(data);
+        return true;
+    }
+    renderLoadoutOptions();
+    updateLoadoutSummary();
+    syncEntryOverlays();
     return true;
 }
 

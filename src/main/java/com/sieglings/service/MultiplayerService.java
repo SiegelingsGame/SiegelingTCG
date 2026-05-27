@@ -60,7 +60,37 @@ public class MultiplayerService {
         room.setGuestToken(token);
         room.setGuestName(safeName(playerName, "Guest"));
         room.setGuestUserId(accountUserId);
-        room.setGuestOptions(options);
+        room.touch();
+        return new RoomSession(roomId, token, false, false);
+    }
+
+    public synchronized RoomSession submitLoadout(String roomId, String token, GameService.StartOptions options, String accountUserId) {
+        MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
+        if (room.isStarted()) {
+            throw new IllegalArgumentException("That match has already started.");
+        }
+        if (!room.hasGuest()) {
+            throw new IllegalArgumentException("Waiting for another player to join.");
+        }
+
+        boolean isHost = room.isHostToken(token);
+        if (isHost) {
+            room.setHostOptions(options);
+            room.setHostLoadoutReady(true);
+        } else {
+            room.setGuestOptions(options);
+            room.setGuestLoadoutReady(true);
+        }
+        room.touch();
+
+        if (room.isHostLoadoutReady() && room.isGuestLoadoutReady()) {
+            startMatch(room);
+            return new RoomSession(roomId, token, isHost, true);
+        }
+        return new RoomSession(roomId, token, isHost, false);
+    }
+
+    private void startMatch(MultiplayerRoom room) {
         GameState gameState = gameService.newMultiplayerGame(
                 room.getHostOptions(),
                 room.getGuestOptions(),
@@ -74,11 +104,9 @@ public class MultiplayerService {
             gameState.getEnemy().setAccountUserId(room.getGuestUserId());
         }
         room.setGameState(gameState);
-        room.touch();
         if (lobbyPersistenceService != null) {
-            lobbyPersistenceService.markStarted(roomId);
+            lobbyPersistenceService.markStarted(room.getRoomId());
         }
-        return new RoomSession(roomId, token, false, true);
     }
 
     public synchronized void closeRoom(String roomId, String hostUserId) {

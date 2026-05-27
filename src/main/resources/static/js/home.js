@@ -156,6 +156,7 @@
         lobbyBusy: false,
         hostLobbyStatus: null,
         battleRedirectPending: false,
+        loadoutRedirectPending: false,
         hostLobbyPollTimer: null,
         packReveal: null,
         packOpeningDismissedKey: '',
@@ -2821,7 +2822,7 @@
         try {
             const data = await fetchJson('/api/match/join', {
                 method: 'POST',
-                body: JSON.stringify({ ...buildSocialMatchBody(), roomId: room })
+                body: JSON.stringify({ roomId: room, playerName: socialBattleName() })
             });
             if (data?.error) {
                 alert(data.error);
@@ -2832,7 +2833,7 @@
                 playerToken: data.playerToken,
                 viewerSide: data.viewerSide || 'PLAYER'
             });
-            launchOnlineBattleFromSocial({
+            launchOnlineLoadoutFromSocial({
                 roomId: data.roomId,
                 playerToken: data.playerToken
             }, data);
@@ -3504,9 +3505,31 @@
         const status = await fetchMatchStatus(lobby);
         if (!status || status.error) return;
         state.hostLobbyStatus = status;
+        if (status.guestJoined && !status.started) {
+            launchOnlineLoadoutFromSocial(lobby, status);
+            return;
+        }
         if (status.started) {
             launchOnlineBattleFromSocial(lobby, status);
         }
+    }
+
+    function launchOnlineLoadoutFromSocial(lobby, _status) {
+        if (!lobby?.roomId || !lobby?.playerToken || state.loadoutRedirectPending) return;
+        state.loadoutRedirectPending = true;
+        saveMultiplayerSession({
+            roomId: lobby.roomId,
+            playerToken: lobby.playerToken,
+            viewerSide: 'PLAYER'
+        });
+        localStorage.removeItem(HOST_LOBBY_KEY);
+        state.hostLobbyStatus = null;
+        stopHostLobbyPolling();
+        goPlay({
+            mode: 'online',
+            roomId: lobby.roomId,
+            battleLaunch: false
+        });
     }
 
     function launchOnlineBattleFromSocial(lobby, status) {

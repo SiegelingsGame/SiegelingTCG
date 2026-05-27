@@ -169,10 +169,37 @@ public class GameController {
         try {
             String roomId = req == null ? null : (String) req.get("roomId");
             String playerName = req == null ? null : (String) req.get("playerName");
-            GameService.StartOptions options = parseStartOptions(req, "deck_water_wind", "trainer06");
+            AccountUser user = accountService.findUser(authorizationHeader);
+            MultiplayerService.RoomSession session = multiplayerService.joinRoom(
+                    roomId, playerName, null, user == null ? null : user.getId());
+            MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
+            return buildRoomMeta(room, session, request);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/match/ready")
+    @ResponseBody
+    public Map<String, Object> confirmMatchLoadout(@RequestBody(required = false) Map<String, Object> req,
+                                                   @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                                   @RequestHeader(value = "X-Room-Id", required = false) String roomIdHeader,
+                                                   @RequestHeader(value = "X-Player-Token", required = false) String playerTokenHeader,
+                                                   HttpServletRequest request) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            if (roomId == null || roomId.isBlank()) {
+                roomId = roomIdHeader;
+            }
+            String playerToken = req == null ? null : (String) req.get("playerToken");
+            if (playerToken == null || playerToken.isBlank()) {
+                playerToken = playerTokenHeader;
+            }
+            GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
-            MultiplayerService.RoomSession session = multiplayerService.joinRoom(roomId, playerName, options, user == null ? null : user.getId());
+            MultiplayerService.RoomSession session = multiplayerService.submitLoadout(
+                    roomId, playerToken, options, user == null ? null : user.getId());
             MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
             Map<String, Object> resp = buildRoomMeta(room, session, request);
             if (room.isStarted()) {
@@ -615,6 +642,8 @@ public class GameController {
         resp.put("firstPlayer", gs.isPlayerGoesFirst() == viewerIsPlayer ? "PLAYER" : "ENEMY");
         resp.put("activeSideLabel", activeSideLabel);
         resp.put("firstPlayerLabel", gs.isPlayerGoesFirst() == viewerIsPlayer ? "You" : opponent.getName());
+        resp.put("coinFlipWinnerName", gs.isPlayerGoesFirst() ? gs.getPlayer().getName() : gs.getEnemy().getName());
+        resp.put("viewerGoesFirst", gs.isPlayerGoesFirst() == viewerIsPlayer);
         resp.put("setupTurnsTakenThisRound", gs.getSetupTurnsTakenThisRound());
         resp.put("gameOver", gs.isGameOver());
         resp.put("winner", gs.getWinner());
@@ -670,6 +699,11 @@ public class GameController {
                 ? (room.getGuestName() == null ? "Waiting for Player 2" : room.getGuestName())
                 : room.getHostName());
         resp.put("guestJoined", room.hasGuest());
+        resp.put("loadoutPhase", room.isLoadoutPhase());
+        resp.put("hostLoadoutReady", room.isHostLoadoutReady());
+        resp.put("guestLoadoutReady", room.isGuestLoadoutReady());
+        resp.put("viewerLoadoutReady", viewerIsPlayer ? room.isHostLoadoutReady() : room.isGuestLoadoutReady());
+        resp.put("opponentLoadoutReady", viewerIsPlayer ? room.isGuestLoadoutReady() : room.isHostLoadoutReady());
         resp.put("shareUrl", buildShareUrl(request, room.getRoomId()));
         resp.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
         resp.put("format", room.getFormat() == null ? "PVP" : room.getFormat());

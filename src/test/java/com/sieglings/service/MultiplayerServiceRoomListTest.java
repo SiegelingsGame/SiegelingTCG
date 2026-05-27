@@ -7,6 +7,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MultiplayerServiceRoomListTest {
 
@@ -19,6 +20,23 @@ class MultiplayerServiceRoomListTest {
 
         assertEquals(1, rooms.size());
         assertEquals("Host", rooms.get(0).getHostName());
+    }
+
+    @Test
+    void joinRoomEntersLoadoutPhaseWithoutStartingMatch() {
+        MultiplayerService service = new MultiplayerService();
+        GameService.StartOptions hostOpts = new GameService.StartOptions("deck_fire", "trainer02", null, "Host Deck");
+
+        MultiplayerService.RoomSession hostSession = service.createRoom("Host", hostOpts, "user-1");
+        MultiplayerService.RoomSession guestSession = service.joinRoom(
+                hostSession.roomId(), "Guest", null, "user-2");
+
+        MultiplayerRoom room = service.requireRoom(hostSession.roomId());
+        assertFalse(guestSession.started());
+        assertFalse(room.isStarted());
+        assertTrue(room.isLoadoutPhase());
+        assertFalse(room.isHostLoadoutReady());
+        assertFalse(room.isGuestLoadoutReady());
     }
 
     @Test
