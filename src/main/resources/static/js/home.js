@@ -657,7 +657,7 @@
                 <div class="command-hero-top">
                     <div class="command-hero-copy">
                         <p class="command-hero-welcome">Welcome back, ${escapeHtml(displayName)}</p>
-                        <h2>Your Siege Awaits</h2>
+                        <h2>The Arena Awaits</h2>
                         <p class="command-hero-tagline">Battle, build, collect, and keep your daily momentum moving from one command table.</p>
                     </div>
                     <div class="command-hero-actions">
