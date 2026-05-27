@@ -2506,18 +2506,23 @@ function getPhaseTransitionKicker(phase, activeSide) {
     return 'Phase Shift';
 }
 
-function showPhaseTransitionBanner(phase, activeSide) {
-    // The real-time playback system shows phase changes via the action-queue
-    // toast. When it's available, suppress the old top-of-screen banner so we
-    // don't double up.
-    if (window.SieglingsActionQueue) {
-        return;
+function hidePhaseTransitionBanner() {
+    const banner = document.getElementById('phaseTransitionBanner');
+    if (!banner) return;
+    if (phaseTransitionTimer) {
+        clearTimeout(phaseTransitionTimer);
+        phaseTransitionTimer = null;
     }
+    banner.classList.remove('visible');
+    banner.classList.add('hidden');
+}
+
+function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     const banner = document.getElementById('phaseTransitionBanner');
     const kicker = document.getElementById('phaseTransitionKicker');
     const title = document.getElementById('phaseTransitionTitle');
     if (!banner || !kicker || !title || !phase) {
-        return;
+        return Promise.resolve();
     }
 
     if (phaseTransitionTimer) {
@@ -2525,6 +2530,7 @@ function showPhaseTransitionBanner(phase, activeSide) {
         phaseTransitionTimer = null;
     }
 
+    const holdMs = Math.max(1200, Number(durationMs) || 2000);
     banner.className = `phase-transition-banner ${String(phase).toLowerCase()}`;
     kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
     title.textContent = formatPhaseLabel(phase);
@@ -2532,14 +2538,20 @@ function showPhaseTransitionBanner(phase, activeSide) {
     window.SieglingsSounds?.play('phase', 0.5);
     requestAnimationFrame(() => banner.classList.add('visible'));
 
-    phaseTransitionTimer = setTimeout(() => {
-        banner.classList.remove('visible');
+    return new Promise((resolve) => {
         phaseTransitionTimer = setTimeout(() => {
-            banner.classList.add('hidden');
-            phaseTransitionTimer = null;
-        }, 320);
-    }, 1800);
+            banner.classList.remove('visible');
+            phaseTransitionTimer = setTimeout(() => {
+                banner.classList.add('hidden');
+                phaseTransitionTimer = null;
+                resolve();
+            }, 360);
+        }, holdMs);
+    });
 }
+
+window.showPhaseTransitionBanner = showPhaseTransitionBanner;
+window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
 
 /* ============================================================
    CARD INSPECTOR â€” full-detail overlay when tapping hand card
@@ -6574,7 +6586,7 @@ function renderDomLegacy() {
     if (activeDrawer === 'battle' && phase !== 'BATTLE') {
         closeDrawer(true);
     }
-    if (phaseChanged) {
+    if (phaseChanged && !window.SieglingsActionQueue) {
         showPhaseTransitionBanner(phase, gameState.activeSide);
     }
 
