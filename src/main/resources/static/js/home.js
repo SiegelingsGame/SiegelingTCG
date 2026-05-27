@@ -2067,7 +2067,8 @@
             openedAt: latest.openedAt,
             revealed: new Set(),
             lastRevealedId: '',
-            sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
+            sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE'),
+            particleElement: latest.cards?.[0]?.element || 'FIRE'
         } : null;
         renderPackResult();
         render();
@@ -2093,9 +2094,10 @@
         const reveal = ensurePackReveal(latest);
         const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
         const revealedCount = reveal.revealed.size;
+        const particleElement = reveal.particleElement || cards[0]?.element || 'FIRE';
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
-        result.innerHTML = `<section class="pack-opening" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')}">
+        result.innerHTML = `<section class="pack-opening" role="dialog" aria-modal="true" aria-label="${escapeAttr(latest.packName)} gacha reveal" data-particle-theme="${escapeAttr(particleThemeForElement(particleElement))}" style="--pack-glow:${elementColor(cards[0]?.element || 'FIRE')};--spark-glow:${reveal.sparkColor || elementColor(cards[0]?.element || 'FIRE')};--particle-glow:${elementColor(particleElement)}">
             <div class="gacha-particles" aria-hidden="true"></div>
             <div class="pack-opening-head">
                 <div>
@@ -2124,10 +2126,19 @@
                 openedAt: latest.openedAt,
                 revealed: new Set(),
                 lastRevealedId: '',
-                sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
+                sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE'),
+                particleElement: latest.cards?.[0]?.element || 'FIRE'
             };
         }
         return state.packReveal;
+    }
+
+    function particleThemeForElement(element) {
+        const normalized = String(element || 'FIRE').toUpperCase();
+        if (normalized === 'EARTH') return 'earth';
+        if (normalized === 'ICE' || normalized === 'WATER') return 'ice';
+        if (normalized === 'WIND') return 'wind';
+        return 'fire';
     }
 
     function enrichPackCard(card, index) {
@@ -2183,6 +2194,7 @@
         reveal.revealed.add(revealId);
         reveal.lastRevealedId = revealId;
         reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
+        reveal.particleElement = card?.element || reveal.particleElement;
         renderPackResult();
     }
 
@@ -2193,6 +2205,7 @@
         latest.cards.forEach((card, index) => reveal.revealed.add(`${card.id || 'card'}-${index}`));
         reveal.lastRevealedId = '';
         reveal.sparkColor = elementColor(latest.cards?.[0]?.element || 'FIRE');
+        reveal.particleElement = latest.cards?.[0]?.element || reveal.particleElement || 'FIRE';
         renderPackResult();
     }
 

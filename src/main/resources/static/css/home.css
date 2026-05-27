@@ -2409,6 +2409,95 @@ body.gacha-active {
     animation-direction: reverse;
 }
 
+.pack-opening[data-particle-theme="fire"] .gacha-particles::before,
+.pack-opening[data-particle-theme="fire"] .gacha-particles::after {
+    inset: auto -10% -18% -10%;
+    height: 128%;
+    background:
+        radial-gradient(circle at 8% 92%, #fff2a8 0 1px, transparent 2px),
+        radial-gradient(circle at 18% 78%, var(--particle-glow, var(--fire)) 0 2px, transparent 4px),
+        radial-gradient(circle at 30% 96%, #ffb347 0 2px, transparent 4px),
+        radial-gradient(circle at 46% 84%, var(--particle-glow, var(--fire)) 0 1px, transparent 3px),
+        radial-gradient(circle at 58% 100%, #ffe29a 0 2px, transparent 4px),
+        radial-gradient(circle at 74% 86%, var(--particle-glow, var(--fire)) 0 2px, transparent 4px),
+        radial-gradient(circle at 90% 94%, #ff7a32 0 1px, transparent 3px);
+    background-size: 300px 300px;
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--particle-glow, var(--fire)) 78%, transparent));
+    animation: gachaFireRise 5.8s linear infinite;
+}
+
+.pack-opening[data-particle-theme="fire"] .gacha-particles::after {
+    opacity: 0.44;
+    animation-duration: 8.5s;
+    animation-delay: -2.6s;
+}
+
+.pack-opening[data-particle-theme="earth"] .gacha-particles::before,
+.pack-opening[data-particle-theme="earth"] .gacha-particles::after {
+    inset: -26% -10% -10%;
+    background:
+        radial-gradient(circle at 10% 8%, #e7c67c 0 2px, #7a5b34 3px, transparent 5px),
+        radial-gradient(circle at 24% 20%, #a7773d 0 4px, transparent 6px),
+        radial-gradient(circle at 36% 4%, #d0a65f 0 3px, transparent 5px),
+        radial-gradient(circle at 52% 16%, #6f5a36 0 4px, transparent 7px),
+        radial-gradient(circle at 68% 7%, #c59654 0 2px, transparent 5px),
+        radial-gradient(circle at 84% 22%, #8d6b3f 0 5px, transparent 7px),
+        radial-gradient(circle at 96% 10%, #e0bd74 0 2px, transparent 4px);
+    background-size: 340px 260px;
+    filter: drop-shadow(0 6px 3px rgba(0, 0, 0, 0.24));
+    animation: gachaEarthFall 2.4s cubic-bezier(.35, .02, .82, .35) infinite;
+}
+
+.pack-opening[data-particle-theme="earth"] .gacha-particles::after {
+    opacity: 0.38;
+    transform: scale(1.18);
+    animation-duration: 3.2s;
+    animation-delay: -1.4s;
+}
+
+.pack-opening[data-particle-theme="ice"] .gacha-particles::before,
+.pack-opening[data-particle-theme="ice"] .gacha-particles::after {
+    inset: -18% -12%;
+    background:
+        radial-gradient(circle at 8% 0%, #effcff 0 1px, transparent 3px),
+        radial-gradient(circle at 18% 14%, #aef4ff 0 2px, transparent 4px),
+        radial-gradient(circle at 34% 2%, #ffffff 0 1px, transparent 3px),
+        radial-gradient(circle at 48% 18%, var(--particle-glow, var(--ice)) 0 2px, transparent 4px),
+        radial-gradient(circle at 62% 8%, #dcfbff 0 1px, transparent 3px),
+        radial-gradient(circle at 78% 22%, #a8efff 0 2px, transparent 5px),
+        radial-gradient(circle at 94% 6%, #ffffff 0 1px, transparent 3px);
+    background-size: 310px 310px;
+    filter: drop-shadow(0 0 7px color-mix(in srgb, var(--particle-glow, var(--ice)) 62%, transparent));
+    animation: gachaIceSnow 11s ease-in-out infinite;
+}
+
+.pack-opening[data-particle-theme="ice"] .gacha-particles::after {
+    opacity: 0.46;
+    animation-duration: 16s;
+    animation-delay: -6s;
+}
+
+.pack-opening[data-particle-theme="wind"] .gacha-particles::before,
+.pack-opening[data-particle-theme="wind"] .gacha-particles::after {
+    inset: -8% -24%;
+    background:
+        linear-gradient(100deg, transparent 0 12%, color-mix(in srgb, var(--particle-glow, var(--wind)) 66%, transparent) 13% 15%, transparent 22%),
+        linear-gradient(100deg, transparent 0 36%, rgba(255, 255, 255, 0.54) 37% 39%, transparent 48%),
+        linear-gradient(100deg, transparent 0 58%, color-mix(in srgb, var(--particle-glow, var(--wind)) 70%, transparent) 59% 61%, transparent 72%),
+        radial-gradient(ellipse at 24% 32%, rgba(255, 255, 255, 0.42), transparent 18%),
+        radial-gradient(ellipse at 72% 62%, color-mix(in srgb, var(--particle-glow, var(--wind)) 34%, transparent), transparent 20%);
+    background-size: 360px 150px, 430px 220px, 520px 190px, 420px 260px, 540px 300px;
+    filter: blur(0.2px) drop-shadow(0 0 8px color-mix(in srgb, var(--particle-glow, var(--wind)) 55%, transparent));
+    animation: gachaWindSweep 3.6s linear infinite;
+}
+
+.pack-opening[data-particle-theme="wind"] .gacha-particles::after {
+    opacity: 0.4;
+    transform: translateY(42px) scaleY(1.24);
+    animation-duration: 5.4s;
+    animation-delay: -1.8s;
+}
+
 .pack-opening-head {
     position: relative;
     z-index: 2;
@@ -2676,6 +2765,27 @@ body.gacha-active {
 @keyframes gachaParticles {
     from { transform: translate3d(0, 0, 0); }
     to { transform: translate3d(120px, -160px, 0); }
+}
+
+@keyframes gachaFireRise {
+    from { transform: translate3d(0, 22%, 0) scale(1); }
+    to { transform: translate3d(80px, -48%, 0) scale(1.08); }
+}
+
+@keyframes gachaEarthFall {
+    from { transform: translate3d(-18px, -28%, 0) rotate(0deg); }
+    to { transform: translate3d(24px, 60%, 0) rotate(6deg); }
+}
+
+@keyframes gachaIceSnow {
+    0% { transform: translate3d(-26px, -18%, 0); }
+    50% { transform: translate3d(34px, 18%, 0); }
+    100% { transform: translate3d(-18px, 56%, 0); }
+}
+
+@keyframes gachaWindSweep {
+    from { transform: translate3d(-24%, 0, 0); }
+    to { transform: translate3d(34%, -2%, 0); }
 }
 
 @keyframes revealCardEnter {
