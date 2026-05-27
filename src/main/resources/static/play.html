@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=102">
+    <link rel="stylesheet" href="/css/style.css?v=104">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -221,10 +221,6 @@
                 <span class="desktop-menu-chip" id="desktopMenuViewport">Adaptive layout</span>
                 <span class="desktop-menu-chip" id="desktopMenuFocus">Hover a card to inspect live costs and timing notes.</span>
             </div>
-            <div class="desktop-action-history" id="desktopActionHistory">
-                <div class="desktop-battle-log-title">Battle log</div>
-                <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>
-            </div>
         </div>
 
         <!-- Action Bar: slim segmented control -->
@@ -251,11 +247,12 @@
             </div>
         </div>
 
-        <section class="desktop-menu-section desktop-menu-inspect" id="desktopInspectSection" aria-label="Card and deck inspector">
+        <section class="desktop-menu-section desktop-menu-inspect" id="desktopInspectSection" aria-label="Card, deck, and battle log inspector">
             <div class="desktop-inspect-toolbar">
                 <div class="desktop-inspect-toggle" role="tablist" aria-label="Inspector view">
                     <button type="button" class="desktop-inspect-tab is-active" role="tab" id="tabDesktopInspectCard" aria-selected="true" aria-controls="desktopInspectPaneCard" onclick="setDesktopInspectTab('card')">Card</button>
                     <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectDeck" aria-selected="false" aria-controls="desktopInspectPaneDeck" onclick="setDesktopInspectTab('deck')">Deck</button>
+                    <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectLog" aria-selected="false" aria-controls="desktopInspectPaneLog" onclick="setDesktopInspectTab('log')">Log</button>
                 </div>
             </div>
             <div class="desktop-inspect-viewport">
@@ -267,6 +264,11 @@
                 <div class="desktop-inspect-pane desktop-inspect-pane-deck" id="desktopInspectPaneDeck" role="tabpanel" aria-labelledby="tabDesktopInspectDeck" hidden>
                     <div class="desktop-deck-preview" id="desktopDeckPreview">
                         <div class="desktop-empty-state">Deck contents appear here once the match starts.</div>
+                    </div>
+                </div>
+                <div class="desktop-inspect-pane desktop-inspect-pane-log" id="desktopInspectPaneLog" role="tabpanel" aria-labelledby="tabDesktopInspectLog" hidden>
+                    <div class="desktop-action-history" id="desktopActionHistory" aria-live="polite">
+                        <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>
                     </div>
                 </div>
             </div>
@@ -645,7 +647,7 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=119"></script>
+    <script src="/js/game.js?v=120"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
     <script src="/js/action-queue.js?v=21"></script>
