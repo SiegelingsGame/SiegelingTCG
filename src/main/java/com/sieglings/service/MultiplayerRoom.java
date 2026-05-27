@@ -17,6 +17,12 @@ public class MultiplayerRoom {
     private GameState gameState;
     private String format = "PVP";
     private boolean closed;
+    private String endGameNotice;
+    private int endGameNoticeSeq;
+    private boolean hostRematchReady;
+    private boolean guestRematchReady;
+    private boolean hostReturnedHome;
+    private boolean guestReturnedHome;
     private Instant createdAt = Instant.now();
     private Instant expiresAt;
     private Instant updatedAt = Instant.now();
@@ -56,6 +62,27 @@ public class MultiplayerRoom {
     public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public void touch() { updatedAt = Instant.now(); }
+
+    public String getEndGameNotice() { return endGameNotice; }
+    public void setEndGameNotice(String endGameNotice) { this.endGameNotice = endGameNotice; }
+    public int getEndGameNoticeSeq() { return endGameNoticeSeq; }
+    public void bumpEndGameNoticeSeq() { endGameNoticeSeq++; }
+    public boolean isHostRematchReady() { return hostRematchReady; }
+    public void setHostRematchReady(boolean hostRematchReady) { this.hostRematchReady = hostRematchReady; }
+    public boolean isGuestRematchReady() { return guestRematchReady; }
+    public void setGuestRematchReady(boolean guestRematchReady) { this.guestRematchReady = guestRematchReady; }
+    public boolean isHostReturnedHome() { return hostReturnedHome; }
+    public void setHostReturnedHome(boolean hostReturnedHome) { this.hostReturnedHome = hostReturnedHome; }
+    public boolean isGuestReturnedHome() { return guestReturnedHome; }
+    public void setGuestReturnedHome(boolean guestReturnedHome) { this.guestReturnedHome = guestReturnedHome; }
+
+    public void clearEndGameSession() {
+        endGameNotice = null;
+        hostRematchReady = false;
+        guestRematchReady = false;
+        hostReturnedHome = false;
+        guestReturnedHome = false;
+    }
 
     public boolean isExpired(Instant now) {
         return !isStarted() && expiresAt != null && expiresAt.isBefore(now);
