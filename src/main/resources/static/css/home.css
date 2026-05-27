@@ -832,32 +832,29 @@ select.search-input { color-scheme: dark; }
 
 .binder-card-cost-emblems-row {
     display: inline-flex;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    flex: 0 0 auto;
     gap: 3px;
 }
 
 .binder-card-cost-emblems .energy-token {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    border: 1.5px solid rgba(255, 255, 255, 0.24);
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(210, 224, 240, 0.42);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
     flex: 0 0 auto;
 }
 
-.binder-card-cost-emblems .solid-token.token-fire { background: var(--fire); }
-.binder-card-cost-emblems .solid-token.token-earth { background: var(--earth); }
-.binder-card-cost-emblems .solid-token.token-wind { background: var(--wind); }
-.binder-card-cost-emblems .solid-token.token-water { background: var(--water); }
-.binder-card-cost-emblems .solid-token.token-ice { background: var(--ice); }
-.binder-card-cost-emblems .solid-token.token-shadow { background: var(--shadow); }
-.binder-card-cost-emblems .solid-token.token-electric { background: var(--electric); }
-.binder-card-cost-emblems .solid-token.token-metal { background: var(--metal); }
-.binder-card-cost-emblems .solid-token.token-undead { background: var(--undead); }
-.binder-card-cost-emblems .solid-token.token-psychic { background: var(--psychic); }
-.binder-card-cost-emblems .solid-token.token-neutral { background: #8a96a8; }
+.binder-card-cost-emblems .notch-token {
+    background: var(--notch-icon, none), var(--notch, #8a96a8);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
 
 .binder-card-cost-count {
     color: rgba(255, 246, 218, 0.82);
