@@ -10,13 +10,21 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=102">
+    <link rel="stylesheet" href="/css/style.css?v=107">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
     <link rel="stylesheet" href="/css/landing.css?v=17">
 </head>
 <body>
+<div class="safe-hp-strip" id="safeHpStrip" hidden aria-hidden="true">
+    <div class="safe-hp-half safe-hp-enemy" data-side="enemy">
+        <div class="safe-hp-fill" id="safeHpFillEnemy" style="width:100%"></div>
+    </div>
+    <div class="safe-hp-half safe-hp-player" data-side="player">
+        <div class="safe-hp-fill" id="safeHpFillPlayer" style="width:100%"></div>
+    </div>
+</div>
 <nav class="play-hub-nav" aria-label="Siegelings hub navigation">
     <a class="play-hub-brand" href="/home">
         <img class="play-hub-mark" src="/img/siegelings-icon.png" alt="" aria-hidden="true">
@@ -32,7 +40,7 @@
         <a href="/shop">Shop</a>
     </div>
     <div class="play-hub-actions">
-        <a class="play-hub-ghost" href="/social">Join by Code</a>
+        <a class="play-hub-ghost" href="/social">Social Lobbies</a>
         <a class="play-hub-primary" href="/play">Play</a>
         <a class="play-hub-pill" href="/profile">Sign In</a>
     </div>
@@ -111,6 +119,8 @@
             <div class="board-grid" id="playerGrid"></div>
         </div>
     </div>
+
+    <div class="mobile-targeting-hud hidden" id="mobileTargetingHud" aria-live="polite" aria-atomic="true"></div>
 
     <aside class="hud-rail hud-rail-enemy" id="hudRailEnemy" aria-label="Enemy player info">
         <div class="hud-rail-stripe"></div>
@@ -221,29 +231,38 @@
                 <span class="desktop-menu-chip" id="desktopMenuViewport">Adaptive layout</span>
                 <span class="desktop-menu-chip" id="desktopMenuFocus">Hover a card to inspect live costs and timing notes.</span>
             </div>
-            <div class="desktop-action-history" id="desktopActionHistory">
-                <div class="desktop-battle-log-title">Battle log</div>
-                <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>
-            </div>
         </div>
 
         <!-- Action Bar: slim segmented control -->
         <div class="action-bar" id="actionBar">
             <div class="action-bar-btns" id="actionButtons">
                 <button class="ab-btn ab-trainer ab-primary" id="btnTrainerAbility" onclick="openTrainerAbilityPopup()">&#9876; Knight</button>
+                <button class="ab-btn ab-cancel-move ab-primary hidden" id="btnCancelBattleMove" type="button" onclick="cancelBattleTargetSelection()" hidden>Cancel Move</button>
                 <button class="ab-btn ab-draw ab-primary" id="btnDraw" onclick="playerDraw()">&#127183; Draw</button>
                 <button class="ab-btn ab-battle" id="btnBattle" onclick="executeBattle()" title="Battle starts automatically after both players finish Setup.">Auto Battle</button>
                 <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
             </div>
             <div class="action-bar-aux">
+                <details class="play-hub-menu-flyout" id="playHubMenuFlyout">
+                    <summary class="ab-icon" title="Site menu" aria-label="Site menu">&#9776;</summary>
+                    <div class="play-hub-menu-panel" role="menu" aria-label="Siegelings hub navigation">
+                        <a href="/home" role="menuitem">Home</a>
+                        <a class="active" href="/play" role="menuitem" aria-current="page">Play</a>
+                        <a href="/cards" role="menuitem">Cards</a>
+                        <a href="/decks" role="menuitem">Decks</a>
+                        <a href="/social" role="menuitem">Social</a>
+                        <a href="/profile" role="menuitem">Profile</a>
+                        <a href="/shop" role="menuitem">Shop</a>
+                    </div>
+                </details>
                 <a class="ab-icon" href="/home" title="Back to Home" aria-label="Back to Home">&#8592;</a>
                 <span id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" title="Setup actions remaining this turn">
                     <span class="ab-action-counter-label">Act</span>
                     <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
                 </span>
-                <button class="ab-icon" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
-                <button class="ab-icon" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
-                <button class="ab-icon" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
+                <button class="ab-icon ab-targeting-keep" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
+                <button class="ab-icon ab-targeting-keep" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
+                <button class="ab-icon ab-targeting-keep" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
                 <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
                 <button class="ab-icon" id="btnMuteSound" onclick="toggleSieglingsMute()" title="Toggle Sound" aria-label="Toggle Sound">&#128266;</button>
@@ -251,11 +270,12 @@
             </div>
         </div>
 
-        <section class="desktop-menu-section desktop-menu-inspect" id="desktopInspectSection" aria-label="Card and deck inspector">
+        <section class="desktop-menu-section desktop-menu-inspect" id="desktopInspectSection" aria-label="Card, deck, and battle log inspector">
             <div class="desktop-inspect-toolbar">
                 <div class="desktop-inspect-toggle" role="tablist" aria-label="Inspector view">
                     <button type="button" class="desktop-inspect-tab is-active" role="tab" id="tabDesktopInspectCard" aria-selected="true" aria-controls="desktopInspectPaneCard" onclick="setDesktopInspectTab('card')">Card</button>
                     <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectDeck" aria-selected="false" aria-controls="desktopInspectPaneDeck" onclick="setDesktopInspectTab('deck')">Deck</button>
+                    <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectLog" aria-selected="false" aria-controls="desktopInspectPaneLog" onclick="setDesktopInspectTab('log')">Log</button>
                 </div>
             </div>
             <div class="desktop-inspect-viewport">
@@ -267,6 +287,11 @@
                 <div class="desktop-inspect-pane desktop-inspect-pane-deck" id="desktopInspectPaneDeck" role="tabpanel" aria-labelledby="tabDesktopInspectDeck" hidden>
                     <div class="desktop-deck-preview" id="desktopDeckPreview">
                         <div class="desktop-empty-state">Deck contents appear here once the match starts.</div>
+                    </div>
+                </div>
+                <div class="desktop-inspect-pane desktop-inspect-pane-log" id="desktopInspectPaneLog" role="tabpanel" aria-labelledby="tabDesktopInspectLog" hidden>
+                    <div class="desktop-action-history" id="desktopActionHistory" aria-live="polite">
+                        <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>
                     </div>
                 </div>
             </div>
@@ -473,27 +498,24 @@
         <section class="play-entry-hero">
             <div>
                 <div class="welcome-eyebrow">PLAY</div>
-                <h2>Ready your account, open a lobby, then choose your deck.</h2>
-                <p class="welcome-hero-copy">Solo battles go straight to loadout. Online battles now stage through a lobby with player cards, chat, ready checks, and a 3-2-1 handoff before deck and SiegeKnight selection.</p>
+                <h2>Solo battles and live PvP matches start here.</h2>
+                <p class="welcome-hero-copy">Run PVE on this table anytime. For 1v1 lobbies, create or join a table on Social — when both players are in, the battle opens here automatically.</p>
             </div>
             <div class="play-entry-actions">
                 <button class="btn btn-primary" type="button" onclick="startPlaySolo()">Solo Battle</button>
-                <button class="btn welcome-guest-btn" type="button" onclick="openPlayLobby('create')">Create Lobby</button>
-                <button class="btn welcome-dashboard-btn" type="button" onclick="openPlayLobby('join')">Join Lobby</button>
+                <a class="btn welcome-dashboard-btn" href="/social">Browse Social Lobbies</a>
             </div>
         </section>
-        <div class="play-entry-grid">
+        <div class="play-entry-grid play-entry-grid-solo">
             <aside class="welcome-sidebar">
                 <section class="welcome-auth-card" id="welcomeAuthCard"></section>
                 <section class="welcome-history-card" id="welcomeHistoryCard"></section>
             </aside>
-            <section class="play-lobby-card" id="playLobbyCard" aria-live="polite"></section>
         </div>
         <div class="welcome-footer">
             <div class="welcome-footer-note">Arena guide and daily leaderboards now live on Home.</div>
             <div class="welcome-footer-actions">
                 <a class="btn welcome-dashboard-btn" href="/home">Home</a>
-                <button class="btn welcome-dashboard-btn" id="btnDashboardAccess" type="button" onclick="openDashboardAccess()" title="Dashboard" aria-label="Dashboard">&#9881; Dashboard</button>
                 <span class="crafted-by">Crafted By PartyChatGaming</span>
             </div>
         </div>
@@ -648,10 +670,10 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=118"></script>
+    <script src="/js/game.js?v=127"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
-    <script src="/js/action-queue.js?v=21"></script>
+    <script src="/js/action-queue.js?v=23"></script>
     <script src="/js/loading-gate.js?v=2"></script>
 </body>
 </html>

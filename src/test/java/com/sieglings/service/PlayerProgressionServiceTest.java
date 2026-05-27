@@ -18,13 +18,31 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerProgressionServiceTest {
+
+    @Test
+    void getOrCreateDoesNotOverwriteExistingProgressionOnRead() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity existing = new PlayerProgressionEntity();
+        existing.setUserId("player@example.com");
+        existing.setGold(250);
+        store.saved = existing;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        PlayerProgressionEntity progression = service.getOrCreate(user());
+
+        assertSame(existing, progression);
+        assertEquals(0, store.saveCount);
+        assertEquals(250, progression.getGold());
+    }
 
     @Test
     void starterPackCanOnlyBeChosenOnceAndGrantsFiveCards() throws Exception {
@@ -114,6 +132,30 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void duplicatePullsAtCopyCapConvertToRemnantsWithoutIncreasingOwned() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        LinkedHashMap<String, Integer> owned = new LinkedHashMap<>();
+        owned.put("draco", 3);
+        progression.setOwnedCards(owned);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new DuplicateDracoPackCatalogService(), new FakeCardDefinitionService());
+
+        service.openPack(user(), "pack_fire");
+
+        assertEquals(3, store.saved.getOwnedCards().get("draco"));
+        assertTrue(store.saved.getRemnants() > PlayerProgressionService.PACK_OPEN_REMNANTS);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> latestCards = (List<Map<String, Object>>) store.saved.getPackHistory().get(0).get("cards");
+        Map<String, Object> latestCard = latestCards.get(0);
+        assertEquals(true, latestCard.get("duplicateAtCap"));
+        assertTrue(((Number) latestCard.get("remnantsAwarded")).intValue() > 0);
+    }
+
+    @Test
     void customDeckValidationRequiresThirtyOwnedCopiesAndCapsCopiesAtThree() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
@@ -168,6 +210,7 @@ class PlayerProgressionServiceTest {
 
     private static class FakeProgressionStore extends PlayerProgressionStore {
         private PlayerProgressionEntity saved;
+        private int saveCount;
 
         @Override
         public Optional<PlayerProgressionEntity> findByUserId(String userId) {
@@ -176,8 +219,20 @@ class PlayerProgressionServiceTest {
 
         @Override
         public PlayerProgressionEntity save(PlayerProgressionEntity progression) {
+            saveCount++;
             saved = progression;
             return progression;
+        }
+    }
+
+    private static class DuplicateDracoPackCatalogService extends PackCatalogService {
+        @Override
+        public PackOpenResult openPack(String packId, boolean starterOnly) {
+            Card draco = new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT);
+            return new PackOpenResult(
+                    new PackDefinition("pack_fire", "Fire Pack", "", true, 100, List.of(Element.FIRE), true),
+                    List.of(draco, draco, draco, draco, draco)
+            );
         }
     }
 

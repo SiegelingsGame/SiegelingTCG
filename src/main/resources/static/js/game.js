@@ -29,6 +29,7 @@ let selectedBuilderPreviewId = null;
 let matchMode = 'solo';
 let onlineRoomMode = 'create';
 let multiplayerSession = loadSavedMultiplayerSession();
+let soloSessionToken = loadSavedSoloToken();
 let roomPollHandle = null;
 let roomExpiryTimeoutHandle = null;
 let currentRoomStatus = null;
@@ -38,6 +39,7 @@ let mobileHudSheetOpen = false;
 let mulliganSelectedIndices = new Set();
 let mulliganHandSig = '';
 let loadoutErrorMessage = '';
+let liveCatalogRefreshPromise = null;
 let loadoutStartPending = false;
 let lastInteractionCueKey = '';
 let transientMessageTimer = null;
@@ -49,6 +51,10 @@ let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
 let handTouchGesture = null;
+/** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
+let cardDragSession = null;
+let cardDragSuppressClickUntil = 0;
+const CARD_DRAG_THRESHOLD_PX = 10;
 let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
@@ -68,6 +74,17 @@ let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
 const PENDING_HOME_LOADOUT_STORAGE_KEY = 'sieglingsPendingLoadout';
+
+(function redirectLegacyPlayRoomLinks() {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (!room || !window.location.pathname.endsWith('/play')) {
+        return;
+    }
+    params.delete('room');
+    const query = params.toString();
+    window.location.replace(`/social?room=${encodeURIComponent(room.trim().toUpperCase())}${query ? `&${query}` : ''}`);
+})();
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 const BATTLE_AUTO_ADVANCE_DELAY_MS = 1550;
@@ -100,6 +117,7 @@ let authState = {
 };
 let selectedSavedDeckId = null;
 let lastProfileRefreshKey = '';
+let socialOnlineLaunchRoomId = '';
 let playLobbyState = {
     active: false,
     mode: 'create',
@@ -364,8 +382,8 @@ const TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
 const DASHBOARD_ACCESS_PASSWORD = 'Aviators4!';
 const targetArrowPreviewState = {
     active: false,
-    source: null,
-    targets: [],
+    sourceCell: null,
+    targetCells: [],
     kind: 'default',
     startedAt: 0,
     dashPhase: 0,
@@ -1326,7 +1344,7 @@ function getDomCellCenter(isPlayer, row, col) {
 
 function drawDomTargetingPreview(timestamp) {
     const state = targetArrowPreviewState;
-    if (!state.active || !state.source || state.targets.length === 0) {
+    if (!state.active || !state.sourceCell || state.targetCells.length === 0) {
         return;
     }
     const svg = ensureDomTargetingPreviewLayer();
@@ -1341,6 +1359,26 @@ function drawDomTargetingPreview(timestamp) {
     svg.setAttribute('width', String(width));
     svg.setAttribute('height', String(height));
 
+    // Resolve live cell centers every frame so the arrows track the board as it
+    // resizes, scrolls, or reflows instead of pointing at stale cached pixels.
+    const source = getDomCellCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
+    const targets = [];
+    state.targetCells.forEach((cell) => {
+        const center = getDomCellCenter(cell.isPlayer, cell.row, cell.col);
+        if (center) {
+            targets.push({ x: center.x, y: center.y, appearedAt: cell.appearedAt });
+        }
+    });
+    if (!source || targets.length === 0) {
+        // Layout is mid-change (cells momentarily hidden / zero-size). Skip this
+        // frame but keep the loop alive so the arrows snap back once it settles.
+        svg.innerHTML = '';
+        if (state.active && !state.reducedMotion) {
+            state.raf = window.requestAnimationFrame(drawDomTargetingPreview);
+        }
+        return;
+    }
+
     const elapsed = Math.max(0, timestamp - state.startedAt);
     const palette = TARGET_ARROW_PALETTES[state.kind] || TARGET_ARROW_PALETTES.default;
     const sceneCenterY = height / 2;
@@ -1348,15 +1386,15 @@ function drawDomTargetingPreview(timestamp) {
     const shapes = [];
     state.dashPhase = state.reducedMotion ? 0 : (elapsed * 0.0006) % 1;
 
-    state.targets.forEach((target, index) => {
+    targets.forEach((target, index) => {
         const alpha = state.reducedMotion ? 1 : targetArrowClamp((elapsed - target.appearedAt) / TARGET_ARROW_FADE_MS, 0, 1);
         if (alpha <= 0) {
             return;
         }
-        const control = targetArrowControlPoint(state.source, target, sceneCenterY);
-        const path = targetArrowPath(state.source, control, target);
+        const control = targetArrowControlPoint(source, target, sceneCenterY);
+        const path = targetArrowPath(source, control, target);
         const gradId = `targetArrowGrad${index}`;
-        defs.push(`<linearGradient id="${gradId}" gradientUnits="userSpaceOnUse" x1="${state.source.x.toFixed(1)}" y1="${state.source.y.toFixed(1)}" x2="${target.x.toFixed(1)}" y2="${target.y.toFixed(1)}"><stop offset="0%" stop-color="${palette.source}"/><stop offset="100%" stop-color="${palette.target}"/></linearGradient>`);
+        defs.push(`<linearGradient id="${gradId}" gradientUnits="userSpaceOnUse" x1="${source.x.toFixed(1)}" y1="${source.y.toFixed(1)}" x2="${target.x.toFixed(1)}" y2="${target.y.toFixed(1)}"><stop offset="0%" stop-color="${palette.source}"/><stop offset="100%" stop-color="${palette.target}"/></linearGradient>`);
 
         shapes.push(`<path d="${path}" fill="none" stroke="${palette.glow}" stroke-width="10" stroke-linecap="round" opacity="${(0.18 * alpha).toFixed(3)}"/>`);
         shapes.push(`<path d="${path}" fill="none" stroke="url(#${gradId})" stroke-width="2.5" stroke-linecap="round" opacity="${(0.94 * alpha).toFixed(3)}"/>`);
@@ -1367,7 +1405,7 @@ function drawDomTargetingPreview(timestamp) {
             shapes.push(`<path d="${path}" fill="none" pathLength="1" stroke="${dashColor}" stroke-width="4" stroke-linecap="round" stroke-dasharray="0.06 0.106" stroke-dashoffset="${dashOffset.toFixed(3)}" opacity="${(0.72 * alpha).toFixed(3)}"/>`);
         }
 
-        const tail = targetArrowQuadPoint(state.source, control, target, 0.965);
+        const tail = targetArrowQuadPoint(source, control, target, 0.965);
         const angle = Math.atan2(target.y - tail.y, target.x - tail.x);
         const size = 14;
         const spread = 0.52;
@@ -1387,8 +1425,8 @@ function drawDomTargetingPreview(timestamp) {
         shapes.push(`<circle cx="${target.x.toFixed(1)}" cy="${target.y.toFixed(1)}" r="${ringRadius.toFixed(1)}" fill="none" stroke="${palette.target}" stroke-width="2" opacity="${(ringAlpha * alpha).toFixed(3)}"/>`);
     });
 
-    shapes.push(`<circle cx="${state.source.x.toFixed(1)}" cy="${state.source.y.toFixed(1)}" r="12" fill="${palette.source}" opacity="0.16"/>`);
-    shapes.push(`<circle cx="${state.source.x.toFixed(1)}" cy="${state.source.y.toFixed(1)}" r="5" fill="${palette.source}" opacity="0.5"/>`);
+    shapes.push(`<circle cx="${source.x.toFixed(1)}" cy="${source.y.toFixed(1)}" r="12" fill="${palette.source}" opacity="0.16"/>`);
+    shapes.push(`<circle cx="${source.x.toFixed(1)}" cy="${source.y.toFixed(1)}" r="5" fill="${palette.source}" opacity="0.5"/>`);
     svg.innerHTML = `<defs>${defs.join('')}</defs>${shapes.join('')}`;
     svg.classList.add('is-active');
 
@@ -1397,8 +1435,8 @@ function drawDomTargetingPreview(timestamp) {
     }
 }
 
-function showDomTargetingPreview(source, targets, kind) {
-    if (!source || !Array.isArray(targets) || targets.length === 0) {
+function showDomTargetingPreview(sourceCell, targetCells, kind) {
+    if (!sourceCell || !Array.isArray(targetCells) || targetCells.length === 0) {
         clearDomTargetingPreview();
         return;
     }
@@ -1406,13 +1444,18 @@ function showDomTargetingPreview(source, targets, kind) {
         window.cancelAnimationFrame(targetArrowPreviewState.raf);
     }
     targetArrowPreviewState.active = true;
-    targetArrowPreviewState.source = { x: Number(source.x) || 0, y: Number(source.y) || 0 };
-    targetArrowPreviewState.targets = targets
+    targetArrowPreviewState.sourceCell = {
+        isPlayer: Boolean(sourceCell.isPlayer),
+        row: sourceCell.row,
+        col: sourceCell.col
+    };
+    targetArrowPreviewState.targetCells = targetCells
         .filter(Boolean)
         .slice(0, 9)
-        .map((target, index) => ({
-            x: Number(target.x) || 0,
-            y: Number(target.y) || 0,
+        .map((cell, index) => ({
+            isPlayer: Boolean(cell.isPlayer),
+            row: cell.row,
+            col: cell.col,
             appearedAt: index * TARGET_ARROW_STAGGER_MS
         }));
     targetArrowPreviewState.kind = TARGET_ARROW_PALETTES[kind] ? kind : 'default';
@@ -1426,8 +1469,8 @@ function clearDomTargetingPreview() {
         window.cancelAnimationFrame(targetArrowPreviewState.raf);
     }
     targetArrowPreviewState.active = false;
-    targetArrowPreviewState.source = null;
-    targetArrowPreviewState.targets = [];
+    targetArrowPreviewState.sourceCell = null;
+    targetArrowPreviewState.targetCells = [];
     targetArrowPreviewState.raf = 0;
     const svg = document.querySelector('.target-arrow-dom-layer');
     if (svg) {
@@ -1437,8 +1480,8 @@ function clearDomTargetingPreview() {
 }
 
 const targetPreviewController = {
-    show(source, targets, kind) {
-        showDomTargetingPreview(source, targets, kind);
+    show(sourceCell, targetCells, kind) {
+        showDomTargetingPreview(sourceCell, targetCells, kind);
     },
     clear() {
         clearDomTargetingPreview();
@@ -1447,6 +1490,18 @@ const targetPreviewController = {
         return getDomCellCenter(isPlayer, row, col);
     }
 };
+
+// Keep targeting arrows aligned when the layout changes. The animation loop
+// already re-resolves cell positions every frame, but reduced-motion mode draws
+// a single static frame, so it needs an explicit redraw on resize/scroll/rotate.
+function refreshTargetingPreviewOnLayoutChange() {
+    if (targetArrowPreviewState.active && targetArrowPreviewState.reducedMotion) {
+        drawDomTargetingPreview(performance.now());
+    }
+}
+window.addEventListener('resize', refreshTargetingPreviewOnLayoutChange);
+window.addEventListener('orientationchange', refreshTargetingPreviewOnLayoutChange);
+window.addEventListener('scroll', refreshTargetingPreviewOnLayoutChange, true);
 
 function clearTargetingPreview() {
     targetPreviewController.clear();
@@ -1459,6 +1514,14 @@ function sourceCellCenter() {
         return null;
     }
     return targetPreviewController.cellCenter(true, pending.row, pending.col);
+}
+
+function sourceCellDescriptor() {
+    const pending = gameState?.pendingBattle;
+    if (!pending || pending.row == null || pending.col == null) {
+        return null;
+    }
+    return { isPlayer: true, row: pending.row, col: pending.col };
 }
 
 function collectPreviewCells(board, isPlayer) {
@@ -1552,15 +1615,13 @@ function showBattleAbilityPreview(ability, selectedRow = -1) {
 }
 
 function showBattleTargetCellsPreview(ability, cells) {
-    const src = sourceCellCenter();
-    const targets = (cells || [])
-        .map((target) => targetPreviewController.cellCenter(target.isPlayer, target.row, target.col))
-        .filter(Boolean);
-    if (!src || targets.length === 0) {
+    const sourceCell = sourceCellDescriptor();
+    const targetCells = (cells || []).filter(Boolean);
+    if (!sourceCell || targetCells.length === 0) {
         clearTargetingPreview();
         return;
     }
-    targetPreviewController.show(src, targets, effectKindFor(ability));
+    targetPreviewController.show(sourceCell, targetCells, effectKindFor(ability));
     applyMatchupBadgesForCells(ability, cells || []);
 }
 
@@ -1794,22 +1855,267 @@ function previewCellHover(isPlayer, row, col) {
     showBattleTargetCellsPreview(ability, cells);
 }
 
+function getBattleAbilityDisplayName(ability) {
+    return String(ability?.name || 'Move').trim() || 'Move';
+}
+
+function getBattleAbilityEffectLine(ability) {
+    const name = getBattleAbilityDisplayName(ability);
+    let desc = String(ability?.description || '').trim();
+    if (desc && name && desc.toLowerCase().startsWith(name.toLowerCase())) {
+        desc = desc.slice(name.length).replace(/^[\s:–—-]+/, '').trim();
+    }
+    if (desc) {
+        return desc;
+    }
+    const effect = formatAbilityEffectLabel(ability);
+    if (effect) {
+        return effect;
+    }
+    const target = formatAbilityTargetLabel(ability);
+    return target || 'Resolves after you finish targeting.';
+}
+
+function getBattleTargetingEffectCategory(ability) {
+    const effectType = String(ability?.effectType || '').trim().toLowerCase();
+    if (effectType === 'player_damage') {
+        return 'player';
+    }
+    if (effectType === 'move_link') {
+        return 'move';
+    }
+    const kind = effectKindFor(ability);
+    if (kind === 'heal' || effectType === 'heal' || effectType === 'shield') {
+        return 'heal';
+    }
+    if (kind === 'buff' || /boost|shield|draw/.test(effectType)) {
+        return 'buff';
+    }
+    if (kind === 'freeze' || /freeze|slow|speed_zero/.test(effectType)) {
+        return 'control';
+    }
+    if (kind === 'damage' || effectType === 'destroy' || effectType === 'damage') {
+        return 'damage';
+    }
+    return kind || 'default';
+}
+
+function buildBattleTargetingArrowHint(ability, targetSide, selectedRow = -1) {
+    const category = getBattleTargetingEffectCategory(ability);
+    const previewCells = getBattleTargetingPreviewCells(ability);
+    const hasArrowPreview = previewCells.length > 0 && Boolean(sourceCellCenter());
+
+    if (targetSide === 'row-enemy' || targetSide === 'row-ally') {
+        if (selectedRow < 0) {
+            return hasArrowPreview
+                ? 'Preview arrows fan out from your ACTING Siegeling toward valid rows. Tap any highlighted card in the row you want.'
+                : 'Tap any highlighted Siegeling in the row you want to affect.';
+        }
+        return hasArrowPreview
+            ? 'Arrows show which enemies in this row your move will hit. Confirm when ready.'
+            : 'Every Siegeling in the selected row will be affected.';
+    }
+
+    if (!hasArrowPreview) {
+        return 'Valid targets are highlighted on the board. Tap one to continue.';
+    }
+
+    switch (category) {
+        case 'heal':
+            return 'Follow the green preview arrow from your ACTING Siegeling to the ally you want to heal, then tap that card.';
+        case 'buff':
+            return 'Follow the blue preview arrow from your ACTING Siegeling to the ally you want to empower, then tap that card.';
+        case 'control':
+            return 'Follow the icy preview arrow from your ACTING Siegeling to the enemy you want to slow or freeze, then tap that card.';
+        case 'move':
+            return 'Follow the purple preview arrow to see where the forced movement will pull an enemy, then tap the highlighted target.';
+        case 'damage':
+            return 'Follow the orange attack arrow from your ACTING Siegeling to a highlighted enemy. Tap that card to strike. Weakness badges mean +1 damage.';
+        default:
+            return 'Follow the glowing preview arrow from your ACTING Siegeling to a highlighted target on the board, then tap that card.';
+    }
+}
+
 function buildBattleTargetMessage(targetSide, ability, selectedRow = -1) {
+    return buildBattleTargetingInstruction(targetSide, ability, selectedRow).banner;
+}
+
+function buildBattleTargetingInstruction(targetSide, ability, selectedRow = -1) {
     const weakness = formatBattleAbilityWeaknessPreview(ability, selectedRow);
-    const suffix = weakness ? ` ${weakness}` : '';
+    const weaknessSuffix = weakness ? ` ${weakness}` : '';
+    const moveName = getBattleAbilityDisplayName(ability);
+    const effectLine = getBattleAbilityEffectLine(ability);
+    const category = getBattleTargetingEffectCategory(ability);
+    const arrowHint = buildBattleTargetingArrowHint(ability, targetSide, selectedRow);
+    const targetLabel = formatAbilityTargetLabel(ability);
+    const base = {
+        moveName,
+        effectLine,
+        arrowHint,
+        banner: '',
+        trayStateLabel: 'Pick Target',
+        headline: 'Choose a target',
+        steps: []
+    };
+
     if (targetSide === 'row-enemy') {
         if (selectedRow >= 0) {
-            return `${ROW_NAMES[selectedRow] || 'Selected'} enemy row selected. Confirm the row or change it.${suffix}`;
+            const rowName = ROW_NAMES[selectedRow] || 'Selected';
+            const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
+            const targetLine = targets.length > 0 ? ` Hits: ${targets.join(', ')}.` : '';
+            return {
+                ...base,
+                trayStateLabel: 'Confirm Row',
+                banner: `${rowName} enemy row locked in.${weaknessSuffix}`,
+                headline: `Confirm ${rowName} row attack`,
+                steps: [
+                    `${moveName} will hit every enemy Siegeling in the ${rowName} row.`,
+                    arrowHint,
+                    'Tap Confirm Row to queue the attack, or Change Row to pick a different row.',
+                    'Tap Cancel below to return to the move list.'
+                ],
+                effectLine: `${effectLine}${targetLine}${weaknessSuffix}`
+            };
         }
-        return `Select a card in an enemy row.${suffix}`;
+        return {
+            ...base,
+            trayStateLabel: 'Choose Row',
+            banner: `Pick an enemy row for ${moveName}.${weaknessSuffix}`,
+            headline: category === 'damage' ? 'Pick a row to attack' : 'Pick an enemy row',
+            steps: [
+                `${moveName}: ${effectLine}`,
+                arrowHint,
+                'Tap any enemy Siegeling in the row you want — the whole row is included.',
+                'Tap Cancel below to pick a different move.'
+            ]
+        };
     }
+
     if (targetSide === 'row-ally') {
         if (selectedRow >= 0) {
-            return `${ROW_NAMES[selectedRow] || 'Selected'} friendly row selected. Confirm the row or change it.`;
+            const rowName = ROW_NAMES[selectedRow] || 'Selected';
+            const targets = getRowSelectTargets(selectedRow).map((cell) => cell?.name).filter(Boolean);
+            const targetLine = targets.length > 0 ? ` Helps: ${targets.join(', ')}.` : '';
+            return {
+                ...base,
+                trayStateLabel: 'Confirm Row',
+                banner: `${rowName} friendly row locked in.`,
+                headline: `Confirm ${rowName} row support`,
+                steps: [
+                    `${moveName} will affect every ally Siegeling in the ${rowName} row.`,
+                    arrowHint,
+                    'Tap Confirm Row to queue the action, or Change Row to pick a different row.',
+                    'Tap Cancel below to return to the move list.'
+                ],
+                effectLine: `${effectLine}${targetLine}`
+            };
         }
-        return 'Select a card in a friendly row.';
+        return {
+            ...base,
+            trayStateLabel: 'Choose Row',
+            banner: `Pick a friendly row for ${moveName}.`,
+            headline: category === 'heal' || category === 'buff' ? 'Pick a row to support' : 'Pick a friendly row',
+            steps: [
+                `${moveName}: ${effectLine}`,
+                arrowHint,
+                'Tap any of your Siegelings in the row you want — the whole row is included.',
+                'Tap Cancel below to pick a different move.'
+            ]
+        };
     }
-    return `Queue a ${targetSide} target for ${ability.name}.${suffix}`;
+
+    if (targetSide === 'ally') {
+        const allyHeadline = category === 'heal'
+            ? 'Pick an ally to heal'
+            : category === 'buff'
+                ? 'Pick an ally to empower'
+                : 'Pick a friendly Siegeling';
+        return {
+            ...base,
+            trayStateLabel: category === 'heal' ? 'Pick Ally' : 'Pick Ally',
+            banner: `Select an ally for ${moveName}.`,
+            headline: allyHeadline,
+            steps: [
+                `${moveName}: ${effectLine}`,
+                targetLabel ? `Targeting: ${targetLabel}.` : '',
+                arrowHint,
+                'Only your highlighted Siegelings can be selected.',
+                'Tap Cancel below to pick a different move.'
+            ].filter(Boolean)
+        };
+    }
+
+    const enemyHeadline = category === 'control'
+        ? 'Pick an enemy to hinder'
+        : category === 'move'
+            ? 'Pick an enemy to move'
+            : category === 'damage'
+                ? 'Pick an enemy to hit'
+                : 'Pick an enemy Siegeling';
+
+    return {
+        ...base,
+        trayStateLabel: 'Pick Target',
+        banner: `Select an enemy for ${moveName}.${weaknessSuffix}`,
+        headline: enemyHeadline,
+        steps: [
+            `${moveName}: ${effectLine}`,
+            targetLabel ? `Targeting: ${targetLabel}.` : '',
+            arrowHint,
+            weakness ? weakness : '',
+            'Tap Cancel below to pick a different move.'
+        ].filter(Boolean)
+    };
+}
+
+function renderBattleTargetingTray(pending, ability) {
+    const targetSide = targetContext?.side;
+    const selectedRow = getRowSelectSelectedRow();
+    const instructions = buildBattleTargetingInstruction(targetSide, ability, selectedRow);
+
+    let html = '<div class="battle-targeting-tray">';
+    html += '<div class="battle-targeting-move">';
+    html += '<div class="battle-targeting-move-label">Selected move</div>';
+    html += `<div class="battle-targeting-move-name">${escapeHtml(instructions.moveName)}</div>`;
+    html += `<div class="battle-targeting-move-desc">${escapeHtml(instructions.effectLine)}</div>`;
+    html += '</div>';
+    html += `<div class="battle-targeting-headline">${escapeHtml(instructions.headline)}</div>`;
+    html += '<div class="battle-targeting-arrow-callout" role="status">';
+    html += '<span class="battle-targeting-arrow-icon" aria-hidden="true">↗</span>';
+    html += `<span class="battle-targeting-arrow-text">${escapeHtml(instructions.arrowHint)}</span>`;
+    html += '</div>';
+    html += '<ul class="battle-targeting-steps">';
+    instructions.steps.forEach((step) => {
+        html += `<li>${escapeHtml(step)}</li>`;
+    });
+    html += '</ul>';
+
+    if (isRowSelectBattleTargetContext()) {
+        html += renderRowSelectBattleConfirm();
+    }
+
+    html += '<div class="battle-targeting-actions">';
+    html += '<button class="battle-targeting-cancel" type="button" onclick="cancelBattleTargetSelection()">Cancel — choose a different move</button>';
+    html += '</div>';
+    html += `<div class="battle-targeting-footnote">Acting Siegeling: ${escapeHtml(pending?.name || 'Siegeling')}</div>`;
+    html += '</div>';
+    return html;
+}
+
+function cancelBattleTargetSelection() {
+    if (!isBattleTargetSelectionActive()) {
+        return;
+    }
+    clearTargetingPreview();
+    clearTargetMode();
+    render();
+    if (isPortraitMobileHudLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
+    } else if (isMobileLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
+    }
 }
 
 function renderBattleAbilityCostEmblems(ability) {
@@ -2034,8 +2340,18 @@ function resolveApiBaseUrl(url) {
     }
 }
 
-function isCompactLandscapeLayout() {
+function isPhoneLandscapeLayout() {
     return window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches;
+}
+
+function isTabletLandscapeLayout() {
+    return window.matchMedia(
+        '(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)'
+    ).matches;
+}
+
+function isCompactLandscapeLayout() {
+    return isPhoneLandscapeLayout() || isTabletLandscapeLayout();
 }
 
 function isDesktopSidebarLayout() {
@@ -2054,7 +2370,10 @@ function getViewportModeLabel() {
     if (isDesktopSidebarLayout()) {
         return 'Desktop Dock';
     }
-    if (isCompactLandscapeLayout()) {
+    if (isTabletLandscapeLayout()) {
+        return 'iPad Landscape';
+    }
+    if (isPhoneLandscapeLayout()) {
         return 'Landscape';
     }
     return 'Portrait';
@@ -2105,13 +2424,20 @@ function updateResponsiveLayoutVars(force = false) {
     const desktopGridGapCount = desktop
         ? hideEnemyHudRail ? 2 : 3
         : 0;
+    const desktopShortViewport = desktop && viewportHeight <= 1100;
     const boardMaxWidth = desktop
         ? Math.round(clampNumber(viewportHeight * 0.45, 360, 620))
         : 420;
     const boardHeightOffset = desktop
-        ? Math.round(clampNumber(viewportHeight * 0.1, 82, 148))
+        ? Math.round(clampNumber(
+            viewportHeight * (desktopShortViewport ? 0.075 : 0.1),
+            desktopShortViewport ? 72 : 82,
+            desktopShortViewport ? 108 : 148
+        ))
         : 124;
-    const boardHeightRatio = desktop ? 1.38 : 2.72;
+    const boardHeightRatio = desktop
+        ? (desktopShortViewport ? 1.22 : 1.38)
+        : 2.72;
     const topBarHeight = desktop
         ? Math.round(document.querySelector('.top-bar')?.getBoundingClientRect().height || 36)
         : 0;
@@ -2121,9 +2447,12 @@ function updateResponsiveLayoutVars(force = false) {
     const heightLimitedBoardWidth = desktop
         ? Math.max(0, ((desktopArenaHeight - boardHeightOffset) / 2) / boardHeightRatio)
         : boardMaxWidth;
-    const desktopBoardTargetWidth = desktop
+    let desktopBoardTargetWidth = desktop
         ? Math.round(Math.min(boardMaxWidth, heightLimitedBoardWidth || boardMaxWidth))
         : boardMaxWidth;
+    if (desktopShortViewport && desktopBoardTargetWidth > 0) {
+        desktopBoardTargetWidth = Math.max(280, desktopBoardTargetWidth - 2);
+    }
     let desktopArenaColumnWidth = desktop
         ? Math.round(clampNumber(
             desktopBoardTargetWidth + clampNumber(desktopBoardTargetWidth * 0.85, 300, 560),
@@ -2171,6 +2500,8 @@ function updateResponsiveLayoutVars(force = false) {
             Math.min(96, desktopHandFiveCardFitWidth),
             Math.max(96, desktopHandFiveCardFitWidth)
         ))
+        : isTabletLandscapeLayout()
+        ? Math.round(clampNumber(viewportHeight * 0.14, 88, 118))
         : compactLandscape
         ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
         : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
@@ -2258,6 +2589,78 @@ let _drawerCloseTimers = [];
 
 function isBattleTargetSelectionActive() {
     return Boolean(targetMode && targetContext && targetContext.mode === 'battle');
+}
+
+function isMobileBattleTargetingCameraActive() {
+    return isBattleTargetSelectionActive() && isPortraitMobileHudLayout();
+}
+
+function renderMobileTargetingHud() {
+    const hud = document.getElementById('mobileTargetingHud');
+    if (!hud) {
+        return;
+    }
+    if (!isMobileBattleTargetingCameraActive()) {
+        hud.classList.add('hidden');
+        hud.innerHTML = '';
+        return;
+    }
+
+    const ability = getActiveBattleTargetAbility();
+    const pending = gameState?.pendingBattle;
+    if (!ability || !pending) {
+        hud.classList.add('hidden');
+        hud.innerHTML = '';
+        return;
+    }
+
+    const instructions = buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow());
+    let html = '<div class="mobile-targeting-hud-inner">';
+    html += `<div class="mobile-targeting-hud-kicker">${escapeHtml(instructions.trayStateLabel)}</div>`;
+    html += `<div class="mobile-targeting-hud-move">${escapeHtml(instructions.moveName)}</div>`;
+    html += `<div class="mobile-targeting-hud-effect">${escapeHtml(instructions.effectLine)}</div>`;
+    html += `<div class="mobile-targeting-hud-arrow">${escapeHtml(instructions.arrowHint)}</div>`;
+    if (isRowSelectBattleTargetContext()) {
+        html += renderRowSelectBattleConfirm();
+    }
+    html += '</div>';
+    hud.innerHTML = html;
+    hud.classList.remove('hidden');
+    window.requestAnimationFrame(() => {
+        if (!isMobileBattleTargetingCameraActive()) {
+            document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
+            return;
+        }
+        const stack = Math.ceil(hud.getBoundingClientRect().height + 10);
+        document.documentElement.style.setProperty('--mobile-targeting-hud-stack', `${stack}px`);
+        syncMobileTargetingArenaScale();
+    });
+}
+
+function syncMobileTargetingArenaScale() {
+    if (!isMobileBattleTargetingCameraActive()) {
+        document.documentElement.style.removeProperty('--mobile-targeting-arena-scale');
+        document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
+        return;
+    }
+    const board = document.getElementById('boardArea');
+    if (!board) {
+        return;
+    }
+    const run = () => {
+        if (!isMobileBattleTargetingCameraActive()) {
+            return;
+        }
+        const available = board.clientHeight;
+        const content = board.scrollHeight;
+        if (available <= 0 || content <= 0) {
+            return;
+        }
+        const scale = Math.min(1, (available - 4) / content);
+        document.documentElement.style.setProperty('--mobile-targeting-arena-scale', scale.toFixed(3));
+        scheduleBoardLinkConnectorRefresh();
+    };
+    window.requestAnimationFrame(() => window.requestAnimationFrame(run));
 }
 
 function shouldUseDesktopBattleDrawer() {
@@ -2368,18 +2771,23 @@ function getPhaseTransitionKicker(phase, activeSide) {
     return 'Phase Shift';
 }
 
-function showPhaseTransitionBanner(phase, activeSide) {
-    // The real-time playback system shows phase changes via the action-queue
-    // toast. When it's available, suppress the old top-of-screen banner so we
-    // don't double up.
-    if (window.SieglingsActionQueue) {
-        return;
+function hidePhaseTransitionBanner() {
+    const banner = document.getElementById('phaseTransitionBanner');
+    if (!banner) return;
+    if (phaseTransitionTimer) {
+        clearTimeout(phaseTransitionTimer);
+        phaseTransitionTimer = null;
     }
+    banner.classList.remove('visible');
+    banner.classList.add('hidden');
+}
+
+function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     const banner = document.getElementById('phaseTransitionBanner');
     const kicker = document.getElementById('phaseTransitionKicker');
     const title = document.getElementById('phaseTransitionTitle');
     if (!banner || !kicker || !title || !phase) {
-        return;
+        return Promise.resolve();
     }
 
     if (phaseTransitionTimer) {
@@ -2387,6 +2795,7 @@ function showPhaseTransitionBanner(phase, activeSide) {
         phaseTransitionTimer = null;
     }
 
+    const holdMs = Math.max(1200, Number(durationMs) || 2000);
     banner.className = `phase-transition-banner ${String(phase).toLowerCase()}`;
     kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
     title.textContent = formatPhaseLabel(phase);
@@ -2394,14 +2803,20 @@ function showPhaseTransitionBanner(phase, activeSide) {
     window.SieglingsSounds?.play('phase', 0.5);
     requestAnimationFrame(() => banner.classList.add('visible'));
 
-    phaseTransitionTimer = setTimeout(() => {
-        banner.classList.remove('visible');
+    return new Promise((resolve) => {
         phaseTransitionTimer = setTimeout(() => {
-            banner.classList.add('hidden');
-            phaseTransitionTimer = null;
-        }, 320);
-    }, 1800);
+            banner.classList.remove('visible');
+            phaseTransitionTimer = setTimeout(() => {
+                banner.classList.add('hidden');
+                phaseTransitionTimer = null;
+                resolve();
+            }, 360);
+        }, holdMs);
+    });
 }
+
+window.showPhaseTransitionBanner = showPhaseTransitionBanner;
+window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
 
 /* ============================================================
    CARD INSPECTOR â€” full-detail overlay when tapping hand card
@@ -2535,24 +2950,63 @@ function closeCardPreviewSurfaces() {
     }
 }
 
+function getTrainerAbilityLockReason(trainer = gameState?.player?.trainer) {
+    if (!gameState || !trainer?.active) {
+        return 'No active SiegeKnight ability is available right now.';
+    }
+    if (isOpeningPlacementOnlyTurn()) {
+        return 'Turn 1 starts with a Siegeling placement.';
+    }
+    if (!trainer.canUseActive) {
+        if (gameState.currentPhase === 'BATTLE') {
+            return 'Your SiegeKnight active was already used this round and refreshes after battle.';
+        }
+        if (trainer.oncePerGame) {
+            return 'This ultimate can only be used once per match.';
+        }
+        return 'Your SiegeKnight active was already used this round.';
+    }
+    if (gameState.activeSide !== 'PLAYER') {
+        return 'Wait for your turn before using your SiegeKnight ability.';
+    }
+    if (targetMode) {
+        if (targetContext?.mode === 'battle') {
+            return 'Finish queueing the current battle action first.';
+        }
+        if (targetContext?.mode !== 'trainer') {
+            return 'Finish the current target selection first.';
+        }
+    }
+    if (gameState.currentPhase === 'BATTLE') {
+        if (gameState.battleWaitingOn === 'ENEMY') {
+            return 'Wait for the opponent to finish the current battle action.';
+        }
+        if (gameState.pendingBattle) {
+            return 'Queue this Siegeling\'s battle action before using your SiegeKnight active.';
+        }
+    }
+    const targetSide = getAbilityTargetSide(trainer.active);
+    if (targetSide && !abilityHasAvailableTarget(trainer.active)) {
+        return targetSide
+            ? `No ${targetSide} targets are available right now.`
+            : 'This ability has no valid target right now.';
+    }
+    return '';
+}
+
 function canUseTrainerAbility(trainer = gameState?.player?.trainer) {
-    return Boolean(
-        trainer
-        && trainer.active
-        && trainer.canUseActive
-        && !isOpeningPlacementOnlyTurn()
-        && abilityHasAvailableTarget(trainer.active)
-    );
+    return Boolean(trainer && trainer.active && !getTrainerAbilityLockReason(trainer));
 }
 
 function buildTrainerAbilityHint(trainer) {
     if (!trainer?.active) {
         return 'No active SiegeKnight ability is ready right now.';
     }
-    const targetSide = getAbilityTargetSide(trainer.active);
-    if (targetSide && !abilityHasAvailableTarget(trainer.active)) {
-        return `No ${targetSide} targets are available right now.`;
+    const lockReason = getTrainerAbilityLockReason(trainer);
+    if (lockReason) {
+        return lockReason;
     }
+    const targetSide = getAbilityTargetSide(trainer.active);
     if (targetSide) {
         const article = /^[aeiou]/i.test(targetSide) ? 'an' : 'a';
         return `Using this will close the popup and let you pick ${article} ${targetSide} target on the board.`;
@@ -2605,11 +3059,14 @@ function renderTrainerAbilityPopup() {
         copy.textContent = `${activeDescription} ${availability}`.trim();
     }
     if (useBtn) {
-        const canUse = canUseTrainerAbility(trainer);
+        const lockReason = getTrainerAbilityLockReason(trainer);
+        const canUse = !lockReason;
         useBtn.disabled = !canUse;
         useBtn.textContent = !trainer.active
             ? 'No Active Ability'
-            : (abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability');
+            : (canUse
+                ? (abilityNeedsTarget(trainer.active) ? 'Choose Target' : 'Use Ability')
+                : 'Unavailable');
     }
 }
 function openTrainerAbilityPopup() {
@@ -2680,6 +3137,10 @@ function submitDashboardAccess(event) {
 }
 
 function activateTrainerAbilityFromPopup() {
+    const trainer = gameState?.player?.trainer;
+    if (!canUseTrainerAbility(trainer)) {
+        return;
+    }
     closeTrainerAbilityPopup();
     onTrainerUse();
 }
@@ -2797,7 +3258,7 @@ function getInteractionHintState() {
                 if (focusedCard.evolvesFromName) {
                     hints.push(`After ${focusedCard.evolvesFromName} survives a full battle phase in that form, play this on it to evolve.`);
                 } else if (gameState?.currentPhase === 'SETUP' && !gameState?.playerPlacementUsed) {
-                    hints.push('Highlighted slots show where this Siegeling can be placed.');
+                    hints.push('Drag onto a highlighted cell to place, or tap the eye button for the full card preview.');
                 }
             } else if (focusedCard.type === 'TRAP') {
                 hints.push('Traps stay hidden until their trigger condition is met.');
@@ -2848,8 +3309,15 @@ function renderHintPanel() {
 function syncActionBarAttention() {
     const hintButton = document.getElementById('btnHint');
     const previewButton = document.getElementById('btnSelectedPreview');
+    const cancelMoveButton = document.getElementById('btnCancelBattleMove');
+    const targetingCamera = isMobileBattleTargetingCameraActive();
     const hintState = getInteractionHintState();
     const focusedCard = getFocusedPreviewCard();
+
+    cancelMoveButton?.classList.toggle('hidden', !targetingCamera);
+    if (cancelMoveButton) {
+        cancelMoveButton.hidden = !targetingCamera;
+    }
 
     hintButton?.classList.toggle('ab-icon-live', hintState.available);
     hintButton?.classList.toggle('ab-icon-pulse', hintState.available);
@@ -2931,7 +3399,7 @@ function syncSetupActionsCounter() {
 let desktopInspectTab = 'card';
 
 function setDesktopInspectTab(tab) {
-    const next = tab === 'deck' ? 'deck' : 'card';
+    const next = tab === 'deck' ? 'deck' : tab === 'log' ? 'log' : 'card';
     desktopInspectTab = next;
     syncDesktopInspectTabUi();
 }
@@ -2939,15 +3407,22 @@ function setDesktopInspectTab(tab) {
 function syncDesktopInspectTabUi() {
     const cardTab = document.getElementById('tabDesktopInspectCard');
     const deckTab = document.getElementById('tabDesktopInspectDeck');
+    const logTab = document.getElementById('tabDesktopInspectLog');
     const cardPane = document.getElementById('desktopInspectPaneCard');
     const deckPane = document.getElementById('desktopInspectPaneDeck');
+    const logPane = document.getElementById('desktopInspectPaneLog');
     const isCard = desktopInspectTab === 'card';
+    const isDeck = desktopInspectTab === 'deck';
+    const isLog = desktopInspectTab === 'log';
     cardTab?.classList.toggle('is-active', isCard);
-    deckTab?.classList.toggle('is-active', !isCard);
+    deckTab?.classList.toggle('is-active', isDeck);
+    logTab?.classList.toggle('is-active', isLog);
     cardTab?.setAttribute('aria-selected', isCard ? 'true' : 'false');
-    deckTab?.setAttribute('aria-selected', isCard ? 'false' : 'true');
+    deckTab?.setAttribute('aria-selected', isDeck ? 'true' : 'false');
+    logTab?.setAttribute('aria-selected', isLog ? 'true' : 'false');
     cardPane?.classList.toggle('is-active', isCard);
-    deckPane?.classList.toggle('is-active', !isCard);
+    deckPane?.classList.toggle('is-active', isDeck);
+    logPane?.classList.toggle('is-active', isLog);
     if (cardPane) {
         if (isCard) {
             cardPane.removeAttribute('hidden');
@@ -2956,10 +3431,17 @@ function syncDesktopInspectTabUi() {
         }
     }
     if (deckPane) {
-        if (isCard) {
-            deckPane.setAttribute('hidden', '');
-        } else {
+        if (isDeck) {
             deckPane.removeAttribute('hidden');
+        } else {
+            deckPane.setAttribute('hidden', '');
+        }
+    }
+    if (logPane) {
+        if (isLog) {
+            logPane.removeAttribute('hidden');
+        } else {
+            logPane.setAttribute('hidden', '');
         }
     }
     if (isCard) {
@@ -3119,19 +3601,15 @@ function renderDesktopActionHistory() {
         ? gameState.gameLog.filter(isBattlePhaseLogEntry).slice(0, 5)
         : [];
     if (battleLines.length === 0) {
-        history.innerHTML = `
-            <div class="desktop-battle-log-title">Battle log</div>
-            <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>`;
+        history.innerHTML = '<div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>';
         return;
     }
 
-    history.innerHTML = `
-        <div class="desktop-battle-log-title">Battle log</div>
-        ${battleLines.map((entry, index) => `
+    history.innerHTML = battleLines.map((entry, index) => `
         <div class="desktop-history-entry${index === 0 ? ' current' : ''}">
             <span class="desktop-history-dot"></span>
             <span>${escapeHtml(entry)}</span>
-        </div>`).join('')}`;
+        </div>`).join('');
 }
 
 function syncFocusedEnergyCue() {
@@ -3459,6 +3937,29 @@ function loadSavedMultiplayerSession() {
     }
 }
 
+const SOLO_SESSION_TOKEN_KEY = 'sieglingsSoloSessionToken';
+
+function loadSavedSoloToken() {
+    try {
+        return localStorage.getItem(SOLO_SESSION_TOKEN_KEY) || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function setSoloSessionToken(token) {
+    soloSessionToken = token || null;
+    try {
+        if (soloSessionToken) {
+            localStorage.setItem(SOLO_SESSION_TOKEN_KEY, soloSessionToken);
+        } else {
+            localStorage.removeItem(SOLO_SESSION_TOKEN_KEY);
+        }
+    } catch (e) {
+        /* storage unavailable; in-memory token still works for this session */
+    }
+}
+
 function saveMultiplayerSession() {
     if (!multiplayerSession) {
         localStorage.removeItem('sieglingsMultiplayerSession');
@@ -3607,7 +4108,15 @@ function getJoinRoomCodeFromUrl() {
 }
 
 function isInviteJoinFlow() {
-    return Boolean(getJoinRoomCodeFromUrl());
+    return Boolean(socialOnlineLaunchRoomId);
+}
+
+function isSocialBattleLaunch() {
+    return Boolean(socialOnlineLaunchRoomId || multiplayerSession?.roomId);
+}
+
+function shouldShowOnlineLoadoutOnPlay() {
+    return false;
 }
 
 function loadSavedPlayerName() {
@@ -3658,6 +4167,15 @@ function syncEntryOverlays() {
     }
     if (welcomeVisible) {
         refreshWelcomeLeaderboards();
+    }
+    if (gameState) {
+        updateSafeAreaHpStrip(gameState);
+    } else {
+        const strip = document.getElementById('safeHpStrip');
+        if (strip) {
+            strip.hidden = true;
+            strip.setAttribute('aria-hidden', 'true');
+        }
     }
 }
 
@@ -4184,7 +4702,6 @@ function renderWelcomeAuth() {
                 }).join('')}</div>`
                 : '<div class="identity-note">Your finished games will appear here after the first recorded match.</div>'}
         `;
-        renderPlayLobby();
         return;
     }
 
@@ -4243,7 +4760,6 @@ function renderWelcomeAuth() {
             <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
         </div>
     `;
-    renderPlayLobby();
 }
 
 function renderSavedDecks() {
@@ -4640,17 +5156,21 @@ function getInteractionBannerState() {
         };
     }
     if (targetMode && targetContext) {
+        const ability = targetContext.mode === 'battle' ? getActiveBattleTargetAbility() : null;
+        const message = ability && targetContext.mode === 'battle'
+            ? buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow()).banner
+            : targetContext.message;
         return {
             kind: 'target',
             label: 'Targeting',
-            message: targetContext.message
+            message
         };
     }
     if (isPlacementSelectionActive()) {
         return {
             kind: 'place',
             label: 'Placement',
-            message: `Place ${selectedCard.name} on a highlighted slot.`
+            message: `Drag ${selectedCard.name} onto a highlighted slot, or tap a slot to place. Use the eye button for the full card preview.`
         };
     }
     if (gameState.currentPhase === 'SETUP' && gameState.playerPlacementUsed) {
@@ -4682,6 +5202,11 @@ function getInteractionBannerState() {
 function renderInteractionBanner() {
     const banner = document.getElementById('interactionBanner');
     if (!banner) {
+        return;
+    }
+    if (isMobileBattleTargetingCameraActive()) {
+        banner.className = 'interaction-banner hidden';
+        banner.innerHTML = '';
         return;
     }
     const state = getInteractionBannerState();
@@ -4755,13 +5280,16 @@ function applyInteractionState() {
     const placementActive = isPlacementSelectionActive();
     const handHidden = isHandHiddenForPhase();
     const battlePhaseActive = Boolean(gameState && gameState.currentPhase === 'BATTLE');
+    const mobileTargetingCamera = isMobileBattleTargetingCameraActive();
 
     body.classList.toggle('targeting-active', targetingActive);
     body.classList.toggle('placement-active', placementActive);
     body.classList.toggle('battle-phase-active', battlePhaseActive);
+    body.classList.toggle('mobile-battle-targeting-camera', mobileTargetingCamera);
 
     boardArea?.classList.toggle('targeting-active', targetingActive);
     boardArea?.classList.toggle('placement-active', placementActive);
+    boardArea?.classList.toggle('mobile-targeting-camera-board', mobileTargetingCamera);
     if (!targetingActive) {
         clearTargetingPreview();
     }
@@ -4771,6 +5299,8 @@ function applyInteractionState() {
 
     renderInteractionBanner();
     renderHintPanel();
+    renderMobileTargetingHud();
+    syncMobileTargetingArenaScale();
     syncActionBarAttention();
     maybeTriggerInteractionFeedback();
 }
@@ -4855,6 +5385,8 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     if (multiplayerSession?.roomId && multiplayerSession?.playerToken) {
         opts.headers['X-Room-Id'] = multiplayerSession.roomId;
         opts.headers['X-Player-Token'] = multiplayerSession.playerToken;
+    } else if (soloSessionToken) {
+        opts.headers['X-Solo-Token'] = soloSessionToken;
     }
     if (body) opts.body = JSON.stringify(body);
 
@@ -4877,6 +5409,7 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
 
     if (endpoint === 'new') {
+        setSoloSessionToken(data.soloToken || null);
         clearExternalSocketElementMemory();
     }
 
@@ -4978,6 +5511,34 @@ async function loadGameOptions() {
         showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
         syncEntryOverlays();
     }
+}
+
+async function refreshLiveGameOptions() {
+    if (!gameOptions) {
+        return loadGameOptions();
+    }
+    if (liveCatalogRefreshPromise) {
+        return liveCatalogRefreshPromise;
+    }
+    liveCatalogRefreshPromise = (async () => {
+        const [data, editorState] = await Promise.all([
+            fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS)
+        ]);
+        if (!data) {
+            return;
+        }
+        gameOptions = filterGameOptionsToDashboardCards(data, editorState);
+        loadoutErrorMessage = '';
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    })().catch((error) => {
+        console.error('Failed to refresh live game options:', error);
+    }).finally(() => {
+        liveCatalogRefreshPromise = null;
+    });
+    return liveCatalogRefreshPromise;
 }
 
 function filterGameOptionsToDashboardCards(options, editorState) {
@@ -5140,6 +5701,7 @@ function switchLoadoutMode(mode) {
 function setMatchMode(mode) {
     matchMode = mode;
     currentRoomStatus = null;
+    loadoutErrorMessage = '';
     if (mode === 'solo') {
         clearMultiplayerSession();
     } else {
@@ -5152,6 +5714,7 @@ function setMatchMode(mode) {
 function setOnlineRoomMode(mode) {
     onlineRoomMode = mode;
     currentRoomStatus = null;
+    loadoutErrorMessage = '';
     clearMultiplayerSession();
     hydrateOnlineStateFromUrl();
     renderLoadoutOptions();
@@ -5159,14 +5722,9 @@ function setOnlineRoomMode(mode) {
 }
 
 function hydrateOnlineStateFromUrl() {
-    const roomCodeInput = document.getElementById('roomCodeInput');
     const joinCode = getJoinRoomCodeFromUrl();
     if (joinCode) {
-        matchMode = 'online';
-        onlineRoomMode = 'join';
-        if (roomCodeInput && !roomCodeInput.value) {
-            roomCodeInput.value = joinCode.toUpperCase();
-        }
+        window.location.replace(`/social?room=${encodeURIComponent(joinCode.trim().toUpperCase())}`);
     }
 }
 
@@ -5201,17 +5759,17 @@ function applyPendingHomeLoadout() {
     }
     matchMode = pending.mode === 'online' ? 'online' : 'solo';
     if (matchMode === 'online') {
-        onlineRoomMode = pending.onlineRoomMode === 'join' ? 'join' : 'create';
-        const roomCodeInput = document.getElementById('roomCodeInput');
-        if (roomCodeInput && pending.roomId) {
-            roomCodeInput.value = String(pending.roomId).toUpperCase();
+        onlineRoomMode = 'join';
+        if (pending.roomId) {
+            socialOnlineLaunchRoomId = String(pending.roomId).toUpperCase();
+            const roomCodeInput = document.getElementById('roomCodeInput');
+            if (roomCodeInput) {
+                roomCodeInput.value = socialOnlineLaunchRoomId;
+            }
         }
-        playLobbyState.active = true;
-        playLobbyState.mode = onlineRoomMode;
-        playLobbyState.ready = false;
-        playLobbyState.opponentReady = onlineRoomMode === 'join';
-        playLobbyState.chatMessages = defaultLobbyMessages();
-        renderPlayLobby();
+        if (pending.battleLaunch) {
+            welcomeDismissed = true;
+        }
     }
 }
 
@@ -5220,8 +5778,12 @@ async function resumeMultiplayerSession() {
         return false;
     }
 
+    const reconnectingSocialLaunch = isSocialBattleLaunch();
     const data = await fetchRoomStatus();
     if (!data || data.error) {
+        if (reconnectingSocialLaunch) {
+            loadoutErrorMessage = data?.error || 'Could not reconnect to the online match. Check the room in Social, then try joining again.';
+        }
         clearMultiplayerSession();
         return false;
     }
@@ -5421,10 +5983,14 @@ function renderLoadoutOptions() {
         </button>`;
     }).join('');
 
+    const hideOnlineLoadout = !shouldShowOnlineLoadoutOnPlay();
     overlay?.classList.toggle('invite-flow', inviteFlow);
     loadoutBox?.classList.toggle('invite-focused', inviteFlow);
-    matchModeTabs?.classList.toggle('hidden', inviteFlow);
-    roomModeTabs?.classList.toggle('hidden', inviteFlow);
+    matchModeTabs?.classList.toggle('hidden', inviteFlow || hideOnlineLoadout);
+    roomModeTabs?.classList.toggle('hidden', inviteFlow || hideOnlineLoadout);
+    if (hideOnlineLoadout && matchMode === 'online' && !multiplayerSession?.roomId && !inviteFlow) {
+        matchMode = 'solo';
+    }
 
     if (inviteFlow) {
         const inviteCode = getCurrentRoomCode() || getJoinRoomCodeFromUrl()?.toUpperCase() || '';
@@ -5456,7 +6022,7 @@ function renderLoadoutOptions() {
     onlineMatchTab.setAttribute('aria-pressed', matchMode === 'online' ? 'true' : 'false');
     soloMatchTab.classList.toggle('hidden', inviteFlow);
     onlineMatchTab.classList.toggle('hidden', inviteFlow);
-    onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online');
+    onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online' || hideOnlineLoadout);
     hostRoomTab.classList.toggle('active', onlineRoomMode === 'create');
     joinRoomTab.classList.toggle('active', onlineRoomMode === 'join');
     hostRoomTab.setAttribute('aria-pressed', onlineRoomMode === 'create' ? 'true' : 'false');
@@ -5778,6 +6344,13 @@ function updateLoadoutSummary() {
         return;
     }
 
+    if (loadoutErrorMessage && matchMode === 'online') {
+        const canRetryOnlineStart = Boolean(multiplayerSession?.roomId || (onlineRoomMode === 'join' && getCurrentRoomCode()));
+        summary.textContent = loadoutErrorMessage;
+        syncLoadoutStartButton(startBtn, loadoutStartPending || !canRetryOnlineStart, startButtonLabel);
+        return;
+    }
+
     if (loadoutMode === 'builder') {
         const cardCount = getBuilderCardCount();
         const elementList = collectBuilderElements();
@@ -5816,11 +6389,36 @@ async function startSelectedGame() {
     if (loadoutMode === 'builder' && getBuilderCardCount() < gameOptions.deckBuilder.minDeckSize) return;
 
     loadoutStartPending = true;
+    loadoutErrorMessage = '';
     updateLoadoutSummary();
 
     try {
         if (matchMode === 'online') {
-            if (onlineRoomMode === 'create') {
+            if (multiplayerSession?.roomId) {
+                const data = await fetchRoomStatus();
+                if (data?.started) {
+                    loadoutErrorMessage = '';
+                    clearExternalSocketElementMemory();
+                    gameState = data;
+                    render();
+                    return;
+                }
+                if (data && !data.error) {
+                    currentRoomStatus = data;
+                    startRoomPolling();
+                    if (isRoomStatusExpired(data)) {
+                        await closeUnfilledLobby('Lobby expired before another player joined.');
+                    } else {
+                        scheduleRoomExpiryClose(data);
+                        renderLoadoutOptions();
+                        syncEntryOverlays();
+                    }
+                    return;
+                }
+                loadoutErrorMessage = data?.error || 'Could not reconnect to the online match. Check the room in Social, then try again.';
+                return;
+            }
+            if (onlineRoomMode === 'create' && !isInviteJoinFlow()) {
                 await createRoom();
             } else {
                 await joinRoom();
@@ -5862,10 +6460,12 @@ async function createRoom() {
         body: JSON.stringify(body)
     }, LOADOUT_ACTION_TIMEOUT_MS);
     if (!data || data.error) {
-        console.error(data?.error || 'Unable to create room.');
-        return;
+        loadoutErrorMessage = data?.error || 'Unable to create room. Please try again from Social.';
+        console.error(loadoutErrorMessage);
+        return false;
     }
 
+    loadoutErrorMessage = '';
     multiplayerSession = {
         roomId: data.roomId,
         playerToken: data.playerToken,
@@ -5887,11 +6487,15 @@ async function createRoom() {
     renderLoadoutOptions();
     updateLoadoutSummary();
     syncEntryOverlays();
+    return true;
 }
 
 async function joinRoom() {
     const roomId = getCurrentRoomCode();
-    if (!roomId) return;
+    if (!roomId) {
+        loadoutErrorMessage = 'Enter a room code or return to Social to choose an online match.';
+        return false;
+    }
 
     savePlayerName(getCurrentPlayerName());
     const body = {
@@ -5905,10 +6509,12 @@ async function joinRoom() {
         body: JSON.stringify(body)
     }, LOADOUT_ACTION_TIMEOUT_MS);
     if (!data || data.error) {
-        console.error(data?.error || 'Unable to join room.');
-        return;
+        loadoutErrorMessage = data?.error || 'Unable to join room. Check the room in Social, then try again.';
+        console.error(loadoutErrorMessage);
+        return false;
     }
 
+    loadoutErrorMessage = '';
     multiplayerSession = {
         roomId: data.roomId,
         playerToken: data.playerToken,
@@ -5929,6 +6535,7 @@ async function joinRoom() {
         updateLoadoutSummary();
         syncEntryOverlays();
     }
+    return true;
 }
 
 async function copyRoomShareLink() {
@@ -6384,7 +6991,7 @@ function renderDomLegacy() {
     if (activeDrawer === 'battle' && phase !== 'BATTLE') {
         closeDrawer(true);
     }
-    if (phaseChanged) {
+    if (phaseChanged && !window.SieglingsActionQueue) {
         showPhaseTransitionBanner(phase, gameState.activeSide);
     }
 
@@ -6427,6 +7034,7 @@ window.previewCellHover = previewCellHover;
 window.handleTargetCellPointerLeave = handleTargetCellPointerLeave;
 window.confirmRowSelectBattleTarget = confirmRowSelectBattleTarget;
 window.clearRowSelectBattleTarget = clearRowSelectBattleTarget;
+window.cancelBattleTargetSelection = cancelBattleTargetSelection;
 window.clearTargetingPreview = clearTargetingPreview;
 
 function renderEnergy(containerId, playerData) {
@@ -6535,6 +7143,42 @@ function renderEnergyDetailPanel() {
     html += '</div>';
 
     panel.innerHTML = html;
+}
+
+const SAFE_AREA_HP_MAX = 50;
+
+function getSafeAreaHpTierColor(pct) {
+    if (pct > 60) return '#34c759';
+    if (pct > 35) return '#ffcc00';
+    if (pct > 15) return '#ff9500';
+    return '#ff3b30';
+}
+
+function updateSafeAreaHpStrip(state) {
+    const strip = document.getElementById('safeHpStrip');
+    if (!strip || !state) return;
+
+    const mobileGameplay = window.matchMedia('(max-width: 767px)').matches
+        && document.body.classList.contains('gameplay-active');
+    strip.hidden = !mobileGameplay;
+    strip.setAttribute('aria-hidden', mobileGameplay ? 'false' : 'true');
+    if (!mobileGameplay) return;
+
+    const eHealth = Number(state.enemy?.health ?? 0);
+    const pHealth = Number(state.player?.health ?? 0);
+    const ePct = Math.max(0, Math.min(100, Math.round((eHealth / SAFE_AREA_HP_MAX) * 100)));
+    const pPct = Math.max(0, Math.min(100, Math.round((pHealth / SAFE_AREA_HP_MAX) * 100)));
+
+    const eFill = document.getElementById('safeHpFillEnemy');
+    const pFill = document.getElementById('safeHpFillPlayer');
+    if (eFill) {
+        eFill.style.width = `${ePct}%`;
+        eFill.style.backgroundColor = getSafeAreaHpTierColor(ePct);
+    }
+    if (pFill) {
+        pFill.style.width = `${pPct}%`;
+        pFill.style.backgroundColor = getSafeAreaHpTierColor(pPct);
+    }
 }
 
 function updateHudRails(state) {
@@ -6686,6 +7330,7 @@ function updateMobileHud(state) {
     setTextIfExists('mobileStatPlayerTab', state.playerName || p.name || 'Player');
     setTextIfExists('mobileStatEnemyTab', state.enemyName || e.name || 'AI');
     syncMobileHudSheetSide();
+    updateSafeAreaHpStrip(state);
 }
 
 function updateMobileHudSide(label, playerData, ids) {
@@ -8107,13 +8752,16 @@ function renderHand() {
             placementLocked ? ' placement-locked' : '',
             targetMode ? ' target-lock' : ''
         ].join('');
-        const onclick = `onclick="selectCard(${handIndex})"`;
+        const onclick = `onclick="handleHandCardClick(event, ${handIndex})"`;
+        const pointerEvents = canHandCardDragPlace(handIndex)
+            ? `onpointerdown="handleHandCardPointerDown(event, ${handIndex})"`
+            : '';
         const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, ${handIndex})" onmouseleave="handleHandCardPointerLeave(${handIndex})"`;
         const touchEvents = `ontouchstart="handleHandCardTouchStart(event, ${handIndex})" ontouchmove="handleHandCardTouchMove(event, ${handIndex})" ontouchend="handleHandCardTouchEnd(event, ${handIndex})"`;
         const fallbackArtLabel = card.type === 'SIEGLING'
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${hoverEvents} ${touchEvents}>`;
+        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
@@ -8230,8 +8878,238 @@ function handleHandCardPointerLeave(handIndex) {
     hideTooltip();
 }
 
+function canHandCardDragPlace(handIndex) {
+    if (!gameState || gameState.currentPhase !== 'SETUP' || gameState.activeSide !== 'PLAYER' || targetMode) {
+        return false;
+    }
+    const card = gameState.player.hand?.[handIndex];
+    if (!card || card.type !== 'SIEGLING') {
+        return false;
+    }
+    if (getHandCardLockReason(card)) {
+        return false;
+    }
+    return getLegalPlacementsForCard(card).length > 0;
+}
+
+function ensureHandCardSelectedForDrag(handIndex) {
+    const hand = gameState?.player?.hand || [];
+    const card = hand[handIndex];
+    if (!card) {
+        return;
+    }
+    if (selectedHandIndex === handIndex && selectedCard?.id === card.id) {
+        return;
+    }
+    selectedCard = card;
+    selectedHandIndex = handIndex;
+    clearTargetMode();
+    updateSelectedInfo(card);
+    render();
+}
+
+function stripHandCardInteractionAttributes(el) {
+    if (!el) {
+        return;
+    }
+    [
+        'onclick',
+        'onpointerdown',
+        'onmouseenter',
+        'onmouseleave',
+        'ontouchstart',
+        'ontouchmove',
+        'ontouchend'
+    ].forEach((attr) => el.removeAttribute(attr));
+}
+
+function findLegalPlacementCellAt(clientX, clientY) {
+    const stack = typeof document.elementsFromPoint === 'function'
+        ? document.elementsFromPoint(clientX, clientY)
+        : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
+    for (const el of stack) {
+        const cell = el.closest?.('#playerGrid .board-cell.legal');
+        if (cell) {
+            return cell;
+        }
+    }
+    return null;
+}
+
+function clearCardDragBoardHover() {
+    document.querySelectorAll('#playerGrid .board-cell.drag-hover')
+        .forEach((cell) => cell.classList.remove('drag-hover'));
+}
+
+function positionCardDragGhost(clientX, clientY) {
+    const ghost = cardDragSession?.ghost;
+    if (!ghost) {
+        return;
+    }
+    ghost.style.left = `${clientX}px`;
+    ghost.style.top = `${clientY}px`;
+}
+
+function activateCardDragSession() {
+    if (!cardDragSession || cardDragSession.active) {
+        return;
+    }
+    const { handIndex } = cardDragSession;
+
+    cardDragSession.active = true;
+    cardDragSuppressClickUntil = Date.now() + 500;
+    document.body.classList.add('card-drag-active');
+    hideTooltip();
+    if (activeDrawer === 'selected') {
+        closeDrawer(true);
+    }
+    ensureHandCardSelectedForDrag(handIndex);
+
+    const sourceEl = getHandCardSourceElement(handIndex);
+    if (!sourceEl) {
+        cleanupCardDragSession();
+        return;
+    }
+    cardDragSession.sourceEl = sourceEl;
+
+    const sourceRect = sourceEl.getBoundingClientRect();
+    const ghost = sourceEl.cloneNode(true);
+    stripHandCardInteractionAttributes(ghost);
+    ghost.classList.add('card-drag-ghost');
+    ghost.style.width = `${sourceRect.width}px`;
+    ghost.style.height = `${sourceRect.height}px`;
+    positionCardDragGhost(cardDragSession.startX, cardDragSession.startY);
+
+    const layer = document.getElementById('handLiftLayer');
+    if (layer) {
+        layer.innerHTML = '';
+        layer.classList.remove('hidden');
+        layer.appendChild(ghost);
+    } else {
+        document.body.appendChild(ghost);
+    }
+
+    sourceEl.classList.add('is-drag-source');
+    cardDragSession.ghost = ghost;
+    updateHandLiftLayer();
+}
+
+function cleanupCardDragSession() {
+    if (!cardDragSession) {
+        return;
+    }
+    cardDragSession.sourceEl?.classList?.remove('is-drag-source');
+    cardDragSession.ghost?.remove();
+    const layer = document.getElementById('handLiftLayer');
+    if (layer && !layer.querySelector('.lifted-card-clone')) {
+        layer.innerHTML = '';
+        layer.classList.add('hidden');
+    }
+    clearCardDragBoardHover();
+    document.body.classList.remove('card-drag-active');
+    cardDragSession = null;
+    stopHandSelectorAutoScroll();
+    updateHandLiftLayer();
+}
+
+function updateCardDragBoardHover(clientX, clientY) {
+    clearCardDragBoardHover();
+    const cell = findLegalPlacementCellAt(clientX, clientY);
+    if (cell) {
+        cell.classList.add('drag-hover');
+    }
+}
+
+function handleHandCardPointerDown(event, handIndex) {
+    if (!canHandCardDragPlace(handIndex)) {
+        return;
+    }
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+    }
+    cleanupCardDragSession();
+    cardDragSession = {
+        handIndex,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        active: false,
+        ghost: null,
+        sourceEl: event.currentTarget
+    };
+    try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+    } catch (_) {
+        /* ignore */
+    }
+}
+
+function handleCardDragPointerMove(event) {
+    if (!cardDragSession || event.pointerId !== cardDragSession.pointerId) {
+        return;
+    }
+    const dx = event.clientX - cardDragSession.startX;
+    const dy = event.clientY - cardDragSession.startY;
+    if (!cardDragSession.active) {
+        if (Math.hypot(dx, dy) < CARD_DRAG_THRESHOLD_PX) {
+            return;
+        }
+        activateCardDragSession();
+    }
+    event.preventDefault();
+    stopHandSelectorAutoScroll();
+    positionCardDragGhost(event.clientX, event.clientY);
+    updateCardDragBoardHover(event.clientX, event.clientY);
+}
+
+function handleCardDragPointerEnd(event) {
+    if (!cardDragSession || event.pointerId !== cardDragSession.pointerId) {
+        return;
+    }
+
+    const wasActive = cardDragSession.active;
+    const handIndex = cardDragSession.handIndex;
+
+    if (wasActive) {
+        const targetCell = findLegalPlacementCellAt(event.clientX, event.clientY);
+        if (targetCell) {
+            const row = Number(targetCell.dataset.row);
+            const col = Number(targetCell.dataset.col);
+            if (Number.isInteger(row) && Number.isInteger(col)) {
+                ensureHandCardSelectedForDrag(handIndex);
+                placeCard(row, col);
+            }
+        }
+        cleanupCardDragSession();
+        event.preventDefault();
+        return;
+    }
+
+    cleanupCardDragSession();
+
+    if (isMobileLayout()) {
+        event.preventDefault();
+        event.stopPropagation();
+        selectCard(handIndex);
+        handTouchSuppressHandIndex = handIndex;
+        handTouchSuppressUntil = Date.now() + 500;
+    }
+}
+
+function handleHandCardClick(event, handIndex) {
+    if (Date.now() < cardDragSuppressClickUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+    }
+    selectCard(handIndex);
+}
+
 function handleHandCardTouchStart(event, handIndex) {
-    if (!isMobileLayout()) {
+    if (!isMobileLayout() || cardDragSession) {
+        return;
+    }
+    if (canHandCardDragPlace(handIndex)) {
         return;
     }
     const touch = event.changedTouches?.[0];
@@ -8247,7 +9125,7 @@ function handleHandCardTouchStart(event, handIndex) {
 }
 
 function handleHandCardTouchMove(event, handIndex) {
-    if (!isMobileLayout() || !handTouchGesture || handTouchGesture.handIndex !== handIndex) {
+    if (!isMobileLayout() || cardDragSession || !handTouchGesture || handTouchGesture.handIndex !== handIndex) {
         return;
     }
     const touch = event.changedTouches?.[0];
@@ -8260,7 +9138,7 @@ function handleHandCardTouchMove(event, handIndex) {
 }
 
 function handleHandCardTouchEnd(event, handIndex) {
-    if (!isMobileLayout()) {
+    if (!isMobileLayout() || cardDragSession) {
         return;
     }
     const shouldSelect = Boolean(handTouchGesture && handTouchGesture.handIndex === handIndex && !handTouchGesture.moved);
@@ -8603,6 +9481,13 @@ function renderRowSelectBattleOverlay() {
     if (overlays.length === 0) {
         return;
     }
+    if (isBattleTargetSelectionActive()) {
+        overlays.forEach((overlay) => {
+            overlay.className = 'battle-row-confirm-overlay hidden';
+            overlay.innerHTML = '';
+        });
+        return;
+    }
     const html = renderRowSelectBattleConfirm();
     overlays.forEach((overlay) => {
         if (!html) {
@@ -8682,29 +9567,35 @@ function renderBattlePanel() {
         openDrawer('battle');
     }
 
+    const battleTargeting = isBattleTargetSelectionActive();
+    const activeTargetAbility = battleTargeting ? getActiveBattleTargetAbility() : null;
     let bodyHtml = '';
-    if (targetMode && targetContext && targetContext.mode === 'battle') {
-        bodyHtml += `<div class="battle-hint battle-hint-compact">${escapeHtml(targetContext.message)} Pass skips this step.</div>`;
+
+    if (battleTargeting && activeTargetAbility) {
+        bodyHtml += renderBattleTargetingTray(pending, activeTargetAbility);
+    } else {
+        let actionsHtml = '';
+        const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
+        for (const ability of sortedAbilities) {
+            const disabled = ability.affordable ? '' : 'disabled';
+            const moveName = getBattleAbilityDisplayName(ability);
+            const effectLine = getBattleAbilityEffectLine(ability);
+            const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
+            const tip = `${moveName}: ${effectLine}${weaknessPreview ? ` ${weaknessPreview}` : ''}`;
+            actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">${escapeHtml(moveName)}</span><span class="battle-ability-effect">${escapeHtml(effectLine)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
+        }
+        const passTip = 'Pass: Skip this action without spending energy.';
+        actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passTip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">Pass</span><span class="battle-ability-effect">Skip this action without spending energy.</span></span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
+        bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
     }
 
-    let actionsHtml = '';
-    const sortedAbilities = getSortedBattleAbilities(pending.abilities).filter((a) => !a.fromPrintedPassive);
-    for (const ability of sortedAbilities) {
-        const disabled = ability.affordable ? '' : 'disabled';
-        const desc = (ability.description && String(ability.description).trim()) || ability.name;
-        const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
-        const tip = ability.description
-            ? `${ability.name} - ${ability.description}${weaknessPreview ? ` ${weaknessPreview}` : ''}`
-            : ability.name;
-        actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-name">${escapeHtml(desc)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
-    }
-    const passDesc = 'Pass this turn without using an ability. No energy cost.';
-    actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passDesc)}"><span class="battle-ability-btn-inner"><span class="battle-ability-name">${escapeHtml(passDesc)}</span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
-    bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
+    const targetingShellLabel = battleTargeting && activeTargetAbility
+        ? buildBattleTargetingInstruction(targetContext.side, activeTargetAbility, getRowSelectSelectedRow()).trayStateLabel
+        : 'Acting Now';
 
     setPanelHtml(buildQueueShell(
-        targetMode && targetContext && targetContext.mode === 'battle' ? 'Queue Target' : 'Acting Now',
-        targetMode && targetContext && targetContext.mode === 'battle' ? 'targeting' : 'live',
+        targetingShellLabel,
+        battleTargeting ? 'targeting' : 'live',
         bodyHtml,
         { expanded: true, cardTitle: pending.name }
     ));
@@ -8734,8 +9625,12 @@ function chooseBattleAbility(index) {
         selectedRow: -1,
         message: buildBattleTargetMessage(targetSide, ability)
     };
-    if (activeDrawer === 'battle') {
+    if (isPortraitMobileHudLayout()) {
         closeDrawer(true);
+        closeMobileHudSheet();
+    } else if (isMobileLayout()) {
+        mobileInfoTab = 'battle';
+        openDrawer('battle');
     }
     render();
     scheduleBattleTargetingPreview(ability);
@@ -8911,15 +9806,8 @@ function selectCard(handIndexOrCardId) {
     selectedHandIndex = handIndex;
     clearTargetMode();
 
-    const autoOpenMobilePreview = () => {
-        if (isMobileLayout()) {
-            openDrawer('selected');
-        }
-    };
-
     if (lockReason) {
         updateSelectedInfo(card, lockReason);
-        autoOpenMobilePreview();
         render();
         return;
     }
@@ -8938,7 +9826,6 @@ function selectCard(handIndexOrCardId) {
                     message: `Select an enemy Siegeling to move, then an empty enemy cell.`
                 };
                 updateSelectedInfo(card, targetContext.message);
-                autoOpenMobilePreview();
                 render();
                 return;
             }
@@ -8950,7 +9837,6 @@ function selectCard(handIndexOrCardId) {
                 callback: (row, col) => castSpell(card.id, row, col)
             };
             updateSelectedInfo(card, targetContext.message);
-            autoOpenMobilePreview();
             render();
             return;
         } else {
@@ -8960,7 +9846,6 @@ function selectCard(handIndexOrCardId) {
     }
 
     updateSelectedInfo(card);
-    autoOpenMobilePreview();
     render();
 }
 
@@ -9054,6 +9939,8 @@ function onTargetSelected(row, col, fromPlayerBoard) {
             if (ability) {
                 scheduleBattleTargetingPreview(ability);
             }
+            renderMobileTargetingHud();
+            syncMobileTargetingArenaScale();
             return;
         }
         if (targetContext.side === 'enemy' && fromPlayerBoard) {
@@ -9373,6 +10260,10 @@ function getLiftedHandIndex() {
 }
 
 function handleHandSelectorPointerMove(event) {
+    if (cardDragSession?.active) {
+        stopHandSelectorAutoScroll();
+        return;
+    }
     if (isHandHiddenForPhase()) {
         stopHandSelectorAutoScroll();
         return;
@@ -9545,6 +10436,11 @@ function updateHandLiftLayer() {
         return;
     }
 
+    if (cardDragSession?.active) {
+        layer.classList.remove('hidden');
+        return;
+    }
+
     document.querySelectorAll('#playerHand .hand-card.is-lift-source')
         .forEach(card => card.classList.remove('is-lift-source'));
     layer.innerHTML = '';
@@ -9613,6 +10509,14 @@ function clearTargetMode() {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        if (cardDragSession) {
+            cleanupCardDragSession();
+            return;
+        }
+        if (isBattleTargetSelectionActive()) {
+            cancelBattleTargetSelection();
+            return;
+        }
         closeDrawer(true);
         closeMobileHudSheet();
         closeClaimPopup();
@@ -9635,6 +10539,7 @@ window.addEventListener('resize', () => {
     syncMobileInfoTab();
     syncMobileHudSheetSide();
     syncFocusedCardUi();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -9654,6 +10559,7 @@ window.addEventListener('resize', () => {
     syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -9665,6 +10571,7 @@ window.addEventListener('orientationchange', () => {
     syncMobileHudSheetSide();
     renderDesktopDeckPreview();
     updateHandLiftLayer();
+    syncMobileTargetingArenaScale();
     scheduleBoardLinkConnectorRefresh();
 });
 
@@ -9675,6 +10582,7 @@ syncDesktopInspectTabUi();
     const onLayoutModeBoundsChange = () => {
         scheduleBoardLinkConnectorRefresh();
         setTimeout(scheduleBoardLinkConnectorRefresh, 200);
+        if (gameState) updateSafeAreaHpStrip(gameState);
     };
 
     const connect = () => {
@@ -9692,9 +10600,11 @@ syncDesktopInspectTabUi();
     }
 
     const mqListeners = [
+        window.matchMedia('(max-width: 767px)'),
         window.matchMedia('(max-width: 900px)'),
         window.matchMedia('(min-width: 980px)'),
-        window.matchMedia('(orientation: landscape) and (max-height: 600px)')
+        window.matchMedia('(orientation: landscape) and (max-height: 600px)'),
+        window.matchMedia('(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)')
     ];
     mqListeners.forEach((mq) => {
         if (typeof mq.addEventListener === 'function') {
@@ -9709,6 +10619,12 @@ syncDesktopInspectTabUi();
     }
 })();
 
+(function setupCardDragPointerListeners() {
+    document.addEventListener('pointermove', handleCardDragPointerMove, { passive: false });
+    document.addEventListener('pointerup', handleCardDragPointerEnd);
+    document.addEventListener('pointercancel', handleCardDragPointerEnd);
+})();
+
 renderDesktopMenuMeta();
 renderDesktopActionHistory();
 renderWelcomeTutorial();
@@ -9716,7 +10632,7 @@ renderWelcomeAuth();
 syncEntryOverlays();
 if (typeof SieglingsCatalogSync !== 'undefined') {
     SieglingsCatalogSync.onCatalogPublished(() => {
-        loadGameOptions();
+        refreshLiveGameOptions();
     });
 }
 loadGameOptions();

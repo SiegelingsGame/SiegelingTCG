@@ -18,10 +18,15 @@ import com.sieglings.model.enums.TargetType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.IntStream;
 
 /**
@@ -62,28 +67,61 @@ public class GameService {
     @Autowired
     private MatchHistoryService matchHistoryService;
 
-    private GameState currentGame;
     private final Random random = new Random();
 
-    public GameState newGame() {
-        CardDefinitionService.DeckOption defaultDeck = cardDefs.getDefaultDeckOption()
-                .orElseThrow(() -> new IllegalStateException("No active preset decks are available."));
-        return newGame(defaultDeck.id(), defaultDeck.recommendedTrainerId(), null);
+    /** Per-player solo (vs-AI) games, keyed by an opaque solo token issued at game start. */
+    private static final Duration SOLO_GAME_TTL = Duration.ofHours(6);
+    private final Map<String, SoloSession> soloGames = new ConcurrentHashMap<>();
+    private final SecureRandom soloRandom = new SecureRandom();
+
+    private static final class SoloSession {
+        final GameState state;
+        volatile Instant lastSeen;
+
+        SoloSession(GameState state) {
+            this.state = state;
+            this.lastSeen = Instant.now();
+        }
     }
 
-    public GameState newGame(String playerDeckId, String playerTrainerId) {
-        return newGame(playerDeckId, playerTrainerId, null);
+    /** Result of starting a solo game: the opaque token the client must echo back, plus the fresh state. */
+    public record SoloHandle(String token, GameState state) {}
+
+    /** Starts a brand-new solo game scoped to a freshly generated token. */
+    public SoloHandle newSoloGame(StartOptions options) {
+        GameState state = createGame(options, null, "Player", "AI Opponent", false);
+        purgeStaleSoloGames();
+        String token = generateSoloToken();
+        soloGames.put(token, new SoloSession(state));
+        return new SoloHandle(token, state);
     }
 
-    public GameState newGame(String playerDeckId, String playerTrainerId, List<String> customDeckCards) {
-        currentGame = createGame(
-                new StartOptions(playerDeckId, playerTrainerId, customDeckCards, null),
-                null,
-                "Player",
-                "AI Opponent",
-                false
-        );
-        return currentGame;
+    /** Returns the solo game for the given token, or {@code null} if it does not exist / has expired. */
+    public GameState getSoloGame(String token) {
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        SoloSession session = soloGames.get(token);
+        if (session == null) {
+            return null;
+        }
+        session.lastSeen = Instant.now();
+        return session.state;
+    }
+
+    private String generateSoloToken() {
+        byte[] bytes = new byte[24];
+        String token;
+        do {
+            soloRandom.nextBytes(bytes);
+            token = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        } while (soloGames.containsKey(token));
+        return token;
+    }
+
+    private void purgeStaleSoloGames() {
+        Instant cutoff = Instant.now().minus(SOLO_GAME_TTL);
+        soloGames.values().removeIf(session -> session.lastSeen.isBefore(cutoff));
     }
 
     public GameState newMultiplayerGame(StartOptions playerOneOptions, StartOptions playerTwoOptions,
@@ -119,14 +157,6 @@ public class GameService {
         return cardDefs.getDeckBuilderMaxCopies();
     }
 
-    public GameState getState() {
-        return currentGame;
-    }
-
-    public GameState playerDraw() {
-        return draw(currentGame, true);
-    }
-
     public GameState draw(GameState state, boolean isPlayerSide) {
         if (state == null || state.isGameOver()) return state;
         if (state.getCurrentPhase() != Phase.DRAW || state.isPlayerTurn() != isPlayerSide) {
@@ -148,14 +178,6 @@ public class GameService {
         energyService.recalculateEnergy(state);
         state.captureSieglingSetupPlacementBonusFromEnergy(isPlayerSide);
         return state;
-    }
-
-    public GameState placeSiegling(String cardId, int row, int col) {
-        return placeSiegling(currentGame, true, cardId, row, col);
-    }
-
-    public GameState claimSiegling(int row, int col) {
-        return claimSiegling(currentGame, true, row, col);
     }
 
     public GameState placeSiegling(GameState state, boolean isPlayerSide, String cardId, int row, int col) {
@@ -208,7 +230,7 @@ public class GameService {
         actor.removeFromHand(card);
 
         if (evolutionPlacement && existing != null) {
-            state.log(existing.getName() + " evolved to " + siegling.getName() + "!");
+            state.log(existing.getName() + " evolved into " + siegling.getName() + "!");
         } else {
             state.log(sideName(state, isPlayerSide) + " places " + siegling.getName()
                     + " at " + rowName(row) + " row, col " + col + ".");
@@ -251,14 +273,6 @@ public class GameService {
         recalculateTrainerPassiveStatBuffs(state);
         effectService.recalculateBoardAuraDamageBoosts(state);
         return state;
-    }
-
-    public GameState castSpell(String cardId, int targetRow, int targetCol) {
-        return castSpell(currentGame, true, cardId, targetRow, targetCol, -1, -1);
-    }
-
-    public GameState castSpell(String cardId, int targetRow, int targetCol, int destRow, int destCol) {
-        return castSpell(currentGame, true, cardId, targetRow, targetCol, destRow, destCol);
     }
 
     public GameState castSpell(GameState state, boolean isPlayerSide, String cardId, int targetRow, int targetCol) {
@@ -358,10 +372,6 @@ public class GameService {
         return state;
     }
 
-    public GameState useTrainerAbility(int targetRow, int targetCol) {
-        return useTrainerAbility(currentGame, true, targetRow, targetCol);
-    }
-
     public GameState useTrainerAbility(GameState state, boolean isPlayerSide, int targetRow, int targetCol) {
         if (state == null || state.isGameOver()) return state;
         if (state.isPlayerTurn() != isPlayerSide) {
@@ -390,10 +400,6 @@ public class GameService {
         return state;
     }
 
-    public GameState executeBattle() {
-        return executeBattle(currentGame);
-    }
-
     public GameState executeBattle(GameState state) {
         if (state == null || state.isGameOver()) return state;
         if (state.getCurrentPhase() != Phase.BATTLE) {
@@ -405,10 +411,6 @@ public class GameService {
         effectService.recalculateBoardAuraDamageBoosts(state);
         completeBattleIfFinished(state);
         return state;
-    }
-
-    public GameState submitBattleAction(int abilityIndex, int targetRow, int targetCol) {
-        return submitBattleAction(currentGame, true, abilityIndex, targetRow, targetCol);
     }
 
     public GameState submitBattleAction(GameState state, boolean isPlayerSide, int abilityIndex, int targetRow, int targetCol) {
@@ -428,10 +430,6 @@ public class GameService {
         return state;
     }
 
-    public GameState endTurn() {
-        return endTurn(currentGame, true);
-    }
-
     public GameState endTurn(GameState state, boolean isPlayerSide) {
         if (state == null || state.isGameOver()) return state;
         if (state.isPlayerTurn() != isPlayerSide) {
@@ -448,10 +446,6 @@ public class GameService {
         return state;
     }
 
-    public List<int[]> getPlayerLegalPlacements() {
-        return getLegalPlacements(currentGame, true);
-    }
-
     public List<int[]> getLegalPlacements(GameState state, boolean isPlayerSide) {
         if (state == null) return List.of();
         if (state.isPlayerTurn() != isPlayerSide || state.getCurrentPhase() != Phase.SETUP) return List.of();
@@ -460,16 +454,8 @@ public class GameService {
         return placementService.getLegalPlacements(state, isPlayerSide);
     }
 
-    public CardInstance getPendingBattleAttacker() {
-        return getPendingBattleAttacker(currentGame);
-    }
-
     public CardInstance getPendingBattleAttacker(GameState state) {
         return state == null ? null : battleService.getPendingAttacker(state);
-    }
-
-    public List<BattleAbilityOption> getPendingBattleAbilities() {
-        return getPendingBattleAbilities(currentGame);
     }
 
     public List<BattleAbilityOption> getPendingBattleAbilities(GameState state) {
@@ -841,10 +827,6 @@ public class GameService {
         if (state.isGameOver()) {
             matchHistoryService.recordCompletedGame(state);
         }
-    }
-
-    public GameState resolveOpeningMulligan(List<Integer> mulliganHandIndices) {
-        return resolveOpeningMulligan(currentGame, true, mulliganHandIndices);
     }
 
     public GameState resolveOpeningMulligan(GameState state, boolean isPlayerSide, List<Integer> mulliganHandIndices) {
