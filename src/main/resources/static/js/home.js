@@ -233,6 +233,9 @@
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
         document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
+        document.getElementById('supportBtn')?.addEventListener('click', () => {
+            window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
+        });
         document.getElementById('optionsModal')?.addEventListener('click', (event) => {
             if (event.target.id === 'optionsModal') { closeOptions(); return; }
             handleOptionsClick(event);
@@ -3287,7 +3290,7 @@
         const view = state.optionsView || 'menu';
         if (view === 'menu') {
             body.innerHTML = `<div class="view-profile-modal-head">
-                    <div><span class="eyebrow">Home</span><h2 id="optionsTitle">Options</h2></div>
+                    <div><span class="eyebrow">Home</span><h2 id="optionsTitle">Settings</h2></div>
                     <button class="ghost-btn compact-btn" type="button" data-options-close>Close</button>
                 </div>
                 <div class="options-menu">
