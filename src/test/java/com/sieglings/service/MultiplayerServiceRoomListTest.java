@@ -1,12 +1,16 @@
 package com.sieglings.service;
 
+import com.sieglings.model.GameState;
+import com.sieglings.model.Player;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MultiplayerServiceRoomListTest {
@@ -23,20 +27,56 @@ class MultiplayerServiceRoomListTest {
     }
 
     @Test
-    void joinRoomEntersLoadoutPhaseWithoutStartingMatch() {
+    void hostCannotJoinOwnLobby() {
         MultiplayerService service = new MultiplayerService();
-        GameService.StartOptions hostOpts = new GameService.StartOptions("deck_fire", "trainer02", null, "Host Deck");
+        MultiplayerService.RoomSession host = service.createRoom(
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, "Blazing Core"),
+                "user-host"
+        );
 
-        MultiplayerService.RoomSession hostSession = service.createRoom("Host", hostOpts, "user-1");
-        MultiplayerService.RoomSession guestSession = service.joinRoom(
-                hostSession.roomId(), "Guest", null, "user-2");
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> service.joinRoom(
+                host.roomId(),
+                "Host Again",
+                new GameService.StartOptions("deck_water", "trainer06", null, "Guest Deck"),
+                "user-host"
+        ));
 
-        MultiplayerRoom room = service.requireRoom(hostSession.roomId());
-        assertFalse(guestSession.started());
-        assertFalse(room.isStarted());
-        assertTrue(room.isLoadoutPhase());
-        assertFalse(room.isHostLoadoutReady());
-        assertFalse(room.isGuestLoadoutReady());
+        assertTrue(error.getMessage().toLowerCase().contains("own lobby"));
+    }
+
+    @Test
+    void matchStartsOnlyAfterBothPlayersReady() throws Exception {
+        MultiplayerService service = new MultiplayerService();
+        injectGameService(service);
+        MultiplayerService.RoomSession host = service.createRoom(
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, "Blazing Core"),
+                "user-host"
+        );
+        MultiplayerService.RoomSession guest = service.joinRoom(
+                host.roomId(),
+                "Guest",
+                new GameService.StartOptions("deck_water", "trainer06", null, "Tide Deck"),
+                "user-guest"
+        );
+
+        MultiplayerRoom waiting = service.requireRoom(host.roomId());
+        assertFalse(waiting.isStarted());
+        assertTrue(waiting.isLoadoutPhase());
+
+        service.setPlayerReady(host.roomId(), host.playerToken(), "Host", waiting.getHostOptions());
+        assertFalse(service.requireRoom(host.roomId()).isStarted());
+
+        MultiplayerService.RoomSession started = service.setPlayerReady(
+                host.roomId(),
+                guest.playerToken(),
+                "Guest",
+                waiting.getGuestOptions()
+        );
+
+        assertTrue(started.started());
+        assertTrue(service.requireRoom(host.roomId()).isStarted());
     }
 
     @Test
@@ -51,5 +91,23 @@ class MultiplayerServiceRoomListTest {
         room.setGameState(new com.sieglings.model.GameState());
 
         assertFalse(room.isExpired(Instant.now()));
+    }
+
+    private void injectGameService(MultiplayerService service) throws Exception {
+        GameService gameService = new GameService() {
+            @Override
+            public GameState newMultiplayerGame(StartOptions hostOptions,
+                                                StartOptions guestOptions,
+                                                String hostName,
+                                                String guestName) {
+                GameState state = new GameState();
+                state.setPlayer(new Player(hostName, true));
+                state.setEnemy(new Player(guestName, false));
+                return state;
+            }
+        };
+        Field field = MultiplayerService.class.getDeclaredField("gameService");
+        field.setAccessible(true);
+        field.set(service, gameService);
     }
 }

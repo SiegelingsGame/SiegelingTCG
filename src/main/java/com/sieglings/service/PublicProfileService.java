@@ -5,6 +5,7 @@ import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.entity.UserPresenceEntity;
+import com.sieglings.persistence.firestore.FriendRequestStore;
 import com.sieglings.persistence.firestore.UserPresenceStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,9 @@ public class PublicProfileService {
     @Autowired
     private PlayerProgressionService playerProgressionService;
 
+    @Autowired
+    private FriendRequestStore friendRequestStore;
+
     public Map<String, Object> buildPublicProfile(AccountUser viewer, String targetUserId) {
         String normalized = normalizeUserId(targetUserId);
         AccountUser target = accountService.findByEmail(normalized);
@@ -43,7 +47,7 @@ public class PublicProfileService {
             throw new IllegalArgumentException("Player not found.");
         }
         boolean self = viewer != null && viewer.getId().equals(target.getId());
-        boolean friend = viewer != null && (self || (viewer.getFriendEmails() != null && viewer.getFriendEmails().contains(target.getId())));
+        boolean friend = self || (viewer != null && FriendRequestService.areMutualFriends(viewer, target));
 
         ProfileSettingsEntity settings = profileSettingsService.getOrCreate(target);
         UserPresenceEntity presence = presenceStore.findByUserId(target.getId()).orElse(null);
@@ -53,6 +57,12 @@ public class PublicProfileService {
         response.put("userId", target.getId());
         response.put("editable", self);
         response.put("isFriend", friend);
+        if (viewer != null && !self) {
+            response.put("incomingFriendRequest",
+                    friendRequestStore.findPending(target.getId(), viewer.getId()).isPresent());
+            response.put("outgoingFriendRequest",
+                    friendRequestStore.findPending(viewer.getId(), target.getId()).isPresent());
+        }
         response.put("profileSettings", profileSettingsService.serialize(settings, target));
         response.put("presence", presenceService.serialize(presence, now));
         response.put("stats", buildStats(target));
