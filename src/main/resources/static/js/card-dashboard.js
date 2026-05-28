@@ -427,6 +427,10 @@
             }
             mutateSelectedCard((card) => {
                 card.cardArtMode = normalizeCardArtMode(modeInput.value);
+                const suggestedPath = defaultCardArtPath(card.id);
+                if (card.cardArtMode && suggestedPath && !String(card.cardArtUrl || "").trim()) {
+                    card.cardArtUrl = suggestedPath;
+                }
             });
         });
 
@@ -454,6 +458,12 @@
                 event.target.value = "";
                 return;
             }
+            if (state.liveEditingEnabled && !state.auth?.canEdit) {
+                setStatus("Sign in under Live Publishing before uploading card art.", "error");
+                event.target.value = "";
+                renderStatus();
+                return;
+            }
             setStatus("Uploading card art...", "warning");
             renderStatus();
             try {
@@ -470,7 +480,12 @@
                         selected.cardArtMode = "REPLACE";
                     }
                 });
-                setStatus(`Uploaded art for ${cardId}. Publish when ready.`, "warning");
+                setStatus(
+                    state.liveEditingEnabled
+                        ? `Uploaded art for ${cardId}. Click Publish Live Changes to save the card metadata.`
+                        : `Uploaded art for ${cardId}. Click Save To Project File when ready.`,
+                    "warning"
+                );
             } catch (error) {
                 setStatus(error?.message || "Unable to upload card art.", "error");
             } finally {
@@ -1472,6 +1487,23 @@
     function normalizeCardArtMode(value) {
         const mode = String(value || "").trim().toUpperCase();
         return mode === "REPLACE" || mode === "OVERLAY" ? mode : "";
+    }
+
+    function defaultCardArtPath(cardId) {
+        const normalizedId = slugify(cardId);
+        return normalizedId ? `/assets/cards/${normalizedId}.png` : "";
+    }
+
+    function cardArtPathMatchesCardId(cardId, cardArtUrl) {
+        const normalizedId = slugify(cardId);
+        const url = String(cardArtUrl || "").trim().toLowerCase();
+        if (!normalizedId || !url) {
+            return true;
+        }
+        if (url.startsWith("data:") || /^https?:\/\//i.test(url)) {
+            return true;
+        }
+        return url.includes(normalizedId);
     }
 
     function clampCardArtScale(value) {
@@ -2661,6 +2693,7 @@
         });
         if (refs.cardArtUrlInput && document.activeElement !== refs.cardArtUrlInput) {
             setInputValue(refs.cardArtUrlInput, card.cardArtUrl || "");
+            refs.cardArtUrlInput.placeholder = defaultCardArtPath(card.id) || "/assets/cards/example.png";
         }
         syncCardArtTransformControls(card);
         setupCardArtDragInteraction(card);
@@ -3226,7 +3259,22 @@
         refs.deleteDeckBtn.disabled = !hasDeck;
         refs.clearDeckCardsBtn.disabled = !hasDeck;
         refs.duplicateTrainerBtn.disabled = !hasTrainer;
-        refs.saveProjectBtn.disabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
+        const saveDisabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
+        refs.saveProjectBtn.disabled = saveDisabled;
+        refs.saveProjectBtn.title = saveDisabled ? describeSaveButtonState(hasErrors) : "";
+    }
+
+    function describeSaveButtonState(hasErrors) {
+        if (!state.dirty) {
+            return "No unsaved changes yet.";
+        }
+        if (!canSaveCurrentData()) {
+            return saveUnavailableMessage();
+        }
+        if (!state.liveEditingEnabled && hasErrors) {
+            return "Fix validation errors before saving to the project file.";
+        }
+        return "";
     }
 
     function renderCardIdOptions() {
@@ -3449,6 +3497,11 @@
                 ));
             } else if (cardArtUrl.length > 2048) {
                 issues.push(issue("error", `${trimmedId || card.name || "A card"} cardArtUrl is too long for Firestore.`));
+            } else if (card.cardArtMode && !cardArtPathMatchesCardId(trimmedId, cardArtUrl)) {
+                issues.push(issue(
+                    "warn",
+                    `${trimmedId || card.name || "A card"} art path "${cardArtUrl}" does not include the card id "${trimmedId}". Use Upload Image or ${defaultCardArtPath(trimmedId) || "/assets/cards/<card-id>.png"}.`
+                ));
             }
             if (card.cardType === "SIEGLING") {
                 if (card.health <= 0) {
