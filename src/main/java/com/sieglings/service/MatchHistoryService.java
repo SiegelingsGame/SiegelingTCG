@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class MatchHistoryService {
@@ -34,13 +33,18 @@ public class MatchHistoryService {
     }
 
     public void recordCompletedGame(GameState state) {
-        if (state == null || !state.isGameOver() || state.isMatchHistoryRecorded()) {
+        if (state == null || !state.isGameOver()) {
             return;
         }
 
-        recordForSide(state, true);
-        recordForSide(state, false);
-        state.setMatchHistoryRecorded(true);
+        synchronized (state) {
+            if (state.isMatchHistoryRecorded()) {
+                return;
+            }
+            recordForSide(state, true);
+            recordForSide(state, false);
+            state.setMatchHistoryRecorded(true);
+        }
     }
 
     private void recordForSide(GameState state, boolean isPlayerSide) {
@@ -58,7 +62,7 @@ public class MatchHistoryService {
         }
 
         MatchHistoryEntity history = new MatchHistoryEntity();
-        history.setId(UUID.randomUUID().toString());
+        history.setId(state.getMatchHistoryId() + (isPlayerSide ? "-player" : "-enemy"));
         history.setUserId(user.getId());
         history.setUserDisplayName(user.getDisplayName());
         history.setFinishedAt(Instant.now());
