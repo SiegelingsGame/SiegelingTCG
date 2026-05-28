@@ -140,6 +140,8 @@
         roomHideFull: false,
         friendSearch: '',
         builderCounts: {},
+        builderPreviewCardId: null,
+        editingSavedDeckId: '',
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
@@ -288,7 +290,9 @@
             renderFriends();
         });
         document.getElementById('friendAddForm')?.addEventListener('submit', addFriendFromSocial);
-        document.getElementById('saveCustomDeckBtn')?.addEventListener('click', saveCustomDeck);
+        document.getElementById('createCustomDeckBtn')?.addEventListener('click', () => openDeckBuilder({ reset: true }));
+        document.getElementById('deckBuilderBackBtn')?.addEventListener('click', () => navigateHub('decks'));
+        document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
         document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
@@ -311,7 +315,7 @@
             if (event.key === 'Escape') closeDeckPreview();
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
-            btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'decks' : 'home'));
+            btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'deck-builder' : 'home'));
         });
         document.querySelectorAll('a[data-route]').forEach((link) => {
             link.addEventListener('click', (event) => {
@@ -410,6 +414,7 @@
         safeRender(renderStarterGate);
         safeRender(renderCards);
         safeRender(renderDecks);
+        safeRender(renderDeckBuilderPage);
         safeRender(renderHomeDashboard);
         safeRender(renderShop);
         safeRender(renderProfile);
@@ -426,6 +431,8 @@
             renderCards();
         } else if (state.route === 'decks') {
             renderDecks();
+        } else if (state.route === 'deck-builder') {
+            renderDeckBuilderPage();
         } else if (state.route === 'home') {
             renderHomeDashboard();
         } else if (state.route === 'shop') {
@@ -470,8 +477,17 @@
     }
 
     function renderSections() {
-        ['home', 'cards', 'decks', 'social', 'lobby', 'profile', 'shop'].forEach((route) => {
-            document.getElementById(`${route}Section`)?.classList.toggle('hidden', state.route !== route);
+        [
+            ['home', 'homeSection'],
+            ['cards', 'cardsSection'],
+            ['decks', 'decksSection'],
+            ['deck-builder', 'deckBuilderSection'],
+            ['social', 'socialSection'],
+            ['profile', 'profileSection'],
+            ['shop', 'shopSection']
+        ].forEach(([route, sectionId]) => {
+            const active = state.route === route || (route === 'social' && state.route === 'lobby');
+            document.getElementById(sectionId)?.classList.toggle('hidden', !active);
         });
         if (!isBinderRoute()) {
             state.filterTrayOpen = false;
@@ -646,10 +662,15 @@
                 <button class="primary-btn" type="button" id="craftSelectedCard"${canCraft || !state.profile?.authenticated ? '' : ' disabled'}>${escapeHtml(craftLabel)}</button>
                 <span>${escapeHtml(remnants.toLocaleString())} Remnants available</span>
             </div>
-            <button class="primary-btn" type="button" id="addSelectedToBuilder">Add to Custom Deck</button>
+            ${state.route === 'deck-builder' ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
         `;
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
-        document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => adjustBuilder(card.id, 1));
+        document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
+            if (state.route !== 'deck-builder') {
+                openDeckBuilder();
+            }
+            adjustBuilder(card.id, 1);
+        });
     }
 
     function renderHomeDashboard() {
@@ -679,7 +700,7 @@
                     <div class="command-hero-actions">
                         <button class="ghost-btn command-hero-btn" type="button" data-home-action="cards"><span>Cards</span>Owned Cards</button>
                         <button class="primary-btn command-hero-btn command-hero-btn-primary" type="button" data-home-action="pve"><span>Play</span>Start Match</button>
-                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="decks"><span>Deck</span>Deck Builder</button>
+                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="deck-builder"><span>Deck</span>Deck Builder</button>
                     </div>
                 </div>
                 <div class="command-hero-stats" aria-label="Account resources">
@@ -970,6 +991,7 @@
             }
             if (action === 'cards') return navigateHub('cards');
             if (action === 'decks') return navigateHub('decks');
+            if (action === 'deck-builder') return openDeckBuilder({ reset: true });
             if (action === 'social') return navigateHub('social', { focus: 'lobby' });
             if (action === 'shop') {
                 if (directLink) return;
@@ -1002,7 +1024,6 @@
                 }
             });
         });
-        renderBuilder();
         renderSavedDecks();
     }
 
@@ -1039,12 +1060,30 @@
             grid.innerHTML = '<div class="unlock-card"><strong>Sign in to save custom decks</strong><span>Your deck binder will show saved custom decks after login.</span></div>';
             return;
         }
-        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Build a 30-card custom deck from owned cards, then save it here.</span></div>';
-        grid.querySelectorAll('[data-play-custom-deck]').forEach(btn => btn.addEventListener('click', () => {
+        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>';
+        grid.querySelectorAll('[data-play-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
             const deck = savedDecks.find(item => item.id === btn.dataset.playCustomDeck);
             if (!deck) return;
             goPlay({ mode: 'solo', deckId: deck.deckId, customDeckCards: deck.customDeckCards || null, trainerId: deck.trainerId, loadoutLabel: deck.name });
         }));
+        grid.querySelectorAll('[data-edit-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openDeckBuilder({ savedDeckId: btn.dataset.editCustomDeck });
+        }));
+        grid.querySelectorAll('[data-preview-saved-deck]').forEach(tile => {
+            tile.addEventListener('click', () => {
+                const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                if (deck) openSavedDeckPreview(deck);
+            });
+            tile.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                    if (deck) openSavedDeckPreview(deck);
+                }
+            });
+        });
     }
 
     function renderSavedDeckTile(deck) {
@@ -1055,17 +1094,80 @@
         const accent = elementColor(displayElements[0]);
         const visual = deckAssetForElements(displayElements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card custom-saved-deck${visual ? ' has-deck-art' : ''}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
+        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${visual ? ' has-deck-art' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
             <span class="deck-card-state">${deck.custom ? 'Custom' : 'Saved'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name || 'Saved Deck')}</strong>
                 <span class="deck-card-elements">${displayElements.map(format).join(' / ')}</span>
                 <span class="deck-card-desc">${deck.custom ? `${cardIds.length} owned cards` : escapeHtml(deck.deckName || 'Premade loadout')} / ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
+                <span class="deck-card-hint">Tap to preview cards</span>
             </div>
             <div class="deck-card-actions">
+                ${deck.custom ? `<button class="ghost-btn" type="button" data-edit-custom-deck="${escapeAttr(deck.id)}">Edit</button>` : ''}
                 <button class="primary-btn" type="button" data-play-custom-deck="${escapeAttr(deck.id)}">Play</button>
             </div>
         </article>`;
+    }
+
+    function cardCountsFromIdList(cardIds) {
+        const counts = {};
+        (cardIds || []).forEach((cardId) => {
+            if (!cardId) return;
+            counts[cardId] = (counts[cardId] || 0) + 1;
+        });
+        return Object.entries(counts).map(([id, count]) => ({ id, count }));
+    }
+
+    function openSavedDeckPreview(deck) {
+        if (!deck) return;
+        if (deck.custom && (deck.customDeckCards || []).length) {
+            const cardIds = deck.customDeckCards || [];
+            const elements = [...new Set(cardIds.map(id => findCard(id)?.element).filter(Boolean))].slice(0, 4);
+            const fallbackDeck = (state.options?.decks || []).find(item => item.id === deck.deckId);
+            const displayElements = elements.length ? elements : (fallbackDeck?.elements || []);
+            const cardCounts = cardCountsFromIdList(cardIds);
+            showDeckPreview({
+                eyebrow: 'Custom Deck',
+                name: deck.name || 'Saved Deck',
+                sub: `${displayElements.map(format).join(' / ')} / ${deck.trainerName || 'SiegeKnight'} / ${deckTotalCards(cardCounts)} cards`,
+                cardCounts
+            });
+            return;
+        }
+        if (deck.deckId) {
+            openDeckPreview(deck.deckId);
+        }
+    }
+
+    function buildCountsFromCardList(cardIds) {
+        return (cardIds || []).reduce((counts, cardId) => {
+            if (!cardId) return counts;
+            counts[cardId] = (counts[cardId] || 0) + 1;
+            return counts;
+        }, {});
+    }
+
+    function openDeckBuilder(options = {}) {
+        if (!state.options?.cardCatalog?.length) {
+            return navigateHub('decks');
+        }
+        if (options.reset) {
+            state.builderCounts = {};
+            state.builderPreviewCardId = null;
+            state.editingSavedDeckId = '';
+            localStorage.setItem('sieglingsBuilderDeckName', 'Custom Binder Deck');
+        }
+        if (options.savedDeckId) {
+            const deck = (state.profile?.savedDecks || []).find(item => item.id === options.savedDeckId);
+            if (deck) {
+                state.builderCounts = buildCountsFromCardList(deck.customDeckCards || []);
+                state.editingSavedDeckId = deck.id || '';
+                if (deck.name) localStorage.setItem('sieglingsBuilderDeckName', deck.name);
+                if (deck.trainerId) localStorage.setItem('sieglingsBuilderTrainerId', deck.trainerId);
+                state.builderPreviewCardId = (deck.customDeckCards || [])[0] || null;
+            }
+        }
+        navigateHub('deck-builder');
     }
 
     function openDeckPreview(deckId) {
@@ -1117,72 +1219,299 @@
         document.getElementById('deckPreviewModal')?.classList.add('hidden');
     }
 
-    function renderBuilder() {
+    function renderDeckBuilderPage() {
+        if (state.route !== 'deck-builder') return;
         const lock = document.getElementById('deckBuilderLock');
-        const panel = document.getElementById('builderPanel');
-        const catalog = document.getElementById('builderCatalogPanel');
+        const page = document.getElementById('deckBuilderPage');
+        const title = document.getElementById('deckBuilderPageTitle');
+        const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
+        if (!page) return;
         const unlocked = Boolean(state.progression?.customDeckUnlocked);
         const builderAvailable = Boolean(state.options?.cardCatalog?.length);
         const total = builderTotal();
         const trainerId = builderTrainerId();
         const deckElements = builderDeckElements();
         const primaryElement = deckElements[0] || 'NEUTRAL';
-        lock.innerHTML = unlocked
-            ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Use owned cards with max 3 copies each.</span></div>'
-            : `<div class="unlock-card"><strong>Deck planner available</strong><span>${state.profile?.authenticated ? `${state.progression?.ownedTotal || 0}/30 owned copies. Save-ready custom decks unlock once your binder has 30 owned copies.` : 'Sign in to save decks to your binder. You can still plan and test a custom list here.'}</span></div>`;
-        panel.innerHTML = builderAvailable
-            ? `<section class="deck-builder-workbench" style="--builder-accent:${elementColor(primaryElement)}">
-                <div class="builder-hero-row">
-                    <div>
-                        <span class="eyebrow">Custom Builder</span>
-                        <h2>Build a deck from your binder</h2>
-                        <p>Pick owned cards here, save the list, then play it whenever you want. Max 3 copies per card.</p>
-                    </div>
-                    <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
-                        <strong>${total}</strong><span>/30</span>
-                    </div>
+        const catalogCards = builderCatalogCards();
+        const previewCard = resolveBuilderPreviewCard(catalogCards);
+        if (previewCard) state.builderPreviewCardId = previewCard.id;
+        if (title) {
+            title.textContent = state.editingSavedDeckId ? 'Edit custom deck' : 'Build a custom deck';
+        }
+        if (saveBtn) {
+            saveBtn.disabled = total < 30;
+            saveBtn.textContent = state.editingSavedDeckId ? 'Update Deck' : 'Save Deck';
+        }
+        if (lock) {
+            lock.innerHTML = unlocked
+                ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Select cards from your binder, preview them, and add up to 3 copies each.</span></div>'
+                : `<div class="unlock-card"><strong>Deck planner available</strong><span>${state.profile?.authenticated ? `${state.progression?.ownedTotal || 0}/30 owned copies. Save-ready custom decks unlock once your binder has 30 owned copies.` : 'Sign in to save decks to your binder. You can still plan and test a custom list here.'}</span></div>`;
+        }
+        if (!builderAvailable) {
+            page.innerHTML = '<div class="unlock-card"><strong>Catalog loading</strong><span>Your binder will appear here once card data is ready.</span></div>';
+            return;
+        }
+        page.innerHTML = `<div class="deck-builder-layout" style="--builder-accent:${elementColor(primaryElement)}">
+            <section class="deck-builder-binder deck-builder-workbench">
+                <div class="section-head decks-row-head">
+                    <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
+                    <span>${catalogCards.length} cards</span>
                 </div>
-                <div class="builder-form-grid">
-                    <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
-                    <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
-                    <label><span>Sort catalog</span><select class="search-input" id="builderSortSelect">
+                <div class="builder-catalog-tools">
+                    <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search binder cards...">
+                    <select class="search-input" id="builderElementSelect">
+                        ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
+                    </select>
+                    <select class="search-input" id="builderTypeSelect">
+                        ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
+                    </select>
+                    <select class="search-input" id="builderSortSelect">
                         <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
                         <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
                         <option value="cost-asc"${state.builderSort === 'cost-asc' ? ' selected' : ''}>Cost low</option>
                         <option value="rarity-desc"${state.builderSort === 'rarity-desc' ? ' selected' : ''}>Rarity high</option>
-                    </select></label>
+                    </select>
+                </div>
+                <div class="deck-builder-binder-list">
+                    ${catalogCards.length ? catalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
+                </div>
+            </section>
+            <section class="deck-builder-inspector deck-builder-workbench">
+                <div class="section-head decks-row-head">
+                    <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
+                </div>
+                <div class="deck-builder-preview-panel">${renderBuilderPreviewPanel(previewCard)}</div>
+                <div class="deck-builder-recommendations">
+                    <div class="section-head decks-row-head">
+                        <div><span class="eyebrow">Recommended</span><h3>Evolution tree picks</h3></div>
+                    </div>
+                    ${renderBuilderRecommendations(previewCard)}
+                </div>
+            </section>
+            <aside class="deck-builder-deck-pane deck-builder-workbench">
+                <div class="deck-builder-deck-head">
+                    <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
+                        <strong>${total}</strong><span>/30</span>
+                    </div>
+                    <div>
+                        <span class="eyebrow">Current Deck</span>
+                        <p>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</p>
+                    </div>
+                </div>
+                <div class="builder-form-grid deck-builder-deck-form">
+                    <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
+                    <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
                 </div>
                 <div class="builder-actions-row">
-                    <button class="primary-btn" type="button" id="saveDeckWorkbenchBtn"${total < 30 ? ' disabled' : ''}>Save Deck</button>
                     <button class="ghost-btn" type="button" id="playCustomBtn"${total < 30 ? ' disabled' : ''}>Play Custom</button>
                     <button class="ghost-btn" type="button" id="clearBuilderBtn"${total ? '' : ' disabled'}>Clear</button>
-                    <span>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</span>
                 </div>
-                <div class="builder-list">${builderDraftRows()}</div>
-            </section>`
-            : '';
-        if (catalog) catalog.innerHTML = builderAvailable ? renderBuilderCatalog() : '';
-        document.getElementById('playCustomBtn')?.addEventListener('click', () => {
+                <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
+            </aside>
+        </div>`;
+        bindDeckBuilderPageEvents(page);
+    }
+
+    function resolveBuilderPreviewCard(catalogCards) {
+        const previewId = state.builderPreviewCardId;
+        if (previewId) {
+            const selected = findCard(previewId);
+            if (selected) return selected;
+        }
+        const inDeck = Object.keys(state.builderCounts).map(id => findCard(id)).filter(Boolean);
+        if (inDeck.length) return inDeck[0];
+        return catalogCards[0] || null;
+    }
+
+    function evolutionLineForCard(cardId) {
+        const catalog = state.options?.cardCatalog || [];
+        const byId = new Map(catalog.map(card => [card.id, card]));
+        const card = byId.get(cardId);
+        if (!card) return [];
+        const line = [card];
+        let cursor = card;
+        while (cursor?.evolvesFromId && byId.has(cursor.evolvesFromId)) {
+            cursor = byId.get(cursor.evolvesFromId);
+            line.unshift(cursor);
+        }
+        const descendants = [];
+        const queue = [cardId];
+        const seen = new Set([cardId]);
+        while (queue.length) {
+            const id = queue.shift();
+            catalog.filter(entry => entry.evolvesFromId === id).forEach(child => {
+                if (seen.has(child.id)) return;
+                seen.add(child.id);
+                descendants.push(child);
+                queue.push(child.id);
+            });
+        }
+        return [...line, ...descendants];
+    }
+
+    function builderRecommendationCards(cardId) {
+        if (!cardId) return [];
+        const line = evolutionLineForCard(cardId);
+        return line.filter(card => {
+            if (card.id === cardId) return false;
+            const maxCopies = builderCardLimit(card.id);
+            const inDeck = state.builderCounts[card.id] || 0;
+            return maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        }).slice(0, 8);
+    }
+
+    function renderBuilderRecommendations(previewCard) {
+        const recommendations = builderRecommendationCards(previewCard?.id);
+        if (!previewCard) {
+            return '<div class="unlock-card builder-empty">Select a card to see evolution tree recommendations.</div>';
+        }
+        if (!recommendations.length) {
+            return '<div class="unlock-card builder-empty">No related evolution cards available to add right now.</div>';
+        }
+        const line = evolutionLineForCard(previewCard.id).map(card => escapeHtml(card.name)).join(' → ');
+        return `<p class="deck-builder-evolution-line">${line}</p>
+            <div class="deck-builder-recommendation-grid">
+                ${recommendations.map(card => {
+                    const inDeck = state.builderCounts[card.id] || 0;
+                    const maxCopies = builderCardLimit(card.id);
+                    const canAdd = inDeck < maxCopies && builderTotal() < 30;
+                    return `<article class="builder-recommendation-card" style="--el:${elementColor(card.element)}">
+                        <button type="button" class="builder-recommendation-main" data-select-builder-card="${escapeAttr(card.id)}">
+                            <strong>${escapeHtml(card.name)}</strong>
+                            <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
+                            <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
+                        </button>
+                        <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
+                    </article>`;
+                }).join('')}
+            </div>`;
+    }
+
+    function renderBuilderPreviewPanel(card) {
+        if (!card) {
+            return '<div class="unlock-card builder-empty">Tap a binder card to inspect it and add copies to your deck.</div>';
+        }
+        const abilities = card.abilities || (card.ability ? [card.ability] : []);
+        const flavorText = creatureDescriptionFor(card);
+        const inDeck = state.builderCounts[card.id] || 0;
+        const maxCopies = builderCardLimit(card.id);
+        const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
+            <div class="detail-art art">${renderElementIcon(card.element)}</div>
+            <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
+            <h3>${escapeHtml(card.name)}</h3>
+            <div class="chip-wrap">
+                <span class="chip">Owned x${ownedCount(card.id)}</span>
+                <span class="chip">In deck x${inDeck}</span>
+                <span class="chip">${format(card.rarity)}</span>
+            </div>
+            ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
+            <div class="detail-grid">
+                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                <div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>
+            </div>
+            ${abilities.length ? `<div class="deck-builder-preview-abilities">${abilities.map(a => `<p><strong>${escapeHtml(a.name || 'Ability')}</strong><br>${escapeHtml(a.description || '')}</p>`).join('')}</div>` : ''}
+            <div class="builder-stepper deck-builder-preview-actions">
+                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
+                <strong>${inDeck} / ${maxCopies}</strong>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+            </div>
+        </div>`;
+    }
+
+    function renderBuilderBinderRow(card) {
+        const owned = ownedCount(card.id);
+        const count = state.builderCounts[card.id] || 0;
+        const maxCopies = builderCardLimit(card.id);
+        const total = builderTotal();
+        const canAdd = maxCopies > 0 && count < maxCopies && total < 30;
+        const activeClass = card.id === state.builderPreviewCardId ? ' is-active' : '';
+        return `<article class="deck-builder-binder-row${activeClass}" style="--el:${elementColor(card.element)}">
+            <button type="button" class="deck-builder-binder-main" data-select-builder-card="${escapeAttr(card.id)}">
+                <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
+                <div>
+                    <strong>${escapeHtml(card.name)}</strong>
+                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / Owned x${owned}</span>
+                    <small>${escapeHtml(format(card.rarity))}${card.evolvesFromId ? ` / Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : ''}</small>
+                </div>
+                <span class="deck-builder-binder-count">x${count}</span>
+            </button>
+            <div class="builder-stepper">
+                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>+</button>
+            </div>
+        </article>`;
+    }
+
+    function renderBuilderDeckListRows() {
+        const entries = Object.entries(state.builderCounts);
+        if (!entries.length) {
+            return '<div class="unlock-card builder-empty">Cards you add will appear here.</div>';
+        }
+        return entries.sort(([a], [b]) => (findCard(a)?.name || a).localeCompare(findCard(b)?.name || b)).map(([cardId, count]) => {
+            const card = findCard(cardId);
+            const maxCopies = builderCardLimit(cardId);
+            const activeClass = cardId === state.builderPreviewCardId ? ' is-active' : '';
+            return `<div class="deck-builder-deck-row${activeClass}" style="--el:${elementColor(card?.element)}">
+                <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
+                    <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
+                    <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
+                </button>
+                <div class="builder-stepper">
+                    <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
+                    <button class="ghost-btn" type="button" data-add-builder-card="${escapeAttr(cardId)}"${count >= maxCopies || builderTotal() >= 30 ? ' disabled' : ''}>+</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function bindDeckBuilderPageEvents(root) {
+        if (!root) return;
+        root.querySelectorAll('[data-select-builder-card]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderPreviewCardId = btn.dataset.selectBuilderCard;
+            renderDeckBuilderPage();
+        }));
+        root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            adjustBuilder(btn.dataset.addBuilderCard, 1);
+        }));
+        root.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            adjustBuilder(btn.dataset.removeCard, -1);
+        }));
+        root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
+            state.builderSearch = event.target.value.trim().toLowerCase();
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
+            state.builderElementFilter = event.target.value;
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
+            state.builderTypeFilter = event.target.value;
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
+            state.builderSort = event.target.value;
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderTrainerSelect')?.addEventListener('change', (event) => {
+            localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
+        });
+        root.querySelector('#builderDeckName')?.addEventListener('input', (event) => {
+            localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
+        });
+        root.querySelector('#playCustomBtn')?.addEventListener('click', () => {
             if (builderTotal() < 30) return alert('Custom decks need 30 cards.');
             goPlay({ mode: 'solo', customDeckCards: builderCards(), trainerId: builderTrainerId(), loadoutLabel: builderDeckName() });
         });
-        document.getElementById('saveDeckWorkbenchBtn')?.addEventListener('click', saveCustomDeck);
-        document.getElementById('clearBuilderBtn')?.addEventListener('click', () => {
+        root.querySelector('#clearBuilderBtn')?.addEventListener('click', () => {
             state.builderCounts = {};
-            renderBuilder();
+            state.builderPreviewCardId = null;
+            renderDeckBuilderPage();
         });
-        document.getElementById('builderTrainerSelect')?.addEventListener('change', (event) => {
-            localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
-        });
-        document.getElementById('builderDeckName')?.addEventListener('input', (event) => {
-            localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
-        });
-        document.getElementById('builderSortSelect')?.addEventListener('change', (event) => {
-            state.builderSort = event.target.value;
-            renderBuilder();
-        });
-        bindBuilderCatalogEvents(catalog);
-        panel.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.removeCard, -1)));
     }
 
     function builderTrainerId() {
@@ -1197,68 +1526,6 @@
 
     function builderTrainerOptions(selectedId) {
         return (state.options?.trainers || []).map(trainer => `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}>${escapeHtml(trainer.name || trainer.id)}</option>`).join('');
-    }
-
-    function builderDraftRows() {
-        const entries = Object.entries(state.builderCounts);
-        if (!entries.length) {
-            return '<div class="unlock-card builder-empty">Add owned cards from the catalog below to start building.</div>';
-        }
-        return entries.sort(([a], [b]) => (findCard(a)?.name || a).localeCompare(findCard(b)?.name || b)).map(([cardId, count]) => {
-            const card = findCard(cardId);
-            const maxCopies = builderCardLimit(cardId);
-            return `<div class="builder-deck-card" style="--el:${elementColor(card?.element)}">
-                <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
-                <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
-                <div class="builder-stepper">
-                    <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
-                    <button class="ghost-btn" type="button" data-add-builder-card="${escapeAttr(cardId)}"${count >= maxCopies || builderTotal() >= 30 ? ' disabled' : ''}>+</button>
-                </div>
-            </div>`;
-        }).join('');
-    }
-
-    function renderBuilderCatalog() {
-        const cards = builderCatalogCards();
-        return `<section class="deck-builder-catalog">
-            <div class="section-head">
-                <div><span class="eyebrow">Owned Card Catalog</span><h2>Add cards without opening Play</h2></div>
-                <span>${cards.length} cards</span>
-            </div>
-            <div class="builder-catalog-tools">
-                <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search owned cards...">
-                <select class="search-input" id="builderElementSelect">
-                    ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
-                </select>
-                <select class="search-input" id="builderTypeSelect">
-                    ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
-                </select>
-            </div>
-            <div class="builder-catalog-grid">
-                ${cards.length ? cards.map(renderBuilderCatalogCard).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
-            </div>
-        </section>`;
-    }
-
-    function renderBuilderCatalogCard(card) {
-        const owned = ownedCount(card.id);
-        const count = state.builderCounts[card.id] || 0;
-        const maxCopies = builderCardLimit(card.id);
-        const total = builderTotal();
-        const canAdd = maxCopies > 0 && count < maxCopies && total < 30;
-        return `<article class="builder-catalog-card" style="--el:${elementColor(card.element)}">
-            <div class="builder-catalog-art">${renderElementIcon(card.element)}</div>
-            <div class="builder-catalog-copy">
-                <strong>${escapeHtml(card.name)}</strong>
-                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
-                <small>${escapeHtml(format(card.rarity))} / ${owned ? `Owned x${owned}` : 'Planner copy'}</small>
-            </div>
-            <div class="builder-stepper">
-                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
-                <strong>${count}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>+</button>
-            </div>
-        </article>`;
     }
 
     function builderCatalogCards() {
@@ -1277,24 +1544,6 @@
                 if (state.builderSort === 'rarity-desc') return (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0);
                 return ownedCount(b.id) - ownedCount(a.id) || a.name.localeCompare(b.name);
             });
-    }
-
-    function bindBuilderCatalogEvents(root) {
-        if (!root) return;
-        root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.addBuilderCard, 1)));
-        root.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.removeCard, -1)));
-        root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
-            state.builderSearch = event.target.value.trim().toLowerCase();
-            renderBuilder();
-        });
-        root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
-            state.builderElementFilter = event.target.value;
-            renderBuilder();
-        });
-        root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
-            state.builderTypeFilter = event.target.value;
-            renderBuilder();
-        });
     }
 
     function renderShop() {
@@ -2865,15 +3114,19 @@
         if (cards.length < 30) return alert('Custom decks need 30 cards.');
         const trainerId = builderTrainerId();
         const name = builderDeckName();
+        const payload = { trainerId, customDeckCards: cards, name };
+        if (state.editingSavedDeckId) payload.id = state.editingSavedDeckId;
         const data = await fetchJson('/api/profile/decks', {
             method: 'POST',
-            body: JSON.stringify({ trainerId, customDeckCards: cards, name })
+            body: JSON.stringify(payload)
         });
         if (data?.error) return alert(data.error);
         state.profile = data;
         state.progression = data.progression;
+        state.editingSavedDeckId = '';
         renderProfile();
         renderDecks();
+        navigateHub('decks');
     }
 
     async function addFriendFromSocial(event) {
@@ -3364,7 +3617,7 @@
     }
 
     function adjustBuilder(cardId, delta) {
-        if (!state.options?.cardCatalog?.length) return navigateHub('decks');
+        if (!state.options?.cardCatalog?.length) return;
         const cardLimit = builderCardLimit(cardId);
         const current = state.builderCounts[cardId] || 0;
         const totalWithoutCard = builderTotal() - current;
@@ -3372,8 +3625,10 @@
         const next = Math.max(0, Math.min(copyLimit, current + delta));
         if (next) state.builderCounts[cardId] = next;
         else delete state.builderCounts[cardId];
-        navigateHub('decks');
-        renderBuilder();
+        if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        if (state.route === 'deck-builder') {
+            renderDeckBuilderPage();
+        }
     }
 
     function builderCards() {
@@ -3506,6 +3761,9 @@
             const profileUserId = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
             return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId };
         }
+        if (head === 'deck-builder') {
+            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        }
         if (['cards', 'decks', 'social'].includes(head)) {
             return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
         }
@@ -3545,6 +3803,7 @@
     function hubPath(route, shopView = 'browse') {
         if (route === 'home') return '/home';
         if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
+        if (route === 'deck-builder') return '/deck-builder';
         return `/${route}`;
     }
 
