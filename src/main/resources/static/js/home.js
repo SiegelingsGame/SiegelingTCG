@@ -174,6 +174,7 @@
         shopView: 'browse',
         catalogVersion: 0,
         catalogSyncBound: false,
+        profileUserId: '',
         leaderboardTab: 'wins',
         leaderboardPeriod: 'daily'
     };
@@ -225,13 +226,18 @@
     }
 
     function openSharedProfileFromUrl() {
+        const parsed = parseHubRoute(location.pathname);
+        if (parsed.profileUserId) {
+            navigateToPlayerProfile(parsed.profileUserId, { replace: true });
+            return;
+        }
         const params = new URLSearchParams(location.search);
         const profileId = params.get('profile');
         if (!profileId) return;
         params.delete('profile');
         const query = params.toString();
         history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
-        openPlayerProfile(profileId);
+        navigateToPlayerProfile(profileId, { replace: true });
     }
 
     function bindEvents() {
@@ -1660,7 +1666,7 @@
                     <span class="presence-dot ${online ? (status === 'IN_GAME' ? 'in-game' : 'online') : ''}" title="${escapeHtml(status)}"></span>
                 </div>
                 <div class="friend-copy">
-                    <strong>${escapeHtml(displayName)}</strong>
+                    <a class="profile-friend-link friend-name-link" href="${escapeAttr(playerProfilePath(friend.userId || friend.email))}" data-player-profile="${escapeAttr(friend.userId || friend.email)}"><strong>${escapeHtml(displayName)}</strong></a>
                     <span>${escapeHtml(subtitle)}</span>
                 </div>
                 <div class="friend-actions">
@@ -1673,8 +1679,9 @@
             : '<div class="social-empty-state"><strong>No friends found</strong><span>Add a registered player by email to start your list.</span></div>';
 
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
-        list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => openPlayerProfile(btn.dataset.viewProfile)));
+        list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => navigateToPlayerProfile(btn.dataset.viewProfile)));
         list.querySelectorAll('[data-message-friend]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.messageFriend)));
+        bindPlayerProfileLinks(list);
     }
 
     function renderFriendRequests() {
@@ -1741,9 +1748,43 @@
         return resolveFriendDisplayName(friend).slice(0, 1).toUpperCase();
     }
 
+    function updateProfileSectionHead(viewingOther = false) {
+        const head = document.querySelector('#profileSection .section-head');
+        if (!head) return;
+        const eyebrow = head.querySelector('.eyebrow');
+        const title = head.querySelector('h1');
+        if (viewingOther) {
+            if (eyebrow) eyebrow.textContent = 'Player Profile';
+            if (title) title.textContent = 'View a friend’s Siegelings profile';
+        } else {
+            if (eyebrow) eyebrow.textContent = 'Profile';
+            if (title) title.textContent = 'Your profile, friends, and recent battles';
+        }
+    }
+
+    function bindPlayerProfileLinks(root = document) {
+        root.querySelectorAll('[data-player-profile]').forEach(link => {
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                navigateToPlayerProfile(link.dataset.playerProfile);
+            });
+        });
+    }
+
     function renderProfile() {
         const body = document.getElementById('profileSectionBody');
         if (!body) return;
+        const viewingId = state.profileUserId;
+        const myEmail = normalizePlayerId(state.profile?.user?.email);
+        if (viewingId && viewingId !== myEmail) {
+            updateProfileSectionHead(true);
+            body.innerHTML = '<div class="profile-loading-state"><strong>Loading profile…</strong><span>Fetching player details.</span></div>';
+            renderEditProfileModalHost(null);
+            void loadPublicProfilePage(viewingId);
+            return;
+        }
+        updateProfileSectionHead(false);
+        state.profileUserId = '';
         if (!state.profile?.authenticated) {
             body.innerHTML = `<div class="profile-dashboard profile-signed-out">
                 <div class="profile-hero profile-hero-neutral">
@@ -1781,6 +1822,7 @@
         </div>`;
         renderEditProfileModalHost(view);
         bindProfileDashboard();
+        bindPlayerProfileLinks(body);
     }
 
     function renderEditProfileModalHost(view) {
@@ -1996,7 +2038,11 @@
                 <button class="primary-btn profile-theme-btn" type="button" data-profile-route="social">Add Friend</button>
             </div>
             <div class="friend-activity">
-                ${friends.length ? friends.slice(0, 4).map(friend => `<div><strong>${escapeHtml(friend.displayName || friend.email)}</strong><span>${escapeHtml(friend.email)}</span></div>`).join('') : '<div><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
+                ${friends.length ? friends.slice(0, 4).map(friend => {
+                    const playerId = friend.userId || friend.email;
+                    const label = friend.displayName || friend.email;
+                    return `<div><a class="profile-friend-link" href="${escapeAttr(playerProfilePath(playerId))}" data-player-profile="${escapeAttr(playerId)}"><strong>${escapeHtml(label)}</strong></a><span>${escapeHtml(friend.email)}</span></div>`;
+                }).join('') : '<div><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
                 <div><strong>Open lobbies</strong><span>Use Social to join rooms or invite friends once room invites are connected.</span></div>
             </div>
         </section>`;
@@ -2986,10 +3032,15 @@
         const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
         const nextShopView = route === 'shop' ? (options.shopView || state.shopView || 'browse') : 'browse';
         const nextPath = `${hubPath(route, nextShopView)}${hash}`;
-        const samePlace = route === state.route && (route !== 'shop' || nextShopView === state.shopView);
+        const samePlace = route === state.route
+            && (route !== 'shop' || nextShopView === state.shopView)
+            && (route !== 'profile' || !state.profileUserId);
 
         state.route = route;
         state.shopView = nextShopView;
+        if (route === 'profile') {
+            state.profileUserId = '';
+        }
 
         if (options.replace) {
             if (`${location.pathname}${location.hash}` !== nextPath) {
@@ -3444,17 +3495,51 @@
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
         const head = segments[0] || 'home';
-        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '' };
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
         if (head === 'social' && segments[1] === 'lobby' && segments[2]) {
-            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase() };
+            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '' };
         }
         if (head === 'shop') {
-            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '' };
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '' };
         }
-        if (['cards', 'decks', 'social', 'profile'].includes(head)) {
-            return { route: head, shopView: 'browse', lobbyRoomId: '' };
+        if (head === 'profile') {
+            const profileUserId = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
+            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId };
         }
-        return { route: 'home', shopView: 'browse', lobbyRoomId: '' };
+        if (['cards', 'decks', 'social'].includes(head)) {
+            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        }
+        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+    }
+
+    function normalizePlayerId(userId) {
+        return String(userId || '').trim().toLowerCase();
+    }
+
+    function playerProfilePath(userId) {
+        const normalized = normalizePlayerId(userId);
+        if (!normalized) return '/profile';
+        const myEmail = normalizePlayerId(state.profile?.user?.email);
+        if (myEmail && normalized === myEmail) return '/profile';
+        return `/profile/${encodeURIComponent(normalized)}`;
+    }
+
+    function navigateToPlayerProfile(userId, options = {}) {
+        const path = playerProfilePath(userId);
+        state.route = 'profile';
+        state.shopView = 'browse';
+        state.lobbyRoomId = '';
+        state.profileUserId = path === '/profile' ? '' : normalizePlayerId(userId);
+        state.profileEditOpen = false;
+        closePlayerProfile();
+        if (options.replace) {
+            history.replaceState(null, '', path);
+        } else {
+            history.pushState(null, '', path);
+        }
+        setActiveRoute();
+        renderSections();
+        renderRoute();
     }
 
     function hubPath(route, shopView = 'browse') {
@@ -3468,6 +3553,7 @@
         state.route = parsed.route;
         state.shopView = parsed.shopView;
         state.lobbyRoomId = parsed.lobbyRoomId || '';
+        state.profileUserId = parsed.profileUserId || '';
         if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
             state.shopView = 'browse';
             if (location.pathname !== hubPath('shop', 'browse')) {
@@ -4409,85 +4495,154 @@
         await openMessageComposer(state.activeChatPeer, false);
     }
 
-    async function openPlayerProfile(userId) {
-        const modal = document.getElementById('viewProfileModal');
-        const body = document.getElementById('viewProfileBody');
-        if (!modal || !body) return;
-        const data = await fetchJson(`/api/social/players/${encodeURIComponent(userId)}/profile`).catch(() => ({ error: 'Could not load this profile.' }));
-        if (data?.error) {
-            body.innerHTML = `<div class="view-profile-modal-head">
-                    <div><span class="eyebrow">Player Profile</span><h2 id="viewProfileTitle">Profile unavailable</h2></div>
-                    <button class="ghost-btn compact-btn" type="button" id="closeViewProfileBtn">Close</button>
+    function publicProfileViewModel(data) {
+        const prefs = {
+            ...defaultProfilePrefs({ displayName: data.profileSettings?.displayName || 'Player' }),
+            ...(data.profileSettings || {})
+        };
+        const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
+        prefs.favoriteElement = favoriteElement;
+        const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
+        const stats = data.stats || {};
+        const battles = (data.recentMatches || []).map((row, index) => normalizeBattle(row, favoriteElement, index));
+        const record = battleRecord(battles);
+        const level = Math.max(1, Number(stats.level) || Math.floor((stats.ownedTotal || 0) / 12) + 1);
+        return { prefs, theme, stats, battles, record, level, data };
+    }
+
+    function renderPublicProfileHero(view) {
+        const { prefs, theme, data } = view;
+        const presence = data.presence || {};
+        const statusLabel = presence.online ? String(presence.status || 'ONLINE').replace('_', ' ') : 'Offline';
+        return `<section class="profile-hero profile-hero-neutral">
+            <div class="profile-hero-content">
+                <div class="profile-avatar-wrap">
+                    ${renderPlayerAvatar(prefs, 'profile-avatar')}
+                    <span class="profile-level">LV ${view.level}</span>
                 </div>
-                <p class="profile-muted">${escapeHtml(data.error || 'This player could not be found.')}</p>`;
-            modal.classList.remove('hidden');
-            document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
-            return;
-        }
-        state.viewingProfile = data;
-        const prefs = data.profileSettings || {};
-        const myEmail = state.profile?.user?.email || '';
-        const isSelf = Boolean(myEmail && String(myEmail).toLowerCase() === String(userId).toLowerCase());
-        const theme = elementThemes[normalizeProfileElement(prefs.favoriteElement)] || elementThemes.Fire;
-        body.innerHTML = `<div class="view-profile-modal-head">
-            <div>
-                <span class="eyebrow">Player Profile</span>
-                <h2 id="viewProfileTitle">${escapeHtml(prefs.displayName || userId)}</h2>
-                <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
-            </div>
-            <button class="ghost-btn compact-btn" type="button" id="closeViewProfileBtn">Close</button>
-        </div>
-        <div class="profile-dashboard" style="${profileThemeStyle(theme)}">
-            <section class="profile-hero profile-hero-neutral">
-                <div class="profile-hero-content">
-                    <div class="profile-avatar-wrap">${renderPlayerAvatar(prefs, 'profile-avatar')}</div>
-                    <div class="profile-identity">
+                <div class="profile-identity">
+                    <div class="profile-hero-topline">
                         ${renderElementBadge(prefs.favoriteElement)}
-                        <p class="profile-bio">${escapeHtml(prefs.bio || '')}</p>
-                        <p class="profile-muted">Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling || '—')}</p>
-                        <p class="profile-muted">${escapeHtml(prefs.preferredCardBack || '')} card back</p>
-                        <p class="profile-muted">Status: ${escapeHtml((data.presence?.online ? data.presence.status : 'OFFLINE').replace('_', ' '))}</p>
+                        <span class="profile-soft-pill">${escapeHtml(statusLabel)}</span>
                     </div>
+                    <h2>${escapeHtml(prefs.displayName || data.userId || 'Player')}</h2>
+                    <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
+                    <p class="profile-bio">${escapeHtml(prefs.bio || '')}</p>
+                    <p class="profile-muted">Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling || '—')}</p>
+                    <p class="profile-muted">${escapeHtml(prefs.preferredCardBack || '')} card back</p>
                 </div>
-            </section>
-            <section class="profile-stat-grid">
-                ${renderStatCard('Cards Owned', data.stats?.ownedTotal ?? 0, 'Total copies')}
-                ${renderStatCard('Unique Cards', data.stats?.uniqueOwned ?? 0, 'Discovered')}
-                ${renderStatCard('Coins', data.stats?.gold ?? 0, 'Wallet')}
-                ${renderStatCard('Level', data.stats?.level ?? 1, 'Collector rank')}
-            </section>
-            ${data.isFriend ? `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileMessageBtn">Message</button>
-            </div>` : isSelf ? '<p class="profile-muted">This is your own profile. Share it from Options to let others add you.</p>'
-                : data.incomingFriendRequest ? `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAcceptBtn">Accept Request</button>
-                <button class="ghost-btn profile-theme-btn" type="button" id="viewProfileDenyBtn">Decline</button>
-            </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`
-                : data.outgoingFriendRequest ? '<p class="profile-muted">Friend request sent. Waiting for them to accept.</p>'
-                : `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAddFriendBtn">Send Friend Request</button>
-            </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`}
+            </div>
+        </section>`;
+    }
+
+    function renderPublicProfileStats(view) {
+        const { stats, record } = view;
+        const cards = [
+            ['Cards Owned', stats.ownedTotal ?? 0, 'Total copies'],
+            ['Unique Cards', stats.uniqueOwned ?? 0, 'Discovered'],
+            ['Coins', stats.gold ?? 0, 'Wallet'],
+            ['Wins', record.wins, 'Recorded matches'],
+            ['Losses', record.losses, 'Recorded matches'],
+            ['Win Rate', `${record.winRate}%`, 'Recent record']
+        ];
+        return `<section class="profile-stat-grid">${cards.map(([label, value, hint]) => renderStatCard(label, value, hint)).join('')}</section>`;
+    }
+
+    function renderPublicProfileActions(view) {
+        const data = view.data;
+        const userId = data.userId;
+        const myEmail = normalizePlayerId(state.profile?.user?.email);
+        const isSelf = Boolean(myEmail && myEmail === normalizePlayerId(userId));
+        if (isSelf) {
+            return '<p class="profile-muted">This is your profile. Use Edit Profile on your account page to make changes.</p>';
+        }
+        if (data.isFriend) {
+            return `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" data-public-profile-message>Message</button>
+            </div>`;
+        }
+        if (data.incomingFriendRequest) {
+            return `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" data-public-profile-accept>Accept Request</button>
+                <button class="ghost-btn profile-theme-btn" type="button" data-public-profile-deny>Decline</button>
+            </div><p class="profile-muted" id="publicProfileFriendMsg"></p>`;
+        }
+        if (data.outgoingFriendRequest) {
+            return '<p class="profile-muted">Friend request sent. Waiting for them to accept.</p>';
+        }
+        return `<div class="profile-edit-actions">
+            <button class="primary-btn profile-theme-btn" type="button" data-public-profile-add-friend>Send Friend Request</button>
+        </div><p class="profile-muted" id="publicProfileFriendMsg"></p>`;
+    }
+
+    function renderPublicProfilePageHtml(view) {
+        return `<div class="profile-dashboard public-profile-page" style="${profileThemeStyle(view.theme)}">
+            <div class="public-profile-toolbar">
+                <button class="ghost-btn compact-btn" type="button" data-public-profile-back>← Back</button>
+            </div>
+            ${renderPublicProfileHero(view)}
+            ${renderPublicProfileStats(view)}
+            ${view.battles.length ? renderBattleRecordPanel(view) : ''}
+            ${view.battles.length
+                ? renderBattleHistoryList(view)
+                : `<section class="profile-panel"><p class="profile-muted">${view.data.isFriend ? 'No recorded battles yet.' : 'Recent battles are visible once you are friends.'}</p></section>`}
+            ${renderPublicProfileActions(view)}
         </div>`;
-        modal.classList.remove('hidden');
-        document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
-        document.getElementById('viewProfileMessageBtn')?.addEventListener('click', () => {
-            closePlayerProfile();
+    }
+
+    function bindPublicProfilePage(view) {
+        const body = document.getElementById('profileSectionBody');
+        if (!body) return;
+        const userId = view.data.userId;
+        body.querySelector('[data-public-profile-back]')?.addEventListener('click', () => {
+            if (state.profile?.authenticated) {
+                navigateHub('profile');
+            } else {
+                navigateHub('social');
+            }
+        });
+        body.querySelector('[data-public-profile-message]')?.addEventListener('click', () => {
             navigateHub('social');
             openMessageComposer(userId);
         });
-        document.getElementById('viewProfileAddFriendBtn')?.addEventListener('click', () => addFriendByEmail(userId));
-        document.getElementById('viewProfileAcceptBtn')?.addEventListener('click', async () => {
+        body.querySelector('[data-public-profile-add-friend]')?.addEventListener('click', () => addFriendByEmail(userId, 'publicProfileFriendMsg'));
+        body.querySelector('[data-public-profile-accept]')?.addEventListener('click', async () => {
             await respondToFriendRequest(userId, 'accept');
-            closePlayerProfile();
+            void loadPublicProfilePage(userId);
         });
-        document.getElementById('viewProfileDenyBtn')?.addEventListener('click', async () => {
+        body.querySelector('[data-public-profile-deny]')?.addEventListener('click', async () => {
             await respondToFriendRequest(userId, 'deny');
-            closePlayerProfile();
+            navigateHub('profile');
         });
     }
 
-    async function addFriendByEmail(email) {
-        const msg = document.getElementById('viewProfileFriendMsg');
+    async function loadPublicProfilePage(userId) {
+        const normalized = normalizePlayerId(userId);
+        const body = document.getElementById('profileSectionBody');
+        if (!body || state.profileUserId !== normalized) return;
+        const data = await fetchJson(`/api/social/players/${encodeURIComponent(normalized)}/profile`).catch(() => ({ error: 'Could not load this profile.' }));
+        if (state.profileUserId !== normalized) return;
+        if (data?.error) {
+            body.innerHTML = `<div class="profile-dashboard public-profile-page">
+                <div class="public-profile-toolbar">
+                    <button class="ghost-btn compact-btn" type="button" data-public-profile-back>← Back</button>
+                </div>
+                <p class="profile-muted">${escapeHtml(data.error || 'This player could not be found.')}</p>
+            </div>`;
+            body.querySelector('[data-public-profile-back]')?.addEventListener('click', () => navigateHub(state.profile?.authenticated ? 'profile' : 'social'));
+            return;
+        }
+        const view = publicProfileViewModel(data);
+        body.innerHTML = renderPublicProfilePageHtml(view);
+        bindPublicProfilePage(view);
+    }
+
+    function openPlayerProfile(userId) {
+        navigateToPlayerProfile(userId);
+    }
+
+    async function addFriendByEmail(email, messageElementId = 'viewProfileFriendMsg') {
+        const msg = document.getElementById(messageElementId);
         if (!state.profile?.authenticated) {
             closePlayerProfile();
             openAuth();
@@ -4500,7 +4655,8 @@
         }
         state.profile = data;
         state.progression = data.progression || state.progression;
-        const btn = document.getElementById('viewProfileAddFriendBtn');
+        const btn = document.getElementById('viewProfileAddFriendBtn')
+            || document.querySelector('[data-public-profile-add-friend]');
         if (btn) { btn.textContent = 'Request Sent'; btn.disabled = true; }
         if (msg) { msg.textContent = 'They will need to accept before you can message.'; msg.style.color = ''; }
         renderFriends();
@@ -4635,7 +4791,7 @@
         } else if (view === 'share') {
             const email = state.profile?.user?.email || '';
             const authed = Boolean(state.profile?.authenticated && email);
-            const link = authed ? `${location.origin}/home?profile=${encodeURIComponent(email)}` : '';
+            const link = authed ? `${location.origin}${playerProfilePath(email)}` : '';
             let qrMarkup = '<p class="guide-note">Sign in to generate your shareable profile code.</p>';
             if (authed) {
                 if (typeof qrcode === 'function') {
