@@ -494,10 +494,11 @@
                 }, { render: false });
                 setStatus(
                     state.liveEditingEnabled
-                        ? `Uploaded art for ${cardId}. Click Publish Live Changes to save the card metadata.`
-                        : `Uploaded art for ${cardId}. Click Save To Project File when ready.`,
+                        ? `Uploaded art for ${cardId}. Adjust scale/placement below, then click Publish Live Changes.`
+                        : `Uploaded art for ${cardId}. Adjust scale/placement below, then click Save To Project File.`,
                     "success"
                 );
+                refs.cardArtTransformControls?.scrollIntoView({ behavior: "smooth", block: "nearest" });
             } catch (error) {
                 setStatus(
                     `${error?.message || "Unable to upload card art."} Your local preview is still visible; fix the issue above and try Upload Image again.`,
@@ -522,19 +523,19 @@
         });
 
         refs.cardArtScaleInput?.addEventListener("input", (event) => {
-            mutateSelectedCard((card) => {
+            updateSelectedCardArtTransform((card) => {
                 card.cardArtScale = clampCardArtScale(event.target.value);
             });
         });
 
         refs.cardArtRotationInput?.addEventListener("input", (event) => {
-            mutateSelectedCard((card) => {
+            updateSelectedCardArtTransform((card) => {
                 card.cardArtRotation = clampCardArtRotation(event.target.value);
             });
         });
 
         refs.resetCardArtTransformBtn?.addEventListener("click", () => {
-            mutateSelectedCard((card) => {
+            updateSelectedCardArtTransform((card) => {
                 resetCardArtTransform(card);
             });
         });
@@ -1287,6 +1288,23 @@
         }
     }
 
+    function updateSelectedCardArtTransform(mutator) {
+        const card = getSelectedCard();
+        if (!card) {
+            return;
+        }
+        mutator(card);
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        applyCardArtTransformToPreview(card);
+        syncCardArtTransformControls(card);
+        renderPreview();
+        renderValidation();
+        renderChrome();
+        renderStatus();
+    }
+
     function clearEphemeralCardArtPreview() {
         if (state.ephemeralCardArtPreview?.url) {
             URL.revokeObjectURL(state.ephemeralCardArtPreview.url);
@@ -1541,6 +1559,16 @@
         return normalizedId ? `/assets/cards/${normalizedId}.png` : "";
     }
 
+    function isHostedCardArtUrl(cardArtUrl) {
+        const url = String(cardArtUrl || "").trim();
+        return /^https?:\/\//i.test(url);
+    }
+
+    function isProjectRelativeCardArtPath(cardArtUrl) {
+        const url = String(cardArtUrl || "").trim();
+        return url.startsWith("/assets/cards/") && !isHostedCardArtUrl(url);
+    }
+
     function cardArtPathMatchesCardId(cardId, cardArtUrl) {
         const normalizedId = slugify(cardId);
         const url = String(cardArtUrl || "").trim().toLowerCase();
@@ -1747,9 +1775,7 @@
         const url = String(card?.cardArtUrl || "").trim();
         if (url) {
             exported.cardArtUrl = url;
-            if (card.cardArtMode) {
-                exported.cardArtMode = card.cardArtMode;
-            }
+            exported.cardArtMode = normalizeCardArtMode(card?.cardArtMode) || "REPLACE";
             const offsetX = toNumber(card.cardArtOffsetX, 0);
             const offsetY = toNumber(card.cardArtOffsetY, 0);
             const scale = clampCardArtScale(card.cardArtScale ?? 1);
@@ -3571,6 +3597,11 @@
                 ));
             } else if (cardArtUrl.length > 2048) {
                 issues.push(issue("error", `${trimmedId || card.name || "A card"} cardArtUrl is too long for Firestore.`));
+            } else if (state.liveEditingEnabled && isProjectRelativeCardArtPath(cardArtUrl)) {
+                issues.push(issue(
+                    "error",
+                    `${trimmedId || card.name || "A card"} uses ${cardArtUrl}, which is not hosted for the live game. Use Upload Image so art is stored in cloud storage, then publish again.`
+                ));
             } else if (card.cardArtMode && !cardArtPathMatchesCardId(trimmedId, cardArtUrl)) {
                 issues.push(issue(
                     "warn",

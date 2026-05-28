@@ -1192,9 +1192,8 @@ public class GameController {
 
         if (card.getCardArtUrl() != null && !card.getCardArtUrl().isBlank()) {
             m.put("cardArtUrl", card.getCardArtUrl());
-            if (card.getCardArtMode() != null && !card.getCardArtMode().isBlank()) {
-                m.put("cardArtMode", card.getCardArtMode());
-            }
+            String cardArtMode = card.getCardArtMode();
+            m.put("cardArtMode", cardArtMode == null || cardArtMode.isBlank() ? "REPLACE" : cardArtMode);
             if (card.getCardArtOffsetX() != null && card.getCardArtOffsetX() != 0.0) {
                 m.put("cardArtOffsetX", card.getCardArtOffsetX());
             }
