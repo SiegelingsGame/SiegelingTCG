@@ -6,9 +6,12 @@
     const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
     const ROOM_CACHE_TTL_MS = 20 * 1000;
     const HOST_LOBBY_KEY = 'sieglingsHostLobby';
+    const LOBBY_SESSION_KEY = 'sieglingsLobbySession';
     const MULTIPLAYER_SESSION_KEY = 'sieglingsMultiplayerSession';
+    const LOBBY_POLL_MS = 2000;
     const PLAYER_NAME_KEY = 'sieglingsPlayerName';
-    const SOCIAL_POLL_MS = 12 * 1000;
+    const SOCIAL_POLL_MS = 6 * 1000;
+    const PRESENCE_HEARTBEAT_MS = 45 * 1000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const HERO_STAT_ICONS = {
         coins: COIN_ICON_PATH,
@@ -137,15 +140,20 @@
         roomHideFull: false,
         friendSearch: '',
         builderCounts: {},
+        builderPreviewCardId: null,
+        editingSavedDeckId: '',
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
         builderSort: 'owned-desc',
         friendMessage: '',
         friendMessageType: '',
+        selectedDeckId: '',
         filterTrayOpen: false,
         cardTrayOpen: false,
         authOpen: false,
+        authRegisterStep: 'credentials',
+        registerDraft: { email: '', password: '' },
         profileEditOpen: false,
         profilePrefs: null,
         friendPresence: {},
@@ -153,16 +161,34 @@
         activeChatPeer: null,
         viewingProfile: null,
         socialPollTimer: null,
+        presenceTimer: null,
         lobbyBusy: false,
         hostLobbyStatus: null,
         battleRedirectPending: false,
+        loadoutRedirectPending: false,
         hostLobbyPollTimer: null,
+        lobbyRoomId: '',
+        lobbyStatus: null,
+        lobbySession: null,
+        lobbyPollTimer: null,
+        lobbyBusy: false,
         packReveal: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
         catalogVersion: 0,
-        catalogSyncBound: false
+        catalogSyncBound: false,
+        profileUserId: '',
+        leaderboardTab: 'wins',
+        leaderboardPeriod: 'daily'
     };
+
+    const LEADERBOARD_PERIODS = [
+        ['daily', 'Daily'],
+        ['weekly', 'Weekly'],
+        ['monthly', 'Monthly'],
+        ['year', 'Year'],
+        ['allTime', 'All Time']
+    ];
 
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
@@ -203,13 +229,18 @@
     }
 
     function openSharedProfileFromUrl() {
+        const parsed = parseHubRoute(location.pathname);
+        if (parsed.profileUserId) {
+            navigateToPlayerProfile(parsed.profileUserId, { replace: true });
+            return;
+        }
         const params = new URLSearchParams(location.search);
         const profileId = params.get('profile');
         if (!profileId) return;
         params.delete('profile');
         const query = params.toString();
         history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
-        openPlayerProfile(profileId);
+        navigateToPlayerProfile(profileId, { replace: true });
     }
 
     function bindEvents() {
@@ -260,7 +291,9 @@
             renderFriends();
         });
         document.getElementById('friendAddForm')?.addEventListener('submit', addFriendFromSocial);
-        document.getElementById('saveCustomDeckBtn')?.addEventListener('click', saveCustomDeck);
+        document.getElementById('createCustomDeckBtn')?.addEventListener('click', () => openDeckBuilder({ reset: true }));
+        document.getElementById('deckBuilderBackBtn')?.addEventListener('click', () => navigateHub('decks'));
+        document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
         document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
@@ -283,7 +316,7 @@
             if (event.key === 'Escape') closeDeckPreview();
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
-            btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'decks' : 'home'));
+            btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'deck-builder' : 'home'));
         });
         document.querySelectorAll('a[data-route]').forEach((link) => {
             link.addEventListener('click', (event) => {
@@ -304,6 +337,17 @@
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 void syncCatalogIfVersionChanged();
+                void refreshAuthFromStorage();
+            }
+        });
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                void refreshAuthFromStorage();
+            }
+        });
+        window.addEventListener('storage', (event) => {
+            if (event.key === AUTH_TOKEN_KEY || event.key === null) {
+                void refreshAuthFromStorage();
             }
         });
     }
@@ -334,6 +378,7 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            stopPresenceHeartbeat();
             return null;
         }
         const data = await fetchJson('/api/auth/me');
@@ -344,10 +389,12 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            stopPresenceHeartbeat();
             return null;
         }
         state.profile = data;
         state.progression = data.progression || null;
+        startPresenceHeartbeat();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
             state.profilePrefs = { ...defaultProfilePrefs(data.user || {}), ...serverPrefs };
@@ -356,6 +403,33 @@
             state.profilePrefs = defaultProfilePrefs(data.user || {});
         }
         return data;
+    }
+
+    async function refreshAuthFromStorage() {
+        let stored = '';
+        try {
+            stored = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+        } catch (e) {
+            stored = '';
+        }
+        const tokenChanged = stored !== state.token;
+        const profileStale = Boolean(stored) && !state.profile?.authenticated;
+        const loggedOutElsewhere = !stored && Boolean(state.profile?.authenticated);
+        if (!tokenChanged && !profileStale && !loggedOutElsewhere) {
+            return state.profile;
+        }
+        state.token = stored;
+        await syncProfile();
+        safeRender(renderProfileMini);
+        safeRender(renderGold);
+        safeRender(renderStarterGate);
+        safeRender(renderHomeDashboard);
+        safeRender(renderProfile);
+        safeRender(renderAuthModal);
+        safeRender(renderCards);
+        safeRender(renderDecks);
+        syncAuthRouteIntent();
+        return state.profile;
     }
 
     async function refreshRooms(force = false) {
@@ -379,11 +453,13 @@
         safeRender(renderStarterGate);
         safeRender(renderCards);
         safeRender(renderDecks);
+        safeRender(renderDeckBuilderPage);
         safeRender(renderHomeDashboard);
         safeRender(renderShop);
         safeRender(renderProfile);
         safeRender(renderRooms);
         safeRender(renderFriends);
+        safeRender(renderFriendRequests);
         safeRender(renderGold);
         safeRender(renderHudTools);
         safeRender(renderAuthModal);
@@ -394,6 +470,8 @@
             renderCards();
         } else if (state.route === 'decks') {
             renderDecks();
+        } else if (state.route === 'deck-builder') {
+            renderDeckBuilderPage();
         } else if (state.route === 'home') {
             renderHomeDashboard();
         } else if (state.route === 'shop') {
@@ -404,10 +482,16 @@
         } else if (state.route === 'social') {
             renderRooms();
             renderFriends();
+            renderFriendRequests();
             renderMessageThreads();
             startSocialPolling();
+            stopLobbyPolling();
+        } else if (state.route === 'lobby') {
+            stopSocialPolling();
+            void enterLobbyWaitingRoom();
         } else {
             stopSocialPolling();
+            stopLobbyPolling();
         }
         renderHudTools();
     }
@@ -432,8 +516,17 @@
     }
 
     function renderSections() {
-        ['home', 'cards', 'decks', 'social', 'profile', 'shop'].forEach((route) => {
-            document.getElementById(`${route}Section`)?.classList.toggle('hidden', state.route !== route);
+        [
+            ['home', 'homeSection'],
+            ['cards', 'cardsSection'],
+            ['decks', 'decksSection'],
+            ['deck-builder', 'deckBuilderSection'],
+            ['social', 'socialSection'],
+            ['profile', 'profileSection'],
+            ['shop', 'shopSection']
+        ].forEach(([route, sectionId]) => {
+            const active = state.route === route || (route === 'social' && state.route === 'lobby');
+            document.getElementById(sectionId)?.classList.toggle('hidden', !active);
         });
         if (!isBinderRoute()) {
             state.filterTrayOpen = false;
@@ -538,13 +631,14 @@
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const isSiegling = card.type === 'SIEGLING';
         return `${isSiegling ? renderBinderNotches(card.notches) : ''}
+            ${window.SieglingsCardBinderVisual?.renderBinderCardOverlay(card) || ''}
             <div class="binder-card-shell">
                 <div class="binder-card-header">
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(typeLabel)}</span>
                 </div>
                 <div class="binder-card-art">
-                    ${renderElementIcon(card.element)}
+                    ${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}
                 </div>
                 <div class="binder-card-body shop-card-body">
                     ${renderShopCardStats(card)}
@@ -558,7 +652,8 @@
 
     function renderCardTile(card) {
         const selected = card.id === state.selectedCardId ? ' selected' : '';
-        return `<button class="card-tile binder-card${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+        const modeClass = window.SieglingsCardBinderVisual?.resolveArtModeClass(card) || '';
+        return `<button class="card-tile binder-card${selected}${modeClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
             ${renderBinderCardShell(card)}
         </button>`;
     }
@@ -580,7 +675,7 @@
             ? `Craft for ${craftCost.toLocaleString()} Remnants`
             : 'Sign in to craft';
         panel.innerHTML = `
-            <div class="detail-art art" style="--el:${elementColor(card.element)}">${renderElementIcon(card.element)}</div>
+            <div class="detail-art art" style="--el:${elementColor(card.element)}">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}</div>
             <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
             <h2>${escapeHtml(card.name)}</h2>
             <div class="chip-wrap">
@@ -608,10 +703,15 @@
                 <button class="primary-btn" type="button" id="craftSelectedCard"${canCraft || !state.profile?.authenticated ? '' : ' disabled'}>${escapeHtml(craftLabel)}</button>
                 <span>${escapeHtml(remnants.toLocaleString())} Remnants available</span>
             </div>
-            <button class="primary-btn" type="button" id="addSelectedToBuilder">Add to Custom Deck</button>
+            ${state.route === 'deck-builder' ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
         `;
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
-        document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => adjustBuilder(card.id, 1));
+        document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
+            if (state.route !== 'deck-builder') {
+                openDeckBuilder();
+            }
+            adjustBuilder(card.id, 1);
+        });
     }
 
     function renderHomeDashboard() {
@@ -635,13 +735,13 @@
                 <div class="command-hero-top">
                     <div class="command-hero-copy">
                         <p class="command-hero-welcome">Welcome back, ${escapeHtml(displayName)}</p>
-                        <h2>Your Siege Awaits</h2>
+                        <h2>The Arena Awaits</h2>
                         <p class="command-hero-tagline">Battle, build, collect, and keep your daily momentum moving from one command table.</p>
                     </div>
                     <div class="command-hero-actions">
                         <button class="ghost-btn command-hero-btn" type="button" data-home-action="cards"><span>Cards</span>Owned Cards</button>
                         <button class="primary-btn command-hero-btn command-hero-btn-primary" type="button" data-home-action="pve"><span>Play</span>Start Match</button>
-                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="decks"><span>Deck</span>Deck Builder</button>
+                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="deck-builder"><span>Deck</span>Deck Builder</button>
                     </div>
                 </div>
                 <div class="command-hero-stats" aria-label="Account resources">
@@ -733,6 +833,26 @@
         bindHomeDashboardActions(el);
     }
 
+    function leaderboardBoardsForPeriod(period) {
+        const activePeriod = LEADERBOARD_PERIODS.some(([id]) => id === period) ? period : 'daily';
+        const periods = state.leaderboards?.periods;
+        if (periods && periods[activePeriod]) {
+            return periods[activePeriod];
+        }
+        return activePeriod === 'daily' ? (state.leaderboards?.boards || {}) : {};
+    }
+
+    function leaderboardPeriodHeadline(period) {
+        const headlines = {
+            daily: 'See who rules the arena today',
+            weekly: 'See who rules the arena this week',
+            monthly: 'See who rules the arena this month',
+            year: 'See who rules the arena this year',
+            allTime: 'See who rules the arena of all time'
+        };
+        return headlines[period] || headlines.daily;
+    }
+
     function renderHomeLeaderboardsPanel() {
         const tabs = [
             ['wins', 'Wins'],
@@ -742,17 +862,24 @@
             ['siegelingsDefeated', 'Siegelings'],
             ['pvpWinRate', 'PVP W/L']
         ];
-        const boards = state.leaderboards?.boards || {};
-        const activeRows = boards[state.leaderboardTab] || [];
+        const activePeriod = LEADERBOARD_PERIODS.some(([id]) => id === state.leaderboardPeriod)
+            ? state.leaderboardPeriod
+            : 'daily';
+        const boards = leaderboardBoardsForPeriod(activePeriod);
         const activeTab = tabs.some(([id]) => id === state.leaderboardTab) ? state.leaderboardTab : 'wins';
+        const activeRows = boards[activeTab] || [];
         const generatedAt = state.leaderboards?.generatedAt ? formatDateTime(state.leaderboards.generatedAt) : '';
+        const periodLabel = LEADERBOARD_PERIODS.find(([id]) => id === activePeriod)?.[1] || 'Daily';
         return `<article class="command-panel home-leaderboards-panel">
             <div class="command-panel-head">
-                <div><span class="eyebrow">Daily Leaderboards</span><h3>See who rules the arena today</h3></div>
-                <span class="reset-pill">${generatedAt ? `Updated ${escapeHtml(generatedAt)}` : 'Daily'}</span>
+                <div><span class="eyebrow">Leaderboards</span><h3>${escapeHtml(leaderboardPeriodHeadline(activePeriod))}</h3></div>
+                <span class="reset-pill">${generatedAt ? `Updated ${escapeHtml(generatedAt)}` : escapeHtml(periodLabel)}</span>
             </div>
-            <div class="home-lb-tabs">
-                ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}">${escapeHtml(label)}</button>`).join('')}
+            <div class="home-lb-period-tabs" role="tablist" aria-label="Leaderboard time range">
+                ${LEADERBOARD_PERIODS.map(([id, label]) => `<button class="home-lb-period-tab${activePeriod === id ? ' active' : ''}" type="button" data-home-lb-period="${escapeAttr(id)}" role="tab" aria-selected="${activePeriod === id}">${escapeHtml(label)}</button>`).join('')}
+            </div>
+            <div class="home-lb-tabs" role="tablist" aria-label="Leaderboard category">
+                ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}" role="tab" aria-selected="${activeTab === id}">${escapeHtml(label)}</button>`).join('')}
             </div>
             <div class="home-lb-list">
                 ${state.leaderboardsError && !state.leaderboards ? `<div class="home-empty-emblem">${escapeHtml(state.leaderboardsError)}</div>` : ''}
@@ -905,12 +1032,17 @@
             }
             if (action === 'cards') return navigateHub('cards');
             if (action === 'decks') return navigateHub('decks');
+            if (action === 'deck-builder') return openDeckBuilder({ reset: true });
             if (action === 'social') return navigateHub('social', { focus: 'lobby' });
             if (action === 'shop') {
                 if (directLink) return;
                 return navigateHub('shop');
             }
             if (action === 'missions') return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }));
+        root.querySelectorAll('[data-home-lb-period]').forEach(btn => btn.addEventListener('click', () => {
+            state.leaderboardPeriod = btn.dataset.homeLbPeriod || 'daily';
+            renderHomeDashboard();
         }));
         root.querySelectorAll('[data-home-lb]').forEach(btn => btn.addEventListener('click', () => {
             state.leaderboardTab = btn.dataset.homeLb || 'wins';
@@ -922,40 +1054,37 @@
         const grid = document.getElementById('deckGrid');
         if (!grid) return;
         grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
-        grid.querySelectorAll('[data-play-deck]').forEach(btn => btn.addEventListener('click', (event) => { event.stopPropagation(); goPlay({ mode: 'solo', deckId: btn.dataset.playDeck }); }));
-        grid.querySelectorAll('[data-buy-deck]').forEach(btn => btn.addEventListener('click', (event) => { event.stopPropagation(); purchaseDeck(btn.dataset.buyDeck); }));
         grid.querySelectorAll('[data-preview-deck]').forEach(tile => {
-            tile.addEventListener('click', () => openDeckPreview(tile.dataset.previewDeck));
+            tile.addEventListener('click', () => {
+                state.selectedDeckId = tile.dataset.previewDeck || '';
+                openDeckPreview(tile.dataset.previewDeck);
+                renderDecks();
+            });
             tile.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
+                    state.selectedDeckId = tile.dataset.previewDeck || '';
                     openDeckPreview(tile.dataset.previewDeck);
+                    renderDecks();
                 }
             });
         });
-        renderBuilder();
         renderSavedDecks();
     }
 
     function renderPremadeDeckTile(deck) {
-        const price = deck.elements.length <= 1 ? 300 : deck.elements.length >= 4 ? 700 : 450;
-        const owned = state.progression?.purchasedDeckIds?.includes(deck.id);
+        const isSelected = state.selectedDeckId === deck.id;
         const primary = deck.elements?.[0] || 'FIRE';
         const accent = elementColor(primary);
         const elementLabels = deck.elements.map(format).join(' / ');
         const visual = deckAssetForElements(deck.elements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card deck-tile--clickable${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
-            <span class="deck-card-state">${owned ? 'Purchased' : 'Premade'}</span>
+        return `<article class="deck-tile hub-deck-card deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
+            <span class="deck-card-state">Premade</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name)}</strong>
                 <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
                 <span class="deck-card-desc">${escapeHtml(deck.description || 'Ready-to-play battle deck.')}</span>
-                <span class="deck-card-hint">Tap to preview cards</span>
-            </div>
-            <div class="deck-card-actions">
-                <button class="primary-btn" type="button" data-play-deck="${escapeAttr(deck.id)}">Play</button>
-                <button class="ghost-btn" type="button" data-buy-deck="${escapeAttr(deck.id)}">${owned ? 'Owned' : renderCoinAmount(price, '')}</button>
             </div>
         </article>`;
     }
@@ -970,12 +1099,28 @@
             grid.innerHTML = '<div class="unlock-card"><strong>Sign in to save custom decks</strong><span>Your deck binder will show saved custom decks after login.</span></div>';
             return;
         }
-        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Build a 30-card custom deck from owned cards, then save it here.</span></div>';
-        grid.querySelectorAll('[data-play-custom-deck]').forEach(btn => btn.addEventListener('click', () => {
-            const deck = savedDecks.find(item => item.id === btn.dataset.playCustomDeck);
-            if (!deck) return;
-            goPlay({ mode: 'solo', deckId: deck.deckId, customDeckCards: deck.customDeckCards || null, trainerId: deck.trainerId, loadoutLabel: deck.name });
+        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>';
+        grid.querySelectorAll('[data-edit-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openDeckBuilder({ savedDeckId: btn.dataset.editCustomDeck });
         }));
+        grid.querySelectorAll('[data-preview-saved-deck]').forEach(tile => {
+            tile.addEventListener('click', () => {
+                const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                state.selectedDeckId = deck?.deckId || tile.dataset.previewSavedDeck || '';
+                if (deck) openSavedDeckPreview(deck);
+                renderDecks();
+            });
+            tile.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                    state.selectedDeckId = deck?.deckId || tile.dataset.previewSavedDeck || '';
+                    if (deck) openSavedDeckPreview(deck);
+                    renderDecks();
+                }
+            });
+        });
     }
 
     function renderSavedDeckTile(deck) {
@@ -983,10 +1128,11 @@
         const elements = [...new Set(cardIds.map(id => findCard(id)?.element).filter(Boolean))].slice(0, 4);
         const fallbackDeck = (state.options?.decks || []).find(item => item.id === deck.deckId);
         const displayElements = elements.length ? elements : (fallbackDeck?.elements || ['FIRE']);
+        const isSelected = Boolean(state.selectedDeckId) && (state.selectedDeckId === deck.deckId || state.selectedDeckId === deck.id);
         const accent = elementColor(displayElements[0]);
         const visual = deckAssetForElements(displayElements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card custom-saved-deck${visual ? ' has-deck-art' : ''}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
+        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
             <span class="deck-card-state">${deck.custom ? 'Custom' : 'Saved'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name || 'Saved Deck')}</strong>
@@ -994,11 +1140,71 @@
                 <span class="deck-card-desc">${deck.custom ? `${cardIds.length} owned cards` : escapeHtml(deck.deckName || 'Premade loadout')} / ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
             </div>
             <div class="deck-card-actions">
-                <button class="primary-btn" type="button" data-play-custom-deck="${escapeAttr(deck.id)}">Play</button>
+                ${deck.custom ? `<button class="ghost-btn" type="button" data-edit-custom-deck="${escapeAttr(deck.id)}">Edit</button>` : ''}
             </div>
         </article>`;
     }
 
+    function cardCountsFromIdList(cardIds) {
+        const counts = {};
+        (cardIds || []).forEach((cardId) => {
+            if (!cardId) return;
+            counts[cardId] = (counts[cardId] || 0) + 1;
+        });
+        return Object.entries(counts).map(([id, count]) => ({ id, count }));
+    }
+
+    function openSavedDeckPreview(deck) {
+        if (!deck) return;
+        if (deck.custom && (deck.customDeckCards || []).length) {
+            const cardIds = deck.customDeckCards || [];
+            const elements = [...new Set(cardIds.map(id => findCard(id)?.element).filter(Boolean))].slice(0, 4);
+            const fallbackDeck = (state.options?.decks || []).find(item => item.id === deck.deckId);
+            const displayElements = elements.length ? elements : (fallbackDeck?.elements || []);
+            const cardCounts = cardCountsFromIdList(cardIds);
+            showDeckPreview({
+                eyebrow: 'Custom Deck',
+                name: deck.name || 'Saved Deck',
+                sub: `${displayElements.map(format).join(' / ')} / ${deck.trainerName || 'SiegeKnight'} / ${deckTotalCards(cardCounts)} cards`,
+                cardCounts
+            });
+            return;
+        }
+        if (deck.deckId) {
+            openDeckPreview(deck.deckId);
+        }
+    }
+
+    function buildCountsFromCardList(cardIds) {
+        return (cardIds || []).reduce((counts, cardId) => {
+            if (!cardId) return counts;
+            counts[cardId] = (counts[cardId] || 0) + 1;
+            return counts;
+        }, {});
+    }
+
+    function openDeckBuilder(options = {}) {
+        if (!state.options?.cardCatalog?.length) {
+            return navigateHub('decks');
+        }
+        if (options.reset) {
+            state.builderCounts = {};
+            state.builderPreviewCardId = null;
+            state.editingSavedDeckId = '';
+            localStorage.setItem('sieglingsBuilderDeckName', 'Custom Binder Deck');
+        }
+        if (options.savedDeckId) {
+            const deck = (state.profile?.savedDecks || []).find(item => item.id === options.savedDeckId);
+            if (deck) {
+                state.builderCounts = buildCountsFromCardList(deck.customDeckCards || []);
+                state.editingSavedDeckId = deck.id || '';
+                if (deck.name) localStorage.setItem('sieglingsBuilderDeckName', deck.name);
+                if (deck.trainerId) localStorage.setItem('sieglingsBuilderTrainerId', deck.trainerId);
+                state.builderPreviewCardId = (deck.customDeckCards || [])[0] || null;
+            }
+        }
+        navigateHub('deck-builder');
+    }
     function openDeckPreview(deckId) {
         const deck = (state.options?.decks || []).find(item => item.id === deckId);
         if (!deck) return;
@@ -1015,9 +1221,57 @@
         return (cardCounts || []).reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
     }
 
+    function sortDeckPreviewEntries(cardCounts) {
+        return [...(cardCounts || [])]
+            .map(entry => ({ entry, card: findCard(entry.id) }))
+            .filter(item => item.card)
+            .sort((a, b) => {
+                const costA = cardEnergyCost(a.card);
+                const costB = cardEnergyCost(b.card);
+                if (costA !== costB) return costA - costB;
+                const typeOrder = { SIEGLING: 0, SPELL: 1, TRAP: 2 };
+                const typeA = typeOrder[a.card.type] ?? 3;
+                const typeB = typeOrder[b.card.type] ?? 3;
+                if (typeA !== typeB) return typeA - typeB;
+                return (a.card.name || '').localeCompare(b.card.name || '');
+            });
+    }
+
+    function renderDeckPreviewStackRow(card, count) {
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
+        return `<button type="button" class="deck-preview-stack-row" data-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)};--cost-el:${elementColor(costElement)}">
+            <span class="deck-preview-stack-cost" aria-hidden="true">${cost}</span>
+            <span class="deck-preview-stack-art" aria-hidden="true">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}</span>
+            <span class="deck-preview-stack-copy">
+                <strong>${escapeHtml(card.name)}</strong>
+                <span>${escapeHtml(typeLabel)}</span>
+            </span>
+            <span class="deck-preview-stack-count">x${count}</span>
+        </button>`;
+    }
+
+    function focusDeckPreviewCard(cardId) {
+        const grid = document.getElementById('deckPreviewGrid');
+        const stack = document.getElementById('deckPreviewStack');
+        grid?.querySelectorAll('[data-card-id]').forEach(tile => {
+            tile.classList.toggle('preview-focused', tile.dataset.cardId === cardId);
+        });
+        stack?.querySelectorAll('[data-preview-card-id]').forEach(row => {
+            row.classList.toggle('is-active', row.dataset.previewCardId === cardId);
+        });
+        const target = grid?.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const stackRow = stack?.querySelector(`[data-preview-card-id="${CSS.escape(cardId)}"]`);
+        stackRow?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     function showDeckPreview({ eyebrow, name, sub, cardCounts }) {
         const modal = document.getElementById('deckPreviewModal');
         const grid = document.getElementById('deckPreviewGrid');
+        const stack = document.getElementById('deckPreviewStack');
+        const stackTotal = document.getElementById('deckPreviewStackTotal');
         if (!modal || !grid) return;
         const titleEl = document.getElementById('deckPreviewTitle');
         const eyebrowEl = document.getElementById('deckPreviewEyebrow');
@@ -1025,22 +1279,33 @@
         if (eyebrowEl) eyebrowEl.textContent = eyebrow || 'Deck';
         if (titleEl) titleEl.textContent = name || 'Deck';
         if (subEl) subEl.textContent = sub || '';
-        const tiles = (cardCounts || []).map(entry => {
-            const card = findCard(entry.id);
-            if (!card) return '';
+        const sorted = sortDeckPreviewEntries(cardCounts);
+        const total = deckTotalCards(cardCounts);
+        if (stackTotal) stackTotal.textContent = `${total} cards`;
+        if (stack) {
+            stack.innerHTML = sorted.length
+                ? sorted.map(({ entry, card }) => renderDeckPreviewStackRow(card, Number(entry.count) || 1)).join('')
+                : '<div class="unlock-card deck-preview-stack-empty"><strong>No cards</strong><span>This deck has no resolvable cards in the current catalog.</span></div>';
+        }
+        const tiles = sorted.map(({ entry, card }) => {
             const count = Number(entry.count) || 1;
             return renderCardTile(card).replace(
                 '<div class="binder-card-shell">',
                 `${count > 1 ? `<span class="deck-preview-count">x${count}</span>` : ''}<div class="binder-card-shell">`
             );
-        }).filter(Boolean).join('');
+        }).join('');
         grid.innerHTML = tiles || '<div class="unlock-card"><strong>No cards to preview</strong><span>This deck has no resolvable cards in the current catalog.</span></div>';
-        grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
-            state.selectedCardId = tile.dataset.cardId;
+        const openCardFromPreview = (cardId) => {
+            state.selectedCardId = cardId;
             closeDeckPreview();
             openCardTray();
             renderDetail();
-        }));
+        };
+        grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => openCardFromPreview(tile.dataset.cardId)));
+        stack?.querySelectorAll('[data-preview-card-id]').forEach(row => row.addEventListener('click', () => focusDeckPreviewCard(row.dataset.previewCardId)));
+        if (sorted.length) {
+            focusDeckPreviewCard(sorted[0].card.id);
+        }
         modal.classList.remove('hidden');
     }
 
@@ -1048,72 +1313,299 @@
         document.getElementById('deckPreviewModal')?.classList.add('hidden');
     }
 
-    function renderBuilder() {
+    function renderDeckBuilderPage() {
+        if (state.route !== 'deck-builder') return;
         const lock = document.getElementById('deckBuilderLock');
-        const panel = document.getElementById('builderPanel');
-        const catalog = document.getElementById('builderCatalogPanel');
+        const page = document.getElementById('deckBuilderPage');
+        const title = document.getElementById('deckBuilderPageTitle');
+        const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
+        if (!page) return;
         const unlocked = Boolean(state.progression?.customDeckUnlocked);
         const builderAvailable = Boolean(state.options?.cardCatalog?.length);
         const total = builderTotal();
         const trainerId = builderTrainerId();
         const deckElements = builderDeckElements();
         const primaryElement = deckElements[0] || 'NEUTRAL';
-        lock.innerHTML = unlocked
-            ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Use owned cards with max 3 copies each.</span></div>'
-            : `<div class="unlock-card"><strong>Deck planner available</strong><span>${state.profile?.authenticated ? `${state.progression?.ownedTotal || 0}/30 owned copies. Save-ready custom decks unlock once your binder has 30 owned copies.` : 'Sign in to save decks to your binder. You can still plan and test a custom list here.'}</span></div>`;
-        panel.innerHTML = builderAvailable
-            ? `<section class="deck-builder-workbench" style="--builder-accent:${elementColor(primaryElement)}">
-                <div class="builder-hero-row">
-                    <div>
-                        <span class="eyebrow">Custom Builder</span>
-                        <h2>Build a deck from your binder</h2>
-                        <p>Pick owned cards here, save the list, then play it whenever you want. Max 3 copies per card.</p>
-                    </div>
-                    <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
-                        <strong>${total}</strong><span>/30</span>
-                    </div>
+        const catalogCards = builderCatalogCards();
+        const previewCard = resolveBuilderPreviewCard(catalogCards);
+        if (previewCard) state.builderPreviewCardId = previewCard.id;
+        if (title) {
+            title.textContent = state.editingSavedDeckId ? 'Edit custom deck' : 'Build a custom deck';
+        }
+        if (saveBtn) {
+            saveBtn.disabled = total < 30;
+            saveBtn.textContent = state.editingSavedDeckId ? 'Update Deck' : 'Save Deck';
+        }
+        if (lock) {
+            lock.innerHTML = unlocked
+                ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Select cards from your binder, preview them, and add up to 3 copies each.</span></div>'
+                : `<div class="unlock-card"><strong>Deck planner available</strong><span>${state.profile?.authenticated ? `${state.progression?.ownedTotal || 0}/30 owned copies. Save-ready custom decks unlock once your binder has 30 owned copies.` : 'Sign in to save decks to your binder. You can still plan and test a custom list here.'}</span></div>`;
+        }
+        if (!builderAvailable) {
+            page.innerHTML = '<div class="unlock-card"><strong>Catalog loading</strong><span>Your binder will appear here once card data is ready.</span></div>';
+            return;
+        }
+        page.innerHTML = `<div class="deck-builder-layout" style="--builder-accent:${elementColor(primaryElement)}">
+            <section class="deck-builder-binder deck-builder-workbench">
+                <div class="section-head decks-row-head">
+                    <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
+                    <span>${catalogCards.length} cards</span>
                 </div>
-                <div class="builder-form-grid">
-                    <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
-                    <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
-                    <label><span>Sort catalog</span><select class="search-input" id="builderSortSelect">
+                <div class="builder-catalog-tools">
+                    <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search binder cards...">
+                    <select class="search-input" id="builderElementSelect">
+                        ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
+                    </select>
+                    <select class="search-input" id="builderTypeSelect">
+                        ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
+                    </select>
+                    <select class="search-input" id="builderSortSelect">
                         <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
                         <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
                         <option value="cost-asc"${state.builderSort === 'cost-asc' ? ' selected' : ''}>Cost low</option>
                         <option value="rarity-desc"${state.builderSort === 'rarity-desc' ? ' selected' : ''}>Rarity high</option>
-                    </select></label>
+                    </select>
+                </div>
+                <div class="deck-builder-binder-list">
+                    ${catalogCards.length ? catalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
+                </div>
+            </section>
+            <section class="deck-builder-inspector deck-builder-workbench">
+                <div class="section-head decks-row-head">
+                    <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
+                </div>
+                <div class="deck-builder-preview-panel">${renderBuilderPreviewPanel(previewCard)}</div>
+                <div class="deck-builder-recommendations">
+                    <div class="section-head decks-row-head">
+                        <div><span class="eyebrow">Recommended</span><h3>Evolution tree picks</h3></div>
+                    </div>
+                    ${renderBuilderRecommendations(previewCard)}
+                </div>
+            </section>
+            <aside class="deck-builder-deck-pane deck-builder-workbench">
+                <div class="deck-builder-deck-head">
+                    <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
+                        <strong>${total}</strong><span>/30</span>
+                    </div>
+                    <div>
+                        <span class="eyebrow">Current Deck</span>
+                        <p>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</p>
+                    </div>
+                </div>
+                <div class="builder-form-grid deck-builder-deck-form">
+                    <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
+                    <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
                 </div>
                 <div class="builder-actions-row">
-                    <button class="primary-btn" type="button" id="saveDeckWorkbenchBtn"${total < 30 ? ' disabled' : ''}>Save Deck</button>
                     <button class="ghost-btn" type="button" id="playCustomBtn"${total < 30 ? ' disabled' : ''}>Play Custom</button>
                     <button class="ghost-btn" type="button" id="clearBuilderBtn"${total ? '' : ' disabled'}>Clear</button>
-                    <span>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</span>
                 </div>
-                <div class="builder-list">${builderDraftRows()}</div>
-            </section>`
-            : '';
-        if (catalog) catalog.innerHTML = builderAvailable ? renderBuilderCatalog() : '';
-        document.getElementById('playCustomBtn')?.addEventListener('click', () => {
+                <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
+            </aside>
+        </div>`;
+        bindDeckBuilderPageEvents(page);
+    }
+
+    function resolveBuilderPreviewCard(catalogCards) {
+        const previewId = state.builderPreviewCardId;
+        if (previewId) {
+            const selected = findCard(previewId);
+            if (selected) return selected;
+        }
+        const inDeck = Object.keys(state.builderCounts).map(id => findCard(id)).filter(Boolean);
+        if (inDeck.length) return inDeck[0];
+        return catalogCards[0] || null;
+    }
+
+    function evolutionLineForCard(cardId) {
+        const catalog = state.options?.cardCatalog || [];
+        const byId = new Map(catalog.map(card => [card.id, card]));
+        const card = byId.get(cardId);
+        if (!card) return [];
+        const line = [card];
+        let cursor = card;
+        while (cursor?.evolvesFromId && byId.has(cursor.evolvesFromId)) {
+            cursor = byId.get(cursor.evolvesFromId);
+            line.unshift(cursor);
+        }
+        const descendants = [];
+        const queue = [cardId];
+        const seen = new Set([cardId]);
+        while (queue.length) {
+            const id = queue.shift();
+            catalog.filter(entry => entry.evolvesFromId === id).forEach(child => {
+                if (seen.has(child.id)) return;
+                seen.add(child.id);
+                descendants.push(child);
+                queue.push(child.id);
+            });
+        }
+        return [...line, ...descendants];
+    }
+
+    function builderRecommendationCards(cardId) {
+        if (!cardId) return [];
+        const line = evolutionLineForCard(cardId);
+        return line.filter(card => {
+            if (card.id === cardId) return false;
+            const maxCopies = builderCardLimit(card.id);
+            const inDeck = state.builderCounts[card.id] || 0;
+            return maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        }).slice(0, 8);
+    }
+
+    function renderBuilderRecommendations(previewCard) {
+        const recommendations = builderRecommendationCards(previewCard?.id);
+        if (!previewCard) {
+            return '<div class="unlock-card builder-empty">Select a card to see evolution tree recommendations.</div>';
+        }
+        if (!recommendations.length) {
+            return '<div class="unlock-card builder-empty">No related evolution cards available to add right now.</div>';
+        }
+        const line = evolutionLineForCard(previewCard.id).map(card => escapeHtml(card.name)).join(' → ');
+        return `<p class="deck-builder-evolution-line">${line}</p>
+            <div class="deck-builder-recommendation-grid">
+                ${recommendations.map(card => {
+                    const inDeck = state.builderCounts[card.id] || 0;
+                    const maxCopies = builderCardLimit(card.id);
+                    const canAdd = inDeck < maxCopies && builderTotal() < 30;
+                    return `<article class="builder-recommendation-card" style="--el:${elementColor(card.element)}">
+                        <button type="button" class="builder-recommendation-main" data-select-builder-card="${escapeAttr(card.id)}">
+                            <strong>${escapeHtml(card.name)}</strong>
+                            <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
+                            <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
+                        </button>
+                        <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
+                    </article>`;
+                }).join('')}
+            </div>`;
+    }
+
+    function renderBuilderPreviewPanel(card) {
+        if (!card) {
+            return '<div class="unlock-card builder-empty">Tap a binder card to inspect it and add copies to your deck.</div>';
+        }
+        const abilities = card.abilities || (card.ability ? [card.ability] : []);
+        const flavorText = creatureDescriptionFor(card);
+        const inDeck = state.builderCounts[card.id] || 0;
+        const maxCopies = builderCardLimit(card.id);
+        const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
+            <div class="detail-art art">${renderBinderCardArt(card)}</div>
+            <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
+            <h3>${escapeHtml(card.name)}</h3>
+            <div class="chip-wrap">
+                <span class="chip">Owned x${ownedCount(card.id)}</span>
+                <span class="chip">In deck x${inDeck}</span>
+                <span class="chip">${format(card.rarity)}</span>
+            </div>
+            ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
+            <div class="detail-grid">
+                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                <div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>
+            </div>
+            ${abilities.length ? `<div class="deck-builder-preview-abilities">${abilities.map(a => `<p><strong>${escapeHtml(a.name || 'Ability')}</strong><br>${escapeHtml(a.description || '')}</p>`).join('')}</div>` : ''}
+            <div class="builder-stepper deck-builder-preview-actions">
+                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
+                <strong>${inDeck} / ${maxCopies}</strong>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+            </div>
+        </div>`;
+    }
+
+    function renderBuilderBinderRow(card) {
+        const owned = ownedCount(card.id);
+        const count = state.builderCounts[card.id] || 0;
+        const maxCopies = builderCardLimit(card.id);
+        const total = builderTotal();
+        const canAdd = maxCopies > 0 && count < maxCopies && total < 30;
+        const activeClass = card.id === state.builderPreviewCardId ? ' is-active' : '';
+        return `<article class="deck-builder-binder-row${activeClass}" style="--el:${elementColor(card.element)}">
+            <button type="button" class="deck-builder-binder-main" data-select-builder-card="${escapeAttr(card.id)}">
+                <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
+                <div>
+                    <strong>${escapeHtml(card.name)}</strong>
+                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / Owned x${owned}</span>
+                    <small>${escapeHtml(format(card.rarity))}${card.evolvesFromId ? ` / Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : ''}</small>
+                </div>
+                <span class="deck-builder-binder-count">x${count}</span>
+            </button>
+            <div class="builder-stepper">
+                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>+</button>
+            </div>
+        </article>`;
+    }
+
+    function renderBuilderDeckListRows() {
+        const entries = Object.entries(state.builderCounts);
+        if (!entries.length) {
+            return '<div class="unlock-card builder-empty">Cards you add will appear here.</div>';
+        }
+        return entries.sort(([a], [b]) => (findCard(a)?.name || a).localeCompare(findCard(b)?.name || b)).map(([cardId, count]) => {
+            const card = findCard(cardId);
+            const maxCopies = builderCardLimit(cardId);
+            const activeClass = cardId === state.builderPreviewCardId ? ' is-active' : '';
+            return `<div class="deck-builder-deck-row${activeClass}" style="--el:${elementColor(card?.element)}">
+                <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
+                    <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
+                    <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
+                </button>
+                <div class="builder-stepper">
+                    <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
+                    <button class="ghost-btn" type="button" data-add-builder-card="${escapeAttr(cardId)}"${count >= maxCopies || builderTotal() >= 30 ? ' disabled' : ''}>+</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function bindDeckBuilderPageEvents(root) {
+        if (!root) return;
+        root.querySelectorAll('[data-select-builder-card]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderPreviewCardId = btn.dataset.selectBuilderCard;
+            renderDeckBuilderPage();
+        }));
+        root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            adjustBuilder(btn.dataset.addBuilderCard, 1);
+        }));
+        root.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            adjustBuilder(btn.dataset.removeCard, -1);
+        }));
+        root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
+            state.builderSearch = event.target.value.trim().toLowerCase();
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
+            state.builderElementFilter = event.target.value;
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
+            state.builderTypeFilter = event.target.value;
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
+            state.builderSort = event.target.value;
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderTrainerSelect')?.addEventListener('change', (event) => {
+            localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
+        });
+        root.querySelector('#builderDeckName')?.addEventListener('input', (event) => {
+            localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
+        });
+        root.querySelector('#playCustomBtn')?.addEventListener('click', () => {
             if (builderTotal() < 30) return alert('Custom decks need 30 cards.');
             goPlay({ mode: 'solo', customDeckCards: builderCards(), trainerId: builderTrainerId(), loadoutLabel: builderDeckName() });
         });
-        document.getElementById('saveDeckWorkbenchBtn')?.addEventListener('click', saveCustomDeck);
-        document.getElementById('clearBuilderBtn')?.addEventListener('click', () => {
+        root.querySelector('#clearBuilderBtn')?.addEventListener('click', () => {
             state.builderCounts = {};
-            renderBuilder();
+            state.builderPreviewCardId = null;
+            renderDeckBuilderPage();
         });
-        document.getElementById('builderTrainerSelect')?.addEventListener('change', (event) => {
-            localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
-        });
-        document.getElementById('builderDeckName')?.addEventListener('input', (event) => {
-            localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
-        });
-        document.getElementById('builderSortSelect')?.addEventListener('change', (event) => {
-            state.builderSort = event.target.value;
-            renderBuilder();
-        });
-        bindBuilderCatalogEvents(catalog);
-        panel.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.removeCard, -1)));
     }
 
     function builderTrainerId() {
@@ -1128,68 +1620,6 @@
 
     function builderTrainerOptions(selectedId) {
         return (state.options?.trainers || []).map(trainer => `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}>${escapeHtml(trainer.name || trainer.id)}</option>`).join('');
-    }
-
-    function builderDraftRows() {
-        const entries = Object.entries(state.builderCounts);
-        if (!entries.length) {
-            return '<div class="unlock-card builder-empty">Add owned cards from the catalog below to start building.</div>';
-        }
-        return entries.sort(([a], [b]) => (findCard(a)?.name || a).localeCompare(findCard(b)?.name || b)).map(([cardId, count]) => {
-            const card = findCard(cardId);
-            const maxCopies = builderCardLimit(cardId);
-            return `<div class="builder-deck-card" style="--el:${elementColor(card?.element)}">
-                <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
-                <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
-                <div class="builder-stepper">
-                    <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
-                    <button class="ghost-btn" type="button" data-add-builder-card="${escapeAttr(cardId)}"${count >= maxCopies || builderTotal() >= 30 ? ' disabled' : ''}>+</button>
-                </div>
-            </div>`;
-        }).join('');
-    }
-
-    function renderBuilderCatalog() {
-        const cards = builderCatalogCards();
-        return `<section class="deck-builder-catalog">
-            <div class="section-head">
-                <div><span class="eyebrow">Owned Card Catalog</span><h2>Add cards without opening Play</h2></div>
-                <span>${cards.length} cards</span>
-            </div>
-            <div class="builder-catalog-tools">
-                <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search owned cards...">
-                <select class="search-input" id="builderElementSelect">
-                    ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
-                </select>
-                <select class="search-input" id="builderTypeSelect">
-                    ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
-                </select>
-            </div>
-            <div class="builder-catalog-grid">
-                ${cards.length ? cards.map(renderBuilderCatalogCard).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
-            </div>
-        </section>`;
-    }
-
-    function renderBuilderCatalogCard(card) {
-        const owned = ownedCount(card.id);
-        const count = state.builderCounts[card.id] || 0;
-        const maxCopies = builderCardLimit(card.id);
-        const total = builderTotal();
-        const canAdd = maxCopies > 0 && count < maxCopies && total < 30;
-        return `<article class="builder-catalog-card" style="--el:${elementColor(card.element)}">
-            <div class="builder-catalog-art">${renderElementIcon(card.element)}</div>
-            <div class="builder-catalog-copy">
-                <strong>${escapeHtml(card.name)}</strong>
-                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
-                <small>${escapeHtml(format(card.rarity))} / ${owned ? `Owned x${owned}` : 'Planner copy'}</small>
-            </div>
-            <div class="builder-stepper">
-                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
-                <strong>${count}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>+</button>
-            </div>
-        </article>`;
     }
 
     function builderCatalogCards() {
@@ -1208,24 +1638,6 @@
                 if (state.builderSort === 'rarity-desc') return (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0);
                 return ownedCount(b.id) - ownedCount(a.id) || a.name.localeCompare(b.name);
             });
-    }
-
-    function bindBuilderCatalogEvents(root) {
-        if (!root) return;
-        root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.addBuilderCard, 1)));
-        root.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.removeCard, -1)));
-        root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
-            state.builderSearch = event.target.value.trim().toLowerCase();
-            renderBuilder();
-        });
-        root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
-            state.builderElementFilter = event.target.value;
-            renderBuilder();
-        });
-        root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
-            state.builderTypeFilter = event.target.value;
-            renderBuilder();
-        });
     }
 
     function renderShop() {
@@ -1267,7 +1679,7 @@
                         <strong>${escapeHtml(card.name || 'Daily Card')}</strong>
                         <span>${escapeHtml(typeLabel)}</span>
                     </div>
-                    <div class="binder-card-art">${renderElementIcon(card.element)}</div>
+                    <div class="binder-card-art">${renderBinderCardArt(card)}</div>
                     <div class="binder-card-body shop-card-body">
                         ${renderShopCardStats(card)}
                         <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / Owned x${owned}</div>
@@ -1417,9 +1829,14 @@
             <span>Create a table and your lobby will appear here for other players.</span>
             <button class="primary-btn" type="button" data-create-empty-lobby>Create Lobby</button>
         </div>`;
-        list.querySelectorAll('[data-room-id]').forEach(btn => btn.addEventListener('click', () => {
-            document.getElementById('roomCodeInput').value = btn.dataset.roomId;
-            joinRoomFromHome();
+        list.querySelectorAll('[data-room-action]').forEach(btn => btn.addEventListener('click', () => {
+            const roomId = btn.dataset.roomId;
+            if (!roomId) return;
+            if (btn.dataset.roomAction === 'join') {
+                openLobbyWaitingRoom(roomId);
+                return;
+            }
+            openLobbyWaitingRoom(roomId);
         }));
         list.querySelector('[data-create-empty-lobby]')?.addEventListener('click', createLobbyFromHome);
     }
@@ -1428,23 +1845,27 @@
         const element = inferRoomElement(room);
         const color = elementColor(element);
         const full = isRoomFull(room);
+        const ownLobby = isOwnLobby(room);
         const playerCount = Number(room.playerCount || room.players?.length || 1);
-        const status = full ? 'Full' : escapeHtml(room.status || 'Open');
         const roomId = escapeAttr(room.roomId || '');
         const expiresLabel = formatLobbyExpiry(room.expiresAt);
-        return `<article class="room-tile social-room-tile" style="--room-el:${color}">
+        const title = ownLobby ? 'My Arena' : escapeHtml(room.name || `${room.hostName || 'Host'}'s Arena`);
+        const actionLabel = ownLobby ? 'Open' : (full ? 'Full' : 'Join');
+        const action = ownLobby ? 'open' : 'join';
+        return `<article class="room-tile social-room-tile${ownLobby ? ' is-own-lobby' : ''}" style="--room-el:${color}">
             <div class="room-emblem" aria-hidden="true">${renderRoomEmblem(element)}</div>
             <div class="room-copy">
                 <div class="room-title-line">
                     <span class="room-badge">${escapeHtml(room.format || 'PVP')}</span>
-                    <strong>${escapeHtml(room.name || `${room.hostName || 'Host'}'s Arena`)}</strong>
+                    ${ownLobby ? '<span class="room-own-badge">Your table</span>' : ''}
+                    <strong>${title}</strong>
                 </div>
                 <span>${escapeHtml(format(element))} table / Best of 1</span>
-                <span>Hosted by ${escapeHtml(room.hostName || 'Host')} / Code ${escapeHtml(room.roomId || '----')}</span>
+                <span>${ownLobby ? 'You are hosting' : `Hosted by ${escapeHtml(room.hostName || 'Host')}`} / Code ${escapeHtml(room.roomId || '----')}</span>
                 ${expiresLabel ? `<span class="room-expiry">${escapeHtml(expiresLabel)}</span>` : ''}
             </div>
             <div class="room-seat-count"><strong>${playerCount} / 2</strong><span>Players</span></div>
-            <button class="${full ? 'ghost-btn' : 'primary-btn'}" type="button" data-room-id="${roomId}" ${full ? 'disabled' : ''}>${status === 'Full' ? 'Full' : 'Join'}</button>
+            <button class="${ownLobby || !full ? 'primary-btn' : 'ghost-btn'}" type="button" data-room-id="${roomId}" data-room-action="${action}" ${!ownLobby && full ? 'disabled' : ''}>${actionLabel}</button>
         </article>`;
     }
 
@@ -1505,12 +1926,12 @@
             const statusLine = status?.started
                 ? 'Match started — opening Play'
                 : status?.guestJoined
-                    ? 'Opponent joined — starting battle'
+                    ? 'Opponent in waiting room — confirm loadouts to start'
                     : 'Waiting for an opponent on this invite link';
             card.innerHTML = `<div class="social-active-content">
                 <div>
                     <span class="eyebrow">Your Active Lobby</span>
-                    <h2>${escapeHtml(name)}'s table</h2>
+                    <h2>My Arena</h2>
                     <span>Room code <strong>${escapeHtml(hostLobby.roomId)}</strong></span>
                     <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
                     ${expiresLabel ? `<span>${escapeHtml(expiresLabel)}</span>` : ''}
@@ -1519,10 +1940,12 @@
                 </div>
                 <div class="social-active-status"><strong>${status?.guestJoined ? '2' : '1'} / 2</strong><span>${guestWaiting ? 'Share the invite link' : 'Battle ready'}</span></div>
                 <div class="friend-actions">
+                    <button class="primary-btn" id="activeLobbyOpenBtn" type="button">Open Waiting Room</button>
                     ${shareUrl ? '<button class="ghost-btn" id="activeLobbyCopyBtn" type="button">Copy Invite Link</button>' : ''}
                     <button class="ghost-btn" id="activeLobbyCloseBtn" type="button">Close Lobby</button>
                 </div>
             </div>`;
+            document.getElementById('activeLobbyOpenBtn')?.addEventListener('click', () => openLobbyWaitingRoom(hostLobby.roomId));
             document.getElementById('activeLobbyCopyBtn')?.addEventListener('click', () => copyLobbyInvite(shareUrl));
             document.getElementById('activeLobbyCloseBtn')?.addEventListener('click', () => closeHostLobby(hostLobby));
             return;
@@ -1530,7 +1953,7 @@
         card.innerHTML = `<div class="social-active-content">
             <div>
                 <span class="eyebrow">Your Active Lobby</span>
-                <h2>${escapeHtml(name)}'s table</h2>
+                <h2>My Arena</h2>
                 <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
                 <span class="social-muted-inline">Lobbies live on Social. When someone joins, Play opens for both players.</span>
             </div>
@@ -1565,14 +1988,19 @@
 
         list.innerHTML = visibleFriends.length
             ? visibleFriends.map(friend => {
-                const presence = state.friendPresence[friend.email] || {};
+                const presence = friendPresenceRow(friend);
                 const prefs = presence.profileSettings || {};
+                const displayName = resolveFriendDisplayName(friend, presence);
                 const online = Boolean(presence.presence?.online);
                 const status = presence.presence?.status || 'OFFLINE';
+                const statusLabel = online ? status.replace('_', ' ') : 'Offline';
+                const email = String(friend.email || '').trim();
+                const showEmail = email && displayName.toLowerCase() !== email.toLowerCase();
+                const subtitle = showEmail ? `${email} · ${statusLabel}` : statusLabel;
                 return `<article class="friend-tile social-friend-tile">
                 <div class="friend-avatar-wrap">
                     ${renderPlayerAvatar({
-                        displayName: prefs.displayName || friend.displayName || friend.email,
+                        displayName,
                         avatarMode: prefs.avatarMode,
                         avatar: prefs.avatar,
                         avatarUrl: prefs.avatarUrl,
@@ -1581,8 +2009,8 @@
                     <span class="presence-dot ${online ? (status === 'IN_GAME' ? 'in-game' : 'online') : ''}" title="${escapeHtml(status)}"></span>
                 </div>
                 <div class="friend-copy">
-                    <strong>${escapeHtml(prefs.displayName || friend.displayName || friend.email)}</strong>
-                    <span>${escapeHtml(friend.email)} · ${online ? escapeHtml(status.replace('_', ' ')) : 'Offline'}</span>
+                    <a class="profile-friend-link friend-name-link" href="${escapeAttr(playerProfilePath(friend.userId || friend.email))}" data-player-profile="${escapeAttr(friend.userId || friend.email)}"><strong>${escapeHtml(displayName)}</strong></a>
+                    <span>${escapeHtml(subtitle)}</span>
                 </div>
                 <div class="friend-actions">
                     <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
@@ -1594,17 +2022,112 @@
             : '<div class="social-empty-state"><strong>No friends found</strong><span>Add a registered player by email to start your list.</span></div>';
 
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
-        list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => openPlayerProfile(btn.dataset.viewProfile)));
+        list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => navigateToPlayerProfile(btn.dataset.viewProfile)));
         list.querySelectorAll('[data-message-friend]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.messageFriend)));
+        bindPlayerProfileLinks(list);
+    }
+
+    function renderFriendRequests() {
+        const list = document.getElementById('friendRequestList');
+        const count = document.getElementById('friendRequestCountLabel');
+        const panel = document.getElementById('friendRequestsPanel');
+        if (!list) return;
+
+        const incoming = state.profile?.incomingFriendRequests || [];
+        const outgoing = state.profile?.outgoingFriendRequests || [];
+        const pendingCount = incoming.length;
+
+        if (count) count.textContent = `${pendingCount} pending`;
+        if (panel) panel.classList.toggle('hidden', !state.profile?.authenticated);
+
+        if (!state.profile?.authenticated) {
+            list.innerHTML = '<div class="social-empty-state"><strong>Sign in to manage requests</strong></div>';
+            return;
+        }
+
+        if (!incoming.length && !outgoing.length) {
+            list.innerHTML = '<div class="social-empty-state"><strong>No pending requests</strong><span>Friend invites you send or receive will show up here.</span></div>';
+            return;
+        }
+
+        const incomingHtml = incoming.map(request => `<article class="friend-request-tile">
+            <div class="friend-request-copy">
+                <strong>${escapeHtml(request.displayName || request.peerEmail)}</strong>
+                <span>${escapeHtml(request.peerEmail)} wants to be friends</span>
+            </div>
+            <div class="friend-request-actions">
+                <button class="primary-btn compact-btn" type="button" data-accept-request="${escapeAttr(request.fromUserId)}">Accept</button>
+                <button class="ghost-btn compact-btn" type="button" data-deny-request="${escapeAttr(request.fromUserId)}">Decline</button>
+            </div>
+        </article>`).join('');
+
+        const outgoingHtml = outgoing.map(request => `<article class="friend-request-tile">
+            <div class="friend-request-copy">
+                <strong>${escapeHtml(request.displayName || request.peerEmail)}</strong>
+                <span>Request sent · waiting for approval</span>
+            </div>
+        </article>`).join('');
+
+        list.innerHTML = incomingHtml + outgoingHtml;
+        list.querySelectorAll('[data-accept-request]').forEach(btn => btn.addEventListener('click', () => respondToFriendRequest(btn.dataset.acceptRequest, 'accept')));
+        list.querySelectorAll('[data-deny-request]').forEach(btn => btn.addEventListener('click', () => respondToFriendRequest(btn.dataset.denyRequest, 'deny')));
+    }
+
+    function friendPresenceRow(friend) {
+        const key = friend?.userId || friend?.email;
+        return key ? (state.friendPresence[key] || {}) : {};
+    }
+
+    function resolveFriendDisplayName(friend, presence = friendPresenceRow(friend)) {
+        const prefs = presence.profileSettings || {};
+        const name = String(prefs.displayName || friend?.displayName || '').trim();
+        if (name) return name;
+        const email = String(friend?.email || '').trim();
+        const at = email.indexOf('@');
+        return at > 0 ? email.slice(0, at) : (email || 'Player');
     }
 
     function friendInitial(friend) {
-        return String(friend.displayName || friend.email || 'S').trim().slice(0, 1).toUpperCase();
+        return resolveFriendDisplayName(friend).slice(0, 1).toUpperCase();
+    }
+
+    function updateProfileSectionHead(viewingOther = false) {
+        const head = document.querySelector('#profileSection .section-head');
+        if (!head) return;
+        const eyebrow = head.querySelector('.eyebrow');
+        const title = head.querySelector('h1');
+        if (viewingOther) {
+            if (eyebrow) eyebrow.textContent = 'Player Profile';
+            if (title) title.textContent = 'View a friend’s Siegelings profile';
+        } else {
+            if (eyebrow) eyebrow.textContent = 'Profile';
+            if (title) title.textContent = 'Your profile, friends, and recent battles';
+        }
+    }
+
+    function bindPlayerProfileLinks(root = document) {
+        root.querySelectorAll('[data-player-profile]').forEach(link => {
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                navigateToPlayerProfile(link.dataset.playerProfile);
+            });
+        });
     }
 
     function renderProfile() {
         const body = document.getElementById('profileSectionBody');
         if (!body) return;
+        const viewingId = state.profileUserId;
+        const myEmail = normalizePlayerId(state.profile?.user?.email);
+        if (viewingId && viewingId !== myEmail) {
+            updateProfileSectionHead(true);
+            body.innerHTML = '<div class="profile-loading-state"><strong>Loading profile…</strong><span>Fetching player details.</span></div>';
+            renderEditProfileModalHost(null);
+            void loadPublicProfilePage(viewingId);
+            return;
+        }
+        updateProfileSectionHead(false);
+        state.profileUserId = '';
         if (!state.profile?.authenticated) {
             body.innerHTML = `<div class="profile-dashboard profile-signed-out">
                 <div class="profile-hero profile-hero-neutral">
@@ -1642,6 +2165,7 @@
         </div>`;
         renderEditProfileModalHost(view);
         bindProfileDashboard();
+        bindPlayerProfileLinks(body);
     }
 
     function renderEditProfileModalHost(view) {
@@ -1661,8 +2185,7 @@
         const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
         const collection = collectionSummary();
         const savedDecks = state.profile?.savedDecks || [];
-        const realHistory = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
-        const battles = realHistory.length ? realHistory : mockBattles(prefs.favoriteElement);
+        const battles = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
         const record = battleRecord(battles);
         return {
             user,
@@ -1671,7 +2194,6 @@
             collection,
             savedDecks,
             battles,
-            usingMockBattles: !realHistory.length,
             record,
             rank: 'Bronze III',
             level: Math.max(1, Math.floor((state.progression?.ownedTotal || 0) / 12) + 1),
@@ -1762,7 +2284,7 @@
         return `<section class="profile-panel battle-record-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Battle Record</span><h3>Season Snapshot</h3></div>
-                ${view.usingMockBattles ? '<span class="profile-soft-pill">Sample history</span>' : '<span class="profile-soft-pill">Live history</span>'}
+                <span class="profile-soft-pill">${view.battles.length ? 'Live history' : 'No matches yet'}</span>
             </div>
             <div class="battle-record-layout">
                 <div class="win-ring" style="--win:${record.winRate}">
@@ -1786,16 +2308,18 @@
                 <span class="profile-soft-pill">${view.battles.length} entries</span>
             </div>
             <div class="battle-list">
-                ${view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
-                    <div class="battle-result">${escapeHtml(battle.result)}</div>
-                    <div class="battle-main">
-                        <strong>${escapeHtml(battle.opponentName)}</strong>
-                        <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
-                    </div>
-                    ${renderElementBadge(battle.element)}
-                    <div class="battle-meta"><span>${escapeHtml(battle.date)}</span><span>${escapeHtml(battle.duration)}</span></div>
-                    <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
-                </article>`).join('')}
+                ${view.battles.length
+                    ? view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
+                        <div class="battle-result">${escapeHtml(battle.result)}</div>
+                        <div class="battle-main">
+                            <strong>${escapeHtml(battle.opponentName)}</strong>
+                            <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
+                        </div>
+                        ${renderElementBadge(battle.element)}
+                        <div class="battle-meta"><span>${escapeHtml(battle.date)}</span>${battle.duration ? `<span>${escapeHtml(battle.duration)}</span>` : ''}</div>
+                        <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
+                    </article>`).join('')
+                    : '<div class="social-empty-state"><strong>No battles recorded yet</strong><span>Finish a PVE or PVP match while signed in and it will appear here.</span></div>'}
             </div>
         </section>`;
     }
@@ -1857,7 +2381,11 @@
                 <button class="primary-btn profile-theme-btn" type="button" data-profile-route="social">Add Friend</button>
             </div>
             <div class="friend-activity">
-                ${friends.length ? friends.slice(0, 4).map(friend => `<div><strong>${escapeHtml(friend.displayName || friend.email)}</strong><span>${escapeHtml(friend.email)}</span></div>`).join('') : '<div><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
+                ${friends.length ? friends.slice(0, 4).map(friend => {
+                    const playerId = friend.userId || friend.email;
+                    const label = friend.displayName || friend.email;
+                    return `<div><a class="profile-friend-link" href="${escapeAttr(playerProfilePath(playerId))}" data-player-profile="${escapeAttr(playerId)}"><strong>${escapeHtml(label)}</strong></a><span>${escapeHtml(friend.email)}</span></div>`;
+                }).join('') : '<div><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
                 <div><strong>Open lobbies</strong><span>Use Social to join rooms or invite friends once room invites are connected.</span></div>
             </div>
         </section>`;
@@ -2062,29 +2590,10 @@
             opponentType: matchType.includes('PVP') || matchType.includes('PLAYER') ? 'Player' : 'AI',
             deckUsed: row.loadoutLabel || row.trainerName || 'Battle Loadout',
             element: inferElementFromText(row.loadoutLabel || row.trainerName || '', fallbackElement),
-            date: formatProfileDate(row.finishedAt) || `Match ${index + 1}`,
-            duration: row.turnNumber ? `${row.turnNumber} turns` : '8 min',
+            date: formatProfileDate(row.finishedAt) || '',
+            duration: row.turnNumber ? `${row.turnNumber} turns` : '',
             reward: result === 'WIN' ? '+25' : '+5'
         };
-    }
-
-    function mockBattles(favoriteElement) {
-        return [
-            ['WIN', 'Mira of Glasspeak', 'AI', 'Starter Clash', favoriteElement, 'Today', '7 min', '+25'],
-            ['LOSS', 'Rowan Vale', 'Player', 'Root and Spark', 'Earth', 'Yesterday', '11 min', '+5'],
-            ['WIN', 'Cinder Scout', 'AI', 'Molten Trial', 'Fire', 'May 22', '9 min', '+25'],
-            ['WIN', 'Aster Gale', 'Player', 'Skyhook Tempo', 'Wind', 'May 20', '6 min', '+25'],
-            ['LOSS', 'Frost Regent', 'AI', 'Crystal Ward', 'Ice', 'May 18', '13 min', '+5']
-        ].map(([result, opponentName, opponentType, deckUsed, element, date, duration, reward]) => ({
-            result,
-            opponentName,
-            opponentType,
-            deckUsed,
-            element,
-            date,
-            duration,
-            reward
-        }));
     }
 
     function inferElementFromText(text, fallback) {
@@ -2359,6 +2868,14 @@
         return state.packReveal;
     }
 
+    function particleThemeForElement(element) {
+        const normalized = String(element || 'FIRE').toUpperCase();
+        if (normalized === 'EARTH') return 'earth';
+        if (normalized === 'ICE' || normalized === 'WATER') return 'ice';
+        if (normalized === 'WIND') return 'wind';
+        return 'fire';
+    }
+
     function enrichPackCard(card, index) {
         const catalogCard = findCard(card.id) || {};
         const duplicateAtCap = Boolean(card.duplicateAtCap ?? (card.granted === false && Number(card.remnantsAwarded) > 0));
@@ -2486,6 +3003,7 @@
         reveal.lastRevealedId = revealId;
         if (options.openPreview) reveal.previewId = revealId;
         reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
+        reveal.particleElement = card?.element || reveal.particleElement;
         renderPackResult();
     }
 
@@ -2578,6 +3096,7 @@
         cards.forEach(card => reveal.revealed.add(card.revealId));
         reveal.lastRevealedId = '';
         reveal.sparkColor = elementColor(latest.cards?.[0]?.element || 'FIRE');
+        reveal.particleElement = latest.cards?.[0]?.element || reveal.particleElement || 'FIRE';
         renderPackResult();
         const result = document.getElementById('packResult');
         cards.filter(card => card.duplicateAtCap && card.remnantsAwarded > 0).forEach((card, order) => {
@@ -2689,15 +3208,19 @@
         if (cards.length < 30) return alert('Custom decks need 30 cards.');
         const trainerId = builderTrainerId();
         const name = builderDeckName();
+        const payload = { trainerId, customDeckCards: cards, name };
+        if (state.editingSavedDeckId) payload.id = state.editingSavedDeckId;
         const data = await fetchJson('/api/profile/decks', {
             method: 'POST',
-            body: JSON.stringify({ trainerId, customDeckCards: cards, name })
+            body: JSON.stringify(payload)
         });
         if (data?.error) return alert(data.error);
         state.profile = data;
         state.progression = data.progression;
+        state.editingSavedDeckId = '';
         renderProfile();
         renderDecks();
+        navigateHub('decks');
     }
 
     async function addFriendFromSocial(event) {
@@ -2720,10 +3243,31 @@
         state.profile = data;
         state.progression = data.progression || state.progression;
         if (input) input.value = '';
-        setFriendMessage('Friend added.', 'success');
+        setFriendMessage('Friend request sent.', 'success');
         renderProfileMini();
         renderFriends();
+        renderFriendRequests();
         renderProfile();
+    }
+
+    async function respondToFriendRequest(fromUserId, action) {
+        if (!state.profile?.authenticated) return openAuth();
+        const path = action === 'accept' ? '/api/profile/friends/accept' : '/api/profile/friends/deny';
+        const data = await fetchJson(path, { method: 'POST', body: JSON.stringify({ fromUserId }) });
+        if (data?.error) {
+            setFriendMessage(data.error, 'error');
+            return;
+        }
+        state.profile = data;
+        state.progression = data.progression || state.progression;
+        setFriendMessage(action === 'accept' ? 'Friend request accepted.' : 'Friend request declined.', 'success');
+        renderFriends();
+        renderFriendRequests();
+        renderProfile();
+        if (action === 'accept') {
+            await refreshFriendPresence();
+            renderFriends();
+        }
     }
 
     async function removeFriend(email) {
@@ -2737,6 +3281,7 @@
         state.progression = data.progression || state.progression;
         setFriendMessage('Friend removed.', 'success');
         renderFriends();
+        renderFriendRequests();
         renderProfile();
     }
 
@@ -2750,8 +3295,7 @@
         if (state.lobbyBusy) return;
         const existing = readHostLobby();
         if (existing?.roomId) {
-            navigateHub('social', { focus: 'lobby' });
-            renderSocialActiveLobby();
+            openLobbyWaitingRoom(existing.roomId);
             return;
         }
         if (!state.options?.decks?.length) {
@@ -2775,16 +3319,21 @@
                 expiresAt: data.expiresAt || null,
                 shareUrl: data.shareUrl || buildSocialRoomShareUrl(data.roomId)
             });
+            writeLobbySession({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                role: 'host'
+            });
             saveMultiplayerSession({
                 roomId: data.roomId,
                 playerToken: data.playerToken,
                 viewerSide: data.viewerSide || 'PLAYER'
             });
             state.hostLobbyStatus = data;
-            navigateHub('social', { focus: 'lobby' });
             await refreshRooms(true);
             renderSocialActiveLobby();
             ensureHostLobbyPolling();
+            openLobbyWaitingRoom(data.roomId, { replace: true });
         } finally {
             state.lobbyBusy = false;
             renderSocialActiveLobby();
@@ -2792,56 +3341,37 @@
     }
 
     function quickJoinFirstRoom() {
-        const room = filteredRooms().find(candidate => !isRoomFull(candidate));
+        const room = filteredRooms().find(candidate => !isRoomFull(candidate) && !isOwnLobby(candidate));
         if (!room?.roomId) return;
-        const input = document.getElementById('roomCodeInput');
-        if (input) input.value = room.roomId;
-        joinRoomFromHome();
+        openLobbyWaitingRoom(room.roomId);
     }
 
     async function joinRoomFromHome() {
         const room = document.getElementById('roomCodeInput')?.value?.trim()?.toUpperCase();
         if (!room) return;
-        if (!state.options?.decks?.length) {
-            alert('Deck options are still loading. Try again in a moment.');
+        if (isOwnLobbyRoomId(room)) {
+            openLobbyWaitingRoom(room);
             return;
         }
-        if (state.lobbyBusy) return;
-        state.lobbyBusy = true;
-        try {
-            const data = await fetchJson('/api/match/join', {
-                method: 'POST',
-                body: JSON.stringify({ ...buildSocialMatchBody(), roomId: room })
-            });
-            if (data?.error) {
-                alert(data.error);
-                return;
-            }
-            saveMultiplayerSession({
-                roomId: data.roomId,
-                playerToken: data.playerToken,
-                viewerSide: data.viewerSide || 'PLAYER'
-            });
-            launchOnlineBattleFromSocial({
-                roomId: data.roomId,
-                playerToken: data.playerToken
-            }, data);
-        } finally {
-            state.lobbyBusy = false;
-        }
+        openLobbyWaitingRoom(room);
     }
 
     function queuePlayLoadout(payload = {}) {
+        const savedDeck = selectedSavedDeck();
+        const customDeckCards = payload.customDeckCards
+            || (savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null);
+        const loadoutLabel = payload.loadoutLabel
+            || (customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : '');
         localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
             createdAt: Date.now(),
             deckId: payload.deckId || selectedDeckId(),
-            trainerId: payload.trainerId || state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id,
+            trainerId: payload.trainerId || selectedTrainerId(),
             mode: payload.mode || 'solo',
             onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
             battleLaunch: Boolean(payload.battleLaunch),
-            customDeckCards: payload.customDeckCards || null,
-            loadoutLabel: payload.loadoutLabel || ''
+            customDeckCards,
+            loadoutLabel
         }));
     }
 
@@ -2854,10 +3384,15 @@
         const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
         const nextShopView = route === 'shop' ? (options.shopView || state.shopView || 'browse') : 'browse';
         const nextPath = `${hubPath(route, nextShopView)}${hash}`;
-        const samePlace = route === state.route && (route !== 'shop' || nextShopView === state.shopView);
+        const samePlace = route === state.route
+            && (route !== 'shop' || nextShopView === state.shopView)
+            && (route !== 'profile' || !state.profileUserId);
 
         state.route = route;
         state.shopView = nextShopView;
+        if (route === 'profile') {
+            state.profileUserId = '';
+        }
 
         if (options.replace) {
             if (`${location.pathname}${location.hash}` !== nextPath) {
@@ -2887,7 +3422,11 @@
     }
 
     function setActiveRoute() {
-        document.querySelectorAll('[data-route]').forEach(link => link.classList.toggle('active', link.dataset.route === state.route));
+        document.querySelectorAll('[data-route]').forEach(link => {
+            const route = link.dataset.route;
+            const active = route === state.route || (state.route === 'lobby' && route === 'social');
+            link.classList.toggle('active', active);
+        });
     }
 
     function isBinderRoute() {
@@ -2945,10 +3484,24 @@
         if (state.token) headers.Authorization = `Bearer ${state.token}`;
         try {
             const resp = await fetch(path, { ...options, headers });
-            return await resp.json();
+            const raw = await resp.text();
+            let data = null;
+            if (raw) {
+                try {
+                    data = JSON.parse(raw);
+                } catch (parseError) {
+                    console.error(parseError);
+                    return { error: resp.ok ? 'Unexpected server response.' : (raw.trim() || resp.statusText || 'Request failed') };
+                }
+            }
+            if (!resp.ok) {
+                const message = data?.error || data?.message || resp.statusText || 'Request failed';
+                return { ...(data || {}), error: message };
+            }
+            return data;
         } catch (error) {
             console.error(error);
-            return null;
+            return { error: 'Network error. Check your connection and try again.' };
         }
     }
 
@@ -3045,11 +3598,19 @@
     }
 
     function authMarkup() {
+        if (state.authRegisterStep === 'display-name') {
+            return `<div class="auth-card">
+                <strong>Choose your display name</strong>
+                <span>Confirm how other duelists will see you (${escapeHtml(state.registerDraft.email || '')}).</span>
+                <input class="search-input" id="authName" maxlength="20" placeholder="Display name" autofocus>
+                <button class="primary-btn" id="confirmRegisterBtn" type="button">Confirm</button>
+                <button class="ghost-btn" id="backRegisterBtn" type="button">Back</button>
+            </div>`;
+        }
         return `<div class="auth-card">
             <strong>Sign in to save progression</strong>
             <span>Starter packs, Siegecoins, Remnants, owned cards, and custom decks require an account. New players start with ${renderCoinAmount(100)}.</span>
             <input class="search-input" id="authEmail" type="email" placeholder="Email">
-            <input class="search-input" id="authName" placeholder="Display name for register">
             <input class="search-input" id="authPassword" type="password" placeholder="Password">
             <button class="primary-btn" id="loginBtn" type="button">Log In</button>
             <button class="ghost-btn" id="registerBtn" type="button">Register</button>
@@ -3064,6 +3625,8 @@
 
     function closeAuth() {
         state.authOpen = false;
+        state.authRegisterStep = 'credentials';
+        state.registerDraft = { email: '', password: '' };
         renderAuthModal();
     }
 
@@ -3086,14 +3649,39 @@
 
     function bindAuthForms() {
         document.querySelectorAll('#loginBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('login')));
-        document.querySelectorAll('#registerBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('register')));
+        document.querySelectorAll('#registerBtn').forEach(btn => btn.addEventListener('click', () => beginRegisterDisplayName()));
+        document.querySelectorAll('#confirmRegisterBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('register')));
+        document.querySelectorAll('#backRegisterBtn').forEach(btn => btn.addEventListener('click', () => {
+            state.authRegisterStep = 'credentials';
+            renderAuthModal();
+        }));
+    }
+
+    function beginRegisterDisplayName() {
+        const email = (document.getElementById('authEmail')?.value || '').trim();
+        const password = document.getElementById('authPassword')?.value || '';
+        if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
+            alert('Enter a valid email address.');
+            return;
+        }
+        if (!password || password.length < 6) {
+            alert('Passwords must be at least 6 characters.');
+            return;
+        }
+        state.registerDraft = { email, password };
+        state.authRegisterStep = 'display-name';
+        renderAuthModal();
     }
 
     async function submitAuth(mode) {
-        const email = document.getElementById('authEmail')?.value || '';
-        const password = document.getElementById('authPassword')?.value || '';
-        const displayName = document.getElementById('authName')?.value || '';
-        const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify({ email, password, displayName }) });
+        const onRegisterNameStep = mode === 'register' && state.authRegisterStep === 'display-name';
+        const email = onRegisterNameStep ? state.registerDraft.email : (document.getElementById('authEmail')?.value || '');
+        const password = onRegisterNameStep ? state.registerDraft.password : (document.getElementById('authPassword')?.value || '');
+        const displayName = mode === 'register' ? (document.getElementById('authName')?.value || '') : '';
+        const body = mode === 'register'
+            ? { email, password, displayName }
+            : { email, password };
+        const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) });
         if (data?.error) return alert(data.error);
         state.token = data.token || '';
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
@@ -3103,11 +3691,19 @@
         cacheProfilePrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
+        startPresenceHeartbeat();
+        state.authRegisterStep = 'credentials';
+        state.registerDraft = { email: '', password: '' };
         await ensurePacksLoaded();
         render();
     }
 
     async function logout() {
+        stopPresenceHeartbeat();
+        try {
+            await fetchJson('/api/social/presence/offline', { method: 'POST' });
+        } catch (_ignored) {
+        }
         await fetchJson('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
@@ -3120,7 +3716,7 @@
     }
 
     function adjustBuilder(cardId, delta) {
-        if (!state.options?.cardCatalog?.length) return navigateHub('decks');
+        if (!state.options?.cardCatalog?.length) return;
         const cardLimit = builderCardLimit(cardId);
         const current = state.builderCounts[cardId] || 0;
         const totalWithoutCard = builderTotal() - current;
@@ -3128,8 +3724,10 @@
         const next = Math.max(0, Math.min(copyLimit, current + delta));
         if (next) state.builderCounts[cardId] = next;
         else delete state.builderCounts[cardId];
-        navigateHub('decks');
-        renderBuilder();
+        if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        if (state.route === 'deck-builder') {
+            renderDeckBuilderPage();
+        }
     }
 
     function builderCards() {
@@ -3149,7 +3747,19 @@
     function selectedCard() { return findCard(state.selectedCardId) || state.options?.cardCatalog?.[0]; }
     function findCard(id) { return (state.options?.cardCatalog || []).find(card => card.id === id); }
     function ownedCount(id) { return state.progression?.ownedCards?.[id] || 0; }
-    function selectedDeckId() { return state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth'; }
+    function selectedSavedDeck() {
+        const selected = state.selectedDeckId;
+        if (!selected) return null;
+        return (state.profile?.savedDecks || []).find(deck => deck.id === selected || deck.deckId === selected) || null;
+    }
+    function selectedDeckId() {
+        const savedDeck = selectedSavedDeck();
+        if (savedDeck?.deckId) return savedDeck.deckId;
+        if (state.selectedDeckId && (state.options?.decks || []).some(deck => deck.id === state.selectedDeckId)) {
+            return state.selectedDeckId;
+        }
+        return state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth';
+    }
     function indexCreatureDescriptions(descriptions) {
         const entries = Array.isArray(descriptions) ? descriptions : [];
         return entries.reduce((out, item) => {
@@ -3251,19 +3861,60 @@
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
         const head = segments[0] || 'home';
-        if (head === 'lobbies') return { route: 'social', shopView: 'browse' };
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        if (head === 'social' && segments[1] === 'lobby' && segments[2]) {
+            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '' };
+        }
         if (head === 'shop') {
-            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse' };
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '' };
         }
-        if (['cards', 'decks', 'social', 'profile'].includes(head)) {
-            return { route: head, shopView: 'browse' };
+        if (head === 'profile') {
+            const profileUserId = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
+            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId };
         }
-        return { route: 'home', shopView: 'browse' };
+        if (head === 'deck-builder') {
+            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        }
+        if (['cards', 'decks', 'social'].includes(head)) {
+            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        }
+        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+    }
+
+    function normalizePlayerId(userId) {
+        return String(userId || '').trim().toLowerCase();
+    }
+
+    function playerProfilePath(userId) {
+        const normalized = normalizePlayerId(userId);
+        if (!normalized) return '/profile';
+        const myEmail = normalizePlayerId(state.profile?.user?.email);
+        if (myEmail && normalized === myEmail) return '/profile';
+        return `/profile/${encodeURIComponent(normalized)}`;
+    }
+
+    function navigateToPlayerProfile(userId, options = {}) {
+        const path = playerProfilePath(userId);
+        state.route = 'profile';
+        state.shopView = 'browse';
+        state.lobbyRoomId = '';
+        state.profileUserId = path === '/profile' ? '' : normalizePlayerId(userId);
+        state.profileEditOpen = false;
+        closePlayerProfile();
+        if (options.replace) {
+            history.replaceState(null, '', path);
+        } else {
+            history.pushState(null, '', path);
+        }
+        setActiveRoute();
+        renderSections();
+        renderRoute();
     }
 
     function hubPath(route, shopView = 'browse') {
         if (route === 'home') return '/home';
         if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
+        if (route === 'deck-builder') return '/deck-builder';
         return `/${route}`;
     }
 
@@ -3271,6 +3922,8 @@
         const parsed = parseHubRoute(path);
         state.route = parsed.route;
         state.shopView = parsed.shopView;
+        state.lobbyRoomId = parsed.lobbyRoomId || '';
+        state.profileUserId = parsed.profileUserId || '';
         if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
             state.shopView = 'browse';
             if (location.pathname !== hubPath('shop', 'browse')) {
@@ -3284,6 +3937,42 @@
     }
     function elementColor(element) { return ELEMENT_COLORS[element] || '#f05b2f'; }
     function rarityColor(rarity) { return RARITY_COLORS[rarity] || RARITY_COLORS.COMMON; }
+    function normalizeCardArtKey(value) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+    }
+
+    const CARD_ART_OVERRIDES = Object.freeze({
+        sundile: '/assets/cards/sundile.jpg'
+    });
+
+    function resolveCardArtUrl(card) {
+        if (!card) return '';
+        const candidates = [card.artKey, card.id, card.definitionId, card.cardId, card.baseId, card.catalogId, card.slug, card.name];
+        for (const candidate of candidates) {
+            const key = normalizeCardArtKey(candidate);
+            if (key && CARD_ART_OVERRIDES[key]) {
+                return CARD_ART_OVERRIDES[key];
+            }
+        }
+        return '';
+    }
+
+    function renderBinderCardArt(card) {
+        const dashboardArtUrl = String(card?.cardArtUrl || '').trim();
+        const dashboardMode = window.SieglingsCardBinderVisual?.normalizeArtMode(card?.cardArtMode) || '';
+        if (dashboardArtUrl && dashboardMode && window.SieglingsCardBinderVisual) {
+            return window.SieglingsCardBinderVisual.renderBinderCardArt(card);
+        }
+        const url = resolveCardArtUrl(card);
+        if (url) {
+            const name = card?.name || 'Card';
+            return `<img class="element-icon-art" src="${escapeAttr(url)}" alt="${escapeAttr(name)} art" loading="lazy">`;
+        }
+        return renderElementIcon(card?.element);
+    }
+
     function elementIconPath(element) {
         return ELEMENT_ICON_PATHS[String(element || '').toUpperCase()] || '';
     }
@@ -3411,23 +4100,30 @@
         if (!room) return;
         params.delete('room');
         const query = params.toString();
-        const nextPath = `${hubPath('social')}${query ? `?${query}` : ''}#socialActiveLobby`;
+        const roomId = room.trim().toUpperCase();
+        const nextPath = `${lobbyPath(roomId)}${query ? `?${query}` : ''}`;
         history.replaceState(null, '', nextPath);
-        state.route = 'social';
+        state.route = 'lobby';
+        state.lobbyRoomId = roomId;
         const input = document.getElementById('roomCodeInput');
-        if (input) input.value = room.trim().toUpperCase();
+        if (input) input.value = roomId;
     }
 
     function buildSocialMatchBody() {
+        const savedDeck = selectedSavedDeck();
+        const customDeckCards = savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null;
         return {
             deckId: selectedDeckId(),
             trainerId: selectedTrainerId(),
             playerName: socialBattleName(),
-            loadoutLabel: ''
+            customDeckCards,
+            loadoutLabel: customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : ''
         };
     }
 
     function selectedTrainerId() {
+        const savedDeck = selectedSavedDeck();
+        if (savedDeck?.trainerId) return savedDeck.trainerId;
         return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
     }
 
@@ -3443,9 +4139,457 @@
         }
     }
 
+    function lobbyPath(roomId) {
+        if (!roomId) return '/social';
+        return `/social/lobby/${encodeURIComponent(String(roomId).trim().toUpperCase())}`;
+    }
+
     function buildSocialRoomShareUrl(roomId) {
         if (!roomId) return '';
-        return `${location.origin}/social?room=${encodeURIComponent(roomId)}`;
+        return `${location.origin}${lobbyPath(roomId)}`;
+    }
+
+    function isOwnLobby(room) {
+        if (!room?.roomId) return false;
+        return isOwnLobbyRoomId(room.roomId) || (room.hostUserId && room.hostUserId === state.profile?.user?.id);
+    }
+
+    function isOwnLobbyRoomId(roomId) {
+        if (!roomId) return false;
+        const normalized = String(roomId).trim().toUpperCase();
+        const hostLobby = readHostLobby();
+        if (hostLobby?.roomId && hostLobby.roomId.toUpperCase() === normalized) return true;
+        return false;
+    }
+
+    function openLobbyWaitingRoom(roomId, options = {}) {
+        const normalized = String(roomId || '').trim().toUpperCase();
+        if (!normalized) return;
+        state.lobbyRoomId = normalized;
+        const nextPath = lobbyPath(normalized);
+        if (options.replace) {
+            history.replaceState(null, '', nextPath);
+        } else if (`${location.pathname}` !== nextPath) {
+            history.pushState(null, '', nextPath);
+        }
+        state.route = 'lobby';
+        setActiveRoute();
+        renderSections();
+        renderRoute();
+    }
+
+    async function enterLobbyWaitingRoom() {
+        const roomId = state.lobbyRoomId;
+        if (!roomId) return;
+        renderLobbyWaitingRoom();
+        if (!state.options?.decks?.length) {
+            await loadAll();
+        }
+        try {
+            const session = await ensureLobbySession(roomId);
+            if (!session) return;
+            state.lobbySession = session;
+            writeLobbySession(session);
+            saveMultiplayerSession({
+                roomId: session.roomId,
+                playerToken: session.playerToken,
+                viewerSide: session.role === 'host' ? 'PLAYER' : 'ENEMY'
+            });
+            await pollLobbyStatusOnce();
+            startLobbyPolling();
+            void refreshRooms(true);
+        } catch (error) {
+            console.error('Lobby entry failed', error);
+        }
+    }
+
+    async function ensureLobbySession(roomId) {
+        const hostLobby = readHostLobby();
+        if (hostLobby?.roomId === roomId && hostLobby.playerToken) {
+            return { roomId, playerToken: hostLobby.playerToken, role: 'host' };
+        }
+        const saved = readLobbySession();
+        if (saved?.roomId === roomId && saved.playerToken) {
+            const status = await fetchMatchStatus(saved);
+            if (status && !status.error) {
+                return saved;
+            }
+        }
+        if (isOwnLobbyRoomId(roomId)) {
+            alert('Reconnect from the device that created this lobby, or create a new table.');
+            navigateHub('social', { focus: 'lobby' });
+            return null;
+        }
+        if (!state.options?.decks?.length) {
+            alert('Deck options are still loading. Try again in a moment.');
+            return null;
+        }
+        if (state.lobbyBusy) return null;
+        state.lobbyBusy = true;
+        try {
+            const data = await fetchJson('/api/match/join', {
+                method: 'POST',
+                body: JSON.stringify({ ...buildSocialMatchBody(), roomId })
+            });
+            if (data?.error) {
+                alert(data.error);
+                navigateHub('social');
+                return null;
+            }
+            return { roomId: data.roomId, playerToken: data.playerToken, role: 'guest' };
+        } finally {
+            state.lobbyBusy = false;
+        }
+    }
+
+    function readLobbySession() {
+        try {
+            const raw = localStorage.getItem(LOBBY_SESSION_KEY);
+            if (!raw) return null;
+            const session = JSON.parse(raw);
+            return session?.roomId && session?.playerToken ? session : null;
+        } catch (_error) {
+            return null;
+        }
+    }
+
+    function writeLobbySession(session) {
+        if (!session?.roomId || !session?.playerToken) {
+            localStorage.removeItem(LOBBY_SESSION_KEY);
+            state.lobbySession = null;
+            return;
+        }
+        localStorage.setItem(LOBBY_SESSION_KEY, JSON.stringify(session));
+        state.lobbySession = session;
+    }
+
+    function clearLobbySession() {
+        localStorage.removeItem(LOBBY_SESSION_KEY);
+        state.lobbySession = null;
+        state.lobbyStatus = null;
+    }
+
+    function currentLobbySession() {
+        if (state.lobbySession?.roomId === state.lobbyRoomId) return state.lobbySession;
+        const hostLobby = readHostLobby();
+        if (hostLobby?.roomId === state.lobbyRoomId) {
+            return { roomId: hostLobby.roomId, playerToken: hostLobby.playerToken, role: 'host' };
+        }
+        const saved = readLobbySession();
+        if (saved?.roomId === state.lobbyRoomId) return saved;
+        return null;
+    }
+
+    function isLobbyChatInputFocused() {
+        const input = document.getElementById('lobbyChatInput');
+        return Boolean(input && document.activeElement === input);
+    }
+
+    function lobbyChatLogHtml(messages = []) {
+        const chatLines = (messages || []).slice(-24).map(line => {
+            const role = String(line.role || '');
+            const css = role === 'system' ? 'system' : '';
+            return `<div class="lobby-chat-line ${css}"><strong>${escapeHtml(line.author || 'Player')}:</strong> ${escapeHtml(line.text || '')}</div>`;
+        }).join('');
+        return chatLines || '<div class="lobby-chat-line system">Say hello while you wait.</div>';
+    }
+
+    function renderLobbyChatLog() {
+        const chatLog = document.getElementById('lobbyChatLog');
+        if (!chatLog) return;
+        const nextHtml = lobbyChatLogHtml(state.lobbyStatus?.lobbyChat);
+        if (chatLog.innerHTML === nextHtml) return;
+        const stickToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight < 48;
+        chatLog.innerHTML = nextHtml;
+        if (stickToBottom) chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function lobbyWaitingContext() {
+        const status = state.lobbyStatus;
+        const session = currentLobbySession();
+        const roomId = state.lobbyRoomId || status?.roomId || '';
+        const isHost = session?.role === 'host' || status?.viewerIsHost;
+        const viewerReady = isHost ? Boolean(status?.hostReady) : Boolean(status?.guestReady);
+        const decks = state.options?.decks || [];
+        const trainers = state.options?.trainers || [];
+        const selectedDeck = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.deckId || selectedDeckId();
+        const selectedTrainer = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.trainerId || selectedTrainerId();
+        const deckOptions = decks.map(deck => `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`).join('');
+        const trainerOptions = trainers.map(trainer => `<option value="${escapeAttr(trainer.id)}" ${trainer.id === selectedTrainer ? 'selected' : ''}>${escapeHtml(trainer.name)}</option>`).join('');
+        const players = status?.players || [];
+        const hostPlayer = players.find(player => player.role === 'host') || { name: status?.hostName || 'Host', ready: false };
+        const guestPlayer = players.find(player => player.role === 'guest');
+        const statusLabel = status?.started
+            ? 'Match starting — opening Play...'
+            : !status?.guestJoined
+                ? 'Waiting for opponent to join'
+                : viewerReady
+                    ? 'Waiting for opponent to confirm'
+                    : 'Pick your deck and knight, then start match';
+        return {
+            status,
+            session,
+            roomId,
+            isHost,
+            viewerReady,
+            selectedDeck,
+            selectedTrainer,
+            deckOptions,
+            trainerOptions,
+            hostPlayer,
+            guestPlayer,
+            statusLabel
+        };
+    }
+
+    function bindLobbyWaitingRoomControls() {
+        document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
+        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
+        document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
+            const hostLobby = readHostLobby();
+            if (hostLobby) void closeHostLobby(hostLobby);
+        });
+        document.getElementById('lobbyChatForm')?.addEventListener('submit', (event) => {
+            event.preventDefault();
+            void sendLobbyChat();
+        });
+    }
+
+    function updateLobbyWaitingRoom() {
+        const root = document.getElementById('lobbyWaitingRoot');
+        if (!root || !root.querySelector('#lobbyChatInput')) {
+            renderLobbyWaitingRoom();
+            return;
+        }
+        const ctx = lobbyWaitingContext();
+        const statusLine = root.querySelector('.lobby-waiting-head .social-muted-inline');
+        if (statusLine) statusLine.textContent = `Room ${ctx.roomId} · ${ctx.statusLabel}`;
+        const pill = root.querySelector('.lobby-status-pill');
+        if (pill) pill.textContent = `${ctx.status?.guestJoined ? '2 / 2' : '1 / 2'} players`;
+        const players = root.querySelector('.lobby-players');
+        if (players) {
+            players.innerHTML = `${renderLobbyPlayerSlot(ctx.hostPlayer, 'Host')}${ctx.guestPlayer
+                ? renderLobbyPlayerSlot(ctx.guestPlayer, 'Guest')
+                : renderLobbyPlayerSlot({ name: 'Waiting for player...', ready: false }, 'Open slot', true)}`;
+        }
+        const deckSelect = document.getElementById('lobbyDeckSelect');
+        if (deckSelect) {
+            deckSelect.disabled = ctx.viewerReady || Boolean(ctx.status?.started);
+            if (deckSelect.value !== ctx.selectedDeck) deckSelect.value = ctx.selectedDeck;
+        }
+        const trainerSelect = document.getElementById('lobbyTrainerSelect');
+        if (trainerSelect) {
+            trainerSelect.disabled = ctx.viewerReady || Boolean(ctx.status?.started);
+            if (trainerSelect.value !== ctx.selectedTrainer) trainerSelect.value = ctx.selectedTrainer;
+        }
+        const readyBtn = document.getElementById('lobbyReadyBtn');
+        if (readyBtn) {
+            readyBtn.disabled = !ctx.session || ctx.viewerReady || Boolean(ctx.status?.started);
+            readyBtn.textContent = ctx.viewerReady ? 'Ready' : 'Start Match';
+        }
+        const chatInput = document.getElementById('lobbyChatInput');
+        if (chatInput) chatInput.disabled = !ctx.session;
+        renderLobbyChatLog();
+        let invite = document.getElementById('lobbyInviteLink');
+        if (ctx.status?.shareUrl) {
+            const inviteHtml = `Invite link: <a href="${escapeAttr(ctx.status.shareUrl)}">${escapeHtml(ctx.status.shareUrl)}</a>`;
+            if (invite) {
+                invite.innerHTML = inviteHtml;
+            } else {
+                invite = document.createElement('p');
+                invite.id = 'lobbyInviteLink';
+                invite.className = 'social-muted-inline';
+                invite.innerHTML = inviteHtml;
+                root.querySelector('.lobby-chat-compose')?.insertAdjacentElement('afterend', invite);
+            }
+        } else if (invite) {
+            invite.remove();
+        }
+    }
+
+    function renderLobbyWaitingRoom() {
+        const root = document.getElementById('lobbyWaitingRoot');
+        if (!root) return;
+        const ctx = lobbyWaitingContext();
+        const {
+            status,
+            session,
+            roomId,
+            isHost,
+            viewerReady,
+            deckOptions,
+            trainerOptions,
+            hostPlayer,
+            guestPlayer,
+            statusLabel
+        } = ctx;
+
+        root.innerHTML = `<div class="lobby-waiting-head">
+            <div>
+                <span class="eyebrow">1v1 Waiting Room</span>
+                <h1>${isHost ? 'My Arena' : escapeHtml(`${status?.hostName || 'Host'}'s Arena`)}</h1>
+                <span class="social-muted-inline">Room ${escapeHtml(roomId)} · ${escapeHtml(statusLabel)}</span>
+            </div>
+            <span class="lobby-status-pill">${status?.guestJoined ? '2 / 2' : '1 / 2'} players</span>
+        </div>
+        <div class="lobby-waiting-grid">
+            <section class="lobby-panel">
+                <div class="social-panel-head"><div><span class="eyebrow">Players</span><h2>Lobby roster</h2></div></div>
+                <div class="lobby-players">
+                    ${renderLobbyPlayerSlot(hostPlayer, 'Host')}
+                    ${guestPlayer ? renderLobbyPlayerSlot(guestPlayer, 'Guest') : renderLobbyPlayerSlot({ name: 'Waiting for player...', ready: false }, 'Open slot', true)}
+                </div>
+                <form class="lobby-loadout-form" id="lobbyLoadoutForm">
+                    <label>Deck<select class="search-input" id="lobbyDeckSelect" ${viewerReady || status?.started ? 'disabled' : ''}>${deckOptions}</select></label>
+                    <label>Knight<select class="search-input" id="lobbyTrainerSelect" ${viewerReady || status?.started ? 'disabled' : ''}>${trainerOptions}</select></label>
+                </form>
+                <div class="lobby-actions-row">
+                    <button class="primary-btn" id="lobbyReadyBtn" type="button" ${!session || viewerReady || status?.started ? 'disabled' : ''}>${viewerReady ? 'Ready' : 'Start Match'}</button>
+                    <button class="ghost-btn" id="lobbyLeaveBtn" type="button">Back to Lobbies</button>
+                    ${isHost ? '<button class="ghost-btn" id="lobbyCloseBtn" type="button">Close Lobby</button>' : ''}
+                </div>
+            </section>
+            <section class="lobby-panel">
+                <div class="social-panel-head"><div><span class="eyebrow">Lobby Chat</span><h2>Say hello</h2></div></div>
+                <div class="lobby-chat-log" id="lobbyChatLog">${lobbyChatLogHtml(status?.lobbyChat)}</div>
+                <form class="lobby-chat-compose" id="lobbyChatForm">
+                    <input class="search-input" id="lobbyChatInput" type="text" maxlength="120" placeholder="Message the lobby" ${session ? '' : 'disabled'}>
+                    <button class="primary-btn" type="submit">Send</button>
+                </form>
+                ${status?.shareUrl ? `<p class="social-muted-inline" id="lobbyInviteLink">Invite link: <a href="${escapeAttr(status.shareUrl)}">${escapeHtml(status.shareUrl)}</a></p>` : ''}
+            </section>
+        </div>`;
+
+        const chatLog = document.getElementById('lobbyChatLog');
+        if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
+        bindLobbyWaitingRoomControls();
+    }
+
+    function renderLobbyPlayerSlot(player, label, empty = false) {
+        const ready = Boolean(player?.ready);
+        return `<article class="lobby-player-card${ready ? ' ready' : ''}${empty ? ' empty' : ''}">
+            <strong>${escapeHtml(player?.name || label)}</strong>
+            <span>${empty ? 'Invite a friend or share your link' : (ready ? 'Ready to battle' : 'Choosing loadout')}</span>
+        </article>`;
+    }
+
+    async function confirmLobbyReady() {
+        const session = currentLobbySession();
+        if (!session || state.lobbyBusy) return;
+        const deckId = document.getElementById('lobbyDeckSelect')?.value || selectedDeckId();
+        const trainerId = document.getElementById('lobbyTrainerSelect')?.value || selectedTrainerId();
+        state.lobbyBusy = true;
+        try {
+            const data = await fetchJson('/api/match/ready', {
+                method: 'POST',
+                headers: {
+                    'X-Room-Id': session.roomId,
+                    'X-Player-Token': session.playerToken
+                },
+                body: JSON.stringify({
+                    roomId: session.roomId,
+                    playerName: socialBattleName(),
+                    deckId,
+                    trainerId,
+                    loadoutLabel: ''
+                })
+            });
+            if (data?.error) {
+                alert(data.error);
+                return;
+            }
+            state.lobbyStatus = data;
+            if (data.started) {
+                launchOnlineBattleFromSocial(session, data);
+                return;
+            }
+            renderLobbyWaitingRoom();
+        } finally {
+            state.lobbyBusy = false;
+        }
+    }
+
+    async function sendLobbyChat() {
+        const session = currentLobbySession();
+        const input = document.getElementById('lobbyChatInput');
+        const message = input?.value?.trim();
+        if (!session || !message) return;
+        const data = await fetchJson('/api/match/lobby-chat', {
+            method: 'POST',
+            headers: {
+                'X-Room-Id': session.roomId,
+                'X-Player-Token': session.playerToken
+            },
+            body: JSON.stringify({ roomId: session.roomId, message })
+        });
+        if (data?.error) {
+            alert(data.error);
+            return;
+        }
+        if (input) input.value = '';
+        if (state.lobbyStatus) {
+            state.lobbyStatus.lobbyChat = data.lobbyChat || [];
+        }
+        renderLobbyChatLog();
+    }
+
+    async function leaveLobbyWaitingRoom() {
+        const session = currentLobbySession();
+        stopLobbyPolling();
+        if (session?.role === 'guest' && session.roomId && session.playerToken && !state.lobbyStatus?.started) {
+            try {
+                await fetchJson('/api/match/leave', {
+                    method: 'POST',
+                    headers: {
+                        'X-Room-Id': session.roomId,
+                        'X-Player-Token': session.playerToken
+                    },
+                    body: JSON.stringify({ roomId: session.roomId })
+                });
+            } catch (error) {
+                console.warn('Unable to leave lobby', error);
+            }
+        }
+        clearLobbySession();
+        state.lobbyRoomId = null;
+        navigateHub('social');
+        void refreshRooms(true);
+    }
+
+    function startLobbyPolling() {
+        stopLobbyPolling();
+        state.lobbyPollTimer = window.setInterval(() => {
+            void pollLobbyStatusOnce();
+        }, LOBBY_POLL_MS);
+    }
+
+    function stopLobbyPolling() {
+        if (!state.lobbyPollTimer) return;
+        window.clearInterval(state.lobbyPollTimer);
+        state.lobbyPollTimer = null;
+    }
+
+    async function pollLobbyStatusOnce() {
+        const session = currentLobbySession();
+        if (!session) return;
+        const status = await fetchMatchStatus(session);
+        if (!status || status.error) {
+            if (status?.error) {
+                alert(status.error);
+                leaveLobbyWaitingRoom();
+            }
+            return;
+        }
+        state.lobbyStatus = status;
+        if (status.started) {
+            launchOnlineBattleFromSocial(session, status);
+            return;
+        }
+        if (isLobbyChatInputFocused()) {
+            updateLobbyWaitingRoom();
+        } else {
+            renderLobbyWaitingRoom();
+        }
     }
 
     function saveMultiplayerSession(session) {
@@ -3576,11 +4720,16 @@
         });
         if (data?.error) return alert(data.error);
         localStorage.removeItem(HOST_LOBBY_KEY);
+        clearLobbySession();
         state.hostLobbyStatus = null;
         state.battleRedirectPending = false;
         stopHostLobbyPolling();
+        stopLobbyPolling();
         await refreshRooms(true);
         renderSocialActiveLobby();
+        if (state.route === 'lobby') {
+            navigateHub('social');
+        }
     }
 
     function startSocialPolling() {
@@ -3596,6 +4745,20 @@
         }
     }
 
+    function startPresenceHeartbeat() {
+        stopPresenceHeartbeat();
+        if (!state.profile?.authenticated) return;
+        void sendPresenceHeartbeat();
+        state.presenceTimer = window.setInterval(() => sendPresenceHeartbeat(), PRESENCE_HEARTBEAT_MS);
+    }
+
+    function stopPresenceHeartbeat() {
+        if (state.presenceTimer) {
+            window.clearInterval(state.presenceTimer);
+            state.presenceTimer = null;
+        }
+    }
+
     async function refreshSocialData(forceRooms) {
         if (!state.profile?.authenticated) {
             state.friendPresence = {};
@@ -3604,8 +4767,9 @@
             renderMessageThreads();
             return;
         }
+        await syncProfile();
         await Promise.all([
-            refreshRooms(forceRooms),
+            refreshRooms(state.route === 'social' ? true : forceRooms),
             refreshFriendPresence(),
             refreshMessageThreads(),
             sendPresenceHeartbeat()
@@ -3614,6 +4778,7 @@
             await checkHostLobbyForBattle();
         }
         renderFriends();
+        renderFriendRequests();
         renderMessageThreads();
         renderSocialActiveLobby();
     }
@@ -3636,6 +4801,7 @@
         const map = {};
         (data.friends || []).forEach(row => {
             if (row.userId) map[row.userId] = row;
+            if (row.email) map[row.email] = row;
         });
         state.friendPresence = map;
     }
@@ -3675,6 +4841,30 @@
         }
     }
 
+    function chatMessageSenderLabel(message, peerId) {
+        if (message?.mine) return 'You';
+        const senderId = message?.senderId || peerId;
+        const friend = (state.profile?.friends || []).find(row => row.email === senderId);
+        if (friend?.displayName) return friend.displayName;
+        const peer = (state.profile?.friends || []).find(row => row.email === peerId);
+        return peer?.displayName || senderId || 'Friend';
+    }
+
+    function renderChatMessageBubble(message, peerId) {
+        const sender = chatMessageSenderLabel(message, peerId);
+        const when = message?.createdAt ? formatDateTime(message.createdAt) : '';
+        const timeMarkup = when
+            ? `<time class="message-bubble-time" datetime="${escapeAttr(message.createdAt)}">${escapeHtml(when)}</time>`
+            : '';
+        return `<div class="message-bubble ${message.mine ? 'mine' : 'theirs'}">
+            <div class="message-bubble-meta">
+                <span class="message-bubble-sender">${escapeHtml(sender)}</span>
+                ${timeMarkup}
+            </div>
+            <div class="message-bubble-text">${escapeHtml(message.text || '')}</div>
+        </div>`;
+    }
+
     async function openMessageComposer(peerId, focusInput = true) {
         if (!state.profile?.authenticated) return openAuth();
         state.activeChatPeer = peerId;
@@ -3685,13 +4875,14 @@
         if (title) title.textContent = `Chat with ${friend?.displayName || peerId}`;
         compose?.classList.remove('hidden');
         const data = await fetchJson(`/api/social/messages/with/${encodeURIComponent(peerId)}`);
-        if (data?.error) {
-            if (log) log.innerHTML = `<div class="social-empty-state">${escapeHtml(data.error)}</div>`;
+        if (!data || data?.error) {
+            const message = data?.error || 'Could not load this chat.';
+            if (log) log.innerHTML = `<div class="social-empty-state">${escapeHtml(message)}</div>`;
             return;
         }
         if (log) {
             log.innerHTML = (data.messages || []).length
-                ? data.messages.map(message => `<div class="message-bubble ${message.mine ? 'mine' : 'theirs'}">${escapeHtml(message.text)}</div>`).join('')
+                ? data.messages.map(message => renderChatMessageBubble(message, peerId)).join('')
                 : '<div class="social-empty-state"><span>Say hello to start the conversation.</span></div>';
             log.scrollTop = log.scrollHeight;
         }
@@ -3715,72 +4906,154 @@
         await openMessageComposer(state.activeChatPeer, false);
     }
 
-    async function openPlayerProfile(userId) {
-        const modal = document.getElementById('viewProfileModal');
-        const body = document.getElementById('viewProfileBody');
-        if (!modal || !body) return;
-        const data = await fetchJson(`/api/social/players/${encodeURIComponent(userId)}/profile`).catch(() => ({ error: 'Could not load this profile.' }));
-        if (data?.error) {
-            body.innerHTML = `<div class="view-profile-modal-head">
-                    <div><span class="eyebrow">Player Profile</span><h2 id="viewProfileTitle">Profile unavailable</h2></div>
-                    <button class="ghost-btn compact-btn" type="button" id="closeViewProfileBtn">Close</button>
+    function publicProfileViewModel(data) {
+        const prefs = {
+            ...defaultProfilePrefs({ displayName: data.profileSettings?.displayName || 'Player' }),
+            ...(data.profileSettings || {})
+        };
+        const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
+        prefs.favoriteElement = favoriteElement;
+        const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
+        const stats = data.stats || {};
+        const battles = (data.recentMatches || []).map((row, index) => normalizeBattle(row, favoriteElement, index));
+        const record = battleRecord(battles);
+        const level = Math.max(1, Number(stats.level) || Math.floor((stats.ownedTotal || 0) / 12) + 1);
+        return { prefs, theme, stats, battles, record, level, data };
+    }
+
+    function renderPublicProfileHero(view) {
+        const { prefs, theme, data } = view;
+        const presence = data.presence || {};
+        const statusLabel = presence.online ? String(presence.status || 'ONLINE').replace('_', ' ') : 'Offline';
+        return `<section class="profile-hero profile-hero-neutral">
+            <div class="profile-hero-content">
+                <div class="profile-avatar-wrap">
+                    ${renderPlayerAvatar(prefs, 'profile-avatar')}
+                    <span class="profile-level">LV ${view.level}</span>
                 </div>
-                <p class="profile-muted">${escapeHtml(data.error || 'This player could not be found.')}</p>`;
-            modal.classList.remove('hidden');
-            document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
-            return;
-        }
-        state.viewingProfile = data;
-        const prefs = data.profileSettings || {};
-        const myEmail = state.profile?.user?.email || '';
-        const isSelf = Boolean(myEmail && String(myEmail).toLowerCase() === String(userId).toLowerCase());
-        const theme = elementThemes[normalizeProfileElement(prefs.favoriteElement)] || elementThemes.Fire;
-        body.innerHTML = `<div class="view-profile-modal-head">
-            <div>
-                <span class="eyebrow">Player Profile</span>
-                <h2 id="viewProfileTitle">${escapeHtml(prefs.displayName || userId)}</h2>
-                <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
-            </div>
-            <button class="ghost-btn compact-btn" type="button" id="closeViewProfileBtn">Close</button>
-        </div>
-        <div class="profile-dashboard" style="${profileThemeStyle(theme)}">
-            <section class="profile-hero profile-hero-neutral">
-                <div class="profile-hero-content">
-                    <div class="profile-avatar-wrap">${renderPlayerAvatar(prefs, 'profile-avatar')}</div>
-                    <div class="profile-identity">
+                <div class="profile-identity">
+                    <div class="profile-hero-topline">
                         ${renderElementBadge(prefs.favoriteElement)}
-                        <p class="profile-bio">${escapeHtml(prefs.bio || '')}</p>
-                        <p class="profile-muted">Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling || '—')}</p>
-                        <p class="profile-muted">${escapeHtml(prefs.preferredCardBack || '')} card back</p>
-                        <p class="profile-muted">Status: ${escapeHtml((data.presence?.online ? data.presence.status : 'OFFLINE').replace('_', ' '))}</p>
+                        <span class="profile-soft-pill">${escapeHtml(statusLabel)}</span>
                     </div>
+                    <h2>${escapeHtml(prefs.displayName || data.userId || 'Player')}</h2>
+                    <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
+                    <p class="profile-bio">${escapeHtml(prefs.bio || '')}</p>
+                    <p class="profile-muted">Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling || '—')}</p>
+                    <p class="profile-muted">${escapeHtml(prefs.preferredCardBack || '')} card back</p>
                 </div>
-            </section>
-            <section class="profile-stat-grid">
-                ${renderStatCard('Cards Owned', data.stats?.ownedTotal ?? 0, 'Total copies')}
-                ${renderStatCard('Unique Cards', data.stats?.uniqueOwned ?? 0, 'Discovered')}
-                ${renderStatCard('Coins', data.stats?.gold ?? 0, 'Wallet')}
-                ${renderStatCard('Level', data.stats?.level ?? 1, 'Collector rank')}
-            </section>
-            ${data.isFriend ? `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileMessageBtn">Message</button>
-            </div>` : isSelf ? '<p class="profile-muted">This is your own profile. Share it from Options to let others add you.</p>'
-                : `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAddFriendBtn">Add Friend</button>
-            </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`}
+            </div>
+        </section>`;
+    }
+
+    function renderPublicProfileStats(view) {
+        const { stats, record } = view;
+        const cards = [
+            ['Cards Owned', stats.ownedTotal ?? 0, 'Total copies'],
+            ['Unique Cards', stats.uniqueOwned ?? 0, 'Discovered'],
+            ['Coins', stats.gold ?? 0, 'Wallet'],
+            ['Wins', record.wins, 'Recorded matches'],
+            ['Losses', record.losses, 'Recorded matches'],
+            ['Win Rate', `${record.winRate}%`, 'Recent record']
+        ];
+        return `<section class="profile-stat-grid">${cards.map(([label, value, hint]) => renderStatCard(label, value, hint)).join('')}</section>`;
+    }
+
+    function renderPublicProfileActions(view) {
+        const data = view.data;
+        const userId = data.userId;
+        const myEmail = normalizePlayerId(state.profile?.user?.email);
+        const isSelf = Boolean(myEmail && myEmail === normalizePlayerId(userId));
+        if (isSelf) {
+            return '<p class="profile-muted">This is your profile. Use Edit Profile on your account page to make changes.</p>';
+        }
+        if (data.isFriend) {
+            return `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" data-public-profile-message>Message</button>
+            </div>`;
+        }
+        if (data.incomingFriendRequest) {
+            return `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" data-public-profile-accept>Accept Request</button>
+                <button class="ghost-btn profile-theme-btn" type="button" data-public-profile-deny>Decline</button>
+            </div><p class="profile-muted" id="publicProfileFriendMsg"></p>`;
+        }
+        if (data.outgoingFriendRequest) {
+            return '<p class="profile-muted">Friend request sent. Waiting for them to accept.</p>';
+        }
+        return `<div class="profile-edit-actions">
+            <button class="primary-btn profile-theme-btn" type="button" data-public-profile-add-friend>Send Friend Request</button>
+        </div><p class="profile-muted" id="publicProfileFriendMsg"></p>`;
+    }
+
+    function renderPublicProfilePageHtml(view) {
+        return `<div class="profile-dashboard public-profile-page" style="${profileThemeStyle(view.theme)}">
+            <div class="public-profile-toolbar">
+                <button class="ghost-btn compact-btn" type="button" data-public-profile-back>← Back</button>
+            </div>
+            ${renderPublicProfileHero(view)}
+            ${renderPublicProfileStats(view)}
+            ${view.battles.length ? renderBattleRecordPanel(view) : ''}
+            ${view.battles.length
+                ? renderBattleHistoryList(view)
+                : `<section class="profile-panel"><p class="profile-muted">${view.data.isFriend ? 'No recorded battles yet.' : 'Recent battles are visible once you are friends.'}</p></section>`}
+            ${renderPublicProfileActions(view)}
         </div>`;
-        modal.classList.remove('hidden');
-        document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
-        document.getElementById('viewProfileMessageBtn')?.addEventListener('click', () => {
-            closePlayerProfile();
+    }
+
+    function bindPublicProfilePage(view) {
+        const body = document.getElementById('profileSectionBody');
+        if (!body) return;
+        const userId = view.data.userId;
+        body.querySelector('[data-public-profile-back]')?.addEventListener('click', () => {
+            if (state.profile?.authenticated) {
+                navigateHub('profile');
+            } else {
+                navigateHub('social');
+            }
+        });
+        body.querySelector('[data-public-profile-message]')?.addEventListener('click', () => {
             navigateHub('social');
             openMessageComposer(userId);
         });
-        document.getElementById('viewProfileAddFriendBtn')?.addEventListener('click', () => addFriendByEmail(userId));
+        body.querySelector('[data-public-profile-add-friend]')?.addEventListener('click', () => addFriendByEmail(userId, 'publicProfileFriendMsg'));
+        body.querySelector('[data-public-profile-accept]')?.addEventListener('click', async () => {
+            await respondToFriendRequest(userId, 'accept');
+            void loadPublicProfilePage(userId);
+        });
+        body.querySelector('[data-public-profile-deny]')?.addEventListener('click', async () => {
+            await respondToFriendRequest(userId, 'deny');
+            navigateHub('profile');
+        });
     }
 
-    async function addFriendByEmail(email) {
-        const msg = document.getElementById('viewProfileFriendMsg');
+    async function loadPublicProfilePage(userId) {
+        const normalized = normalizePlayerId(userId);
+        const body = document.getElementById('profileSectionBody');
+        if (!body || state.profileUserId !== normalized) return;
+        const data = await fetchJson(`/api/social/players/${encodeURIComponent(normalized)}/profile`).catch(() => ({ error: 'Could not load this profile.' }));
+        if (state.profileUserId !== normalized) return;
+        if (data?.error) {
+            body.innerHTML = `<div class="profile-dashboard public-profile-page">
+                <div class="public-profile-toolbar">
+                    <button class="ghost-btn compact-btn" type="button" data-public-profile-back>← Back</button>
+                </div>
+                <p class="profile-muted">${escapeHtml(data.error || 'This player could not be found.')}</p>
+            </div>`;
+            body.querySelector('[data-public-profile-back]')?.addEventListener('click', () => navigateHub(state.profile?.authenticated ? 'profile' : 'social'));
+            return;
+        }
+        const view = publicProfileViewModel(data);
+        body.innerHTML = renderPublicProfilePageHtml(view);
+        bindPublicProfilePage(view);
+    }
+
+    function openPlayerProfile(userId) {
+        navigateToPlayerProfile(userId);
+    }
+
+    async function addFriendByEmail(email, messageElementId = 'viewProfileFriendMsg') {
+        const msg = document.getElementById(messageElementId);
         if (!state.profile?.authenticated) {
             closePlayerProfile();
             openAuth();
@@ -3793,10 +5066,12 @@
         }
         state.profile = data;
         state.progression = data.progression || state.progression;
-        const btn = document.getElementById('viewProfileAddFriendBtn');
-        if (btn) { btn.textContent = 'Friend Added'; btn.disabled = true; }
-        if (msg) { msg.textContent = 'Added to your friends list.'; msg.style.color = ''; }
+        const btn = document.getElementById('viewProfileAddFriendBtn')
+            || document.querySelector('[data-public-profile-add-friend]');
+        if (btn) { btn.textContent = 'Request Sent'; btn.disabled = true; }
+        if (msg) { msg.textContent = 'They will need to accept before you can message.'; msg.style.color = ''; }
         renderFriends();
+        renderFriendRequests();
     }
 
     function closePlayerProfile() {
@@ -3927,7 +5202,7 @@
         } else if (view === 'share') {
             const email = state.profile?.user?.email || '';
             const authed = Boolean(state.profile?.authenticated && email);
-            const link = authed ? `${location.origin}/home?profile=${encodeURIComponent(email)}` : '';
+            const link = authed ? `${location.origin}${playerProfilePath(email)}` : '';
             let qrMarkup = '<p class="guide-note">Sign in to generate your shareable profile code.</p>';
             if (authed) {
                 if (typeof qrcode === 'function') {

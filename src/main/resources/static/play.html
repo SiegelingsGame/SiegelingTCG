@@ -266,7 +266,7 @@
                 <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
                 <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
                 <button class="ab-icon" id="btnMuteSound" onclick="toggleSieglingsMute()" title="Toggle Sound" aria-label="Toggle Sound">&#128266;</button>
-                <button class="ab-icon" onclick="openLoadoutSelector()" title="New Game">&#9654;</button>
+                <button class="ab-icon" id="btnQuitOrNewGame" onclick="handleQuitOrNewGame()" title="New Game" type="button">&#9654;</button>
             </div>
         </div>
 
@@ -484,12 +484,24 @@
     <div class="tt-ability" id="ttAbility"></div>
 </div>
 
+<!-- Match notice (opponent quit, returned home, etc.) -->
+<div class="match-notice-toast" id="matchNoticeToast" hidden aria-live="polite"></div>
+
 <!-- Game Over Overlay -->
 <div class="game-over-overlay" id="gameOverOverlay">
     <div class="game-over-box">
         <h2 id="gameOverTitle">GAME OVER</h2>
         <p id="gameOverMsg"></p>
-        <button class="btn btn-primary" onclick="openLoadoutSelector()">Play Again</button>
+        <p class="game-over-subtext" id="gameOverSubtext"></p>
+        <div class="game-over-stats" id="gameOverStats"></div>
+        <div class="game-over-rewards" id="gameOverRewards"></div>
+        <div class="game-over-record" id="gameOverRecord"></div>
+        <p class="game-over-rematch-status" id="gameOverRematchStatus"></p>
+        <div class="game-over-actions">
+            <button class="btn btn-primary" type="button" id="btnGameOverRematch" onclick="requestRematch()" hidden>Rematch</button>
+            <button class="btn" type="button" id="btnGameOverPlayAgain" onclick="openLoadoutSelector()" hidden>Play Again</button>
+            <button class="btn" type="button" id="btnGameOverMainMenu" onclick="leaveEndScreenToHome()" hidden>Main Menu</button>
+        </div>
     </div>
 </div>
 
@@ -569,6 +581,7 @@
             <div class="loadout-toggle-label">Deck Source</div>
             <div class="loadout-tabs" role="group" aria-label="Deck Source">
                 <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Preset Decks</button>
+                <button class="loadout-tab" id="savedTab" type="button" onclick="switchLoadoutMode('saved')" aria-pressed="false">My Decks</button>
                 <button class="loadout-tab" id="builderTab" type="button" onclick="switchLoadoutMode('builder')" aria-pressed="false">Deck Builder</button>
             </div>
         </div>
@@ -582,6 +595,16 @@
                         </div>
                     </div>
                     <div id="deckOptions" class="loadout-options"></div>
+                </div>
+                <div id="savedLoadoutPanel" class="loadout-section hidden">
+                    <div class="loadout-section-title-row">
+                        <div>
+                            <div class="loadout-section-kicker">Deck Binder</div>
+                            <h3>Choose a Saved Deck</h3>
+                        </div>
+                    </div>
+                    <p class="loadout-saved-note" id="savedDeckLoadoutNote">Decks you saved on the home Decks screen appear here.</p>
+                    <div id="savedDeckOptions" class="loadout-options"></div>
                 </div>
                 <div id="builderLoadoutPanel" class="loadout-section hidden">
                     <div class="builder-toolbar">
@@ -640,6 +663,15 @@
     </div>
 </div>
 
+<div class="coin-flip-overlay hidden" id="coinFlipOverlay" aria-live="polite">
+    <div class="coin-flip-box">
+        <div class="loadout-kicker">Turn Order</div>
+        <div class="coin-flip-coin" id="coinFlipAnim" aria-hidden="true"></div>
+        <h2 id="coinFlipTitle">Flipping coin...</h2>
+        <p class="loadout-copy" id="coinFlipCopy">Deciding who goes first.</p>
+    </div>
+</div>
+
 <div class="mulligan-overlay" id="mulliganOverlay">
     <div class="mulligan-box">
         <div class="loadout-kicker">Opening Hand</div>
@@ -670,7 +702,7 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=129"></script>
+    <script src="/js/game.js?v=131"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
     <script src="/js/action-queue.js?v=23"></script>

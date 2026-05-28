@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/home.css?v=36">
+    <link rel="stylesheet" href="/css/home.css?v=41">
 </head>
 <body>
 <div class="home-shell">
@@ -67,15 +67,36 @@
             </section>
 
             <section class="browser-panel panel hidden" id="decksSection">
-                <div class="section-head"><div><span class="eyebrow">Decks</span><h1>Premade decks and custom builds</h1></div><button class="primary-btn" id="saveCustomDeckBtn" type="button">Save Custom Deck</button></div>
-                <div class="deck-builder-lock" id="deckBuilderLock"></div>
-                <div class="deck-grid" id="deckGrid"></div>
-                <div class="builder-panel" id="builderPanel"></div>
-                <div class="builder-catalog-panel" id="builderCatalogPanel"></div>
-                <div class="builder-browser">
-                    <div class="section-head"><div><span class="eyebrow">Deck Binder</span><h2>Saved custom decks</h2></div><span id="deckCardCount"></span></div>
+                <div class="section-head"><div><span class="eyebrow">Decks</span><h1>Premade and custom decks</h1></div></div>
+                <div class="decks-browser-block">
+                    <div class="section-head decks-row-head">
+                        <div><span class="eyebrow">Premade</span><h2>Official battle decks</h2></div>
+                    </div>
+                    <div class="deck-grid" id="deckGrid"></div>
+                </div>
+                <div class="decks-browser-block builder-browser">
+                    <div class="section-head decks-row-head">
+                        <div><span class="eyebrow">Custom</span><h2>Your saved decks</h2></div>
+                        <div class="decks-row-actions">
+                            <span id="deckCardCount"></span>
+                            <button class="primary-btn" type="button" id="createCustomDeckBtn">Create Custom Deck</button>
+                        </div>
+                    </div>
                     <div class="deck-grid custom-deck-grid" id="customDeckGrid"></div>
                 </div>
+            </section>
+
+            <section class="browser-panel panel hidden" id="deckBuilderSection">
+                <div class="section-head deck-builder-page-head">
+                    <div>
+                        <button class="ghost-btn deck-builder-back-btn" type="button" id="deckBuilderBackBtn">Back to Decks</button>
+                        <span class="eyebrow">Deck Builder</span>
+                        <h1 id="deckBuilderPageTitle">Build a custom deck</h1>
+                    </div>
+                    <button class="primary-btn" type="button" id="saveDeckBuilderPageBtn">Save Deck</button>
+                </div>
+                <div class="deck-builder-lock" id="deckBuilderLock"></div>
+                <div class="deck-builder-page" id="deckBuilderPage"></div>
             </section>
 
             <section class="browser-panel panel hidden social-section" id="socialSection">
@@ -86,7 +107,7 @@
                                 <div><span class="eyebrow">Open Lobbies</span><h2>Find a 1v1 table</h2></div>
                                 <span class="social-soft-pill" id="roomCountLabel">0 open</span>
                             </div>
-                            <p class="social-muted">Create and host 1v1 tables here. Share your invite link — anyone on that URL can see the lobby and join to start a Play battle.</p>
+                            <p class="social-muted">Create and host 1v1 tables here. Share your invite link — opponents join the waiting room, pick decks and knights, then both hit Start Match.</p>
                             <button class="social-create-btn" id="socialCreateLobbyBtn" type="button"><span>+</span>Create 1v1 Lobby</button>
                             <div class="filter-label">Filters</div>
                             <select class="search-input" id="roomFormatFilter">
@@ -125,7 +146,7 @@
                             <div class="social-panel-head"><div><span class="eyebrow">How It Works</span><h2>Table flow</h2></div></div>
                             <ol>
                                 <li><span>1</span>Create a lobby on Social or open an invite link</li>
-                                <li><span>2</span>Join with your deck — the match opens on Play</li>
+                                <li><span>2</span>Join the waiting room, pick your deck and knight, then both confirm</li>
                                 <li><span>3</span>Battle for coins and rank</li>
                             </ol>
                         </section>
@@ -156,11 +177,18 @@
                             <input class="search-input" id="friendSearchInput" type="search" placeholder="Search friends...">
                             <div class="friend-list" id="friendList"></div>
                         </section>
+                        <section class="social-panel social-card" id="friendRequestsPanel">
+                            <div class="social-panel-head">
+                                <div><span class="eyebrow">Requests</span><h2>Pending invites</h2></div>
+                                <span class="social-soft-pill" id="friendRequestCountLabel">0 pending</span>
+                            </div>
+                            <div class="friend-request-list" id="friendRequestList"></div>
+                        </section>
                         <section class="social-panel social-card">
-                            <div class="social-panel-head"><div><span class="eyebrow">Add Friend</span><h2>Invite a player</h2></div></div>
+                            <div class="social-panel-head"><div><span class="eyebrow">Add Friend</span><h2>Send a request</h2></div></div>
                             <form class="friend-add-row" id="friendAddForm">
                                 <input class="search-input" id="friendEmailInput" type="email" placeholder="friend@email.com">
-                                <button class="primary-btn" type="submit">Add</button>
+                                <button class="primary-btn" type="submit">Send Request</button>
                             </form>
                             <div class="friend-message" id="friendMessage"></div>
                         </section>
@@ -185,6 +213,10 @@
                         </section>
                     </aside>
                 </div>
+            </section>
+
+            <section class="browser-panel panel hidden lobby-section" id="lobbySection">
+                <div class="lobby-waiting-root" id="lobbyWaitingRoot"></div>
             </section>
 
             <section class="browser-panel panel hidden" id="profileSection">
@@ -255,13 +287,28 @@
                 </div>
                 <button class="ghost-btn" id="closeDeckPreviewBtn" type="button">Close</button>
             </div>
-            <div class="card-grid deck-preview-grid" id="deckPreviewGrid"></div>
+            <div class="deck-preview-body">
+                <aside class="deck-preview-stack-panel" aria-label="Deck list">
+                    <div class="deck-preview-stack-head">
+                        <span class="eyebrow">Decklist</span>
+                        <strong id="deckPreviewStackTotal">0 cards</strong>
+                    </div>
+                    <div class="deck-preview-stack" id="deckPreviewStack"></div>
+                </aside>
+                <div class="deck-preview-main">
+                    <div class="deck-preview-main-head">
+                        <span class="eyebrow">Card Gallery</span>
+                    </div>
+                    <div class="card-grid deck-preview-grid" id="deckPreviewGrid"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script src="/js/qrcode-vendor.js?v=1"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
-<script src="/js/home.js?v=44"></script>
+<script src="/js/card-binder-visual.js?v=1"></script>
+<script src="/js/home.js?v=50"></script>
 </body>
 </html>

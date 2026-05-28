@@ -252,7 +252,30 @@ final class ManualSieglingCatalog {
             card.setEvolvesFromName(normalizeBlank(definition.evolvesFromName()));
         }
 
+        applyCardArt(card, definition);
+
         return card;
+    }
+
+    private static void applyCardArt(Card card, ManualSieglingDefinition definition) {
+        if (definition.cardArtUrl() != null) {
+            card.setCardArtUrl(normalizeBlank(definition.cardArtUrl()));
+        }
+        if (definition.cardArtMode() != null) {
+            card.setCardArtMode(normalizeBlank(definition.cardArtMode()));
+        }
+        if (definition.cardArtOffsetX() != null) {
+            card.setCardArtOffsetX(definition.cardArtOffsetX());
+        }
+        if (definition.cardArtOffsetY() != null) {
+            card.setCardArtOffsetY(definition.cardArtOffsetY());
+        }
+        if (definition.cardArtScale() != null) {
+            card.setCardArtScale(definition.cardArtScale());
+        }
+        if (definition.cardArtRotation() != null) {
+            card.setCardArtRotation(definition.cardArtRotation());
+        }
     }
 
     private static void applySieglingMoveDefinition(SieglingCard card, String id,
@@ -327,6 +350,8 @@ final class ManualSieglingCatalog {
             card.setAbility(mergeAbility(card.getAbility(), abilityDefinition));
         }
 
+        applyCardArt(card, definition);
+
         return card;
     }
 
@@ -362,6 +387,8 @@ final class ManualSieglingCatalog {
         if (abilityDefinition != null) {
             card.setAbility(mergeAbility(card.getAbility(), abilityDefinition));
         }
+
+        applyCardArt(card, definition);
 
         return card;
     }
@@ -480,6 +507,8 @@ final class ManualSieglingCatalog {
         card.setEvolvesFromName(source.getEvolvesFromName());
         card.setMoveIds(source.getMoveIds() == null ? new ArrayList<>() : new ArrayList<>(source.getMoveIds()));
         card.setAbility(source.getAbility() == null ? null : source.getAbility().copy());
+        card.setCardArtUrl(source.getCardArtUrl());
+        card.setCardArtMode(source.getCardArtMode());
         return card;
     }
 
@@ -509,6 +538,7 @@ final class ManualSieglingCatalog {
             if (!ids.add(id)) {
                 throw new IllegalStateException("Duplicate manual Siegling definition id '" + id + "'.");
             }
+            validateCardArtForStorage(definition);
         }
 
         for (Element element : Element.values()) {
@@ -525,6 +555,24 @@ final class ManualSieglingCatalog {
     private static void requireField(boolean valid, String id, String fieldName) {
         if (!valid) {
             throw new IllegalStateException("Manual card definition '" + id + "' is missing required field '" + fieldName + "'.");
+        }
+    }
+
+    static void validateCardArtForStorage(ManualSieglingDefinition definition) {
+        String cardArtUrl = definition.cardArtUrl();
+        if (cardArtUrl == null || cardArtUrl.isBlank()) {
+            return;
+        }
+        String trimmed = cardArtUrl.trim();
+        String cardId = normalizeId(definition.id());
+        if (trimmed.regionMatches(true, 0, "data:", 0, 5)) {
+            throw new IllegalArgumentException("Card '" + cardId + "' uses an embedded image upload (data URL). "
+                    + "Use Upload Image in the dashboard or set cardArtUrl to a path like /assets/cards/" + cardId + ".png. "
+                    + "Firestore cannot store large embedded images in the live card catalog.");
+        }
+        if (trimmed.length() > 2048) {
+            throw new IllegalArgumentException("Card '" + cardId + "' cardArtUrl is too long for Firestore ("
+                    + trimmed.length() + " characters). Host the image under /assets/cards/ and store only the path.");
         }
     }
 
@@ -598,7 +646,13 @@ final class ManualSieglingCatalog {
                     null,
                     null,
                     moveIds,
-                    null
+                    null,
+                    card.getCardArtUrl(),
+                    card.getCardArtMode(),
+                    card.getCardArtOffsetX(),
+                    card.getCardArtOffsetY(),
+                    card.getCardArtScale(),
+                    card.getCardArtRotation()
             );
         }
         if (card instanceof SpellCard spell) {
@@ -623,7 +677,13 @@ final class ManualSieglingCatalog {
                     spell.getRequiredComboSize() > 0 ? spell.getRequiredComboSize() : null,
                     normalizeBlank(spell.getRequiredComboSignature()),
                     null,
-                    List.of()
+                    List.of(),
+                    spell.getCardArtUrl(),
+                    spell.getCardArtMode(),
+                    spell.getCardArtOffsetX(),
+                    spell.getCardArtOffsetY(),
+                    spell.getCardArtScale(),
+                    spell.getCardArtRotation()
             );
         }
         if (card instanceof TrapCard trap) {
@@ -648,7 +708,13 @@ final class ManualSieglingCatalog {
                     null,
                     null,
                     null,
-                    List.of()
+                    List.of(),
+                    trap.getCardArtUrl(),
+                    trap.getCardArtMode(),
+                    trap.getCardArtOffsetX(),
+                    trap.getCardArtOffsetY(),
+                    trap.getCardArtScale(),
+                    trap.getCardArtRotation()
             );
         }
         throw new IllegalStateException("Unsupported card type for override export: " + card.getClass().getSimpleName());
@@ -725,7 +791,13 @@ final class ManualSieglingCatalog {
             Integer requiredComboSize,
             String requiredComboSignature,
             List<String> moveIds,
-            List<ManualAbilityDefinition> abilities
+            List<ManualAbilityDefinition> abilities,
+            String cardArtUrl,
+            String cardArtMode,
+            Double cardArtOffsetX,
+            Double cardArtOffsetY,
+            Double cardArtScale,
+            Double cardArtRotation
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)

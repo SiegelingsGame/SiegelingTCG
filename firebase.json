@@ -39,6 +39,10 @@
         "destination": "/home.html"
       },
       {
+        "source": "/social/lobby/**",
+        "destination": "/home.html"
+      },
+      {
         "source": "/cards",
         "destination": "/home.html"
       },
@@ -52,6 +56,10 @@
       },
       {
         "source": "/profile",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/profile/**",
         "destination": "/home.html"
       },
       {

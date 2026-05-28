@@ -55,6 +55,20 @@ public class PresenceService {
         return presenceStore.findByUserIds(friendUserIds);
     }
 
+    public void markOffline(AccountUser user) {
+        if (user == null || user.getId() == null) {
+            return;
+        }
+        UserPresenceEntity presence = presenceStore.findByUserId(user.getId()).orElse(null);
+        if (presence == null) {
+            return;
+        }
+        presence.setStatus("OFFLINE");
+        presence.setCurrentRoomId(null);
+        presence.setLastSeenAt(null);
+        presenceStore.save(presence);
+    }
+
     private String normalizeStatus(String status) {
         String normalized = status == null ? "ONLINE" : status.trim().toUpperCase(Locale.ROOT);
         return STATUSES.contains(normalized) ? normalized : "ONLINE";

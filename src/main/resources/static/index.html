@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/landing.css?v=17">
+    <link rel="stylesheet" href="/css/landing.css?v=18">
 </head>
 <body class="landing-body">
 
@@ -157,6 +157,15 @@
 </div>
 
 <script src="/js/landing-particles.js?v=5"></script>
-<script src="/js/landing.js?v=15"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
+<script src="/js/landing.js?v=16"></script>
+<script type="module" src="/js/legendary-viewport.js?v=18"></script>
 </body>
 </html>

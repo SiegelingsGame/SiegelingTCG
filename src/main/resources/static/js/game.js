@@ -50,6 +50,7 @@ let arenaSelection = null;
 let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
+let coinFlipDismissedRoomId = null;
 let handTouchGesture = null;
 /** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
 let cardDragSession = null;
@@ -83,7 +84,7 @@ const PENDING_HOME_LOADOUT_STORAGE_KEY = 'sieglingsPendingLoadout';
     }
     params.delete('room');
     const query = params.toString();
-    window.location.replace(`/social?room=${encodeURIComponent(room.trim().toUpperCase())}${query ? `&${query}` : ''}`);
+    window.location.replace(`/social/lobby/${encodeURIComponent(room.trim().toUpperCase())}${query ? `?${query}` : ''}`);
 })();
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
@@ -102,13 +103,37 @@ const LEADERBOARD_TABS = [
     { id: 'siegelingsDefeated', label: 'Siegelings' },
     { id: 'pvpWinRate', label: 'PVP W/L' }
 ];
+const LEADERBOARD_PERIODS = [
+    { id: 'daily', label: 'Daily' },
+    { id: 'weekly', label: 'Weekly' },
+    { id: 'monthly', label: 'Monthly' },
+    { id: 'year', label: 'Year' },
+    { id: 'allTime', label: 'All Time' }
+];
 let welcomeLeaderboardState = {
     tab: 'wins',
+    period: 'daily',
     data: null,
     loading: false,
     error: ''
 };
+
+function welcomeLeaderboardBoards() {
+    const data = welcomeLeaderboardState.data;
+    if (!data) {
+        return null;
+    }
+    const period = LEADERBOARD_PERIODS.some((entry) => entry.id === welcomeLeaderboardState.period)
+        ? welcomeLeaderboardState.period
+        : 'daily';
+    if (data.periods && data.periods[period]) {
+        return data.periods[period];
+    }
+    return period === 'daily' ? data.boards : null;
+}
 let authMode = 'login';
+let authRegisterStep = 'credentials';
+let registerDraft = { email: '', password: '' };
 let authState = {
     token: loadSavedAuthToken(),
     profile: null,
@@ -117,6 +142,8 @@ let authState = {
 };
 let selectedSavedDeckId = null;
 let lastProfileRefreshKey = '';
+let lastEndGameNoticeSeq = 0;
+let matchNoticeToastTimer = null;
 let socialOnlineLaunchRoomId = '';
 let playLobbyState = {
     active: false,
@@ -738,9 +765,34 @@ function buildCardArtMeta(entry) {
     };
 }
 
+function getDashboardCardArtMeta(card) {
+    if (!card) {
+        return null;
+    }
+    const url = String(card.cardArtUrl || '').trim();
+    const mode = String(card.cardArtMode || '').trim().toUpperCase();
+    if (!url || (mode !== 'REPLACE' && mode !== 'OVERLAY')) {
+        return null;
+    }
+    return {
+        url,
+        mode,
+        transformStyle: window.SieglingsCardBinderVisual?.buildArtTransformStyle(card) || ''
+    };
+}
+
 function getCardArtMeta(card) {
     if (!card) {
         return null;
+    }
+
+    const dashboardArt = getDashboardCardArtMeta(card);
+    if (dashboardArt?.url) {
+        return {
+            url: dashboardArt.url,
+            crop: dashboardArt.mode === 'REPLACE' ? 'illustration' : 'default',
+            transformStyle: dashboardArt.transformStyle
+        };
     }
 
     const candidates = [
@@ -769,7 +821,8 @@ function renderCardArt(card, variant, fallbackLabel = '') {
         const cropClass = artMeta.crop && artMeta.crop !== 'default'
             ? ` card-art-crop-${artMeta.crop}`
             : '';
-        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${artMeta.url}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"></div>`;
+        const styleAttr = artMeta.transformStyle ? ` style="${escapeHtmlAttribute(artMeta.transformStyle)}"` : '';
+        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${escapeHtmlAttribute(artMeta.url)}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
@@ -1324,21 +1377,55 @@ function ensureDomTargetingPreviewLayer() {
     return svg;
 }
 
-function getDomCellCenter(isPlayer, row, col) {
+// Resolve the rendered card's box (relative to the board area) for a given
+// cell. We anchor to the inner `.board-card` element rather than the `.board-cell`
+// so arrows attach to the visible card, not the larger padded grid slot (which
+// also contains the row tag). Falls back to the cell when no card is present.
+function getDomCardRect(isPlayer, row, col) {
     const boardArea = document.getElementById('boardArea');
     const grid = document.getElementById(isPlayer ? 'playerGrid' : 'enemyGrid');
     const cell = grid?.querySelector(`.board-cell[data-row="${row}"][data-col="${col}"]`);
     if (!boardArea || !cell) {
         return null;
     }
+    const anchor = cell.querySelector(':scope > .board-card') || cell;
     const areaRect = boardArea.getBoundingClientRect();
-    const cellRect = cell.getBoundingClientRect();
-    if (cellRect.width <= 0 || cellRect.height <= 0) {
+    const rect = anchor.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
         return null;
     }
     return {
-        x: (cellRect.left - areaRect.left) + (cellRect.width / 2),
-        y: (cellRect.top - areaRect.top) + (cellRect.height / 2)
+        left: rect.left - areaRect.left,
+        top: rect.top - areaRect.top,
+        width: rect.width,
+        height: rect.height
+    };
+}
+
+function getDomCellCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: rect.top + (rect.height / 2)
+    };
+}
+
+// Source anchor for attack lines: the centre of the card's FRONT edge — the
+// edge facing the opponent. Player cards face upward (front = top edge); enemy
+// cards face downward (front = bottom edge). Computed from the live card box so
+// the line consistently starts at the front-centre of the attacking card on any
+// screen size.
+function getDomCardFrontCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: isPlayer ? rect.top : rect.top + rect.height
     };
 }
 
@@ -1361,7 +1448,7 @@ function drawDomTargetingPreview(timestamp) {
 
     // Resolve live cell centers every frame so the arrows track the board as it
     // resizes, scrolls, or reflows instead of pointing at stale cached pixels.
-    const source = getDomCellCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
+    const source = getDomCardFrontCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
     const targets = [];
     state.targetCells.forEach((cell) => {
         const center = getDomCellCenter(cell.isPlayer, cell.row, cell.col);
@@ -2818,6 +2905,121 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
 window.showPhaseTransitionBanner = showPhaseTransitionBanner;
 window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
 
+function showTurnChangeToast(state) {
+    if (!state || state.gameOver) {
+        return;
+    }
+    const isYourTurn = state.activeSide === 'PLAYER';
+    const opponentName = state.enemyName || 'Opponent';
+    const toast = {
+        kind: 'TURN',
+        label: isYourTurn ? 'Your turn' : `${opponentName}'s turn`,
+        subtitle: isYourTurn
+            ? 'Take your setup actions.'
+            : 'Waiting for your opponent to finish their turn.',
+        actorName: isYourTurn ? (state.playerName || 'You') : opponentName,
+        targetName: '',
+        side: isYourTurn ? 'PLAYER' : 'ENEMY',
+        knightElement: isYourTurn
+            ? state.player?.trainer?.element
+            : state.enemy?.trainer?.element,
+        elementColor: isYourTurn
+            ? state.player?.trainer?.element
+            : state.enemy?.trainer?.element
+    };
+    if (window.SieglingsActionQueue?.showToast) {
+        window.SieglingsActionQueue.showToast(toast, 2800);
+        return;
+    }
+    const stack = document.getElementById('sieglingsToastStack');
+    if (!stack) {
+        return;
+    }
+    const node = document.createElement('div');
+    node.className = `sgl-toast sgl-toast-${isYourTurn ? 'player' : 'enemy'}`;
+    node.innerHTML = `
+        <div class="sgl-toast-body">
+            <div class="sgl-toast-line">
+                <span class="sgl-toast-action">${escapeHtml(toast.label)}</span>
+            </div>
+            <div class="sgl-toast-sub">${escapeHtml(toast.subtitle)}</div>
+        </div>
+    `;
+    stack.appendChild(node);
+    requestAnimationFrame(() => node.classList.add('visible'));
+    setTimeout(() => {
+        node.classList.remove('visible');
+        node.classList.add('leaving');
+        setTimeout(() => node.remove(), 240);
+    }, 2800);
+}
+
+function maybeNotifyTurnChange(prevState, nextState) {
+    if (!prevState || !nextState || nextState.gameOver) {
+        return;
+    }
+    if (prevState.activeSide === nextState.activeSide) {
+        return;
+    }
+    if (nextState.currentPhase !== 'SETUP') {
+        return;
+    }
+    showTurnChangeToast(nextState);
+}
+
+function applyStartedMultiplayerState(data) {
+    clearRoomExpiryTimer();
+    clearExternalSocketElementMemory();
+    const roomId = data?.roomId || multiplayerSession?.roomId;
+    if (data?.multiplayer && roomId && coinFlipDismissedRoomId !== roomId) {
+        coinFlipDismissedRoomId = roomId;
+        showCoinFlipOverlay(data).then(() => {
+            gameState = data;
+            render();
+        });
+        return;
+    }
+    gameState = data;
+    render();
+}
+
+function showCoinFlipOverlay(state) {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('coinFlipOverlay');
+        const title = document.getElementById('coinFlipTitle');
+        const copy = document.getElementById('coinFlipCopy');
+        const coin = document.getElementById('coinFlipAnim');
+        if (!overlay || !title || !copy) {
+            resolve();
+            return;
+        }
+
+        const viewerFirst = state.viewerGoesFirst === true || state.firstPlayer === 'PLAYER';
+        const winnerName = state.coinFlipWinnerName
+            || (viewerFirst ? (state.playerName || 'You') : (state.enemyName || 'Opponent'));
+        title.textContent = viewerFirst ? 'You go first!' : `${winnerName} goes first!`;
+        copy.textContent = viewerFirst
+            ? 'You won the coin flip and take the first turn this round.'
+            : `${winnerName} won the coin flip and takes the first turn this round.`;
+
+        coin?.classList.add('spinning');
+        overlay.classList.remove('hidden');
+        requestAnimationFrame(() => overlay.classList.add('visible'));
+        window.SieglingsSounds?.play('phase', 0.55);
+
+        setTimeout(() => {
+            coin?.classList.remove('spinning');
+            setTimeout(() => {
+                overlay.classList.remove('visible');
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                    resolve();
+                }, 320);
+            }, 2200);
+        }, 1400);
+    });
+}
+
 /* ============================================================
    CARD INSPECTOR â€” full-detail overlay when tapping hand card
    ============================================================ */
@@ -4065,6 +4267,318 @@ async function leaveOnlineMatch() {
 }
 window.leaveOnlineMatch = leaveOnlineMatch;
 
+function isActivePlaySession() {
+    return Boolean(gameState && !gameState.gameOver);
+}
+
+function updateQuitOrNewGameButton() {
+    const btn = document.getElementById('btnQuitOrNewGame');
+    if (!btn) {
+        return;
+    }
+    if (isActivePlaySession()) {
+        btn.title = 'Quit';
+        btn.setAttribute('aria-label', 'Quit match');
+        btn.textContent = 'Quit';
+        btn.classList.add('ab-quit-label');
+    } else {
+        btn.title = 'New Game';
+        btn.setAttribute('aria-label', 'New Game');
+        btn.textContent = '\u25B6';
+        btn.classList.remove('ab-quit-label');
+    }
+}
+
+function handleQuitOrNewGame() {
+    if (isActivePlaySession()) {
+        void confirmQuitMatch();
+        return;
+    }
+    openLoadoutSelector();
+}
+window.handleQuitOrNewGame = handleQuitOrNewGame;
+
+async function confirmQuitMatch() {
+    const isOnline = Boolean(gameState?.multiplayer && multiplayerSession?.roomId);
+    const message = isOnline
+        ? 'Quit this match? Your opponent will be notified and wins by forfeit.'
+        : 'Quit this match? You will lose.';
+    if (!window.confirm(message)) {
+        return;
+    }
+    if (isOnline) {
+        const data = await fetchJson(apiUrls('/api/match/forfeit'), {
+            method: 'POST',
+            headers: getAuthHeaders({
+                'Content-Type': 'application/json',
+                'X-Room-Id': multiplayerSession.roomId,
+                'X-Player-Token': multiplayerSession.playerToken
+            })
+        });
+        if (!data || data.error) {
+            console.warn(data?.error || 'Could not quit the online match.');
+            return;
+        }
+        gameState = data;
+        handleMatchStatusExtras(data);
+        render();
+        return;
+    }
+    if (soloSessionToken) {
+        const data = await fetchJson(apiUrls('/api/game/forfeit'), {
+            method: 'POST',
+            headers: getAuthHeaders({
+                'Content-Type': 'application/json',
+                'X-Solo-Token': soloSessionToken
+            })
+        });
+        if (!data || data.error) {
+            console.warn(data?.error || 'Could not quit the solo match.');
+            return;
+        }
+        gameState = data;
+        render();
+        return;
+    }
+    openLoadoutSelector();
+}
+
+function showMatchNoticeToast(message) {
+    const toast = document.getElementById('matchNoticeToast');
+    if (!toast || !message) {
+        return;
+    }
+    toast.textContent = message;
+    toast.hidden = false;
+    toast.classList.add('visible');
+    if (matchNoticeToastTimer) {
+        clearTimeout(matchNoticeToastTimer);
+    }
+    matchNoticeToastTimer = setTimeout(() => {
+        toast.classList.remove('visible');
+        matchNoticeToastTimer = setTimeout(() => {
+            toast.hidden = true;
+        }, 280);
+    }, 4200);
+}
+
+function handleMatchStatusExtras(data) {
+    if (!data) {
+        return;
+    }
+    const seq = Number(data.endGameNoticeSeq || 0);
+    if (seq > lastEndGameNoticeSeq) {
+        lastEndGameNoticeSeq = seq;
+        if (data.endGameNotice) {
+            showMatchNoticeToast(data.endGameNotice);
+        }
+    }
+}
+
+function resetGameOverOverlayState() {
+    const overlay = document.getElementById('gameOverOverlay');
+    if (overlay) {
+        overlay.classList.remove('visible');
+        delete overlay.dataset.soundPlayed;
+    }
+    lastEndGameNoticeSeq = 0;
+}
+
+function renderGameOverOverlay() {
+    const overlay = document.getElementById('gameOverOverlay');
+    if (!overlay || !gameState?.gameOver) {
+        overlay?.classList.remove('visible');
+        return;
+    }
+
+    overlay.classList.add('visible');
+    const endScreen = gameState.endScreen || {};
+    const isOnline = Boolean(gameState.multiplayer && multiplayerSession?.roomId);
+    const result = endScreen.result
+        || (gameState.winner === 'Draw'
+            ? 'DRAW'
+            : (gameState.winner === (gameState.playerName || 'Player') ? 'WIN' : 'LOSS'));
+
+    let title = 'GAME OVER';
+    if (result === 'WIN') {
+        title = 'VICTORY!';
+    } else if (result === 'LOSS') {
+        title = 'DEFEAT';
+    } else if (result === 'DRAW') {
+        title = 'DRAW';
+    }
+
+    if (!overlay.dataset.soundPlayed) {
+        overlay.dataset.soundPlayed = '1';
+        window.SieglingsSounds?.play(result === 'WIN' ? 'win' : 'lose');
+    }
+
+    document.getElementById('gameOverTitle').textContent = title;
+    const msgEl = document.getElementById('gameOverMsg');
+    if (endScreen.endReason === 'FORFEIT' && endScreen.forfeitedBy) {
+        msgEl.textContent = `${endScreen.forfeitedBy} quit. ${gameState.winner} wins!`;
+    } else {
+        msgEl.textContent = gameState.winner === 'Draw'
+            ? 'Both players were defeated.'
+            : `${gameState.winner} wins!`;
+    }
+
+    const subtext = document.getElementById('gameOverSubtext');
+    if (subtext) {
+        subtext.textContent = isOnline
+            ? `Match vs ${endScreen.opponentName || gameState.enemyName || 'opponent'}`
+            : (endScreen.matchType === 'SOLO' ? 'Solo campaign battle' : '');
+    }
+
+    const stats = endScreen.stats || {};
+    const statsEl = document.getElementById('gameOverStats');
+    if (statsEl) {
+        statsEl.innerHTML = `
+            <h3>Match Totals</h3>
+            <div class="game-over-stat-grid">
+                <span>Turns</span><span>${endScreen.turns ?? gameState.turnNumber ?? 0}</span>
+                <span>Spells cast</span><span>${stats.spellsCast ?? 0}</span>
+                <span>Traps sprung</span><span>${stats.trapsSprung ?? 0}</span>
+                <span>Siegelings defeated</span><span>${stats.siegelingsDefeated ?? 0}</span>
+                <span>Your health</span><span>${stats.yourHealth ?? 0}</span>
+                <span>Opponent health</span><span>${stats.opponentHealth ?? 0}</span>
+                <span>Your internal energy</span><span>${stats.yourInternalEnergy ?? 0}</span>
+                <span>Your external energy</span><span>${stats.yourExternalEnergy ?? 0}</span>
+            </div>`;
+    }
+
+    const rewardsEl = document.getElementById('gameOverRewards');
+    if (rewardsEl) {
+        const gold = Number(endScreen.goldEarned || 0);
+        const remnants = Number(endScreen.remnantsEarned || 0);
+        const streakBonus = Number(endScreen.streakBonus || 0);
+        rewardsEl.innerHTML = `
+            <h3>Rewards</h3>
+            <div class="game-over-stat-grid">
+                <span>Siegecoins earned</span><span>${gold}</span>
+                <span>Remnants earned</span><span>${remnants}</span>
+                <span>Streak bonus</span><span>${streakBonus}</span>
+            </div>`;
+    }
+
+    const recordEl = document.getElementById('gameOverRecord');
+    const record = endScreen.record;
+    if (recordEl) {
+        if (record && record.total > 0) {
+            recordEl.innerHTML = `
+                <h3>Your Record</h3>
+                <div class="game-over-stat-grid">
+                    <span>Wins</span><span>${record.wins}</span>
+                    <span>Losses</span><span>${record.losses}</span>
+                    <span>Win rate</span><span>${record.winRate}%</span>
+                    <span>Recent battles</span><span>${record.total}</span>
+                </div>`;
+            recordEl.hidden = false;
+        } else {
+            recordEl.innerHTML = '';
+            recordEl.hidden = true;
+        }
+    }
+
+    const rematchStatus = document.getElementById('gameOverRematchStatus');
+    const btnRematch = document.getElementById('btnGameOverRematch');
+    const btnPlayAgain = document.getElementById('btnGameOverPlayAgain');
+    const btnMainMenu = document.getElementById('btnGameOverMainMenu');
+    const rematchBlocked = Boolean(gameState.rematchBlocked);
+    const youReady = Boolean(gameState.youRematchReady);
+    const opponentReady = Boolean(gameState.opponentRematchReady);
+    const opponentLeft = Boolean(gameState.opponentReturnedHome);
+
+    if (btnRematch) {
+        btnRematch.hidden = !isOnline;
+        btnRematch.disabled = rematchBlocked || opponentLeft;
+        btnRematch.textContent = youReady ? 'Rematch selected' : 'Rematch';
+        btnRematch.classList.toggle('btn-primary', !youReady);
+    }
+    if (btnPlayAgain) {
+        btnPlayAgain.hidden = isOnline;
+    }
+    if (btnMainMenu) {
+        btnMainMenu.hidden = false;
+    }
+    if (rematchStatus) {
+        if (!isOnline) {
+            rematchStatus.textContent = '';
+        } else if (opponentLeft) {
+            rematchStatus.textContent = 'Your opponent returned to the main menu. Rematch is unavailable.';
+        } else if (rematchBlocked) {
+            rematchStatus.textContent = 'Rematch closed.';
+        } else if (youReady && opponentReady) {
+            rematchStatus.textContent = 'Both players chose rematch. Starting a new battle…';
+        } else if (youReady) {
+            rematchStatus.textContent = 'Waiting for your opponent to choose rematch…';
+        } else if (opponentReady) {
+            rematchStatus.textContent = 'Your opponent wants a rematch. Select Rematch to continue.';
+        } else {
+            rematchStatus.textContent = 'Choose rematch or return to the main menu.';
+        }
+    }
+}
+
+async function requestRematch() {
+    if (!multiplayerSession?.roomId || !multiplayerSession?.playerToken) {
+        return;
+    }
+    const btn = document.getElementById('btnGameOverRematch');
+    if (btn) {
+        btn.disabled = true;
+    }
+    const data = await fetchJson(apiUrls('/api/match/rematch'), {
+        method: 'POST',
+        headers: getAuthHeaders({
+            'Content-Type': 'application/json',
+            'X-Room-Id': multiplayerSession.roomId,
+            'X-Player-Token': multiplayerSession.playerToken
+        })
+    });
+    if (btn) {
+        btn.disabled = false;
+    }
+    if (!data || data.error) {
+        showMatchNoticeToast(data?.error || 'Rematch is not available.');
+        return;
+    }
+    handleMatchStatusExtras(data);
+    gameState = data;
+    if (data.rematchStarted) {
+        resetGameOverOverlayState();
+        lastProfileRefreshKey = '';
+        render();
+        return;
+    }
+    render();
+}
+window.requestRematch = requestRematch;
+
+async function leaveEndScreenToHome() {
+    const wasOnline = Boolean(gameState?.multiplayer && multiplayerSession?.roomId && multiplayerSession?.playerToken);
+    if (wasOnline) {
+        await fetchJson(apiUrls('/api/match/end-home'), {
+            method: 'POST',
+            headers: getAuthHeaders({
+                'Content-Type': 'application/json',
+                'X-Room-Id': multiplayerSession.roomId,
+                'X-Player-Token': multiplayerSession.playerToken
+            })
+        });
+        clearMultiplayerSession();
+        clearRoomPolling();
+    }
+    resetGameOverOverlayState();
+    gameState = null;
+    if (wasOnline) {
+        window.location.href = '/home';
+        return;
+    }
+    returnToPlayMain();
+}
+window.leaveEndScreenToHome = leaveEndScreenToHome;
+
 function loadSavedAuthToken() {
     try {
         return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || '';
@@ -4095,6 +4609,25 @@ function clearAuthState() {
     renderSavedDecks();
 }
 
+function renderPlayHubAuth() {
+    const pill = document.querySelector('.play-hub-pill');
+    if (!pill) {
+        return;
+    }
+    if (authState.profile?.authenticated) {
+        const name = authState.profile.user?.displayName || 'Profile';
+        pill.textContent = name;
+        pill.href = '/profile';
+        pill.classList.add('is-authenticated');
+        pill.setAttribute('aria-label', `Signed in as ${name}. Open profile.`);
+        return;
+    }
+    pill.textContent = 'Sign In';
+    pill.href = '/profile';
+    pill.classList.remove('is-authenticated');
+    pill.removeAttribute('aria-label');
+}
+
 function getAuthHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
     if (authState.token && !headers.Authorization) {
@@ -4116,7 +4649,7 @@ function isSocialBattleLaunch() {
 }
 
 function shouldShowOnlineLoadoutOnPlay() {
-    return false;
+    return matchMode === 'online' || Boolean(multiplayerSession?.roomId) || Boolean(socialOnlineLaunchRoomId);
 }
 
 function loadSavedPlayerName() {
@@ -4240,6 +4773,11 @@ function setWelcomeLeaderboardTab(tabId) {
     renderWelcomeLeaderboards();
 }
 
+function setWelcomeLeaderboardPeriod(periodId) {
+    welcomeLeaderboardState.period = periodId;
+    renderWelcomeLeaderboards();
+}
+
 function renderWelcomeLeaderboards() {
     const meta = document.getElementById('welcomeLeaderboardsMeta');
     const tabsEl = document.getElementById('welcomeLeaderboardsTabs');
@@ -4248,7 +4786,7 @@ function renderWelcomeLeaderboards() {
         return;
     }
 
-    const boards = welcomeLeaderboardState.data?.boards;
+    const boards = welcomeLeaderboardBoards();
     const tz = welcomeLeaderboardState.data?.timeZone || 'UTC';
     const gen = welcomeLeaderboardState.data?.generatedAt;
     if (gen) {
@@ -4271,10 +4809,15 @@ function renderWelcomeLeaderboards() {
         meta.textContent = welcomeLeaderboardState.error;
     }
 
-    tabsEl.innerHTML = LEADERBOARD_TABS.map((t) => {
+    const periodTabs = LEADERBOARD_PERIODS.map((entry) => {
+        const active = welcomeLeaderboardState.period === entry.id ? ' active' : '';
+        return `<button type="button" class="welcome-lb-period-tab${active}" role="tab" aria-selected="${welcomeLeaderboardState.period === entry.id}" onclick="setWelcomeLeaderboardPeriod('${entry.id}')">${escapeHtml(entry.label)}</button>`;
+    }).join('');
+    const categoryTabs = LEADERBOARD_TABS.map((t) => {
         const active = welcomeLeaderboardState.tab === t.id ? ' active' : '';
         return `<button type="button" class="welcome-lb-tab${active}" role="tab" aria-selected="${welcomeLeaderboardState.tab === t.id}" onclick="setWelcomeLeaderboardTab('${t.id}')">${escapeHtml(t.label)}</button>`;
     }).join('');
+    tabsEl.innerHTML = `<div class="welcome-lb-period-tabs">${periodTabs}</div><div class="welcome-lb-category-tabs">${categoryTabs}</div>`;
 
     if (welcomeLeaderboardState.loading && !boards) {
         body.innerHTML = '<div class="welcome-lb-loading">Loading rankings…</div>';
@@ -4560,13 +5103,44 @@ function beginPlayLobbyCountdown() {
 
 function setAuthMode(mode) {
     authMode = mode;
+    authRegisterStep = 'credentials';
+    authState.error = '';
+    renderWelcomeAuth();
+}
+
+function beginRegisterDisplayName() {
+    const email = document.getElementById('welcomeEmailInput')?.value?.trim() || '';
+    const password = document.getElementById('welcomePasswordInput')?.value || '';
+    if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
+        authState.error = 'Enter a valid email address.';
+        renderWelcomeAuth();
+        return;
+    }
+    if (!password || password.length < 6) {
+        authState.error = 'Passwords must be at least 6 characters.';
+        renderWelcomeAuth();
+        return;
+    }
+    registerDraft = { email, password };
+    authRegisterStep = 'display-name';
+    authState.error = '';
+    renderWelcomeAuth();
+}
+
+function backRegisterCredentials() {
+    authRegisterStep = 'credentials';
     authState.error = '';
     renderWelcomeAuth();
 }
 
 async function submitAuth(mode) {
-    const email = document.getElementById('welcomeEmailInput')?.value?.trim() || '';
-    const password = document.getElementById('welcomePasswordInput')?.value || '';
+    const onRegisterNameStep = mode === 'register' && authRegisterStep === 'display-name';
+    const email = onRegisterNameStep
+        ? registerDraft.email
+        : document.getElementById('welcomeEmailInput')?.value?.trim() || '';
+    const password = onRegisterNameStep
+        ? registerDraft.password
+        : document.getElementById('welcomePasswordInput')?.value || '';
     const displayName = document.getElementById('welcomeDisplayNameInput')?.value?.trim() || '';
     const resetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
     authState.loading = true;
@@ -4595,6 +5169,8 @@ async function submitAuth(mode) {
     saveAuthToken(data.token || '');
     authState.profile = data;
     authState.error = '';
+    authRegisterStep = 'credentials';
+    registerDraft = { email: '', password: '' };
     // After signing in or creating an account, send players to the Home hub
     // (skip when joining via an invite link, where they intend to play right away).
     if ((mode === 'login' || mode === 'register') && data.authenticated && !isInviteJoinFlow()) {
@@ -4652,25 +5228,8 @@ async function logoutAccount() {
     updateLoadoutSummary();
 }
 
-function updateHubNavAuth() {
-    const pill = document.querySelector('.play-hub-pill');
-    if (!pill) {
-        return;
-    }
-    if (authState.profile?.authenticated) {
-        const name = authState.profile.user?.displayName || 'Profile';
-        pill.textContent = name;
-        pill.setAttribute('href', '/profile');
-        pill.classList.add('is-authenticated');
-    } else {
-        pill.textContent = 'Sign In';
-        pill.setAttribute('href', '/profile');
-        pill.classList.remove('is-authenticated');
-    }
-}
-
 function renderWelcomeAuth() {
-    updateHubNavAuth();
+    renderPlayHubAuth();
     const authCard = document.getElementById('welcomeAuthCard');
     const historyCard = document.getElementById('welcomeHistoryCard');
     if (!authCard || !historyCard) {
@@ -4723,51 +5282,64 @@ function renderWelcomeAuth() {
         return;
     }
 
-    const draftEmail = document.getElementById('welcomeEmailInput')?.value || '';
+    const draftEmail = document.getElementById('welcomeEmailInput')?.value || registerDraft.email || '';
     const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
-    const draftPassword = document.getElementById('welcomePasswordInput')?.value || '';
+    const draftPassword = document.getElementById('welcomePasswordInput')?.value || registerDraft.password || '';
     const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
-    const authTitle = authMode === 'login'
-        ? 'Pick up where you left off'
-        : authMode === 'register'
-        ? 'Save decks with your email'
-        : 'Set a new password';
+    const onRegisterNameStep = authMode === 'register' && authRegisterStep === 'display-name';
 
-    authCard.innerHTML = `
-        <div class="welcome-eyebrow">ACCOUNT</div>
-        <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
-        <div class="welcome-auth-tabs">
-            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
-            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
-        </div>
-        <label class="online-field">
-            <span>Email</span>
-            <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
-        </label>
-        ${authMode === 'register' ? `
+    if (onRegisterNameStep) {
+        authCard.innerHTML = `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>Choose your display name</h3>
+            <div class="welcome-auth-meta">${escapeHtml(registerDraft.email)}</div>
             <label class="online-field">
                 <span>Display Name</span>
-                <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}">
+                <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}" autofocus>
             </label>
-        ` : ''}
-        ${authMode === 'reset-password' ? `
-            <label class="online-field">
-                <span>Reset Code</span>
-                <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
-            </label>
-        ` : ''}
-        <label class="online-field">
-            <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
-            <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
-        </label>
-        ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
-        <div class="welcome-auth-actions">
-            <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('${authMode}')">
-                ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
-            </button>
+            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
+            <div class="welcome-auth-actions">
+                <button class="btn welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="backRegisterCredentials()">Back</button>
+                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('register')">
+                    ${authState.loading ? 'Working...' : 'Confirm'}
+                </button>
+            </div>
             <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
-        </div>
-    `;
+        `;
+    } else {
+        const primaryAuthAction = authMode === 'register'
+            ? 'beginRegisterDisplayName()'
+            : `submitAuth('${authMode}')`;
+        authCard.innerHTML = `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+            <div class="welcome-auth-tabs">
+                <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
+                <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
+            </div>
+            <label class="online-field">
+                <span>Email</span>
+                <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
+            </label>
+            ${authMode === 'reset-password' ? `
+                <label class="online-field">
+                    <span>Reset Code</span>
+                    <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
+                </label>
+            ` : ''}
+            <label class="online-field">
+                <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
+                <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
+            </label>
+            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
+            <div class="welcome-auth-actions">
+                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="${primaryAuthAction}">
+                    ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Register')}
+                </button>
+                <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
+            </div>
+        `;
+    }
 
     historyCard.innerHTML = `
         <div class="welcome-eyebrow">WHY SIGN IN</div>
@@ -4778,6 +5350,119 @@ function renderWelcomeAuth() {
             <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
         </div>
     `;
+}
+
+function getSavedDeckElements(savedDeck) {
+    if (!savedDeck) return ['NEUTRAL'];
+    if (savedDeck.custom) {
+        const elements = [...new Set((savedDeck.customDeckCards || []).map(cardId => {
+            return gameOptions?.cardCatalog?.find(card => card.id === cardId)?.element;
+        }).filter(Boolean))].slice(0, 4);
+        return elements.length ? elements : ['NEUTRAL'];
+    }
+    const preset = gameOptions?.decks?.find(deck => deck.id === savedDeck.deckId);
+    return preset?.elements?.length ? preset.elements : ['NEUTRAL'];
+}
+
+function getSavedDeckDescription(savedDeck) {
+    if (!savedDeck) return '';
+    if (savedDeck.custom) {
+        const count = (savedDeck.customDeckCards || []).length;
+        return `${count} card custom build from your binder.`;
+    }
+    return savedDeck.deckName
+        ? `Saved preset: ${savedDeck.deckName}.`
+        : 'Saved premade loadout.';
+}
+
+function getSelectedSavedDeck() {
+    return authState.profile?.savedDecks?.find(deck => deck.id === selectedSavedDeckId) || null;
+}
+
+function applySavedDeckState(savedDeck) {
+    if (!savedDeck) return;
+    selectedSavedDeckId = savedDeck.id;
+    selectedTrainerId = savedDeck.trainerId || selectedTrainerId;
+    if (savedDeck.custom) {
+        builderCounts = buildCountsFromCardList(savedDeck.customDeckCards || []);
+    } else {
+        builderCounts = {};
+        selectedDeckId = savedDeck.deckId || selectedDeckId;
+    }
+    const input = document.getElementById('saveDeckNameInput');
+    if (input) {
+        input.value = savedDeck.name || '';
+    }
+}
+
+function selectSavedDeckForLoadout(deckId) {
+    const savedDeck = authState.profile?.savedDecks?.find(deck => deck.id === deckId);
+    if (!savedDeck) return;
+    applySavedDeckState(savedDeck);
+    renderLoadoutOptions();
+    updateLoadoutSummary();
+}
+
+function renderSavedDeckLoadoutOptions() {
+    const optionsEl = document.getElementById('savedDeckOptions');
+    const noteEl = document.getElementById('savedDeckLoadoutNote');
+    if (!optionsEl) return;
+
+    if (!authState.profile?.authenticated) {
+        if (noteEl) {
+            noteEl.textContent = 'Sign in to use decks saved on the home Decks screen.';
+        }
+        optionsEl.innerHTML = '<div class="builder-empty">Sign in to pick saved custom and premade decks from your binder.</div>';
+        return;
+    }
+
+    const savedDecks = authState.profile.savedDecks || [];
+    if (noteEl) {
+        noteEl.textContent = savedDecks.length
+            ? 'Pick a deck you saved on the home Decks screen, then choose your SiegeKnight.'
+            : 'No saved decks yet. Create one on the home Decks screen, or use Preset Decks / Deck Builder here.';
+    }
+    if (!savedDecks.length) {
+        optionsEl.innerHTML = '<div class="builder-empty">No saved decks in your binder yet.</div>';
+        return;
+    }
+
+    optionsEl.innerHTML = savedDecks.map(savedDeck => {
+        const selected = savedDeck.id === selectedSavedDeckId;
+        const elements = getSavedDeckElements(savedDeck);
+        const bg = buildDeckBackground(elements);
+        const borderColor = buildDeckBorderColors(elements);
+        const elementLabels = elements.map(formatElementLabel).join(' / ');
+        const elClasses = elements.map(element => `el-${element.toLowerCase()}`).join(' ');
+        const primaryElement = elements[0] || 'NEUTRAL';
+        const primaryHex = getElementHex(primaryElement);
+        const deckArt = deckArtAssetForElements(elements);
+        const artStyle = deckArt?.back ? `;--deck-art:url('${deckArt.back}')` : '';
+        const presetDeck = savedDeck.custom ? null : gameOptions.decks.find(deck => deck.id === savedDeck.deckId);
+        const theme = getDeckLoadoutTheme(presetDeck);
+        const traits = savedDeck.custom
+            ? ['Custom', 'Binder', 'Saved']
+            : (theme.traits || []).slice(0, 3);
+        const spineBands = elements.map(element => {
+            const color = getElementHex(element);
+            return `<div class="spine-band" style="background:${color}"></div>`;
+        }).join('');
+        const faceSigils = deckArt ? '' : buildDeckFaceSigils(elements);
+        const stateLabel = savedDeck.custom ? 'Custom' : 'Saved';
+
+        return `<button type="button" class="deck-card${selected ? ' selected' : ''} ${elClasses}${deckArt ? ' has-deck-art' : ''}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}${artStyle}" onclick="selectSavedDeckForLoadout('${savedDeck.id}')" aria-pressed="${selected ? 'true' : 'false'}">
+            <div class="deck-card-spine">${spineBands}</div>
+            ${faceSigils}
+            <span class="deck-card-state">${selected ? 'Selected' : escapeHtml(stateLabel)}</span>
+            <div class="deck-card-body">
+                <span class="deck-card-name">${escapeHtml(savedDeck.name || 'Saved Deck')}</span>
+                <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
+                <span class="deck-card-desc">${escapeHtml(getSavedDeckDescription(savedDeck))}</span>
+                <span class="deck-card-tags">${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}</span>
+                <span class="deck-card-meta-line">${escapeHtml(savedDeck.trainerName || 'SiegeKnight')}</span>
+            </div>
+        </button>`;
+    }).join('');
 }
 
 function renderSavedDecks() {
@@ -4808,7 +5493,7 @@ function renderSavedDecks() {
                     <span>${escapeHtml(deck.custom ? `Custom build (${deck.customDeckCards.length} cards)` : (deck.deckName || 'Preset deck'))} | ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
                 </div>
                 <div class="saved-deck-row-actions">
-                    <button class="btn" type="button" onclick="loadSavedDeck('${deck.id}')">Load</button>
+                    <button class="btn" type="button" onclick="loadSavedDeck('${deck.id}')">Select</button>
                     <button class="btn" type="button" onclick="deleteSavedDeck('${deck.id}')">Delete</button>
                 </div>
             </div>
@@ -4828,8 +5513,8 @@ function detachSavedDeckSelection() {
 }
 
 function getActiveLoadoutLabel() {
-    const savedDeck = authState.profile?.savedDecks?.find(deck => deck.id === selectedSavedDeckId);
-    if (savedDeck) {
+    const savedDeck = getSelectedSavedDeck();
+    if (loadoutMode === 'saved' && savedDeck) {
         return savedDeck.name;
     }
     const saveName = document.getElementById('saveDeckNameInput')?.value?.trim();
@@ -4876,28 +5561,8 @@ async function saveCurrentLoadout() {
 }
 
 function loadSavedDeck(deckId) {
-    const savedDeck = authState.profile?.savedDecks?.find(deck => deck.id === deckId);
-    if (!savedDeck) {
-        return;
-    }
-
-    selectedSavedDeckId = deckId;
-    selectedTrainerId = savedDeck.trainerId;
-    if (savedDeck.custom) {
-        loadoutMode = 'builder';
-        builderCounts = buildCountsFromCardList(savedDeck.customDeckCards);
-    } else {
-        loadoutMode = 'preset';
-        builderCounts = {};
-        selectedDeckId = savedDeck.deckId;
-    }
-
-    const input = document.getElementById('saveDeckNameInput');
-    if (input) {
-        input.value = savedDeck.name;
-    }
-    renderLoadoutOptions();
-    updateLoadoutSummary();
+    loadoutMode = 'saved';
+    selectSavedDeckForLoadout(deckId);
 }
 
 async function deleteSavedDeck(deckId) {
@@ -5104,6 +5769,9 @@ function getSpellPlayRequirementLockReason(card) {
 function getHandCardLockReason(card) {
     if (!gameState || !card) {
         return '';
+    }
+    if (gameState.activeSide !== 'PLAYER' && !isHandHiddenForPhase()) {
+        return 'Wait for your turn.';
     }
     if (isBoardPreviewCard(card)) {
         return 'This Siegeling is already on the board.';
@@ -5433,7 +6101,15 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
 
     const prevState = gameState;
     gameState = data;
+    if (gameState?.gameOver && gameState.multiplayer && multiplayerSession?.roomId) {
+        const status = await fetchRoomStatus();
+        if (status && !status.error) {
+            gameState = { ...gameState, ...status };
+            handleMatchStatusExtras(status);
+        }
+    }
     if (endpoint !== 'new' && prevState) {
+        maybeNotifyTurnChange(prevState, data);
         if (window.SieglingsActionQueue) {
             window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
         } else {
@@ -5668,7 +6344,7 @@ function openLoadoutSelector() {
     document.getElementById('phaseTransitionBanner')?.classList.add('hidden');
     document.getElementById('phaseTransitionBanner')?.classList.remove('visible');
     welcomeDismissed = true;
-    document.getElementById('gameOverOverlay').classList.remove('visible');
+    resetGameOverOverlayState();
     if (!gameOptions) {
         loadGameOptions();
         return;
@@ -5688,7 +6364,7 @@ function returnToPlayMain() {
     loadoutErrorMessage = '';
     welcomeDismissed = false;
     resetPlayLobbyState(false);
-    document.getElementById('gameOverOverlay')?.classList.remove('visible');
+    resetGameOverOverlayState();
     syncEntryOverlays();
     renderWelcomeTutorial();
     renderWelcomeAuth();
@@ -5703,15 +6379,26 @@ function selectDeckOption(deckId) {
 }
 
 function selectTrainerOption(trainerId) {
-    detachSavedDeckSelection();
+    if (loadoutMode !== 'saved') {
+        detachSavedDeckSelection();
+    }
     selectedTrainerId = trainerId;
     renderLoadoutOptions();
     updateLoadoutSummary();
 }
 
 function switchLoadoutMode(mode) {
-    detachSavedDeckSelection();
+    if (mode !== 'saved') {
+        detachSavedDeckSelection();
+    }
     loadoutMode = mode;
+    if (mode === 'saved') {
+        const savedDecks = authState.profile?.savedDecks || [];
+        if (savedDecks.length && !selectedSavedDeckId) {
+            selectSavedDeckForLoadout(savedDecks[0].id);
+            return;
+        }
+    }
     renderLoadoutOptions();
     updateLoadoutSummary();
 }
@@ -5777,16 +6464,14 @@ function applyPendingHomeLoadout() {
     }
     matchMode = pending.mode === 'online' ? 'online' : 'solo';
     if (matchMode === 'online') {
-        onlineRoomMode = 'join';
+        welcomeDismissed = true;
+        onlineRoomMode = pending.roomId ? 'join' : 'create';
         if (pending.roomId) {
             socialOnlineLaunchRoomId = String(pending.roomId).toUpperCase();
             const roomCodeInput = document.getElementById('roomCodeInput');
             if (roomCodeInput) {
                 roomCodeInput.value = socialOnlineLaunchRoomId;
             }
-        }
-        if (pending.battleLaunch) {
-            welcomeDismissed = true;
         }
     }
 }
@@ -5807,14 +6492,16 @@ async function resumeMultiplayerSession() {
     }
 
     matchMode = 'online';
+    welcomeDismissed = true;
     currentRoomStatus = data;
     if (data.started) {
         startRoomPolling();
-        if (!gameState) {
-            clearExternalSocketElementMemory();
-        }
-        gameState = data;
-        render();
+        applyStartedMultiplayerState(data);
+    } else if (data.loadoutPhase) {
+        startRoomPolling();
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
     } else {
         if (isRoomStatusExpired(data)) {
             await closeUnfilledLobby('Lobby expired before another player joined.');
@@ -5865,13 +6552,26 @@ function startRoomPolling() {
             return;
         }
         currentRoomStatus = data;
+        handleMatchStatusExtras(data);
         if (data.started) {
             clearRoomExpiryTimer();
             if (!gameState) {
-                clearExternalSocketElementMemory();
+                applyStartedMultiplayerState(data);
+            } else {
+                const prevState = gameState;
+                const wasGameOver = prevState?.gameOver;
+                gameState = data;
+                if (wasGameOver && !data.gameOver && data.rematchStarted !== false) {
+                    resetGameOverOverlayState();
+                    lastProfileRefreshKey = '';
+                }
+                maybeNotifyTurnChange(prevState, data);
+                render();
             }
-            gameState = data;
-            render();
+        } else if (data.loadoutPhase) {
+            renderLoadoutOptions();
+            updateLoadoutSummary();
+            syncEntryOverlays();
         } else {
             if (isRoomStatusExpired(data)) {
                 void closeUnfilledLobby('Lobby expired before another player joined.');
@@ -5930,8 +6630,10 @@ function renderLoadoutOptions() {
     const joinRoomTab = document.getElementById('joinRoomTab');
     const roomCodeField = document.getElementById('roomCodeField');
     const presetTab = document.getElementById('presetTab');
+    const savedTab = document.getElementById('savedTab');
     const builderTab = document.getElementById('builderTab');
     const presetPanel = document.getElementById('presetLoadoutPanel');
+    const savedPanel = document.getElementById('savedLoadoutPanel');
     const builderPanel = document.getElementById('builderLoadoutPanel');
     const loadoutKicker = document.getElementById('loadoutKicker');
     const loadoutTitle = document.getElementById('loadoutTitle');
@@ -6019,11 +6721,17 @@ function renderLoadoutOptions() {
         inviteRoomBadge.classList.remove('hidden');
         playerIdentityNote.textContent = 'This is the name your opponent will see when you join.';
     } else if (matchMode === 'online') {
-        loadoutKicker.textContent = onlineRoomMode === 'create' ? 'Online Match' : 'Join Online Match';
-        loadoutTitle.textContent = onlineRoomMode === 'create' ? 'Create Your Room' : 'Choose Your Match Loadout';
-        loadoutSubtitle.textContent = onlineRoomMode === 'create'
-            ? 'Enter your name, pick your favorite deck, and choose the SiegeKnight you want to lead your room.'
-            : 'Enter your name, choose the build you want to bring, and then join the room.';
+        if (currentRoomStatus?.loadoutPhase) {
+            loadoutKicker.textContent = 'Match Loadout';
+            loadoutTitle.textContent = 'Choose Deck & SiegeKnight';
+            loadoutSubtitle.textContent = 'Lock in your build. The match begins once both players confirm their loadouts.';
+        } else {
+            loadoutKicker.textContent = onlineRoomMode === 'create' ? 'Online Match' : 'Join Online Match';
+            loadoutTitle.textContent = onlineRoomMode === 'create' ? 'Create Your Room' : 'Choose Your Match Loadout';
+            loadoutSubtitle.textContent = onlineRoomMode === 'create'
+                ? 'Enter your name, pick your favorite deck, and choose the SiegeKnight you want to lead your room.'
+                : 'Enter your name, choose the build you want to bring, and then join the room.';
+        }
         inviteRoomBadge.classList.add('hidden');
         playerIdentityNote.textContent = 'This name is shown in online matches and saved on this device.';
     } else {
@@ -6050,12 +6758,17 @@ function renderLoadoutOptions() {
     roomCodeField.classList.toggle('hidden', inviteFlow || onlineRoomMode !== 'join');
 
     presetTab.classList.toggle('active', loadoutMode === 'preset');
+    savedTab?.classList.toggle('active', loadoutMode === 'saved');
     builderTab.classList.toggle('active', loadoutMode === 'builder');
     presetTab.setAttribute('aria-pressed', loadoutMode === 'preset' ? 'true' : 'false');
+    savedTab?.setAttribute('aria-pressed', loadoutMode === 'saved' ? 'true' : 'false');
     builderTab.setAttribute('aria-pressed', loadoutMode === 'builder' ? 'true' : 'false');
     presetPanel.classList.toggle('hidden', loadoutMode !== 'preset');
+    savedPanel?.classList.toggle('hidden', loadoutMode !== 'saved');
     builderPanel.classList.toggle('hidden', loadoutMode !== 'builder');
     loadoutBox?.classList.toggle('loadout-mode-builder', loadoutMode === 'builder');
+    loadoutBox?.classList.toggle('loadout-mode-saved', loadoutMode === 'saved');
+    renderSavedDeckLoadoutOptions();
     renderSelectedLoadoutPreview();
     renderDeckBuilder();
     renderOnlineStatus();
@@ -6137,23 +6850,30 @@ function renderSelectedLoadoutPreview() {
         return;
     }
 
-    const deck = gameOptions.decks.find(item => item.id === selectedDeckId);
+    const savedDeck = loadoutMode === 'saved' ? getSelectedSavedDeck() : null;
+    const deck = loadoutMode === 'saved'
+        ? (savedDeck?.custom ? null : gameOptions.decks.find(item => item.id === savedDeck?.deckId))
+        : gameOptions.decks.find(item => item.id === selectedDeckId);
     const trainer = gameOptions.trainers.find(item => item.id === selectedTrainerId);
-    const theme = loadoutMode === 'builder' ? getDeckLoadoutTheme(null) : getDeckLoadoutTheme(deck);
+    const theme = loadoutMode === 'builder' || (loadoutMode === 'saved' && savedDeck?.custom)
+        ? getDeckLoadoutTheme(null)
+        : getDeckLoadoutTheme(deck);
     const element = theme.element || deck?.elements?.[0] || trainer?.element || 'NEUTRAL';
     const accent = getElementHex(element);
     panel.style.setProperty('--loadout-accent', accent);
     panel.style.setProperty('--loadout-accent-soft', hexToRgba(accent, 0.18));
     panel.style.setProperty('--loadout-accent-glow', hexToRgba(accent, 0.32));
 
-    const deckName = loadoutMode === 'builder'
+    const deckName = loadoutMode === 'builder' || loadoutMode === 'saved'
         ? getActiveLoadoutLabel()
         : (getActiveLoadoutLabel() || deck?.name || 'Choose a Deck');
     const elementLabel = loadoutMode === 'builder'
         ? (collectBuilderElements() || 'Custom Elements')
-        : (deck?.elements || []).map(formatElementLabel).join(' / ');
+        : loadoutMode === 'saved'
+            ? getSavedDeckElements(savedDeck).map(formatElementLabel).join(' / ')
+            : (deck?.elements || []).map(formatElementLabel).join(' / ');
     const traits = theme.traits?.length ? theme.traits : ['Build', 'Adapt', 'Plan'];
-    const recommendedIds = loadoutMode === 'builder' ? [] : getRecommendedTrainerIdsForDeck(deck);
+    const recommendedIds = (loadoutMode === 'builder' || savedDeck?.custom) ? [] : getRecommendedTrainerIdsForDeck(deck);
     const recommendedNames = recommendedIds
         .map(id => gameOptions.trainers.find(item => item.id === id)?.name)
         .filter(Boolean)
@@ -6217,6 +6937,17 @@ function renderOnlineStatus() {
     }
 
     const roomLabel = `<strong>${currentRoomStatus.roomId}</strong>`;
+    if (currentRoomStatus.loadoutPhase) {
+        const opponent = escapeHtml(currentRoomStatus.enemyName || 'Opponent');
+        if (currentRoomStatus.viewerLoadoutReady && !currentRoomStatus.opponentLoadoutReady) {
+            statusEl.innerHTML = `Room ${roomLabel}: waiting for ${opponent} to lock in deck and SiegeKnight.`;
+        } else if (!currentRoomStatus.viewerLoadoutReady && currentRoomStatus.opponentLoadoutReady) {
+            statusEl.innerHTML = `${opponent} is ready. Choose your deck and SiegeKnight, then lock in your loadout.`;
+        } else {
+            statusEl.innerHTML = `Both players are in room ${roomLabel}. Pick your deck and SiegeKnight, then lock in your loadout.`;
+        }
+        return;
+    }
     if (!currentRoomStatus.started) {
         statusEl.innerHTML = `Room ${roomLabel} is waiting for Player 2.<span class="room-meta-line">Share: <a href="${currentRoomStatus.shareUrl}" target="_blank">${currentRoomStatus.shareUrl}</a></span><span class="room-meta-line"><button class="btn btn-primary" type="button" onclick="copyRoomShareLink()">Copy Invite Link</button></span>`;
         return;
@@ -6298,6 +7029,9 @@ function renderDeckBuilder() {
 
 function getLoadoutStartButtonLabel() {
     if (matchMode === 'online') {
+        if (currentRoomStatus?.loadoutPhase) {
+            return currentRoomStatus.viewerLoadoutReady ? 'Waiting for opponent...' : 'Lock Loadout';
+        }
         return isInviteJoinFlow() ? 'Join Match' : (onlineRoomMode === 'create' ? 'Create Room' : 'Join Room');
     }
     return 'Start Battle';
@@ -6305,6 +7039,9 @@ function getLoadoutStartButtonLabel() {
 
 function getLoadoutStartButtonBusyLabel() {
     if (matchMode === 'online') {
+        if (currentRoomStatus?.loadoutPhase) {
+            return 'Locking loadout...';
+        }
         return onlineRoomMode === 'create' ? 'Creating Room...' : (isInviteJoinFlow() ? 'Joining Match...' : 'Joining Room...');
     }
     return 'Starting Battle...';
@@ -6356,6 +7093,19 @@ function updateLoadoutSummary() {
         return;
     }
 
+    if (matchMode === 'online' && currentRoomStatus?.loadoutPhase) {
+        const opponent = escapeHtml(currentRoomStatus.enemyName || 'Opponent');
+        if (currentRoomStatus.viewerLoadoutReady) {
+            summary.innerHTML = `Loadout locked. Waiting for <strong>${opponent}</strong> to finish choosing deck and SiegeKnight.`;
+        } else if (currentRoomStatus.opponentLoadoutReady) {
+            summary.innerHTML = `<strong>${opponent}</strong> is ready. Lock in your deck and SiegeKnight to start the match.`;
+        } else {
+            summary.innerHTML = `Both players are in room <strong>${currentRoomStatus.roomId}</strong>. Choose your deck and SiegeKnight, then lock in your loadout.`;
+        }
+        syncLoadoutStartButton(startBtn, loadoutStartPending || currentRoomStatus.viewerLoadoutReady, startButtonLabel);
+        return;
+    }
+
     if (matchMode === 'online' && currentRoomStatus?.roomId && !currentRoomStatus.started) {
         summary.innerHTML = `Room <strong>${currentRoomStatus.roomId}</strong> is ready. Waiting for your opponent to join.`;
         syncLoadoutStartButton(startBtn, true, startButtonLabel);
@@ -6386,6 +7136,37 @@ function updateLoadoutSummary() {
         return;
     }
 
+    if (loadoutMode === 'saved') {
+        const savedDeck = getSelectedSavedDeck();
+        if (!authState.profile?.authenticated) {
+            summary.textContent = 'Sign in to use decks from your binder.';
+            syncLoadoutStartButton(startBtn, true, startButtonLabel);
+            return;
+        }
+        if (!savedDeck) {
+            summary.textContent = 'Choose a saved deck from your binder, then pick a SiegeKnight.';
+            syncLoadoutStartButton(startBtn, true, startButtonLabel);
+            return;
+        }
+        const cardCount = savedDeck.custom ? (savedDeck.customDeckCards || []).length : null;
+        const valid = savedDeck.custom
+            ? cardCount >= gameOptions.deckBuilder.minDeckSize
+            : Boolean(savedDeck.deckId);
+        const elementList = getSavedDeckElements(savedDeck).map(formatElementLabel).join(' / ');
+        summary.innerHTML = `My Deck: <strong>${escapeHtml(savedDeck.name)}</strong>${cardCount != null ? ` | <strong>${cardCount}</strong> cards` : ''}${elementList ? ` | Elements: <strong>${elementList}</strong>` : ''} | SiegeKnight: <strong>${trainer.name}</strong>${playerName ? ` | Name: <strong>${playerName}</strong>` : ''}`;
+        if (!valid) {
+            summary.innerHTML += savedDeck.custom
+                ? ` | This deck needs at least <strong>${gameOptions.deckBuilder.minDeckSize}</strong> cards.`
+                : ' | This saved deck is missing its premade reference.';
+        }
+        syncLoadoutStartButton(
+            startBtn,
+            loadoutStartPending || !valid || (matchMode === 'online' && onlineRoomMode === 'join' && !getCurrentRoomCode()) || (needsPlayerName && !playerName),
+            startButtonLabel
+        );
+        return;
+    }
+
     if (!deck) {
         summary.textContent = 'Choose a preset deck and SiegeKnight to begin.';
         syncLoadoutStartButton(startBtn, true, startButtonLabel);
@@ -6405,6 +7186,12 @@ async function startSelectedGame() {
     if (!selectedTrainerId) return;
     if (loadoutMode === 'preset' && !selectedDeckId) return;
     if (loadoutMode === 'builder' && getBuilderCardCount() < gameOptions.deckBuilder.minDeckSize) return;
+    if (loadoutMode === 'saved') {
+        const savedDeck = getSelectedSavedDeck();
+        if (!savedDeck) return;
+        if (savedDeck.custom && (savedDeck.customDeckCards || []).length < gameOptions.deckBuilder.minDeckSize) return;
+        if (!savedDeck.custom && !savedDeck.deckId) return;
+    }
 
     loadoutStartPending = true;
     loadoutErrorMessage = '';
@@ -6413,17 +7200,26 @@ async function startSelectedGame() {
     try {
         if (matchMode === 'online') {
             if (multiplayerSession?.roomId) {
+                if (currentRoomStatus?.loadoutPhase && !currentRoomStatus.viewerLoadoutReady) {
+                    await submitMatchLoadout();
+                    return;
+                }
                 const data = await fetchRoomStatus();
                 if (data?.started) {
                     loadoutErrorMessage = '';
-                    clearExternalSocketElementMemory();
-                    gameState = data;
-                    render();
+                    currentRoomStatus = data;
+                    applyStartedMultiplayerState(data);
                     return;
                 }
                 if (data && !data.error) {
                     currentRoomStatus = data;
                     startRoomPolling();
+                    if (data.loadoutPhase) {
+                        renderLoadoutOptions();
+                        updateLoadoutSummary();
+                        syncEntryOverlays();
+                        return;
+                    }
                     if (isRoomStatusExpired(data)) {
                         await closeUnfilledLobby('Lobby expired before another player joined.');
                     } else {
@@ -6461,9 +7257,28 @@ function getCurrentRoomCode() {
 }
 
 function getSelectedLoadoutBody() {
-    return loadoutMode === 'builder'
-        ? { trainerId: selectedTrainerId, customDeckCards: getBuilderSelectedCards(), loadoutLabel: getActiveLoadoutLabel() }
-        : { deckId: selectedDeckId, trainerId: selectedTrainerId, loadoutLabel: getActiveLoadoutLabel() };
+    if (loadoutMode === 'builder') {
+        return { trainerId: selectedTrainerId, customDeckCards: getBuilderSelectedCards(), loadoutLabel: getActiveLoadoutLabel() };
+    }
+    if (loadoutMode === 'saved') {
+        const savedDeck = getSelectedSavedDeck();
+        if (!savedDeck) {
+            return { trainerId: selectedTrainerId, loadoutLabel: getActiveLoadoutLabel() };
+        }
+        if (savedDeck.custom) {
+            return {
+                trainerId: selectedTrainerId,
+                customDeckCards: savedDeck.customDeckCards || [],
+                loadoutLabel: savedDeck.name || getActiveLoadoutLabel()
+            };
+        }
+        return {
+            deckId: savedDeck.deckId,
+            trainerId: selectedTrainerId,
+            loadoutLabel: savedDeck.name || getActiveLoadoutLabel()
+        };
+    }
+    return { deckId: selectedDeckId, trainerId: selectedTrainerId, loadoutLabel: getActiveLoadoutLabel() };
 }
 
 async function createRoom() {
@@ -6500,11 +7315,7 @@ async function createRoom() {
     } catch (_error) {
         // ignore storage failures
     }
-    startRoomPolling();
-    scheduleRoomExpiryClose(data);
-    renderLoadoutOptions();
-    updateLoadoutSummary();
-    syncEntryOverlays();
+    window.location.href = `/social/lobby/${encodeURIComponent(data.roomId)}`;
     return true;
 }
 
@@ -6540,19 +7351,58 @@ async function joinRoom() {
     };
     currentRoomStatus = data;
     saveMultiplayerSession();
-    startRoomPolling();
+    try {
+        localStorage.setItem('sieglingsLobbySession', JSON.stringify({
+            roomId: data.roomId,
+            playerToken: data.playerToken,
+            role: 'guest'
+        }));
+    } catch (_error) {
+        // ignore storage failures
+    }
 
     if (data.started) {
-        clearRoomExpiryTimer();
-        clearExternalSocketElementMemory();
-        gameState = data;
-        render();
-    } else {
-        scheduleRoomExpiryClose(data);
-        renderLoadoutOptions();
-        updateLoadoutSummary();
-        syncEntryOverlays();
+        applyStartedMultiplayerState(data);
+        return true;
     }
+    window.location.href = `/social/lobby/${encodeURIComponent(data.roomId)}`;
+    return true;
+}
+
+async function submitMatchLoadout() {
+    if (!multiplayerSession?.roomId || !multiplayerSession?.playerToken) {
+        loadoutErrorMessage = 'Online session missing. Return to Social and rejoin the lobby.';
+        return false;
+    }
+
+    savePlayerName(getCurrentPlayerName());
+    const data = await fetchJson(apiUrls('/api/match/ready'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Room-Id': multiplayerSession.roomId,
+            'X-Player-Token': multiplayerSession.playerToken
+        },
+        body: JSON.stringify({
+            ...getSelectedLoadoutBody(),
+            playerName: getCurrentPlayerName()
+        })
+    }, LOADOUT_ACTION_TIMEOUT_MS);
+
+    if (!data || data.error) {
+        loadoutErrorMessage = data?.error || 'Unable to lock in loadout. Try again.';
+        return false;
+    }
+
+    loadoutErrorMessage = '';
+    currentRoomStatus = data;
+    if (data.started) {
+        applyStartedMultiplayerState(data);
+        return true;
+    }
+    renderLoadoutOptions();
+    updateLoadoutSummary();
+    syncEntryOverlays();
     return true;
 }
 
@@ -6902,12 +7752,22 @@ function renderDomLegacy() {
     const btnEndTurn = document.getElementById('btnEndTurn');
     const battlePhaseActive = phase === 'BATTLE' && !over;
     const drawButtonActsAsEndTurn = phase === 'SETUP' && playerActive && !over;
+    const opponentSetupTurn = phase === 'SETUP' && !playerActive && !over;
     if (drawButtonActsAsEndTurn) {
         onDrawComplete();
+    } else if (opponentSetupTurn) {
+        resetDrawButton();
+        btnDraw.innerHTML = 'Opponents Turn';
+        btnDraw.disabled = true;
+        btnDraw.onclick = null;
+        btnDraw.classList.remove('ab-drawn');
     } else {
         resetDrawButton();
     }
-    btnDraw.disabled = over || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
+    btnDraw.disabled = over || opponentSetupTurn || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
+    if (btnEndTurn) {
+        btnEndTurn.textContent = playerActive ? 'End Turn' : 'Opponents Turn';
+    }
     btnEndTurn.disabled = over || !playerActive || phase !== 'SETUP';
     btnDraw.classList.toggle('hidden', battlePhaseActive);
     btnBattle.classList.toggle('hidden', !battlePhaseActive);
@@ -7005,6 +7865,7 @@ function renderDomLegacy() {
     syncMobileInfoTab();
     syncEntryOverlays();
     maybeRefreshProfileAfterGame();
+    updateQuitOrNewGameButton();
 
     if (activeDrawer === 'battle' && phase !== 'BATTLE') {
         closeDrawer(true);
@@ -7013,20 +7874,7 @@ function renderDomLegacy() {
         showPhaseTransitionBanner(phase, gameState.activeSide);
     }
 
-    if (gameState.gameOver) {
-        document.getElementById('gameOverOverlay').classList.add('visible');
-        const title = gameState.winner === 'Draw'
-            ? 'DRAW'
-            : (gameState.winner === (gameState.playerName || 'Player') ? 'VICTORY!' : 'DEFEAT');
-        if (!document.getElementById('gameOverOverlay').dataset.soundPlayed) {
-            document.getElementById('gameOverOverlay').dataset.soundPlayed = '1';
-            window.SieglingsSounds?.play(title === 'VICTORY!' ? 'win' : 'lose');
-        }
-        document.getElementById('gameOverTitle').textContent = title;
-        document.getElementById('gameOverMsg').textContent = gameState.winner === 'Draw'
-            ? 'Both players were defeated.'
-            : `${gameState.winner} wins!`;
-    }
+    renderGameOverOverlay();
 }
 
 function getBoardCellMarkers(board, markers) {
@@ -7503,9 +8351,11 @@ function setTextIfExists(id, val) {
 function onDrawComplete() {
     const btn = document.getElementById('btnDraw');
     if (!btn) return;
+    const playerActive = gameState?.activeSide === 'PLAYER';
     btn.classList.add('ab-drawn');
-    btn.innerHTML = '&#9197; End Turn';
-    btn.onclick = endTurn;
+    btn.innerHTML = playerActive ? '&#9197; End Turn' : 'Opponents Turn';
+    btn.onclick = playerActive ? endTurn : null;
+    btn.disabled = !playerActive;
 }
 
 function resetDrawButton() {
@@ -8739,8 +9589,10 @@ function renderHand() {
         }
         return;
     }
+    const opponentTurn = gameState.activeSide !== 'PLAYER';
     if (handTray) {
         handTray.classList.remove('battle-queue-mode');
+        handTray.classList.toggle('opponent-turn', opponentTurn);
     }
     if (container) {
         container.classList.remove('hidden');
@@ -8765,6 +9617,7 @@ function renderHand() {
         const placementLocked = isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING';
         const interactionClass = [
             isSelected ? ' selected' : '',
+            opponentTurn ? ' opponent-turn' : '',
             lockReason ? ' interaction-locked' : '',
             openingLocked ? ' opening-locked' : '',
             placementLocked ? ' placement-locked' : '',
@@ -10700,6 +11553,7 @@ renderDesktopMenuMeta();
 renderDesktopActionHistory();
 renderWelcomeTutorial();
 renderWelcomeAuth();
+void syncAuthProfile(true);
 syncEntryOverlays();
 if (typeof SieglingsCatalogSync !== 'undefined') {
     SieglingsCatalogSync.onCatalogPublished(() => {
