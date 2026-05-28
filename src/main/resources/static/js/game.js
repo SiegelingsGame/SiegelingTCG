@@ -10021,6 +10021,58 @@ function onTrainerUse() {
     }
 }
 
+function renderBoardCardBuffsList(card) {
+    if (!card) return '';
+    const statuses = Array.isArray(card.statuses) ? card.statuses : [];
+    const has = (s) => statuses.includes(s);
+    const entries = [];
+
+    const damageBoost = Number(card.damageBoost) || 0;
+    if (damageBoost > 0) {
+        entries.push({ kind: 'DAMAGE_BOOST', label: 'Damage', amount: damageBoost });
+    } else if (has('DAMAGE_BOOST')) {
+        entries.push({ kind: 'DAMAGE_BOOST', label: 'Damage Boost' });
+    }
+
+    const shield = Number(card.shieldHp) || 0;
+    if (shield > 0) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Shield', amount: shield });
+    } else if (has('HEALTH_BOOST') && !(Number(card.maxHp) > Number(card.printedHealth))) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Shield' });
+    }
+
+    const printedSpeed = Number(card.printedSpeed);
+    const spd = Number(card.spd ?? card.speed);
+    const speedDelta = Number.isFinite(printedSpeed) && Number.isFinite(spd) ? spd - printedSpeed : 0;
+    if (speedDelta > 0) {
+        entries.push({ kind: 'SPEED_BOOST', label: 'Speed', amount: speedDelta });
+    } else if (has('SPEED_BOOST') && speedDelta === 0) {
+        entries.push({ kind: 'SPEED_BOOST', label: 'Speed Boost' });
+    }
+
+    const printedHp = Number(card.printedHealth);
+    const maxHp = Number(card.maxHp);
+    if (Number.isFinite(printedHp) && Number.isFinite(maxHp) && maxHp > printedHp) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Max HP', amount: maxHp - printedHp });
+    }
+
+    if (has('FREEZE')) entries.push({ kind: 'FREEZE', label: 'Frozen' });
+    if (has('SPEED_ZERO')) entries.push({ kind: 'SPEED_ZERO', label: 'Stunned' });
+    if (has('WEAK')) entries.push({ kind: 'WEAK', label: 'Weak' });
+    if (has('STRONG')) entries.push({ kind: 'STRONG', label: 'Strong' });
+
+    if (entries.length === 0) return '';
+    const items = entries.map((e) => {
+        const color = STATUS_BADGE_PALETTE[e.kind] || '#cbd5f5';
+        const amount = (typeof e.amount === 'number' && e.amount > 0)
+            ? `<span class="buff-pill-amount">+${e.amount}</span>`
+            : '';
+        const title = STATUS_BADGE_LABEL[e.kind] || e.label;
+        return `<span class="buff-pill" style="--bp:${color}" title="${escapeHtmlAttribute(title)}"><span class="buff-pill-label">${escapeHtml(e.label)}</span>${amount}</span>`;
+    }).join('');
+    return `<div class="selected-copy-buffs" aria-label="Active buffs and debuffs">${items}</div>`;
+}
+
 function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
     if (!card && !msg) {
@@ -10050,6 +10102,7 @@ function updateSelectedInfo(card, msg) {
             const own = boardCardOwnershipLabel(card);
             const phases = Number(card.battlePhasesSeen || 0);
             html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
+            html += renderBoardCardBuffsList(card);
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`

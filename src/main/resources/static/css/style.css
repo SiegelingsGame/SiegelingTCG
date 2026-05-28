@@ -1765,6 +1765,31 @@ body.card-drag-active #playerGrid {
     color: var(--text-dim);
 }
 
+.selected-copy-buffs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    margin: 4px 0 6px;
+}
+.buff-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.85em;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--bp, #cbd5f5);
+    background: color-mix(in srgb, var(--bp, #cbd5f5) 18%, rgba(8, 13, 28, 0.7));
+    border: 1px solid color-mix(in srgb, var(--bp, #cbd5f5) 60%, transparent);
+}
+.buff-pill-amount {
+    font-weight: 900;
+    color: #ffffff;
+}
+
 /* ============================================================
    LEGACY COMPAT — hide old layout elements, keep styles
    ============================================================ */
@@ -9157,6 +9182,29 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .selected-copy-detail {
         line-height: 1.25;
         margin-bottom: 2px;
+    }
+    .selected-copy-buffs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin: 4px 0 6px;
+    }
+    .buff-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-size: 0.68em;
+        font-weight: 700;
+        line-height: 1.4;
+        color: var(--bp, #cbd5f5);
+        background: color-mix(in srgb, var(--bp, #cbd5f5) 18%, rgba(8, 13, 28, 0.7));
+        border: 1px solid color-mix(in srgb, var(--bp, #cbd5f5) 60%, transparent);
+    }
+    .buff-pill-amount {
+        font-weight: 900;
+        color: #ffffff;
     }
 
     /* --- Card detail in drawers --- */
