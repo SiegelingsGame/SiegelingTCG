@@ -51,6 +51,9 @@ body {
         radial-gradient(circle at top left, rgba(255, 196, 129, 0.12), transparent 28%),
         radial-gradient(circle at bottom right, rgba(77, 171, 158, 0.16), transparent 24%),
         var(--page-bg);
+    /* Keep the background scrolling with the page. `background-attachment: fixed`
+       (inherited from home.css) breaks finger scrolling in mobile Safari. */
+    background-attachment: scroll;
     color: var(--text-main);
     font-family: var(--font-body);
 }
@@ -496,6 +499,8 @@ input[type="file"] {
     gap: 10px;
     max-height: calc(100vh - 320px);
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding-right: 4px;
 }
 
@@ -932,6 +937,8 @@ textarea {
 .validation-list {
     max-height: 320px;
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding-right: 4px;
 }
 
