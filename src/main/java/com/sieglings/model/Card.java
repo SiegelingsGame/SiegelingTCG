@@ -19,6 +19,16 @@ public abstract class Card {
     private Element costElement;
     private int costAmount;
 
+    /** Optional custom art for the cards menu binder preview (URL or data URI). */
+    private String cardArtUrl;
+    /** REPLACE replaces the element icon; OVERLAY draws art on top of the default frame. */
+    private String cardArtMode;
+    /** Custom art transform within the binder art frame (pixels / scale / degrees). */
+    private Double cardArtOffsetX;
+    private Double cardArtOffsetY;
+    private Double cardArtScale;
+    private Double cardArtRotation;
+
     protected Card() {}
 
     protected Card(String id, String name, CardType cardType, Element element, Rarity rarity) {
@@ -45,4 +55,16 @@ public abstract class Card {
     public void setCostElement(Element costElement) { this.costElement = costElement; }
     public int getCostAmount() { return costAmount; }
     public void setCostAmount(int costAmount) { this.costAmount = costAmount; }
+    public String getCardArtUrl() { return cardArtUrl; }
+    public void setCardArtUrl(String cardArtUrl) { this.cardArtUrl = cardArtUrl; }
+    public String getCardArtMode() { return cardArtMode; }
+    public void setCardArtMode(String cardArtMode) { this.cardArtMode = cardArtMode; }
+    public Double getCardArtOffsetX() { return cardArtOffsetX; }
+    public void setCardArtOffsetX(Double cardArtOffsetX) { this.cardArtOffsetX = cardArtOffsetX; }
+    public Double getCardArtOffsetY() { return cardArtOffsetY; }
+    public void setCardArtOffsetY(Double cardArtOffsetY) { this.cardArtOffsetY = cardArtOffsetY; }
+    public Double getCardArtScale() { return cardArtScale; }
+    public void setCardArtScale(Double cardArtScale) { this.cardArtScale = cardArtScale; }
+    public Double getCardArtRotation() { return cardArtRotation; }
+    public void setCardArtRotation(Double cardArtRotation) { this.cardArtRotation = cardArtRotation; }
 }

@@ -29,6 +29,9 @@ public class AccountService {
     @Autowired
     private AuthSessionStore sessionStore;
 
+    @Autowired
+    private FriendRequestService friendRequestService;
+
     @Value("${app.auth.password-reset-code:}")
     private String passwordResetCode;
 
@@ -116,22 +119,17 @@ public class AccountService {
         sessionStore.deleteById(token);
     }
 
-    public AccountUser addFriend(AccountUser user, String email) {
-        if (user == null) {
-            throw new IllegalArgumentException("Sign in to add friends.");
-        }
-        String normalizedEmail = normalizeEmail(email);
-        if (normalizedEmail.equals(user.getEmail())) {
-            throw new IllegalArgumentException("You cannot add yourself.");
-        }
-        if (userStore.findById(normalizedEmail).isEmpty()) {
-            throw new IllegalArgumentException("No account exists for that email.");
-        }
+    public AccountUser sendFriendRequest(AccountUser user, String email) {
+        friendRequestService.sendRequest(user, email);
+        return userStore.findById(user.getId()).orElse(user);
+    }
 
-        LinkedHashSet<String> friends = new LinkedHashSet<>(user.getFriendEmails());
-        friends.add(normalizedEmail);
-        user.setFriendEmails(friends.stream().toList());
-        userStore.save(user);
+    public AccountUser acceptFriendRequest(AccountUser user, String fromUserId) {
+        return friendRequestService.acceptRequest(user, fromUserId);
+    }
+
+    public AccountUser denyFriendRequest(AccountUser user, String fromUserId) {
+        friendRequestService.denyRequest(user, fromUserId);
         return user;
     }
 
@@ -144,6 +142,14 @@ public class AccountService {
         friends.remove(normalizedEmail);
         user.setFriendEmails(friends.stream().toList());
         userStore.save(user);
+
+        AccountUser peer = userStore.findById(normalizedEmail).orElse(null);
+        if (peer != null) {
+            LinkedHashSet<String> peerFriends = new LinkedHashSet<>(peer.getFriendEmails());
+            peerFriends.remove(user.getId());
+            peer.setFriendEmails(peerFriends.stream().toList());
+            userStore.save(peer);
+        }
         return user;
     }
 

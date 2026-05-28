@@ -11,7 +11,7 @@
   "countCards": 5,
   "cssLink": "http://localhost:8080/css/home.css?v=22",
   "hasSocialAction": true,
-  "heroHeading": "Your Siege Awaits",
+  "heroHeading": "The Arena Awaits",
   "jsLink": "http://localhost:8080/js/home.js?v=24",
   "lastPanel": {
     "bottom": 1542,

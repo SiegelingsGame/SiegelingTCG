@@ -64,6 +64,12 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -145,7 +151,13 @@ class ManualSieglingCatalogTest {
                                 2,
                                 null
                         )
-                )
+                ),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
@@ -202,7 +214,13 @@ class ManualSieglingCatalogTest {
                 2,
                 "EARTH+FIRE",
                 null,
-                List.of()
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         SpellCard spell = ManualSieglingCatalog.applySpellOverrides(generated, List.of(definition)).stream()
@@ -258,7 +276,13 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                List.of()
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         List<SpellCard> spells = ManualSieglingCatalog.applySpellOverrides(generated, List.of(definition));
@@ -303,7 +327,13 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                List.of()
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         TrapCard trap = ManualSieglingCatalog.applyTrapOverrides(generated, List.of(definition)).stream()
@@ -356,7 +386,13 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                List.of()
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         List<TrapCard> traps = ManualSieglingCatalog.applyTrapOverrides(generated, List.of(definition));
@@ -401,7 +437,13 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                List.of()
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         SpellCard spell = ManualSieglingCatalog.applySpellOverrides(generated, List.of(definition)).stream()
@@ -413,6 +455,60 @@ class ManualSieglingCatalogTest {
         assertEquals(1, spell.getCostAmount());
         assertEquals(Element.FIRE, spell.getCostElement());
         assertEquals(4, spell.getAbility().getEffectValue());
+    }
+
+    @Test
+    void manualDefinitionsCanOverrideCardArtTransform() {
+        List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.ELECTRIC);
+
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ManualSieglingCatalog.ManualSieglingDefinition(
+                CardType.SIEGLING,
+                "staticap",
+                "Staticap",
+                Element.ELECTRIC,
+                Rarity.RARE,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "/assets/cards/staticap.png",
+                "REPLACE",
+                12.5,
+                -8.0,
+                1.35,
+                -15.0
+        );
+
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+        SieglingCard staticap = ManualSieglingCatalog.applyOverrides(Element.ELECTRIC, generated, List.of(definition), pool).stream()
+                .filter(card -> card.getId().equals("staticap"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("/assets/cards/staticap.png", staticap.getCardArtUrl());
+        assertEquals("REPLACE", staticap.getCardArtMode());
+        assertEquals(12.5, staticap.getCardArtOffsetX());
+        assertEquals(-8.0, staticap.getCardArtOffsetY());
+        assertEquals(1.35, staticap.getCardArtScale());
+        assertEquals(-15.0, staticap.getCardArtRotation());
+
+        ManualSieglingCatalog.ManualSieglingDefinition exported = ManualSieglingCatalog.buildOverrideFile(List.of(staticap)).cards().get(0);
+        assertEquals(12.5, exported.cardArtOffsetX());
+        assertEquals(-8.0, exported.cardArtOffsetY());
+        assertEquals(1.35, exported.cardArtScale());
+        assertEquals(-15.0, exported.cardArtRotation());
     }
 
     @Test

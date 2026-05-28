@@ -757,30 +757,87 @@ select.search-input { color-scheme: dark; }
     height: 122px;
     position: relative;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--el, var(--fire)) 62%, rgba(255, 255, 255, 0.14));
     border-radius: 8px;
     background:
         radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.22), transparent 16%),
         radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--el, var(--fire)) 58%, transparent), transparent 64%),
         linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.45));
+    isolation: isolate;
+}
+
+.binder-card-art::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid color-mix(in srgb, var(--el, var(--fire)) 62%, rgba(255, 255, 255, 0.14));
+    border-radius: inherit;
     box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.32);
+    pointer-events: none;
+    z-index: 2;
 }
 
 .element-icon-art {
+    position: absolute;
+    inset: 0;
     display: block;
     width: 100%;
     height: 100%;
-    min-height: 122px;
     object-fit: cover;
     object-position: center;
     filter: saturate(1.08) contrast(1.04);
+    z-index: 1;
+}
+
+.binder-card-custom-art {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    z-index: 1;
+}
+
+.binder-card.art-mode-replace .binder-card-custom-art {
+    object-fit: cover;
+}
+
+.binder-card-overlay-art-card {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.binder-card.art-mode-overlay,
+.binder-card.art-mode-replace {
+    position: relative;
+}
+
+.binder-card-overlay-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    pointer-events: none;
+    z-index: 2;
 }
 
 .binder-card-fallback-element {
+    position: absolute;
+    inset: 0;
     display: grid;
     place-items: center;
     width: 100%;
-    min-height: 122px;
+    height: 100%;
+    z-index: 1;
     color: #fff8da;
     font-size: 30px;
     font-weight: 950;
@@ -2315,6 +2372,163 @@ select.search-input { color-scheme: dark; }
     font-size: 13px;
 }
 
+.social-room-tile.is-own-lobby {
+    border-color: rgba(255, 196, 72, 0.42);
+}
+
+.social-room-tile .room-own-badge {
+    color: #ffd54a;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.lobby-section {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.lobby-waiting-root {
+    display: grid;
+    gap: 16px;
+}
+
+.lobby-waiting-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.lobby-waiting-head h1 {
+    margin: 4px 0 0;
+    color: #fff6da;
+    font-size: 24px;
+}
+
+.lobby-waiting-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+    gap: 14px;
+}
+
+.lobby-panel {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    background: rgba(3, 8, 20, 0.78);
+    padding: 14px;
+}
+
+.lobby-players {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.lobby-player-card {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.lobby-player-card.ready {
+    border-color: rgba(100, 201, 135, 0.5);
+    box-shadow: 0 0 0 1px rgba(100, 201, 135, 0.2);
+}
+
+.lobby-player-card.empty {
+    opacity: 0.72;
+    border-style: dashed;
+}
+
+.lobby-player-card strong {
+    display: block;
+    color: #fff;
+    font-size: 15px;
+}
+
+.lobby-player-card span {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.lobby-loadout-form {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.lobby-loadout-form label {
+    display: grid;
+    gap: 4px;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.lobby-chat-log {
+    display: grid;
+    gap: 6px;
+    max-height: 220px;
+    overflow: auto;
+    margin: 10px 0;
+    padding-right: 4px;
+}
+
+.lobby-chat-line {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-dim);
+    line-height: 1.4;
+}
+
+.lobby-chat-line strong {
+    color: #d8e6ff;
+}
+
+.lobby-chat-line.system {
+    color: #9ed8ff;
+    font-style: italic;
+}
+
+.lobby-chat-compose {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.lobby-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #fff6da;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.lobby-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+    .lobby-waiting-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .social-empty-state span {
     color: var(--text-dim);
     font-size: 12px;
@@ -2345,6 +2559,41 @@ select.search-input { color-scheme: dark; }
 
 .friend-message.success {
     color: var(--wind);
+}
+
+.friend-request-list {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.friend-request-tile {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.friend-request-copy strong {
+    display: block;
+    font-size: 13px;
+}
+
+.friend-request-copy span {
+    display: block;
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+.friend-request-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .friend-tile,
@@ -2663,6 +2912,95 @@ body.gacha-active {
     transform: scale(1.25);
     animation-duration: 13s;
     animation-direction: reverse;
+}
+
+.pack-opening[data-particle-theme="fire"] .gacha-particles::before,
+.pack-opening[data-particle-theme="fire"] .gacha-particles::after {
+    inset: auto -10% -18% -10%;
+    height: 128%;
+    background:
+        radial-gradient(circle at 8% 92%, #fff2a8 0 1px, transparent 2px),
+        radial-gradient(circle at 18% 78%, var(--particle-glow, var(--fire)) 0 2px, transparent 4px),
+        radial-gradient(circle at 30% 96%, #ffb347 0 2px, transparent 4px),
+        radial-gradient(circle at 46% 84%, var(--particle-glow, var(--fire)) 0 1px, transparent 3px),
+        radial-gradient(circle at 58% 100%, #ffe29a 0 2px, transparent 4px),
+        radial-gradient(circle at 74% 86%, var(--particle-glow, var(--fire)) 0 2px, transparent 4px),
+        radial-gradient(circle at 90% 94%, #ff7a32 0 1px, transparent 3px);
+    background-size: 300px 300px;
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--particle-glow, var(--fire)) 78%, transparent));
+    animation: gachaFireRise 5.8s linear infinite;
+}
+
+.pack-opening[data-particle-theme="fire"] .gacha-particles::after {
+    opacity: 0.44;
+    animation-duration: 8.5s;
+    animation-delay: -2.6s;
+}
+
+.pack-opening[data-particle-theme="earth"] .gacha-particles::before,
+.pack-opening[data-particle-theme="earth"] .gacha-particles::after {
+    inset: -26% -10% -10%;
+    background:
+        radial-gradient(circle at 10% 8%, #e7c67c 0 2px, #7a5b34 3px, transparent 5px),
+        radial-gradient(circle at 24% 20%, #a7773d 0 4px, transparent 6px),
+        radial-gradient(circle at 36% 4%, #d0a65f 0 3px, transparent 5px),
+        radial-gradient(circle at 52% 16%, #6f5a36 0 4px, transparent 7px),
+        radial-gradient(circle at 68% 7%, #c59654 0 2px, transparent 5px),
+        radial-gradient(circle at 84% 22%, #8d6b3f 0 5px, transparent 7px),
+        radial-gradient(circle at 96% 10%, #e0bd74 0 2px, transparent 4px);
+    background-size: 340px 260px;
+    filter: drop-shadow(0 6px 3px rgba(0, 0, 0, 0.24));
+    animation: gachaEarthFall 2.4s cubic-bezier(.35, .02, .82, .35) infinite;
+}
+
+.pack-opening[data-particle-theme="earth"] .gacha-particles::after {
+    opacity: 0.38;
+    transform: scale(1.18);
+    animation-duration: 3.2s;
+    animation-delay: -1.4s;
+}
+
+.pack-opening[data-particle-theme="ice"] .gacha-particles::before,
+.pack-opening[data-particle-theme="ice"] .gacha-particles::after {
+    inset: -18% -12%;
+    background:
+        radial-gradient(circle at 8% 0%, #effcff 0 1px, transparent 3px),
+        radial-gradient(circle at 18% 14%, #aef4ff 0 2px, transparent 4px),
+        radial-gradient(circle at 34% 2%, #ffffff 0 1px, transparent 3px),
+        radial-gradient(circle at 48% 18%, var(--particle-glow, var(--ice)) 0 2px, transparent 4px),
+        radial-gradient(circle at 62% 8%, #dcfbff 0 1px, transparent 3px),
+        radial-gradient(circle at 78% 22%, #a8efff 0 2px, transparent 5px),
+        radial-gradient(circle at 94% 6%, #ffffff 0 1px, transparent 3px);
+    background-size: 310px 310px;
+    filter: drop-shadow(0 0 7px color-mix(in srgb, var(--particle-glow, var(--ice)) 62%, transparent));
+    animation: gachaIceSnow 11s ease-in-out infinite;
+}
+
+.pack-opening[data-particle-theme="ice"] .gacha-particles::after {
+    opacity: 0.46;
+    animation-duration: 16s;
+    animation-delay: -6s;
+}
+
+.pack-opening[data-particle-theme="wind"] .gacha-particles::before,
+.pack-opening[data-particle-theme="wind"] .gacha-particles::after {
+    inset: -8% -24%;
+    background:
+        linear-gradient(100deg, transparent 0 12%, color-mix(in srgb, var(--particle-glow, var(--wind)) 66%, transparent) 13% 15%, transparent 22%),
+        linear-gradient(100deg, transparent 0 36%, rgba(255, 255, 255, 0.54) 37% 39%, transparent 48%),
+        linear-gradient(100deg, transparent 0 58%, color-mix(in srgb, var(--particle-glow, var(--wind)) 70%, transparent) 59% 61%, transparent 72%),
+        radial-gradient(ellipse at 24% 32%, rgba(255, 255, 255, 0.42), transparent 18%),
+        radial-gradient(ellipse at 72% 62%, color-mix(in srgb, var(--particle-glow, var(--wind)) 34%, transparent), transparent 20%);
+    background-size: 360px 150px, 430px 220px, 520px 190px, 420px 260px, 540px 300px;
+    filter: blur(0.2px) drop-shadow(0 0 8px color-mix(in srgb, var(--particle-glow, var(--wind)) 55%, transparent));
+    animation: gachaWindSweep 3.6s linear infinite;
+}
+
+.pack-opening[data-particle-theme="wind"] .gacha-particles::after {
+    opacity: 0.4;
+    transform: translateY(42px) scaleY(1.24);
+    animation-duration: 5.4s;
+    animation-delay: -1.8s;
 }
 
 .pack-opening-head {
@@ -3332,6 +3670,27 @@ body.gacha-active {
 @keyframes gachaParticles {
     from { transform: translate3d(0, 0, 0); }
     to { transform: translate3d(120px, -160px, 0); }
+}
+
+@keyframes gachaFireRise {
+    from { transform: translate3d(0, 22%, 0) scale(1); }
+    to { transform: translate3d(80px, -48%, 0) scale(1.08); }
+}
+
+@keyframes gachaEarthFall {
+    from { transform: translate3d(-18px, -28%, 0) rotate(0deg); }
+    to { transform: translate3d(24px, 60%, 0) rotate(6deg); }
+}
+
+@keyframes gachaIceSnow {
+    0% { transform: translate3d(-26px, -18%, 0); }
+    50% { transform: translate3d(34px, 18%, 0); }
+    100% { transform: translate3d(-18px, 56%, 0); }
+}
+
+@keyframes gachaWindSweep {
+    from { transform: translate3d(-24%, 0, 0); }
+    to { transform: translate3d(34%, -2%, 0); }
 }
 
 @keyframes revealCardEnter {

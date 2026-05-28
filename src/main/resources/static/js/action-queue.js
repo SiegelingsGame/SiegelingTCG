@@ -2214,7 +2214,8 @@
         clear: () => queue.clear(),
         isProcessing: () => queue.isProcessing(),
         markOpponentThinking: (a, s) => queue.markOpponentThinking(a, s),
-        syncPendingPlacements: () => queue.syncPendingPlacements()
+        syncPendingPlacements: () => queue.syncPendingPlacements(),
+        showToast: (toast, holdMs) => queue.toasts.show(toast, holdMs)
     };
 
     // Wrap game.js's global render() so we can hide pending placements in

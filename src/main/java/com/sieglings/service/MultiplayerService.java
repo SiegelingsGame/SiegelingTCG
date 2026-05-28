@@ -55,12 +55,73 @@ public class MultiplayerService {
         if (room.hasGuest()) {
             throw new IllegalArgumentException("That room is already full.");
         }
+        if (accountUserId != null && accountUserId.equals(room.getHostUserId())) {
+            throw new IllegalArgumentException("You cannot join your own lobby.");
+        }
 
         String token = generateToken();
         room.setGuestToken(token);
         room.setGuestName(safeName(playerName, "Guest"));
         room.setGuestUserId(accountUserId);
         room.setGuestOptions(options);
+        room.setGuestReady(false);
+        room.touch();
+        room.addLobbyChatMessage(room.getGuestName(), "guest", "Joined the waiting room.");
+        return new RoomSession(roomId, token, false, false);
+    }
+
+    public synchronized RoomSession setPlayerReady(String roomId,
+                                                   String token,
+                                                   String playerName,
+                                                   GameService.StartOptions options) {
+        MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
+        if (room.isStarted()) {
+            throw new IllegalArgumentException("Match already started.");
+        }
+        if (room.isHostToken(token)) {
+            if (playerName != null && !playerName.isBlank()) {
+                room.setHostName(safeName(playerName, room.getHostName()));
+            }
+            if (options != null && options.playerDeckId() != null && options.playerTrainerId() != null) {
+                room.setHostOptions(options);
+            }
+            room.setHostReady(true);
+            room.addLobbyChatMessage(room.getHostName(), "host", "Confirmed loadout and is ready.");
+        } else if (room.isGuestToken(token)) {
+            if (playerName != null && !playerName.isBlank()) {
+                room.setGuestName(safeName(playerName, room.getGuestName()));
+            }
+            if (options != null && options.playerDeckId() != null && options.playerTrainerId() != null) {
+                room.setGuestOptions(options);
+            }
+            room.setGuestReady(true);
+            room.addLobbyChatMessage(room.getGuestName(), "guest", "Confirmed loadout and is ready.");
+        } else {
+            throw new IllegalArgumentException("Room access denied.");
+        }
+        room.touch();
+        if (room.hasGuest() && room.isHostReady() && room.isGuestReady()) {
+            startMatch(room);
+            return new RoomSession(roomId, token, room.isHostToken(token), true);
+        }
+        return new RoomSession(roomId, token, room.isHostToken(token), false);
+    }
+
+    public synchronized void addLobbyChat(String roomId, String token, String message) {
+        MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
+        if (room.isStarted()) {
+            throw new IllegalArgumentException("Match already started.");
+        }
+        String author = room.isHostToken(token) ? room.getHostName() : room.getGuestName();
+        String role = room.isHostToken(token) ? "host" : "guest";
+        room.addLobbyChatMessage(author, role, message);
+        room.touch();
+    }
+
+    private void startMatch(MultiplayerRoom room) {
+        if (room.isStarted() || !room.hasGuest()) {
+            return;
+        }
         GameState gameState = gameService.newMultiplayerGame(
                 room.getHostOptions(),
                 room.getGuestOptions(),
@@ -74,11 +135,10 @@ public class MultiplayerService {
             gameState.getEnemy().setAccountUserId(room.getGuestUserId());
         }
         room.setGameState(gameState);
-        room.touch();
         if (lobbyPersistenceService != null) {
-            lobbyPersistenceService.markStarted(roomId);
+            lobbyPersistenceService.markStarted(room.getRoomId());
         }
-        return new RoomSession(roomId, token, false, true);
+        room.addLobbyChatMessage("Arena", "system", "Both players are ready — match starting.");
     }
 
     public synchronized void closeRoom(String roomId, String hostUserId) {
@@ -220,6 +280,80 @@ public class MultiplayerService {
     public List<int[]> getLegalPlacements(String roomId, String token) {
         MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
         return gameService.getLegalPlacements(room.getGameState(), room.isHostToken(token));
+    }
+
+    public synchronized GameState forfeitMatch(String roomId, String token) {
+        MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
+        if (!room.isStarted() || room.getGameState() == null) {
+            throw new IllegalArgumentException("No active match to quit.");
+        }
+        GameState state = room.getGameState();
+        if (state.isGameOver()) {
+            return state;
+        }
+        boolean isHost = room.isHostToken(token);
+        gameService.forfeit(state, isHost);
+        String quitterName = isHost ? room.getHostName() : room.getGuestName();
+        room.setEndGameNotice(quitterName + " quit the match.");
+        room.bumpEndGameNoticeSeq();
+        room.touch();
+        return state;
+    }
+
+    public synchronized GameState requestRematch(String roomId, String token) {
+        MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
+        GameState state = room.getGameState();
+        if (state == null || !state.isGameOver()) {
+            throw new IllegalArgumentException("The match must be finished before rematch.");
+        }
+        if (room.isHostReturnedHome() || room.isGuestReturnedHome()) {
+            throw new IllegalArgumentException("Rematch is no longer available.");
+        }
+        if (room.isHostToken(token)) {
+            room.setHostRematchReady(true);
+        } else {
+            room.setGuestRematchReady(true);
+        }
+        if (room.isHostRematchReady() && room.isGuestRematchReady()) {
+            return startRematch(room);
+        }
+        room.touch();
+        return state;
+    }
+
+    public synchronized void returnHomeFromEnd(String roomId, String token) {
+        MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
+        boolean isHost = room.isHostToken(token);
+        if (isHost) {
+            room.setHostReturnedHome(true);
+            room.setHostRematchReady(false);
+        } else {
+            room.setGuestReturnedHome(true);
+            room.setGuestRematchReady(false);
+        }
+        String leaverName = isHost ? room.getHostName() : room.getGuestName();
+        room.setEndGameNotice(leaverName + " returned to the main menu.");
+        room.bumpEndGameNoticeSeq();
+        room.touch();
+    }
+
+    private GameState startRematch(MultiplayerRoom room) {
+        GameState gameState = gameService.newMultiplayerGame(
+                room.getHostOptions(),
+                room.getGuestOptions(),
+                room.getHostName(),
+                room.getGuestName()
+        );
+        if (room.getHostUserId() != null) {
+            gameState.getPlayer().setAccountUserId(room.getHostUserId());
+        }
+        if (room.getGuestUserId() != null) {
+            gameState.getEnemy().setAccountUserId(room.getGuestUserId());
+        }
+        room.setGameState(gameState);
+        room.clearEndGameSession();
+        room.touch();
+        return gameState;
     }
 
     private String generateRoomId() {

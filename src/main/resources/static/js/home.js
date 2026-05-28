@@ -6,9 +6,12 @@
     const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
     const ROOM_CACHE_TTL_MS = 20 * 1000;
     const HOST_LOBBY_KEY = 'sieglingsHostLobby';
+    const LOBBY_SESSION_KEY = 'sieglingsLobbySession';
     const MULTIPLAYER_SESSION_KEY = 'sieglingsMultiplayerSession';
+    const LOBBY_POLL_MS = 2000;
     const PLAYER_NAME_KEY = 'sieglingsPlayerName';
-    const SOCIAL_POLL_MS = 12 * 1000;
+    const SOCIAL_POLL_MS = 6 * 1000;
+    const PRESENCE_HEARTBEAT_MS = 45 * 1000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const HERO_STAT_ICONS = {
         coins: COIN_ICON_PATH,
@@ -146,6 +149,8 @@
         filterTrayOpen: false,
         cardTrayOpen: false,
         authOpen: false,
+        authRegisterStep: 'credentials',
+        registerDraft: { email: '', password: '' },
         profileEditOpen: false,
         profilePrefs: null,
         friendPresence: {},
@@ -153,10 +158,17 @@
         activeChatPeer: null,
         viewingProfile: null,
         socialPollTimer: null,
+        presenceTimer: null,
         lobbyBusy: false,
         hostLobbyStatus: null,
         battleRedirectPending: false,
+        loadoutRedirectPending: false,
         hostLobbyPollTimer: null,
+        lobbyRoomId: '',
+        lobbyStatus: null,
+        lobbySession: null,
+        lobbyPollTimer: null,
+        lobbyBusy: false,
         packReveal: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
@@ -334,6 +346,7 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            stopPresenceHeartbeat();
             return null;
         }
         const data = await fetchJson('/api/auth/me');
@@ -344,10 +357,12 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            stopPresenceHeartbeat();
             return null;
         }
         state.profile = data;
         state.progression = data.progression || null;
+        startPresenceHeartbeat();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
             state.profilePrefs = { ...defaultProfilePrefs(data.user || {}), ...serverPrefs };
@@ -384,6 +399,7 @@
         safeRender(renderProfile);
         safeRender(renderRooms);
         safeRender(renderFriends);
+        safeRender(renderFriendRequests);
         safeRender(renderGold);
         safeRender(renderHudTools);
         safeRender(renderAuthModal);
@@ -404,10 +420,16 @@
         } else if (state.route === 'social') {
             renderRooms();
             renderFriends();
+            renderFriendRequests();
             renderMessageThreads();
             startSocialPolling();
+            stopLobbyPolling();
+        } else if (state.route === 'lobby') {
+            stopSocialPolling();
+            void enterLobbyWaitingRoom();
         } else {
             stopSocialPolling();
+            stopLobbyPolling();
         }
         renderHudTools();
     }
@@ -432,7 +454,7 @@
     }
 
     function renderSections() {
-        ['home', 'cards', 'decks', 'social', 'profile', 'shop'].forEach((route) => {
+        ['home', 'cards', 'decks', 'social', 'lobby', 'profile', 'shop'].forEach((route) => {
             document.getElementById(`${route}Section`)?.classList.toggle('hidden', state.route !== route);
         });
         if (!isBinderRoute()) {
@@ -538,13 +560,14 @@
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const isSiegling = card.type === 'SIEGLING';
         return `${isSiegling ? renderBinderNotches(card.notches) : ''}
+            ${window.SieglingsCardBinderVisual?.renderBinderCardOverlay(card) || ''}
             <div class="binder-card-shell">
                 <div class="binder-card-header">
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(typeLabel)}</span>
                 </div>
                 <div class="binder-card-art">
-                    ${renderElementIcon(card.element)}
+                    ${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderElementIcon(card.element)}
                 </div>
                 <div class="binder-card-body shop-card-body">
                     ${renderShopCardStats(card)}
@@ -558,7 +581,8 @@
 
     function renderCardTile(card) {
         const selected = card.id === state.selectedCardId ? ' selected' : '';
-        return `<button class="card-tile binder-card${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+        const modeClass = window.SieglingsCardBinderVisual?.resolveArtModeClass(card) || '';
+        return `<button class="card-tile binder-card${selected}${modeClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
             ${renderBinderCardShell(card)}
         </button>`;
     }
@@ -580,7 +604,7 @@
             ? `Craft for ${craftCost.toLocaleString()} Remnants`
             : 'Sign in to craft';
         panel.innerHTML = `
-            <div class="detail-art art" style="--el:${elementColor(card.element)}">${renderElementIcon(card.element)}</div>
+            <div class="detail-art art" style="--el:${elementColor(card.element)}">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderElementIcon(card.element)}</div>
             <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
             <h2>${escapeHtml(card.name)}</h2>
             <div class="chip-wrap">
@@ -635,7 +659,7 @@
                 <div class="command-hero-top">
                     <div class="command-hero-copy">
                         <p class="command-hero-welcome">Welcome back, ${escapeHtml(displayName)}</p>
-                        <h2>Your Siege Awaits</h2>
+                        <h2>The Arena Awaits</h2>
                         <p class="command-hero-tagline">Battle, build, collect, and keep your daily momentum moving from one command table.</p>
                     </div>
                     <div class="command-hero-actions">
@@ -1417,9 +1441,14 @@
             <span>Create a table and your lobby will appear here for other players.</span>
             <button class="primary-btn" type="button" data-create-empty-lobby>Create Lobby</button>
         </div>`;
-        list.querySelectorAll('[data-room-id]').forEach(btn => btn.addEventListener('click', () => {
-            document.getElementById('roomCodeInput').value = btn.dataset.roomId;
-            joinRoomFromHome();
+        list.querySelectorAll('[data-room-action]').forEach(btn => btn.addEventListener('click', () => {
+            const roomId = btn.dataset.roomId;
+            if (!roomId) return;
+            if (btn.dataset.roomAction === 'join') {
+                openLobbyWaitingRoom(roomId);
+                return;
+            }
+            openLobbyWaitingRoom(roomId);
         }));
         list.querySelector('[data-create-empty-lobby]')?.addEventListener('click', createLobbyFromHome);
     }
@@ -1428,23 +1457,27 @@
         const element = inferRoomElement(room);
         const color = elementColor(element);
         const full = isRoomFull(room);
+        const ownLobby = isOwnLobby(room);
         const playerCount = Number(room.playerCount || room.players?.length || 1);
-        const status = full ? 'Full' : escapeHtml(room.status || 'Open');
         const roomId = escapeAttr(room.roomId || '');
         const expiresLabel = formatLobbyExpiry(room.expiresAt);
-        return `<article class="room-tile social-room-tile" style="--room-el:${color}">
+        const title = ownLobby ? 'My Arena' : escapeHtml(room.name || `${room.hostName || 'Host'}'s Arena`);
+        const actionLabel = ownLobby ? 'Open' : (full ? 'Full' : 'Join');
+        const action = ownLobby ? 'open' : 'join';
+        return `<article class="room-tile social-room-tile${ownLobby ? ' is-own-lobby' : ''}" style="--room-el:${color}">
             <div class="room-emblem" aria-hidden="true">${renderRoomEmblem(element)}</div>
             <div class="room-copy">
                 <div class="room-title-line">
                     <span class="room-badge">${escapeHtml(room.format || 'PVP')}</span>
-                    <strong>${escapeHtml(room.name || `${room.hostName || 'Host'}'s Arena`)}</strong>
+                    ${ownLobby ? '<span class="room-own-badge">Your table</span>' : ''}
+                    <strong>${title}</strong>
                 </div>
                 <span>${escapeHtml(format(element))} table / Best of 1</span>
-                <span>Hosted by ${escapeHtml(room.hostName || 'Host')} / Code ${escapeHtml(room.roomId || '----')}</span>
+                <span>${ownLobby ? 'You are hosting' : `Hosted by ${escapeHtml(room.hostName || 'Host')}`} / Code ${escapeHtml(room.roomId || '----')}</span>
                 ${expiresLabel ? `<span class="room-expiry">${escapeHtml(expiresLabel)}</span>` : ''}
             </div>
             <div class="room-seat-count"><strong>${playerCount} / 2</strong><span>Players</span></div>
-            <button class="${full ? 'ghost-btn' : 'primary-btn'}" type="button" data-room-id="${roomId}" ${full ? 'disabled' : ''}>${status === 'Full' ? 'Full' : 'Join'}</button>
+            <button class="${ownLobby || !full ? 'primary-btn' : 'ghost-btn'}" type="button" data-room-id="${roomId}" data-room-action="${action}" ${!ownLobby && full ? 'disabled' : ''}>${actionLabel}</button>
         </article>`;
     }
 
@@ -1505,12 +1538,12 @@
             const statusLine = status?.started
                 ? 'Match started — opening Play'
                 : status?.guestJoined
-                    ? 'Opponent joined — starting battle'
+                    ? 'Opponent in waiting room — confirm loadouts to start'
                     : 'Waiting for an opponent on this invite link';
             card.innerHTML = `<div class="social-active-content">
                 <div>
                     <span class="eyebrow">Your Active Lobby</span>
-                    <h2>${escapeHtml(name)}'s table</h2>
+                    <h2>My Arena</h2>
                     <span>Room code <strong>${escapeHtml(hostLobby.roomId)}</strong></span>
                     <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
                     ${expiresLabel ? `<span>${escapeHtml(expiresLabel)}</span>` : ''}
@@ -1519,10 +1552,12 @@
                 </div>
                 <div class="social-active-status"><strong>${status?.guestJoined ? '2' : '1'} / 2</strong><span>${guestWaiting ? 'Share the invite link' : 'Battle ready'}</span></div>
                 <div class="friend-actions">
+                    <button class="primary-btn" id="activeLobbyOpenBtn" type="button">Open Waiting Room</button>
                     ${shareUrl ? '<button class="ghost-btn" id="activeLobbyCopyBtn" type="button">Copy Invite Link</button>' : ''}
                     <button class="ghost-btn" id="activeLobbyCloseBtn" type="button">Close Lobby</button>
                 </div>
             </div>`;
+            document.getElementById('activeLobbyOpenBtn')?.addEventListener('click', () => openLobbyWaitingRoom(hostLobby.roomId));
             document.getElementById('activeLobbyCopyBtn')?.addEventListener('click', () => copyLobbyInvite(shareUrl));
             document.getElementById('activeLobbyCloseBtn')?.addEventListener('click', () => closeHostLobby(hostLobby));
             return;
@@ -1530,7 +1565,7 @@
         card.innerHTML = `<div class="social-active-content">
             <div>
                 <span class="eyebrow">Your Active Lobby</span>
-                <h2>${escapeHtml(name)}'s table</h2>
+                <h2>My Arena</h2>
                 <span>Deck ready: ${escapeHtml(deck || 'Starter Deck')}</span>
                 <span class="social-muted-inline">Lobbies live on Social. When someone joins, Play opens for both players.</span>
             </div>
@@ -1596,6 +1631,52 @@
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
         list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => openPlayerProfile(btn.dataset.viewProfile)));
         list.querySelectorAll('[data-message-friend]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.messageFriend)));
+    }
+
+    function renderFriendRequests() {
+        const list = document.getElementById('friendRequestList');
+        const count = document.getElementById('friendRequestCountLabel');
+        const panel = document.getElementById('friendRequestsPanel');
+        if (!list) return;
+
+        const incoming = state.profile?.incomingFriendRequests || [];
+        const outgoing = state.profile?.outgoingFriendRequests || [];
+        const pendingCount = incoming.length;
+
+        if (count) count.textContent = `${pendingCount} pending`;
+        if (panel) panel.classList.toggle('hidden', !state.profile?.authenticated);
+
+        if (!state.profile?.authenticated) {
+            list.innerHTML = '<div class="social-empty-state"><strong>Sign in to manage requests</strong></div>';
+            return;
+        }
+
+        if (!incoming.length && !outgoing.length) {
+            list.innerHTML = '<div class="social-empty-state"><strong>No pending requests</strong><span>Friend invites you send or receive will show up here.</span></div>';
+            return;
+        }
+
+        const incomingHtml = incoming.map(request => `<article class="friend-request-tile">
+            <div class="friend-request-copy">
+                <strong>${escapeHtml(request.displayName || request.peerEmail)}</strong>
+                <span>${escapeHtml(request.peerEmail)} wants to be friends</span>
+            </div>
+            <div class="friend-request-actions">
+                <button class="primary-btn compact-btn" type="button" data-accept-request="${escapeAttr(request.fromUserId)}">Accept</button>
+                <button class="ghost-btn compact-btn" type="button" data-deny-request="${escapeAttr(request.fromUserId)}">Decline</button>
+            </div>
+        </article>`).join('');
+
+        const outgoingHtml = outgoing.map(request => `<article class="friend-request-tile">
+            <div class="friend-request-copy">
+                <strong>${escapeHtml(request.displayName || request.peerEmail)}</strong>
+                <span>Request sent · waiting for approval</span>
+            </div>
+        </article>`).join('');
+
+        list.innerHTML = incomingHtml + outgoingHtml;
+        list.querySelectorAll('[data-accept-request]').forEach(btn => btn.addEventListener('click', () => respondToFriendRequest(btn.dataset.acceptRequest, 'accept')));
+        list.querySelectorAll('[data-deny-request]').forEach(btn => btn.addEventListener('click', () => respondToFriendRequest(btn.dataset.denyRequest, 'deny')));
     }
 
     function friendInitial(friend) {
@@ -2359,6 +2440,14 @@
         return state.packReveal;
     }
 
+    function particleThemeForElement(element) {
+        const normalized = String(element || 'FIRE').toUpperCase();
+        if (normalized === 'EARTH') return 'earth';
+        if (normalized === 'ICE' || normalized === 'WATER') return 'ice';
+        if (normalized === 'WIND') return 'wind';
+        return 'fire';
+    }
+
     function enrichPackCard(card, index) {
         const catalogCard = findCard(card.id) || {};
         const duplicateAtCap = Boolean(card.duplicateAtCap ?? (card.granted === false && Number(card.remnantsAwarded) > 0));
@@ -2486,6 +2575,7 @@
         reveal.lastRevealedId = revealId;
         if (options.openPreview) reveal.previewId = revealId;
         reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
+        reveal.particleElement = card?.element || reveal.particleElement;
         renderPackResult();
     }
 
@@ -2578,6 +2668,7 @@
         cards.forEach(card => reveal.revealed.add(card.revealId));
         reveal.lastRevealedId = '';
         reveal.sparkColor = elementColor(latest.cards?.[0]?.element || 'FIRE');
+        reveal.particleElement = latest.cards?.[0]?.element || reveal.particleElement || 'FIRE';
         renderPackResult();
         const result = document.getElementById('packResult');
         cards.filter(card => card.duplicateAtCap && card.remnantsAwarded > 0).forEach((card, order) => {
@@ -2720,10 +2811,31 @@
         state.profile = data;
         state.progression = data.progression || state.progression;
         if (input) input.value = '';
-        setFriendMessage('Friend added.', 'success');
+        setFriendMessage('Friend request sent.', 'success');
         renderProfileMini();
         renderFriends();
+        renderFriendRequests();
         renderProfile();
+    }
+
+    async function respondToFriendRequest(fromUserId, action) {
+        if (!state.profile?.authenticated) return openAuth();
+        const path = action === 'accept' ? '/api/profile/friends/accept' : '/api/profile/friends/deny';
+        const data = await fetchJson(path, { method: 'POST', body: JSON.stringify({ fromUserId }) });
+        if (data?.error) {
+            setFriendMessage(data.error, 'error');
+            return;
+        }
+        state.profile = data;
+        state.progression = data.progression || state.progression;
+        setFriendMessage(action === 'accept' ? 'Friend request accepted.' : 'Friend request declined.', 'success');
+        renderFriends();
+        renderFriendRequests();
+        renderProfile();
+        if (action === 'accept') {
+            await refreshFriendPresence();
+            renderFriends();
+        }
     }
 
     async function removeFriend(email) {
@@ -2737,6 +2849,7 @@
         state.progression = data.progression || state.progression;
         setFriendMessage('Friend removed.', 'success');
         renderFriends();
+        renderFriendRequests();
         renderProfile();
     }
 
@@ -2750,8 +2863,7 @@
         if (state.lobbyBusy) return;
         const existing = readHostLobby();
         if (existing?.roomId) {
-            navigateHub('social', { focus: 'lobby' });
-            renderSocialActiveLobby();
+            openLobbyWaitingRoom(existing.roomId);
             return;
         }
         if (!state.options?.decks?.length) {
@@ -2775,16 +2887,21 @@
                 expiresAt: data.expiresAt || null,
                 shareUrl: data.shareUrl || buildSocialRoomShareUrl(data.roomId)
             });
+            writeLobbySession({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                role: 'host'
+            });
             saveMultiplayerSession({
                 roomId: data.roomId,
                 playerToken: data.playerToken,
                 viewerSide: data.viewerSide || 'PLAYER'
             });
             state.hostLobbyStatus = data;
-            navigateHub('social', { focus: 'lobby' });
             await refreshRooms(true);
             renderSocialActiveLobby();
             ensureHostLobbyPolling();
+            openLobbyWaitingRoom(data.roomId, { replace: true });
         } finally {
             state.lobbyBusy = false;
             renderSocialActiveLobby();
@@ -2792,43 +2909,19 @@
     }
 
     function quickJoinFirstRoom() {
-        const room = filteredRooms().find(candidate => !isRoomFull(candidate));
+        const room = filteredRooms().find(candidate => !isRoomFull(candidate) && !isOwnLobby(candidate));
         if (!room?.roomId) return;
-        const input = document.getElementById('roomCodeInput');
-        if (input) input.value = room.roomId;
-        joinRoomFromHome();
+        openLobbyWaitingRoom(room.roomId);
     }
 
     async function joinRoomFromHome() {
         const room = document.getElementById('roomCodeInput')?.value?.trim()?.toUpperCase();
         if (!room) return;
-        if (!state.options?.decks?.length) {
-            alert('Deck options are still loading. Try again in a moment.');
+        if (isOwnLobbyRoomId(room)) {
+            openLobbyWaitingRoom(room);
             return;
         }
-        if (state.lobbyBusy) return;
-        state.lobbyBusy = true;
-        try {
-            const data = await fetchJson('/api/match/join', {
-                method: 'POST',
-                body: JSON.stringify({ ...buildSocialMatchBody(), roomId: room })
-            });
-            if (data?.error) {
-                alert(data.error);
-                return;
-            }
-            saveMultiplayerSession({
-                roomId: data.roomId,
-                playerToken: data.playerToken,
-                viewerSide: data.viewerSide || 'PLAYER'
-            });
-            launchOnlineBattleFromSocial({
-                roomId: data.roomId,
-                playerToken: data.playerToken
-            }, data);
-        } finally {
-            state.lobbyBusy = false;
-        }
+        openLobbyWaitingRoom(room);
     }
 
     function queuePlayLoadout(payload = {}) {
@@ -2887,7 +2980,11 @@
     }
 
     function setActiveRoute() {
-        document.querySelectorAll('[data-route]').forEach(link => link.classList.toggle('active', link.dataset.route === state.route));
+        document.querySelectorAll('[data-route]').forEach(link => {
+            const route = link.dataset.route;
+            const active = route === state.route || (state.route === 'lobby' && route === 'social');
+            link.classList.toggle('active', active);
+        });
     }
 
     function isBinderRoute() {
@@ -2945,10 +3042,24 @@
         if (state.token) headers.Authorization = `Bearer ${state.token}`;
         try {
             const resp = await fetch(path, { ...options, headers });
-            return await resp.json();
+            const raw = await resp.text();
+            let data = null;
+            if (raw) {
+                try {
+                    data = JSON.parse(raw);
+                } catch (parseError) {
+                    console.error(parseError);
+                    return { error: resp.ok ? 'Unexpected server response.' : (raw.trim() || resp.statusText || 'Request failed') };
+                }
+            }
+            if (!resp.ok) {
+                const message = data?.error || data?.message || resp.statusText || 'Request failed';
+                return { ...(data || {}), error: message };
+            }
+            return data;
         } catch (error) {
             console.error(error);
-            return null;
+            return { error: 'Network error. Check your connection and try again.' };
         }
     }
 
@@ -3045,11 +3156,19 @@
     }
 
     function authMarkup() {
+        if (state.authRegisterStep === 'display-name') {
+            return `<div class="auth-card">
+                <strong>Choose your display name</strong>
+                <span>Confirm how other duelists will see you (${escapeHtml(state.registerDraft.email || '')}).</span>
+                <input class="search-input" id="authName" maxlength="20" placeholder="Display name" autofocus>
+                <button class="primary-btn" id="confirmRegisterBtn" type="button">Confirm</button>
+                <button class="ghost-btn" id="backRegisterBtn" type="button">Back</button>
+            </div>`;
+        }
         return `<div class="auth-card">
             <strong>Sign in to save progression</strong>
             <span>Starter packs, Siegecoins, Remnants, owned cards, and custom decks require an account. New players start with ${renderCoinAmount(100)}.</span>
             <input class="search-input" id="authEmail" type="email" placeholder="Email">
-            <input class="search-input" id="authName" placeholder="Display name for register">
             <input class="search-input" id="authPassword" type="password" placeholder="Password">
             <button class="primary-btn" id="loginBtn" type="button">Log In</button>
             <button class="ghost-btn" id="registerBtn" type="button">Register</button>
@@ -3064,6 +3183,8 @@
 
     function closeAuth() {
         state.authOpen = false;
+        state.authRegisterStep = 'credentials';
+        state.registerDraft = { email: '', password: '' };
         renderAuthModal();
     }
 
@@ -3086,14 +3207,39 @@
 
     function bindAuthForms() {
         document.querySelectorAll('#loginBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('login')));
-        document.querySelectorAll('#registerBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('register')));
+        document.querySelectorAll('#registerBtn').forEach(btn => btn.addEventListener('click', () => beginRegisterDisplayName()));
+        document.querySelectorAll('#confirmRegisterBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('register')));
+        document.querySelectorAll('#backRegisterBtn').forEach(btn => btn.addEventListener('click', () => {
+            state.authRegisterStep = 'credentials';
+            renderAuthModal();
+        }));
+    }
+
+    function beginRegisterDisplayName() {
+        const email = (document.getElementById('authEmail')?.value || '').trim();
+        const password = document.getElementById('authPassword')?.value || '';
+        if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
+            alert('Enter a valid email address.');
+            return;
+        }
+        if (!password || password.length < 6) {
+            alert('Passwords must be at least 6 characters.');
+            return;
+        }
+        state.registerDraft = { email, password };
+        state.authRegisterStep = 'display-name';
+        renderAuthModal();
     }
 
     async function submitAuth(mode) {
-        const email = document.getElementById('authEmail')?.value || '';
-        const password = document.getElementById('authPassword')?.value || '';
-        const displayName = document.getElementById('authName')?.value || '';
-        const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify({ email, password, displayName }) });
+        const onRegisterNameStep = mode === 'register' && state.authRegisterStep === 'display-name';
+        const email = onRegisterNameStep ? state.registerDraft.email : (document.getElementById('authEmail')?.value || '');
+        const password = onRegisterNameStep ? state.registerDraft.password : (document.getElementById('authPassword')?.value || '');
+        const displayName = mode === 'register' ? (document.getElementById('authName')?.value || '') : '';
+        const body = mode === 'register'
+            ? { email, password, displayName }
+            : { email, password };
+        const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) });
         if (data?.error) return alert(data.error);
         state.token = data.token || '';
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
@@ -3103,11 +3249,19 @@
         cacheProfilePrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
+        startPresenceHeartbeat();
+        state.authRegisterStep = 'credentials';
+        state.registerDraft = { email: '', password: '' };
         await ensurePacksLoaded();
         render();
     }
 
     async function logout() {
+        stopPresenceHeartbeat();
+        try {
+            await fetchJson('/api/social/presence/offline', { method: 'POST' });
+        } catch (_ignored) {
+        }
         await fetchJson('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
@@ -3251,14 +3405,17 @@
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
         const head = segments[0] || 'home';
-        if (head === 'lobbies') return { route: 'social', shopView: 'browse' };
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '' };
+        if (head === 'social' && segments[1] === 'lobby' && segments[2]) {
+            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase() };
+        }
         if (head === 'shop') {
-            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse' };
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '' };
         }
         if (['cards', 'decks', 'social', 'profile'].includes(head)) {
-            return { route: head, shopView: 'browse' };
+            return { route: head, shopView: 'browse', lobbyRoomId: '' };
         }
-        return { route: 'home', shopView: 'browse' };
+        return { route: 'home', shopView: 'browse', lobbyRoomId: '' };
     }
 
     function hubPath(route, shopView = 'browse') {
@@ -3271,6 +3428,7 @@
         const parsed = parseHubRoute(path);
         state.route = parsed.route;
         state.shopView = parsed.shopView;
+        state.lobbyRoomId = parsed.lobbyRoomId || '';
         if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
             state.shopView = 'browse';
             if (location.pathname !== hubPath('shop', 'browse')) {
@@ -3411,11 +3569,13 @@
         if (!room) return;
         params.delete('room');
         const query = params.toString();
-        const nextPath = `${hubPath('social')}${query ? `?${query}` : ''}#socialActiveLobby`;
+        const roomId = room.trim().toUpperCase();
+        const nextPath = `${lobbyPath(roomId)}${query ? `?${query}` : ''}`;
         history.replaceState(null, '', nextPath);
-        state.route = 'social';
+        state.route = 'lobby';
+        state.lobbyRoomId = roomId;
         const input = document.getElementById('roomCodeInput');
-        if (input) input.value = room.trim().toUpperCase();
+        if (input) input.value = roomId;
     }
 
     function buildSocialMatchBody() {
@@ -3443,9 +3603,331 @@
         }
     }
 
+    function lobbyPath(roomId) {
+        if (!roomId) return '/social';
+        return `/social/lobby/${encodeURIComponent(String(roomId).trim().toUpperCase())}`;
+    }
+
     function buildSocialRoomShareUrl(roomId) {
         if (!roomId) return '';
-        return `${location.origin}/social?room=${encodeURIComponent(roomId)}`;
+        return `${location.origin}${lobbyPath(roomId)}`;
+    }
+
+    function isOwnLobby(room) {
+        if (!room?.roomId) return false;
+        return isOwnLobbyRoomId(room.roomId) || (room.hostUserId && room.hostUserId === state.profile?.user?.id);
+    }
+
+    function isOwnLobbyRoomId(roomId) {
+        if (!roomId) return false;
+        const normalized = String(roomId).trim().toUpperCase();
+        const hostLobby = readHostLobby();
+        if (hostLobby?.roomId && hostLobby.roomId.toUpperCase() === normalized) return true;
+        return false;
+    }
+
+    function openLobbyWaitingRoom(roomId, options = {}) {
+        const normalized = String(roomId || '').trim().toUpperCase();
+        if (!normalized) return;
+        state.lobbyRoomId = normalized;
+        const nextPath = lobbyPath(normalized);
+        if (options.replace) {
+            history.replaceState(null, '', nextPath);
+        } else if (`${location.pathname}` !== nextPath) {
+            history.pushState(null, '', nextPath);
+        }
+        state.route = 'lobby';
+        setActiveRoute();
+        renderSections();
+        renderRoute();
+    }
+
+    async function enterLobbyWaitingRoom() {
+        const roomId = state.lobbyRoomId;
+        if (!roomId) return;
+        renderLobbyWaitingRoom();
+        if (!state.options?.decks?.length) {
+            await loadAll();
+        }
+        try {
+            const session = await ensureLobbySession(roomId);
+            if (!session) return;
+            state.lobbySession = session;
+            writeLobbySession(session);
+            saveMultiplayerSession({
+                roomId: session.roomId,
+                playerToken: session.playerToken,
+                viewerSide: session.role === 'host' ? 'PLAYER' : 'ENEMY'
+            });
+            await pollLobbyStatusOnce();
+            startLobbyPolling();
+            void refreshRooms(true);
+        } catch (error) {
+            console.error('Lobby entry failed', error);
+        }
+    }
+
+    async function ensureLobbySession(roomId) {
+        const hostLobby = readHostLobby();
+        if (hostLobby?.roomId === roomId && hostLobby.playerToken) {
+            return { roomId, playerToken: hostLobby.playerToken, role: 'host' };
+        }
+        const saved = readLobbySession();
+        if (saved?.roomId === roomId && saved.playerToken) {
+            const status = await fetchMatchStatus(saved);
+            if (status && !status.error) {
+                return saved;
+            }
+        }
+        if (isOwnLobbyRoomId(roomId)) {
+            alert('Reconnect from the device that created this lobby, or create a new table.');
+            navigateHub('social', { focus: 'lobby' });
+            return null;
+        }
+        if (!state.options?.decks?.length) {
+            alert('Deck options are still loading. Try again in a moment.');
+            return null;
+        }
+        if (state.lobbyBusy) return null;
+        state.lobbyBusy = true;
+        try {
+            const data = await fetchJson('/api/match/join', {
+                method: 'POST',
+                body: JSON.stringify({ ...buildSocialMatchBody(), roomId })
+            });
+            if (data?.error) {
+                alert(data.error);
+                navigateHub('social');
+                return null;
+            }
+            return { roomId: data.roomId, playerToken: data.playerToken, role: 'guest' };
+        } finally {
+            state.lobbyBusy = false;
+        }
+    }
+
+    function readLobbySession() {
+        try {
+            const raw = localStorage.getItem(LOBBY_SESSION_KEY);
+            if (!raw) return null;
+            const session = JSON.parse(raw);
+            return session?.roomId && session?.playerToken ? session : null;
+        } catch (_error) {
+            return null;
+        }
+    }
+
+    function writeLobbySession(session) {
+        if (!session?.roomId || !session?.playerToken) {
+            localStorage.removeItem(LOBBY_SESSION_KEY);
+            state.lobbySession = null;
+            return;
+        }
+        localStorage.setItem(LOBBY_SESSION_KEY, JSON.stringify(session));
+        state.lobbySession = session;
+    }
+
+    function clearLobbySession() {
+        localStorage.removeItem(LOBBY_SESSION_KEY);
+        state.lobbySession = null;
+        state.lobbyStatus = null;
+    }
+
+    function currentLobbySession() {
+        if (state.lobbySession?.roomId === state.lobbyRoomId) return state.lobbySession;
+        const hostLobby = readHostLobby();
+        if (hostLobby?.roomId === state.lobbyRoomId) {
+            return { roomId: hostLobby.roomId, playerToken: hostLobby.playerToken, role: 'host' };
+        }
+        const saved = readLobbySession();
+        if (saved?.roomId === state.lobbyRoomId) return saved;
+        return null;
+    }
+
+    function renderLobbyWaitingRoom() {
+        const root = document.getElementById('lobbyWaitingRoot');
+        if (!root) return;
+        const status = state.lobbyStatus;
+        const session = currentLobbySession();
+        const roomId = state.lobbyRoomId || status?.roomId || '';
+        const isHost = session?.role === 'host' || status?.viewerIsHost;
+        const viewerReady = isHost ? Boolean(status?.hostReady) : Boolean(status?.guestReady);
+        const decks = state.options?.decks || [];
+        const trainers = state.options?.trainers || [];
+        const selectedDeck = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.deckId || selectedDeckId();
+        const selectedTrainer = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.trainerId || selectedTrainerId();
+        const deckOptions = decks.map(deck => `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`).join('');
+        const trainerOptions = trainers.map(trainer => `<option value="${escapeAttr(trainer.id)}" ${trainer.id === selectedTrainer ? 'selected' : ''}>${escapeHtml(trainer.name)}</option>`).join('');
+        const players = status?.players || [];
+        const hostPlayer = players.find(player => player.role === 'host') || { name: status?.hostName || 'Host', ready: false };
+        const guestPlayer = players.find(player => player.role === 'guest');
+        const chatLines = (status?.lobbyChat || []).slice(-24).map(line => {
+            const role = String(line.role || '');
+            const css = role === 'system' ? 'system' : '';
+            return `<div class="lobby-chat-line ${css}"><strong>${escapeHtml(line.author || 'Player')}:</strong> ${escapeHtml(line.text || '')}</div>`;
+        }).join('');
+        const statusLabel = status?.started
+            ? 'Match starting — opening Play...'
+            : !status?.guestJoined
+                ? 'Waiting for opponent to join'
+                : viewerReady
+                    ? 'Waiting for opponent to confirm'
+                    : 'Pick your deck and knight, then start match';
+
+        root.innerHTML = `<div class="lobby-waiting-head">
+            <div>
+                <span class="eyebrow">1v1 Waiting Room</span>
+                <h1>${isHost ? 'My Arena' : escapeHtml(`${status?.hostName || 'Host'}'s Arena`)}</h1>
+                <span class="social-muted-inline">Room ${escapeHtml(roomId)} · ${escapeHtml(statusLabel)}</span>
+            </div>
+            <span class="lobby-status-pill">${status?.guestJoined ? '2 / 2' : '1 / 2'} players</span>
+        </div>
+        <div class="lobby-waiting-grid">
+            <section class="lobby-panel">
+                <div class="social-panel-head"><div><span class="eyebrow">Players</span><h2>Lobby roster</h2></div></div>
+                <div class="lobby-players">
+                    ${renderLobbyPlayerSlot(hostPlayer, 'Host')}
+                    ${guestPlayer ? renderLobbyPlayerSlot(guestPlayer, 'Guest') : renderLobbyPlayerSlot({ name: 'Waiting for player...', ready: false }, 'Open slot', true)}
+                </div>
+                <form class="lobby-loadout-form" id="lobbyLoadoutForm">
+                    <label>Deck<select class="search-input" id="lobbyDeckSelect" ${viewerReady || status?.started ? 'disabled' : ''}>${deckOptions}</select></label>
+                    <label>Knight<select class="search-input" id="lobbyTrainerSelect" ${viewerReady || status?.started ? 'disabled' : ''}>${trainerOptions}</select></label>
+                </form>
+                <div class="lobby-actions-row">
+                    <button class="primary-btn" id="lobbyReadyBtn" type="button" ${!session || viewerReady || status?.started ? 'disabled' : ''}>${viewerReady ? 'Ready' : 'Start Match'}</button>
+                    <button class="ghost-btn" id="lobbyLeaveBtn" type="button">Back to Lobbies</button>
+                    ${isHost ? '<button class="ghost-btn" id="lobbyCloseBtn" type="button">Close Lobby</button>' : ''}
+                </div>
+            </section>
+            <section class="lobby-panel">
+                <div class="social-panel-head"><div><span class="eyebrow">Lobby Chat</span><h2>Say hello</h2></div></div>
+                <div class="lobby-chat-log" id="lobbyChatLog">${chatLines || '<div class="lobby-chat-line system">Say hello while you wait.</div>'}</div>
+                <form class="lobby-chat-compose" id="lobbyChatForm">
+                    <input class="search-input" id="lobbyChatInput" type="text" maxlength="120" placeholder="Message the lobby" ${session ? '' : 'disabled'}>
+                    <button class="primary-btn" type="submit">Send</button>
+                </form>
+                ${status?.shareUrl ? `<p class="social-muted-inline">Invite link: <a href="${escapeAttr(status.shareUrl)}">${escapeHtml(status.shareUrl)}</a></p>` : ''}
+            </section>
+        </div>`;
+
+        const chatLog = document.getElementById('lobbyChatLog');
+        if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
+        document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
+        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
+        document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
+            const hostLobby = readHostLobby();
+            if (hostLobby) void closeHostLobby(hostLobby);
+        });
+        document.getElementById('lobbyChatForm')?.addEventListener('submit', (event) => {
+            event.preventDefault();
+            void sendLobbyChat();
+        });
+    }
+
+    function renderLobbyPlayerSlot(player, label, empty = false) {
+        const ready = Boolean(player?.ready);
+        return `<article class="lobby-player-card${ready ? ' ready' : ''}${empty ? ' empty' : ''}">
+            <strong>${escapeHtml(player?.name || label)}</strong>
+            <span>${empty ? 'Invite a friend or share your link' : (ready ? 'Ready to battle' : 'Choosing loadout')}</span>
+        </article>`;
+    }
+
+    async function confirmLobbyReady() {
+        const session = currentLobbySession();
+        if (!session || state.lobbyBusy) return;
+        const deckId = document.getElementById('lobbyDeckSelect')?.value || selectedDeckId();
+        const trainerId = document.getElementById('lobbyTrainerSelect')?.value || selectedTrainerId();
+        state.lobbyBusy = true;
+        try {
+            const data = await fetchJson('/api/match/ready', {
+                method: 'POST',
+                headers: {
+                    'X-Room-Id': session.roomId,
+                    'X-Player-Token': session.playerToken
+                },
+                body: JSON.stringify({
+                    roomId: session.roomId,
+                    playerName: socialBattleName(),
+                    deckId,
+                    trainerId,
+                    loadoutLabel: ''
+                })
+            });
+            if (data?.error) {
+                alert(data.error);
+                return;
+            }
+            state.lobbyStatus = data;
+            if (data.started) {
+                launchOnlineBattleFromSocial(session, data);
+                return;
+            }
+            renderLobbyWaitingRoom();
+        } finally {
+            state.lobbyBusy = false;
+        }
+    }
+
+    async function sendLobbyChat() {
+        const session = currentLobbySession();
+        const input = document.getElementById('lobbyChatInput');
+        const message = input?.value?.trim();
+        if (!session || !message) return;
+        const data = await fetchJson('/api/match/lobby-chat', {
+            method: 'POST',
+            headers: {
+                'X-Room-Id': session.roomId,
+                'X-Player-Token': session.playerToken
+            },
+            body: JSON.stringify({ roomId: session.roomId, message })
+        });
+        if (data?.error) {
+            alert(data.error);
+            return;
+        }
+        if (input) input.value = '';
+        if (state.lobbyStatus) {
+            state.lobbyStatus.lobbyChat = data.lobbyChat || [];
+        }
+        renderLobbyWaitingRoom();
+    }
+
+    function leaveLobbyWaitingRoom() {
+        stopLobbyPolling();
+        clearLobbySession();
+        navigateHub('social');
+    }
+
+    function startLobbyPolling() {
+        stopLobbyPolling();
+        state.lobbyPollTimer = window.setInterval(() => {
+            void pollLobbyStatusOnce();
+        }, LOBBY_POLL_MS);
+    }
+
+    function stopLobbyPolling() {
+        if (!state.lobbyPollTimer) return;
+        window.clearInterval(state.lobbyPollTimer);
+        state.lobbyPollTimer = null;
+    }
+
+    async function pollLobbyStatusOnce() {
+        const session = currentLobbySession();
+        if (!session) return;
+        const status = await fetchMatchStatus(session);
+        if (!status || status.error) {
+            if (status?.error) {
+                alert(status.error);
+                leaveLobbyWaitingRoom();
+            }
+            return;
+        }
+        state.lobbyStatus = status;
+        if (status.started) {
+            launchOnlineBattleFromSocial(session, status);
+            return;
+        }
+        renderLobbyWaitingRoom();
     }
 
     function saveMultiplayerSession(session) {
@@ -3576,11 +4058,16 @@
         });
         if (data?.error) return alert(data.error);
         localStorage.removeItem(HOST_LOBBY_KEY);
+        clearLobbySession();
         state.hostLobbyStatus = null;
         state.battleRedirectPending = false;
         stopHostLobbyPolling();
+        stopLobbyPolling();
         await refreshRooms(true);
         renderSocialActiveLobby();
+        if (state.route === 'lobby') {
+            navigateHub('social');
+        }
     }
 
     function startSocialPolling() {
@@ -3596,6 +4083,20 @@
         }
     }
 
+    function startPresenceHeartbeat() {
+        stopPresenceHeartbeat();
+        if (!state.profile?.authenticated) return;
+        void sendPresenceHeartbeat();
+        state.presenceTimer = window.setInterval(() => sendPresenceHeartbeat(), PRESENCE_HEARTBEAT_MS);
+    }
+
+    function stopPresenceHeartbeat() {
+        if (state.presenceTimer) {
+            window.clearInterval(state.presenceTimer);
+            state.presenceTimer = null;
+        }
+    }
+
     async function refreshSocialData(forceRooms) {
         if (!state.profile?.authenticated) {
             state.friendPresence = {};
@@ -3604,8 +4105,9 @@
             renderMessageThreads();
             return;
         }
+        await syncProfile();
         await Promise.all([
-            refreshRooms(forceRooms),
+            refreshRooms(state.route === 'social' ? true : forceRooms),
             refreshFriendPresence(),
             refreshMessageThreads(),
             sendPresenceHeartbeat()
@@ -3614,6 +4116,7 @@
             await checkHostLobbyForBattle();
         }
         renderFriends();
+        renderFriendRequests();
         renderMessageThreads();
         renderSocialActiveLobby();
     }
@@ -3685,8 +4188,9 @@
         if (title) title.textContent = `Chat with ${friend?.displayName || peerId}`;
         compose?.classList.remove('hidden');
         const data = await fetchJson(`/api/social/messages/with/${encodeURIComponent(peerId)}`);
-        if (data?.error) {
-            if (log) log.innerHTML = `<div class="social-empty-state">${escapeHtml(data.error)}</div>`;
+        if (!data || data?.error) {
+            const message = data?.error || 'Could not load this chat.';
+            if (log) log.innerHTML = `<div class="social-empty-state">${escapeHtml(message)}</div>`;
             return;
         }
         if (log) {
@@ -3765,8 +4269,13 @@
             ${data.isFriend ? `<div class="profile-edit-actions">
                 <button class="primary-btn profile-theme-btn" type="button" id="viewProfileMessageBtn">Message</button>
             </div>` : isSelf ? '<p class="profile-muted">This is your own profile. Share it from Options to let others add you.</p>'
+                : data.incomingFriendRequest ? `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAcceptBtn">Accept Request</button>
+                <button class="ghost-btn profile-theme-btn" type="button" id="viewProfileDenyBtn">Decline</button>
+            </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`
+                : data.outgoingFriendRequest ? '<p class="profile-muted">Friend request sent. Waiting for them to accept.</p>'
                 : `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAddFriendBtn">Add Friend</button>
+                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAddFriendBtn">Send Friend Request</button>
             </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`}
         </div>`;
         modal.classList.remove('hidden');
@@ -3777,6 +4286,14 @@
             openMessageComposer(userId);
         });
         document.getElementById('viewProfileAddFriendBtn')?.addEventListener('click', () => addFriendByEmail(userId));
+        document.getElementById('viewProfileAcceptBtn')?.addEventListener('click', async () => {
+            await respondToFriendRequest(userId, 'accept');
+            closePlayerProfile();
+        });
+        document.getElementById('viewProfileDenyBtn')?.addEventListener('click', async () => {
+            await respondToFriendRequest(userId, 'deny');
+            closePlayerProfile();
+        });
     }
 
     async function addFriendByEmail(email) {
@@ -3794,9 +4311,10 @@
         state.profile = data;
         state.progression = data.progression || state.progression;
         const btn = document.getElementById('viewProfileAddFriendBtn');
-        if (btn) { btn.textContent = 'Friend Added'; btn.disabled = true; }
-        if (msg) { msg.textContent = 'Added to your friends list.'; msg.style.color = ''; }
+        if (btn) { btn.textContent = 'Request Sent'; btn.disabled = true; }
+        if (msg) { msg.textContent = 'They will need to accept before you can message.'; msg.style.color = ''; }
         renderFriends();
+        renderFriendRequests();
     }
 
     function closePlayerProfile() {
