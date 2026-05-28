@@ -80,6 +80,16 @@ test('rejects embedded card art data urls during publish validation', () => {
   );
 });
 
+test('rejects project-relative card art paths during live publish validation', () => {
+  const bundle = validBundle();
+  bundle.cards[0].cardArtUrl = '/assets/cards/seedling.png';
+  bundle.cards[0].cardArtMode = 'REPLACE';
+  assert.throws(
+    () => _private.validateEditorBundle(bundle),
+    /not hosted for the live game/
+  );
+});
+
 test('validates live publish bundle before writing Firestore', () => {
   assert.doesNotThrow(() => _private.validateEditorBundle(validBundle()));
 

@@ -376,6 +376,9 @@ function validateCardArtFields(cardId, card) {
   if (cardArtUrl.length > 2048) {
     throw badRequest(`Card '${cardId}' cardArtUrl is too long for Firestore (${cardArtUrl.length} characters).`);
   }
+  if (cardArtUrl.startsWith('/assets/cards/')) {
+    throw badRequest(`Card '${cardId}' uses ${cardArtUrl}, which is not hosted for the live game. Use Upload Image in the dashboard so art is stored in cloud storage.`);
+  }
   const mode = normalizeUpper(card?.cardArtMode);
   if (mode && mode !== 'REPLACE' && mode !== 'OVERLAY') {
     throw badRequest(`Card '${cardId}' has an invalid cardArtMode '${card?.cardArtMode}'.`);

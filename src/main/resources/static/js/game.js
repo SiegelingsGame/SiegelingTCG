@@ -765,9 +765,34 @@ function buildCardArtMeta(entry) {
     };
 }
 
+function getDashboardCardArtMeta(card) {
+    if (!card) {
+        return null;
+    }
+    const url = String(card.cardArtUrl || '').trim();
+    const mode = String(card.cardArtMode || '').trim().toUpperCase();
+    if (!url || (mode !== 'REPLACE' && mode !== 'OVERLAY')) {
+        return null;
+    }
+    return {
+        url,
+        mode,
+        transformStyle: window.SieglingsCardBinderVisual?.buildArtTransformStyle(card) || ''
+    };
+}
+
 function getCardArtMeta(card) {
     if (!card) {
         return null;
+    }
+
+    const dashboardArt = getDashboardCardArtMeta(card);
+    if (dashboardArt?.url) {
+        return {
+            url: dashboardArt.url,
+            crop: dashboardArt.mode === 'REPLACE' ? 'illustration' : 'default',
+            transformStyle: dashboardArt.transformStyle
+        };
     }
 
     const candidates = [
@@ -796,7 +821,8 @@ function renderCardArt(card, variant, fallbackLabel = '') {
         const cropClass = artMeta.crop && artMeta.crop !== 'default'
             ? ` card-art-crop-${artMeta.crop}`
             : '';
-        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${artMeta.url}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"></div>`;
+        const styleAttr = artMeta.transformStyle ? ` style="${escapeHtmlAttribute(artMeta.transformStyle)}"` : '';
+        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${escapeHtmlAttribute(artMeta.url)}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
