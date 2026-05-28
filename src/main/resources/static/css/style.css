@@ -8877,6 +8877,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     color: var(--text-dim);
 }
 
+.loadout-saved-note {
+    margin: 0 0 14px;
+    color: var(--text-dim);
+    font-size: 0.88em;
+    line-height: 1.45;
+}
+
+.deck-card-meta-line {
+    display: block;
+    margin-top: 6px;
+    color: rgba(245, 239, 224, 0.78);
+    font-size: 0.72em;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 .mulligan-box {
     width: min(calc(var(--overlay-shell-width) * 0.74), 100%);
 }
