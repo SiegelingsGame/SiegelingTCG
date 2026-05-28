@@ -10,8 +10,13 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=11">
+    <!-- home.css supplies the binder-card preview component styles; it must load
+         BEFORE card-dashboard.css so the dashboard's own body/.panel/.browser-panel
+         rules stay authoritative. Loading it last leaked home's
+         `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
+         full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
     <link rel="stylesheet" href="/css/home.css?v=37">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=12">
 </head>
 <body>
 <div class="dashboard-shell">
