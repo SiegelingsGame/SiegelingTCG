@@ -3261,16 +3261,21 @@
     }
 
     function queuePlayLoadout(payload = {}) {
+        const savedDeck = selectedSavedDeck();
+        const customDeckCards = payload.customDeckCards
+            || (savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null);
+        const loadoutLabel = payload.loadoutLabel
+            || (customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : '');
         localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
             createdAt: Date.now(),
             deckId: payload.deckId || selectedDeckId(),
-            trainerId: payload.trainerId || state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id,
+            trainerId: payload.trainerId || selectedTrainerId(),
             mode: payload.mode || 'solo',
             onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
             battleLaunch: Boolean(payload.battleLaunch),
-            customDeckCards: payload.customDeckCards || null,
-            loadoutLabel: payload.loadoutLabel || ''
+            customDeckCards,
+            loadoutLabel
         }));
     }
 
@@ -3646,7 +3651,19 @@
     function selectedCard() { return findCard(state.selectedCardId) || state.options?.cardCatalog?.[0]; }
     function findCard(id) { return (state.options?.cardCatalog || []).find(card => card.id === id); }
     function ownedCount(id) { return state.progression?.ownedCards?.[id] || 0; }
-    function selectedDeckId() { return state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth'; }
+    function selectedSavedDeck() {
+        const selected = state.selectedDeckId;
+        if (!selected) return null;
+        return (state.profile?.savedDecks || []).find(deck => deck.id === selected || deck.deckId === selected) || null;
+    }
+    function selectedDeckId() {
+        const savedDeck = selectedSavedDeck();
+        if (savedDeck?.deckId) return savedDeck.deckId;
+        if (state.selectedDeckId && (state.options?.decks || []).some(deck => deck.id === state.selectedDeckId)) {
+            return state.selectedDeckId;
+        }
+        return state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth';
+    }
     function indexCreatureDescriptions(descriptions) {
         const entries = Array.isArray(descriptions) ? descriptions : [];
         return entries.reduce((out, item) => {
@@ -3997,15 +4014,20 @@
     }
 
     function buildSocialMatchBody() {
+        const savedDeck = selectedSavedDeck();
+        const customDeckCards = savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null;
         return {
             deckId: selectedDeckId(),
             trainerId: selectedTrainerId(),
             playerName: socialBattleName(),
-            loadoutLabel: ''
+            customDeckCards,
+            loadoutLabel: customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : ''
         };
     }
 
     function selectedTrainerId() {
+        const savedDeck = selectedSavedDeck();
+        if (savedDeck?.trainerId) return savedDeck.trainerId;
         return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
     }
 
