@@ -1167,7 +1167,6 @@
         }
         navigateHub('deck-builder');
     }
-
     function openDeckPreview(deckId) {
         const deck = (state.options?.decks || []).find(item => item.id === deckId);
         if (!deck) return;
