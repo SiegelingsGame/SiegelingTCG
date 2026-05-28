@@ -1377,21 +1377,55 @@ function ensureDomTargetingPreviewLayer() {
     return svg;
 }
 
-function getDomCellCenter(isPlayer, row, col) {
+// Resolve the rendered card's box (relative to the board area) for a given
+// cell. We anchor to the inner `.board-card` element rather than the `.board-cell`
+// so arrows attach to the visible card, not the larger padded grid slot (which
+// also contains the row tag). Falls back to the cell when no card is present.
+function getDomCardRect(isPlayer, row, col) {
     const boardArea = document.getElementById('boardArea');
     const grid = document.getElementById(isPlayer ? 'playerGrid' : 'enemyGrid');
     const cell = grid?.querySelector(`.board-cell[data-row="${row}"][data-col="${col}"]`);
     if (!boardArea || !cell) {
         return null;
     }
+    const anchor = cell.querySelector(':scope > .board-card') || cell;
     const areaRect = boardArea.getBoundingClientRect();
-    const cellRect = cell.getBoundingClientRect();
-    if (cellRect.width <= 0 || cellRect.height <= 0) {
+    const rect = anchor.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
         return null;
     }
     return {
-        x: (cellRect.left - areaRect.left) + (cellRect.width / 2),
-        y: (cellRect.top - areaRect.top) + (cellRect.height / 2)
+        left: rect.left - areaRect.left,
+        top: rect.top - areaRect.top,
+        width: rect.width,
+        height: rect.height
+    };
+}
+
+function getDomCellCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: rect.top + (rect.height / 2)
+    };
+}
+
+// Source anchor for attack lines: the centre of the card's FRONT edge — the
+// edge facing the opponent. Player cards face upward (front = top edge); enemy
+// cards face downward (front = bottom edge). Computed from the live card box so
+// the line consistently starts at the front-centre of the attacking card on any
+// screen size.
+function getDomCardFrontCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: isPlayer ? rect.top : rect.top + rect.height
     };
 }
 
@@ -1414,7 +1448,7 @@ function drawDomTargetingPreview(timestamp) {
 
     // Resolve live cell centers every frame so the arrows track the board as it
     // resizes, scrolls, or reflows instead of pointing at stale cached pixels.
-    const source = getDomCellCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
+    const source = getDomCardFrontCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
     const targets = [];
     state.targetCells.forEach((cell) => {
         const center = getDomCellCenter(cell.isPlayer, cell.row, cell.col);
