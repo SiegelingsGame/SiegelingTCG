@@ -103,12 +103,34 @@ const LEADERBOARD_TABS = [
     { id: 'siegelingsDefeated', label: 'Siegelings' },
     { id: 'pvpWinRate', label: 'PVP W/L' }
 ];
+const LEADERBOARD_PERIODS = [
+    { id: 'daily', label: 'Daily' },
+    { id: 'weekly', label: 'Weekly' },
+    { id: 'monthly', label: 'Monthly' },
+    { id: 'year', label: 'Year' },
+    { id: 'allTime', label: 'All Time' }
+];
 let welcomeLeaderboardState = {
     tab: 'wins',
+    period: 'daily',
     data: null,
     loading: false,
     error: ''
 };
+
+function welcomeLeaderboardBoards() {
+    const data = welcomeLeaderboardState.data;
+    if (!data) {
+        return null;
+    }
+    const period = LEADERBOARD_PERIODS.some((entry) => entry.id === welcomeLeaderboardState.period)
+        ? welcomeLeaderboardState.period
+        : 'daily';
+    if (data.periods && data.periods[period]) {
+        return data.periods[period];
+    }
+    return period === 'daily' ? data.boards : null;
+}
 let authMode = 'login';
 let authRegisterStep = 'credentials';
 let registerDraft = { email: '', password: '' };
@@ -4672,6 +4694,11 @@ function setWelcomeLeaderboardTab(tabId) {
     renderWelcomeLeaderboards();
 }
 
+function setWelcomeLeaderboardPeriod(periodId) {
+    welcomeLeaderboardState.period = periodId;
+    renderWelcomeLeaderboards();
+}
+
 function renderWelcomeLeaderboards() {
     const meta = document.getElementById('welcomeLeaderboardsMeta');
     const tabsEl = document.getElementById('welcomeLeaderboardsTabs');
@@ -4680,7 +4707,7 @@ function renderWelcomeLeaderboards() {
         return;
     }
 
-    const boards = welcomeLeaderboardState.data?.boards;
+    const boards = welcomeLeaderboardBoards();
     const tz = welcomeLeaderboardState.data?.timeZone || 'UTC';
     const gen = welcomeLeaderboardState.data?.generatedAt;
     if (gen) {
@@ -4703,10 +4730,15 @@ function renderWelcomeLeaderboards() {
         meta.textContent = welcomeLeaderboardState.error;
     }
 
-    tabsEl.innerHTML = LEADERBOARD_TABS.map((t) => {
+    const periodTabs = LEADERBOARD_PERIODS.map((entry) => {
+        const active = welcomeLeaderboardState.period === entry.id ? ' active' : '';
+        return `<button type="button" class="welcome-lb-period-tab${active}" role="tab" aria-selected="${welcomeLeaderboardState.period === entry.id}" onclick="setWelcomeLeaderboardPeriod('${entry.id}')">${escapeHtml(entry.label)}</button>`;
+    }).join('');
+    const categoryTabs = LEADERBOARD_TABS.map((t) => {
         const active = welcomeLeaderboardState.tab === t.id ? ' active' : '';
         return `<button type="button" class="welcome-lb-tab${active}" role="tab" aria-selected="${welcomeLeaderboardState.tab === t.id}" onclick="setWelcomeLeaderboardTab('${t.id}')">${escapeHtml(t.label)}</button>`;
     }).join('');
+    tabsEl.innerHTML = `<div class="welcome-lb-period-tabs">${periodTabs}</div><div class="welcome-lb-category-tabs">${categoryTabs}</div>`;
 
     if (welcomeLeaderboardState.loading && !boards) {
         body.innerHTML = '<div class="welcome-lb-loading">Loading rankings…</div>';

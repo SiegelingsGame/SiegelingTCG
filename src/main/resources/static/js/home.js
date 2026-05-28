@@ -174,8 +174,18 @@
         shopView: 'browse',
         catalogVersion: 0,
         catalogSyncBound: false,
-        profileUserId: ''
+        profileUserId: '',
+        leaderboardTab: 'wins',
+        leaderboardPeriod: 'daily'
     };
+
+    const LEADERBOARD_PERIODS = [
+        ['daily', 'Daily'],
+        ['weekly', 'Weekly'],
+        ['monthly', 'Monthly'],
+        ['year', 'Year'],
+        ['allTime', 'All Time']
+    ];
 
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
@@ -761,6 +771,26 @@
         bindHomeDashboardActions(el);
     }
 
+    function leaderboardBoardsForPeriod(period) {
+        const activePeriod = LEADERBOARD_PERIODS.some(([id]) => id === period) ? period : 'daily';
+        const periods = state.leaderboards?.periods;
+        if (periods && periods[activePeriod]) {
+            return periods[activePeriod];
+        }
+        return activePeriod === 'daily' ? (state.leaderboards?.boards || {}) : {};
+    }
+
+    function leaderboardPeriodHeadline(period) {
+        const headlines = {
+            daily: 'See who rules the arena today',
+            weekly: 'See who rules the arena this week',
+            monthly: 'See who rules the arena this month',
+            year: 'See who rules the arena this year',
+            allTime: 'See who rules the arena of all time'
+        };
+        return headlines[period] || headlines.daily;
+    }
+
     function renderHomeLeaderboardsPanel() {
         const tabs = [
             ['wins', 'Wins'],
@@ -770,17 +800,24 @@
             ['siegelingsDefeated', 'Siegelings'],
             ['pvpWinRate', 'PVP W/L']
         ];
-        const boards = state.leaderboards?.boards || {};
-        const activeRows = boards[state.leaderboardTab] || [];
+        const activePeriod = LEADERBOARD_PERIODS.some(([id]) => id === state.leaderboardPeriod)
+            ? state.leaderboardPeriod
+            : 'daily';
+        const boards = leaderboardBoardsForPeriod(activePeriod);
         const activeTab = tabs.some(([id]) => id === state.leaderboardTab) ? state.leaderboardTab : 'wins';
+        const activeRows = boards[activeTab] || [];
         const generatedAt = state.leaderboards?.generatedAt ? formatDateTime(state.leaderboards.generatedAt) : '';
+        const periodLabel = LEADERBOARD_PERIODS.find(([id]) => id === activePeriod)?.[1] || 'Daily';
         return `<article class="command-panel home-leaderboards-panel">
             <div class="command-panel-head">
-                <div><span class="eyebrow">Daily Leaderboards</span><h3>See who rules the arena today</h3></div>
-                <span class="reset-pill">${generatedAt ? `Updated ${escapeHtml(generatedAt)}` : 'Daily'}</span>
+                <div><span class="eyebrow">Leaderboards</span><h3>${escapeHtml(leaderboardPeriodHeadline(activePeriod))}</h3></div>
+                <span class="reset-pill">${generatedAt ? `Updated ${escapeHtml(generatedAt)}` : escapeHtml(periodLabel)}</span>
             </div>
-            <div class="home-lb-tabs">
-                ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}">${escapeHtml(label)}</button>`).join('')}
+            <div class="home-lb-period-tabs" role="tablist" aria-label="Leaderboard time range">
+                ${LEADERBOARD_PERIODS.map(([id, label]) => `<button class="home-lb-period-tab${activePeriod === id ? ' active' : ''}" type="button" data-home-lb-period="${escapeAttr(id)}" role="tab" aria-selected="${activePeriod === id}">${escapeHtml(label)}</button>`).join('')}
+            </div>
+            <div class="home-lb-tabs" role="tablist" aria-label="Leaderboard category">
+                ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}" role="tab" aria-selected="${activeTab === id}">${escapeHtml(label)}</button>`).join('')}
             </div>
             <div class="home-lb-list">
                 ${state.leaderboardsError && !state.leaderboards ? `<div class="home-empty-emblem">${escapeHtml(state.leaderboardsError)}</div>` : ''}
@@ -939,6 +976,10 @@
                 return navigateHub('shop');
             }
             if (action === 'missions') return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }));
+        root.querySelectorAll('[data-home-lb-period]').forEach(btn => btn.addEventListener('click', () => {
+            state.leaderboardPeriod = btn.dataset.homeLbPeriod || 'daily';
+            renderHomeDashboard();
         }));
         root.querySelectorAll('[data-home-lb]').forEach(btn => btn.addEventListener('click', () => {
             state.leaderboardTab = btn.dataset.homeLb || 'wins';
