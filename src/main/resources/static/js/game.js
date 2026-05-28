@@ -4652,7 +4652,25 @@ async function logoutAccount() {
     updateLoadoutSummary();
 }
 
+function updateHubNavAuth() {
+    const pill = document.querySelector('.play-hub-pill');
+    if (!pill) {
+        return;
+    }
+    if (authState.profile?.authenticated) {
+        const name = authState.profile.user?.displayName || 'Profile';
+        pill.textContent = name;
+        pill.setAttribute('href', '/profile');
+        pill.classList.add('is-authenticated');
+    } else {
+        pill.textContent = 'Sign In';
+        pill.setAttribute('href', '/profile');
+        pill.classList.remove('is-authenticated');
+    }
+}
+
 function renderWelcomeAuth() {
+    updateHubNavAuth();
     const authCard = document.getElementById('welcomeAuthCard');
     const historyCard = document.getElementById('welcomeHistoryCard');
     if (!authCard || !historyCard) {
