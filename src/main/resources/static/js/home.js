@@ -148,6 +148,7 @@
         builderSort: 'owned-desc',
         friendMessage: '',
         friendMessageType: '',
+        selectedDeckId: '',
         filterTrayOpen: false,
         cardTrayOpen: false,
         authOpen: false,
@@ -1015,14 +1016,18 @@
         const grid = document.getElementById('deckGrid');
         if (!grid) return;
         grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
-        grid.querySelectorAll('[data-play-deck]').forEach(btn => btn.addEventListener('click', (event) => { event.stopPropagation(); goPlay({ mode: 'solo', deckId: btn.dataset.playDeck }); }));
-        grid.querySelectorAll('[data-buy-deck]').forEach(btn => btn.addEventListener('click', (event) => { event.stopPropagation(); purchaseDeck(btn.dataset.buyDeck); }));
         grid.querySelectorAll('[data-preview-deck]').forEach(tile => {
-            tile.addEventListener('click', () => openDeckPreview(tile.dataset.previewDeck));
+            tile.addEventListener('click', () => {
+                state.selectedDeckId = tile.dataset.previewDeck || '';
+                openDeckPreview(tile.dataset.previewDeck);
+                renderDecks();
+            });
             tile.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
+                    state.selectedDeckId = tile.dataset.previewDeck || '';
                     openDeckPreview(tile.dataset.previewDeck);
+                    renderDecks();
                 }
             });
         });
@@ -1030,24 +1035,18 @@
     }
 
     function renderPremadeDeckTile(deck) {
-        const price = deck.elements.length <= 1 ? 300 : deck.elements.length >= 4 ? 700 : 450;
-        const owned = state.progression?.purchasedDeckIds?.includes(deck.id);
+        const isSelected = state.selectedDeckId === deck.id;
         const primary = deck.elements?.[0] || 'FIRE';
         const accent = elementColor(primary);
         const elementLabels = deck.elements.map(format).join(' / ');
         const visual = deckAssetForElements(deck.elements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card deck-tile--clickable${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
-            <span class="deck-card-state">${owned ? 'Purchased' : 'Premade'}</span>
+        return `<article class="deck-tile hub-deck-card deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
+            <span class="deck-card-state">Premade</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name)}</strong>
                 <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
                 <span class="deck-card-desc">${escapeHtml(deck.description || 'Ready-to-play battle deck.')}</span>
-                <span class="deck-card-hint">Tap to preview cards</span>
-            </div>
-            <div class="deck-card-actions">
-                <button class="primary-btn" type="button" data-play-deck="${escapeAttr(deck.id)}">Play</button>
-                <button class="ghost-btn" type="button" data-buy-deck="${escapeAttr(deck.id)}">${owned ? 'Owned' : renderCoinAmount(price, '')}</button>
             </div>
         </article>`;
     }
@@ -1063,12 +1062,6 @@
             return;
         }
         grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>';
-        grid.querySelectorAll('[data-play-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            const deck = savedDecks.find(item => item.id === btn.dataset.playCustomDeck);
-            if (!deck) return;
-            goPlay({ mode: 'solo', deckId: deck.deckId, customDeckCards: deck.customDeckCards || null, trainerId: deck.trainerId, loadoutLabel: deck.name });
-        }));
         grid.querySelectorAll('[data-edit-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
             event.stopPropagation();
             openDeckBuilder({ savedDeckId: btn.dataset.editCustomDeck });
@@ -1076,13 +1069,17 @@
         grid.querySelectorAll('[data-preview-saved-deck]').forEach(tile => {
             tile.addEventListener('click', () => {
                 const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                state.selectedDeckId = deck?.deckId || tile.dataset.previewSavedDeck || '';
                 if (deck) openSavedDeckPreview(deck);
+                renderDecks();
             });
             tile.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                    state.selectedDeckId = deck?.deckId || tile.dataset.previewSavedDeck || '';
                     if (deck) openSavedDeckPreview(deck);
+                    renderDecks();
                 }
             });
         });
@@ -1093,20 +1090,19 @@
         const elements = [...new Set(cardIds.map(id => findCard(id)?.element).filter(Boolean))].slice(0, 4);
         const fallbackDeck = (state.options?.decks || []).find(item => item.id === deck.deckId);
         const displayElements = elements.length ? elements : (fallbackDeck?.elements || ['FIRE']);
+        const isSelected = Boolean(state.selectedDeckId) && (state.selectedDeckId === deck.deckId || state.selectedDeckId === deck.id);
         const accent = elementColor(displayElements[0]);
         const visual = deckAssetForElements(displayElements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${visual ? ' has-deck-art' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
+        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
             <span class="deck-card-state">${deck.custom ? 'Custom' : 'Saved'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name || 'Saved Deck')}</strong>
                 <span class="deck-card-elements">${displayElements.map(format).join(' / ')}</span>
                 <span class="deck-card-desc">${deck.custom ? `${cardIds.length} owned cards` : escapeHtml(deck.deckName || 'Premade loadout')} / ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
-                <span class="deck-card-hint">Tap to preview cards</span>
             </div>
             <div class="deck-card-actions">
                 ${deck.custom ? `<button class="ghost-btn" type="button" data-edit-custom-deck="${escapeAttr(deck.id)}">Edit</button>` : ''}
-                <button class="primary-btn" type="button" data-play-custom-deck="${escapeAttr(deck.id)}">Play</button>
             </div>
         </article>`;
     }
