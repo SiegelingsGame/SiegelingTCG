@@ -92,7 +92,8 @@
         updatedBy: "",
         updatedAt: "",
         auth: { ...DEFAULT_AUTH },
-        status: { ...DEFAULT_STATUS }
+        status: { ...DEFAULT_STATUS },
+        ephemeralCardArtPreview: null
     };
 
     const refs = {};
@@ -415,7 +416,11 @@
             if (!row) {
                 return;
             }
-            state.selectedCardId = row.dataset.cardId;
+            const nextCardId = row.dataset.cardId;
+            if (nextCardId !== state.selectedCardId) {
+                clearEphemeralCardArtPreview();
+            }
+            state.selectedCardId = nextCardId;
             state.selectedAbilityIndex = 0;
             renderAll();
         });
@@ -427,9 +432,9 @@
             }
             mutateSelectedCard((card) => {
                 card.cardArtMode = normalizeCardArtMode(modeInput.value);
-                const suggestedPath = defaultCardArtPath(card.id);
-                if (card.cardArtMode && suggestedPath && !String(card.cardArtUrl || "").trim()) {
-                    card.cardArtUrl = suggestedPath;
+                if (!card.cardArtMode) {
+                    clearEphemeralCardArtPreview();
+                    card.cardArtUrl = "";
                 }
             });
         });
@@ -464,30 +469,40 @@
                 renderStatus();
                 return;
             }
+
+            const localPreviewUrl = URL.createObjectURL(file);
+            setEphemeralCardArtPreview(cardId, localPreviewUrl);
+            mutateSelectedCard((selected) => {
+                if (!selected.cardArtMode) {
+                    selected.cardArtMode = "REPLACE";
+                }
+            }, { render: false });
+
             setStatus("Uploading card art...", "warning");
             renderStatus();
+            renderCardVisual();
             try {
-                const formData = new FormData();
-                formData.append("cardId", cardId);
-                formData.append("file", file);
-                const payload = await requestJson(apiUrl("/api/cards/editor/art"), {
-                    method: "POST",
-                    body: formData
-                });
+                const payload = await uploadCardArtFile(cardId, file);
+                const hostedUrl = String(payload?.url || "").trim();
+                if (!hostedUrl) {
+                    throw new Error("Upload finished but the server did not return an image URL.");
+                }
+                clearEphemeralCardArtPreview();
                 mutateSelectedCard((selected) => {
-                    selected.cardArtUrl = String(payload?.url || "").trim();
-                    if (selected.cardArtUrl && !selected.cardArtMode) {
-                        selected.cardArtMode = "REPLACE";
-                    }
-                });
+                    selected.cardArtUrl = hostedUrl;
+                    selected.cardArtMode = "REPLACE";
+                }, { render: false });
                 setStatus(
                     state.liveEditingEnabled
                         ? `Uploaded art for ${cardId}. Click Publish Live Changes to save the card metadata.`
                         : `Uploaded art for ${cardId}. Click Save To Project File when ready.`,
-                    "warning"
+                    "success"
                 );
             } catch (error) {
-                setStatus(error?.message || "Unable to upload card art.", "error");
+                setStatus(
+                    `${error?.message || "Unable to upload card art."} Your local preview is still visible; fix the issue above and try Upload Image again.`,
+                    "error"
+                );
             } finally {
                 event.target.value = "";
                 renderAll();
@@ -495,6 +510,7 @@
         });
 
         refs.clearCardArtBtn?.addEventListener("click", () => {
+            clearEphemeralCardArtPreview();
             mutateSelectedCard((card) => {
                 card.cardArtUrl = "";
                 card.cardArtMode = "";
@@ -1257,7 +1273,7 @@
         });
     }
 
-    function mutateSelectedCard(mutator) {
+    function mutateSelectedCard(mutator, options = {}) {
         const card = getSelectedCard();
         if (!card) {
             return;
@@ -1266,7 +1282,35 @@
         state.dirty = true;
         state.validation = validateDashboard();
         setStatus("You have unsaved changes in the dashboard.", "warning");
-        renderAll();
+        if (options.render !== false) {
+            renderAll();
+        }
+    }
+
+    function clearEphemeralCardArtPreview() {
+        if (state.ephemeralCardArtPreview?.url) {
+            URL.revokeObjectURL(state.ephemeralCardArtPreview.url);
+        }
+        state.ephemeralCardArtPreview = null;
+    }
+
+    function setEphemeralCardArtPreview(cardId, url) {
+        clearEphemeralCardArtPreview();
+        state.ephemeralCardArtPreview = {
+            cardId: String(cardId || "").trim(),
+            url
+        };
+    }
+
+    function getEphemeralCardArtPreviewUrl(cardId) {
+        const preview = state.ephemeralCardArtPreview;
+        if (!preview?.url) {
+            return "";
+        }
+        if (preview.cardId !== String(cardId || "").trim()) {
+            return "";
+        }
+        return preview.url;
     }
 
     function mutateSelectedAbility(mutator) {
@@ -1333,6 +1377,9 @@
     }
 
     function applyDataSet(data, dirty) {
+        if (!dirty) {
+            clearEphemeralCardArtPreview();
+        }
         const preparedData = prepareImportedDataSet(data);
         const resolvedData = preparedData.data;
         const cards = Array.isArray(resolvedData?.cards)
@@ -2637,11 +2684,16 @@
     }
 
     function toBinderPreviewCard(card) {
+        const ephemeralArtUrl = getEphemeralCardArtPreviewUrl(card.id);
         const preview = {
             ...card,
             type: card.cardType,
             abilities: card.cardType === "SIEGLING" ? [] : (card.abilities || [])
         };
+        if (ephemeralArtUrl) {
+            preview.cardArtUrl = ephemeralArtUrl;
+            preview.cardArtMode = preview.cardArtMode || "REPLACE";
+        }
         if (card.cardType !== "SIEGLING" && preview.abilities[0]) {
             preview.ability = preview.abilities[0];
         }
@@ -2697,6 +2749,28 @@
         }
         syncCardArtTransformControls(card);
         setupCardArtDragInteraction(card);
+        attachCardArtPreviewErrorHandler(card);
+    }
+
+    function attachCardArtPreviewErrorHandler(card) {
+        if (getEphemeralCardArtPreviewUrl(card.id)) {
+            return;
+        }
+        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card");
+        if (!artImg) {
+            return;
+        }
+        artImg.addEventListener("error", () => {
+            const artUrl = String(card.cardArtUrl || "").trim();
+            if (!artUrl) {
+                return;
+            }
+            setStatus(
+                `Card art did not load (${artUrl}). Use Upload Image to host the file, or fix the Art URL path (expected ${defaultCardArtPath(card.id) || "/assets/cards/<card-id>.png"}).`,
+                "error"
+            );
+            renderStatus();
+        }, { once: true });
     }
 
     function renderSummary() {
@@ -4184,6 +4258,35 @@
             throw new Error(data?.error || `Request failed with status ${response.status}.`);
         }
         return data;
+    }
+
+    async function uploadCardArtFile(cardId, file) {
+        const formData = new FormData();
+        formData.append("cardId", cardId);
+        formData.append("file", file);
+        const response = await fetch(apiUrl("/api/cards/editor/art"), buildRequestOptions({
+            method: "POST",
+            body: formData
+        }));
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(formatCardArtUploadError(data?.error, response.status));
+        }
+        return data;
+    }
+
+    function formatCardArtUploadError(message, status) {
+        const detail = String(message || "").trim();
+        if (status === 404) {
+            return detail || "Card art upload is not available on this server (missing /api/cards/editor/art). Deploy the latest Firebase api function.";
+        }
+        if (status === 401 || status === 403) {
+            return detail || "Sign in under Live Publishing before uploading card art.";
+        }
+        if (detail) {
+            return detail;
+        }
+        return `Card art upload failed with status ${status}.`;
     }
 
     function buildRequestOptions(options) {
