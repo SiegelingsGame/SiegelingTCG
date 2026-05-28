@@ -5080,6 +5080,40 @@ body.gacha-active {
     gap: 12px;
 }
 
+.profile-friend-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.profile-friend-link:hover,
+.profile-friend-link:focus-visible {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+.profile-friend-link strong {
+    font-weight: inherit;
+}
+
+.friend-name-link {
+    display: inline-block;
+    max-width: 100%;
+}
+
+.public-profile-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin-bottom: 12px;
+}
+
+.profile-loading-state {
+    display: grid;
+    gap: 6px;
+    padding: 24px 8px;
+    color: var(--text-dim);
+}
+
 /* Options menu + guides */
 .options-icon { vertical-align: -3px; margin-right: 4px; }
 
