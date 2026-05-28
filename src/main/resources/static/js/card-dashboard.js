@@ -442,22 +442,41 @@
             });
         });
 
-        refs.cardArtFileInput?.addEventListener("change", (event) => {
+        refs.cardArtFileInput?.addEventListener("change", async (event) => {
             const file = event.target.files?.[0];
             if (!file) {
                 return;
             }
-            const reader = new FileReader();
-            reader.onload = () => {
-                mutateSelectedCard((card) => {
-                    card.cardArtUrl = String(reader.result || "").trim();
-                    if (card.cardArtUrl && !card.cardArtMode) {
-                        card.cardArtMode = "REPLACE";
+            const card = getSelectedCard();
+            const cardId = String(card?.id || "").trim();
+            if (!cardId) {
+                setStatus("Set a card id before uploading art.", "error");
+                event.target.value = "";
+                return;
+            }
+            setStatus("Uploading card art...", "warning");
+            renderStatus();
+            try {
+                const formData = new FormData();
+                formData.append("cardId", cardId);
+                formData.append("file", file);
+                const payload = await requestJson(apiUrl("/api/cards/editor/art"), {
+                    method: "POST",
+                    body: formData
+                });
+                mutateSelectedCard((selected) => {
+                    selected.cardArtUrl = String(payload?.url || "").trim();
+                    if (selected.cardArtUrl && !selected.cardArtMode) {
+                        selected.cardArtMode = "REPLACE";
                     }
                 });
+                setStatus(`Uploaded art for ${cardId}. Publish when ready.`, "warning");
+            } catch (error) {
+                setStatus(error?.message || "Unable to upload card art.", "error");
+            } finally {
                 event.target.value = "";
-            };
-            reader.readAsDataURL(file);
+                renderAll();
+            }
         });
 
         refs.clearCardArtBtn?.addEventListener("click", () => {
@@ -3421,6 +3440,15 @@
             }
             if (!card.rarity) {
                 issues.push(issue("error", `${trimmedId || card.name || "A card"} is missing a rarity.`));
+            }
+            const cardArtUrl = String(card.cardArtUrl || "").trim();
+            if (cardArtUrl.startsWith("data:")) {
+                issues.push(issue(
+                    "error",
+                    `${trimmedId || card.name || "A card"} still uses an embedded image upload. Use Upload Image again or set cardArtUrl to a path like /assets/cards/${trimmedId || "example"}.png before publishing.`
+                ));
+            } else if (cardArtUrl.length > 2048) {
+                issues.push(issue("error", `${trimmedId || card.name || "A card"} cardArtUrl is too long for Firestore.`));
             }
             if (card.cardType === "SIEGLING") {
                 if (card.health <= 0) {
