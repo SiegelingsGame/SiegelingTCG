@@ -3463,6 +3463,10 @@
         const binder = isBinderRoute();
         const optionsBtn = document.getElementById('optionsBtn');
         optionsBtn?.classList.toggle('hidden', state.route !== 'home');
+        // Hide "Join With Code" on the Cards/Decks binder routes; it crowds the
+        // HUD there and the same action lives on the Social tab.
+        const joinBtn = document.getElementById('joinByCodeBtn');
+        joinBtn?.classList.toggle('hidden', binder);
         const filterBtn = document.getElementById('filterTrayBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
         const filterTray = document.getElementById('filterTray');
