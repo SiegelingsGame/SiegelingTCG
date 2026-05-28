@@ -1040,11 +1040,25 @@
             return;
         }
         grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Build a 30-card custom deck from owned cards, then save it here.</span></div>';
-        grid.querySelectorAll('[data-play-custom-deck]').forEach(btn => btn.addEventListener('click', () => {
+        grid.querySelectorAll('[data-play-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
             const deck = savedDecks.find(item => item.id === btn.dataset.playCustomDeck);
             if (!deck) return;
             goPlay({ mode: 'solo', deckId: deck.deckId, customDeckCards: deck.customDeckCards || null, trainerId: deck.trainerId, loadoutLabel: deck.name });
         }));
+        grid.querySelectorAll('[data-preview-saved-deck]').forEach(tile => {
+            tile.addEventListener('click', () => {
+                const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                if (deck) openSavedDeckPreview(deck);
+            });
+            tile.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                    if (deck) openSavedDeckPreview(deck);
+                }
+            });
+        });
     }
 
     function renderSavedDeckTile(deck) {
@@ -1055,17 +1069,48 @@
         const accent = elementColor(displayElements[0]);
         const visual = deckAssetForElements(displayElements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card custom-saved-deck${visual ? ' has-deck-art' : ''}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
+        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${visual ? ' has-deck-art' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
             <span class="deck-card-state">${deck.custom ? 'Custom' : 'Saved'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name || 'Saved Deck')}</strong>
                 <span class="deck-card-elements">${displayElements.map(format).join(' / ')}</span>
                 <span class="deck-card-desc">${deck.custom ? `${cardIds.length} owned cards` : escapeHtml(deck.deckName || 'Premade loadout')} / ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
+                <span class="deck-card-hint">Tap to preview cards</span>
             </div>
             <div class="deck-card-actions">
                 <button class="primary-btn" type="button" data-play-custom-deck="${escapeAttr(deck.id)}">Play</button>
             </div>
         </article>`;
+    }
+
+    function cardCountsFromIdList(cardIds) {
+        const counts = {};
+        (cardIds || []).forEach((cardId) => {
+            if (!cardId) return;
+            counts[cardId] = (counts[cardId] || 0) + 1;
+        });
+        return Object.entries(counts).map(([id, count]) => ({ id, count }));
+    }
+
+    function openSavedDeckPreview(deck) {
+        if (!deck) return;
+        if (deck.custom && (deck.customDeckCards || []).length) {
+            const cardIds = deck.customDeckCards || [];
+            const elements = [...new Set(cardIds.map(id => findCard(id)?.element).filter(Boolean))].slice(0, 4);
+            const fallbackDeck = (state.options?.decks || []).find(item => item.id === deck.deckId);
+            const displayElements = elements.length ? elements : (fallbackDeck?.elements || []);
+            const cardCounts = cardCountsFromIdList(cardIds);
+            showDeckPreview({
+                eyebrow: 'Custom Deck',
+                name: deck.name || 'Saved Deck',
+                sub: `${displayElements.map(format).join(' / ')} / ${deck.trainerName || 'SiegeKnight'} / ${deckTotalCards(cardCounts)} cards`,
+                cardCounts
+            });
+            return;
+        }
+        if (deck.deckId) {
+            openDeckPreview(deck.deckId);
+        }
     }
 
     function openDeckPreview(deckId) {
