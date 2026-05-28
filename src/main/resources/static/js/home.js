@@ -140,6 +140,8 @@
         roomHideFull: false,
         friendSearch: '',
         builderCounts: {},
+        builderPreviewCardId: null,
+        editingSavedDeckId: '',
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
@@ -173,8 +175,19 @@
         packOpeningDismissedKey: '',
         shopView: 'browse',
         catalogVersion: 0,
-        catalogSyncBound: false
+        catalogSyncBound: false,
+        profileUserId: '',
+        leaderboardTab: 'wins',
+        leaderboardPeriod: 'daily'
     };
+
+    const LEADERBOARD_PERIODS = [
+        ['daily', 'Daily'],
+        ['weekly', 'Weekly'],
+        ['monthly', 'Monthly'],
+        ['year', 'Year'],
+        ['allTime', 'All Time']
+    ];
 
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
@@ -215,13 +228,18 @@
     }
 
     function openSharedProfileFromUrl() {
+        const parsed = parseHubRoute(location.pathname);
+        if (parsed.profileUserId) {
+            navigateToPlayerProfile(parsed.profileUserId, { replace: true });
+            return;
+        }
         const params = new URLSearchParams(location.search);
         const profileId = params.get('profile');
         if (!profileId) return;
         params.delete('profile');
         const query = params.toString();
         history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
-        openPlayerProfile(profileId);
+        navigateToPlayerProfile(profileId, { replace: true });
     }
 
     function bindEvents() {
@@ -272,7 +290,9 @@
             renderFriends();
         });
         document.getElementById('friendAddForm')?.addEventListener('submit', addFriendFromSocial);
-        document.getElementById('saveCustomDeckBtn')?.addEventListener('click', saveCustomDeck);
+        document.getElementById('createCustomDeckBtn')?.addEventListener('click', () => openDeckBuilder({ reset: true }));
+        document.getElementById('deckBuilderBackBtn')?.addEventListener('click', () => navigateHub('decks'));
+        document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
         document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
@@ -295,7 +315,7 @@
             if (event.key === 'Escape') closeDeckPreview();
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
-            btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'decks' : 'home'));
+            btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'deck-builder' : 'home'));
         });
         document.querySelectorAll('a[data-route]').forEach((link) => {
             link.addEventListener('click', (event) => {
@@ -394,6 +414,7 @@
         safeRender(renderStarterGate);
         safeRender(renderCards);
         safeRender(renderDecks);
+        safeRender(renderDeckBuilderPage);
         safeRender(renderHomeDashboard);
         safeRender(renderShop);
         safeRender(renderProfile);
@@ -410,6 +431,8 @@
             renderCards();
         } else if (state.route === 'decks') {
             renderDecks();
+        } else if (state.route === 'deck-builder') {
+            renderDeckBuilderPage();
         } else if (state.route === 'home') {
             renderHomeDashboard();
         } else if (state.route === 'shop') {
@@ -454,8 +477,17 @@
     }
 
     function renderSections() {
-        ['home', 'cards', 'decks', 'social', 'lobby', 'profile', 'shop'].forEach((route) => {
-            document.getElementById(`${route}Section`)?.classList.toggle('hidden', state.route !== route);
+        [
+            ['home', 'homeSection'],
+            ['cards', 'cardsSection'],
+            ['decks', 'decksSection'],
+            ['deck-builder', 'deckBuilderSection'],
+            ['social', 'socialSection'],
+            ['profile', 'profileSection'],
+            ['shop', 'shopSection']
+        ].forEach(([route, sectionId]) => {
+            const active = state.route === route || (route === 'social' && state.route === 'lobby');
+            document.getElementById(sectionId)?.classList.toggle('hidden', !active);
         });
         if (!isBinderRoute()) {
             state.filterTrayOpen = false;
@@ -567,7 +599,7 @@
                     <span>${escapeHtml(typeLabel)}</span>
                 </div>
                 <div class="binder-card-art">
-                    ${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderElementIcon(card.element)}
+                    ${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}
                 </div>
                 <div class="binder-card-body shop-card-body">
                     ${renderShopCardStats(card)}
@@ -604,7 +636,7 @@
             ? `Craft for ${craftCost.toLocaleString()} Remnants`
             : 'Sign in to craft';
         panel.innerHTML = `
-            <div class="detail-art art" style="--el:${elementColor(card.element)}">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderElementIcon(card.element)}</div>
+            <div class="detail-art art" style="--el:${elementColor(card.element)}">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}</div>
             <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
             <h2>${escapeHtml(card.name)}</h2>
             <div class="chip-wrap">
@@ -632,10 +664,15 @@
                 <button class="primary-btn" type="button" id="craftSelectedCard"${canCraft || !state.profile?.authenticated ? '' : ' disabled'}>${escapeHtml(craftLabel)}</button>
                 <span>${escapeHtml(remnants.toLocaleString())} Remnants available</span>
             </div>
-            <button class="primary-btn" type="button" id="addSelectedToBuilder">Add to Custom Deck</button>
+            ${state.route === 'deck-builder' ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
         `;
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
-        document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => adjustBuilder(card.id, 1));
+        document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
+            if (state.route !== 'deck-builder') {
+                openDeckBuilder();
+            }
+            adjustBuilder(card.id, 1);
+        });
     }
 
     function renderHomeDashboard() {
@@ -665,7 +702,7 @@
                     <div class="command-hero-actions">
                         <button class="ghost-btn command-hero-btn" type="button" data-home-action="cards"><span>Cards</span>Owned Cards</button>
                         <button class="primary-btn command-hero-btn command-hero-btn-primary" type="button" data-home-action="pve"><span>Play</span>Start Match</button>
-                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="decks"><span>Deck</span>Deck Builder</button>
+                        <button class="ghost-btn command-hero-btn" type="button" data-home-action="deck-builder"><span>Deck</span>Deck Builder</button>
                     </div>
                 </div>
                 <div class="command-hero-stats" aria-label="Account resources">
@@ -757,6 +794,26 @@
         bindHomeDashboardActions(el);
     }
 
+    function leaderboardBoardsForPeriod(period) {
+        const activePeriod = LEADERBOARD_PERIODS.some(([id]) => id === period) ? period : 'daily';
+        const periods = state.leaderboards?.periods;
+        if (periods && periods[activePeriod]) {
+            return periods[activePeriod];
+        }
+        return activePeriod === 'daily' ? (state.leaderboards?.boards || {}) : {};
+    }
+
+    function leaderboardPeriodHeadline(period) {
+        const headlines = {
+            daily: 'See who rules the arena today',
+            weekly: 'See who rules the arena this week',
+            monthly: 'See who rules the arena this month',
+            year: 'See who rules the arena this year',
+            allTime: 'See who rules the arena of all time'
+        };
+        return headlines[period] || headlines.daily;
+    }
+
     function renderHomeLeaderboardsPanel() {
         const tabs = [
             ['wins', 'Wins'],
@@ -766,17 +823,24 @@
             ['siegelingsDefeated', 'Siegelings'],
             ['pvpWinRate', 'PVP W/L']
         ];
-        const boards = state.leaderboards?.boards || {};
-        const activeRows = boards[state.leaderboardTab] || [];
+        const activePeriod = LEADERBOARD_PERIODS.some(([id]) => id === state.leaderboardPeriod)
+            ? state.leaderboardPeriod
+            : 'daily';
+        const boards = leaderboardBoardsForPeriod(activePeriod);
         const activeTab = tabs.some(([id]) => id === state.leaderboardTab) ? state.leaderboardTab : 'wins';
+        const activeRows = boards[activeTab] || [];
         const generatedAt = state.leaderboards?.generatedAt ? formatDateTime(state.leaderboards.generatedAt) : '';
+        const periodLabel = LEADERBOARD_PERIODS.find(([id]) => id === activePeriod)?.[1] || 'Daily';
         return `<article class="command-panel home-leaderboards-panel">
             <div class="command-panel-head">
-                <div><span class="eyebrow">Daily Leaderboards</span><h3>See who rules the arena today</h3></div>
-                <span class="reset-pill">${generatedAt ? `Updated ${escapeHtml(generatedAt)}` : 'Daily'}</span>
+                <div><span class="eyebrow">Leaderboards</span><h3>${escapeHtml(leaderboardPeriodHeadline(activePeriod))}</h3></div>
+                <span class="reset-pill">${generatedAt ? `Updated ${escapeHtml(generatedAt)}` : escapeHtml(periodLabel)}</span>
             </div>
-            <div class="home-lb-tabs">
-                ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}">${escapeHtml(label)}</button>`).join('')}
+            <div class="home-lb-period-tabs" role="tablist" aria-label="Leaderboard time range">
+                ${LEADERBOARD_PERIODS.map(([id, label]) => `<button class="home-lb-period-tab${activePeriod === id ? ' active' : ''}" type="button" data-home-lb-period="${escapeAttr(id)}" role="tab" aria-selected="${activePeriod === id}">${escapeHtml(label)}</button>`).join('')}
+            </div>
+            <div class="home-lb-tabs" role="tablist" aria-label="Leaderboard category">
+                ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}" role="tab" aria-selected="${activeTab === id}">${escapeHtml(label)}</button>`).join('')}
             </div>
             <div class="home-lb-list">
                 ${state.leaderboardsError && !state.leaderboards ? `<div class="home-empty-emblem">${escapeHtml(state.leaderboardsError)}</div>` : ''}
@@ -929,12 +993,17 @@
             }
             if (action === 'cards') return navigateHub('cards');
             if (action === 'decks') return navigateHub('decks');
+            if (action === 'deck-builder') return openDeckBuilder({ reset: true });
             if (action === 'social') return navigateHub('social', { focus: 'lobby' });
             if (action === 'shop') {
                 if (directLink) return;
                 return navigateHub('shop');
             }
             if (action === 'missions') return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }));
+        root.querySelectorAll('[data-home-lb-period]').forEach(btn => btn.addEventListener('click', () => {
+            state.leaderboardPeriod = btn.dataset.homeLbPeriod || 'daily';
+            renderHomeDashboard();
         }));
         root.querySelectorAll('[data-home-lb]').forEach(btn => btn.addEventListener('click', () => {
             state.leaderboardTab = btn.dataset.homeLb || 'wins';
@@ -957,7 +1026,6 @@
                 }
             });
         });
-        renderBuilder();
         renderSavedDecks();
     }
 
@@ -994,12 +1062,30 @@
             grid.innerHTML = '<div class="unlock-card"><strong>Sign in to save custom decks</strong><span>Your deck binder will show saved custom decks after login.</span></div>';
             return;
         }
-        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Build a 30-card custom deck from owned cards, then save it here.</span></div>';
-        grid.querySelectorAll('[data-play-custom-deck]').forEach(btn => btn.addEventListener('click', () => {
+        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>';
+        grid.querySelectorAll('[data-play-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
             const deck = savedDecks.find(item => item.id === btn.dataset.playCustomDeck);
             if (!deck) return;
             goPlay({ mode: 'solo', deckId: deck.deckId, customDeckCards: deck.customDeckCards || null, trainerId: deck.trainerId, loadoutLabel: deck.name });
         }));
+        grid.querySelectorAll('[data-edit-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openDeckBuilder({ savedDeckId: btn.dataset.editCustomDeck });
+        }));
+        grid.querySelectorAll('[data-preview-saved-deck]').forEach(tile => {
+            tile.addEventListener('click', () => {
+                const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                if (deck) openSavedDeckPreview(deck);
+            });
+            tile.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
+                    if (deck) openSavedDeckPreview(deck);
+                }
+            });
+        });
     }
 
     function renderSavedDeckTile(deck) {
@@ -1010,17 +1096,80 @@
         const accent = elementColor(displayElements[0]);
         const visual = deckAssetForElements(displayElements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card custom-saved-deck${visual ? ' has-deck-art' : ''}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
+        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${visual ? ' has-deck-art' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
             <span class="deck-card-state">${deck.custom ? 'Custom' : 'Saved'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name || 'Saved Deck')}</strong>
                 <span class="deck-card-elements">${displayElements.map(format).join(' / ')}</span>
                 <span class="deck-card-desc">${deck.custom ? `${cardIds.length} owned cards` : escapeHtml(deck.deckName || 'Premade loadout')} / ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
+                <span class="deck-card-hint">Tap to preview cards</span>
             </div>
             <div class="deck-card-actions">
+                ${deck.custom ? `<button class="ghost-btn" type="button" data-edit-custom-deck="${escapeAttr(deck.id)}">Edit</button>` : ''}
                 <button class="primary-btn" type="button" data-play-custom-deck="${escapeAttr(deck.id)}">Play</button>
             </div>
         </article>`;
+    }
+
+    function cardCountsFromIdList(cardIds) {
+        const counts = {};
+        (cardIds || []).forEach((cardId) => {
+            if (!cardId) return;
+            counts[cardId] = (counts[cardId] || 0) + 1;
+        });
+        return Object.entries(counts).map(([id, count]) => ({ id, count }));
+    }
+
+    function openSavedDeckPreview(deck) {
+        if (!deck) return;
+        if (deck.custom && (deck.customDeckCards || []).length) {
+            const cardIds = deck.customDeckCards || [];
+            const elements = [...new Set(cardIds.map(id => findCard(id)?.element).filter(Boolean))].slice(0, 4);
+            const fallbackDeck = (state.options?.decks || []).find(item => item.id === deck.deckId);
+            const displayElements = elements.length ? elements : (fallbackDeck?.elements || []);
+            const cardCounts = cardCountsFromIdList(cardIds);
+            showDeckPreview({
+                eyebrow: 'Custom Deck',
+                name: deck.name || 'Saved Deck',
+                sub: `${displayElements.map(format).join(' / ')} / ${deck.trainerName || 'SiegeKnight'} / ${deckTotalCards(cardCounts)} cards`,
+                cardCounts
+            });
+            return;
+        }
+        if (deck.deckId) {
+            openDeckPreview(deck.deckId);
+        }
+    }
+
+    function buildCountsFromCardList(cardIds) {
+        return (cardIds || []).reduce((counts, cardId) => {
+            if (!cardId) return counts;
+            counts[cardId] = (counts[cardId] || 0) + 1;
+            return counts;
+        }, {});
+    }
+
+    function openDeckBuilder(options = {}) {
+        if (!state.options?.cardCatalog?.length) {
+            return navigateHub('decks');
+        }
+        if (options.reset) {
+            state.builderCounts = {};
+            state.builderPreviewCardId = null;
+            state.editingSavedDeckId = '';
+            localStorage.setItem('sieglingsBuilderDeckName', 'Custom Binder Deck');
+        }
+        if (options.savedDeckId) {
+            const deck = (state.profile?.savedDecks || []).find(item => item.id === options.savedDeckId);
+            if (deck) {
+                state.builderCounts = buildCountsFromCardList(deck.customDeckCards || []);
+                state.editingSavedDeckId = deck.id || '';
+                if (deck.name) localStorage.setItem('sieglingsBuilderDeckName', deck.name);
+                if (deck.trainerId) localStorage.setItem('sieglingsBuilderTrainerId', deck.trainerId);
+                state.builderPreviewCardId = (deck.customDeckCards || [])[0] || null;
+            }
+        }
+        navigateHub('deck-builder');
     }
 
     function openDeckPreview(deckId) {
@@ -1072,72 +1221,299 @@
         document.getElementById('deckPreviewModal')?.classList.add('hidden');
     }
 
-    function renderBuilder() {
+    function renderDeckBuilderPage() {
+        if (state.route !== 'deck-builder') return;
         const lock = document.getElementById('deckBuilderLock');
-        const panel = document.getElementById('builderPanel');
-        const catalog = document.getElementById('builderCatalogPanel');
+        const page = document.getElementById('deckBuilderPage');
+        const title = document.getElementById('deckBuilderPageTitle');
+        const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
+        if (!page) return;
         const unlocked = Boolean(state.progression?.customDeckUnlocked);
         const builderAvailable = Boolean(state.options?.cardCatalog?.length);
         const total = builderTotal();
         const trainerId = builderTrainerId();
         const deckElements = builderDeckElements();
         const primaryElement = deckElements[0] || 'NEUTRAL';
-        lock.innerHTML = unlocked
-            ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Use owned cards with max 3 copies each.</span></div>'
-            : `<div class="unlock-card"><strong>Deck planner available</strong><span>${state.profile?.authenticated ? `${state.progression?.ownedTotal || 0}/30 owned copies. Save-ready custom decks unlock once your binder has 30 owned copies.` : 'Sign in to save decks to your binder. You can still plan and test a custom list here.'}</span></div>`;
-        panel.innerHTML = builderAvailable
-            ? `<section class="deck-builder-workbench" style="--builder-accent:${elementColor(primaryElement)}">
-                <div class="builder-hero-row">
-                    <div>
-                        <span class="eyebrow">Custom Builder</span>
-                        <h2>Build a deck from your binder</h2>
-                        <p>Pick owned cards here, save the list, then play it whenever you want. Max 3 copies per card.</p>
-                    </div>
-                    <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
-                        <strong>${total}</strong><span>/30</span>
-                    </div>
+        const catalogCards = builderCatalogCards();
+        const previewCard = resolveBuilderPreviewCard(catalogCards);
+        if (previewCard) state.builderPreviewCardId = previewCard.id;
+        if (title) {
+            title.textContent = state.editingSavedDeckId ? 'Edit custom deck' : 'Build a custom deck';
+        }
+        if (saveBtn) {
+            saveBtn.disabled = total < 30;
+            saveBtn.textContent = state.editingSavedDeckId ? 'Update Deck' : 'Save Deck';
+        }
+        if (lock) {
+            lock.innerHTML = unlocked
+                ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Select cards from your binder, preview them, and add up to 3 copies each.</span></div>'
+                : `<div class="unlock-card"><strong>Deck planner available</strong><span>${state.profile?.authenticated ? `${state.progression?.ownedTotal || 0}/30 owned copies. Save-ready custom decks unlock once your binder has 30 owned copies.` : 'Sign in to save decks to your binder. You can still plan and test a custom list here.'}</span></div>`;
+        }
+        if (!builderAvailable) {
+            page.innerHTML = '<div class="unlock-card"><strong>Catalog loading</strong><span>Your binder will appear here once card data is ready.</span></div>';
+            return;
+        }
+        page.innerHTML = `<div class="deck-builder-layout" style="--builder-accent:${elementColor(primaryElement)}">
+            <section class="deck-builder-binder deck-builder-workbench">
+                <div class="section-head decks-row-head">
+                    <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
+                    <span>${catalogCards.length} cards</span>
                 </div>
-                <div class="builder-form-grid">
-                    <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
-                    <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
-                    <label><span>Sort catalog</span><select class="search-input" id="builderSortSelect">
+                <div class="builder-catalog-tools">
+                    <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search binder cards...">
+                    <select class="search-input" id="builderElementSelect">
+                        ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
+                    </select>
+                    <select class="search-input" id="builderTypeSelect">
+                        ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
+                    </select>
+                    <select class="search-input" id="builderSortSelect">
                         <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
                         <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
                         <option value="cost-asc"${state.builderSort === 'cost-asc' ? ' selected' : ''}>Cost low</option>
                         <option value="rarity-desc"${state.builderSort === 'rarity-desc' ? ' selected' : ''}>Rarity high</option>
-                    </select></label>
+                    </select>
+                </div>
+                <div class="deck-builder-binder-list">
+                    ${catalogCards.length ? catalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
+                </div>
+            </section>
+            <section class="deck-builder-inspector deck-builder-workbench">
+                <div class="section-head decks-row-head">
+                    <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
+                </div>
+                <div class="deck-builder-preview-panel">${renderBuilderPreviewPanel(previewCard)}</div>
+                <div class="deck-builder-recommendations">
+                    <div class="section-head decks-row-head">
+                        <div><span class="eyebrow">Recommended</span><h3>Evolution tree picks</h3></div>
+                    </div>
+                    ${renderBuilderRecommendations(previewCard)}
+                </div>
+            </section>
+            <aside class="deck-builder-deck-pane deck-builder-workbench">
+                <div class="deck-builder-deck-head">
+                    <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
+                        <strong>${total}</strong><span>/30</span>
+                    </div>
+                    <div>
+                        <span class="eyebrow">Current Deck</span>
+                        <p>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</p>
+                    </div>
+                </div>
+                <div class="builder-form-grid deck-builder-deck-form">
+                    <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
+                    <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
                 </div>
                 <div class="builder-actions-row">
-                    <button class="primary-btn" type="button" id="saveDeckWorkbenchBtn"${total < 30 ? ' disabled' : ''}>Save Deck</button>
                     <button class="ghost-btn" type="button" id="playCustomBtn"${total < 30 ? ' disabled' : ''}>Play Custom</button>
                     <button class="ghost-btn" type="button" id="clearBuilderBtn"${total ? '' : ' disabled'}>Clear</button>
-                    <span>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</span>
                 </div>
-                <div class="builder-list">${builderDraftRows()}</div>
-            </section>`
-            : '';
-        if (catalog) catalog.innerHTML = builderAvailable ? renderBuilderCatalog() : '';
-        document.getElementById('playCustomBtn')?.addEventListener('click', () => {
+                <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
+            </aside>
+        </div>`;
+        bindDeckBuilderPageEvents(page);
+    }
+
+    function resolveBuilderPreviewCard(catalogCards) {
+        const previewId = state.builderPreviewCardId;
+        if (previewId) {
+            const selected = findCard(previewId);
+            if (selected) return selected;
+        }
+        const inDeck = Object.keys(state.builderCounts).map(id => findCard(id)).filter(Boolean);
+        if (inDeck.length) return inDeck[0];
+        return catalogCards[0] || null;
+    }
+
+    function evolutionLineForCard(cardId) {
+        const catalog = state.options?.cardCatalog || [];
+        const byId = new Map(catalog.map(card => [card.id, card]));
+        const card = byId.get(cardId);
+        if (!card) return [];
+        const line = [card];
+        let cursor = card;
+        while (cursor?.evolvesFromId && byId.has(cursor.evolvesFromId)) {
+            cursor = byId.get(cursor.evolvesFromId);
+            line.unshift(cursor);
+        }
+        const descendants = [];
+        const queue = [cardId];
+        const seen = new Set([cardId]);
+        while (queue.length) {
+            const id = queue.shift();
+            catalog.filter(entry => entry.evolvesFromId === id).forEach(child => {
+                if (seen.has(child.id)) return;
+                seen.add(child.id);
+                descendants.push(child);
+                queue.push(child.id);
+            });
+        }
+        return [...line, ...descendants];
+    }
+
+    function builderRecommendationCards(cardId) {
+        if (!cardId) return [];
+        const line = evolutionLineForCard(cardId);
+        return line.filter(card => {
+            if (card.id === cardId) return false;
+            const maxCopies = builderCardLimit(card.id);
+            const inDeck = state.builderCounts[card.id] || 0;
+            return maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        }).slice(0, 8);
+    }
+
+    function renderBuilderRecommendations(previewCard) {
+        const recommendations = builderRecommendationCards(previewCard?.id);
+        if (!previewCard) {
+            return '<div class="unlock-card builder-empty">Select a card to see evolution tree recommendations.</div>';
+        }
+        if (!recommendations.length) {
+            return '<div class="unlock-card builder-empty">No related evolution cards available to add right now.</div>';
+        }
+        const line = evolutionLineForCard(previewCard.id).map(card => escapeHtml(card.name)).join(' → ');
+        return `<p class="deck-builder-evolution-line">${line}</p>
+            <div class="deck-builder-recommendation-grid">
+                ${recommendations.map(card => {
+                    const inDeck = state.builderCounts[card.id] || 0;
+                    const maxCopies = builderCardLimit(card.id);
+                    const canAdd = inDeck < maxCopies && builderTotal() < 30;
+                    return `<article class="builder-recommendation-card" style="--el:${elementColor(card.element)}">
+                        <button type="button" class="builder-recommendation-main" data-select-builder-card="${escapeAttr(card.id)}">
+                            <strong>${escapeHtml(card.name)}</strong>
+                            <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
+                            <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
+                        </button>
+                        <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
+                    </article>`;
+                }).join('')}
+            </div>`;
+    }
+
+    function renderBuilderPreviewPanel(card) {
+        if (!card) {
+            return '<div class="unlock-card builder-empty">Tap a binder card to inspect it and add copies to your deck.</div>';
+        }
+        const abilities = card.abilities || (card.ability ? [card.ability] : []);
+        const flavorText = creatureDescriptionFor(card);
+        const inDeck = state.builderCounts[card.id] || 0;
+        const maxCopies = builderCardLimit(card.id);
+        const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
+            <div class="detail-art art">${renderBinderCardArt(card)}</div>
+            <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
+            <h3>${escapeHtml(card.name)}</h3>
+            <div class="chip-wrap">
+                <span class="chip">Owned x${ownedCount(card.id)}</span>
+                <span class="chip">In deck x${inDeck}</span>
+                <span class="chip">${format(card.rarity)}</span>
+            </div>
+            ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
+            <div class="detail-grid">
+                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                <div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>
+            </div>
+            ${abilities.length ? `<div class="deck-builder-preview-abilities">${abilities.map(a => `<p><strong>${escapeHtml(a.name || 'Ability')}</strong><br>${escapeHtml(a.description || '')}</p>`).join('')}</div>` : ''}
+            <div class="builder-stepper deck-builder-preview-actions">
+                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
+                <strong>${inDeck} / ${maxCopies}</strong>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+            </div>
+        </div>`;
+    }
+
+    function renderBuilderBinderRow(card) {
+        const owned = ownedCount(card.id);
+        const count = state.builderCounts[card.id] || 0;
+        const maxCopies = builderCardLimit(card.id);
+        const total = builderTotal();
+        const canAdd = maxCopies > 0 && count < maxCopies && total < 30;
+        const activeClass = card.id === state.builderPreviewCardId ? ' is-active' : '';
+        return `<article class="deck-builder-binder-row${activeClass}" style="--el:${elementColor(card.element)}">
+            <button type="button" class="deck-builder-binder-main" data-select-builder-card="${escapeAttr(card.id)}">
+                <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
+                <div>
+                    <strong>${escapeHtml(card.name)}</strong>
+                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / Owned x${owned}</span>
+                    <small>${escapeHtml(format(card.rarity))}${card.evolvesFromId ? ` / Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : ''}</small>
+                </div>
+                <span class="deck-builder-binder-count">x${count}</span>
+            </button>
+            <div class="builder-stepper">
+                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>+</button>
+            </div>
+        </article>`;
+    }
+
+    function renderBuilderDeckListRows() {
+        const entries = Object.entries(state.builderCounts);
+        if (!entries.length) {
+            return '<div class="unlock-card builder-empty">Cards you add will appear here.</div>';
+        }
+        return entries.sort(([a], [b]) => (findCard(a)?.name || a).localeCompare(findCard(b)?.name || b)).map(([cardId, count]) => {
+            const card = findCard(cardId);
+            const maxCopies = builderCardLimit(cardId);
+            const activeClass = cardId === state.builderPreviewCardId ? ' is-active' : '';
+            return `<div class="deck-builder-deck-row${activeClass}" style="--el:${elementColor(card?.element)}">
+                <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
+                    <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
+                    <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
+                </button>
+                <div class="builder-stepper">
+                    <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
+                    <button class="ghost-btn" type="button" data-add-builder-card="${escapeAttr(cardId)}"${count >= maxCopies || builderTotal() >= 30 ? ' disabled' : ''}>+</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function bindDeckBuilderPageEvents(root) {
+        if (!root) return;
+        root.querySelectorAll('[data-select-builder-card]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderPreviewCardId = btn.dataset.selectBuilderCard;
+            renderDeckBuilderPage();
+        }));
+        root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            adjustBuilder(btn.dataset.addBuilderCard, 1);
+        }));
+        root.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            adjustBuilder(btn.dataset.removeCard, -1);
+        }));
+        root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
+            state.builderSearch = event.target.value.trim().toLowerCase();
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
+            state.builderElementFilter = event.target.value;
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
+            state.builderTypeFilter = event.target.value;
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
+            state.builderSort = event.target.value;
+            renderDeckBuilderPage();
+        });
+        root.querySelector('#builderTrainerSelect')?.addEventListener('change', (event) => {
+            localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
+        });
+        root.querySelector('#builderDeckName')?.addEventListener('input', (event) => {
+            localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
+        });
+        root.querySelector('#playCustomBtn')?.addEventListener('click', () => {
             if (builderTotal() < 30) return alert('Custom decks need 30 cards.');
             goPlay({ mode: 'solo', customDeckCards: builderCards(), trainerId: builderTrainerId(), loadoutLabel: builderDeckName() });
         });
-        document.getElementById('saveDeckWorkbenchBtn')?.addEventListener('click', saveCustomDeck);
-        document.getElementById('clearBuilderBtn')?.addEventListener('click', () => {
+        root.querySelector('#clearBuilderBtn')?.addEventListener('click', () => {
             state.builderCounts = {};
-            renderBuilder();
+            state.builderPreviewCardId = null;
+            renderDeckBuilderPage();
         });
-        document.getElementById('builderTrainerSelect')?.addEventListener('change', (event) => {
-            localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
-        });
-        document.getElementById('builderDeckName')?.addEventListener('input', (event) => {
-            localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
-        });
-        document.getElementById('builderSortSelect')?.addEventListener('change', (event) => {
-            state.builderSort = event.target.value;
-            renderBuilder();
-        });
-        bindBuilderCatalogEvents(catalog);
-        panel.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.removeCard, -1)));
     }
 
     function builderTrainerId() {
@@ -1152,68 +1528,6 @@
 
     function builderTrainerOptions(selectedId) {
         return (state.options?.trainers || []).map(trainer => `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}>${escapeHtml(trainer.name || trainer.id)}</option>`).join('');
-    }
-
-    function builderDraftRows() {
-        const entries = Object.entries(state.builderCounts);
-        if (!entries.length) {
-            return '<div class="unlock-card builder-empty">Add owned cards from the catalog below to start building.</div>';
-        }
-        return entries.sort(([a], [b]) => (findCard(a)?.name || a).localeCompare(findCard(b)?.name || b)).map(([cardId, count]) => {
-            const card = findCard(cardId);
-            const maxCopies = builderCardLimit(cardId);
-            return `<div class="builder-deck-card" style="--el:${elementColor(card?.element)}">
-                <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
-                <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
-                <div class="builder-stepper">
-                    <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
-                    <button class="ghost-btn" type="button" data-add-builder-card="${escapeAttr(cardId)}"${count >= maxCopies || builderTotal() >= 30 ? ' disabled' : ''}>+</button>
-                </div>
-            </div>`;
-        }).join('');
-    }
-
-    function renderBuilderCatalog() {
-        const cards = builderCatalogCards();
-        return `<section class="deck-builder-catalog">
-            <div class="section-head">
-                <div><span class="eyebrow">Owned Card Catalog</span><h2>Add cards without opening Play</h2></div>
-                <span>${cards.length} cards</span>
-            </div>
-            <div class="builder-catalog-tools">
-                <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search owned cards...">
-                <select class="search-input" id="builderElementSelect">
-                    ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
-                </select>
-                <select class="search-input" id="builderTypeSelect">
-                    ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
-                </select>
-            </div>
-            <div class="builder-catalog-grid">
-                ${cards.length ? cards.map(renderBuilderCatalogCard).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
-            </div>
-        </section>`;
-    }
-
-    function renderBuilderCatalogCard(card) {
-        const owned = ownedCount(card.id);
-        const count = state.builderCounts[card.id] || 0;
-        const maxCopies = builderCardLimit(card.id);
-        const total = builderTotal();
-        const canAdd = maxCopies > 0 && count < maxCopies && total < 30;
-        return `<article class="builder-catalog-card" style="--el:${elementColor(card.element)}">
-            <div class="builder-catalog-art">${renderElementIcon(card.element)}</div>
-            <div class="builder-catalog-copy">
-                <strong>${escapeHtml(card.name)}</strong>
-                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
-                <small>${escapeHtml(format(card.rarity))} / ${owned ? `Owned x${owned}` : 'Planner copy'}</small>
-            </div>
-            <div class="builder-stepper">
-                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
-                <strong>${count}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>+</button>
-            </div>
-        </article>`;
     }
 
     function builderCatalogCards() {
@@ -1232,24 +1546,6 @@
                 if (state.builderSort === 'rarity-desc') return (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0);
                 return ownedCount(b.id) - ownedCount(a.id) || a.name.localeCompare(b.name);
             });
-    }
-
-    function bindBuilderCatalogEvents(root) {
-        if (!root) return;
-        root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.addBuilderCard, 1)));
-        root.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', () => adjustBuilder(btn.dataset.removeCard, -1)));
-        root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
-            state.builderSearch = event.target.value.trim().toLowerCase();
-            renderBuilder();
-        });
-        root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
-            state.builderElementFilter = event.target.value;
-            renderBuilder();
-        });
-        root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
-            state.builderTypeFilter = event.target.value;
-            renderBuilder();
-        });
     }
 
     function renderShop() {
@@ -1291,7 +1587,7 @@
                         <strong>${escapeHtml(card.name || 'Daily Card')}</strong>
                         <span>${escapeHtml(typeLabel)}</span>
                     </div>
-                    <div class="binder-card-art">${renderElementIcon(card.element)}</div>
+                    <div class="binder-card-art">${renderBinderCardArt(card)}</div>
                     <div class="binder-card-body shop-card-body">
                         ${renderShopCardStats(card)}
                         <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / Owned x${owned}</div>
@@ -1600,14 +1896,19 @@
 
         list.innerHTML = visibleFriends.length
             ? visibleFriends.map(friend => {
-                const presence = state.friendPresence[friend.email] || {};
+                const presence = friendPresenceRow(friend);
                 const prefs = presence.profileSettings || {};
+                const displayName = resolveFriendDisplayName(friend, presence);
                 const online = Boolean(presence.presence?.online);
                 const status = presence.presence?.status || 'OFFLINE';
+                const statusLabel = online ? status.replace('_', ' ') : 'Offline';
+                const email = String(friend.email || '').trim();
+                const showEmail = email && displayName.toLowerCase() !== email.toLowerCase();
+                const subtitle = showEmail ? `${email} · ${statusLabel}` : statusLabel;
                 return `<article class="friend-tile social-friend-tile">
                 <div class="friend-avatar-wrap">
                     ${renderPlayerAvatar({
-                        displayName: prefs.displayName || friend.displayName || friend.email,
+                        displayName,
                         avatarMode: prefs.avatarMode,
                         avatar: prefs.avatar,
                         avatarUrl: prefs.avatarUrl,
@@ -1616,8 +1917,8 @@
                     <span class="presence-dot ${online ? (status === 'IN_GAME' ? 'in-game' : 'online') : ''}" title="${escapeHtml(status)}"></span>
                 </div>
                 <div class="friend-copy">
-                    <strong>${escapeHtml(prefs.displayName || friend.displayName || friend.email)}</strong>
-                    <span>${escapeHtml(friend.email)} · ${online ? escapeHtml(status.replace('_', ' ')) : 'Offline'}</span>
+                    <a class="profile-friend-link friend-name-link" href="${escapeAttr(playerProfilePath(friend.userId || friend.email))}" data-player-profile="${escapeAttr(friend.userId || friend.email)}"><strong>${escapeHtml(displayName)}</strong></a>
+                    <span>${escapeHtml(subtitle)}</span>
                 </div>
                 <div class="friend-actions">
                     <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
@@ -1629,8 +1930,9 @@
             : '<div class="social-empty-state"><strong>No friends found</strong><span>Add a registered player by email to start your list.</span></div>';
 
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
-        list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => openPlayerProfile(btn.dataset.viewProfile)));
+        list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => navigateToPlayerProfile(btn.dataset.viewProfile)));
         list.querySelectorAll('[data-message-friend]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.messageFriend)));
+        bindPlayerProfileLinks(list);
     }
 
     function renderFriendRequests() {
@@ -1679,13 +1981,61 @@
         list.querySelectorAll('[data-deny-request]').forEach(btn => btn.addEventListener('click', () => respondToFriendRequest(btn.dataset.denyRequest, 'deny')));
     }
 
+    function friendPresenceRow(friend) {
+        const key = friend?.userId || friend?.email;
+        return key ? (state.friendPresence[key] || {}) : {};
+    }
+
+    function resolveFriendDisplayName(friend, presence = friendPresenceRow(friend)) {
+        const prefs = presence.profileSettings || {};
+        const name = String(prefs.displayName || friend?.displayName || '').trim();
+        if (name) return name;
+        const email = String(friend?.email || '').trim();
+        const at = email.indexOf('@');
+        return at > 0 ? email.slice(0, at) : (email || 'Player');
+    }
+
     function friendInitial(friend) {
-        return String(friend.displayName || friend.email || 'S').trim().slice(0, 1).toUpperCase();
+        return resolveFriendDisplayName(friend).slice(0, 1).toUpperCase();
+    }
+
+    function updateProfileSectionHead(viewingOther = false) {
+        const head = document.querySelector('#profileSection .section-head');
+        if (!head) return;
+        const eyebrow = head.querySelector('.eyebrow');
+        const title = head.querySelector('h1');
+        if (viewingOther) {
+            if (eyebrow) eyebrow.textContent = 'Player Profile';
+            if (title) title.textContent = 'View a friend’s Siegelings profile';
+        } else {
+            if (eyebrow) eyebrow.textContent = 'Profile';
+            if (title) title.textContent = 'Your profile, friends, and recent battles';
+        }
+    }
+
+    function bindPlayerProfileLinks(root = document) {
+        root.querySelectorAll('[data-player-profile]').forEach(link => {
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                navigateToPlayerProfile(link.dataset.playerProfile);
+            });
+        });
     }
 
     function renderProfile() {
         const body = document.getElementById('profileSectionBody');
         if (!body) return;
+        const viewingId = state.profileUserId;
+        const myEmail = normalizePlayerId(state.profile?.user?.email);
+        if (viewingId && viewingId !== myEmail) {
+            updateProfileSectionHead(true);
+            body.innerHTML = '<div class="profile-loading-state"><strong>Loading profile…</strong><span>Fetching player details.</span></div>';
+            renderEditProfileModalHost(null);
+            void loadPublicProfilePage(viewingId);
+            return;
+        }
+        updateProfileSectionHead(false);
+        state.profileUserId = '';
         if (!state.profile?.authenticated) {
             body.innerHTML = `<div class="profile-dashboard profile-signed-out">
                 <div class="profile-hero profile-hero-neutral">
@@ -1723,6 +2073,7 @@
         </div>`;
         renderEditProfileModalHost(view);
         bindProfileDashboard();
+        bindPlayerProfileLinks(body);
     }
 
     function renderEditProfileModalHost(view) {
@@ -1742,8 +2093,7 @@
         const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
         const collection = collectionSummary();
         const savedDecks = state.profile?.savedDecks || [];
-        const realHistory = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
-        const battles = realHistory.length ? realHistory : mockBattles(prefs.favoriteElement);
+        const battles = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
         const record = battleRecord(battles);
         return {
             user,
@@ -1752,7 +2102,6 @@
             collection,
             savedDecks,
             battles,
-            usingMockBattles: !realHistory.length,
             record,
             rank: 'Bronze III',
             level: Math.max(1, Math.floor((state.progression?.ownedTotal || 0) / 12) + 1),
@@ -1843,7 +2192,7 @@
         return `<section class="profile-panel battle-record-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Battle Record</span><h3>Season Snapshot</h3></div>
-                ${view.usingMockBattles ? '<span class="profile-soft-pill">Sample history</span>' : '<span class="profile-soft-pill">Live history</span>'}
+                <span class="profile-soft-pill">${view.battles.length ? 'Live history' : 'No matches yet'}</span>
             </div>
             <div class="battle-record-layout">
                 <div class="win-ring" style="--win:${record.winRate}">
@@ -1867,16 +2216,18 @@
                 <span class="profile-soft-pill">${view.battles.length} entries</span>
             </div>
             <div class="battle-list">
-                ${view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
-                    <div class="battle-result">${escapeHtml(battle.result)}</div>
-                    <div class="battle-main">
-                        <strong>${escapeHtml(battle.opponentName)}</strong>
-                        <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
-                    </div>
-                    ${renderElementBadge(battle.element)}
-                    <div class="battle-meta"><span>${escapeHtml(battle.date)}</span><span>${escapeHtml(battle.duration)}</span></div>
-                    <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
-                </article>`).join('')}
+                ${view.battles.length
+                    ? view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
+                        <div class="battle-result">${escapeHtml(battle.result)}</div>
+                        <div class="battle-main">
+                            <strong>${escapeHtml(battle.opponentName)}</strong>
+                            <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
+                        </div>
+                        ${renderElementBadge(battle.element)}
+                        <div class="battle-meta"><span>${escapeHtml(battle.date)}</span>${battle.duration ? `<span>${escapeHtml(battle.duration)}</span>` : ''}</div>
+                        <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
+                    </article>`).join('')
+                    : '<div class="social-empty-state"><strong>No battles recorded yet</strong><span>Finish a PVE or PVP match while signed in and it will appear here.</span></div>'}
             </div>
         </section>`;
     }
@@ -1938,7 +2289,11 @@
                 <button class="primary-btn profile-theme-btn" type="button" data-profile-route="social">Add Friend</button>
             </div>
             <div class="friend-activity">
-                ${friends.length ? friends.slice(0, 4).map(friend => `<div><strong>${escapeHtml(friend.displayName || friend.email)}</strong><span>${escapeHtml(friend.email)}</span></div>`).join('') : '<div><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
+                ${friends.length ? friends.slice(0, 4).map(friend => {
+                    const playerId = friend.userId || friend.email;
+                    const label = friend.displayName || friend.email;
+                    return `<div><a class="profile-friend-link" href="${escapeAttr(playerProfilePath(playerId))}" data-player-profile="${escapeAttr(playerId)}"><strong>${escapeHtml(label)}</strong></a><span>${escapeHtml(friend.email)}</span></div>`;
+                }).join('') : '<div><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
                 <div><strong>Open lobbies</strong><span>Use Social to join rooms or invite friends once room invites are connected.</span></div>
             </div>
         </section>`;
@@ -2143,29 +2498,10 @@
             opponentType: matchType.includes('PVP') || matchType.includes('PLAYER') ? 'Player' : 'AI',
             deckUsed: row.loadoutLabel || row.trainerName || 'Battle Loadout',
             element: inferElementFromText(row.loadoutLabel || row.trainerName || '', fallbackElement),
-            date: formatProfileDate(row.finishedAt) || `Match ${index + 1}`,
-            duration: row.turnNumber ? `${row.turnNumber} turns` : '8 min',
+            date: formatProfileDate(row.finishedAt) || '',
+            duration: row.turnNumber ? `${row.turnNumber} turns` : '',
             reward: result === 'WIN' ? '+25' : '+5'
         };
-    }
-
-    function mockBattles(favoriteElement) {
-        return [
-            ['WIN', 'Mira of Glasspeak', 'AI', 'Starter Clash', favoriteElement, 'Today', '7 min', '+25'],
-            ['LOSS', 'Rowan Vale', 'Player', 'Root and Spark', 'Earth', 'Yesterday', '11 min', '+5'],
-            ['WIN', 'Cinder Scout', 'AI', 'Molten Trial', 'Fire', 'May 22', '9 min', '+25'],
-            ['WIN', 'Aster Gale', 'Player', 'Skyhook Tempo', 'Wind', 'May 20', '6 min', '+25'],
-            ['LOSS', 'Frost Regent', 'AI', 'Crystal Ward', 'Ice', 'May 18', '13 min', '+5']
-        ].map(([result, opponentName, opponentType, deckUsed, element, date, duration, reward]) => ({
-            result,
-            opponentName,
-            opponentType,
-            deckUsed,
-            element,
-            date,
-            duration,
-            reward
-        }));
     }
 
     function inferElementFromText(text, fallback) {
@@ -2780,15 +3116,19 @@
         if (cards.length < 30) return alert('Custom decks need 30 cards.');
         const trainerId = builderTrainerId();
         const name = builderDeckName();
+        const payload = { trainerId, customDeckCards: cards, name };
+        if (state.editingSavedDeckId) payload.id = state.editingSavedDeckId;
         const data = await fetchJson('/api/profile/decks', {
             method: 'POST',
-            body: JSON.stringify({ trainerId, customDeckCards: cards, name })
+            body: JSON.stringify(payload)
         });
         if (data?.error) return alert(data.error);
         state.profile = data;
         state.progression = data.progression;
+        state.editingSavedDeckId = '';
         renderProfile();
         renderDecks();
+        navigateHub('decks');
     }
 
     async function addFriendFromSocial(event) {
@@ -2947,10 +3287,15 @@
         const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
         const nextShopView = route === 'shop' ? (options.shopView || state.shopView || 'browse') : 'browse';
         const nextPath = `${hubPath(route, nextShopView)}${hash}`;
-        const samePlace = route === state.route && (route !== 'shop' || nextShopView === state.shopView);
+        const samePlace = route === state.route
+            && (route !== 'shop' || nextShopView === state.shopView)
+            && (route !== 'profile' || !state.profileUserId);
 
         state.route = route;
         state.shopView = nextShopView;
+        if (route === 'profile') {
+            state.profileUserId = '';
+        }
 
         if (options.replace) {
             if (`${location.pathname}${location.hash}` !== nextPath) {
@@ -3274,7 +3619,7 @@
     }
 
     function adjustBuilder(cardId, delta) {
-        if (!state.options?.cardCatalog?.length) return navigateHub('decks');
+        if (!state.options?.cardCatalog?.length) return;
         const cardLimit = builderCardLimit(cardId);
         const current = state.builderCounts[cardId] || 0;
         const totalWithoutCard = builderTotal() - current;
@@ -3282,8 +3627,10 @@
         const next = Math.max(0, Math.min(copyLimit, current + delta));
         if (next) state.builderCounts[cardId] = next;
         else delete state.builderCounts[cardId];
-        navigateHub('decks');
-        renderBuilder();
+        if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        if (state.route === 'deck-builder') {
+            renderDeckBuilderPage();
+        }
     }
 
     function builderCards() {
@@ -3405,22 +3752,60 @@
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
         const head = segments[0] || 'home';
-        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '' };
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
         if (head === 'social' && segments[1] === 'lobby' && segments[2]) {
-            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase() };
+            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '' };
         }
         if (head === 'shop') {
-            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '' };
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '' };
         }
-        if (['cards', 'decks', 'social', 'profile'].includes(head)) {
-            return { route: head, shopView: 'browse', lobbyRoomId: '' };
+        if (head === 'profile') {
+            const profileUserId = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
+            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId };
         }
-        return { route: 'home', shopView: 'browse', lobbyRoomId: '' };
+        if (head === 'deck-builder') {
+            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        }
+        if (['cards', 'decks', 'social'].includes(head)) {
+            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        }
+        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+    }
+
+    function normalizePlayerId(userId) {
+        return String(userId || '').trim().toLowerCase();
+    }
+
+    function playerProfilePath(userId) {
+        const normalized = normalizePlayerId(userId);
+        if (!normalized) return '/profile';
+        const myEmail = normalizePlayerId(state.profile?.user?.email);
+        if (myEmail && normalized === myEmail) return '/profile';
+        return `/profile/${encodeURIComponent(normalized)}`;
+    }
+
+    function navigateToPlayerProfile(userId, options = {}) {
+        const path = playerProfilePath(userId);
+        state.route = 'profile';
+        state.shopView = 'browse';
+        state.lobbyRoomId = '';
+        state.profileUserId = path === '/profile' ? '' : normalizePlayerId(userId);
+        state.profileEditOpen = false;
+        closePlayerProfile();
+        if (options.replace) {
+            history.replaceState(null, '', path);
+        } else {
+            history.pushState(null, '', path);
+        }
+        setActiveRoute();
+        renderSections();
+        renderRoute();
     }
 
     function hubPath(route, shopView = 'browse') {
         if (route === 'home') return '/home';
         if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
+        if (route === 'deck-builder') return '/deck-builder';
         return `/${route}`;
     }
 
@@ -3429,6 +3814,7 @@
         state.route = parsed.route;
         state.shopView = parsed.shopView;
         state.lobbyRoomId = parsed.lobbyRoomId || '';
+        state.profileUserId = parsed.profileUserId || '';
         if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
             state.shopView = 'browse';
             if (location.pathname !== hubPath('shop', 'browse')) {
@@ -3442,6 +3828,42 @@
     }
     function elementColor(element) { return ELEMENT_COLORS[element] || '#f05b2f'; }
     function rarityColor(rarity) { return RARITY_COLORS[rarity] || RARITY_COLORS.COMMON; }
+    function normalizeCardArtKey(value) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+    }
+
+    const CARD_ART_OVERRIDES = Object.freeze({
+        sundile: '/assets/cards/sundile.jpg'
+    });
+
+    function resolveCardArtUrl(card) {
+        if (!card) return '';
+        const candidates = [card.artKey, card.id, card.definitionId, card.cardId, card.baseId, card.catalogId, card.slug, card.name];
+        for (const candidate of candidates) {
+            const key = normalizeCardArtKey(candidate);
+            if (key && CARD_ART_OVERRIDES[key]) {
+                return CARD_ART_OVERRIDES[key];
+            }
+        }
+        return '';
+    }
+
+    function renderBinderCardArt(card) {
+        const dashboardArtUrl = String(card?.cardArtUrl || '').trim();
+        const dashboardMode = window.SieglingsCardBinderVisual?.normalizeArtMode(card?.cardArtMode) || '';
+        if (dashboardArtUrl && dashboardMode && window.SieglingsCardBinderVisual) {
+            return window.SieglingsCardBinderVisual.renderBinderCardArt(card);
+        }
+        const url = resolveCardArtUrl(card);
+        if (url) {
+            const name = card?.name || 'Card';
+            return `<img class="element-icon-art" src="${escapeAttr(url)}" alt="${escapeAttr(name)} art" loading="lazy">`;
+        }
+        return renderElementIcon(card?.element);
+    }
+
     function elementIconPath(element) {
         return ELEMENT_ICON_PATHS[String(element || '').toUpperCase()] || '';
     }
@@ -3744,9 +4166,31 @@
         return null;
     }
 
-    function renderLobbyWaitingRoom() {
-        const root = document.getElementById('lobbyWaitingRoot');
-        if (!root) return;
+    function isLobbyChatInputFocused() {
+        const input = document.getElementById('lobbyChatInput');
+        return Boolean(input && document.activeElement === input);
+    }
+
+    function lobbyChatLogHtml(messages = []) {
+        const chatLines = (messages || []).slice(-24).map(line => {
+            const role = String(line.role || '');
+            const css = role === 'system' ? 'system' : '';
+            return `<div class="lobby-chat-line ${css}"><strong>${escapeHtml(line.author || 'Player')}:</strong> ${escapeHtml(line.text || '')}</div>`;
+        }).join('');
+        return chatLines || '<div class="lobby-chat-line system">Say hello while you wait.</div>';
+    }
+
+    function renderLobbyChatLog() {
+        const chatLog = document.getElementById('lobbyChatLog');
+        if (!chatLog) return;
+        const nextHtml = lobbyChatLogHtml(state.lobbyStatus?.lobbyChat);
+        if (chatLog.innerHTML === nextHtml) return;
+        const stickToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight < 48;
+        chatLog.innerHTML = nextHtml;
+        if (stickToBottom) chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function lobbyWaitingContext() {
         const status = state.lobbyStatus;
         const session = currentLobbySession();
         const roomId = state.lobbyRoomId || status?.roomId || '';
@@ -3761,11 +4205,6 @@
         const players = status?.players || [];
         const hostPlayer = players.find(player => player.role === 'host') || { name: status?.hostName || 'Host', ready: false };
         const guestPlayer = players.find(player => player.role === 'guest');
-        const chatLines = (status?.lobbyChat || []).slice(-24).map(line => {
-            const role = String(line.role || '');
-            const css = role === 'system' ? 'system' : '';
-            return `<div class="lobby-chat-line ${css}"><strong>${escapeHtml(line.author || 'Player')}:</strong> ${escapeHtml(line.text || '')}</div>`;
-        }).join('');
         const statusLabel = status?.started
             ? 'Match starting — opening Play...'
             : !status?.guestJoined
@@ -3773,6 +4212,103 @@
                 : viewerReady
                     ? 'Waiting for opponent to confirm'
                     : 'Pick your deck and knight, then start match';
+        return {
+            status,
+            session,
+            roomId,
+            isHost,
+            viewerReady,
+            selectedDeck,
+            selectedTrainer,
+            deckOptions,
+            trainerOptions,
+            hostPlayer,
+            guestPlayer,
+            statusLabel
+        };
+    }
+
+    function bindLobbyWaitingRoomControls() {
+        document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
+        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
+        document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
+            const hostLobby = readHostLobby();
+            if (hostLobby) void closeHostLobby(hostLobby);
+        });
+        document.getElementById('lobbyChatForm')?.addEventListener('submit', (event) => {
+            event.preventDefault();
+            void sendLobbyChat();
+        });
+    }
+
+    function updateLobbyWaitingRoom() {
+        const root = document.getElementById('lobbyWaitingRoot');
+        if (!root || !root.querySelector('#lobbyChatInput')) {
+            renderLobbyWaitingRoom();
+            return;
+        }
+        const ctx = lobbyWaitingContext();
+        const statusLine = root.querySelector('.lobby-waiting-head .social-muted-inline');
+        if (statusLine) statusLine.textContent = `Room ${ctx.roomId} · ${ctx.statusLabel}`;
+        const pill = root.querySelector('.lobby-status-pill');
+        if (pill) pill.textContent = `${ctx.status?.guestJoined ? '2 / 2' : '1 / 2'} players`;
+        const players = root.querySelector('.lobby-players');
+        if (players) {
+            players.innerHTML = `${renderLobbyPlayerSlot(ctx.hostPlayer, 'Host')}${ctx.guestPlayer
+                ? renderLobbyPlayerSlot(ctx.guestPlayer, 'Guest')
+                : renderLobbyPlayerSlot({ name: 'Waiting for player...', ready: false }, 'Open slot', true)}`;
+        }
+        const deckSelect = document.getElementById('lobbyDeckSelect');
+        if (deckSelect) {
+            deckSelect.disabled = ctx.viewerReady || Boolean(ctx.status?.started);
+            if (deckSelect.value !== ctx.selectedDeck) deckSelect.value = ctx.selectedDeck;
+        }
+        const trainerSelect = document.getElementById('lobbyTrainerSelect');
+        if (trainerSelect) {
+            trainerSelect.disabled = ctx.viewerReady || Boolean(ctx.status?.started);
+            if (trainerSelect.value !== ctx.selectedTrainer) trainerSelect.value = ctx.selectedTrainer;
+        }
+        const readyBtn = document.getElementById('lobbyReadyBtn');
+        if (readyBtn) {
+            readyBtn.disabled = !ctx.session || ctx.viewerReady || Boolean(ctx.status?.started);
+            readyBtn.textContent = ctx.viewerReady ? 'Ready' : 'Start Match';
+        }
+        const chatInput = document.getElementById('lobbyChatInput');
+        if (chatInput) chatInput.disabled = !ctx.session;
+        renderLobbyChatLog();
+        let invite = document.getElementById('lobbyInviteLink');
+        if (ctx.status?.shareUrl) {
+            const inviteHtml = `Invite link: <a href="${escapeAttr(ctx.status.shareUrl)}">${escapeHtml(ctx.status.shareUrl)}</a>`;
+            if (invite) {
+                invite.innerHTML = inviteHtml;
+            } else {
+                invite = document.createElement('p');
+                invite.id = 'lobbyInviteLink';
+                invite.className = 'social-muted-inline';
+                invite.innerHTML = inviteHtml;
+                root.querySelector('.lobby-chat-compose')?.insertAdjacentElement('afterend', invite);
+            }
+        } else if (invite) {
+            invite.remove();
+        }
+    }
+
+    function renderLobbyWaitingRoom() {
+        const root = document.getElementById('lobbyWaitingRoot');
+        if (!root) return;
+        const ctx = lobbyWaitingContext();
+        const {
+            status,
+            session,
+            roomId,
+            isHost,
+            viewerReady,
+            deckOptions,
+            trainerOptions,
+            hostPlayer,
+            guestPlayer,
+            statusLabel
+        } = ctx;
 
         root.innerHTML = `<div class="lobby-waiting-head">
             <div>
@@ -3801,27 +4337,18 @@
             </section>
             <section class="lobby-panel">
                 <div class="social-panel-head"><div><span class="eyebrow">Lobby Chat</span><h2>Say hello</h2></div></div>
-                <div class="lobby-chat-log" id="lobbyChatLog">${chatLines || '<div class="lobby-chat-line system">Say hello while you wait.</div>'}</div>
+                <div class="lobby-chat-log" id="lobbyChatLog">${lobbyChatLogHtml(status?.lobbyChat)}</div>
                 <form class="lobby-chat-compose" id="lobbyChatForm">
                     <input class="search-input" id="lobbyChatInput" type="text" maxlength="120" placeholder="Message the lobby" ${session ? '' : 'disabled'}>
                     <button class="primary-btn" type="submit">Send</button>
                 </form>
-                ${status?.shareUrl ? `<p class="social-muted-inline">Invite link: <a href="${escapeAttr(status.shareUrl)}">${escapeHtml(status.shareUrl)}</a></p>` : ''}
+                ${status?.shareUrl ? `<p class="social-muted-inline" id="lobbyInviteLink">Invite link: <a href="${escapeAttr(status.shareUrl)}">${escapeHtml(status.shareUrl)}</a></p>` : ''}
             </section>
         </div>`;
 
         const chatLog = document.getElementById('lobbyChatLog');
         if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
-        document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
-        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
-        document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
-            const hostLobby = readHostLobby();
-            if (hostLobby) void closeHostLobby(hostLobby);
-        });
-        document.getElementById('lobbyChatForm')?.addEventListener('submit', (event) => {
-            event.preventDefault();
-            void sendLobbyChat();
-        });
+        bindLobbyWaitingRoomControls();
     }
 
     function renderLobbyPlayerSlot(player, label, empty = false) {
@@ -3889,13 +4416,30 @@
         if (state.lobbyStatus) {
             state.lobbyStatus.lobbyChat = data.lobbyChat || [];
         }
-        renderLobbyWaitingRoom();
+        renderLobbyChatLog();
     }
 
-    function leaveLobbyWaitingRoom() {
+    async function leaveLobbyWaitingRoom() {
+        const session = currentLobbySession();
         stopLobbyPolling();
+        if (session?.role === 'guest' && session.roomId && session.playerToken && !state.lobbyStatus?.started) {
+            try {
+                await fetchJson('/api/match/leave', {
+                    method: 'POST',
+                    headers: {
+                        'X-Room-Id': session.roomId,
+                        'X-Player-Token': session.playerToken
+                    },
+                    body: JSON.stringify({ roomId: session.roomId })
+                });
+            } catch (error) {
+                console.warn('Unable to leave lobby', error);
+            }
+        }
         clearLobbySession();
+        state.lobbyRoomId = null;
         navigateHub('social');
+        void refreshRooms(true);
     }
 
     function startLobbyPolling() {
@@ -3927,7 +4471,11 @@
             launchOnlineBattleFromSocial(session, status);
             return;
         }
-        renderLobbyWaitingRoom();
+        if (isLobbyChatInputFocused()) {
+            updateLobbyWaitingRoom();
+        } else {
+            renderLobbyWaitingRoom();
+        }
     }
 
     function saveMultiplayerSession(session) {
@@ -4139,6 +4687,7 @@
         const map = {};
         (data.friends || []).forEach(row => {
             if (row.userId) map[row.userId] = row;
+            if (row.email) map[row.email] = row;
         });
         state.friendPresence = map;
     }
@@ -4178,6 +4727,30 @@
         }
     }
 
+    function chatMessageSenderLabel(message, peerId) {
+        if (message?.mine) return 'You';
+        const senderId = message?.senderId || peerId;
+        const friend = (state.profile?.friends || []).find(row => row.email === senderId);
+        if (friend?.displayName) return friend.displayName;
+        const peer = (state.profile?.friends || []).find(row => row.email === peerId);
+        return peer?.displayName || senderId || 'Friend';
+    }
+
+    function renderChatMessageBubble(message, peerId) {
+        const sender = chatMessageSenderLabel(message, peerId);
+        const when = message?.createdAt ? formatDateTime(message.createdAt) : '';
+        const timeMarkup = when
+            ? `<time class="message-bubble-time" datetime="${escapeAttr(message.createdAt)}">${escapeHtml(when)}</time>`
+            : '';
+        return `<div class="message-bubble ${message.mine ? 'mine' : 'theirs'}">
+            <div class="message-bubble-meta">
+                <span class="message-bubble-sender">${escapeHtml(sender)}</span>
+                ${timeMarkup}
+            </div>
+            <div class="message-bubble-text">${escapeHtml(message.text || '')}</div>
+        </div>`;
+    }
+
     async function openMessageComposer(peerId, focusInput = true) {
         if (!state.profile?.authenticated) return openAuth();
         state.activeChatPeer = peerId;
@@ -4195,7 +4768,7 @@
         }
         if (log) {
             log.innerHTML = (data.messages || []).length
-                ? data.messages.map(message => `<div class="message-bubble ${message.mine ? 'mine' : 'theirs'}">${escapeHtml(message.text)}</div>`).join('')
+                ? data.messages.map(message => renderChatMessageBubble(message, peerId)).join('')
                 : '<div class="social-empty-state"><span>Say hello to start the conversation.</span></div>';
             log.scrollTop = log.scrollHeight;
         }
@@ -4219,85 +4792,154 @@
         await openMessageComposer(state.activeChatPeer, false);
     }
 
-    async function openPlayerProfile(userId) {
-        const modal = document.getElementById('viewProfileModal');
-        const body = document.getElementById('viewProfileBody');
-        if (!modal || !body) return;
-        const data = await fetchJson(`/api/social/players/${encodeURIComponent(userId)}/profile`).catch(() => ({ error: 'Could not load this profile.' }));
-        if (data?.error) {
-            body.innerHTML = `<div class="view-profile-modal-head">
-                    <div><span class="eyebrow">Player Profile</span><h2 id="viewProfileTitle">Profile unavailable</h2></div>
-                    <button class="ghost-btn compact-btn" type="button" id="closeViewProfileBtn">Close</button>
+    function publicProfileViewModel(data) {
+        const prefs = {
+            ...defaultProfilePrefs({ displayName: data.profileSettings?.displayName || 'Player' }),
+            ...(data.profileSettings || {})
+        };
+        const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
+        prefs.favoriteElement = favoriteElement;
+        const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
+        const stats = data.stats || {};
+        const battles = (data.recentMatches || []).map((row, index) => normalizeBattle(row, favoriteElement, index));
+        const record = battleRecord(battles);
+        const level = Math.max(1, Number(stats.level) || Math.floor((stats.ownedTotal || 0) / 12) + 1);
+        return { prefs, theme, stats, battles, record, level, data };
+    }
+
+    function renderPublicProfileHero(view) {
+        const { prefs, theme, data } = view;
+        const presence = data.presence || {};
+        const statusLabel = presence.online ? String(presence.status || 'ONLINE').replace('_', ' ') : 'Offline';
+        return `<section class="profile-hero profile-hero-neutral">
+            <div class="profile-hero-content">
+                <div class="profile-avatar-wrap">
+                    ${renderPlayerAvatar(prefs, 'profile-avatar')}
+                    <span class="profile-level">LV ${view.level}</span>
                 </div>
-                <p class="profile-muted">${escapeHtml(data.error || 'This player could not be found.')}</p>`;
-            modal.classList.remove('hidden');
-            document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
-            return;
-        }
-        state.viewingProfile = data;
-        const prefs = data.profileSettings || {};
-        const myEmail = state.profile?.user?.email || '';
-        const isSelf = Boolean(myEmail && String(myEmail).toLowerCase() === String(userId).toLowerCase());
-        const theme = elementThemes[normalizeProfileElement(prefs.favoriteElement)] || elementThemes.Fire;
-        body.innerHTML = `<div class="view-profile-modal-head">
-            <div>
-                <span class="eyebrow">Player Profile</span>
-                <h2 id="viewProfileTitle">${escapeHtml(prefs.displayName || userId)}</h2>
-                <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
-            </div>
-            <button class="ghost-btn compact-btn" type="button" id="closeViewProfileBtn">Close</button>
-        </div>
-        <div class="profile-dashboard" style="${profileThemeStyle(theme)}">
-            <section class="profile-hero profile-hero-neutral">
-                <div class="profile-hero-content">
-                    <div class="profile-avatar-wrap">${renderPlayerAvatar(prefs, 'profile-avatar')}</div>
-                    <div class="profile-identity">
+                <div class="profile-identity">
+                    <div class="profile-hero-topline">
                         ${renderElementBadge(prefs.favoriteElement)}
-                        <p class="profile-bio">${escapeHtml(prefs.bio || '')}</p>
-                        <p class="profile-muted">Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling || '—')}</p>
-                        <p class="profile-muted">${escapeHtml(prefs.preferredCardBack || '')} card back</p>
-                        <p class="profile-muted">Status: ${escapeHtml((data.presence?.online ? data.presence.status : 'OFFLINE').replace('_', ' '))}</p>
+                        <span class="profile-soft-pill">${escapeHtml(statusLabel)}</span>
                     </div>
+                    <h2>${escapeHtml(prefs.displayName || data.userId || 'Player')}</h2>
+                    <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
+                    <p class="profile-bio">${escapeHtml(prefs.bio || '')}</p>
+                    <p class="profile-muted">Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling || '—')}</p>
+                    <p class="profile-muted">${escapeHtml(prefs.preferredCardBack || '')} card back</p>
                 </div>
-            </section>
-            <section class="profile-stat-grid">
-                ${renderStatCard('Cards Owned', data.stats?.ownedTotal ?? 0, 'Total copies')}
-                ${renderStatCard('Unique Cards', data.stats?.uniqueOwned ?? 0, 'Discovered')}
-                ${renderStatCard('Coins', data.stats?.gold ?? 0, 'Wallet')}
-                ${renderStatCard('Level', data.stats?.level ?? 1, 'Collector rank')}
-            </section>
-            ${data.isFriend ? `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileMessageBtn">Message</button>
-            </div>` : isSelf ? '<p class="profile-muted">This is your own profile. Share it from Options to let others add you.</p>'
-                : data.incomingFriendRequest ? `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAcceptBtn">Accept Request</button>
-                <button class="ghost-btn profile-theme-btn" type="button" id="viewProfileDenyBtn">Decline</button>
-            </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`
-                : data.outgoingFriendRequest ? '<p class="profile-muted">Friend request sent. Waiting for them to accept.</p>'
-                : `<div class="profile-edit-actions">
-                <button class="primary-btn profile-theme-btn" type="button" id="viewProfileAddFriendBtn">Send Friend Request</button>
-            </div><p class="profile-muted" id="viewProfileFriendMsg"></p>`}
+            </div>
+        </section>`;
+    }
+
+    function renderPublicProfileStats(view) {
+        const { stats, record } = view;
+        const cards = [
+            ['Cards Owned', stats.ownedTotal ?? 0, 'Total copies'],
+            ['Unique Cards', stats.uniqueOwned ?? 0, 'Discovered'],
+            ['Coins', stats.gold ?? 0, 'Wallet'],
+            ['Wins', record.wins, 'Recorded matches'],
+            ['Losses', record.losses, 'Recorded matches'],
+            ['Win Rate', `${record.winRate}%`, 'Recent record']
+        ];
+        return `<section class="profile-stat-grid">${cards.map(([label, value, hint]) => renderStatCard(label, value, hint)).join('')}</section>`;
+    }
+
+    function renderPublicProfileActions(view) {
+        const data = view.data;
+        const userId = data.userId;
+        const myEmail = normalizePlayerId(state.profile?.user?.email);
+        const isSelf = Boolean(myEmail && myEmail === normalizePlayerId(userId));
+        if (isSelf) {
+            return '<p class="profile-muted">This is your profile. Use Edit Profile on your account page to make changes.</p>';
+        }
+        if (data.isFriend) {
+            return `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" data-public-profile-message>Message</button>
+            </div>`;
+        }
+        if (data.incomingFriendRequest) {
+            return `<div class="profile-edit-actions">
+                <button class="primary-btn profile-theme-btn" type="button" data-public-profile-accept>Accept Request</button>
+                <button class="ghost-btn profile-theme-btn" type="button" data-public-profile-deny>Decline</button>
+            </div><p class="profile-muted" id="publicProfileFriendMsg"></p>`;
+        }
+        if (data.outgoingFriendRequest) {
+            return '<p class="profile-muted">Friend request sent. Waiting for them to accept.</p>';
+        }
+        return `<div class="profile-edit-actions">
+            <button class="primary-btn profile-theme-btn" type="button" data-public-profile-add-friend>Send Friend Request</button>
+        </div><p class="profile-muted" id="publicProfileFriendMsg"></p>`;
+    }
+
+    function renderPublicProfilePageHtml(view) {
+        return `<div class="profile-dashboard public-profile-page" style="${profileThemeStyle(view.theme)}">
+            <div class="public-profile-toolbar">
+                <button class="ghost-btn compact-btn" type="button" data-public-profile-back>← Back</button>
+            </div>
+            ${renderPublicProfileHero(view)}
+            ${renderPublicProfileStats(view)}
+            ${view.battles.length ? renderBattleRecordPanel(view) : ''}
+            ${view.battles.length
+                ? renderBattleHistoryList(view)
+                : `<section class="profile-panel"><p class="profile-muted">${view.data.isFriend ? 'No recorded battles yet.' : 'Recent battles are visible once you are friends.'}</p></section>`}
+            ${renderPublicProfileActions(view)}
         </div>`;
-        modal.classList.remove('hidden');
-        document.getElementById('closeViewProfileBtn')?.addEventListener('click', closePlayerProfile);
-        document.getElementById('viewProfileMessageBtn')?.addEventListener('click', () => {
-            closePlayerProfile();
+    }
+
+    function bindPublicProfilePage(view) {
+        const body = document.getElementById('profileSectionBody');
+        if (!body) return;
+        const userId = view.data.userId;
+        body.querySelector('[data-public-profile-back]')?.addEventListener('click', () => {
+            if (state.profile?.authenticated) {
+                navigateHub('profile');
+            } else {
+                navigateHub('social');
+            }
+        });
+        body.querySelector('[data-public-profile-message]')?.addEventListener('click', () => {
             navigateHub('social');
             openMessageComposer(userId);
         });
-        document.getElementById('viewProfileAddFriendBtn')?.addEventListener('click', () => addFriendByEmail(userId));
-        document.getElementById('viewProfileAcceptBtn')?.addEventListener('click', async () => {
+        body.querySelector('[data-public-profile-add-friend]')?.addEventListener('click', () => addFriendByEmail(userId, 'publicProfileFriendMsg'));
+        body.querySelector('[data-public-profile-accept]')?.addEventListener('click', async () => {
             await respondToFriendRequest(userId, 'accept');
-            closePlayerProfile();
+            void loadPublicProfilePage(userId);
         });
-        document.getElementById('viewProfileDenyBtn')?.addEventListener('click', async () => {
+        body.querySelector('[data-public-profile-deny]')?.addEventListener('click', async () => {
             await respondToFriendRequest(userId, 'deny');
-            closePlayerProfile();
+            navigateHub('profile');
         });
     }
 
-    async function addFriendByEmail(email) {
-        const msg = document.getElementById('viewProfileFriendMsg');
+    async function loadPublicProfilePage(userId) {
+        const normalized = normalizePlayerId(userId);
+        const body = document.getElementById('profileSectionBody');
+        if (!body || state.profileUserId !== normalized) return;
+        const data = await fetchJson(`/api/social/players/${encodeURIComponent(normalized)}/profile`).catch(() => ({ error: 'Could not load this profile.' }));
+        if (state.profileUserId !== normalized) return;
+        if (data?.error) {
+            body.innerHTML = `<div class="profile-dashboard public-profile-page">
+                <div class="public-profile-toolbar">
+                    <button class="ghost-btn compact-btn" type="button" data-public-profile-back>← Back</button>
+                </div>
+                <p class="profile-muted">${escapeHtml(data.error || 'This player could not be found.')}</p>
+            </div>`;
+            body.querySelector('[data-public-profile-back]')?.addEventListener('click', () => navigateHub(state.profile?.authenticated ? 'profile' : 'social'));
+            return;
+        }
+        const view = publicProfileViewModel(data);
+        body.innerHTML = renderPublicProfilePageHtml(view);
+        bindPublicProfilePage(view);
+    }
+
+    function openPlayerProfile(userId) {
+        navigateToPlayerProfile(userId);
+    }
+
+    async function addFriendByEmail(email, messageElementId = 'viewProfileFriendMsg') {
+        const msg = document.getElementById(messageElementId);
         if (!state.profile?.authenticated) {
             closePlayerProfile();
             openAuth();
@@ -4310,7 +4952,8 @@
         }
         state.profile = data;
         state.progression = data.progression || state.progression;
-        const btn = document.getElementById('viewProfileAddFriendBtn');
+        const btn = document.getElementById('viewProfileAddFriendBtn')
+            || document.querySelector('[data-public-profile-add-friend]');
         if (btn) { btn.textContent = 'Request Sent'; btn.disabled = true; }
         if (msg) { msg.textContent = 'They will need to accept before you can message.'; msg.style.color = ''; }
         renderFriends();
@@ -4445,7 +5088,7 @@
         } else if (view === 'share') {
             const email = state.profile?.user?.email || '';
             const authed = Boolean(state.profile?.authenticated && email);
-            const link = authed ? `${location.origin}/home?profile=${encodeURIComponent(email)}` : '';
+            const link = authed ? `${location.origin}${playerProfilePath(email)}` : '';
             let qrMarkup = '<p class="guide-note">Sign in to generate your shareable profile code.</p>';
             if (authed) {
                 if (typeof qrcode === 'function') {

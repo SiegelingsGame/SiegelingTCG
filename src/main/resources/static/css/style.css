@@ -7968,10 +7968,34 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 }
 
 .welcome-lb-tabs {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.welcome-lb-period-tabs,
+.welcome-lb-category-tabs {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-bottom: 12px;
+}
+
+.welcome-lb-period-tab {
+    border-radius: 999px;
+    border: 1px solid rgba(226, 183, 20, 0.28);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-dim);
+    padding: 7px 12px;
+    font-size: 0.72em;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.welcome-lb-period-tab.active {
+    color: #101828;
+    border-color: rgba(226, 183, 20, 0.65);
+    background: var(--accent);
 }
 
 .welcome-lb-tab {

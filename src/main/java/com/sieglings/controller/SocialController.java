@@ -113,6 +113,7 @@ public class SocialController {
                 UserPresenceEntity presence = presenceService.listFriendPresence(List.of(friendId)).stream().findFirst().orElse(null);
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("userId", friend.getId());
+                row.put("email", friend.getEmail() == null ? friend.getId() : friend.getEmail());
                 row.put("displayName", settings.getDisplayName() == null || settings.getDisplayName().isBlank()
                         ? friend.getDisplayName()
                         : settings.getDisplayName());

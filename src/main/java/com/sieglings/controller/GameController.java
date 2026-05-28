@@ -225,6 +225,29 @@ public class GameController {
         }
     }
 
+    @PostMapping("/api/match/leave")
+    @ResponseBody
+    public Map<String, Object> leaveLobby(@RequestBody(required = false) Map<String, Object> req,
+                                          @RequestHeader(value = "X-Room-Id", required = false) String roomIdHeader,
+                                          @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            if (roomId == null || roomId.isBlank()) {
+                roomId = roomIdHeader;
+            }
+            multiplayerService.leaveLobby(roomId, playerToken);
+            MultiplayerRoom room = multiplayerService.requireRoom(roomId);
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("ok", true);
+            resp.put("roomId", roomId);
+            resp.put("guestJoined", room.hasGuest());
+            resp.put("lobbyChat", room.getLobbyChat());
+            return resp;
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @PostMapping("/api/match/lobby-chat")
     @ResponseBody
     public Map<String, Object> lobbyChat(@RequestBody Map<String, Object> req,

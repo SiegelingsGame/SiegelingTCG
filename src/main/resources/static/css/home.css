@@ -1682,6 +1682,32 @@ select.search-input { color-scheme: dark; }
     line-height: 1.45;
 }
 
+.home-lb-period-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.home-lb-period-tab {
+    min-height: 30px;
+    padding: 6px 12px;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: 999px;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+}
+
+.home-lb-period-tab.active {
+    border-color: rgba(255, 215, 0, 0.55);
+    color: #101828;
+    background: var(--accent);
+}
+
 .home-lb-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -2817,6 +2843,137 @@ select.search-input { color-scheme: dark; }
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
     gap: 9px;
+}
+
+.decks-browser-block {
+    margin-top: 18px;
+}
+
+.decks-browser-block .decks-row-head {
+    margin-bottom: 10px;
+}
+
+.decks-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.deck-builder-page-head {
+    align-items: flex-start;
+}
+
+.deck-builder-back-btn {
+    display: inline-flex;
+    margin-bottom: 8px;
+}
+
+.deck-builder-page {
+    margin-top: 12px;
+}
+
+.deck-builder-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(280px, 0.85fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.deck-builder-binder-list,
+.deck-builder-deck-list {
+    display: grid;
+    gap: 8px;
+    max-height: min(62vh, 720px);
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.deck-builder-binder-row,
+.deck-builder-deck-row,
+.builder-recommendation-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 34%, rgba(255, 255, 255, 0.1));
+    border-radius: 10px;
+    padding: 8px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--el, var(--accent)) 10%, transparent), rgba(255, 255, 255, 0.03));
+}
+
+.deck-builder-binder-row.is-active,
+.deck-builder-deck-row.is-active {
+    border-color: color-mix(in srgb, var(--builder-accent, var(--accent)) 68%, #fff);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--builder-accent, var(--accent)) 40%, transparent);
+}
+
+.deck-builder-binder-main,
+.deck-builder-deck-row-main,
+.builder-recommendation-main {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.deck-builder-binder-count {
+    color: #fff7d9;
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.deck-builder-preview-panel {
+    margin-bottom: 12px;
+}
+
+.deck-builder-preview-card .detail-art {
+    min-height: 120px;
+    margin-bottom: 10px;
+}
+
+.deck-builder-preview-flavor,
+.deck-builder-evolution-line {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.45;
+}
+
+.deck-builder-preview-actions {
+    margin-top: 12px;
+}
+
+.deck-builder-recommendation-grid {
+    display: grid;
+    gap: 8px;
+}
+
+.builder-recommendation-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.deck-builder-deck-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.deck-builder-deck-form {
+    grid-template-columns: 1fr;
+    margin-bottom: 10px;
+}
+
+.deck-builder-deck-pane .builder-actions-row {
+    margin-bottom: 10px;
 }
 
 .join-row {
@@ -4735,8 +4892,13 @@ body.gacha-active {
     .join-row,
     .builder-hero-row,
     .builder-form-grid,
-    .builder-catalog-tools {
+    .builder-catalog-tools,
+    .deck-builder-layout {
         grid-template-columns: 1fr;
+    }
+    .deck-builder-binder-list,
+    .deck-builder-deck-list {
+        max-height: none;
     }
     .room-emblem {
         width: 56px;
@@ -5081,11 +5243,42 @@ body.gacha-active {
     border-radius: 12px;
     font-size: 13px;
     line-height: 1.35;
+    display: grid;
+    gap: 4px;
+}
+
+.message-bubble-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11px;
+    line-height: 1.2;
+    opacity: 0.82;
+}
+
+.message-bubble-sender {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.message-bubble-time {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    opacity: 0.9;
+}
+
+.message-bubble-text {
+    line-height: 1.35;
 }
 
 .message-bubble.mine {
     justify-self: end;
     background: rgba(61, 132, 255, 0.28);
+}
+
+.message-bubble.mine .message-bubble-meta {
+    flex-direction: row-reverse;
 }
 
 .message-bubble.theirs {
@@ -5104,6 +5297,40 @@ body.gacha-active {
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
+}
+
+.profile-friend-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.profile-friend-link:hover,
+.profile-friend-link:focus-visible {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+.profile-friend-link strong {
+    font-weight: inherit;
+}
+
+.friend-name-link {
+    display: inline-block;
+    max-width: 100%;
+}
+
+.public-profile-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin-bottom: 12px;
+}
+
+.profile-loading-state {
+    display: grid;
+    gap: 6px;
+    padding: 24px 8px;
+    color: var(--text-dim);
 }
 
 /* Options menu + guides */

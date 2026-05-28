@@ -118,6 +118,21 @@ public class MultiplayerService {
         room.touch();
     }
 
+    public synchronized void leaveLobby(String roomId, String token) {
+        MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
+        if (room.isStarted()) {
+            throw new IllegalArgumentException("Match already started.");
+        }
+        if (!room.isGuestToken(token)) {
+            return;
+        }
+        String guestName = room.getGuestName();
+        room.clearGuest();
+        room.setHostReady(false);
+        room.addLobbyChatMessage(guestName == null || guestName.isBlank() ? "Guest" : guestName, "system", "Left the waiting room.");
+        room.touch();
+    }
+
     private void startMatch(MultiplayerRoom room) {
         if (room.isStarted() || !room.hasGuest()) {
             return;

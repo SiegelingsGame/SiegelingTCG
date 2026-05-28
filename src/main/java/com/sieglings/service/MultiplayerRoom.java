@@ -130,6 +130,15 @@ public class MultiplayerRoom {
         return guestToken != null && guestName != null;
     }
 
+    public void clearGuest() {
+        guestToken = null;
+        guestName = null;
+        guestUserId = null;
+        guestOptions = null;
+        guestReady = false;
+        guestLoadoutReady = false;
+    }
+
     public boolean isLoadoutPhase() {
         return hasGuest() && !isStarted();
     }
