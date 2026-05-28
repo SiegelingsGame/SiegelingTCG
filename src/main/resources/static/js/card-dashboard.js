@@ -267,6 +267,18 @@
             "movePickerCategoryFilter",
             "movePickerList",
             "movePickerCloseBtn",
+            "cardVisualStage",
+            "cardArtControls",
+            "cardArtFileInput",
+            "cardArtUrlInput",
+            "clearCardArtBtn",
+            "cardArtTransformControls",
+            "cardArtTransformHelp",
+            "cardArtScaleInput",
+            "cardArtScaleValue",
+            "cardArtRotationInput",
+            "cardArtRotationValue",
+            "resetCardArtTransformBtn",
             "cardSummary",
             "jsonPreviewMode",
             "jsonPreview",
@@ -406,6 +418,75 @@
             state.selectedCardId = row.dataset.cardId;
             state.selectedAbilityIndex = 0;
             renderAll();
+        });
+
+        refs.cardArtControls?.addEventListener("change", (event) => {
+            const modeInput = event.target.closest('input[name="cardArtMode"]');
+            if (!modeInput) {
+                return;
+            }
+            mutateSelectedCard((card) => {
+                card.cardArtMode = normalizeCardArtMode(modeInput.value);
+            });
+        });
+
+        refs.cardArtUrlInput?.addEventListener("input", (event) => {
+            mutateSelectedCard((card) => {
+                card.cardArtUrl = String(event.target.value || "").trim();
+                if (card.cardArtUrl && !card.cardArtMode) {
+                    card.cardArtMode = "REPLACE";
+                }
+                if (!card.cardArtUrl) {
+                    card.cardArtMode = "";
+                }
+            });
+        });
+
+        refs.cardArtFileInput?.addEventListener("change", (event) => {
+            const file = event.target.files?.[0];
+            if (!file) {
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+                mutateSelectedCard((card) => {
+                    card.cardArtUrl = String(reader.result || "").trim();
+                    if (card.cardArtUrl && !card.cardArtMode) {
+                        card.cardArtMode = "REPLACE";
+                    }
+                });
+                event.target.value = "";
+            };
+            reader.readAsDataURL(file);
+        });
+
+        refs.clearCardArtBtn?.addEventListener("click", () => {
+            mutateSelectedCard((card) => {
+                card.cardArtUrl = "";
+                card.cardArtMode = "";
+                resetCardArtTransform(card);
+            });
+            if (refs.cardArtFileInput) {
+                refs.cardArtFileInput.value = "";
+            }
+        });
+
+        refs.cardArtScaleInput?.addEventListener("input", (event) => {
+            mutateSelectedCard((card) => {
+                card.cardArtScale = clampCardArtScale(event.target.value);
+            });
+        });
+
+        refs.cardArtRotationInput?.addEventListener("input", (event) => {
+            mutateSelectedCard((card) => {
+                card.cardArtRotation = clampCardArtRotation(event.target.value);
+            });
+        });
+
+        refs.resetCardArtTransformBtn?.addEventListener("click", () => {
+            mutateSelectedCard((card) => {
+                resetCardArtTransform(card);
+            });
         });
 
         refs.notchGrid.addEventListener("click", (event) => {
@@ -1369,6 +1450,228 @@
         return candidate;
     }
 
+    function normalizeCardArtMode(value) {
+        const mode = String(value || "").trim().toUpperCase();
+        return mode === "REPLACE" || mode === "OVERLAY" ? mode : "";
+    }
+
+    function clampCardArtScale(value) {
+        const scale = Number(value);
+        if (!Number.isFinite(scale)) {
+            return 1;
+        }
+        return Math.min(3, Math.max(0.25, scale));
+    }
+
+    function clampCardArtRotation(value) {
+        const rotation = Number(value);
+        if (!Number.isFinite(rotation)) {
+            return 0;
+        }
+        return Math.min(180, Math.max(-180, rotation));
+    }
+
+    function normalizeCardArtTransformFields(card) {
+        return {
+            cardArtOffsetX: toNumber(card?.cardArtOffsetX, 0),
+            cardArtOffsetY: toNumber(card?.cardArtOffsetY, 0),
+            cardArtScale: clampCardArtScale(card?.cardArtScale ?? 1),
+            cardArtRotation: clampCardArtRotation(card?.cardArtRotation ?? 0)
+        };
+    }
+
+    function resetCardArtTransform(card) {
+        card.cardArtOffsetX = 0;
+        card.cardArtOffsetY = 0;
+        card.cardArtScale = 1;
+        card.cardArtRotation = 0;
+    }
+
+    function hasCustomCardArt(card) {
+        const { cardArtUrl, cardArtMode } = normalizeCardArtFields(card);
+        return Boolean(cardArtUrl && cardArtMode);
+    }
+
+    function formatCardArtScaleValue(scale) {
+        return clampCardArtScale(scale).toFixed(2);
+    }
+
+    function formatCardArtRotationValue(rotation) {
+        return `${Math.round(clampCardArtRotation(rotation))}°`;
+    }
+
+    function buildCardArtTransformStyle(card) {
+        return window.SieglingsCardBinderVisual?.buildArtTransformStyle(card) || "";
+    }
+
+    function getCardArtDragTargets(card) {
+        const mode = normalizeCardArtMode(card?.cardArtMode);
+        const previewCard = refs.cardVisualStage?.querySelector(".binder-card");
+        if (!previewCard) {
+            return { artFrame: null, artImg: null };
+        }
+        if (mode === "OVERLAY") {
+            return {
+                artFrame: previewCard,
+                artImg: previewCard.querySelector(".binder-card-overlay-art-card")
+            };
+        }
+        const artFrame = previewCard.querySelector(".binder-card-art");
+        return {
+            artFrame,
+            artImg: artFrame?.querySelector(".binder-card-custom-art") || null
+        };
+    }
+
+    function applyCardArtTransformToPreview(card) {
+        const { artImg } = getCardArtDragTargets(card);
+        if (!artImg) {
+            return;
+        }
+        const style = buildCardArtTransformStyle(card);
+        if (style) {
+            artImg.setAttribute("style", style);
+        } else {
+            artImg.removeAttribute("style");
+        }
+    }
+
+    let cardArtDragAbortController = null;
+
+    function teardownCardArtDragInteraction() {
+        cardArtDragAbortController?.abort();
+        cardArtDragAbortController = null;
+    }
+
+    function setupCardArtDragInteraction(card) {
+        teardownCardArtDragInteraction();
+        if (!hasCustomCardArt(card)) {
+            return;
+        }
+
+        const { artFrame, artImg } = getCardArtDragTargets(card);
+        if (!artFrame || !artImg) {
+            return;
+        }
+
+        cardArtDragAbortController = new AbortController();
+        const { signal } = cardArtDragAbortController;
+        let dragState = null;
+
+        const finishDrag = (event) => {
+            if (!dragState) {
+                return;
+            }
+            artFrame.classList.remove("is-art-dragging");
+            if (artImg.hasPointerCapture?.(event.pointerId)) {
+                artImg.releasePointerCapture(event.pointerId);
+            }
+            const nextX = dragState.startOffsetX + (event.clientX - dragState.startClientX);
+            const nextY = dragState.startOffsetY + (event.clientY - dragState.startClientY);
+            dragState = null;
+            mutateSelectedCard((selectedCard) => {
+                selectedCard.cardArtOffsetX = nextX;
+                selectedCard.cardArtOffsetY = nextY;
+            });
+        };
+
+        artImg.addEventListener("pointerdown", (event) => {
+            if (event.button !== 0) {
+                return;
+            }
+            event.preventDefault();
+            dragState = {
+                startClientX: event.clientX,
+                startClientY: event.clientY,
+                startOffsetX: toNumber(card.cardArtOffsetX, 0),
+                startOffsetY: toNumber(card.cardArtOffsetY, 0)
+            };
+            artFrame.classList.add("is-art-dragging");
+            artImg.setPointerCapture?.(event.pointerId);
+        }, { signal });
+
+        artImg.addEventListener("pointermove", (event) => {
+            if (!dragState) {
+                return;
+            }
+            event.preventDefault();
+            const previewCard = {
+                ...card,
+                cardArtOffsetX: dragState.startOffsetX + (event.clientX - dragState.startClientX),
+                cardArtOffsetY: dragState.startOffsetY + (event.clientY - dragState.startClientY)
+            };
+            applyCardArtTransformToPreview(previewCard);
+        }, { signal });
+
+        artImg.addEventListener("pointerup", finishDrag, { signal });
+        artImg.addEventListener("pointercancel", finishDrag, { signal });
+    }
+
+    function syncCardArtTransformControls(card) {
+        const showTransform = hasCustomCardArt(card);
+        refs.cardArtTransformControls?.classList.toggle("hidden", !showTransform);
+        if (!showTransform) {
+            return;
+        }
+
+        const scale = clampCardArtScale(card?.cardArtScale ?? 1);
+        const rotation = clampCardArtRotation(card?.cardArtRotation ?? 0);
+        if (refs.cardArtScaleInput && document.activeElement !== refs.cardArtScaleInput) {
+            refs.cardArtScaleInput.value = String(scale);
+        }
+        if (refs.cardArtRotationInput && document.activeElement !== refs.cardArtRotationInput) {
+            refs.cardArtRotationInput.value = String(rotation);
+        }
+        if (refs.cardArtScaleValue) {
+            refs.cardArtScaleValue.textContent = formatCardArtScaleValue(scale);
+        }
+        if (refs.cardArtRotationValue) {
+            refs.cardArtRotationValue.textContent = formatCardArtRotationValue(rotation);
+        }
+        if (refs.cardArtTransformHelp) {
+            const mode = normalizeCardArtMode(card?.cardArtMode);
+            refs.cardArtTransformHelp.textContent = mode === "OVERLAY"
+                ? "Drag overlay art anywhere on the card. Scale and rotate freely; it can extend past the icon frame."
+                : "Drag replace art within the icon frame. The full image stays visible while editing; scale and move it behind the frame border.";
+        }
+    }
+
+    function normalizeCardArtFields(card) {
+        const cardArtUrl = String(card?.cardArtUrl || "").trim();
+        let cardArtMode = normalizeCardArtMode(card?.cardArtMode);
+        if (cardArtUrl && !cardArtMode) {
+            cardArtMode = "REPLACE";
+        }
+        return { cardArtUrl, cardArtMode, ...normalizeCardArtTransformFields(card) };
+    }
+
+    function appendCardArtExport(exported, card) {
+        const url = String(card?.cardArtUrl || "").trim();
+        if (url) {
+            exported.cardArtUrl = url;
+            if (card.cardArtMode) {
+                exported.cardArtMode = card.cardArtMode;
+            }
+            const offsetX = toNumber(card.cardArtOffsetX, 0);
+            const offsetY = toNumber(card.cardArtOffsetY, 0);
+            const scale = clampCardArtScale(card.cardArtScale ?? 1);
+            const rotation = clampCardArtRotation(card.cardArtRotation ?? 0);
+            if (offsetX !== 0) {
+                exported.cardArtOffsetX = offsetX;
+            }
+            if (offsetY !== 0) {
+                exported.cardArtOffsetY = offsetY;
+            }
+            if (scale !== 1) {
+                exported.cardArtScale = scale;
+            }
+            if (rotation !== 0) {
+                exported.cardArtRotation = rotation;
+            }
+        }
+        return exported;
+    }
+
     function normalizeCard(card) {
         const cardType = normalizeCardType(card?.type || card?.cardType || inferCardType(card));
         const baseElement = card?.element || firstMetaValue("elements", "FIRE");
@@ -1398,7 +1701,8 @@
                 requiredComboSignature: String(card?.requiredComboSignature || "").trim().toUpperCase(),
                 notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
                 moveIds,
-                abilities: []
+                abilities: [],
+                ...normalizeCardArtFields(card)
             };
         }
         const abilities = Array.isArray(card?.abilities) && card.abilities.length > 0
@@ -1422,7 +1726,8 @@
             requiredComboSize: toNumber(card?.requiredComboSize, 0),
             requiredComboSignature: String(card?.requiredComboSignature || "").trim().toUpperCase(),
             notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
-            abilities: normalizeCardAbilities(cardType, abilities, baseElement)
+            abilities: normalizeCardAbilities(cardType, abilities, baseElement),
+            ...normalizeCardArtFields(card)
         };
     }
 
@@ -1879,6 +2184,7 @@
         }
         renderCardList();
         renderEditor();
+        renderCardVisual();
         renderSummary();
         renderPreview();
         renderDeckList();
@@ -2277,6 +2583,68 @@
                 <span class="ability-tab-meta">${escapeHtml(formatEnumLabel(ability.targetType))} | ${escapeHtml(effectLabel(ability.effectType))}</span>
             </button>
         `).join("");
+    }
+
+    function toBinderPreviewCard(card) {
+        const preview = {
+            ...card,
+            type: card.cardType,
+            abilities: card.cardType === "SIEGLING" ? [] : (card.abilities || [])
+        };
+        if (card.cardType !== "SIEGLING" && preview.abilities[0]) {
+            preview.ability = preview.abilities[0];
+        }
+        if (card.cardType === "SIEGLING" && (card.moveIds || []).length > 0) {
+            const firstMove = findMoveById(card.moveIds[0]);
+            if (firstMove) {
+                preview.abilities = [{
+                    name: firstMove.name,
+                    description: firstMove.description || ""
+                }];
+            }
+        }
+        return preview;
+    }
+
+    function renderCardVisual() {
+        if (!refs.cardVisualStage) {
+            return;
+        }
+        const card = getSelectedCard();
+        if (!card) {
+            refs.cardVisualStage.innerHTML = `<div class="validation-empty">Select a card to preview.</div>`;
+            refs.cardArtControls?.classList.add("hidden");
+            teardownCardArtDragInteraction();
+            return;
+        }
+
+        const binder = window.SieglingsCardBinderVisual;
+        if (!binder) {
+            refs.cardVisualStage.innerHTML = `<div class="validation-empty">Card preview module failed to load.</div>`;
+            refs.cardArtControls?.classList.remove("hidden");
+            return;
+        }
+
+        const previewCard = toBinderPreviewCard(card);
+        const descriptionText = card.cardType === "SIEGLING"
+            ? ((card.moveIds || []).map((id) => findMoveById(id)?.description).find(Boolean) || "Preview card art and notches as players see them in the Cards menu.")
+            : (card.abilities?.[0]?.description || "Preview card art as players see it in the Cards menu.");
+
+        refs.cardVisualStage.innerHTML = binder.renderBinderCardPreview(previewCard, {
+            ownedLabel: "Preview",
+            descriptionText
+        });
+        refs.cardArtControls?.classList.remove("hidden");
+
+        const mode = normalizeCardArtMode(card.cardArtMode);
+        refs.cardArtControls?.querySelectorAll('input[name="cardArtMode"]').forEach((input) => {
+            input.checked = input.value === mode;
+        });
+        if (refs.cardArtUrlInput && document.activeElement !== refs.cardArtUrlInput) {
+            setInputValue(refs.cardArtUrlInput, card.cardArtUrl || "");
+        }
+        syncCardArtTransformControls(card);
+        setupCardArtDragInteraction(card);
     }
 
     function renderSummary() {
@@ -3348,7 +3716,7 @@
             if (card.requiredComboSignature.trim()) {
                 exportedSpell.requiredComboSignature = card.requiredComboSignature.trim().toUpperCase();
             }
-            return exportedSpell;
+            return appendCardArtExport(exportedSpell, card);
         }
 
         if (card.cardType === "TRAP") {
@@ -3364,7 +3732,7 @@
                 exportedTrap.trapBucketElement = card.trapBucketElement || card.element;
                 exportedTrap.trapBucketAmount = toNumber(card.trapBucketAmount, 0);
             }
-            return exportedTrap;
+            return appendCardArtExport(exportedTrap, card);
         }
 
         const exported = {
@@ -3391,7 +3759,7 @@
             exported.costAmount = toNumber(card.costAmount, 0);
         }
 
-        return exported;
+        return appendCardArtExport(exported, card);
     }
 
     function buildExportDeck(deck) {

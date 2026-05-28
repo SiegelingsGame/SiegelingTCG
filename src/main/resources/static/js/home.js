@@ -592,13 +592,14 @@
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const isSiegling = card.type === 'SIEGLING';
         return `${isSiegling ? renderBinderNotches(card.notches) : ''}
+            ${window.SieglingsCardBinderVisual?.renderBinderCardOverlay(card) || ''}
             <div class="binder-card-shell">
                 <div class="binder-card-header">
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(typeLabel)}</span>
                 </div>
                 <div class="binder-card-art">
-                    ${renderElementIcon(card.element)}
+                    ${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}
                 </div>
                 <div class="binder-card-body shop-card-body">
                     ${renderShopCardStats(card)}
@@ -612,7 +613,8 @@
 
     function renderCardTile(card) {
         const selected = card.id === state.selectedCardId ? ' selected' : '';
-        return `<button class="card-tile binder-card${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+        const modeClass = window.SieglingsCardBinderVisual?.resolveArtModeClass(card) || '';
+        return `<button class="card-tile binder-card${selected}${modeClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
             ${renderBinderCardShell(card)}
         </button>`;
     }
@@ -634,7 +636,7 @@
             ? `Craft for ${craftCost.toLocaleString()} Remnants`
             : 'Sign in to craft';
         panel.innerHTML = `
-            <div class="detail-art art" style="--el:${elementColor(card.element)}">${renderElementIcon(card.element)}</div>
+            <div class="detail-art art" style="--el:${elementColor(card.element)}">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}</div>
             <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
             <h2>${escapeHtml(card.name)}</h2>
             <div class="chip-wrap">
@@ -1397,7 +1399,7 @@
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
         return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
-            <div class="detail-art art">${renderElementIcon(card.element)}</div>
+            <div class="detail-art art">${renderBinderCardArt(card)}</div>
             <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
             <h3>${escapeHtml(card.name)}</h3>
             <div class="chip-wrap">
@@ -1585,7 +1587,7 @@
                         <strong>${escapeHtml(card.name || 'Daily Card')}</strong>
                         <span>${escapeHtml(typeLabel)}</span>
                     </div>
-                    <div class="binder-card-art">${renderElementIcon(card.element)}</div>
+                    <div class="binder-card-art">${renderBinderCardArt(card)}</div>
                     <div class="binder-card-body shop-card-body">
                         ${renderShopCardStats(card)}
                         <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / Owned x${owned}</div>
@@ -3826,6 +3828,42 @@
     }
     function elementColor(element) { return ELEMENT_COLORS[element] || '#f05b2f'; }
     function rarityColor(rarity) { return RARITY_COLORS[rarity] || RARITY_COLORS.COMMON; }
+    function normalizeCardArtKey(value) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+    }
+
+    const CARD_ART_OVERRIDES = Object.freeze({
+        sundile: '/assets/cards/sundile.jpg'
+    });
+
+    function resolveCardArtUrl(card) {
+        if (!card) return '';
+        const candidates = [card.artKey, card.id, card.definitionId, card.cardId, card.baseId, card.catalogId, card.slug, card.name];
+        for (const candidate of candidates) {
+            const key = normalizeCardArtKey(candidate);
+            if (key && CARD_ART_OVERRIDES[key]) {
+                return CARD_ART_OVERRIDES[key];
+            }
+        }
+        return '';
+    }
+
+    function renderBinderCardArt(card) {
+        const dashboardArtUrl = String(card?.cardArtUrl || '').trim();
+        const dashboardMode = window.SieglingsCardBinderVisual?.normalizeArtMode(card?.cardArtMode) || '';
+        if (dashboardArtUrl && dashboardMode && window.SieglingsCardBinderVisual) {
+            return window.SieglingsCardBinderVisual.renderBinderCardArt(card);
+        }
+        const url = resolveCardArtUrl(card);
+        if (url) {
+            const name = card?.name || 'Card';
+            return `<img class="element-icon-art" src="${escapeAttr(url)}" alt="${escapeAttr(name)} art" loading="lazy">`;
+        }
+        return renderElementIcon(card?.element);
+    }
+
     function elementIconPath(element) {
         return ELEMENT_ICON_PATHS[String(element || '').toUpperCase()] || '';
     }

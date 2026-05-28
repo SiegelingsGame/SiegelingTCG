@@ -1190,6 +1190,25 @@ public class GameController {
             m.put("ability", serializeAbility(card.getAbility()));
         }
 
+        if (card.getCardArtUrl() != null && !card.getCardArtUrl().isBlank()) {
+            m.put("cardArtUrl", card.getCardArtUrl());
+            if (card.getCardArtMode() != null && !card.getCardArtMode().isBlank()) {
+                m.put("cardArtMode", card.getCardArtMode());
+            }
+            if (card.getCardArtOffsetX() != null && card.getCardArtOffsetX() != 0.0) {
+                m.put("cardArtOffsetX", card.getCardArtOffsetX());
+            }
+            if (card.getCardArtOffsetY() != null && card.getCardArtOffsetY() != 0.0) {
+                m.put("cardArtOffsetY", card.getCardArtOffsetY());
+            }
+            if (card.getCardArtScale() != null && card.getCardArtScale() != 1.0) {
+                m.put("cardArtScale", card.getCardArtScale());
+            }
+            if (card.getCardArtRotation() != null && card.getCardArtRotation() != 0.0) {
+                m.put("cardArtRotation", card.getCardArtRotation());
+            }
+        }
+
         return m;
     }
 
