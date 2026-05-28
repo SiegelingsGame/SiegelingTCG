@@ -581,6 +581,7 @@
             <div class="loadout-toggle-label">Deck Source</div>
             <div class="loadout-tabs" role="group" aria-label="Deck Source">
                 <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Preset Decks</button>
+                <button class="loadout-tab" id="savedTab" type="button" onclick="switchLoadoutMode('saved')" aria-pressed="false">My Decks</button>
                 <button class="loadout-tab" id="builderTab" type="button" onclick="switchLoadoutMode('builder')" aria-pressed="false">Deck Builder</button>
             </div>
         </div>
@@ -594,6 +595,16 @@
                         </div>
                     </div>
                     <div id="deckOptions" class="loadout-options"></div>
+                </div>
+                <div id="savedLoadoutPanel" class="loadout-section hidden">
+                    <div class="loadout-section-title-row">
+                        <div>
+                            <div class="loadout-section-kicker">Deck Binder</div>
+                            <h3>Choose a Saved Deck</h3>
+                        </div>
+                    </div>
+                    <p class="loadout-saved-note" id="savedDeckLoadoutNote">Decks you saved on the home Decks screen appear here.</p>
+                    <div id="savedDeckOptions" class="loadout-options"></div>
                 </div>
                 <div id="builderLoadoutPanel" class="loadout-section hidden">
                     <div class="builder-toolbar">
