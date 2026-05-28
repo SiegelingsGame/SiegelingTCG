@@ -1148,6 +1148,31 @@ select.search-input { color-scheme: dark; }
     padding: 0 14px 86px;
 }
 
+.hub-deck-card .deck-card-body::before {
+    content: "";
+    position: absolute;
+    inset: -10px -12px -18px;
+    background: linear-gradient(180deg, rgba(4, 9, 20, 0.18), rgba(4, 9, 20, 0.86));
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+}
+
+.hub-deck-card .deck-card-body > * {
+    position: relative;
+    z-index: 1;
+    text-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
+}
+
+.hub-deck-card.is-selected {
+    border-color: color-mix(in srgb, var(--deck-accent, var(--accent)) 80%, #ffffff);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--deck-accent, var(--accent)) 42%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 18px 36px rgba(0, 0, 0, 0.24);
+    transform: translateY(-1px);
+}
+
+.hub-deck-card.is-selected .deck-card-state {
+    background: linear-gradient(180deg, #fff8c9, color-mix(in srgb, var(--deck-accent, var(--accent)) 60%, #ffffff));
+}
+
 .hub-deck-card .deck-card-name {
     margin-top: 0;
     color: #fff6da;
@@ -1186,6 +1211,11 @@ select.search-input { color-scheme: dark; }
 
 .custom-saved-deck .deck-card-actions {
     grid-template-columns: 1fr;
+}
+
+.hub-deck-card:not(.custom-saved-deck) .deck-card-actions:empty,
+.hub-deck-card.custom-saved-deck .deck-card-actions:empty {
+    display: none;
 }
 
 .detail-art {
