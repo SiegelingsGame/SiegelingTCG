@@ -337,6 +337,17 @@
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 void syncCatalogIfVersionChanged();
+                void refreshAuthFromStorage();
+            }
+        });
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                void refreshAuthFromStorage();
+            }
+        });
+        window.addEventListener('storage', (event) => {
+            if (event.key === AUTH_TOKEN_KEY || event.key === null) {
+                void refreshAuthFromStorage();
             }
         });
     }
@@ -392,6 +403,33 @@
             state.profilePrefs = defaultProfilePrefs(data.user || {});
         }
         return data;
+    }
+
+    async function refreshAuthFromStorage() {
+        let stored = '';
+        try {
+            stored = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+        } catch (e) {
+            stored = '';
+        }
+        const tokenChanged = stored !== state.token;
+        const profileStale = Boolean(stored) && !state.profile?.authenticated;
+        const loggedOutElsewhere = !stored && Boolean(state.profile?.authenticated);
+        if (!tokenChanged && !profileStale && !loggedOutElsewhere) {
+            return state.profile;
+        }
+        state.token = stored;
+        await syncProfile();
+        safeRender(renderProfileMini);
+        safeRender(renderGold);
+        safeRender(renderStarterGate);
+        safeRender(renderHomeDashboard);
+        safeRender(renderProfile);
+        safeRender(renderAuthModal);
+        safeRender(renderCards);
+        safeRender(renderDecks);
+        syncAuthRouteIntent();
+        return state.profile;
     }
 
     async function refreshRooms(force = false) {

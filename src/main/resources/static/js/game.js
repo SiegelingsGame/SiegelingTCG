@@ -4549,6 +4549,25 @@ function clearAuthState() {
     renderSavedDecks();
 }
 
+function renderPlayHubAuth() {
+    const pill = document.querySelector('.play-hub-pill');
+    if (!pill) {
+        return;
+    }
+    if (authState.profile?.authenticated) {
+        const name = authState.profile.user?.displayName || 'Profile';
+        pill.textContent = name;
+        pill.href = '/profile';
+        pill.classList.add('is-authenticated');
+        pill.setAttribute('aria-label', `Signed in as ${name}. Open profile.`);
+        return;
+    }
+    pill.textContent = 'Sign In';
+    pill.href = '/profile';
+    pill.classList.remove('is-authenticated');
+    pill.removeAttribute('aria-label');
+}
+
 function getAuthHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
     if (authState.token && !headers.Authorization) {
@@ -5150,6 +5169,7 @@ async function logoutAccount() {
 }
 
 function renderWelcomeAuth() {
+    renderPlayHubAuth();
     const authCard = document.getElementById('welcomeAuthCard');
     const historyCard = document.getElementById('welcomeHistoryCard');
     if (!authCard || !historyCard) {
@@ -11246,6 +11266,7 @@ renderDesktopMenuMeta();
 renderDesktopActionHistory();
 renderWelcomeTutorial();
 renderWelcomeAuth();
+void syncAuthProfile(true);
 syncEntryOverlays();
 if (typeof SieglingsCatalogSync !== 'undefined') {
     SieglingsCatalogSync.onCatalogPublished(() => {
