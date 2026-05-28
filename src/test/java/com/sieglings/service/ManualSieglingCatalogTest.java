@@ -20,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ManualSieglingCatalogTest {
 
@@ -564,5 +566,44 @@ class ManualSieglingCatalogTest {
         assertEquals("freeze", exportedTrap.ability().effectType());
         assertEquals(1, exportedTrap.ability().effectValue());
         assertEquals(0, exportedTrap.abilities().size());
+    }
+
+    @Test
+    void validateCardArtForStorageRejectsEmbeddedDataUrls() {
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ManualSieglingCatalog.ManualSieglingDefinition(
+                CardType.SIEGLING,
+                "hurrcrane",
+                "Hurricrane",
+                Element.WIND,
+                Rarity.EPIC,
+                14,
+                16,
+                List.of(),
+                Row.BACK,
+                null,
+                null,
+                Element.WIND,
+                3,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of("move_a"),
+                null,
+                "data:image/png;base64,abc",
+                "REPLACE",
+                null,
+                null,
+                null,
+                null
+        );
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> ManualSieglingCatalog.validateCardArtForStorage(definition)
+        );
+        assertTrue(error.getMessage().contains("data URL"));
     }
 }

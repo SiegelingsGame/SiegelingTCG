@@ -538,6 +538,7 @@ final class ManualSieglingCatalog {
             if (!ids.add(id)) {
                 throw new IllegalStateException("Duplicate manual Siegling definition id '" + id + "'.");
             }
+            validateCardArtForStorage(definition);
         }
 
         for (Element element : Element.values()) {
@@ -554,6 +555,24 @@ final class ManualSieglingCatalog {
     private static void requireField(boolean valid, String id, String fieldName) {
         if (!valid) {
             throw new IllegalStateException("Manual card definition '" + id + "' is missing required field '" + fieldName + "'.");
+        }
+    }
+
+    static void validateCardArtForStorage(ManualSieglingDefinition definition) {
+        String cardArtUrl = definition.cardArtUrl();
+        if (cardArtUrl == null || cardArtUrl.isBlank()) {
+            return;
+        }
+        String trimmed = cardArtUrl.trim();
+        String cardId = normalizeId(definition.id());
+        if (trimmed.regionMatches(true, 0, "data:", 0, 5)) {
+            throw new IllegalArgumentException("Card '" + cardId + "' uses an embedded image upload (data URL). "
+                    + "Use Upload Image in the dashboard or set cardArtUrl to a path like /assets/cards/" + cardId + ".png. "
+                    + "Firestore cannot store large embedded images in the live card catalog.");
+        }
+        if (trimmed.length() > 2048) {
+            throw new IllegalArgumentException("Card '" + cardId + "' cardArtUrl is too long for Firestore ("
+                    + trimmed.length() + " characters). Host the image under /assets/cards/ and store only the path.");
         }
     }
 

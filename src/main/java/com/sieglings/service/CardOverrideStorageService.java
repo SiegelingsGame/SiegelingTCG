@@ -12,6 +12,7 @@ import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.FirestoreOptions;
 import com.google.cloud.firestore.SetOptions;
+import com.sieglings.util.FirestorePayloadSanitizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -268,9 +269,9 @@ public class CardOverrideStorageService {
                                               String updatedByEmail) throws Exception {
         JsonNode data = objectMapper.valueToTree(file);
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("cards", objectMapper.convertValue(data.get("cards"), Object.class));
+        payload.put("cards", FirestorePayloadSanitizer.sanitize(objectMapper.convertValue(data.get("cards"), Object.class)));
         if (data.get("moves") != null) {
-            payload.put("moves", objectMapper.convertValue(data.get("moves"), Object.class));
+            payload.put("moves", FirestorePayloadSanitizer.sanitize(objectMapper.convertValue(data.get("moves"), Object.class)));
         }
         payload.put("updatedBy", updatedByEmail == null || updatedByEmail.isBlank() ? "unknown" : updatedByEmail.trim().toLowerCase());
         payload.put("updatedAt", Timestamp.now());
