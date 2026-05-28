@@ -1221,9 +1221,57 @@
         return (cardCounts || []).reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
     }
 
+    function sortDeckPreviewEntries(cardCounts) {
+        return [...(cardCounts || [])]
+            .map(entry => ({ entry, card: findCard(entry.id) }))
+            .filter(item => item.card)
+            .sort((a, b) => {
+                const costA = cardEnergyCost(a.card);
+                const costB = cardEnergyCost(b.card);
+                if (costA !== costB) return costA - costB;
+                const typeOrder = { SIEGLING: 0, SPELL: 1, TRAP: 2 };
+                const typeA = typeOrder[a.card.type] ?? 3;
+                const typeB = typeOrder[b.card.type] ?? 3;
+                if (typeA !== typeB) return typeA - typeB;
+                return (a.card.name || '').localeCompare(b.card.name || '');
+            });
+    }
+
+    function renderDeckPreviewStackRow(card, count) {
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
+        return `<button type="button" class="deck-preview-stack-row" data-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)};--cost-el:${elementColor(costElement)}">
+            <span class="deck-preview-stack-cost" aria-hidden="true">${cost}</span>
+            <span class="deck-preview-stack-art" aria-hidden="true">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}</span>
+            <span class="deck-preview-stack-copy">
+                <strong>${escapeHtml(card.name)}</strong>
+                <span>${escapeHtml(typeLabel)}</span>
+            </span>
+            <span class="deck-preview-stack-count">x${count}</span>
+        </button>`;
+    }
+
+    function focusDeckPreviewCard(cardId) {
+        const grid = document.getElementById('deckPreviewGrid');
+        const stack = document.getElementById('deckPreviewStack');
+        grid?.querySelectorAll('[data-card-id]').forEach(tile => {
+            tile.classList.toggle('preview-focused', tile.dataset.cardId === cardId);
+        });
+        stack?.querySelectorAll('[data-preview-card-id]').forEach(row => {
+            row.classList.toggle('is-active', row.dataset.previewCardId === cardId);
+        });
+        const target = grid?.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const stackRow = stack?.querySelector(`[data-preview-card-id="${CSS.escape(cardId)}"]`);
+        stackRow?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     function showDeckPreview({ eyebrow, name, sub, cardCounts }) {
         const modal = document.getElementById('deckPreviewModal');
         const grid = document.getElementById('deckPreviewGrid');
+        const stack = document.getElementById('deckPreviewStack');
+        const stackTotal = document.getElementById('deckPreviewStackTotal');
         if (!modal || !grid) return;
         const titleEl = document.getElementById('deckPreviewTitle');
         const eyebrowEl = document.getElementById('deckPreviewEyebrow');
@@ -1231,22 +1279,33 @@
         if (eyebrowEl) eyebrowEl.textContent = eyebrow || 'Deck';
         if (titleEl) titleEl.textContent = name || 'Deck';
         if (subEl) subEl.textContent = sub || '';
-        const tiles = (cardCounts || []).map(entry => {
-            const card = findCard(entry.id);
-            if (!card) return '';
+        const sorted = sortDeckPreviewEntries(cardCounts);
+        const total = deckTotalCards(cardCounts);
+        if (stackTotal) stackTotal.textContent = `${total} cards`;
+        if (stack) {
+            stack.innerHTML = sorted.length
+                ? sorted.map(({ entry, card }) => renderDeckPreviewStackRow(card, Number(entry.count) || 1)).join('')
+                : '<div class="unlock-card deck-preview-stack-empty"><strong>No cards</strong><span>This deck has no resolvable cards in the current catalog.</span></div>';
+        }
+        const tiles = sorted.map(({ entry, card }) => {
             const count = Number(entry.count) || 1;
             return renderCardTile(card).replace(
                 '<div class="binder-card-shell">',
                 `${count > 1 ? `<span class="deck-preview-count">x${count}</span>` : ''}<div class="binder-card-shell">`
             );
-        }).filter(Boolean).join('');
+        }).join('');
         grid.innerHTML = tiles || '<div class="unlock-card"><strong>No cards to preview</strong><span>This deck has no resolvable cards in the current catalog.</span></div>';
-        grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
-            state.selectedCardId = tile.dataset.cardId;
+        const openCardFromPreview = (cardId) => {
+            state.selectedCardId = cardId;
             closeDeckPreview();
             openCardTray();
             renderDetail();
-        }));
+        };
+        grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => openCardFromPreview(tile.dataset.cardId)));
+        stack?.querySelectorAll('[data-preview-card-id]').forEach(row => row.addEventListener('click', () => focusDeckPreviewCard(row.dataset.previewCardId)));
+        if (sorted.length) {
+            focusDeckPreviewCard(sorted[0].card.id);
+        }
         modal.classList.remove('hidden');
     }
 

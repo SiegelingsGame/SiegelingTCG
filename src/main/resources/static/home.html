@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/home.css?v=39">
+    <link rel="stylesheet" href="/css/home.css?v=41">
 </head>
 <body>
 <div class="home-shell">
@@ -287,7 +287,21 @@
                 </div>
                 <button class="ghost-btn" id="closeDeckPreviewBtn" type="button">Close</button>
             </div>
-            <div class="card-grid deck-preview-grid" id="deckPreviewGrid"></div>
+            <div class="deck-preview-body">
+                <aside class="deck-preview-stack-panel" aria-label="Deck list">
+                    <div class="deck-preview-stack-head">
+                        <span class="eyebrow">Decklist</span>
+                        <strong id="deckPreviewStackTotal">0 cards</strong>
+                    </div>
+                    <div class="deck-preview-stack" id="deckPreviewStack"></div>
+                </aside>
+                <div class="deck-preview-main">
+                    <div class="deck-preview-main-head">
+                        <span class="eyebrow">Card Gallery</span>
+                    </div>
+                    <div class="card-grid deck-preview-grid" id="deckPreviewGrid"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
