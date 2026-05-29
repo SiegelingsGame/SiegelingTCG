@@ -269,7 +269,7 @@
         tier('friend_circle', 'general', 'War Council', 'Add 5 friends.', '☺', 5, c => c.friendCount),
         tier('element_avatar', 'general', 'Element Avatar', 'Set your avatar style to favorite element.', '◎', 1, c => c.avatarElement ? 1 : 0),
         tier('portrait_upload', 'general', 'Portrait Uploaded', 'Add a custom avatar image URL.', '🖼', 1, c => c.hasAvatarUrl ? 1 : 0),
-        tier('favorite_siegling', 'general', 'Siegling Fan', 'Set a favorite Siegling on your profile.', '♥', 1, c => c.hasFavoriteSiegling ? 1 : 0),
+        tier('favorite_siegling', 'general', 'Siegeling Fan', 'Set a favorite Siegeling on your profile.', '♥', 1, c => c.hasFavoriteSiegling ? 1 : 0),
         tier('shop_regular', 'general', 'Shop Regular', 'Purchase 3 daily shop offers.', '🛒', 3, c => c.purchasedOffers),
 
         // —— Elements (cross-element) ——
@@ -308,7 +308,7 @@
         tier('triple_threat', 'collection', 'Triple Threat', 'Own 3 copies of one card.', '3', 3, c => c.maxCopyCount),
         tier('triple_trio', 'collection', 'Triple Trio', 'Max out copies on 3 different cards.', '3', 3, c => c.tripleCopyCards),
         tier('triple_legion', 'collection', 'Triple Legion', 'Max out copies on 10 different cards.', '3', 10, c => c.tripleCopyCards),
-        tier('siegling_squad', 'collection', 'Siegling Squad', 'Own 15 unique Siegling cards.', 'S', 15, c => c.typeUnique.SIEGLING),
+        tier('siegling_squad', 'collection', 'Siegeling Squad', 'Own 15 unique Siegeling cards.', 'S', 15, c => c.typeUnique.SIEGLING),
         tier('spell_archive', 'collection', 'Spell Archive', 'Own 8 unique Spell cards.', 'P', 8, c => c.typeUnique.SPELL),
         tier('trap_network', 'collection', 'Trap Network', 'Own 8 unique Trap cards.', 'T', 8, c => c.typeUnique.TRAP),
         tier('trainer_belt', 'collection', 'Trainer Belt', 'Own 3 unique Trainer cards.', 'K', 3, c => c.typeUnique.TRAINER),

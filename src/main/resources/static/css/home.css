@@ -5206,9 +5206,11 @@ body.gacha-active {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 8px;
     display: grid;
     gap: 6px;
+    grid-auto-rows: max-content;
     align-content: start;
 }
 
@@ -5219,6 +5221,7 @@ body.gacha-active {
     gap: 8px;
     align-items: center;
     width: 100%;
+    min-height: 46px;
     padding: 6px 8px 6px 6px;
     border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 28%, rgba(255, 255, 255, 0.1));
     border-radius: 10px;
@@ -5368,7 +5371,7 @@ body.gacha-active {
         grid-template-columns: 1fr;
     }
     .deck-preview-stack {
-        max-height: 220px;
+        max-height: min(42vh, 320px);
     }
     .deck-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
