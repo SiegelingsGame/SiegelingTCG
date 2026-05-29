@@ -4819,6 +4819,15 @@ body.gacha-active {
     text-transform: uppercase;
 }
 
+.deck-preview-composition {
+    display: block;
+    margin-top: 6px;
+    color: #fff7d9;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
 .deck-preview-body {
     flex: 1 1 auto;
     min-height: 0;
@@ -4842,11 +4851,25 @@ body.gacha-active {
 
 .deck-preview-stack-head {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
     padding: 12px 12px 10px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.deck-preview-stack-head-copy {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.deck-preview-type-counts {
+    color: #fff7d9;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: .02em;
 }
 
 .deck-preview-stack-head strong {
