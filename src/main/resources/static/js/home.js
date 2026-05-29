@@ -1338,6 +1338,28 @@
         return (cardCounts || []).reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
     }
 
+    function deckPreviewTypeCounts(cardCounts) {
+        return (cardCounts || []).reduce((acc, entry) => {
+            const card = findCard(entry.id);
+            if (!card) return acc;
+            const qty = Number(entry.count) || 0;
+            const type = String(card.type || '').toUpperCase();
+            if (type === 'SIEGLING') acc.sieglings += qty;
+            else if (type === 'SPELL') acc.spells += qty;
+            else if (type === 'TRAP') acc.traps += qty;
+            return acc;
+        }, { sieglings: 0, spells: 0, traps: 0 });
+    }
+
+    function formatDeckPreviewTypeSummary(counts) {
+        const parts = [
+            `${counts.sieglings} Siegelings`,
+            `${counts.spells} Spells`,
+            `${counts.traps} Traps`
+        ];
+        return parts.join(' · ');
+    }
+
     function sortDeckPreviewEntries(cardCounts) {
         return [...(cardCounts || [])]
             .map(entry => ({ entry, card: findCard(entry.id) }))
@@ -1389,6 +1411,8 @@
         const grid = document.getElementById('deckPreviewGrid');
         const stack = document.getElementById('deckPreviewStack');
         const stackTotal = document.getElementById('deckPreviewStackTotal');
+        const typeCountsEl = document.getElementById('deckPreviewTypeCounts');
+        const compositionEl = document.getElementById('deckPreviewComposition');
         if (!modal || !grid) return;
         const titleEl = document.getElementById('deckPreviewTitle');
         const eyebrowEl = document.getElementById('deckPreviewEyebrow');
@@ -1398,6 +1422,10 @@
         if (subEl) subEl.textContent = sub || '';
         const sorted = sortDeckPreviewEntries(cardCounts);
         const total = deckTotalCards(cardCounts);
+        const typeCounts = deckPreviewTypeCounts(cardCounts);
+        const typeSummary = formatDeckPreviewTypeSummary(typeCounts);
+        if (compositionEl) compositionEl.textContent = typeSummary;
+        if (typeCountsEl) typeCountsEl.textContent = typeSummary;
         if (stackTotal) stackTotal.textContent = `${total} cards`;
         if (stack) {
             stack.innerHTML = sorted.length
