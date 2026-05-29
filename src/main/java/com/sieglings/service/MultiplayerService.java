@@ -56,9 +56,8 @@ public class MultiplayerService {
             throw new IllegalArgumentException("That room is already full.");
         }
         if (accountUserId != null && accountUserId.equals(room.getHostUserId())) {
-            throw new IllegalArgumentException("You cannot join your own lobby.");
+            throw new IllegalArgumentException("You are hosting this table. Open the waiting room instead of joining as a guest.");
         }
-
         String token = generateToken();
         room.setGuestToken(token);
         room.setGuestName(safeName(playerName, "Guest"));
@@ -105,6 +104,42 @@ public class MultiplayerService {
             return new RoomSession(roomId, token, room.isHostToken(token), true);
         }
         return new RoomSession(roomId, token, room.isHostToken(token), false);
+    }
+
+    public synchronized RoomSession reconnectHost(String roomId, String accountUserId) {
+        MultiplayerRoom room = requireRoom(roomId);
+        if (room.isClosed()) {
+            throw new IllegalArgumentException("That lobby has been closed.");
+        }
+        if (room.isExpired(Instant.now())) {
+            throw new IllegalArgumentException("That lobby has expired.");
+        }
+        if (accountUserId == null || room.getHostUserId() == null || !accountUserId.equals(room.getHostUserId())) {
+            throw new IllegalArgumentException("Only the host can reopen this lobby.");
+        }
+        if (room.isStarted()) {
+            return new RoomSession(roomId, room.getHostToken(), true, true);
+        }
+        room.touch();
+        return new RoomSession(roomId, room.getHostToken(), true, false);
+    }
+
+    public synchronized void leaveLobby(String roomId, String token) {
+        MultiplayerRoom room = requireAuthorizedRoom(roomId, token);
+        if (room.isStarted()) {
+            throw new IllegalArgumentException("Match already started.");
+        }
+        if (room.isHostToken(token)) {
+            throw new IllegalArgumentException("Hosts should use Close Lobby to end the table.");
+        }
+        if (!room.isGuestToken(token)) {
+            throw new IllegalArgumentException("Room access denied.");
+        }
+        String guestName = room.getGuestName();
+        room.clearGuest();
+        room.touch();
+        room.addLobbyChatMessage("Arena", "system",
+                (guestName == null || guestName.isBlank() ? "A player" : guestName) + " left the waiting room.");
     }
 
     public synchronized void addLobbyChat(String roomId, String token, String message) {
@@ -154,13 +189,28 @@ public class MultiplayerService {
     }
 
     public List<MultiplayerRoom> listOpenRooms() {
+        return listBrowsableRooms(null);
+    }
+
+    public List<MultiplayerRoom> listBrowsableRooms(String accountUserId) {
         Instant now = Instant.now();
         purgeExpiredRooms(now);
-        return rooms.values().stream()
+        Map<String, MultiplayerRoom> merged = new java.util.LinkedHashMap<>();
+        rooms.values().stream()
                 .filter(room -> !room.isClosed())
                 .filter(room -> !room.isExpired(now))
                 .filter(room -> !room.isStarted())
                 .filter(room -> !room.hasGuest())
+                .forEach(room -> merged.put(room.getRoomId(), room));
+        if (accountUserId != null) {
+            rooms.values().stream()
+                    .filter(room -> !room.isClosed())
+                    .filter(room -> !room.isExpired(now))
+                    .filter(room -> !room.isStarted())
+                    .filter(room -> accountUserId.equals(room.getHostUserId()))
+                    .forEach(room -> merged.put(room.getRoomId(), room));
+        }
+        return merged.values().stream()
                 .sorted((left, right) -> right.getUpdatedAt().compareTo(left.getUpdatedAt()))
                 .toList();
     }

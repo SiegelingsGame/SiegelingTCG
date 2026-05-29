@@ -27,7 +27,24 @@ class MultiplayerServiceRoomListTest {
     }
 
     @Test
-    void hostCannotJoinOwnLobby() {
+    void hostCanReconnectToOwnLobby() {
+        MultiplayerService service = new MultiplayerService();
+        MultiplayerService.RoomSession host = service.createRoom(
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, "Blazing Core"),
+                "user-host"
+        );
+
+        MultiplayerService.RoomSession reconnected = service.reconnectHost(host.roomId(), "user-host");
+
+        assertEquals(host.roomId(), reconnected.roomId());
+        assertEquals(host.playerToken(), reconnected.playerToken());
+        assertTrue(reconnected.viewerIsPlayer());
+        assertFalse(reconnected.started());
+    }
+
+    @Test
+    void hostCannotJoinOwnLobbyAsGuest() {
         MultiplayerService service = new MultiplayerService();
         MultiplayerService.RoomSession host = service.createRoom(
                 "Host",
@@ -42,7 +59,31 @@ class MultiplayerServiceRoomListTest {
                 "user-host"
         ));
 
-        assertTrue(error.getMessage().toLowerCase().contains("own lobby"));
+        assertTrue(error.getMessage().toLowerCase().contains("hosting"));
+    }
+
+    @Test
+    void guestLeaveOpensGuestSlotWithoutClosingLobby() {
+        MultiplayerService service = new MultiplayerService();
+        MultiplayerService.RoomSession host = service.createRoom(
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, "Blazing Core"),
+                "user-host"
+        );
+        MultiplayerService.RoomSession guest = service.joinRoom(
+                host.roomId(),
+                "Guest",
+                new GameService.StartOptions("deck_water", "trainer06", null, "Tide Deck"),
+                "user-guest"
+        );
+
+        service.leaveLobby(host.roomId(), guest.playerToken());
+
+        MultiplayerRoom room = service.requireRoom(host.roomId());
+        assertFalse(room.isClosed());
+        assertFalse(room.isStarted());
+        assertFalse(room.hasGuest());
+        assertFalse(room.isHostReady());
     }
 
     @Test
@@ -77,6 +118,25 @@ class MultiplayerServiceRoomListTest {
 
         assertTrue(started.started());
         assertTrue(service.requireRoom(host.roomId()).isStarted());
+    }
+
+    @Test
+    void browsableRoomsIncludeHostTableWithGuest() {
+        MultiplayerService service = new MultiplayerService();
+        MultiplayerService.RoomSession host = service.createRoom(
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, "Blazing Core"),
+                "user-host"
+        );
+        service.joinRoom(
+                host.roomId(),
+                "Guest",
+                new GameService.StartOptions("deck_water", "trainer06", null, "Tide Deck"),
+                "user-guest"
+        );
+
+        assertEquals(0, service.listOpenRooms().size());
+        assertEquals(1, service.listBrowsableRooms("user-host").size());
     }
 
     @Test

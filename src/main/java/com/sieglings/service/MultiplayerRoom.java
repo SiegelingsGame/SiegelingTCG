@@ -145,4 +145,14 @@ public class MultiplayerRoom {
     public boolean isGuestToken(String token) {
         return guestToken != null && guestToken.equals(token);
     }
+
+    public void clearGuest() {
+        guestToken = null;
+        guestName = null;
+        guestUserId = null;
+        guestOptions = null;
+        guestReady = false;
+        guestLoadoutReady = false;
+        hostReady = false;
+    }
 }
