@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stale Branch Conflict Report — Siegelings TCG</title>
+  <style>
+    :root {
+      --bg: #0c1016;
+      --surface: #161f2e;
+      --border: #2a3850;
+      --text: #e8edf4;
+      --muted: #8fa3be;
+      --accent: #6eb5f7;
+      --green: #45d483;
+      --amber: #f5c842;
+      --red: #ff7b86;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      margin: 0;
+      padding: 1.5rem 2rem 3rem;
+      max-width: 1200px;
+      margin-inline: auto;
+    }
+    h1 { font-size: 1.6rem; margin-bottom: 0.2rem; }
+    h2 { font-size: 1.15rem; margin-top: 1.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+    .meta { color: var(--muted); font-size: 0.88rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.65rem;
+      margin: 1rem 0;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+    }
+    .card strong { font-size: 1.4rem; display: block; }
+    .card span { color: var(--muted); font-size: 0.78rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 0.6rem 0 1.2rem; }
+    th, td { text-align: left; padding: 0.45rem 0.55rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); }
+    tr.warn td { background: rgba(245, 200, 66, 0.08); }
+    code { font-family: ui-monospace, monospace; font-size: 0.82em; color: #a8d4ff; }
+    .badge {
+      display: inline-block;
+      padding: 0.12rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .b-del { background: rgba(69, 212, 131, 0.2); color: var(--green); }
+    .b-caution { background: rgba(245, 200, 66, 0.25); color: var(--amber); }
+    .b-conflict { background: rgba(255, 123, 134, 0.2); color: var(--red); }
+    .b-clean { background: rgba(110, 181, 247, 0.2); color: var(--accent); }
+    .callout {
+      background: var(--surface);
+      border-left: 3px solid var(--amber);
+      padding: 0.85rem 1rem;
+      margin: 1rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .callout.danger { border-left-color: var(--red); }
+    ul { margin: 0.4rem 0; padding-left: 1.2rem; }
+    a { color: var(--accent); }
+    .conflict-list { font-size: 0.78rem; color: var(--muted); margin: 0.2rem 0 0; }
+  </style>
+</head>
+<body>
+
+<h1>Stale branch conflict report</h1>
+<p class="meta">
+  Base: <code>main</code> @ <code>36e902df</code> (includes merged <a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/170">PR #170</a>) ·
+  Analyzed: 22 branches · Method: <code>git merge --no-commit --no-ff</code> then <code>git diff main</code> ·
+  2026-05-29
+</p>
+
+<div class="grid">
+  <div class="card"><strong>22</strong><span>branches tested</span></div>
+  <div class="card"><strong>9</strong><span>merge → no tree change</span></div>
+  <div class="card"><strong>13</strong><span>merge conflicts</span></div>
+  <div class="card"><strong>1</strong><span>caution (PR #164)</span></div>
+</div>
+
+<h2>Conclusion</h2>
+<p><strong>Do not merge any of these branches into <code>main</code>.</strong> All listed PRs are already merged (squash). The non-empty <code>main...branch</code> diffs are history drift, not missing work. Safe action: <strong>delete all 22 remote branches</strong> after you read the one caution below.</p>
+
+<div class="callout danger">
+  <strong>Caution — <code>claude/remove-login-textboxes-dD5qo</code> (PR #164)</strong>
+  <p>PR #164 merged commit <em>“link to /login”</em>, but the branch tip is a different commit (<em>in-place popup</em>). A clean merge would add <strong>+148 lines</strong> of popup UI that is <strong>not</strong> on <code>main</code> today. Deleting the branch is still correct unless you want to resurrect popup auth as a <strong>new</strong> PR.</p>
+</div>
+
+<h2>Per-branch results</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Branch</th>
+      <th>PR</th>
+      <th>Feature</th>
+      <th>3-dot diff<br><span class="meta">(misleading)</span></th>
+      <th>Merge test</th>
+      <th>If merged into main</th>
+      <th>Conflicting files</th>
+      <th>Verdict</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>claude/card-energy-mobile-layout-lLelT</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/165">#165</a></td>
+      <td>Battle preview buffs/debuffs</td>
+      <td>+103</td>
+      <td><span class="badge b-clean">Clean</span></td>
+      <td>No change</td>
+      <td>—</td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr class="warn">
+      <td><code>claude/remove-login-textboxes-dD5qo</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/164">#164</a></td>
+      <td>Sign-in popup on Play</td>
+      <td>+148</td>
+      <td><span class="badge b-clean">Clean</span></td>
+      <td><strong>+148 lines</strong> popup (not on main)</td>
+      <td>—</td>
+      <td><span class="badge b-caution">Delete*</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/arena-awaits-heading-6da0</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/140">#140</a></td>
+      <td>“The Arena Awaits” heading</td>
+      <td>±2</td>
+      <td><span class="badge b-clean">Clean</span></td>
+      <td>No change</td>
+      <td>—</td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/binder-description-fit-fe77</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/162">#162</a></td>
+      <td>Binder description scaling</td>
+      <td>+61</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+4 home.html</td>
+      <td><div class="conflict-list">home.html</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/card-art-persist-transform-b0c9</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/160">#160</a></td>
+      <td>Card art persist + transform</td>
+      <td>+84</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>play.html cache only</td>
+      <td><div class="conflict-list">play.html</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/card-drag-placement-3c6b</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/111">#111</a></td>
+      <td>Drag/touch placement</td>
+      <td>cache bust</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>play.html cache only</td>
+      <td><div class="conflict-list">play.html</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/chat-message-sender-timestamp-6d76</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/142">#142</a></td>
+      <td>Chat sender + timestamp</td>
+      <td>+56</td>
+      <td><span class="badge b-clean">Clean</span></td>
+      <td>No change</td>
+      <td>—</td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/daily-missions-tracking-847f</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/168">#168</a></td>
+      <td>Daily missions</td>
+      <td>+902</td>
+      <td><span class="badge b-clean">Clean</span></td>
+      <td>No change</td>
+      <td>—</td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/deck-preview-stack-fe77</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/169">#169</a></td>
+      <td>Deck preview counts</td>
+      <td>+58</td>
+      <td><span class="badge b-clean">Clean</span></td>
+      <td>No change</td>
+      <td>—</td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/fix-card-art-upload-save-b0c9</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/159">#159</a></td>
+      <td>Art upload UX</td>
+      <td>+140</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+16 dashboard</td>
+      <td><div class="conflict-list">card-dashboard.html, card-dashboard.js</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/fix-legendary-models-production-905c</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/134">#134</a></td>
+      <td>Legendary 3D index</td>
+      <td>+11</td>
+      <td><span class="badge b-clean">Clean</span></td>
+      <td>No change</td>
+      <td>—</td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/friend-requests-presence-34d3</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/138">#138</a></td>
+      <td>Friend requests + presence</td>
+      <td>+857</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+105 auth/home</td>
+      <td><div class="conflict-list">AuthController, FirestoreUserDataClient, home.css, home.js</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/gacha-reveal-animation-7675</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/108">#108</a></td>
+      <td>Gacha remnant flow</td>
+      <td>+438</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+149 home gacha</td>
+      <td><div class="conflict-list">home.html, home.js</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/ipad-landscape-layout-b9e1</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/118">#118</a></td>
+      <td>iPad landscape</td>
+      <td>+383</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>play.html cache</td>
+      <td><div class="conflict-list">play.html</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/leaderboard-period-filters-6d76</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/147">#147</a></td>
+      <td>Leaderboard filters</td>
+      <td>+334</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+9 home.js</td>
+      <td><div class="conflict-list">home.js</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/lobby-chat-input-focus-6da0</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/143">#143</a></td>
+      <td>Lobby chat focus</td>
+      <td>+132</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+8 lobby UI</td>
+      <td><div class="conflict-list">home.html, home.js</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/quit-rematch-end-screen-394c</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/137">#137</a></td>
+      <td>Quit / rematch PvP</td>
+      <td>+774</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+104 game/room</td>
+      <td><div class="conflict-list">MultiplayerRoom.java, game.js</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/register-display-name-step-611b</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/135">#135</a></td>
+      <td>Two-step register</td>
+      <td>+132</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+64 game/home</td>
+      <td><div class="conflict-list">game.js, home.js</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/remove-fake-match-history-6d76</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/144">#144</a></td>
+      <td>Remove fake history</td>
+      <td>−35 net</td>
+      <td><span class="badge b-clean">Clean</span></td>
+      <td>No change</td>
+      <td>—</td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/safe-area-split-hp-strip-0bf5</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/122">#122</a></td>
+      <td>HP safe-area strip</td>
+      <td>+101</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>play.html cache</td>
+      <td><div class="conflict-list">play.html</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/social-lobby-waiting-room</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/139">#139</a></td>
+      <td>Waiting room + ready-up</td>
+      <td>+845</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+141 multiplayer</td>
+      <td><div class="conflict-list">GameController, MultiplayerService, home.html, game.js, home.js, MultiplayerServiceRoomListTest</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+    <tr>
+      <td><code>cursor/sync-auth-across-pages-57c9</code></td>
+      <td><a href="https://github.com/SiegelingsGame/SiegelingTCG/pull/155">#155</a></td>
+      <td>Auth sync Play ↔ Home</td>
+      <td>+59</td>
+      <td><span class="badge b-conflict">Conflict</span></td>
+      <td>+3 home.js</td>
+      <td><div class="conflict-list">home.js</div></td>
+      <td><span class="badge b-del">Delete</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Why “conflicts” appear after merge</h2>
+<ul>
+  <li><strong>Squash merges</strong> — GitHub applied one squashed commit on <code>main</code>; the branch tip kept the old pre-squash history.</li>
+  <li><strong>Hot files</strong> — <code>home.js</code>, <code>game.js</code>, <code>play.html</code>, and multiplayer Java changed many times since these branches were cut.</li>
+  <li><strong>PR #170</strong> — Recent lobby host/guest/leave work on <code>main</code> overlaps <code>cursor/social-lobby-waiting-room</code> and related branches.</li>
+  <li><strong>Cache-bust-only</strong> — Several conflicts are only <code>play.html</code> <code>?v=</code> version numbers, not missing features.</li>
+</ul>
+
+<h2>Branches that merge with zero tree change (safest deletes)</h2>
+<p>These nine merge cleanly and produce <strong>no diff vs <code>main</code></strong> — the feature is already there:</p>
+<ul>
+  <li><code>claude/card-energy-mobile-layout-lLelT</code></li>
+  <li><code>cursor/arena-awaits-heading-6da0</code></li>
+  <li><code>cursor/chat-message-sender-timestamp-6d76</code></li>
+  <li><code>cursor/daily-missions-tracking-847f</code></li>
+  <li><code>cursor/deck-preview-stack-fe77</code></li>
+  <li><code>cursor/fix-legendary-models-production-905c</code></li>
+  <li><code>cursor/remove-fake-match-history-6d76</code></li>
+</ul>
+
+<h2>Delete all 22 (copy-paste)</h2>
+<pre>git fetch origin --prune
+for b in \
+  claude/card-energy-mobile-layout-lLelT \
+  claude/remove-login-textboxes-dD5qo \
+  cursor/arena-awaits-heading-6da0 \
+  cursor/binder-description-fit-fe77 \
+  cursor/card-art-persist-transform-b0c9 \
+  cursor/card-drag-placement-3c6b \
+  cursor/chat-message-sender-timestamp-6d76 \
+  cursor/daily-missions-tracking-847f \
+  cursor/deck-preview-stack-fe77 \
+  cursor/fix-card-art-upload-save-b0c9 \
+  cursor/fix-legendary-models-production-905c \
+  cursor/friend-requests-presence-34d3 \
+  cursor/gacha-reveal-animation-7675 \
+  cursor/ipad-landscape-layout-b9e1 \
+  cursor/leaderboard-period-filters-6d76 \
+  cursor/lobby-chat-input-focus-6da0 \
+  cursor/quit-rematch-end-screen-394c \
+  cursor/register-display-name-step-611b \
+  cursor/remove-fake-match-history-6d76 \
+  cursor/safe-area-split-hp-strip-0bf5 \
+  cursor/social-lobby-waiting-room \
+  cursor/sync-auth-across-pages-57c9; do
+  git push origin --delete "$b"
+done</pre>
+
+<p class="meta">Machine-readable data: <code>docs/stale-branch-conflict-report.json</code></p>
+
+</body>
+</html>

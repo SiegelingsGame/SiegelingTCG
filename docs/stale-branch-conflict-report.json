@@ -1,0 +1,282 @@
+{
+  "generated": "2026-05-29",
+  "main_ref": "36e902df",
+  "method": "git merge --no-commit --no-ff origin/<branch> vs main; git diff main after merge",
+  "branches": [
+    {
+      "branch": "claude/card-energy-mobile-layout-lLelT",
+      "pr": 165,
+      "feature": "Battle preview buffs/debuffs, energy layout",
+      "three_dot_diff": "3 files, +103",
+      "merge_result": "clean",
+      "post_merge_vs_main": "no change",
+      "conflict_files": [],
+      "verdict": "DELETE",
+      "notes": "Fully absorbed on main. Three-dot diff is squash history only."
+    },
+    {
+      "branch": "claude/remove-login-textboxes-dD5qo",
+      "pr": 164,
+      "feature": "Sign-in popup on Play",
+      "three_dot_diff": "3 files, +148",
+      "merge_result": "clean",
+      "post_merge_vs_main": "3 files, +148 (popup UI not on main)",
+      "conflict_files": [],
+      "verdict": "DELETE_CAUTION",
+      "notes": "PR #164 merged a different commit (link to /login). Branch tip adds in-place popup — merging would change prod auth UX. Delete branch unless you want to re-open popup work as a new PR."
+    },
+    {
+      "branch": "cursor/arena-awaits-heading-6da0",
+      "pr": 140,
+      "feature": "Hero heading The Arena Awaits",
+      "three_dot_diff": "2 files, ±2",
+      "merge_result": "clean",
+      "post_merge_vs_main": "no change",
+      "conflict_files": [],
+      "verdict": "DELETE",
+      "notes": "Heading already in home.js on main."
+    },
+    {
+      "branch": "cursor/binder-description-fit-fe77",
+      "pr": 162,
+      "feature": "Binder description scaling / notch",
+      "three_dot_diff": "2 files, +61",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "1 file, +4 (if forced)",
+      "conflict_files": ["src/main/resources/static/home.html"],
+      "verdict": "DELETE",
+      "notes": "Feature on main; conflict is home.html cache-bust / markup drift."
+    },
+    {
+      "branch": "cursor/card-art-persist-transform-b0c9",
+      "pr": 160,
+      "feature": "Hosted card art + transform controls",
+      "three_dot_diff": "7 files, +84",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "play.html +4",
+      "conflict_files": ["src/main/resources/static/play.html"],
+      "verdict": "DELETE",
+      "notes": "Art persist merged; only play.html ?v= cache conflict."
+    },
+    {
+      "branch": "cursor/card-drag-placement-3c6b",
+      "pr": 111,
+      "feature": "Drag/touch placement",
+      "three_dot_diff": "1 file, cache bust",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "play.html +4",
+      "conflict_files": ["src/main/resources/static/play.html"],
+      "verdict": "DELETE",
+      "notes": "Placement shipped; stale diff is play.html version only."
+    },
+    {
+      "branch": "cursor/chat-message-sender-timestamp-6d76",
+      "pr": 142,
+      "feature": "Friend chat sender + timestamp",
+      "three_dot_diff": "2 files, +56",
+      "merge_result": "clean",
+      "post_merge_vs_main": "no change",
+      "conflict_files": [],
+      "verdict": "DELETE",
+      "notes": "Fully absorbed."
+    },
+    {
+      "branch": "cursor/daily-missions-tracking-847f",
+      "pr": 168,
+      "feature": "Daily missions server + UI",
+      "three_dot_diff": "12 files, +902",
+      "merge_result": "clean",
+      "post_merge_vs_main": "no change",
+      "conflict_files": [],
+      "verdict": "DELETE",
+      "notes": "All mission Java + tests on main. Branch tip predates PR #168 squash; three-dot diff misleading."
+    },
+    {
+      "branch": "cursor/deck-preview-stack-fe77",
+      "pr": 169,
+      "feature": "Deck preview type counts",
+      "three_dot_diff": "3 files, +58",
+      "merge_result": "clean",
+      "post_merge_vs_main": "no change",
+      "conflict_files": [],
+      "verdict": "DELETE",
+      "notes": "deckPreviewTypeCounts on main; branch superseded."
+    },
+    {
+      "branch": "cursor/fix-card-art-upload-save-b0c9",
+      "pr": 159,
+      "feature": "Card dashboard art upload UX",
+      "three_dot_diff": "3 files, +140",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "2 files, +16",
+      "conflict_files": [
+        "src/main/resources/static/card-dashboard.html",
+        "src/main/resources/static/js/card-dashboard.js"
+      ],
+      "verdict": "DELETE",
+      "notes": "Merged on main; merge would re-introduce old dashboard fragments."
+    },
+    {
+      "branch": "cursor/fix-legendary-models-production-905c",
+      "pr": 134,
+      "feature": "Legendary 3D on index.html",
+      "three_dot_diff": "1 file, +11",
+      "merge_result": "clean",
+      "post_merge_vs_main": "no change",
+      "conflict_files": [],
+      "verdict": "DELETE",
+      "notes": "Fully absorbed."
+    },
+    {
+      "branch": "cursor/friend-requests-presence-34d3",
+      "pr": 138,
+      "feature": "Friend requests + presence",
+      "three_dot_diff": "16 files, +857",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "4 files, +105",
+      "conflict_files": [
+        "src/main/java/com/sieglings/controller/AuthController.java",
+        "src/main/java/com/sieglings/persistence/firestore/FirestoreUserDataClient.java",
+        "src/main/resources/static/css/home.css",
+        "src/main/resources/static/js/home.js"
+      ],
+      "verdict": "DELETE",
+      "notes": "Stores/services on main. Do not merge — conflicts in auth + home.js."
+    },
+    {
+      "branch": "cursor/gacha-reveal-animation-7675",
+      "pr": 108,
+      "feature": "Gacha remnant flow, owned counts",
+      "three_dot_diff": "6 files, +438",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "3 files, +149 −21",
+      "conflict_files": [
+        "src/main/resources/static/home.html",
+        "src/main/resources/static/js/home.js"
+      ],
+      "verdict": "DELETE",
+      "notes": "Gacha on main; merge would regress home gacha UI."
+    },
+    {
+      "branch": "cursor/ipad-landscape-layout-b9e1",
+      "pr": 118,
+      "feature": "iPad landscape layout",
+      "three_dot_diff": "3 files, +383",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "play.html +8",
+      "conflict_files": ["src/main/resources/static/play.html"],
+      "verdict": "DELETE",
+      "notes": "CSS/JS layout on main; play.html ?v= conflict only."
+    },
+    {
+      "branch": "cursor/leaderboard-period-filters-6d76",
+      "pr": 147,
+      "feature": "Leaderboard period filters",
+      "three_dot_diff": "7 files, +334",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "home.js +9",
+      "conflict_files": ["src/main/resources/static/js/home.js"],
+      "verdict": "DELETE",
+      "notes": "LeaderboardService on main; stale home.js hunks only."
+    },
+    {
+      "branch": "cursor/lobby-chat-input-focus-6da0",
+      "pr": 143,
+      "feature": "Lobby chat input focus",
+      "three_dot_diff": "2 files, +132",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "2 files, +8",
+      "conflict_files": [
+        "src/main/resources/static/home.html",
+        "src/main/resources/static/js/home.js"
+      ],
+      "verdict": "DELETE",
+      "notes": "Focus fix on main; conflicts with newer lobby code (PR #170)."
+    },
+    {
+      "branch": "cursor/quit-rematch-end-screen-394c",
+      "pr": 137,
+      "feature": "Quit, end screen, rematch PvP",
+      "three_dot_diff": "9 files, +774",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "4 files, +104",
+      "conflict_files": [
+        "src/main/java/com/sieglings/service/MultiplayerRoom.java",
+        "src/main/resources/static/js/game.js"
+      ],
+      "verdict": "DELETE",
+      "notes": "Quit/rematch on main; MultiplayerRoom diverged after PR #170."
+    },
+    {
+      "branch": "cursor/register-display-name-step-611b",
+      "pr": 135,
+      "feature": "Two-step registration",
+      "three_dot_diff": "2 files, +132",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "2 files, +64",
+      "conflict_files": [
+        "src/main/resources/static/js/game.js",
+        "src/main/resources/static/js/home.js"
+      ],
+      "verdict": "DELETE",
+      "notes": "Registration flow on main; merge adds duplicate stale hunks."
+    },
+    {
+      "branch": "cursor/remove-fake-match-history-6d76",
+      "pr": 144,
+      "feature": "Remove sample match history",
+      "three_dot_diff": "1 file, net −19",
+      "merge_result": "clean",
+      "post_merge_vs_main": "no change",
+      "conflict_files": [],
+      "verdict": "DELETE",
+      "notes": "Fully absorbed."
+    },
+    {
+      "branch": "cursor/safe-area-split-hp-strip-0bf5",
+      "pr": 122,
+      "feature": "Mobile HP safe-area strip",
+      "three_dot_diff": "4 files, +101",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "play.html +4",
+      "conflict_files": ["src/main/resources/static/play.html"],
+      "verdict": "DELETE",
+      "notes": "HP strip on main; play.html cache conflict."
+    },
+    {
+      "branch": "cursor/social-lobby-waiting-room",
+      "pr": 139,
+      "feature": "Social waiting room + ready-up",
+      "three_dot_diff": "10 files, +845",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "6 files, +141",
+      "conflict_files": [
+        "src/main/java/com/sieglings/controller/GameController.java",
+        "src/main/java/com/sieglings/service/MultiplayerService.java",
+        "src/main/resources/static/home.html",
+        "src/main/resources/static/js/game.js",
+        "src/main/resources/static/js/home.js",
+        "src/test/java/com/sieglings/service/MultiplayerServiceRoomListTest.java"
+      ],
+      "verdict": "DELETE",
+      "notes": "Highest conflict count. Main has waiting room + PR #170 host/guest leave. Merging would fight current multiplayer API."
+    },
+    {
+      "branch": "cursor/sync-auth-across-pages-57c9",
+      "pr": 155,
+      "feature": "Auth sync Play ↔ Home",
+      "three_dot_diff": "2 files, +59",
+      "merge_result": "conflicts",
+      "post_merge_vs_main": "home.js +3",
+      "conflict_files": ["src/main/resources/static/js/home.js"],
+      "verdict": "DELETE",
+      "notes": "Auth sync on main; tiny stale home.js conflict."
+    }
+  ],
+  "summary": {
+    "delete_safe": 20,
+    "delete_caution": 1,
+    "do_not_merge": 14,
+    "fully_absorbed_no_post_merge_delta": 9
+  }
+}
