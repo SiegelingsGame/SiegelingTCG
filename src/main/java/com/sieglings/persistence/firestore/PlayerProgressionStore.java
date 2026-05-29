@@ -45,6 +45,8 @@ public class PlayerProgressionStore {
         payload.put("gold", progression.getGold());
         payload.put("remnants", progression.getRemnants());
         payload.put("ownedCards", progression.getOwnedCards());
+        payload.put("trainerLevels", progression.getTrainerLevels());
+        payload.put("trainerPoints", progression.getTrainerPoints());
         payload.put("starterPackId", progression.getStarterPackId());
         payload.put("rewardedMatchIds", progression.getRewardedMatchIds());
         payload.put("purchasedDeckIds", progression.getPurchasedDeckIds());
@@ -74,6 +76,8 @@ public class PlayerProgressionStore {
         Long remnants = snapshot.getLong("remnants");
         progression.setRemnants(remnants == null ? 0 : remnants.intValue());
         progression.setOwnedCards(readIntMap(snapshot.get("ownedCards")));
+        progression.setTrainerLevels(readIntMap(snapshot.get("trainerLevels")));
+        progression.setTrainerPoints(readIntMap(snapshot.get("trainerPoints")));
         progression.setStarterPackId(snapshot.getString("starterPackId"));
         progression.setRewardedMatchIds(readStringList(snapshot.get("rewardedMatchIds")));
         progression.setPurchasedDeckIds(readStringList(snapshot.get("purchasedDeckIds")));

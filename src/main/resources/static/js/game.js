@@ -6139,9 +6139,11 @@ async function loadGameOptions() {
         loadoutErrorMessage = '';
         selectedDeckId = data.defaultDeckId;
         selectedTrainerId = data.defaultTrainerId;
+        ensureOwnedTrainerSelected();
         builderCounts = {};
         loadoutMode = 'preset';
         applyPendingHomeLoadout();
+        ensureOwnedTrainerSelected();
         hydrateOnlineStateFromUrl();
         hydrateSavedPlayerName();
         renderWelcomeTutorial();
@@ -6331,12 +6333,35 @@ function selectDeckOption(deckId) {
 }
 
 function selectTrainerOption(trainerId) {
+    const trainer = gameOptions?.trainers?.find(item => item.id === trainerId);
+    if (trainer && trainer.owned === false) {
+        return;
+    }
     if (loadoutMode !== 'saved') {
         detachSavedDeckSelection();
     }
     selectedTrainerId = trainerId;
     renderLoadoutOptions();
     updateLoadoutSummary();
+}
+
+function isTrainerOwned(trainerId) {
+    const trainer = gameOptions?.trainers?.find(item => item.id === trainerId);
+    return !trainer || trainer.owned !== false;
+}
+
+// Falls back to the first owned SiegeKnight when the current selection is locked.
+function ensureOwnedTrainerSelected() {
+    if (!gameOptions?.trainers?.length) {
+        return;
+    }
+    if (selectedTrainerId && isTrainerOwned(selectedTrainerId)) {
+        return;
+    }
+    const firstOwned = gameOptions.trainers.find(trainer => trainer.owned !== false);
+    if (firstOwned) {
+        selectedTrainerId = firstOwned.id;
+    }
 }
 
 function switchLoadoutMode(mode) {
@@ -6632,16 +6657,33 @@ function renderLoadoutOptions() {
     }).join('');
 
     trainerEl.innerHTML = gameOptions.trainers.map(trainer => {
-        const selected = trainer.id === selectedTrainerId ? ' selected' : '';
+        const owned = trainer.owned !== false;
+        const level = Math.max(1, Number(trainer.level) || 1);
+        const abilityBonus = Math.max(0, Number(trainer.abilityBonus) || 0);
+        const selected = owned && trainer.id === selectedTrainerId ? ' selected' : '';
+        const lockedClass = owned ? '' : ' locked';
         const elHex = getElementHex(trainer.element);
         const sigil = getTrainerSigil(trainer);
         const rarityClass = getRarityClass(trainer.rarity);
         const tier = formatTrainerTier(trainer.tier);
         const activeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
-        const recommended = recommendedTrainerIds.has(trainer.id) ? ' recommended' : '';
-        return `<button type="button" class="knight-card${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
-            ${trainer.id === selectedTrainerId ? '<span class="knight-selected-ribbon">Selected</span>' : ''}
-            ${recommended && trainer.id !== selectedTrainerId ? '<span class="knight-recommend-ribbon">Recommended</span>' : ''}
+        const recommended = owned && recommendedTrainerIds.has(trainer.id) ? ' recommended' : '';
+        const levelBadge = owned && level > 1
+            ? `<span class="knight-level-badge">Lv ${level}${abilityBonus > 0 ? ` <em>+${abilityBonus}</em>` : ''}</span>`
+            : '';
+        const clickAttr = owned ? ` onclick="selectTrainerOption('${trainer.id}')"` : ' disabled aria-disabled="true"';
+        let topRibbon = '';
+        if (!owned) {
+            topRibbon = '<span class="knight-locked-ribbon">Locked</span>';
+        } else if (trainer.id === selectedTrainerId) {
+            topRibbon = '<span class="knight-selected-ribbon">Selected</span>';
+        } else if (recommended) {
+            topRibbon = '<span class="knight-recommend-ribbon">Recommended</span>';
+        }
+        const lockedHint = owned ? '' : '<span class="knight-card-locked-hint">Pull from a pack to unlock</span>';
+        return `<button type="button" class="knight-card${selected}${recommended}${lockedClass} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}"${clickAttr} aria-pressed="${owned && trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            ${topRibbon}
+            ${levelBadge}
             <div class="knight-card-sigil">${sigil}</div>
             <div class="knight-card-portrait">
                 <div class="knight-card-icon">${getElementSigil(trainer.element)}</div>
@@ -6651,6 +6693,7 @@ function renderLoadoutOptions() {
                 <span class="knight-card-meta"><span class="knight-element">${escapeHtml(formatElementLabel(trainer.element))}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${rarityClass}">${escapeHtml(trainer.rarity)}</span></span>
                 <span class="knight-card-ability"><span>Passive</span>${escapeHtml(readTrainerAbilityText(trainer.passive))}</span>
                 <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(readTrainerAbilityText(trainer.active))}</span>
+                ${lockedHint}
             </div>
         </button>`;
     }).join('');

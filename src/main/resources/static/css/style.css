@@ -6923,6 +6923,90 @@ body.placement-active .board-cell.legal {
     transform: translateY(-2px);
 }
 
+.knight-card.locked {
+    cursor: not-allowed;
+    opacity: 0.55;
+    filter: grayscale(0.7);
+    border-color: rgba(120,120,140,0.4);
+}
+
+.knight-card.locked:hover {
+    transform: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border-color: rgba(120,120,140,0.4);
+}
+
+.knight-locked-ribbon {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 3;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: rgba(20,20,32,0.92);
+    color: #c9c9d6;
+    border: 1px solid rgba(160,160,180,0.4);
+}
+
+.knight-level-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: linear-gradient(160deg, var(--knight-color), color-mix(in srgb, var(--knight-color) 45%, #000));
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+.knight-level-badge em {
+    font-style: normal;
+    opacity: 0.9;
+}
+
+.knight-card-locked-hint {
+    margin-top: 4px;
+    font-size: 0.72rem;
+    color: #c9c9d6;
+    font-style: italic;
+}
+
+.pack-trainer-banner {
+    margin: 0 auto 14px;
+    max-width: 520px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    text-align: center;
+    background: linear-gradient(160deg, rgba(226,183,20,0.18), rgba(120,80,200,0.18));
+    border: 1px solid rgba(226,183,20,0.5);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 4;
+    position: relative;
+}
+
+.pack-trainer-tag {
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 0.82rem;
+    color: var(--accent);
+}
+
+.pack-trainer-detail {
+    font-size: 0.86rem;
+    color: var(--text);
+}
+
 /* Glow band at top */
 .knight-card::before {
     content: '';
@@ -10689,7 +10773,13 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     }
 }
 
-/* ── Extra compact: classic phone heights (iPhone 12/13 ≈ 390px) ── */
+/* ── Extra compact: classic phone heights (iPhone 12/13 ≈ 390px,
+      iPhone 14 Pro Max landscape ≈ 430px) ──
+   The board is two 3×3 halves stacked vertically, so its size is
+   bound by height. To stop the arena from sitting tiny in the centre
+   with huge empty side margins, the cells go landscape (wider than
+   tall) so the grid spreads across the open horizontal space while
+   still fitting — and no longer clipping — inside each half. */
 @media (orientation: landscape) and (max-width: 979px) and (max-height: 430px) {
     .top-bar {
         padding: 1px 10px;
@@ -10699,21 +10789,29 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .tb-hp { font-size: 0.54em; }
     .phase-badge { font-size: 0.44em; padding: 1px 4px; }
 
+    /* Slimmer side rail hands the freed width back to the arena */
     .desktop-menu {
-        width: 182px;
-        min-width: 182px;
-        max-width: 182px;
+        width: clamp(168px, 20vw, 184px);
+        min-width: clamp(168px, 20vw, 184px);
+        max-width: clamp(168px, 20vw, 184px);
     }
 
+    .battlefield { padding: 4px 6px; gap: 4px; }
+    .bf-half { max-width: 100%; }
+
+    /* Height-bound width: (viewport - chrome) / 2 halves * cell aspect.
+       Keeps the grid fully visible inside the half while scaling it up
+       to ~1.9× its old footprint and filling the horizontal space. */
     .board-grid {
-        width: min(100%, 260px);
-        max-width: 260px;
-        gap: 2px;
-        padding: 2px 4px;
+        width: min(98%, calc((100dvh - 40px) / 2 * 1.92), 500px);
+        max-width: 500px;
+        gap: 4px;
+        padding: 2px 6px;
+        align-self: center;
     }
 
     .board-cell {
-        aspect-ratio: 1;
+        aspect-ratio: 1.92;
         padding: 1px;
     }
 
@@ -10726,9 +10824,15 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     .ab-icon { width: 20px; height: 20px; }
 
-    .desktop-menu-inspect { max-height: 88px; }
+    /* Shrink the card-preview / inspector so it no longer dominates the rail */
+    .desktop-menu-inspect { max-height: 74px; }
 
-    .hand-tray { padding: 3px 4px; }
+    /* Smaller hand cards so the hand tray stops being oversized */
+    .hand-tray {
+        --hand-card-width: 78px;
+        --hand-card-overlap: -12px;
+        padding: 3px 4px;
+    }
     .hand-tray .hand-cards { gap: 3px; }
 }
 
