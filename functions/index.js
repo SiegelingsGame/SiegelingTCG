@@ -1,13 +1,28 @@
 'use strict';
 
+const crypto = require('crypto');
 const admin = require('firebase-admin');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const bcrypt = require('bcryptjs');
 const express = require('express');
+const multer = require('multer');
 const { onRequest } = require('firebase-functions/v2/https');
 const { buildMetadata } = require('./editorMetadata');
 
 admin.initializeApp();
+
+const CARD_ART_UPLOAD = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024, files: 1 }
+});
+const CARD_ART_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg']);
+const CARD_ART_CONTENT_TYPES = new Map([
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['image/webp', 'webp'],
+  ['image/gif', 'gif'],
+  ['image/svg+xml', 'svg']
+]);
 
 const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || 'siegedb';
 const db = getFirestore(FIRESTORE_DATABASE_ID);
@@ -166,6 +181,38 @@ app.post('/api/cards/editor/auth/login', async (req, res) => {
   }
 });
 
+app.post('/api/cards/editor/art', CARD_ART_UPLOAD.single('file'), async (req, res) => {
+  try {
+    await requireEditor(readEditorToken(req));
+    const cardId = normalizeCardArtId(req.body?.cardId);
+    const file = req.file;
+    if (!file || !file.buffer?.length) {
+      throw badRequest('Choose an image file to upload.');
+    }
+    const extension = resolveCardArtExtension(file);
+    const objectPath = `cards/${cardId}.${extension}`;
+    const bucket = admin.storage().bucket();
+    const objectRef = bucket.file(objectPath);
+    const downloadToken = crypto.randomUUID();
+    await objectRef.save(file.buffer, {
+      resumable: false,
+      metadata: {
+        contentType: file.mimetype || `image/${extension === 'jpg' ? 'jpeg' : extension}`,
+        cacheControl: 'public,max-age=31536000,immutable',
+        metadata: {
+          firebaseStorageDownloadTokens: downloadToken
+        }
+      }
+    });
+    await objectRef.makePublic().catch(() => {});
+    const publicUrl = buildCardArtPublicUrl(bucket.name, objectPath, downloadToken);
+    res.json({ ok: true, url: publicUrl });
+  } catch (error) {
+    const status = error.statusCode || (String(error.message || '').includes('Sign in') ? 400 : 500);
+    res.status(status).json({ error: error.message || 'Unable to upload card art.' });
+  }
+});
+
 app.post('/api/cards/editor/auth/logout', async (req, res) => {
   try {
     const token = readEditorToken(req);
@@ -313,8 +360,29 @@ function validateCards(cards, moves) {
     } else {
       validateAbility(`Card '${cardId}' ability`, card?.ability, null);
     }
+    validateCardArtFields(cardId, card);
   }
   return cardIds;
+}
+
+function validateCardArtFields(cardId, card) {
+  const cardArtUrl = normalizeText(card?.cardArtUrl);
+  if (!cardArtUrl) {
+    return;
+  }
+  if (cardArtUrl.toLowerCase().startsWith('data:')) {
+    throw badRequest(`Card '${cardId}' uses an embedded image upload (data URL). Upload the image again or use a hosted path like /assets/cards/${cardId}.png.`);
+  }
+  if (cardArtUrl.length > 2048) {
+    throw badRequest(`Card '${cardId}' cardArtUrl is too long for Firestore (${cardArtUrl.length} characters).`);
+  }
+  if (cardArtUrl.startsWith('/assets/cards/')) {
+    throw badRequest(`Card '${cardId}' uses ${cardArtUrl}, which is not hosted for the live game. Use Upload Image in the dashboard so art is stored in cloud storage.`);
+  }
+  const mode = normalizeUpper(card?.cardArtMode);
+  if (mode && mode !== 'REPLACE' && mode !== 'OVERLAY') {
+    throw badRequest(`Card '${cardId}' has an invalid cardArtMode '${card?.cardArtMode}'.`);
+  }
 }
 
 function validateTrainers(trainers) {
@@ -754,10 +822,46 @@ function badRequest(message) {
   return error;
 }
 
+function normalizeCardArtId(cardId) {
+  const normalized = String(cardId || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '');
+  if (!normalized) {
+    throw badRequest('Card art upload requires a valid card id.');
+  }
+  return normalized;
+}
+
+function resolveCardArtExtension(file) {
+  const originalName = String(file?.originalname || '');
+  const dotIndex = originalName.lastIndexOf('.');
+  if (dotIndex >= 0 && dotIndex < originalName.length - 1) {
+    const extension = originalName.slice(dotIndex + 1).trim().toLowerCase();
+    if (CARD_ART_EXTENSIONS.has(extension)) {
+      return extension === 'jpeg' ? 'jpg' : extension;
+    }
+  }
+  const fromContentType = CARD_ART_CONTENT_TYPES.get(String(file?.mimetype || '').toLowerCase());
+  if (fromContentType) {
+    return fromContentType;
+  }
+  throw badRequest('Unsupported image type. Use PNG, JPEG, WebP, GIF, or SVG.');
+}
+
+function buildCardArtPublicUrl(bucketName, objectPath, downloadToken) {
+  if (downloadToken) {
+    const encodedPath = encodeURIComponent(objectPath);
+    return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+  }
+  return `https://storage.googleapis.com/${bucketName}/${objectPath}`;
+}
+
 exports._private = {
   inferCardType,
   resolveCardsPayload,
   resolveSimplePayload,
   resolveLiveElementsPayload,
-  validateEditorBundle
+  validateEditorBundle,
+  validateCardArtFields,
+  normalizeCardArtId,
+  resolveCardArtExtension,
+  buildCardArtPublicUrl
 };

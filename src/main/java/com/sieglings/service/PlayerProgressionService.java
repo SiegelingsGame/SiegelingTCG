@@ -45,6 +45,9 @@ public class PlayerProgressionService {
     @Autowired
     private CardDefinitionService cardDefinitionService;
 
+    @Autowired(required = false)
+    private DailyMissionService dailyMissionService;
+
     public PlayerProgressionEntity getOrCreate(AccountUser user) {
         PlayerProgressionEntity progression = store.findByUserId(user.getId()).orElseGet(() -> {
             PlayerProgressionEntity created = new PlayerProgressionEntity();
@@ -221,6 +224,9 @@ public class PlayerProgressionService {
         progression.setRewardedMatchIds(rewarded);
         progression.setUpdatedAt(Instant.now());
         store.save(progression);
+        if (dailyMissionService != null) {
+            dailyMissionService.recordMatch(history, reward);
+        }
     }
 
     public Map<String, Integer> describeEarnedRewards(AccountUser user, String matchType, String result) {
@@ -502,5 +508,8 @@ public class PlayerProgressionService {
         history.add(entry);
         history.addAll(progression.getPackHistory());
         progression.setPackHistory(history.stream().limit(20).toList());
+        if (dailyMissionService != null) {
+            dailyMissionService.recordPackOpened(progression.getUserId());
+        }
     }
 }

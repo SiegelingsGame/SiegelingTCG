@@ -3,9 +3,11 @@ package com.sieglings.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
@@ -28,6 +30,18 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedMethods("GET", "POST", "OPTIONS")
                 .allowedHeaders("*")
                 .maxAge(3600);
+    }
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        Path uploadedCardArtDir = Path.of("src", "main", "resources", "static", "assets", "cards")
+                .toAbsolutePath()
+                .normalize();
+        registry.addResourceHandler("/assets/cards/**")
+                .addResourceLocations(
+                        "classpath:/static/assets/cards/",
+                        "file:" + uploadedCardArtDir + "/"
+                );
     }
 
     @Override
