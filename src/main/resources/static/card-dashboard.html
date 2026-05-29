@@ -10,7 +10,13 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=9">
+    <!-- home.css supplies the binder-card preview component styles; it must load
+         BEFORE card-dashboard.css so the dashboard's own body/.panel/.browser-panel
+         rules stay authoritative. Loading it last leaked home's
+         `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
+         full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
+    <link rel="stylesheet" href="/css/home.css?v=37">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=12">
 </head>
 <body>
 <div class="dashboard-shell">
@@ -342,6 +348,56 @@
         </section>
 
         <aside class="preview-column">
+            <div class="panel card-visual-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">Preview</div>
+                        <h2>Cards Menu View</h2>
+                    </div>
+                </div>
+                <p class="section-help card-visual-help">Replace art stays inside the icon frame; overlay art can extend across the full card. Use Upload Image on the live dashboard so art is stored in cloud storage (a https:// URL). Drag the art in the preview to reposition it; use the scale and rotation controls below. Publish from the header to apply globally in the game. Choose Default icon to revert. Sign in under Live Publishing before uploading or publishing. Notches always render above custom art.</p>
+                <div class="card-visual-stage" id="cardVisualStage">
+                    <div class="validation-empty">Select a card to preview.</div>
+                </div>
+                <div class="card-art-controls hidden" id="cardArtControls">
+                    <div class="art-mode-toggle" role="radiogroup" aria-label="Card art mode">
+                        <label class="art-mode-option">
+                            <input type="radio" name="cardArtMode" value="">
+                            <span>Default icon</span>
+                        </label>
+                        <label class="art-mode-option">
+                            <input type="radio" name="cardArtMode" value="REPLACE">
+                            <span>Replace art</span>
+                        </label>
+                        <label class="art-mode-option">
+                            <input type="radio" name="cardArtMode" value="OVERLAY">
+                            <span>Overlay art</span>
+                        </label>
+                    </div>
+                    <div class="inline-actions card-art-actions">
+                        <label class="btn btn-secondary file-btn" for="cardArtFileInput">Upload Image</label>
+                        <input id="cardArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
+                        <button class="btn btn-secondary" id="clearCardArtBtn" type="button">Clear Art</button>
+                    </div>
+                    <label class="card-art-url-field">
+                        <span>Art URL or path</span>
+                        <input id="cardArtUrlInput" type="text" autocomplete="off" placeholder="/assets/cards/example.png">
+                    </label>
+                    <div class="card-art-transform-controls hidden" id="cardArtTransformControls">
+                        <p class="card-art-transform-help" id="cardArtTransformHelp">Drag the art in the preview above to reposition it.</p>
+                        <label class="card-art-slider-field">
+                            <span>Scale <output id="cardArtScaleValue" for="cardArtScaleInput">1.00</output></span>
+                            <input id="cardArtScaleInput" type="range" min="0.25" max="3" step="0.01" value="1">
+                        </label>
+                        <label class="card-art-slider-field">
+                            <span>Rotation <output id="cardArtRotationValue" for="cardArtRotationInput">0°</output></span>
+                            <input id="cardArtRotationInput" type="range" min="-180" max="180" step="1" value="0">
+                        </label>
+                        <button class="btn btn-secondary" id="resetCardArtTransformBtn" type="button">Reset Transform</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel summary-panel">
                 <div class="panel-heading">
                     <div>
@@ -894,6 +950,7 @@
 
 <script src="/js/config.js"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
-<script src="/js/card-dashboard.js?v=23"></script>
+<script src="/js/card-binder-visual.js?v=1"></script>
+<script src="/js/card-dashboard.js?v=28"></script>
 </body>
 </html>

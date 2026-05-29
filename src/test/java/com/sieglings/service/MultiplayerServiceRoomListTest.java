@@ -140,6 +140,31 @@ class MultiplayerServiceRoomListTest {
     }
 
     @Test
+    void guestLeaveReopensLobbyForJoin() {
+        MultiplayerService service = new MultiplayerService();
+        MultiplayerService.RoomSession host = service.createRoom(
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, "Blazing Core"),
+                "user-host"
+        );
+        MultiplayerService.RoomSession guest = service.joinRoom(
+                host.roomId(),
+                "Guest",
+                new GameService.StartOptions("deck_water", "trainer06", null, "Tide Deck"),
+                "user-guest"
+        );
+
+        assertTrue(service.listOpenRooms().isEmpty());
+
+        service.leaveLobby(host.roomId(), guest.playerToken());
+
+        MultiplayerRoom room = service.requireRoom(host.roomId());
+        assertFalse(room.hasGuest());
+        assertEquals(1, service.listOpenRooms().size());
+        assertEquals(host.roomId(), service.listOpenRooms().get(0).getRoomId());
+    }
+
+    @Test
     void startedRoomDoesNotExpireOnOpenLobbyDeadline() {
         MultiplayerRoom room = new MultiplayerRoom(
                 "ABC123",

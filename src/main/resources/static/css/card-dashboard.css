@@ -51,6 +51,9 @@ body {
         radial-gradient(circle at top left, rgba(255, 196, 129, 0.12), transparent 28%),
         radial-gradient(circle at bottom right, rgba(77, 171, 158, 0.16), transparent 24%),
         var(--page-bg);
+    /* Keep the background scrolling with the page. `background-attachment: fixed`
+       (inherited from home.css) breaks finger scrolling in mobile Safari. */
+    background-attachment: scroll;
     color: var(--text-main);
     font-family: var(--font-body);
 }
@@ -496,6 +499,8 @@ input[type="file"] {
     gap: 10px;
     max-height: calc(100vh - 320px);
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding-right: 4px;
 }
 
@@ -932,6 +937,8 @@ textarea {
 .validation-list {
     max-height: 320px;
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding-right: 4px;
 }
 
@@ -1244,4 +1251,158 @@ body.move-picker-open {
     padding: 1.5rem;
     text-align: center;
     color: var(--text-dim);
+}
+
+.card-visual-panel {
+    overflow: visible;
+}
+
+.card-visual-help {
+    margin: -6px 18px 12px;
+}
+
+.card-visual-stage {
+    display: grid;
+    place-items: center;
+    padding: 12px 18px 6px;
+}
+
+.card-visual-stage .binder-card,
+.card-visual-stage .card-visual-preview {
+    width: min(100%, 240px);
+    margin: 0 auto;
+    pointer-events: none;
+    position: relative;
+}
+
+.card-visual-stage .binder-card.art-mode-overlay,
+.card-visual-stage .binder-card.art-mode-replace {
+    overflow: visible;
+}
+
+.card-visual-stage .binder-card.art-mode-replace .binder-card-art {
+    pointer-events: auto;
+    overflow: hidden;
+}
+
+.card-visual-stage .binder-card.art-mode-replace .binder-card-custom-art {
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;
+    /* Show full image while editing; cards menu uses cover after save */
+    object-fit: contain;
+    object-position: center;
+}
+
+.card-visual-stage .binder-card.art-mode-replace .binder-card-art.is-art-dragging .binder-card-custom-art {
+    cursor: grabbing;
+}
+
+.card-visual-stage .binder-card.art-mode-overlay .binder-card-overlay-art-card {
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;
+    object-fit: contain;
+    object-position: center;
+}
+
+.card-visual-stage .binder-card.art-mode-overlay.is-art-dragging .binder-card-overlay-art-card {
+    cursor: grabbing;
+}
+
+.card-visual-stage .binder-card-shell {
+    position: relative;
+    z-index: 1;
+}
+
+.card-visual-stage .binder-notches {
+    z-index: 3;
+}
+
+.card-art-controls {
+    display: grid;
+    gap: 12px;
+    padding: 0 18px 18px;
+    border-top: 1px solid var(--line);
+    margin-top: 8px;
+    padding-top: 16px;
+}
+
+.art-mode-toggle {
+    display: grid;
+    gap: 8px;
+}
+
+.art-mode-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-soft);
+    font-size: 0.92rem;
+}
+
+.art-mode-option input {
+    accent-color: var(--accent);
+}
+
+.card-art-actions {
+    flex-wrap: wrap;
+}
+
+.card-art-url-field {
+    display: grid;
+    gap: 6px;
+}
+
+.card-art-url-field span {
+    color: var(--text-soft);
+    font-size: 0.85rem;
+}
+
+.card-art-url-field input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--field-bg);
+    color: var(--text-main);
+}
+
+.card-art-transform-controls {
+    display: grid;
+    gap: 12px;
+    padding-top: 4px;
+}
+
+.card-art-transform-controls.hidden {
+    display: none;
+}
+
+.card-art-transform-help {
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 0.85rem;
+}
+
+.card-art-slider-field {
+    display: grid;
+    gap: 6px;
+}
+
+.card-art-slider-field span {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-soft);
+    font-size: 0.85rem;
+}
+
+.card-art-slider-field output {
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+}
+
+.card-art-slider-field input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
 }

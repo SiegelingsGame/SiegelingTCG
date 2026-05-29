@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/home.css?v=37">
+    <link rel="stylesheet" href="/css/home.css?v=43">
 </head>
 <body>
 <div class="home-shell">
@@ -67,15 +67,36 @@
             </section>
 
             <section class="browser-panel panel hidden" id="decksSection">
-                <div class="section-head"><div><span class="eyebrow">Decks</span><h1>Premade decks and custom builds</h1></div><button class="primary-btn" id="saveCustomDeckBtn" type="button">Save Custom Deck</button></div>
-                <div class="deck-builder-lock" id="deckBuilderLock"></div>
-                <div class="deck-grid" id="deckGrid"></div>
-                <div class="builder-panel" id="builderPanel"></div>
-                <div class="builder-catalog-panel" id="builderCatalogPanel"></div>
-                <div class="builder-browser">
-                    <div class="section-head"><div><span class="eyebrow">Deck Binder</span><h2>Saved custom decks</h2></div><span id="deckCardCount"></span></div>
+                <div class="section-head"><div><span class="eyebrow">Decks</span><h1>Premade and custom decks</h1></div></div>
+                <div class="decks-browser-block">
+                    <div class="section-head decks-row-head">
+                        <div><span class="eyebrow">Premade</span><h2>Official battle decks</h2></div>
+                    </div>
+                    <div class="deck-grid" id="deckGrid"></div>
+                </div>
+                <div class="decks-browser-block builder-browser">
+                    <div class="section-head decks-row-head">
+                        <div><span class="eyebrow">Custom</span><h2>Your saved decks</h2></div>
+                        <div class="decks-row-actions">
+                            <span id="deckCardCount"></span>
+                            <button class="primary-btn" type="button" id="createCustomDeckBtn">Create Custom Deck</button>
+                        </div>
+                    </div>
                     <div class="deck-grid custom-deck-grid" id="customDeckGrid"></div>
                 </div>
+            </section>
+
+            <section class="browser-panel panel hidden" id="deckBuilderSection">
+                <div class="section-head deck-builder-page-head">
+                    <div>
+                        <button class="ghost-btn deck-builder-back-btn" type="button" id="deckBuilderBackBtn">Back to Decks</button>
+                        <span class="eyebrow">Deck Builder</span>
+                        <h1 id="deckBuilderPageTitle">Build a custom deck</h1>
+                    </div>
+                    <button class="primary-btn" type="button" id="saveDeckBuilderPageBtn">Save Deck</button>
+                </div>
+                <div class="deck-builder-lock" id="deckBuilderLock"></div>
+                <div class="deck-builder-page" id="deckBuilderPage"></div>
             </section>
 
             <section class="browser-panel panel hidden social-section" id="socialSection">
@@ -263,16 +284,35 @@
                     <span class="eyebrow" id="deckPreviewEyebrow">Deck</span>
                     <h2 id="deckPreviewTitle">Deck</h2>
                     <span class="deck-preview-sub" id="deckPreviewSub"></span>
+                    <span class="deck-preview-composition" id="deckPreviewComposition"></span>
                 </div>
                 <button class="ghost-btn" id="closeDeckPreviewBtn" type="button">Close</button>
             </div>
-            <div class="card-grid deck-preview-grid" id="deckPreviewGrid"></div>
+            <div class="deck-preview-body">
+                <aside class="deck-preview-stack-panel" aria-label="Deck list">
+                    <div class="deck-preview-stack-head">
+                        <div class="deck-preview-stack-head-copy">
+                            <span class="eyebrow">Decklist</span>
+                            <div class="deck-preview-type-counts" id="deckPreviewTypeCounts" aria-label="Deck composition"></div>
+                        </div>
+                        <strong id="deckPreviewStackTotal">0 cards</strong>
+                    </div>
+                    <div class="deck-preview-stack" id="deckPreviewStack"></div>
+                </aside>
+                <div class="deck-preview-main">
+                    <div class="deck-preview-main-head">
+                        <span class="eyebrow">Card Gallery</span>
+                    </div>
+                    <div class="card-grid deck-preview-grid" id="deckPreviewGrid"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script src="/js/qrcode-vendor.js?v=1"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
-<script src="/js/home.js?v=44"></script>
+<script src="/js/card-binder-visual.js?v=1"></script>
+<script src="/js/home.js?v=51"></script>
 </body>
 </html>

@@ -44,6 +44,8 @@ public class SieglingCard extends Card {
         c.setCostAmount(getCostAmount());
         c.setEvolvesFromId(evolvesFromId);
         c.setEvolvesFromName(evolvesFromName);
+        c.setCardArtUrl(getCardArtUrl());
+        c.setCardArtMode(getCardArtMode());
         return c;
     }
 

@@ -24,6 +24,8 @@ public class TrapCard extends Card {
     public TrapCard copy() {
         TrapCard copy = new TrapCard(getId(), getName(), getElement(), getRarity(),
                 getCostElement(), getCostAmount(), getAbility());
+        copy.setCardArtUrl(getCardArtUrl());
+        copy.setCardArtMode(getCardArtMode());
         return copy;
     }
 }

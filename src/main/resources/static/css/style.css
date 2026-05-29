@@ -1774,6 +1774,31 @@ body.card-drag-active #playerGrid {
     color: var(--text-dim);
 }
 
+.selected-copy-buffs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    margin: 4px 0 6px;
+}
+.buff-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.85em;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--bp, #cbd5f5);
+    background: color-mix(in srgb, var(--bp, #cbd5f5) 18%, rgba(8, 13, 28, 0.7));
+    border: 1px solid color-mix(in srgb, var(--bp, #cbd5f5) 60%, transparent);
+}
+.buff-pill-amount {
+    font-weight: 900;
+    color: #ffffff;
+}
+
 /* ============================================================
    LEGACY COMPAT — hide old layout elements, keep styles
    ============================================================ */
@@ -7968,10 +7993,34 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 }
 
 .welcome-lb-tabs {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.welcome-lb-period-tabs,
+.welcome-lb-category-tabs {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-bottom: 12px;
+}
+
+.welcome-lb-period-tab {
+    border-radius: 999px;
+    border: 1px solid rgba(226, 183, 20, 0.28);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-dim);
+    padding: 7px 12px;
+    font-size: 0.72em;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.welcome-lb-period-tab.active {
+    color: #101828;
+    border-color: rgba(226, 183, 20, 0.65);
+    background: var(--accent);
 }
 
 .welcome-lb-tab {
@@ -8853,6 +8902,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     color: var(--text-dim);
 }
 
+.loadout-saved-note {
+    margin: 0 0 14px;
+    color: var(--text-dim);
+    font-size: 0.88em;
+    line-height: 1.45;
+}
+
+.deck-card-meta-line {
+    display: block;
+    margin-top: 6px;
+    color: rgba(245, 239, 224, 0.78);
+    font-size: 0.72em;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 .mulligan-box {
     width: min(calc(var(--overlay-shell-width) * 0.74), 100%);
 }
@@ -9328,6 +9394,29 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .selected-copy-detail {
         line-height: 1.25;
         margin-bottom: 2px;
+    }
+    .selected-copy-buffs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin: 4px 0 6px;
+    }
+    .buff-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-size: 0.68em;
+        font-weight: 700;
+        line-height: 1.4;
+        color: var(--bp, #cbd5f5);
+        background: color-mix(in srgb, var(--bp, #cbd5f5) 18%, rgba(8, 13, 28, 0.7));
+        border: 1px solid color-mix(in srgb, var(--bp, #cbd5f5) 60%, transparent);
+    }
+    .buff-pill-amount {
+        font-weight: 900;
+        color: #ffffff;
     }
 
     /* --- Card detail in drawers --- */
@@ -11553,6 +11642,21 @@ body.sgl-opponent-turn .battle-cta-row {
     margin-top: 18px;
     gap: 10px;
     flex-wrap: nowrap;
+}
+
+.welcome-auth-prompt {
+    margin: 14px 0 0;
+    font-size: 0.92em;
+    line-height: 1.5;
+    color: var(--text-dim, #8aa0bd);
+}
+
+.welcome-auth-actions a.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    text-decoration: none;
 }
 
 .welcome-auth-submit {

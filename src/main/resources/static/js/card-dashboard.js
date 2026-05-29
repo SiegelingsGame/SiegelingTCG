@@ -92,7 +92,8 @@
         updatedBy: "",
         updatedAt: "",
         auth: { ...DEFAULT_AUTH },
-        status: { ...DEFAULT_STATUS }
+        status: { ...DEFAULT_STATUS },
+        ephemeralCardArtPreview: null
     };
 
     const refs = {};
@@ -267,6 +268,18 @@
             "movePickerCategoryFilter",
             "movePickerList",
             "movePickerCloseBtn",
+            "cardVisualStage",
+            "cardArtControls",
+            "cardArtFileInput",
+            "cardArtUrlInput",
+            "clearCardArtBtn",
+            "cardArtTransformControls",
+            "cardArtTransformHelp",
+            "cardArtScaleInput",
+            "cardArtScaleValue",
+            "cardArtRotationInput",
+            "cardArtRotationValue",
+            "resetCardArtTransformBtn",
             "cardSummary",
             "jsonPreviewMode",
             "jsonPreview",
@@ -403,9 +416,128 @@
             if (!row) {
                 return;
             }
-            state.selectedCardId = row.dataset.cardId;
+            const nextCardId = row.dataset.cardId;
+            if (nextCardId !== state.selectedCardId) {
+                clearEphemeralCardArtPreview();
+            }
+            state.selectedCardId = nextCardId;
             state.selectedAbilityIndex = 0;
             renderAll();
+        });
+
+        refs.cardArtControls?.addEventListener("change", (event) => {
+            const modeInput = event.target.closest('input[name="cardArtMode"]');
+            if (!modeInput) {
+                return;
+            }
+            mutateSelectedCard((card) => {
+                card.cardArtMode = normalizeCardArtMode(modeInput.value);
+                if (!card.cardArtMode) {
+                    clearEphemeralCardArtPreview();
+                    card.cardArtUrl = "";
+                }
+            });
+        });
+
+        refs.cardArtUrlInput?.addEventListener("input", (event) => {
+            mutateSelectedCard((card) => {
+                card.cardArtUrl = String(event.target.value || "").trim();
+                if (card.cardArtUrl && !card.cardArtMode) {
+                    card.cardArtMode = "REPLACE";
+                }
+                if (!card.cardArtUrl) {
+                    card.cardArtMode = "";
+                }
+            });
+        });
+
+        refs.cardArtFileInput?.addEventListener("change", async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) {
+                return;
+            }
+            const card = getSelectedCard();
+            const cardId = String(card?.id || "").trim();
+            if (!cardId) {
+                setStatus("Set a card id before uploading art.", "error");
+                event.target.value = "";
+                return;
+            }
+            if (state.liveEditingEnabled && !state.auth?.canEdit) {
+                setStatus("Sign in under Live Publishing before uploading card art.", "error");
+                event.target.value = "";
+                renderStatus();
+                return;
+            }
+
+            const localPreviewUrl = URL.createObjectURL(file);
+            setEphemeralCardArtPreview(cardId, localPreviewUrl);
+            mutateSelectedCard((selected) => {
+                if (!selected.cardArtMode) {
+                    selected.cardArtMode = "REPLACE";
+                }
+            }, { render: false });
+
+            setStatus("Uploading card art...", "warning");
+            renderStatus();
+            renderCardVisual();
+            try {
+                const payload = await uploadCardArtFile(cardId, file);
+                const hostedUrl = String(payload?.url || "").trim();
+                if (!hostedUrl) {
+                    throw new Error("Upload finished but the server did not return an image URL.");
+                }
+                clearEphemeralCardArtPreview();
+                mutateSelectedCard((selected) => {
+                    selected.cardArtUrl = hostedUrl;
+                    selected.cardArtMode = "REPLACE";
+                }, { render: false });
+                setStatus(
+                    state.liveEditingEnabled
+                        ? `Uploaded art for ${cardId}. Adjust scale/placement below, then click Publish Live Changes.`
+                        : `Uploaded art for ${cardId}. Adjust scale/placement below, then click Save To Project File.`,
+                    "success"
+                );
+                refs.cardArtTransformControls?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            } catch (error) {
+                setStatus(
+                    `${error?.message || "Unable to upload card art."} Your local preview is still visible; fix the issue above and try Upload Image again.`,
+                    "error"
+                );
+            } finally {
+                event.target.value = "";
+                renderAll();
+            }
+        });
+
+        refs.clearCardArtBtn?.addEventListener("click", () => {
+            clearEphemeralCardArtPreview();
+            mutateSelectedCard((card) => {
+                card.cardArtUrl = "";
+                card.cardArtMode = "";
+                resetCardArtTransform(card);
+            });
+            if (refs.cardArtFileInput) {
+                refs.cardArtFileInput.value = "";
+            }
+        });
+
+        refs.cardArtScaleInput?.addEventListener("input", (event) => {
+            updateSelectedCardArtTransform((card) => {
+                card.cardArtScale = clampCardArtScale(event.target.value);
+            });
+        });
+
+        refs.cardArtRotationInput?.addEventListener("input", (event) => {
+            updateSelectedCardArtTransform((card) => {
+                card.cardArtRotation = clampCardArtRotation(event.target.value);
+            });
+        });
+
+        refs.resetCardArtTransformBtn?.addEventListener("click", () => {
+            updateSelectedCardArtTransform((card) => {
+                resetCardArtTransform(card);
+            });
         });
 
         refs.notchGrid.addEventListener("click", (event) => {
@@ -1142,7 +1274,7 @@
         });
     }
 
-    function mutateSelectedCard(mutator) {
+    function mutateSelectedCard(mutator, options = {}) {
         const card = getSelectedCard();
         if (!card) {
             return;
@@ -1151,7 +1283,52 @@
         state.dirty = true;
         state.validation = validateDashboard();
         setStatus("You have unsaved changes in the dashboard.", "warning");
-        renderAll();
+        if (options.render !== false) {
+            renderAll();
+        }
+    }
+
+    function updateSelectedCardArtTransform(mutator) {
+        const card = getSelectedCard();
+        if (!card) {
+            return;
+        }
+        mutator(card);
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        applyCardArtTransformToPreview(card);
+        syncCardArtTransformControls(card);
+        renderPreview();
+        renderValidation();
+        renderChrome();
+        renderStatus();
+    }
+
+    function clearEphemeralCardArtPreview() {
+        if (state.ephemeralCardArtPreview?.url) {
+            URL.revokeObjectURL(state.ephemeralCardArtPreview.url);
+        }
+        state.ephemeralCardArtPreview = null;
+    }
+
+    function setEphemeralCardArtPreview(cardId, url) {
+        clearEphemeralCardArtPreview();
+        state.ephemeralCardArtPreview = {
+            cardId: String(cardId || "").trim(),
+            url
+        };
+    }
+
+    function getEphemeralCardArtPreviewUrl(cardId) {
+        const preview = state.ephemeralCardArtPreview;
+        if (!preview?.url) {
+            return "";
+        }
+        if (preview.cardId !== String(cardId || "").trim()) {
+            return "";
+        }
+        return preview.url;
     }
 
     function mutateSelectedAbility(mutator) {
@@ -1218,6 +1395,9 @@
     }
 
     function applyDataSet(data, dirty) {
+        if (!dirty) {
+            clearEphemeralCardArtPreview();
+        }
         const preparedData = prepareImportedDataSet(data);
         const resolvedData = preparedData.data;
         const cards = Array.isArray(resolvedData?.cards)
@@ -1369,6 +1549,253 @@
         return candidate;
     }
 
+    function normalizeCardArtMode(value) {
+        const mode = String(value || "").trim().toUpperCase();
+        return mode === "REPLACE" || mode === "OVERLAY" ? mode : "";
+    }
+
+    function defaultCardArtPath(cardId) {
+        const normalizedId = slugify(cardId);
+        return normalizedId ? `/assets/cards/${normalizedId}.png` : "";
+    }
+
+    function isHostedCardArtUrl(cardArtUrl) {
+        const url = String(cardArtUrl || "").trim();
+        return /^https?:\/\//i.test(url);
+    }
+
+    function isProjectRelativeCardArtPath(cardArtUrl) {
+        const url = String(cardArtUrl || "").trim();
+        return url.startsWith("/assets/cards/") && !isHostedCardArtUrl(url);
+    }
+
+    function cardArtPathMatchesCardId(cardId, cardArtUrl) {
+        const normalizedId = slugify(cardId);
+        const url = String(cardArtUrl || "").trim().toLowerCase();
+        if (!normalizedId || !url) {
+            return true;
+        }
+        if (url.startsWith("data:") || /^https?:\/\//i.test(url)) {
+            return true;
+        }
+        return url.includes(normalizedId);
+    }
+
+    function clampCardArtScale(value) {
+        const scale = Number(value);
+        if (!Number.isFinite(scale)) {
+            return 1;
+        }
+        return Math.min(3, Math.max(0.25, scale));
+    }
+
+    function clampCardArtRotation(value) {
+        const rotation = Number(value);
+        if (!Number.isFinite(rotation)) {
+            return 0;
+        }
+        return Math.min(180, Math.max(-180, rotation));
+    }
+
+    function normalizeCardArtTransformFields(card) {
+        return {
+            cardArtOffsetX: toNumber(card?.cardArtOffsetX, 0),
+            cardArtOffsetY: toNumber(card?.cardArtOffsetY, 0),
+            cardArtScale: clampCardArtScale(card?.cardArtScale ?? 1),
+            cardArtRotation: clampCardArtRotation(card?.cardArtRotation ?? 0)
+        };
+    }
+
+    function resetCardArtTransform(card) {
+        card.cardArtOffsetX = 0;
+        card.cardArtOffsetY = 0;
+        card.cardArtScale = 1;
+        card.cardArtRotation = 0;
+    }
+
+    function hasCustomCardArt(card) {
+        const { cardArtUrl, cardArtMode } = normalizeCardArtFields(card);
+        return Boolean(cardArtUrl && cardArtMode);
+    }
+
+    function formatCardArtScaleValue(scale) {
+        return clampCardArtScale(scale).toFixed(2);
+    }
+
+    function formatCardArtRotationValue(rotation) {
+        return `${Math.round(clampCardArtRotation(rotation))}°`;
+    }
+
+    function buildCardArtTransformStyle(card) {
+        return window.SieglingsCardBinderVisual?.buildArtTransformStyle(card) || "";
+    }
+
+    function getCardArtDragTargets(card) {
+        const mode = normalizeCardArtMode(card?.cardArtMode);
+        const previewCard = refs.cardVisualStage?.querySelector(".binder-card");
+        if (!previewCard) {
+            return { artFrame: null, artImg: null };
+        }
+        if (mode === "OVERLAY") {
+            return {
+                artFrame: previewCard,
+                artImg: previewCard.querySelector(".binder-card-overlay-art-card")
+            };
+        }
+        const artFrame = previewCard.querySelector(".binder-card-art");
+        return {
+            artFrame,
+            artImg: artFrame?.querySelector(".binder-card-custom-art") || null
+        };
+    }
+
+    function applyCardArtTransformToPreview(card) {
+        const { artImg } = getCardArtDragTargets(card);
+        if (!artImg) {
+            return;
+        }
+        const style = buildCardArtTransformStyle(card);
+        if (style) {
+            artImg.setAttribute("style", style);
+        } else {
+            artImg.removeAttribute("style");
+        }
+    }
+
+    let cardArtDragAbortController = null;
+
+    function teardownCardArtDragInteraction() {
+        cardArtDragAbortController?.abort();
+        cardArtDragAbortController = null;
+    }
+
+    function setupCardArtDragInteraction(card) {
+        teardownCardArtDragInteraction();
+        if (!hasCustomCardArt(card)) {
+            return;
+        }
+
+        const { artFrame, artImg } = getCardArtDragTargets(card);
+        if (!artFrame || !artImg) {
+            return;
+        }
+
+        cardArtDragAbortController = new AbortController();
+        const { signal } = cardArtDragAbortController;
+        let dragState = null;
+
+        const finishDrag = (event) => {
+            if (!dragState) {
+                return;
+            }
+            artFrame.classList.remove("is-art-dragging");
+            if (artImg.hasPointerCapture?.(event.pointerId)) {
+                artImg.releasePointerCapture(event.pointerId);
+            }
+            const nextX = dragState.startOffsetX + (event.clientX - dragState.startClientX);
+            const nextY = dragState.startOffsetY + (event.clientY - dragState.startClientY);
+            dragState = null;
+            mutateSelectedCard((selectedCard) => {
+                selectedCard.cardArtOffsetX = nextX;
+                selectedCard.cardArtOffsetY = nextY;
+            });
+        };
+
+        artImg.addEventListener("pointerdown", (event) => {
+            if (event.button !== 0) {
+                return;
+            }
+            event.preventDefault();
+            dragState = {
+                startClientX: event.clientX,
+                startClientY: event.clientY,
+                startOffsetX: toNumber(card.cardArtOffsetX, 0),
+                startOffsetY: toNumber(card.cardArtOffsetY, 0)
+            };
+            artFrame.classList.add("is-art-dragging");
+            artImg.setPointerCapture?.(event.pointerId);
+        }, { signal });
+
+        artImg.addEventListener("pointermove", (event) => {
+            if (!dragState) {
+                return;
+            }
+            event.preventDefault();
+            const previewCard = {
+                ...card,
+                cardArtOffsetX: dragState.startOffsetX + (event.clientX - dragState.startClientX),
+                cardArtOffsetY: dragState.startOffsetY + (event.clientY - dragState.startClientY)
+            };
+            applyCardArtTransformToPreview(previewCard);
+        }, { signal });
+
+        artImg.addEventListener("pointerup", finishDrag, { signal });
+        artImg.addEventListener("pointercancel", finishDrag, { signal });
+    }
+
+    function syncCardArtTransformControls(card) {
+        const showTransform = hasCustomCardArt(card);
+        refs.cardArtTransformControls?.classList.toggle("hidden", !showTransform);
+        if (!showTransform) {
+            return;
+        }
+
+        const scale = clampCardArtScale(card?.cardArtScale ?? 1);
+        const rotation = clampCardArtRotation(card?.cardArtRotation ?? 0);
+        if (refs.cardArtScaleInput && document.activeElement !== refs.cardArtScaleInput) {
+            refs.cardArtScaleInput.value = String(scale);
+        }
+        if (refs.cardArtRotationInput && document.activeElement !== refs.cardArtRotationInput) {
+            refs.cardArtRotationInput.value = String(rotation);
+        }
+        if (refs.cardArtScaleValue) {
+            refs.cardArtScaleValue.textContent = formatCardArtScaleValue(scale);
+        }
+        if (refs.cardArtRotationValue) {
+            refs.cardArtRotationValue.textContent = formatCardArtRotationValue(rotation);
+        }
+        if (refs.cardArtTransformHelp) {
+            const mode = normalizeCardArtMode(card?.cardArtMode);
+            refs.cardArtTransformHelp.textContent = mode === "OVERLAY"
+                ? "Drag overlay art anywhere on the card. Scale and rotate freely; it can extend past the icon frame."
+                : "Drag replace art within the icon frame. The full image stays visible while editing; scale and move it behind the frame border.";
+        }
+    }
+
+    function normalizeCardArtFields(card) {
+        const cardArtUrl = String(card?.cardArtUrl || "").trim();
+        let cardArtMode = normalizeCardArtMode(card?.cardArtMode);
+        if (cardArtUrl && !cardArtMode) {
+            cardArtMode = "REPLACE";
+        }
+        return { cardArtUrl, cardArtMode, ...normalizeCardArtTransformFields(card) };
+    }
+
+    function appendCardArtExport(exported, card) {
+        const url = String(card?.cardArtUrl || "").trim();
+        if (url) {
+            exported.cardArtUrl = url;
+            exported.cardArtMode = normalizeCardArtMode(card?.cardArtMode) || "REPLACE";
+            const offsetX = toNumber(card.cardArtOffsetX, 0);
+            const offsetY = toNumber(card.cardArtOffsetY, 0);
+            const scale = clampCardArtScale(card.cardArtScale ?? 1);
+            const rotation = clampCardArtRotation(card.cardArtRotation ?? 0);
+            if (offsetX !== 0) {
+                exported.cardArtOffsetX = offsetX;
+            }
+            if (offsetY !== 0) {
+                exported.cardArtOffsetY = offsetY;
+            }
+            if (scale !== 1) {
+                exported.cardArtScale = scale;
+            }
+            if (rotation !== 0) {
+                exported.cardArtRotation = rotation;
+            }
+        }
+        return exported;
+    }
+
     function normalizeCard(card) {
         const cardType = normalizeCardType(card?.type || card?.cardType || inferCardType(card));
         const baseElement = card?.element || firstMetaValue("elements", "FIRE");
@@ -1398,7 +1825,8 @@
                 requiredComboSignature: String(card?.requiredComboSignature || "").trim().toUpperCase(),
                 notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
                 moveIds,
-                abilities: []
+                abilities: [],
+                ...normalizeCardArtFields(card)
             };
         }
         const abilities = Array.isArray(card?.abilities) && card.abilities.length > 0
@@ -1422,7 +1850,8 @@
             requiredComboSize: toNumber(card?.requiredComboSize, 0),
             requiredComboSignature: String(card?.requiredComboSignature || "").trim().toUpperCase(),
             notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
-            abilities: normalizeCardAbilities(cardType, abilities, baseElement)
+            abilities: normalizeCardAbilities(cardType, abilities, baseElement),
+            ...normalizeCardArtFields(card)
         };
     }
 
@@ -1879,6 +2308,7 @@
         }
         renderCardList();
         renderEditor();
+        renderCardVisual();
         renderSummary();
         renderPreview();
         renderDeckList();
@@ -2277,6 +2707,96 @@
                 <span class="ability-tab-meta">${escapeHtml(formatEnumLabel(ability.targetType))} | ${escapeHtml(effectLabel(ability.effectType))}</span>
             </button>
         `).join("");
+    }
+
+    function toBinderPreviewCard(card) {
+        const ephemeralArtUrl = getEphemeralCardArtPreviewUrl(card.id);
+        const preview = {
+            ...card,
+            type: card.cardType,
+            abilities: card.cardType === "SIEGLING" ? [] : (card.abilities || [])
+        };
+        if (ephemeralArtUrl) {
+            preview.cardArtUrl = ephemeralArtUrl;
+            preview.cardArtMode = preview.cardArtMode || "REPLACE";
+        }
+        if (card.cardType !== "SIEGLING" && preview.abilities[0]) {
+            preview.ability = preview.abilities[0];
+        }
+        if (card.cardType === "SIEGLING" && (card.moveIds || []).length > 0) {
+            const firstMove = findMoveById(card.moveIds[0]);
+            if (firstMove) {
+                preview.abilities = [{
+                    name: firstMove.name,
+                    description: firstMove.description || ""
+                }];
+            }
+        }
+        return preview;
+    }
+
+    function renderCardVisual() {
+        if (!refs.cardVisualStage) {
+            return;
+        }
+        const card = getSelectedCard();
+        if (!card) {
+            refs.cardVisualStage.innerHTML = `<div class="validation-empty">Select a card to preview.</div>`;
+            refs.cardArtControls?.classList.add("hidden");
+            teardownCardArtDragInteraction();
+            return;
+        }
+
+        const binder = window.SieglingsCardBinderVisual;
+        if (!binder) {
+            refs.cardVisualStage.innerHTML = `<div class="validation-empty">Card preview module failed to load.</div>`;
+            refs.cardArtControls?.classList.remove("hidden");
+            return;
+        }
+
+        const previewCard = toBinderPreviewCard(card);
+        const descriptionText = card.cardType === "SIEGLING"
+            ? ((card.moveIds || []).map((id) => findMoveById(id)?.description).find(Boolean) || "Preview card art and notches as players see them in the Cards menu.")
+            : (card.abilities?.[0]?.description || "Preview card art as players see it in the Cards menu.");
+
+        refs.cardVisualStage.innerHTML = binder.renderBinderCardPreview(previewCard, {
+            ownedLabel: "Preview",
+            descriptionText
+        });
+        refs.cardArtControls?.classList.remove("hidden");
+
+        const mode = normalizeCardArtMode(card.cardArtMode);
+        refs.cardArtControls?.querySelectorAll('input[name="cardArtMode"]').forEach((input) => {
+            input.checked = input.value === mode;
+        });
+        if (refs.cardArtUrlInput && document.activeElement !== refs.cardArtUrlInput) {
+            setInputValue(refs.cardArtUrlInput, card.cardArtUrl || "");
+            refs.cardArtUrlInput.placeholder = defaultCardArtPath(card.id) || "/assets/cards/example.png";
+        }
+        syncCardArtTransformControls(card);
+        setupCardArtDragInteraction(card);
+        attachCardArtPreviewErrorHandler(card);
+    }
+
+    function attachCardArtPreviewErrorHandler(card) {
+        if (getEphemeralCardArtPreviewUrl(card.id)) {
+            return;
+        }
+        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card");
+        if (!artImg) {
+            return;
+        }
+        artImg.addEventListener("error", () => {
+            const artUrl = String(card.cardArtUrl || "").trim();
+            if (!artUrl) {
+                return;
+            }
+            setStatus(
+                `Card art did not load (${artUrl}). Use Upload Image to host the file, or fix the Art URL path (expected ${defaultCardArtPath(card.id) || "/assets/cards/<card-id>.png"}).`,
+                "error"
+            );
+            renderStatus();
+        }, { once: true });
     }
 
     function renderSummary() {
@@ -2839,7 +3359,22 @@
         refs.deleteDeckBtn.disabled = !hasDeck;
         refs.clearDeckCardsBtn.disabled = !hasDeck;
         refs.duplicateTrainerBtn.disabled = !hasTrainer;
-        refs.saveProjectBtn.disabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
+        const saveDisabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
+        refs.saveProjectBtn.disabled = saveDisabled;
+        refs.saveProjectBtn.title = saveDisabled ? describeSaveButtonState(hasErrors) : "";
+    }
+
+    function describeSaveButtonState(hasErrors) {
+        if (!state.dirty) {
+            return "No unsaved changes yet.";
+        }
+        if (!canSaveCurrentData()) {
+            return saveUnavailableMessage();
+        }
+        if (!state.liveEditingEnabled && hasErrors) {
+            return "Fix validation errors before saving to the project file.";
+        }
+        return "";
     }
 
     function renderCardIdOptions() {
@@ -3053,6 +3588,25 @@
             }
             if (!card.rarity) {
                 issues.push(issue("error", `${trimmedId || card.name || "A card"} is missing a rarity.`));
+            }
+            const cardArtUrl = String(card.cardArtUrl || "").trim();
+            if (cardArtUrl.startsWith("data:")) {
+                issues.push(issue(
+                    "error",
+                    `${trimmedId || card.name || "A card"} still uses an embedded image upload. Use Upload Image again or set cardArtUrl to a path like /assets/cards/${trimmedId || "example"}.png before publishing.`
+                ));
+            } else if (cardArtUrl.length > 2048) {
+                issues.push(issue("error", `${trimmedId || card.name || "A card"} cardArtUrl is too long for Firestore.`));
+            } else if (state.liveEditingEnabled && isProjectRelativeCardArtPath(cardArtUrl)) {
+                issues.push(issue(
+                    "error",
+                    `${trimmedId || card.name || "A card"} uses ${cardArtUrl}, which is not hosted for the live game. Use Upload Image so art is stored in cloud storage, then publish again.`
+                ));
+            } else if (card.cardArtMode && !cardArtPathMatchesCardId(trimmedId, cardArtUrl)) {
+                issues.push(issue(
+                    "warn",
+                    `${trimmedId || card.name || "A card"} art path "${cardArtUrl}" does not include the card id "${trimmedId}". Use Upload Image or ${defaultCardArtPath(trimmedId) || "/assets/cards/<card-id>.png"}.`
+                ));
             }
             if (card.cardType === "SIEGLING") {
                 if (card.health <= 0) {
@@ -3348,7 +3902,7 @@
             if (card.requiredComboSignature.trim()) {
                 exportedSpell.requiredComboSignature = card.requiredComboSignature.trim().toUpperCase();
             }
-            return exportedSpell;
+            return appendCardArtExport(exportedSpell, card);
         }
 
         if (card.cardType === "TRAP") {
@@ -3364,7 +3918,7 @@
                 exportedTrap.trapBucketElement = card.trapBucketElement || card.element;
                 exportedTrap.trapBucketAmount = toNumber(card.trapBucketAmount, 0);
             }
-            return exportedTrap;
+            return appendCardArtExport(exportedTrap, card);
         }
 
         const exported = {
@@ -3391,7 +3945,7 @@
             exported.costAmount = toNumber(card.costAmount, 0);
         }
 
-        return exported;
+        return appendCardArtExport(exported, card);
     }
 
     function buildExportDeck(deck) {
@@ -3735,6 +4289,35 @@
             throw new Error(data?.error || `Request failed with status ${response.status}.`);
         }
         return data;
+    }
+
+    async function uploadCardArtFile(cardId, file) {
+        const formData = new FormData();
+        formData.append("cardId", cardId);
+        formData.append("file", file);
+        const response = await fetch(apiUrl("/api/cards/editor/art"), buildRequestOptions({
+            method: "POST",
+            body: formData
+        }));
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(formatCardArtUploadError(data?.error, response.status));
+        }
+        return data;
+    }
+
+    function formatCardArtUploadError(message, status) {
+        const detail = String(message || "").trim();
+        if (status === 404) {
+            return detail || "Card art upload is not available on this server (missing /api/cards/editor/art). Deploy the latest Firebase api function.";
+        }
+        if (status === 401 || status === 403) {
+            return detail || "Sign in under Live Publishing before uploading card art.";
+        }
+        if (detail) {
+            return detail;
+        }
+        return `Card art upload failed with status ${status}.`;
     }
 
     function buildRequestOptions(options) {

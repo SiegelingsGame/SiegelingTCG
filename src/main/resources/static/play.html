@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=107">
+    <link rel="stylesheet" href="/css/style.css?v=108">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -581,6 +581,7 @@
             <div class="loadout-toggle-label">Deck Source</div>
             <div class="loadout-tabs" role="group" aria-label="Deck Source">
                 <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Preset Decks</button>
+                <button class="loadout-tab" id="savedTab" type="button" onclick="switchLoadoutMode('saved')" aria-pressed="false">My Decks</button>
                 <button class="loadout-tab" id="builderTab" type="button" onclick="switchLoadoutMode('builder')" aria-pressed="false">Deck Builder</button>
             </div>
         </div>
@@ -594,6 +595,16 @@
                         </div>
                     </div>
                     <div id="deckOptions" class="loadout-options"></div>
+                </div>
+                <div id="savedLoadoutPanel" class="loadout-section hidden">
+                    <div class="loadout-section-title-row">
+                        <div>
+                            <div class="loadout-section-kicker">Deck Binder</div>
+                            <h3>Choose a Saved Deck</h3>
+                        </div>
+                    </div>
+                    <p class="loadout-saved-note" id="savedDeckLoadoutNote">Decks you saved on the home Decks screen appear here.</p>
+                    <div id="savedDeckOptions" class="loadout-options"></div>
                 </div>
                 <div id="builderLoadoutPanel" class="loadout-section hidden">
                     <div class="builder-toolbar">
@@ -691,7 +702,7 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=129"></script>
+    <script src="/js/game.js?v=131"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
     <script src="/js/action-queue.js?v=23"></script>

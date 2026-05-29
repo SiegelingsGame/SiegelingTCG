@@ -225,6 +225,29 @@ public class GameController {
         }
     }
 
+    @PostMapping("/api/match/leave")
+    @ResponseBody
+    public Map<String, Object> leaveLobby(@RequestBody(required = false) Map<String, Object> req,
+                                          @RequestHeader(value = "X-Room-Id", required = false) String roomIdHeader,
+                                          @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            if (roomId == null || roomId.isBlank()) {
+                roomId = roomIdHeader;
+            }
+            multiplayerService.leaveLobby(roomId, playerToken);
+            MultiplayerRoom room = multiplayerService.requireRoom(roomId);
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("ok", true);
+            resp.put("roomId", roomId);
+            resp.put("guestJoined", room.hasGuest());
+            resp.put("lobbyChat", room.getLobbyChat());
+            return resp;
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @PostMapping("/api/match/lobby-chat")
     @ResponseBody
     public Map<String, Object> lobbyChat(@RequestBody Map<String, Object> req,
@@ -325,29 +348,6 @@ public class GameController {
                 resp.putAll(buildStateResponse(room.getGameState(), true, room.getRoomId(), user, room));
             }
             return resp;
-        } catch (IllegalArgumentException ex) {
-            return Map.of("error", ex.getMessage());
-        }
-    }
-
-    @PostMapping("/api/match/leave")
-    @ResponseBody
-    public Map<String, Object> leaveLobby(@RequestBody(required = false) Map<String, Object> req,
-                                          @RequestHeader(value = "X-Room-Id", required = false) String roomIdHeader,
-                                          @RequestHeader(value = "X-Player-Token", required = false) String playerToken) {
-        try {
-            String roomId = req == null ? null : (String) req.get("roomId");
-            if (roomId == null || roomId.isBlank()) {
-                roomId = roomIdHeader;
-            }
-            multiplayerService.leaveLobby(roomId, playerToken);
-            MultiplayerRoom room = multiplayerService.requireRoom(roomId);
-            return Map.of(
-                    "ok", true,
-                    "roomId", roomId,
-                    "guestJoined", room.hasGuest(),
-                    "lobbyChat", room.getLobbyChat()
-            );
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
@@ -1214,6 +1214,24 @@ public class GameController {
             m.put("trapBucketAmount", trap.getCostAmount());
         } else if (card.getAbility() != null) {
             m.put("ability", serializeAbility(card.getAbility()));
+        }
+
+        if (card.getCardArtUrl() != null && !card.getCardArtUrl().isBlank()) {
+            m.put("cardArtUrl", card.getCardArtUrl());
+            String cardArtMode = card.getCardArtMode();
+            m.put("cardArtMode", cardArtMode == null || cardArtMode.isBlank() ? "REPLACE" : cardArtMode);
+            if (card.getCardArtOffsetX() != null && card.getCardArtOffsetX() != 0.0) {
+                m.put("cardArtOffsetX", card.getCardArtOffsetX());
+            }
+            if (card.getCardArtOffsetY() != null && card.getCardArtOffsetY() != 0.0) {
+                m.put("cardArtOffsetY", card.getCardArtOffsetY());
+            }
+            if (card.getCardArtScale() != null && card.getCardArtScale() != 1.0) {
+                m.put("cardArtScale", card.getCardArtScale());
+            }
+            if (card.getCardArtRotation() != null && card.getCardArtRotation() != 0.0) {
+                m.put("cardArtRotation", card.getCardArtRotation());
+            }
         }
 
         return m;
