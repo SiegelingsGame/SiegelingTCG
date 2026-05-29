@@ -765,9 +765,34 @@ function buildCardArtMeta(entry) {
     };
 }
 
+function getDashboardCardArtMeta(card) {
+    if (!card) {
+        return null;
+    }
+    const url = String(card.cardArtUrl || '').trim();
+    const mode = String(card.cardArtMode || '').trim().toUpperCase();
+    if (!url || (mode !== 'REPLACE' && mode !== 'OVERLAY')) {
+        return null;
+    }
+    return {
+        url,
+        mode,
+        transformStyle: window.SieglingsCardBinderVisual?.buildArtTransformStyle(card) || ''
+    };
+}
+
 function getCardArtMeta(card) {
     if (!card) {
         return null;
+    }
+
+    const dashboardArt = getDashboardCardArtMeta(card);
+    if (dashboardArt?.url) {
+        return {
+            url: dashboardArt.url,
+            crop: dashboardArt.mode === 'REPLACE' ? 'illustration' : 'default',
+            transformStyle: dashboardArt.transformStyle
+        };
     }
 
     const candidates = [
@@ -796,7 +821,8 @@ function renderCardArt(card, variant, fallbackLabel = '') {
         const cropClass = artMeta.crop && artMeta.crop !== 'default'
             ? ` card-art-crop-${artMeta.crop}`
             : '';
-        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${artMeta.url}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"></div>`;
+        const styleAttr = artMeta.transformStyle ? ` style="${escapeHtmlAttribute(artMeta.transformStyle)}"` : '';
+        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${escapeHtmlAttribute(artMeta.url)}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
@@ -1351,21 +1377,55 @@ function ensureDomTargetingPreviewLayer() {
     return svg;
 }
 
-function getDomCellCenter(isPlayer, row, col) {
+// Resolve the rendered card's box (relative to the board area) for a given
+// cell. We anchor to the inner `.board-card` element rather than the `.board-cell`
+// so arrows attach to the visible card, not the larger padded grid slot (which
+// also contains the row tag). Falls back to the cell when no card is present.
+function getDomCardRect(isPlayer, row, col) {
     const boardArea = document.getElementById('boardArea');
     const grid = document.getElementById(isPlayer ? 'playerGrid' : 'enemyGrid');
     const cell = grid?.querySelector(`.board-cell[data-row="${row}"][data-col="${col}"]`);
     if (!boardArea || !cell) {
         return null;
     }
+    const anchor = cell.querySelector(':scope > .board-card') || cell;
     const areaRect = boardArea.getBoundingClientRect();
-    const cellRect = cell.getBoundingClientRect();
-    if (cellRect.width <= 0 || cellRect.height <= 0) {
+    const rect = anchor.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
         return null;
     }
     return {
-        x: (cellRect.left - areaRect.left) + (cellRect.width / 2),
-        y: (cellRect.top - areaRect.top) + (cellRect.height / 2)
+        left: rect.left - areaRect.left,
+        top: rect.top - areaRect.top,
+        width: rect.width,
+        height: rect.height
+    };
+}
+
+function getDomCellCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: rect.top + (rect.height / 2)
+    };
+}
+
+// Source anchor for attack lines: the centre of the card's FRONT edge — the
+// edge facing the opponent. Player cards face upward (front = top edge); enemy
+// cards face downward (front = bottom edge). Computed from the live card box so
+// the line consistently starts at the front-centre of the attacking card on any
+// screen size.
+function getDomCardFrontCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: isPlayer ? rect.top : rect.top + rect.height
     };
 }
 
@@ -1388,7 +1448,7 @@ function drawDomTargetingPreview(timestamp) {
 
     // Resolve live cell centers every frame so the arrows track the board as it
     // resizes, scrolls, or reflows instead of pointing at stale cached pixels.
-    const source = getDomCellCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
+    const source = getDomCardFrontCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
     const targets = [];
     state.targetCells.forEach((cell) => {
         const center = getDomCellCenter(cell.isPlayer, cell.row, cell.col);
@@ -4549,6 +4609,25 @@ function clearAuthState() {
     renderSavedDecks();
 }
 
+function renderPlayHubAuth() {
+    const pill = document.querySelector('.play-hub-pill');
+    if (!pill) {
+        return;
+    }
+    if (authState.profile?.authenticated) {
+        const name = authState.profile.user?.displayName || 'Profile';
+        pill.textContent = name;
+        pill.href = '/profile';
+        pill.classList.add('is-authenticated');
+        pill.setAttribute('aria-label', `Signed in as ${name}. Open profile.`);
+        return;
+    }
+    pill.textContent = 'Sign In';
+    pill.href = '/profile';
+    pill.classList.remove('is-authenticated');
+    pill.removeAttribute('aria-label');
+}
+
 function getAuthHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
     if (authState.token && !headers.Authorization) {
@@ -5150,6 +5229,7 @@ async function logoutAccount() {
 }
 
 function renderWelcomeAuth() {
+    renderPlayHubAuth();
     const authCard = document.getElementById('welcomeAuthCard');
     const historyCard = document.getElementById('welcomeHistoryCard');
     if (!authCard || !historyCard) {
@@ -5202,64 +5282,16 @@ function renderWelcomeAuth() {
         return;
     }
 
-    const draftEmail = document.getElementById('welcomeEmailInput')?.value || registerDraft.email || '';
-    const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
-    const draftPassword = document.getElementById('welcomePasswordInput')?.value || registerDraft.password || '';
-    const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
-    const onRegisterNameStep = authMode === 'register' && authRegisterStep === 'display-name';
-
-    if (onRegisterNameStep) {
-        authCard.innerHTML = `
-            <div class="welcome-eyebrow">ACCOUNT</div>
-            <h3>Choose your display name</h3>
-            <div class="welcome-auth-meta">${escapeHtml(registerDraft.email)}</div>
-            <label class="online-field">
-                <span>Display Name</span>
-                <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}" autofocus>
-            </label>
-            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
-            <div class="welcome-auth-actions">
-                <button class="btn welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="backRegisterCredentials()">Back</button>
-                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('register')">
-                    ${authState.loading ? 'Working...' : 'Confirm'}
-                </button>
-            </div>
-            <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
-        `;
-    } else {
-        const primaryAuthAction = authMode === 'register'
-            ? 'beginRegisterDisplayName()'
-            : `submitAuth('${authMode}')`;
-        authCard.innerHTML = `
-            <div class="welcome-eyebrow">ACCOUNT</div>
-            <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
-            <div class="welcome-auth-tabs">
-                <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
-                <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
-            </div>
-            <label class="online-field">
-                <span>Email</span>
-                <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
-            </label>
-            ${authMode === 'reset-password' ? `
-                <label class="online-field">
-                    <span>Reset Code</span>
-                    <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
-                </label>
-            ` : ''}
-            <label class="online-field">
-                <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
-                <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
-            </label>
-            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
-            <div class="welcome-auth-actions">
-                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="${primaryAuthAction}">
-                    ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Register')}
-                </button>
-                <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
-            </div>
-        `;
-    }
+    authCard.innerHTML = `
+        <div class="welcome-eyebrow">ACCOUNT</div>
+        <h3>Pick up where you left off</h3>
+        <p class="welcome-auth-prompt">Sign in or create an account to save your decks, track your match history, and rejoin the arena with your builds intact.</p>
+        <div class="welcome-auth-actions">
+            <a class="btn btn-primary welcome-auth-submit" href="/login">Log In</a>
+            <a class="btn welcome-auth-submit" href="/login">Register</a>
+        </div>
+        <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
+    `;
 
     historyCard.innerHTML = `
         <div class="welcome-eyebrow">WHY SIGN IN</div>
@@ -10794,6 +10826,58 @@ function onTrainerUse() {
     }
 }
 
+function renderBoardCardBuffsList(card) {
+    if (!card) return '';
+    const statuses = Array.isArray(card.statuses) ? card.statuses : [];
+    const has = (s) => statuses.includes(s);
+    const entries = [];
+
+    const damageBoost = Number(card.damageBoost) || 0;
+    if (damageBoost > 0) {
+        entries.push({ kind: 'DAMAGE_BOOST', label: 'Damage', amount: damageBoost });
+    } else if (has('DAMAGE_BOOST')) {
+        entries.push({ kind: 'DAMAGE_BOOST', label: 'Damage Boost' });
+    }
+
+    const shield = Number(card.shieldHp) || 0;
+    if (shield > 0) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Shield', amount: shield });
+    } else if (has('HEALTH_BOOST') && !(Number(card.maxHp) > Number(card.printedHealth))) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Shield' });
+    }
+
+    const printedSpeed = Number(card.printedSpeed);
+    const spd = Number(card.spd ?? card.speed);
+    const speedDelta = Number.isFinite(printedSpeed) && Number.isFinite(spd) ? spd - printedSpeed : 0;
+    if (speedDelta > 0) {
+        entries.push({ kind: 'SPEED_BOOST', label: 'Speed', amount: speedDelta });
+    } else if (has('SPEED_BOOST') && speedDelta === 0) {
+        entries.push({ kind: 'SPEED_BOOST', label: 'Speed Boost' });
+    }
+
+    const printedHp = Number(card.printedHealth);
+    const maxHp = Number(card.maxHp);
+    if (Number.isFinite(printedHp) && Number.isFinite(maxHp) && maxHp > printedHp) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Max HP', amount: maxHp - printedHp });
+    }
+
+    if (has('FREEZE')) entries.push({ kind: 'FREEZE', label: 'Frozen' });
+    if (has('SPEED_ZERO')) entries.push({ kind: 'SPEED_ZERO', label: 'Stunned' });
+    if (has('WEAK')) entries.push({ kind: 'WEAK', label: 'Weak' });
+    if (has('STRONG')) entries.push({ kind: 'STRONG', label: 'Strong' });
+
+    if (entries.length === 0) return '';
+    const items = entries.map((e) => {
+        const color = STATUS_BADGE_PALETTE[e.kind] || '#cbd5f5';
+        const amount = (typeof e.amount === 'number' && e.amount > 0)
+            ? `<span class="buff-pill-amount">+${e.amount}</span>`
+            : '';
+        const title = STATUS_BADGE_LABEL[e.kind] || e.label;
+        return `<span class="buff-pill" style="--bp:${color}" title="${escapeHtmlAttribute(title)}"><span class="buff-pill-label">${escapeHtml(e.label)}</span>${amount}</span>`;
+    }).join('');
+    return `<div class="selected-copy-buffs" aria-label="Active buffs and debuffs">${items}</div>`;
+}
+
 function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
     if (!card && !msg) {
@@ -10823,6 +10907,7 @@ function updateSelectedInfo(card, msg) {
             const own = boardCardOwnershipLabel(card);
             const phases = Number(card.battlePhasesSeen || 0);
             html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
+            html += renderBoardCardBuffsList(card);
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`
@@ -11420,6 +11505,7 @@ renderDesktopMenuMeta();
 renderDesktopActionHistory();
 renderWelcomeTutorial();
 renderWelcomeAuth();
+void syncAuthProfile(true);
 syncEntryOverlays();
 if (typeof SieglingsCatalogSync !== 'undefined') {
     SieglingsCatalogSync.onCatalogPublished(() => {

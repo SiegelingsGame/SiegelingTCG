@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Mobile Overlap Fixture</title>
+    <link rel="stylesheet" href="/css/home.css">
+    <style>
+        body { margin: 0; padding: 12px; background: #060b18; }
+        .fixture-stack { display: grid; gap: 12px; max-width: 100%; }
+        .fixture-label {
+            margin: 0 0 6px;
+            color: #8ea0c7;
+            font: 700 11px/1.2 system-ui, sans-serif;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+<div class="fixture-stack">
+    <section data-fixture="friend-tile">
+        <p class="fixture-label">Friend tile</p>
+        <article class="friend-tile social-friend-tile">
+            <div class="friend-avatar-wrap">
+                <div class="friend-avatar">T</div>
+                <span class="presence-dot" title="Offline"></span>
+            </div>
+            <div class="friend-copy">
+                <a class="profile-friend-link friend-name-link" href="#"><strong>TestRoc</strong></a>
+                <span>ajayt513@icloud.com · Offline</span>
+            </div>
+            <div class="friend-actions">
+                <button class="ghost-btn compact-btn" type="button">Profile</button>
+                <button class="ghost-btn compact-btn" type="button">Message</button>
+                <button class="ghost-btn compact-btn" type="button">Remove</button>
+            </div>
+        </article>
+    </section>
+
+    <section data-fixture="friend-request">
+        <p class="fixture-label">Friend request</p>
+        <article class="friend-request-tile">
+            <div class="friend-request-copy">
+                <strong>VeryLongDisplayNameForTesting</strong>
+                <span>ajayt513@icloud.com wants to be friends</span>
+            </div>
+            <div class="friend-request-actions">
+                <button class="primary-btn compact-btn" type="button">Accept</button>
+                <button class="ghost-btn compact-btn" type="button">Decline</button>
+            </div>
+        </article>
+    </section>
+
+    <section data-fixture="social-active">
+        <p class="fixture-label">Active lobby</p>
+        <section class="social-panel social-card social-active-card">
+            <div class="social-active-content">
+                <div>
+                    <span class="eyebrow">Your Active Lobby</span>
+                    <h2>My Arena</h2>
+                    <span>Deck ready: deck_fire</span>
+                    <span class="social-muted-inline">Create a table and your lobby will appear here for other players.</span>
+                </div>
+                <div class="social-active-status"><strong>0 / 2</strong><span>No open table yet</span></div>
+                <button class="primary-btn" type="button">Start Hosting</button>
+            </div>
+        </section>
+    </section>
+
+    <section data-fixture="social-room">
+        <p class="fixture-label">Room tile</p>
+        <article class="room-tile social-room-tile" style="--room-el:#ff6b35">
+            <div class="room-emblem"><span>F</span></div>
+            <div>
+                <div class="room-title-line"><strong>Fire Arena Lobby</strong><span class="room-badge">Open</span></div>
+                <span>Host: TestRoc · deck_fire</span>
+            </div>
+            <div class="room-seat-count"><strong>1</strong><span>players</span></div>
+            <button class="primary-btn" type="button">Join</button>
+        </article>
+    </section>
+
+    <section data-fixture="deck-tile">
+        <p class="fixture-label">Deck tile</p>
+        <article class="deck-tile hub-deck-card" style="--deck-accent:#ff6b35;--deck-bg:linear-gradient(145deg,#ff6b35,#07101f); min-height:220px;">
+            <span class="deck-card-state">Premade</span>
+            <div class="deck-card-body">
+                <strong class="deck-card-name">Starter Fire Deck With A Very Long Name</strong>
+                <span class="deck-card-elements">Fire</span>
+                <span class="deck-card-desc">Ready-to-play battle deck with multiple element cards included.</span>
+            </div>
+            <div class="deck-card-actions">
+                <button class="primary-btn" type="button">Play</button>
+                <button class="ghost-btn" type="button"><span class="coin-value"><img class="coin-icon" src="/img/siegecoin.png" alt=""><span>450</span></span></button>
+            </div>
+        </article>
+    </section>
+</div>
+</body>
+</html>

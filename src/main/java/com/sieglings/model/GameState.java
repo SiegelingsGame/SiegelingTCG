@@ -1,5 +1,6 @@
 package com.sieglings.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Phase;
 
@@ -7,6 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Complete game state for a single match.
@@ -53,6 +55,7 @@ public class GameState {
     private boolean enemyMulliganPending = false;
     private boolean playerMulliganUsed = false;
     private boolean enemyMulliganUsed = false;
+    private String matchHistoryId = UUID.randomUUID().toString();
     private boolean matchHistoryRecorded = false;
     /** NORMAL or FORFEIT when the match ends. */
     private String endReason = "NORMAL";
@@ -297,6 +300,13 @@ public class GameState {
     public boolean isEnemyMulliganPending() { return enemyMulliganPending; }
     public boolean isPlayerMulliganUsed() { return playerMulliganUsed; }
     public boolean isEnemyMulliganUsed() { return enemyMulliganUsed; }
+    @JsonIgnore
+    public String getMatchHistoryId() {
+        if (matchHistoryId == null || matchHistoryId.isBlank()) {
+            matchHistoryId = UUID.randomUUID().toString();
+        }
+        return matchHistoryId;
+    }
     public boolean isMatchHistoryRecorded() { return matchHistoryRecorded; }
     public void setMatchHistoryRecorded(boolean matchHistoryRecorded) { this.matchHistoryRecorded = matchHistoryRecorded; }
     public String getEndReason() { return endReason; }

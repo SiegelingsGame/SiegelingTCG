@@ -1,0 +1,11 @@
+{
+  "name": "sieglings-mobile-overlap-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}

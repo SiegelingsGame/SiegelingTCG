@@ -12,7 +12,9 @@ import com.sieglings.model.enums.Reaction;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.TargetType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -33,6 +35,7 @@ public class CardOverrideEditorService {
     private final LiveElementCatalogService liveElementCatalogService;
     private final MovesPoolService movesPoolService;
     private final PackCatalogService packCatalogService;
+    private final CardArtStorageService cardArtStorageService;
 
     public CardOverrideEditorService(ObjectMapper objectMapper,
                                      CardOverrideStorageService storageService,
@@ -42,7 +45,8 @@ public class CardOverrideEditorService {
                                      CardDefinitionService cardDefinitionService,
                                      LiveElementCatalogService liveElementCatalogService,
                                      MovesPoolService movesPoolService,
-                                     PackCatalogService packCatalogService) {
+                                     PackCatalogService packCatalogService,
+                                     CardArtStorageService cardArtStorageService) {
         this.objectMapper = objectMapper;
         this.storageService = storageService;
         this.presetDeckCatalogService = presetDeckCatalogService;
@@ -52,6 +56,7 @@ public class CardOverrideEditorService {
         this.liveElementCatalogService = liveElementCatalogService;
         this.movesPoolService = movesPoolService;
         this.packCatalogService = packCatalogService;
+        this.cardArtStorageService = cardArtStorageService;
     }
 
     public Map<String, Object> loadEditorState(String editorToken) {
@@ -107,6 +112,17 @@ public class CardOverrideEditorService {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("ok", true);
         response.put("auth", authService.describe(null));
+        return response;
+    }
+
+    public Map<String, Object> uploadCardArt(String cardId, MultipartFile file, String editorToken) throws IOException {
+        if (storageService.isFirestoreReady()) {
+            authService.requireEditor(editorToken);
+        }
+        String url = cardArtStorageService.saveCardArt(cardId, file);
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("ok", true);
+        response.put("url", url);
         return response;
     }
 

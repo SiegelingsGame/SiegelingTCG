@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GameJavaScriptRegressionTest {
 
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
+    private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -37,15 +38,42 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void homePlayLoadoutUsesSelectedAndSavedDecks() throws IOException {
+        String homeScript = readHomeScript();
+        String selectedDeckId = extractFunction(homeScript, "function selectedDeckId()");
+        String queuePlayLoadout = extractFunction(homeScript, "function queuePlayLoadout(payload = {})");
+
+        assertTrue(
+                selectedDeckId.contains("state.selectedDeckId"),
+                "Home deck selection must be honored instead of always using the default deck."
+        );
+        assertTrue(
+                selectedDeckId.contains("selectedSavedDeck()"),
+                "Saved preset deck selections should resolve to their saved preset id."
+        );
+        assertTrue(
+                queuePlayLoadout.contains("savedDeck?.custom") && queuePlayLoadout.contains("customDeckCards"),
+                "Saved custom decks must carry their custom card list into the Play loadout payload."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
+    }
+
+    private static String readHomeScript() throws IOException {
+        return Files.readString(HOME_JS);
     }
 
     private static String extractFunction(String source, String signature) {
         int start = source.indexOf(signature);
         assertTrue(start >= 0, "Could not find " + signature);
 
-        int braceStart = source.indexOf('{', start);
+        int paramsEnd = source.indexOf(')', start);
+        assertTrue(paramsEnd >= 0, "Could not find function parameters for " + signature);
+
+        int braceStart = source.indexOf('{', paramsEnd);
         assertTrue(braceStart >= 0, "Could not find function body for " + signature);
 
         int depth = 0;
