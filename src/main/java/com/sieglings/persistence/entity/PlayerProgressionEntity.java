@@ -11,6 +11,8 @@ public class PlayerProgressionEntity {
     private int gold;
     private int remnants;
     private Map<String, Integer> ownedCards = new LinkedHashMap<>();
+    private Map<String, Integer> trainerLevels = new LinkedHashMap<>();
+    private Map<String, Integer> trainerPoints = new LinkedHashMap<>();
     private String starterPackId;
     private List<String> rewardedMatchIds = new ArrayList<>();
     private List<String> purchasedDeckIds = new ArrayList<>();
@@ -29,6 +31,14 @@ public class PlayerProgressionEntity {
     public Map<String, Integer> getOwnedCards() { return ownedCards; }
     public void setOwnedCards(Map<String, Integer> ownedCards) {
         this.ownedCards = ownedCards == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ownedCards);
+    }
+    public Map<String, Integer> getTrainerLevels() { return trainerLevels; }
+    public void setTrainerLevels(Map<String, Integer> trainerLevels) {
+        this.trainerLevels = trainerLevels == null ? new LinkedHashMap<>() : new LinkedHashMap<>(trainerLevels);
+    }
+    public Map<String, Integer> getTrainerPoints() { return trainerPoints; }
+    public void setTrainerPoints(Map<String, Integer> trainerPoints) {
+        this.trainerPoints = trainerPoints == null ? new LinkedHashMap<>() : new LinkedHashMap<>(trainerPoints);
     }
     public String getStarterPackId() { return starterPackId; }
     public void setStarterPackId(String starterPackId) { this.starterPackId = starterPackId; }

@@ -1512,10 +1512,22 @@
         });
     }
 
+    function isTrainerOwned(trainerId) {
+        const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
+        return !!trainer && trainer.owned !== false;
+    }
+
+    function firstOwnedTrainerId() {
+        const owned = (state.options?.trainers || []).find(trainer => trainer.owned !== false);
+        return owned ? owned.id : (state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '');
+    }
+
     function builderTrainerId() {
         const saved = localStorage.getItem('sieglingsBuilderTrainerId');
-        if (saved && (state.options?.trainers || []).some(trainer => trainer.id === saved)) return saved;
-        return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
+        if (saved && isTrainerOwned(saved)) return saved;
+        const preferred = state.options?.defaultTrainerId;
+        if (preferred && isTrainerOwned(preferred)) return preferred;
+        return firstOwnedTrainerId();
     }
 
     function builderDeckName() {
@@ -1523,7 +1535,13 @@
     }
 
     function builderTrainerOptions(selectedId) {
-        return (state.options?.trainers || []).map(trainer => `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}>${escapeHtml(trainer.name || trainer.id)}</option>`).join('');
+        return (state.options?.trainers || []).map(trainer => {
+            const owned = trainer.owned !== false;
+            const level = Math.max(1, Number(trainer.level) || 1);
+            const levelLabel = owned && level > 1 ? ` (Lv ${level})` : '';
+            const lockLabel = owned ? '' : ' \u2014 Locked';
+            return `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}${owned ? '' : ' disabled'}>${escapeHtml((trainer.name || trainer.id) + levelLabel + lockLabel)}</option>`;
+        }).join('');
     }
 
     function builderCatalogCards() {
@@ -2682,11 +2700,37 @@
                 </div>
             </div>
             <canvas class="gacha-particles" aria-hidden="true"></canvas>
+            ${buildPackTrainerBanner(latest.trainer)}
             <div class="gacha-stage">
                 ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), latest.packId, index)).join('')}
             </div>
             ${previewCard ? renderRevealPreview(previewCard) : ''}
         </section>`;
+    }
+
+    function buildPackTrainerBanner(trainer) {
+        if (!trainer) return '';
+        const name = escapeHtml(trainer.name || 'SiegeKnight');
+        const level = Math.max(1, Number(trainer.level) || 1);
+        let tag;
+        let detail;
+        if (trainer.newlyOwned) {
+            tag = 'New SiegeKnight!';
+            detail = `${name} joins your roster.`;
+        } else if (trainer.leveledUp) {
+            tag = `Combined to Lv ${level}!`;
+            detail = `${name} grows stronger (+${Math.max(0, level - 1)} to ability effects).`;
+        } else {
+            const remaining = Math.max(0, (Number(trainer.pointsForNext) || 0) - (Number(trainer.points) || 0));
+            tag = 'SiegeKnight Combine Point';
+            detail = level >= 5
+                ? `${name} is already at max level.`
+                : `${name} gains a combine point${remaining ? ` (${remaining} more to Lv ${level + 1}).` : '.'}`;
+        }
+        return `<div class="pack-trainer-banner">
+            <span class="pack-trainer-tag">${escapeHtml(tag)}</span>
+            <span class="pack-trainer-detail">${escapeHtml(detail)}</span>
+        </div>`;
     }
 
     function patchPackOpening({ result, latest, cards, reveal }) {
@@ -4006,7 +4050,9 @@
     }
 
     function selectedTrainerId() {
-        return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
+        const preferred = state.options?.defaultTrainerId;
+        if (preferred && isTrainerOwned(preferred)) return preferred;
+        return firstOwnedTrainerId();
     }
 
     function socialBattleName() {
@@ -4197,7 +4243,13 @@
         const selectedDeck = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.deckId || selectedDeckId();
         const selectedTrainer = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.trainerId || selectedTrainerId();
         const deckOptions = decks.map(deck => `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`).join('');
-        const trainerOptions = trainers.map(trainer => `<option value="${escapeAttr(trainer.id)}" ${trainer.id === selectedTrainer ? 'selected' : ''}>${escapeHtml(trainer.name)}</option>`).join('');
+        const trainerOptions = trainers.map(trainer => {
+            const owned = trainer.owned !== false;
+            const level = Math.max(1, Number(trainer.level) || 1);
+            const levelLabel = owned && level > 1 ? ` (Lv ${level})` : '';
+            const lockLabel = owned ? '' : ' \u2014 Locked';
+            return `<option value="${escapeAttr(trainer.id)}" ${trainer.id === selectedTrainer ? 'selected' : ''}${owned ? '' : ' disabled'}>${escapeHtml(trainer.name + levelLabel + lockLabel)}</option>`;
+        }).join('');
         const players = status?.players || [];
         const hostPlayer = players.find(player => player.role === 'host') || { name: status?.hostName || 'Host', ready: false };
         const guestPlayer = players.find(player => player.role === 'guest');
