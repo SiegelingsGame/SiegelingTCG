@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Siegelings TCG — Branch &amp; Stale Code Review</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #5b9fd4;
+      --green: #3dd68c;
+      --amber: #f0b429;
+      --red: #f07178;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      margin: 0;
+      padding: 1.5rem 2rem 3rem;
+      max-width: 1100px;
+      margin-inline: auto;
+    }
+    h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem; }
+    h3 { font-size: 1rem; color: var(--accent); margin-top: 1.25rem; }
+    .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0 1.5rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+    }
+    .stat-card strong { display: block; font-size: 1.5rem; }
+    .stat-card span { color: var(--muted); font-size: 0.8rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 0.75rem 0 1.5rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 600; }
+    tr:hover td { background: rgba(91, 159, 212, 0.06); }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge-open { background: rgba(91, 159, 212, 0.25); color: var(--accent); }
+    .badge-merged { background: rgba(61, 214, 140, 0.2); color: var(--green); }
+    .badge-closed { background: rgba(240, 180, 41, 0.2); color: var(--amber); }
+    .badge-delete { background: rgba(240, 113, 120, 0.2); color: var(--red); }
+    .badge-keep { background: rgba(91, 159, 212, 0.15); color: var(--accent); }
+    code, .path { font-family: ui-monospace, monospace; font-size: 0.85em; color: #b8d4f0; }
+    ul { padding-left: 1.25rem; }
+    li { margin: 0.35rem 0; }
+    .action-box {
+      background: var(--surface);
+      border-left: 3px solid var(--accent);
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .action-box h3 { margin-top: 0; }
+    pre {
+      background: #0a0e12;
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <h1>Branch &amp; stale code review</h1>
+  <p class="meta">Repository: <code>siegelingsgame/siegelingtcg</code> · Base: <code>main</code> @ <code>c5132df8</code> · Generated: 2026-05-29</p>
+
+  <div class="summary-grid">
+    <div class="stat-card"><strong>39</strong><span>remote feature branches</span></div>
+    <div class="stat-card"><strong>1</strong><span>open PR with unique diff</span></div>
+    <div class="stat-card"><strong>14</strong><span>zero-diff (safe to delete)</span></div>
+    <div class="stat-card"><strong>24</strong><span>merged but diverged tips</span></div>
+  </div>
+
+  <h2>Executive summary</h2>
+  <p>Almost all remote branches are <strong>already merged into <code>main</code></strong> via squash merges. Their branch tips still exist on GitHub but no longer match <code>main</code> (stale history). Only one branch still carries work you have not shipped: <strong><code>cursor/lobby-loadout-coin-flip-f17d</code></strong> (<a href="https://github.com/SiegelingsGame/siegelingtcg/pull/170">PR #170</a>).</p>
+  <p>Recommended cleanup: delete every merged/zero-diff remote branch except the open lobby PR branch. Optionally remove legacy files on <code>main</code> listed below.</p>
+
+  <h2>Action required — review this branch</h2>
+  <table>
+    <thead>
+      <tr><th>Branch</th><th>PR</th><th>Status</th><th>What it is</th><th>Diff vs main</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>cursor/lobby-loadout-coin-flip-f17d</code></td>
+        <td><a href="https://github.com/SiegelingsGame/siegelingtcg/pull/170">#170</a></td>
+        <td><span class="badge badge-open">Open</span></td>
+        <td>PvP waiting-room loadout, coin-flip turn order, turn toasts, host reconnect &amp; guest leave without killing the table</td>
+        <td>5 files, +232 / −16</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="action-box">
+    <h3>Files changed on open branch</h3>
+    <ul>
+      <li><code>GameController.java</code> — <code>reconnect-host</code>, <code>leave</code>, ready-gated match start</li>
+      <li><code>MultiplayerService.java</code> / <code>MultiplayerRoom.java</code> — lobby lifecycle</li>
+      <li><code>home.js</code> — waiting room UI, host/guest controls</li>
+      <li><code>MultiplayerServiceRoomListTest.java</code> — room list &amp; leave tests</li>
+    </ul>
+    <p><strong>Your call:</strong> merge PR #170, or close if superseded by newer lobby work on <code>main</code>.</p>
+  </div>
+
+  <h2>Safe to delete — zero diff vs <code>main</code></h2>
+  <p>These branch tips are fully absorbed; <code>git diff main...branch</code> is empty.</p>
+  <table>
+    <thead>
+      <tr><th>Branch</th><th>PR</th><th>Original purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>HomePage</code></td><td>#133</td><td>Early home hub / multiplayer experiments</td></tr>
+      <tr><td><code>cursor/battle-targeting-tray-3c6b</code></td><td>#123</td><td>Battle targeting tray; eye-only card preview</td></tr>
+      <tr><td><code>cursor/critical-bug-investigation-c0c3</code></td><td>#124</td><td>Prevent online launches falling back to solo</td></tr>
+      <tr><td><code>cursor/deck-builder-page-fe77</code></td><td>#152</td><td>Dedicated deck builder page</td></tr>
+      <tr><td><code>cursor/fix-firestore-card-art-publish</code></td><td>#157</td><td>Firestore card art publish path fix</td></tr>
+      <tr><td><code>cursor/friend-profile-page-6da0</code></td><td>#146</td><td>Shareable <code>/profile/{playerId}</code> pages</td></tr>
+      <tr><td><code>cursor/gacha-incremental-flip-f7b1</code></td><td>#103</td><td>Per-card gacha flip animation</td></tr>
+      <tr><td><code>cursor/home-stat-icons-d631</code></td><td>#110</td><td>Home hero stat icons &amp; Siegecoin display</td></tr>
+      <tr><td><code>cursor/knight-active-battle-disable-3ba9</code></td><td>#119</td><td>Disable unusable SiegeKnight active in battle</td></tr>
+      <tr><td><code>cursor/lobby-guest-leave-6da0</code></td><td>#145</td><td>Reopen lobby when guest leaves</td></tr>
+      <tr><td><code>cursor/phase-banner-ai-placement-pace-3812</code></td><td>#114</td><td>Phase banners &amp; slower AI placement</td></tr>
+      <tr><td><code>cursor/play-saved-decks-fe77</code></td><td>#156</td><td>My Decks tab on play loadout</td></tr>
+      <tr><td><code>cursor/social-lobby-isolation-d631</code></td><td>#106</td><td>Isolate 1v1 lobbies to Social page</td></tr>
+      <tr><td><code>cursor/sundile-image-b5a3</code></td><td>#150</td><td>Custom Sundile art (later reverted on main)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Delete after you confirm — merged PRs but stale branch tips</h2>
+  <p>Work is on <code>main</code>; branches show a non-empty diff only because of squash-merge history drift.</p>
+  <table>
+    <thead>
+      <tr><th>Branch</th><th>PR</th><th>What it was</th><th>Stale diff</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>claude/card-energy-mobile-layout-lLelT</code></td><td>#165</td><td>Battle preview buffs/debuffs, energy layout</td><td>+103 lines</td></tr>
+      <tr><td><code>claude/remove-login-textboxes-dD5qo</code></td><td>#164</td><td>Sign-in popup on Play instead of inline form</td><td>+148</td></tr>
+      <tr><td><code>cursor/arena-awaits-heading-6da0</code></td><td>#140</td><td>Hero heading “The Arena Awaits”</td><td>±2</td></tr>
+      <tr><td><code>cursor/binder-description-fit-fe77</code></td><td>#162</td><td>Binder description scaling / notch</td><td>+61</td></tr>
+      <tr><td><code>cursor/card-art-persist-transform-b0c9</code></td><td>#160</td><td>Hosted card art + transform controls</td><td>+84</td></tr>
+      <tr><td><code>cursor/card-drag-placement-3c6b</code></td><td>#111</td><td>Drag/touch Siegling placement</td><td>cache bust only</td></tr>
+      <tr><td><code>cursor/chat-message-sender-timestamp-6d76</code></td><td>#142</td><td>Friend chat sender + timestamp</td><td>+56</td></tr>
+      <tr><td><code>cursor/daily-missions-tracking-847f</code></td><td>#168</td><td>Daily missions server + UI</td><td>branch behind main</td></tr>
+      <tr><td><code>cursor/deck-preview-stack-fe77</code></td><td>#169</td><td>Deck preview Siegling/spell/trap counts</td><td>superseded</td></tr>
+      <tr><td><code>cursor/fix-card-art-upload-save-b0c9</code></td><td>#159</td><td>Card dashboard art upload UX</td><td>+140</td></tr>
+      <tr><td><code>cursor/fix-legendary-models-production-905c</code></td><td>#134</td><td>Legendary 3D on production index</td><td>+11</td></tr>
+      <tr><td><code>cursor/friend-requests-presence-34d3</code></td><td>#138</td><td>Friend requests + presence</td><td>+857</td></tr>
+      <tr><td><code>cursor/gacha-reveal-animation-7675</code></td><td>#108</td><td>Gacha remnant flow, owned counts</td><td>+438</td></tr>
+      <tr><td><code>cursor/ipad-landscape-layout-b9e1</code></td><td>#118</td><td>iPad landscape docked menu</td><td>+383</td></tr>
+      <tr><td><code>cursor/leaderboard-period-filters-6d76</code></td><td>#147</td><td>Weekly/monthly/year/all-time leaderboards</td><td>+334</td></tr>
+      <tr><td><code>cursor/lobby-chat-input-focus-6da0</code></td><td>#143</td><td>Lobby chat focus during polling</td><td>+132</td></tr>
+      <tr><td><code>cursor/quit-rematch-end-screen-394c</code></td><td>#137</td><td>Quit, end screen, rematch PvP</td><td>+774</td></tr>
+      <tr><td><code>cursor/register-display-name-step-611b</code></td><td>#135</td><td>Two-step registration</td><td>+132</td></tr>
+      <tr><td><code>cursor/remove-fake-match-history-6d76</code></td><td>#144</td><td>Remove sample match history</td><td>−35 net</td></tr>
+      <tr><td><code>cursor/safe-area-split-hp-strip-0bf5</code></td><td>#122</td><td>Mobile HP safe-area strip</td><td>+101</td></tr>
+      <tr><td><code>cursor/social-lobby-waiting-room</code></td><td>#139</td><td>Social waiting room + ready-up</td><td>+845</td></tr>
+      <tr><td><code>cursor/sync-auth-across-pages-57c9</code></td><td>#155</td><td>Auth sync Play ↔ Home</td><td>+59</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Closed PRs — delete when ready</h2>
+  <table>
+    <thead>
+      <tr><th>Branch</th><th>PR</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>cursor/fix-localhost-dev-4f99</code></td><td>#132 closed</td><td>Local dev / Firestore emulator tweaks — not merged</td></tr>
+      <tr><td><code>cursor/gacha-reveal-preview-done-f7b1</code></td><td>#102 closed</td><td>Superseded by later gacha PRs</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Stale code on <code>main</code> (not branch-specific)</h2>
+  <table>
+    <thead>
+      <tr><th>Path</th><th>Issue</th><th>Suggestion</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>src/main/resources/static/game.js</code></td>
+        <td>~398-line legacy solo client; live app uses <code>static/js/game.js</code> (~11k lines) via <code>play.html</code></td>
+        <td><span class="badge badge-delete">Remove</span> if no route serves it</td>
+      </tr>
+      <tr>
+        <td><code>src/main/resources/static/home-concepts-preview.html</code></td>
+        <td>Design preview page, not linked from production flow</td>
+        <td>Keep for design or delete</td>
+      </tr>
+      <tr>
+        <td><code>renderDomLegacy()</code> in <code>js/game.js</code></td>
+        <td>Legacy render path still called as fallback</td>
+        <td>Audit before removing</td>
+      </tr>
+      <tr>
+        <td><code>.deploy-hosting/static/</code></td>
+        <td>Mirror with old cache versions (e.g. <code>game.js?v=14</code>)</td>
+        <td>Sync on deploy or stop duplicating</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Bulk delete commands (run locally after review)</h2>
+  <p>Deletes all merged/zero-diff branches except the open lobby PR.</p>
+  <pre>git fetch origin --prune
+
+# Zero-diff branches
+for b in HomePage \
+  cursor/battle-targeting-tray-3c6b \
+  cursor/critical-bug-investigation-c0c3 \
+  cursor/deck-builder-page-fe77 \
+  cursor/fix-firestore-card-art-publish \
+  cursor/friend-profile-page-6da0 \
+  cursor/gacha-incremental-flip-f7b1 \
+  cursor/home-stat-icons-d631 \
+  cursor/knight-active-battle-disable-3ba9 \
+  cursor/lobby-guest-leave-6da0 \
+  cursor/phase-banner-ai-placement-pace-3812 \
+  cursor/play-saved-decks-fe77 \
+  cursor/social-lobby-isolation-d631 \
+  cursor/sundile-image-b5a3; do
+  git push origin --delete "$b"
+done
+
+# Stale merged tips (add more names as you confirm)
+for b in claude/card-energy-mobile-layout-lLelT \
+  claude/remove-login-textboxes-dD5qo \
+  cursor/arena-awaits-heading-6da0 \
+  cursor/binder-description-fit-fe77 \
+  cursor/card-art-persist-transform-b0c9 \
+  cursor/card-drag-placement-3c6b \
+  cursor/chat-message-sender-timestamp-6d76 \
+  cursor/daily-missions-tracking-847f \
+  cursor/deck-preview-stack-fe77 \
+  cursor/fix-card-art-upload-save-b0c9 \
+  cursor/fix-legendary-models-production-905c \
+  cursor/friend-requests-presence-34d3 \
+  cursor/gacha-reveal-animation-7675 \
+  cursor/gacha-reveal-preview-done-f7b1 \
+  cursor/ipad-landscape-layout-b9e1 \
+  cursor/leaderboard-period-filters-6d76 \
+  cursor/lobby-chat-input-focus-6da0 \
+  cursor/quit-rematch-end-screen-394c \
+  cursor/register-display-name-step-611b \
+  cursor/remove-fake-match-history-6d76 \
+  cursor/safe-area-split-hp-strip-0bf5 \
+  cursor/social-lobby-waiting-room \
+  cursor/sync-auth-across-pages-57c9 \
+  cursor/fix-localhost-dev-4f99; do
+  git push origin --delete "$b"
+done
+
+# KEEP: cursor/lobby-loadout-coin-flip-f17d</pre>
+
+  <p class="meta">Open this file in a browser: <code>docs/branch-review.html</code> on branch <code>cursor/branch-cleanup-review-31a2</code>.</p>
+
+</body>
+</html>
