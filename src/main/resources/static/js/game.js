@@ -1378,21 +1378,55 @@ function ensureDomTargetingPreviewLayer() {
     return svg;
 }
 
-function getDomCellCenter(isPlayer, row, col) {
+// Resolve the rendered card's box (relative to the board area) for a given
+// cell. We anchor to the inner `.board-card` element rather than the `.board-cell`
+// so arrows attach to the visible card, not the larger padded grid slot (which
+// also contains the row tag). Falls back to the cell when no card is present.
+function getDomCardRect(isPlayer, row, col) {
     const boardArea = document.getElementById('boardArea');
     const grid = document.getElementById(isPlayer ? 'playerGrid' : 'enemyGrid');
     const cell = grid?.querySelector(`.board-cell[data-row="${row}"][data-col="${col}"]`);
     if (!boardArea || !cell) {
         return null;
     }
+    const anchor = cell.querySelector(':scope > .board-card') || cell;
     const areaRect = boardArea.getBoundingClientRect();
-    const cellRect = cell.getBoundingClientRect();
-    if (cellRect.width <= 0 || cellRect.height <= 0) {
+    const rect = anchor.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
         return null;
     }
     return {
-        x: (cellRect.left - areaRect.left) + (cellRect.width / 2),
-        y: (cellRect.top - areaRect.top) + (cellRect.height / 2)
+        left: rect.left - areaRect.left,
+        top: rect.top - areaRect.top,
+        width: rect.width,
+        height: rect.height
+    };
+}
+
+function getDomCellCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: rect.top + (rect.height / 2)
+    };
+}
+
+// Source anchor for attack lines: the centre of the card's FRONT edge — the
+// edge facing the opponent. Player cards face upward (front = top edge); enemy
+// cards face downward (front = bottom edge). Computed from the live card box so
+// the line consistently starts at the front-centre of the attacking card on any
+// screen size.
+function getDomCardFrontCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: isPlayer ? rect.top : rect.top + rect.height
     };
 }
 
@@ -1415,7 +1449,7 @@ function drawDomTargetingPreview(timestamp) {
 
     // Resolve live cell centers every frame so the arrows track the board as it
     // resizes, scrolls, or reflows instead of pointing at stale cached pixels.
-    const source = getDomCellCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
+    const source = getDomCardFrontCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
     const targets = [];
     state.targetCells.forEach((cell) => {
         const center = getDomCellCenter(cell.isPlayer, cell.row, cell.col);
@@ -6208,9 +6242,11 @@ async function loadGameOptions() {
         loadoutErrorMessage = '';
         selectedDeckId = data.defaultDeckId;
         selectedTrainerId = data.defaultTrainerId;
+        ensureOwnedTrainerSelected();
         builderCounts = {};
         loadoutMode = 'preset';
         applyPendingHomeLoadout();
+        ensureOwnedTrainerSelected();
         hydrateOnlineStateFromUrl();
         hydrateSavedPlayerName();
         renderWelcomeTutorial();
@@ -6400,12 +6436,35 @@ function selectDeckOption(deckId) {
 }
 
 function selectTrainerOption(trainerId) {
+    const trainer = gameOptions?.trainers?.find(item => item.id === trainerId);
+    if (trainer && trainer.owned === false) {
+        return;
+    }
     if (loadoutMode !== 'saved') {
         detachSavedDeckSelection();
     }
     selectedTrainerId = trainerId;
     renderLoadoutOptions();
     updateLoadoutSummary();
+}
+
+function isTrainerOwned(trainerId) {
+    const trainer = gameOptions?.trainers?.find(item => item.id === trainerId);
+    return !trainer || trainer.owned !== false;
+}
+
+// Falls back to the first owned SiegeKnight when the current selection is locked.
+function ensureOwnedTrainerSelected() {
+    if (!gameOptions?.trainers?.length) {
+        return;
+    }
+    if (selectedTrainerId && isTrainerOwned(selectedTrainerId)) {
+        return;
+    }
+    const firstOwned = gameOptions.trainers.find(trainer => trainer.owned !== false);
+    if (firstOwned) {
+        selectedTrainerId = firstOwned.id;
+    }
 }
 
 function switchLoadoutMode(mode) {
@@ -6701,16 +6760,33 @@ function renderLoadoutOptions() {
     }).join('');
 
     trainerEl.innerHTML = gameOptions.trainers.map(trainer => {
-        const selected = trainer.id === selectedTrainerId ? ' selected' : '';
+        const owned = trainer.owned !== false;
+        const level = Math.max(1, Number(trainer.level) || 1);
+        const abilityBonus = Math.max(0, Number(trainer.abilityBonus) || 0);
+        const selected = owned && trainer.id === selectedTrainerId ? ' selected' : '';
+        const lockedClass = owned ? '' : ' locked';
         const elHex = getElementHex(trainer.element);
         const sigil = getTrainerSigil(trainer);
         const rarityClass = getRarityClass(trainer.rarity);
         const tier = formatTrainerTier(trainer.tier);
         const activeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
-        const recommended = recommendedTrainerIds.has(trainer.id) ? ' recommended' : '';
-        return `<button type="button" class="knight-card${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
-            ${trainer.id === selectedTrainerId ? '<span class="knight-selected-ribbon">Selected</span>' : ''}
-            ${recommended && trainer.id !== selectedTrainerId ? '<span class="knight-recommend-ribbon">Recommended</span>' : ''}
+        const recommended = owned && recommendedTrainerIds.has(trainer.id) ? ' recommended' : '';
+        const levelBadge = owned && level > 1
+            ? `<span class="knight-level-badge">Lv ${level}${abilityBonus > 0 ? ` <em>+${abilityBonus}</em>` : ''}</span>`
+            : '';
+        const clickAttr = owned ? ` onclick="selectTrainerOption('${trainer.id}')"` : ' disabled aria-disabled="true"';
+        let topRibbon = '';
+        if (!owned) {
+            topRibbon = '<span class="knight-locked-ribbon">Locked</span>';
+        } else if (trainer.id === selectedTrainerId) {
+            topRibbon = '<span class="knight-selected-ribbon">Selected</span>';
+        } else if (recommended) {
+            topRibbon = '<span class="knight-recommend-ribbon">Recommended</span>';
+        }
+        const lockedHint = owned ? '' : '<span class="knight-card-locked-hint">Pull from a pack to unlock</span>';
+        return `<button type="button" class="knight-card${selected}${recommended}${lockedClass} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}"${clickAttr} aria-pressed="${owned && trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            ${topRibbon}
+            ${levelBadge}
             <div class="knight-card-sigil">${sigil}</div>
             <div class="knight-card-portrait">
                 <div class="knight-card-icon">${getElementSigil(trainer.element)}</div>
@@ -6720,6 +6796,7 @@ function renderLoadoutOptions() {
                 <span class="knight-card-meta"><span class="knight-element">${escapeHtml(formatElementLabel(trainer.element))}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${rarityClass}">${escapeHtml(trainer.rarity)}</span></span>
                 <span class="knight-card-ability"><span>Passive</span>${escapeHtml(readTrainerAbilityText(trainer.passive))}</span>
                 <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(readTrainerAbilityText(trainer.active))}</span>
+                ${lockedHint}
             </div>
         </button>`;
     }).join('');
@@ -10895,6 +10972,58 @@ function onTrainerUse() {
     }
 }
 
+function renderBoardCardBuffsList(card) {
+    if (!card) return '';
+    const statuses = Array.isArray(card.statuses) ? card.statuses : [];
+    const has = (s) => statuses.includes(s);
+    const entries = [];
+
+    const damageBoost = Number(card.damageBoost) || 0;
+    if (damageBoost > 0) {
+        entries.push({ kind: 'DAMAGE_BOOST', label: 'Damage', amount: damageBoost });
+    } else if (has('DAMAGE_BOOST')) {
+        entries.push({ kind: 'DAMAGE_BOOST', label: 'Damage Boost' });
+    }
+
+    const shield = Number(card.shieldHp) || 0;
+    if (shield > 0) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Shield', amount: shield });
+    } else if (has('HEALTH_BOOST') && !(Number(card.maxHp) > Number(card.printedHealth))) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Shield' });
+    }
+
+    const printedSpeed = Number(card.printedSpeed);
+    const spd = Number(card.spd ?? card.speed);
+    const speedDelta = Number.isFinite(printedSpeed) && Number.isFinite(spd) ? spd - printedSpeed : 0;
+    if (speedDelta > 0) {
+        entries.push({ kind: 'SPEED_BOOST', label: 'Speed', amount: speedDelta });
+    } else if (has('SPEED_BOOST') && speedDelta === 0) {
+        entries.push({ kind: 'SPEED_BOOST', label: 'Speed Boost' });
+    }
+
+    const printedHp = Number(card.printedHealth);
+    const maxHp = Number(card.maxHp);
+    if (Number.isFinite(printedHp) && Number.isFinite(maxHp) && maxHp > printedHp) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Max HP', amount: maxHp - printedHp });
+    }
+
+    if (has('FREEZE')) entries.push({ kind: 'FREEZE', label: 'Frozen' });
+    if (has('SPEED_ZERO')) entries.push({ kind: 'SPEED_ZERO', label: 'Stunned' });
+    if (has('WEAK')) entries.push({ kind: 'WEAK', label: 'Weak' });
+    if (has('STRONG')) entries.push({ kind: 'STRONG', label: 'Strong' });
+
+    if (entries.length === 0) return '';
+    const items = entries.map((e) => {
+        const color = STATUS_BADGE_PALETTE[e.kind] || '#cbd5f5';
+        const amount = (typeof e.amount === 'number' && e.amount > 0)
+            ? `<span class="buff-pill-amount">+${e.amount}</span>`
+            : '';
+        const title = STATUS_BADGE_LABEL[e.kind] || e.label;
+        return `<span class="buff-pill" style="--bp:${color}" title="${escapeHtmlAttribute(title)}"><span class="buff-pill-label">${escapeHtml(e.label)}</span>${amount}</span>`;
+    }).join('');
+    return `<div class="selected-copy-buffs" aria-label="Active buffs and debuffs">${items}</div>`;
+}
+
 function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
     if (!card && !msg) {
@@ -10924,6 +11053,7 @@ function updateSelectedInfo(card, msg) {
             const own = boardCardOwnershipLabel(card);
             const phases = Number(card.battlePhasesSeen || 0);
             html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
+            html += renderBoardCardBuffsList(card);
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`

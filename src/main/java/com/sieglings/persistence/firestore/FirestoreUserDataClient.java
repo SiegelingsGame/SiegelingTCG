@@ -33,6 +33,7 @@ public class FirestoreUserDataClient {
     private final String lobbiesCollection;
     private final String directMessagesCollection;
     private final String friendRequestsCollection;
+    private final String dailyMissionProgressCollection;
 
     private volatile Firestore firestore;
     private volatile String initializationError;
@@ -51,7 +52,8 @@ public class FirestoreUserDataClient {
             @Value("${app.user-data.collection-presence:userPresence}") String presenceCollection,
             @Value("${app.user-data.collection-lobbies:openLobbies}") String lobbiesCollection,
             @Value("${app.user-data.collection-direct-messages:directMessages}") String directMessagesCollection,
-            @Value("${app.user-data.collection-friend-requests:friendRequests}") String friendRequestsCollection
+            @Value("${app.user-data.collection-friend-requests:friendRequests}") String friendRequestsCollection,
+            @Value("${app.user-data.collection-daily-mission-progress:dailyMissionProgress}") String dailyMissionProgressCollection
     ) {
         this.enabled = enabled;
         this.projectId = projectId == null ? "" : projectId.trim();
@@ -67,6 +69,7 @@ public class FirestoreUserDataClient {
         this.lobbiesCollection = lobbiesCollection;
         this.directMessagesCollection = directMessagesCollection;
         this.friendRequestsCollection = friendRequestsCollection;
+        this.dailyMissionProgressCollection = dailyMissionProgressCollection;
     }
 
     @PostConstruct
@@ -133,6 +136,10 @@ public class FirestoreUserDataClient {
 
     public String friendRequestsCollection() {
         return friendRequestsCollection;
+    }
+
+    public String dailyMissionProgressCollection() {
+        return dailyMissionProgressCollection;
     }
 
     private synchronized void ensureInitialized() {

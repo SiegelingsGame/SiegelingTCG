@@ -401,7 +401,7 @@ function LobbyScreen({ onStartLoadout, playerName, setPlayerName, lobbyMode, set
         {lobbyMode === "online" && (
           <div className="glass" style={{ padding: 16, animation: "fadeIn 0.3s" }}>
             <p style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 12, lineHeight: 1.4 }}>
-              Host a match from the main SieglingsTCG web app, then paste the room code here to join with your chosen loadout on the next screen.
+              Host a match from the main SiegelingsTCG web app, then paste the room code here to join with your chosen loadout on the next screen.
             </p>
             <button type="button" className="btn sm primary" style={{ width: "100%", marginBottom: 12 }} onClick={handleJoin}>
               Join room
