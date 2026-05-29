@@ -312,8 +312,13 @@
         document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
             if (event.target === event.currentTarget) closeDeckPreview();
         });
+        document.getElementById('matchReviewOverlay')?.addEventListener('click', closeMatchReview);
+        document.querySelectorAll('[data-match-review-close]').forEach(btn => btn.addEventListener('click', closeMatchReview));
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') closeDeckPreview();
+            if (event.key === 'Escape') {
+                closeDeckPreview();
+                closeMatchReview();
+            }
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
             btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'deck-builder' : 'home'));
@@ -2301,7 +2306,7 @@
         </section>`;
     }
 
-    function renderBattleHistoryList(view) {
+    function renderBattleHistoryList(view, reviewable = true) {
         return `<section class="profile-panel battle-history-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Recent Battles</span><h3>Last Match Scroll</h3></div>
@@ -2309,7 +2314,7 @@
             </div>
             <div class="battle-list">
                 ${view.battles.length
-                    ? view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
+                    ? view.battles.map(battle => `<article class="battle-row ${reviewable ? 'battle-row-clickable' : ''} ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}"${reviewable ? ` data-match-index="${battle.index}" role="button" tabindex="0" aria-label="Review match vs ${escapeAttr(battle.opponentName)}"` : ''}>
                         <div class="battle-result">${escapeHtml(battle.result)}</div>
                         <div class="battle-main">
                             <strong>${escapeHtml(battle.opponentName)}</strong>
@@ -2456,6 +2461,75 @@
         }));
         document.querySelectorAll('[data-profile-save]').forEach(btn => btn.addEventListener('click', saveProfilePrefs));
         document.querySelectorAll('[data-profile-route]').forEach(btn => btn.addEventListener('click', () => navigateHub(btn.dataset.profileRoute)));
+        document.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
+            const index = Number(row.dataset.matchIndex);
+            row.addEventListener('click', () => openMatchReview(index));
+            row.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openMatchReview(index);
+                }
+            });
+        });
+    }
+
+    // Opens a read-only review of a recorded match (stats + turn-by-turn log),
+    // mirroring the match detail surface on the Play screen.
+    function openMatchReview(index) {
+        const entry = (state.profile?.matchHistory || [])[index];
+        const overlay = document.getElementById('matchReviewOverlay');
+        const content = document.getElementById('matchReviewContent');
+        if (!entry || !overlay || !content) return;
+
+        const resultLabel = entry.result || 'Result';
+        const resultClass = String(resultLabel).toUpperCase().includes('WIN') ? 'win' : 'loss';
+        const finishedAt = entry.finishedAt ? new Date(entry.finishedAt) : null;
+        const finishedLabel = finishedAt && !isNaN(finishedAt.getTime())
+            ? finishedAt.toLocaleString()
+            : '';
+        const ph = Number(entry.playerHealthRemaining);
+        const oh = Number(entry.opponentHealthRemaining);
+        const en = Number(entry.playerEnergyRemaining);
+
+        const statRow = (label, value) =>
+            `<div class="match-detail-stat"><span class="md-stat-label">${escapeHtml(label)}</span><span class="md-stat-value">${escapeHtml(String(value))}</span></div>`;
+
+        const logLines = Array.isArray(entry.gameLog) ? entry.gameLog : [];
+        const logHtml = logLines.length > 0
+            ? `<div class="match-detail-log">${logLines.map(line => `<div class="md-log-line">${escapeHtml(line)}</div>`).join('')}</div>`
+            : '<div class="match-review-empty">No turn-by-turn breakdown was recorded for this match.</div>';
+
+        content.innerHTML = `
+            <div class="match-detail-header result-${resultClass}">
+                <div class="match-detail-result history-result-${resultClass}">${escapeHtml(resultLabel)}</div>
+                <div class="match-detail-sub">${escapeHtml(entry.loadoutLabel || 'Loadout')} vs ${escapeHtml(entry.opponentName || 'Opponent')}</div>
+                ${finishedLabel ? `<div class="match-detail-date">${escapeHtml(finishedLabel)}</div>` : ''}
+            </div>
+            <div class="match-detail-stats">
+                ${statRow('Your Health', Number.isFinite(ph) ? ph : '—')}
+                ${statRow('Opponent Health', Number.isFinite(oh) ? oh : '—')}
+                ${statRow('Energy Left', Number.isFinite(en) ? en : '—')}
+                ${statRow('Turns', entry.turnNumber ?? '—')}
+                ${statRow('SiegeKnight', entry.trainerName || '—')}
+                ${statRow('Match Type', entry.matchType || '—')}
+                ${statRow('Spells Cast', entry.spellsCast ?? 0)}
+                ${statRow('Traps Sprung', entry.trapsSprung ?? 0)}
+                ${statRow('Siegelings Defeated', entry.siegelingsDefeated ?? 0)}
+            </div>
+            <div class="match-detail-log-title">Game Breakdown</div>
+            ${logHtml}
+        `;
+        overlay.classList.remove('hidden');
+    }
+
+    function closeMatchReview(event) {
+        if (event) {
+            const overlay = document.getElementById('matchReviewOverlay');
+            if (event.target !== overlay && !event.target.closest('[data-match-review-close]')) {
+                return;
+            }
+        }
+        document.getElementById('matchReviewOverlay')?.classList.add('hidden');
     }
 
     async function saveProfilePrefs() {
@@ -2592,7 +2666,8 @@
             element: inferElementFromText(row.loadoutLabel || row.trainerName || '', fallbackElement),
             date: formatProfileDate(row.finishedAt) || '',
             duration: row.turnNumber ? `${row.turnNumber} turns` : '',
-            reward: result === 'WIN' ? '+25' : '+5'
+            reward: result === 'WIN' ? '+25' : '+5',
+            index
         };
     }
 
@@ -4995,7 +5070,7 @@
             ${renderPublicProfileStats(view)}
             ${view.battles.length ? renderBattleRecordPanel(view) : ''}
             ${view.battles.length
-                ? renderBattleHistoryList(view)
+                ? renderBattleHistoryList(view, false)
                 : `<section class="profile-panel"><p class="profile-muted">${view.data.isFriend ? 'No recorded battles yet.' : 'Recent battles are visible once you are friends.'}</p></section>`}
             ${renderPublicProfileActions(view)}
         </div>`;
