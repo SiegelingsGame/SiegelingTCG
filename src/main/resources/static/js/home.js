@@ -155,6 +155,7 @@
         authRegisterStep: 'credentials',
         registerDraft: { email: '', password: '' },
         profileEditOpen: false,
+        activeAchievementId: '',
         profilePrefs: null,
         friendPresence: {},
         messageThreads: [],
@@ -318,7 +319,10 @@
             if (event.target === event.currentTarget) closeDeckPreview();
         });
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') closeDeckPreview();
+            if (event.key === 'Escape') {
+                closeDeckPreview();
+                closeAchievementDetail();
+            }
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
             btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'deck-builder' : 'home'));
@@ -2579,7 +2583,7 @@
     function renderAchievementBadgeTile(achievement, options = {}) {
         const compact = options.compact;
         const unlocked = achievement.unlocked;
-        return `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}${compact ? ' achievement-badge-compact' : ''}" data-achievement-id="${escapeAttr(achievement.id)}">
+        return `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}${compact ? ' achievement-badge-compact' : ''}" data-achievement-id="${escapeAttr(achievement.id)}" role="button" tabindex="0" aria-label="${escapeAttr(achievement.title)} — ${unlocked ? 'unlocked' : 'locked'}. View requirements.">
             <span aria-hidden="true">${unlocked ? escapeHtml(achievement.icon || '★') : '−'}</span>
             <strong>${escapeHtml(achievement.title)}</strong>
             <small>${unlocked ? 'Unlocked' : 'Locked'}</small>
@@ -2611,6 +2615,7 @@
         const path = achievementsPath(category);
         state.route = 'achievements';
         state.achievementCategory = String(category || '').trim().toLowerCase();
+        state.activeAchievementId = '';
         state.shopView = 'browse';
         state.profileUserId = '';
         state.profileEditOpen = false;
@@ -2661,7 +2666,7 @@
                     ${rows.map(item => renderAchievementBadgeTile(item, { extended: true })).join('')}
                 </div>
                 <div class="achievement-detail-list">
-                    ${rows.map(item => `<article class="achievement-detail-row ${item.unlocked ? 'is-unlocked' : 'is-locked'}">
+                    ${rows.map(item => `<article class="achievement-detail-row ${item.unlocked ? 'is-unlocked' : 'is-locked'}" data-achievement-id="${escapeAttr(item.id)}" role="button" tabindex="0" aria-label="${escapeAttr(item.title)} — ${item.unlocked ? 'unlocked' : 'locked'}. View requirements.">
                         <div class="achievement-detail-icon" aria-hidden="true">${escapeHtml(item.unlocked ? item.icon : '−')}</div>
                         <div>
                             <strong>${escapeHtml(item.title)}</strong>
@@ -2722,6 +2727,105 @@
         root.querySelectorAll('[data-achievement-route]').forEach(btn => {
             btn.addEventListener('click', () => navigateAchievementCategory(btn.dataset.achievementRoute || ''));
         });
+        bindAchievementBadges(root);
+    }
+
+    function bindAchievementBadges(root = document) {
+        root.querySelectorAll('[data-achievement-id]').forEach(el => {
+            el.addEventListener('click', () => openAchievementDetail(el.dataset.achievementId));
+            el.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openAchievementDetail(el.dataset.achievementId);
+                }
+            });
+        });
+    }
+
+    function openAchievementDetail(id) {
+        if (!id) return;
+        state.activeAchievementId = String(id);
+        renderAchievementDetailHost();
+    }
+
+    function closeAchievementDetail() {
+        if (!state.activeAchievementId) return;
+        state.activeAchievementId = '';
+        renderAchievementDetailHost();
+    }
+
+    function renderAchievementDetailHost() {
+        const host = document.getElementById('achievementDetailHost');
+        if (!host) return;
+        const id = state.activeAchievementId;
+        if (!id) {
+            host.innerHTML = '';
+            return;
+        }
+        const view = state.profile?.authenticated ? profileViewModel() : null;
+        const snapshot = evaluateAchievements(view);
+        const achievement = (snapshot.all || []).find(a => a.id === id);
+        if (!achievement) {
+            host.innerHTML = '';
+            return;
+        }
+        host.innerHTML = renderAchievementDetailModal(achievement, view);
+        const overlay = host.querySelector('.profile-modal');
+        overlay?.addEventListener('click', (event) => {
+            if (event.target === overlay) closeAchievementDetail();
+        });
+        host.querySelectorAll('[data-achievement-detail-close]').forEach(btn => {
+            btn.addEventListener('click', closeAchievementDetail);
+        });
+    }
+
+    function renderAchievementDetailModal(achievement, view) {
+        const api = window.SiegelingsAchievements;
+        const meta = api?.categoryMeta ? api.categoryMeta(achievement.category) : { eyebrow: 'Achievement', label: 'Achievement' };
+        const unlocked = achievement.unlocked;
+        const measurable = achievement.measurable;
+        const current = Number(achievement.progressCurrent) || 0;
+        const target = Number(achievement.progressTarget) || 0;
+        const pct = Math.max(0, Math.min(100, Number(achievement.progressPct) || 0));
+        const progressBlock = measurable
+            ? `<div class="achievement-modal-progress">
+                    <div class="achievement-modal-progress-head">
+                        <span>Progress</span>
+                        <strong>${escapeHtml(formatProgressCount(current))} / ${escapeHtml(formatProgressCount(target))}</strong>
+                    </div>
+                    <div class="achievement-modal-bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+                        <span style="width:${pct}%"></span>
+                    </div>
+                    <small>${unlocked ? 'Requirement met.' : `${escapeHtml(formatProgressCount(Math.max(0, target - current)))} to go.`}</small>
+                </div>`
+            : `<div class="achievement-modal-progress achievement-modal-progress-binary">
+                    <small>${unlocked ? 'You have met this requirement.' : 'Complete the requirement above to unlock this badge.'}</small>
+                </div>`;
+        return `<div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="achievementDetailTitle">
+            <div class="profile-edit-panel profile-panel achievement-modal-panel" style="${profileThemeStyle(view?.theme || elementThemes.Neutral)}">
+                <div class="profile-panel-head">
+                    <div><span class="eyebrow">${escapeHtml(meta.eyebrow)} · ${escapeHtml(meta.label)}</span><h3 id="achievementDetailTitle">Badge Requirements</h3></div>
+                    <button class="ghost-btn compact-btn" type="button" data-achievement-detail-close>Close</button>
+                </div>
+                <div class="achievement-modal-body">
+                    <div class="achievement-modal-emblem ${unlocked ? 'is-unlocked' : 'is-locked'}" aria-hidden="true">${escapeHtml(unlocked ? (achievement.icon || '★') : '−')}</div>
+                    <div class="achievement-modal-headline">
+                        <strong>${escapeHtml(achievement.title)}</strong>
+                        <span class="achievement-modal-status ${unlocked ? 'is-unlocked' : 'is-locked'}">${unlocked ? 'Unlocked' : 'Locked'}</span>
+                    </div>
+                </div>
+                <div class="achievement-modal-requirement">
+                    <span class="eyebrow">Requirement</span>
+                    <p>${escapeHtml(achievement.description)}</p>
+                </div>
+                ${progressBlock}
+            </div>
+        </div>`;
+    }
+
+    function formatProgressCount(value) {
+        const num = Number(value) || 0;
+        return num >= 1000 ? num.toLocaleString() : String(num);
     }
 
     function renderEditProfileModal(view) {
@@ -3741,6 +3845,10 @@
 
         state.route = route;
         state.shopView = nextShopView;
+        if (state.activeAchievementId) {
+            state.activeAchievementId = '';
+            renderAchievementDetailHost();
+        }
         if (route === 'profile') {
             state.profileUserId = '';
         }

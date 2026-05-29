@@ -67,8 +67,26 @@
             title,
             description,
             icon,
+            threshold,
+            progress: ctx => valueFn(ctx),
             check: ctx => valueFn(ctx) >= threshold
         };
+    }
+
+    // Resolve a normalized progress snapshot for an evaluated achievement.
+    // Returns { current, target, pct, measurable } so the UI can draw a bar or
+    // fall back to a plain Unlocked/Locked status for binary/custom checks.
+    function progressFor(achievement, ctx) {
+        const target = Number(achievement?.threshold);
+        const hasProgress = typeof achievement?.progress === 'function' && Number.isFinite(target) && target > 0;
+        if (!hasProgress) {
+            const unlocked = ctx ? Boolean(achievement?.check?.(ctx)) : Boolean(achievement?.unlocked);
+            return { measurable: false, current: unlocked ? 1 : 0, target: 1, pct: unlocked ? 100 : 0 };
+        }
+        const raw = Number(achievement.progress(ctx)) || 0;
+        const current = Math.max(0, raw);
+        const pct = Math.max(0, Math.min(100, Math.round((current / target) * 100)));
+        return { measurable: true, current, target, pct };
     }
 
     function buildContext(state, view, helpers = {}) {
@@ -353,10 +371,17 @@
 
     function evaluateAll(state, view, helpers) {
         const ctx = buildContext(state, view, helpers);
-        const evaluated = catalogDeduped.map(def => ({
-            ...def,
-            unlocked: Boolean(def.check(ctx))
-        }));
+        const evaluated = catalogDeduped.map(def => {
+            const snap = progressFor(def, ctx);
+            return {
+                ...def,
+                unlocked: Boolean(def.check(ctx)),
+                progressCurrent: snap.current,
+                progressTarget: snap.target,
+                progressPct: snap.pct,
+                measurable: snap.measurable
+            };
+        });
         const unlocked = evaluated.filter(a => a.unlocked);
         const byCategory = {};
         CATEGORIES.forEach(cat => {
@@ -391,6 +416,7 @@
         PROFILE_FEATURED_IDS,
         buildContext,
         evaluateAll,
+        progressFor,
         achievementById,
         categoryMeta,
         incrementStat,
