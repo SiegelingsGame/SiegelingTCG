@@ -178,6 +178,7 @@
         catalogVersion: 0,
         catalogSyncBound: false,
         profileUserId: '',
+        achievementCategory: '',
         leaderboardTab: 'wins',
         leaderboardPeriod: 'daily',
         dailyMissions: null,
@@ -523,6 +524,7 @@
         safeRender(renderHomeDashboard);
         safeRender(renderShop);
         safeRender(renderProfile);
+        safeRender(renderAchievements);
         safeRender(renderRooms);
         safeRender(renderFriends);
         safeRender(renderFriendRequests);
@@ -545,6 +547,8 @@
             syncShopPackView();
         } else if (state.route === 'profile') {
             renderProfile();
+        } else if (state.route === 'achievements') {
+            renderAchievements();
         } else if (state.route === 'social') {
             renderRooms();
             renderFriends();
@@ -589,6 +593,7 @@
             ['deck-builder', 'deckBuilderSection'],
             ['social', 'socialSection'],
             ['profile', 'profileSection'],
+            ['achievements', 'achievementsSection'],
             ['shop', 'shopSection']
         ].forEach(([route, sectionId]) => {
             const active = state.route === route || (route === 'social' && state.route === 'lobby');
@@ -2554,24 +2559,166 @@
         </section>`;
     }
 
+    function achievementHelpers() {
+        return {
+            findCard,
+            normalizeBattle,
+            battleRecord
+        };
+    }
+
+    function evaluateAchievements(view) {
+        const api = window.SiegelingsAchievements;
+        if (!api) return { featured: [], all: [], unlockedCount: 0, total: 0, byCategory: {} };
+        return api.evaluateAll(state, view, achievementHelpers());
+    }
+
+    function renderAchievementBadgeTile(achievement, options = {}) {
+        const compact = options.compact;
+        const unlocked = achievement.unlocked;
+        return `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}${compact ? ' achievement-badge-compact' : ''}" data-achievement-id="${escapeAttr(achievement.id)}">
+            <span aria-hidden="true">${unlocked ? escapeHtml(achievement.icon || '★') : '−'}</span>
+            <strong>${escapeHtml(achievement.title)}</strong>
+            <small>${unlocked ? 'Unlocked' : 'Locked'}</small>
+        </div>`;
+    }
+
     function renderAchievementBadges(view) {
-        const achievements = [
-            ['First Win', view.record.wins > 0],
-            ['Element Specialist', true],
-            ['Collector', view.collection.uniqueOwned >= 10],
-            ['Deck Builder', view.savedDecks.length > 0],
-            ['Win Streak', view.record.bestStreak >= 3]
-        ];
+        const snapshot = evaluateAchievements(view);
+        const featured = snapshot.featured.length ? snapshot.featured : snapshot.all.slice(0, 6);
         return `<section class="profile-panel achievement-panel">
-            <div class="profile-panel-head"><div><span class="eyebrow">Achievements</span><h3>Badge Case</h3></div></div>
-            <div class="achievement-row">
-                ${achievements.map(([label, unlocked]) => `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}">
-                    <span>${unlocked ? '*' : '-'}</span>
-                    <strong>${escapeHtml(label)}</strong>
-                    <small>${unlocked ? 'Unlocked' : 'Locked'}</small>
-                </div>`).join('')}
+            <div class="profile-panel-head">
+                <div><span class="eyebrow">Achievements</span><h3>Badge Case</h3></div>
+                <button class="ghost-btn compact-btn" type="button" data-achievement-route="">View all (${snapshot.unlockedCount}/${snapshot.total})</button>
             </div>
+            <div class="achievement-row achievement-row-featured">
+                ${featured.map(item => renderAchievementBadgeTile(item)).join('')}
+            </div>
+            <p class="profile-muted achievement-panel-note">Six featured badges on your profile. Open the full badge case for ${snapshot.total} goals across collection, remnants, decks, and arena play.</p>
         </section>`;
+    }
+
+    function achievementsPath(category = '') {
+        const normalized = String(category || '').trim().toLowerCase();
+        if (!normalized) return '/achievements';
+        return `/achievements/${encodeURIComponent(normalized)}`;
+    }
+
+    function navigateAchievementCategory(category = '', options = {}) {
+        const path = achievementsPath(category);
+        state.route = 'achievements';
+        state.achievementCategory = String(category || '').trim().toLowerCase();
+        state.shopView = 'browse';
+        state.profileUserId = '';
+        state.profileEditOpen = false;
+        if (options.replace) {
+            history.replaceState(null, '', path);
+        } else {
+            history.pushState(null, '', path);
+        }
+        setActiveRoute();
+        renderSections();
+        renderRoute();
+    }
+
+    function renderAchievements() {
+        const body = document.getElementById('achievementsSectionBody');
+        if (!body) return;
+        if (!state.profile?.authenticated) {
+            body.innerHTML = `<div class="achievements-signed-out unlock-card">
+                <strong>Sign in to track achievements</strong>
+                <span>Your badge cases unlock from wins, collection, remnants, deck building, and arena matches.</span>
+                <button class="primary-btn" type="button" id="achievementsSignInBtn">Sign In</button>
+            </div>`;
+            document.getElementById('achievementsSignInBtn')?.addEventListener('click', openAuth);
+            return;
+        }
+        const view = profileViewModel();
+        const snapshot = evaluateAchievements(view);
+        const activeCategory = state.achievementCategory;
+        const categories = window.SiegelingsAchievements?.CATEGORIES || [];
+        const categoryUnlocked = (id) => (snapshot.byCategory[id] || []).filter(a => a.unlocked).length;
+        const categoryTotal = (id) => (snapshot.byCategory[id] || []).length;
+
+        if (activeCategory && snapshot.byCategory[activeCategory]) {
+            const meta = window.SiegelingsAchievements.categoryMeta(activeCategory);
+            const rows = snapshot.byCategory[activeCategory];
+            const unlockedInCase = rows.filter(a => a.unlocked).length;
+            body.innerHTML = `<div class="achievements-dashboard" style="${profileThemeStyle(view.theme)}">
+                <div class="achievements-case-head">
+                    <button class="ghost-btn compact-btn" type="button" data-achievement-route="">All badge cases</button>
+                    <div>
+                        <span class="eyebrow">${escapeHtml(meta.eyebrow)}</span>
+                        <h2>${escapeHtml(meta.label)}</h2>
+                        <p class="achievements-case-copy">${escapeHtml(meta.description)}</p>
+                    </div>
+                    <span class="profile-soft-pill">${unlockedInCase}/${rows.length} unlocked</span>
+                </div>
+                <div class="achievement-grid achievement-grid-extended">
+                    ${rows.map(item => renderAchievementBadgeTile(item, { extended: true })).join('')}
+                </div>
+                <div class="achievement-detail-list">
+                    ${rows.map(item => `<article class="achievement-detail-row ${item.unlocked ? 'is-unlocked' : 'is-locked'}">
+                        <div class="achievement-detail-icon" aria-hidden="true">${escapeHtml(item.unlocked ? item.icon : '−')}</div>
+                        <div>
+                            <strong>${escapeHtml(item.title)}</strong>
+                            <p>${escapeHtml(item.description)}</p>
+                        </div>
+                        <span class="achievement-detail-status">${item.unlocked ? 'Unlocked' : 'Locked'}</span>
+                    </article>`).join('')}
+                </div>
+            </div>`;
+        } else {
+            body.innerHTML = `<div class="achievements-dashboard" style="${profileThemeStyle(view.theme)}">
+                <div class="achievements-overview-head">
+                    <div>
+                        <span class="eyebrow">Achievements</span>
+                        <h2>Badge Case Hall</h2>
+                        <p class="achievements-case-copy">General goals, elemental mastery, card collection, remnants, deck creation, and arena loadouts — each case holds its own badge set.</p>
+                    </div>
+                    <div class="achievements-overview-stats">
+                        <strong>${snapshot.unlockedCount}<span>/${snapshot.total}</span></strong>
+                        <small>badges unlocked</small>
+                    </div>
+                </div>
+                <div class="achievement-category-grid">
+                    ${categories.map(cat => {
+                        const rows = snapshot.byCategory[cat.id] || [];
+                        const preview = rows.slice(0, 4);
+                        const unlocked = categoryUnlocked(cat.id);
+                        return `<section class="achievement-category-card">
+                            <div class="achievement-category-head">
+                                <div>
+                                    <span class="eyebrow">${escapeHtml(cat.eyebrow)}</span>
+                                    <h3>${escapeHtml(cat.label)}</h3>
+                                    <p>${escapeHtml(cat.description)}</p>
+                                </div>
+                                <span class="profile-soft-pill">${unlocked}/${categoryTotal(cat.id)}</span>
+                            </div>
+                            <div class="achievement-row achievement-row-preview">
+                                ${preview.map(item => renderAchievementBadgeTile(item, { compact: true })).join('')}
+                            </div>
+                            <button class="ghost-btn compact-btn" type="button" data-achievement-route="${escapeAttr(cat.id)}">Open badge case</button>
+                        </section>`;
+                    }).join('')}
+                </div>
+                <section class="profile-panel achievement-panel achievement-panel-all">
+                    <div class="profile-panel-head">
+                        <div><span class="eyebrow">Full roster</span><h3>Every badge</h3></div>
+                    </div>
+                    <div class="achievement-grid achievement-grid-extended">
+                        ${snapshot.all.map(item => renderAchievementBadgeTile(item)).join('')}
+                    </div>
+                </section>
+            </div>`;
+        }
+        bindAchievementRoutes(body);
+    }
+
+    function bindAchievementRoutes(root = document) {
+        root.querySelectorAll('[data-achievement-route]').forEach(btn => {
+            btn.addEventListener('click', () => navigateAchievementCategory(btn.dataset.achievementRoute || ''));
+        });
     }
 
     function renderEditProfileModal(view) {
@@ -2619,6 +2766,7 @@
         }));
         document.querySelectorAll('[data-profile-save]').forEach(btn => btn.addEventListener('click', saveProfilePrefs));
         document.querySelectorAll('[data-profile-route]').forEach(btn => btn.addEventListener('click', () => navigateHub(btn.dataset.profileRoute)));
+        bindAchievementRoutes(document.getElementById('profileSectionBody') || document);
     }
 
     async function saveProfilePrefs() {
@@ -2749,6 +2897,7 @@
         const matchType = String(row.matchType || '').toUpperCase();
         return {
             result,
+            matchType,
             opponentName: row.opponentName || 'Opponent',
             opponentType: matchType.includes('PVP') || matchType.includes('PLAYER') ? 'Player' : 'AI',
             deckUsed: row.loadoutLabel || row.trainerName || 'Battle Loadout',
@@ -3385,10 +3534,15 @@
         if (!state.profile?.authenticated) return openAuth();
         const data = await fetchJson('/api/cards/craft', { method: 'POST', body: JSON.stringify({ cardId }) });
         if (data?.error) return alert(data.error);
+        if (window.SiegelingsAchievements?.incrementStat) {
+            window.SiegelingsAchievements.incrementStat('crafts', 1);
+        }
         state.progression = data.progression;
         renderCards();
         renderHomeDashboard();
         renderGold();
+        renderProfile();
+        renderAchievements();
     }
 
     async function saveCustomDeck() {
@@ -3573,15 +3727,24 @@
     function navigateHub(route, options = {}) {
         const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
         const nextShopView = route === 'shop' ? (options.shopView || state.shopView || 'browse') : 'browse';
-        const nextPath = `${hubPath(route, nextShopView)}${hash}`;
+        const achievementCategory = route === 'achievements' ? (options.achievementCategory ?? state.achievementCategory ?? '') : '';
+        const nextPath = route === 'achievements'
+            ? achievementsPath(achievementCategory)
+            : `${hubPath(route, nextShopView)}${hash}`;
         const samePlace = route === state.route
             && (route !== 'shop' || nextShopView === state.shopView)
-            && (route !== 'profile' || !state.profileUserId);
+            && (route !== 'profile' || !state.profileUserId)
+            && (route !== 'achievements' || achievementCategory === state.achievementCategory);
 
         state.route = route;
         state.shopView = nextShopView;
         if (route === 'profile') {
             state.profileUserId = '';
+        }
+        if (route === 'achievements') {
+            state.achievementCategory = achievementCategory;
+        } else {
+            state.achievementCategory = '';
         }
 
         if (options.replace) {
@@ -4055,24 +4218,28 @@
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
         const head = segments[0] || 'home';
-        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         if (head === 'social' && segments[1] === 'lobby' && segments[2]) {
-            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '' };
+            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '', achievementCategory: '' };
         }
         if (head === 'shop') {
-            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '' };
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
         if (head === 'profile') {
             const profileUserId = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
-            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId };
+            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId, achievementCategory: '' };
+        }
+        if (head === 'achievements') {
+            const achievementCategory = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
+            return { route: 'achievements', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory };
         }
         if (head === 'deck-builder') {
-            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
         if (['cards', 'decks', 'social'].includes(head)) {
-            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
-        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
     }
 
     function normalizePlayerId(userId) {
@@ -4109,6 +4276,7 @@
         if (route === 'home') return '/home';
         if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
         if (route === 'deck-builder') return '/deck-builder';
+        if (route === 'achievements') return '/achievements';
         return `/${route}`;
     }
 
@@ -4118,6 +4286,7 @@
         state.shopView = parsed.shopView;
         state.lobbyRoomId = parsed.lobbyRoomId || '';
         state.profileUserId = parsed.profileUserId || '';
+        state.achievementCategory = parsed.achievementCategory || '';
         if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
             state.shopView = 'browse';
             if (location.pathname !== hubPath('shop', 'browse')) {

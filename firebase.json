@@ -63,6 +63,18 @@
         "destination": "/home.html"
       },
       {
+        "source": "/achievements",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/achievements/**",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/deck-builder",
+        "destination": "/home.html"
+      },
+      {
         "source": "/shop",
         "destination": "/home.html"
       },
