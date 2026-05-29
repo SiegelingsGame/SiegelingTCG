@@ -11755,14 +11755,6 @@ body.sgl-opponent-turn .battle-cta-row {
     color: var(--text-dim, #8aa0bd);
 }
 
-.welcome-auth-actions a.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    text-decoration: none;
-}
-
 .welcome-auth-submit {
     flex: 1.2;
     border-radius: 12px !important;
@@ -12076,6 +12068,28 @@ body.sgl-opponent-turn .battle-cta-row {
     -webkit-backdrop-filter: blur(6px);
 }
 .match-detail-overlay.hidden { display: none; }
+
+/* Sign-in popup — opens over the Play screen */
+.auth-popup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(4, 8, 18, 0.74);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.auth-popup-overlay.hidden { display: none; }
+.auth-popup-modal {
+    position: relative;
+    width: min(440px, 100%);
+    max-height: min(88vh, 760px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
 .match-detail-modal {
     position: relative;
     width: min(560px, 100%);
