@@ -76,7 +76,7 @@ public class GameController {
 
     @GetMapping("/api/game/options")
     @ResponseBody
-    public Map<String, Object> getOptions() {
+    public Map<String, Object> getOptions(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         List<CardDefinitionService.DeckOption> deckOptions = gameService.getDeckOptions();
         CardDefinitionService.DeckOption defaultDeck = deckOptions.stream()
                 .filter(deck -> deck.id().equals("deck_fire_earth"))
@@ -92,7 +92,7 @@ public class GameController {
                 "recommendedTrainerId", deck.recommendedTrainerId(),
                 "cards", deckCardCounts(deck.id())
         )).toList());
-        resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
+        resp.put("trainers", serializeTrainerOptions(authorizationHeader));
         resp.put("deckBuilder", Map.of(
                 "minDeckSize", gameService.getDeckBuilderMinSize(),
                 "maxCopies", gameService.getDeckBuilderMaxCopies()
@@ -118,7 +118,7 @@ public class GameController {
      */
     @GetMapping("/api/game/options-lite")
     @ResponseBody
-    public Map<String, Object> getOptionsLite() {
+    public Map<String, Object> getOptionsLite(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         List<CardDefinitionService.DeckOption> deckOptions = gameService.getDeckOptions();
         CardDefinitionService.DeckOption defaultDeck = deckOptions.stream()
                 .filter(deck -> deck.id().equals("deck_fire_earth"))
@@ -134,7 +134,7 @@ public class GameController {
                 "recommendedTrainerId", deck.recommendedTrainerId(),
                 "cards", deckCardCounts(deck.id())
         )).toList());
-        resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
+        resp.put("trainers", serializeTrainerOptions(authorizationHeader));
         resp.put("deckBuilder", Map.of(
                 "minDeckSize", gameService.getDeckBuilderMinSize(),
                 "maxCopies", gameService.getDeckBuilderMaxCopies()
@@ -155,6 +155,7 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
+            options = withPlayerTrainerLevel(user, options);
             MultiplayerService.RoomSession session = multiplayerService.createRoom(playerName, options, user == null ? null : user.getId());
             return buildRoomMeta(multiplayerService.requireRoom(session.roomId()), session, request);
         } catch (IllegalArgumentException ex) {
@@ -173,6 +174,7 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_water_wind", "trainer06");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
+            options = withPlayerTrainerLevel(user, options);
             MultiplayerService.RoomSession session = multiplayerService.joinRoom(
                     roomId, playerName, options, user == null ? null : user.getId());
             MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
@@ -208,6 +210,7 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, fallbackDeck, fallbackTrainer);
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
+            options = withPlayerTrainerLevel(user, options);
             MultiplayerService.RoomSession session = multiplayerService.setPlayerReady(
                     roomId,
                     playerToken,
@@ -303,6 +306,7 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
+            options = withPlayerTrainerLevel(user, options);
             GameService.SoloHandle handle = gameService.newSoloGame(options);
             attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
             Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));
@@ -324,8 +328,33 @@ public class GameController {
 
     @GetMapping("/api/match/rooms")
     @ResponseBody
-    public Map<String, Object> listRooms() {
-        return Map.of("rooms", multiplayerService.listOpenRooms().stream().map(this::serializeOpenRoom).toList());
+    public Map<String, Object> listRooms(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        AccountUser user = accountService.findUser(authorizationHeader);
+        String accountUserId = user == null ? null : user.getId();
+        return Map.of("rooms", multiplayerService.listBrowsableRooms(accountUserId).stream().map(this::serializeOpenRoom).toList());
+    }
+
+    @PostMapping("/api/match/reconnect-host")
+    @ResponseBody
+    public Map<String, Object> reconnectHost(@RequestBody(required = false) Map<String, Object> req,
+                                             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                             HttpServletRequest request) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            AccountUser user = accountService.findUser(authorizationHeader);
+            if (user == null) {
+                throw new IllegalArgumentException("Sign in to reopen your lobby.");
+            }
+            MultiplayerService.RoomSession session = multiplayerService.reconnectHost(roomId, user.getId());
+            MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
+            Map<String, Object> resp = buildRoomMeta(room, session, request);
+            if (room.isStarted()) {
+                resp.putAll(buildStateResponse(room.getGameState(), true, room.getRoomId(), user, room));
+            }
+            return resp;
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/match/forfeit")
@@ -947,6 +976,7 @@ public class GameController {
                 ? (room.getGuestName() == null ? "Waiting for Player 2" : room.getGuestName())
                 : room.getHostName());
         resp.put("guestJoined", room.hasGuest());
+        resp.put("closed", room.isClosed());
         resp.put("loadoutPhase", room.isLoadoutPhase());
         resp.put("hostReady", room.isHostReady());
         resp.put("guestReady", room.isGuestReady());
@@ -1236,7 +1266,19 @@ public class GameController {
         return m;
     }
 
-    private Map<String, Object> serializeTrainerOption(TrainerCard trainer) {
+    private List<Map<String, Object>> serializeTrainerOptions(String authorizationHeader) {
+        AccountUser user = accountService.findUser(authorizationHeader);
+        // Guests are not gated server-side, so don't lock the picker for them either.
+        boolean gated = user != null;
+        Map<String, Integer> ownedLevels = gated
+                ? playerProgressionService.getOrCreate(user).getTrainerLevels()
+                : Map.of();
+        return gameService.getTrainerOptions().stream()
+                .map(trainer -> serializeTrainerOption(trainer, ownedLevels, gated))
+                .toList();
+    }
+
+    private Map<String, Object> serializeTrainerOption(TrainerCard trainer, Map<String, Integer> ownedLevels, boolean gated) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", trainer.getId());
         m.put("name", trainer.getName());
@@ -1244,6 +1286,12 @@ public class GameController {
         m.put("tier", trainer.getTier());
         m.put("rarity", trainer.getRarity().name());
         m.put("oncePerGame", trainer.isOncePerGame());
+        String key = trainer.getId() == null ? "" : trainer.getId().toLowerCase(java.util.Locale.ROOT);
+        int level = ownedLevels.getOrDefault(key, 0);
+        boolean owned = !gated || level > 0;
+        m.put("owned", owned);
+        m.put("level", Math.max(1, level));
+        m.put("abilityBonus", PlayerProgressionService.trainerAbilityBonus(Math.max(1, level)));
         if (trainer.getAbility() != null) {
             m.put("passive", trainer.getAbility().getDescription());
         }
@@ -1430,6 +1478,10 @@ public class GameController {
     }
 
     private void validateStartOwnership(AccountUser user, GameService.StartOptions options) {
+        if (user != null && options.playerTrainerId() != null && !options.playerTrainerId().isBlank()
+                && !playerProgressionService.ownsTrainer(user, options.playerTrainerId())) {
+            throw new IllegalArgumentException("You haven't unlocked that SiegeKnight yet. Pull it from a pack first.");
+        }
         if (options.customDeckCards() == null || options.customDeckCards().isEmpty()) {
             return;
         }
@@ -1437,6 +1489,14 @@ public class GameController {
             throw new IllegalArgumentException("Sign in to use custom decks.");
         }
         playerProgressionService.validateCustomDeckOwnership(user, options.customDeckCards());
+    }
+
+    /** Bakes the player's owned SiegeKnight level into the start options so it boosts that knight in-match. */
+    private GameService.StartOptions withPlayerTrainerLevel(AccountUser user, GameService.StartOptions options) {
+        if (user == null) {
+            return options;
+        }
+        return options.withTrainerLevel(playerProgressionService.getTrainerLevel(user, options.playerTrainerId()));
     }
 
     @SuppressWarnings("unchecked")

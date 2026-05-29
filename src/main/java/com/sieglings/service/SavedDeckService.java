@@ -36,7 +36,7 @@ public class SavedDeckService {
     public SavedDeckEntity saveDeck(AccountUser user, String deckId, String trainerId,
                                     List<String> customDeckCards, String name, String existingId) {
         String normalizedName = normalizeName(name);
-        validateLoadout(deckId, trainerId, customDeckCards);
+        validateLoadout(user, deckId, trainerId, customDeckCards);
         playerProgressionService.validateCustomDeckOwnership(user, customDeckCards);
 
         SavedDeckEntity deck = existingId == null || existingId.isBlank()
@@ -75,7 +75,7 @@ public class SavedDeckService {
         }
     }
 
-    private void validateLoadout(String deckId, String trainerId, List<String> customDeckCards) {
+    private void validateLoadout(AccountUser user, String deckId, String trainerId, List<String> customDeckCards) {
         if (trainerId == null || trainerId.isBlank()) {
             throw new IllegalArgumentException("Choose a SiegeKnight before saving.");
         }
@@ -84,6 +84,9 @@ public class SavedDeckService {
         }
         if (!cardDefinitionService.isTrainerActive(trainerId)) {
             throw new IllegalArgumentException("Choose an active SiegeKnight before saving.");
+        }
+        if (!playerProgressionService.ownsTrainer(user, trainerId)) {
+            throw new IllegalArgumentException("You haven't unlocked that SiegeKnight yet. Pull it from a pack first.");
         }
 
         if (customDeckCards != null && !customDeckCards.isEmpty()) {

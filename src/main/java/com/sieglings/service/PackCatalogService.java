@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Card;
+import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.CardType;
 import com.sieglings.model.enums.Element;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,11 @@ import java.util.stream.Collectors;
 
 @Service
 public class PackCatalogService {
+    /** Chance a normal pack also contains a SiegeKnight (very rare). Tunable balance knob. */
+    public static final double TRAINER_DROP_CHANCE = 0.03;
+    /** Dedicated, expensive pack that always contains a SiegeKnight. */
+    public static final String SIEGEKNIGHT_PACK_ID = "pack_siegeknight";
+
     public record PackDefinition(
             String id,
             String name,
@@ -31,7 +37,11 @@ public class PackCatalogService {
             boolean starterEligible
     ) {}
 
-    public record PackOpenResult(PackDefinition pack, List<Card> cards) {}
+    public record PackOpenResult(PackDefinition pack, List<Card> cards, TrainerCard bonusTrainer) {
+        public PackOpenResult(PackDefinition pack, List<Card> cards) {
+            this(pack, cards, null);
+        }
+    }
 
     public record DailyCardOffer(
             String id,
@@ -50,7 +60,7 @@ public class PackCatalogService {
             packs.add(new PackDefinition(
                     "pack_" + element.name().toLowerCase(Locale.ROOT),
                     formatElement(element) + " Starter Pack",
-                    "Five " + formatElement(element) + " cards: 2-3 Siegelings, 1-2 traps, and 1-2 spells.",
+                    "Five " + formatElement(element) + " cards: 2-3 Siegelings, 1-2 traps, and 1-2 spells. Includes a free " + formatElement(element) + " SiegeKnight.",
                     true,
                     100,
                     List.of(element),
@@ -76,6 +86,9 @@ public class PackCatalogService {
         packs.add(new PackDefinition("pack_trap_random", "Trap Pack",
                 "Five random Trap cards from a changing elemental mix.", true, 120,
                 activeElements, false));
+        packs.add(new PackDefinition(SIEGEKNIGHT_PACK_ID, "SiegeKnight Cache",
+                "A premium cache that always contains a rare SiegeKnight plus five cards. Duplicates level up your knight.",
+                true, 1200, activeElements, false));
         return packs.stream()
                 .filter(pack -> pack.elements().stream().map(Enum::name).allMatch(cardDefinitionService.getActiveLiveElementNames()::contains))
                 .toList();
@@ -113,7 +126,7 @@ public class PackCatalogService {
             if (cards.size() < 5) {
                 throw new IllegalArgumentException("This pack does not have enough live " + focusType.get().name().toLowerCase(Locale.ROOT) + " cards configured.");
             }
-            return new PackOpenResult(pack, cards);
+            return new PackOpenResult(pack, cards, rollBonusTrainer(pack));
         }
 
         List<Card> sieglings = selectRandom(pool, CardType.SIEGLING, 3);
@@ -139,7 +152,28 @@ public class PackCatalogService {
             }
             cards.add(filler.get(0));
         }
-        return new PackOpenResult(pack, cards);
+        return new PackOpenResult(pack, cards, rollBonusTrainer(pack));
+    }
+
+    /**
+     * Rolls a SiegeKnight to include with a pack. The dedicated SiegeKnight Cache always yields one;
+     * other packs only yield one rarely ({@link #TRAINER_DROP_CHANCE}). Returns null when no knight drops.
+     */
+    private TrainerCard rollBonusTrainer(PackDefinition pack) {
+        boolean guaranteed = SIEGEKNIGHT_PACK_ID.equals(pack.id());
+        if (!guaranteed && new Random().nextDouble() >= TRAINER_DROP_CHANCE) {
+            return null;
+        }
+        List<TrainerCard> candidates = cardDefinitionService.getTrainerOptions().stream()
+                .filter(trainer -> pack.elements().contains(trainer.getElement()))
+                .toList();
+        if (candidates.isEmpty()) {
+            candidates = cardDefinitionService.getTrainerOptions();
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        return candidates.get(new Random().nextInt(candidates.size())).copy();
     }
 
     public List<Map<String, Object>> serializePacks() {
