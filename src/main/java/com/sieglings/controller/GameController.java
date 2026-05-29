@@ -324,8 +324,33 @@ public class GameController {
 
     @GetMapping("/api/match/rooms")
     @ResponseBody
-    public Map<String, Object> listRooms() {
-        return Map.of("rooms", multiplayerService.listOpenRooms().stream().map(this::serializeOpenRoom).toList());
+    public Map<String, Object> listRooms(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        AccountUser user = accountService.findUser(authorizationHeader);
+        String accountUserId = user == null ? null : user.getId();
+        return Map.of("rooms", multiplayerService.listBrowsableRooms(accountUserId).stream().map(this::serializeOpenRoom).toList());
+    }
+
+    @PostMapping("/api/match/reconnect-host")
+    @ResponseBody
+    public Map<String, Object> reconnectHost(@RequestBody(required = false) Map<String, Object> req,
+                                             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                             HttpServletRequest request) {
+        try {
+            String roomId = req == null ? null : (String) req.get("roomId");
+            AccountUser user = accountService.findUser(authorizationHeader);
+            if (user == null) {
+                throw new IllegalArgumentException("Sign in to reopen your lobby.");
+            }
+            MultiplayerService.RoomSession session = multiplayerService.reconnectHost(roomId, user.getId());
+            MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
+            Map<String, Object> resp = buildRoomMeta(room, session, request);
+            if (room.isStarted()) {
+                resp.putAll(buildStateResponse(room.getGameState(), true, room.getRoomId(), user, room));
+            }
+            return resp;
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
     }
 
     @PostMapping("/api/match/forfeit")
@@ -947,6 +972,7 @@ public class GameController {
                 ? (room.getGuestName() == null ? "Waiting for Player 2" : room.getGuestName())
                 : room.getHostName());
         resp.put("guestJoined", room.hasGuest());
+        resp.put("closed", room.isClosed());
         resp.put("loadoutPhase", room.isLoadoutPhase());
         resp.put("hostReady", room.isHostReady());
         resp.put("guestReady", room.isGuestReady());

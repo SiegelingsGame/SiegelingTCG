@@ -4309,7 +4309,29 @@
         const normalized = String(roomId).trim().toUpperCase();
         const hostLobby = readHostLobby();
         if (hostLobby?.roomId && hostLobby.roomId.toUpperCase() === normalized) return true;
+        const listed = state.rooms.find(entry => String(entry.roomId || '').toUpperCase() === normalized);
+        if (listed && listed.hostUserId && listed.hostUserId === state.profile?.user?.id) return true;
         return false;
+    }
+
+    async function reconnectHostLobbySession(roomId) {
+        if (!state.token || !roomId) return null;
+        const data = await fetchJson('/api/match/reconnect-host', {
+            method: 'POST',
+            body: JSON.stringify({ roomId })
+        });
+        if (data?.error) {
+            alert(data.error);
+            return null;
+        }
+        if (!data?.roomId || !data?.playerToken) return null;
+        writeHostLobby({
+            roomId: data.roomId,
+            playerToken: data.playerToken,
+            expiresAt: data.expiresAt || null,
+            shareUrl: data.shareUrl || buildSocialRoomShareUrl(data.roomId)
+        });
+        return { roomId: data.roomId, playerToken: data.playerToken, role: 'host' };
     }
 
     function openLobbyWaitingRoom(roomId, options = {}) {
@@ -4366,8 +4388,8 @@
             }
         }
         if (isOwnLobbyRoomId(roomId)) {
-            alert('Reconnect from the device that created this lobby, or create a new table.');
-            navigateHub('social', { focus: 'lobby' });
+            const reconnected = await reconnectHostLobbySession(roomId);
+            if (reconnected) return reconnected;
             return null;
         }
         if (!state.options?.decks?.length) {
@@ -4494,7 +4516,7 @@
 
     function bindLobbyWaitingRoomControls() {
         document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
-        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
+        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => void leaveLobbyWaitingRoom());
         document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
             const hostLobby = readHostLobby();
             if (hostLobby) void closeHostLobby(hostLobby);
@@ -4688,7 +4710,7 @@
         stopLobbyPolling();
         if (session?.role === 'guest' && session.roomId && session.playerToken && !state.lobbyStatus?.started) {
             try {
-                await fetchJson('/api/match/leave', {
+                const data = await fetchJson('/api/match/leave', {
                     method: 'POST',
                     headers: {
                         'X-Room-Id': session.roomId,
@@ -4696,8 +4718,16 @@
                     },
                     body: JSON.stringify({ roomId: session.roomId })
                 });
+                if (data?.error) {
+                    alert(data.error);
+                }
             } catch (error) {
                 console.warn('Unable to leave lobby', error);
+            }
+            try {
+                localStorage.removeItem(MULTIPLAYER_SESSION_KEY);
+            } catch (_error) {
+                // ignore storage failures
             }
         }
         clearLobbySession();
@@ -4723,10 +4753,10 @@
         const session = currentLobbySession();
         if (!session) return;
         const status = await fetchMatchStatus(session);
-        if (!status || status.error) {
-            if (status?.error) {
-                alert(status.error);
-                leaveLobbyWaitingRoom();
+        if (!status || status.error || status.closed) {
+            if (status?.error || status?.closed) {
+                alert(status?.error || 'This lobby has been closed.');
+                await leaveLobbyWaitingRoom();
             }
             return;
         }
