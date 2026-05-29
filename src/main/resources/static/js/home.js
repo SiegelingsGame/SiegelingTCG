@@ -269,7 +269,7 @@
         document.getElementById('joinByCodeBtn')?.addEventListener('click', () => navigateHub('social'));
         document.getElementById('joinRoomBtn')?.addEventListener('click', joinRoomFromHome);
         document.getElementById('refreshRoomsBtn')?.addEventListener('click', () => refreshRooms(true));
-        document.getElementById('socialCreateLobbyBtn')?.addEventListener('click', createLobbyFromHome);
+        document.getElementById('socialFilterBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('quickJoinBtn')?.addEventListener('click', quickJoinFirstRoom);
         document.getElementById('roomSearchInput')?.addEventListener('input', (event) => {
             state.roomSearch = event.target.value.trim().toLowerCase();
@@ -599,7 +599,7 @@
             const active = state.route === route || (route === 'social' && state.route === 'lobby');
             document.getElementById(sectionId)?.classList.toggle('hidden', !active);
         });
-        if (!isBinderRoute()) {
+        if (!isBinderRoute() && !isSocialRoute()) {
             state.filterTrayOpen = false;
             state.cardTrayOpen = false;
         }
@@ -1984,10 +1984,13 @@
         if (!list) return;
         const rooms = filteredRooms();
         const totalOpen = state.rooms.filter(room => !isRoomFull(room)).length;
-        const roomCount = document.getElementById('roomCountLabel');
+        const roomOpen = document.getElementById('roomOpenLabel');
+        const lobbyFilterOpen = document.getElementById('lobbyFilterOpenLabel');
         const shownCount = document.getElementById('roomShownLabel');
         const quickJoinBtn = document.getElementById('quickJoinBtn');
-        if (roomCount) roomCount.textContent = `${totalOpen} open`;
+        const openLabel = `${totalOpen} open`;
+        if (roomOpen) roomOpen.textContent = openLabel;
+        if (lobbyFilterOpen) lobbyFilterOpen.textContent = openLabel;
         if (shownCount) shownCount.textContent = `${rooms.length} shown`;
         if (quickJoinBtn) quickJoinBtn.disabled = !rooms.some(room => !isRoomFull(room));
         renderSocialActiveLobby();
@@ -3786,8 +3789,17 @@
         return state.route === 'cards' || state.route === 'decks';
     }
 
+    function isSocialRoute() {
+        return state.route === 'social' || state.route === 'lobby';
+    }
+
+    function isFilterRoute() {
+        return isBinderRoute() || isSocialRoute();
+    }
+
     function toggleTray(type) {
-        if (!isBinderRoute()) return;
+        if (type === 'filter' && !isFilterRoute()) return;
+        if (type === 'card' && !isBinderRoute()) return;
         if (type === 'filter') {
             state.filterTrayOpen = !state.filterTrayOpen;
             if (state.filterTrayOpen) state.cardTrayOpen = false;
@@ -3814,6 +3826,8 @@
 
     function renderHudTools() {
         const binder = isBinderRoute();
+        const social = isSocialRoute();
+        const filterOpen = state.filterTrayOpen;
         const optionsBtn = document.getElementById('optionsBtn');
         optionsBtn?.classList.toggle('hidden', state.route !== 'home');
         // Hide "Join With Code" on the Cards/Decks binder routes; it crowds the
@@ -3821,19 +3835,26 @@
         const joinBtn = document.getElementById('joinByCodeBtn');
         joinBtn?.classList.toggle('hidden', binder);
         const filterBtn = document.getElementById('filterTrayBtn');
+        const socialFilterBtn = document.getElementById('socialFilterBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
         const filterTray = document.getElementById('filterTray');
+        const lobbyFilterTray = document.getElementById('lobbyFilterTray');
         const cardTray = document.getElementById('detailPanel');
         const backdrop = document.getElementById('trayBackdrop');
-        filterBtn?.classList.toggle('hidden', !binder);
+        const showFilterHud = binder || social;
+        filterBtn?.classList.toggle('hidden', !showFilterHud);
         cardBtn?.classList.toggle('hidden', !binder);
-        filterBtn?.classList.toggle('active', binder && state.filterTrayOpen);
+        filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
+        socialFilterBtn?.classList.toggle('active', social && filterOpen);
         cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
-        filterTray?.classList.toggle('is-closed', !binder || !state.filterTrayOpen);
+        filterTray?.classList.toggle('is-closed', !binder || !filterOpen);
+        lobbyFilterTray?.classList.toggle('is-closed', !social || !filterOpen);
         cardTray?.classList.toggle('is-closed', !binder || !state.cardTrayOpen);
-        filterTray?.setAttribute('aria-hidden', String(!binder || !state.filterTrayOpen));
+        filterTray?.setAttribute('aria-hidden', String(!binder || !filterOpen));
+        lobbyFilterTray?.setAttribute('aria-hidden', String(!social || !filterOpen));
         cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
-        backdrop?.classList.toggle('hidden', !binder || (!state.filterTrayOpen && !state.cardTrayOpen));
+        const trayOpen = (binder && filterOpen) || (social && filterOpen) || (binder && state.cardTrayOpen);
+        backdrop?.classList.toggle('hidden', !trayOpen);
     }
 
     async function fetchJson(path, options = {}) {

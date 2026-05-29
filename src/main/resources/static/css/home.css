@@ -2354,15 +2354,35 @@ select.search-input { color-scheme: dark; }
 
 .social-search-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 10px;
+}
+
+.social-filter-btn.active {
+    border-color: rgba(255, 215, 0, 0.62);
+    color: #ffe9a0;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.social-lobby-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.lobby-filter-tray .search-input {
+    margin-bottom: 10px;
+}
+
+.lobby-filter-toggle {
+    margin-top: 4px;
 }
 
 .social-search-row .search-input,
 .social-code-row .search-input,
 .social-friends-card .search-input,
-.friend-add-row .search-input,
-.social-lobby-tools .search-input {
+.friend-add-row .search-input {
     margin-bottom: 0;
 }
 
@@ -5363,6 +5383,7 @@ body.gacha-active {
         -webkit-backdrop-filter: blur(4px);
     }
     .filter-tray.is-closed,
+    .lobby-filter-tray.is-closed,
     .detail-tray.is-closed { transform: translateY(12px); }
     .command-hero-top,
     .command-hero-actions,
