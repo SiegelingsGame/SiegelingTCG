@@ -1903,13 +1903,40 @@ select.search-input { color-scheme: dark; }
 
 .mission-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
     gap: 10px;
     align-items: center;
     padding: 9px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.035);
+}
+
+.mission-row.is-complete {
+    border-color: rgba(90, 180, 255, 0.35);
+}
+
+.mission-row.is-claimed {
+    opacity: 0.72;
+}
+
+.mission-claim-btn {
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 215, 0, 0.45);
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.22), rgba(255, 120, 30, 0.18));
+    color: #ffe7a4;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.mission-claimed-label {
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: var(--text-dim);
 }
 
 .mission-icon,

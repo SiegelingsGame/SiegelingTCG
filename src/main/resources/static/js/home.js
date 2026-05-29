@@ -179,7 +179,11 @@
         catalogSyncBound: false,
         profileUserId: '',
         leaderboardTab: 'wins',
-        leaderboardPeriod: 'daily'
+        leaderboardPeriod: 'daily',
+        dailyMissions: null,
+        dailyMissionsError: '',
+        showAllMissions: false,
+        missionResetTimer: null
     };
 
     const LEADERBOARD_PERIODS = [
@@ -353,12 +357,13 @@
     }
 
     async function loadAll() {
-        const [options, packs, descriptions, profile, leaderboards] = await Promise.all([
+        const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
             fetchCachedJson('gameOptions', '/api/game/options', STATIC_CACHE_TTL_MS),
             fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
-            fetchCachedJson('leaderboards', '/api/leaderboards', STATIC_CACHE_TTL_MS)
+            fetchCachedJson('leaderboards', '/api/leaderboards', STATIC_CACHE_TTL_MS),
+            loadDailyMissions()
         ]);
         applyGameOptions(options);
         state.packs = packs?.packs || [];
@@ -366,6 +371,10 @@
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
         state.leaderboards = leaderboards || null;
         state.leaderboardsError = leaderboards?.error || '';
+        if (dailyMissions && !dailyMissions.error) {
+            state.dailyMissions = dailyMissions;
+            state.dailyMissionsError = '';
+        }
         if (!state.selectedCardId) {
             state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
         }
@@ -394,6 +403,7 @@
         }
         state.profile = data;
         state.progression = data.progression || null;
+        await loadDailyMissions();
         startPresenceHeartbeat();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
@@ -403,6 +413,62 @@
             state.profilePrefs = defaultProfilePrefs(data.user || {});
         }
         return data;
+    }
+
+    async function loadDailyMissions() {
+        if (!state.token) {
+            state.dailyMissions = null;
+            state.dailyMissionsError = '';
+            stopMissionResetTimer();
+            return null;
+        }
+        try {
+            const data = await fetchJson('/api/missions/daily');
+            if (data?.error) {
+                state.dailyMissionsError = data.error;
+                return null;
+            }
+            state.dailyMissions = data;
+            state.dailyMissionsError = '';
+            startMissionResetTimer();
+            return data;
+        } catch (error) {
+            state.dailyMissionsError = 'Could not load daily missions.';
+            return null;
+        }
+    }
+
+    function stopMissionResetTimer() {
+        if (state.missionResetTimer) {
+            clearInterval(state.missionResetTimer);
+            state.missionResetTimer = null;
+        }
+    }
+
+    function startMissionResetTimer() {
+        stopMissionResetTimer();
+        if (!state.dailyMissions?.resetAt) {
+            return;
+        }
+        state.missionResetTimer = setInterval(() => {
+            const pill = document.querySelector('.daily-missions-panel .reset-pill');
+            if (pill) {
+                pill.textContent = formatMissionResetCountdown(state.dailyMissions.resetAt);
+            }
+        }, 1000);
+    }
+
+    function formatMissionResetCountdown(resetAt) {
+        const target = new Date(resetAt).getTime();
+        if (!Number.isFinite(target)) {
+            return 'Resets soon';
+        }
+        const remainingMs = Math.max(0, target - Date.now());
+        const totalSeconds = Math.floor(remainingMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `Resets in ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
 
     async function refreshAuthFromStorage() {
@@ -728,7 +794,10 @@
         const featuredPacks = state.packs.slice(0, 4);
         const recentDecks = savedDecks.slice(0, 3);
         const missions = homeDailyMissions();
-        const missionLog = homeMissionLog();
+        const missionLog = homeMissionLog(missions);
+        const resetLabel = state.dailyMissions?.resetAt
+            ? formatMissionResetCountdown(state.dailyMissions.resetAt)
+            : 'Resets at midnight UTC';
         const displayName = (state.profile?.user?.displayName || 'Siegelord').toUpperCase();
         el.innerHTML = `
             <section class="command-hero">
@@ -780,12 +849,12 @@
                 <article class="command-panel daily-missions-panel">
                     <div class="command-panel-head">
                         <div><span class="eyebrow">Daily Missions</span><h3>Today's objectives</h3></div>
-                        <span class="reset-pill">Resets in 06:45:12</span>
+                        <span class="reset-pill">${escapeHtml(resetLabel)}</span>
                     </div>
                     <div class="mission-list">
-                        ${missions.map(renderMissionRow).join('')}
+                        ${missions.length ? missions.map(renderMissionRow).join('') : '<div class="home-empty-emblem">Sign in to track daily missions.</div>'}
                     </div>
-                    <button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">View All Missions</button>
+                    <button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">${state.showAllMissions ? 'Show Featured Missions' : 'View All Missions'}</button>
                 </article>
 
                 <article class="command-panel open-lobbies-panel">
@@ -928,20 +997,35 @@
     }
 
     function homeDailyMissions() {
-        const history = state.profile?.matchHistory || [];
-        const pvpWins = history.filter(row => String(row.matchType || '').toUpperCase().includes('PVP') && String(row.result || '').toUpperCase().includes('WIN')).length;
-        const openedPacks = state.progression?.packHistory?.length || 0;
-        const coins = state.progression?.gold || 0;
-        return [
-            { icon: 'X', title: 'Win 3 PVP Matches', current: Math.min(3, pvpWins), target: 3, reward: 150 },
-            { icon: 'P', title: 'Open 2 Packs', current: Math.min(2, openedPacks), target: 2, reward: 100 },
-            { icon: coinIconMarkup(), iconMarkup: true, title: 'Earn 300 Siegecoins', current: Math.min(300, coins), target: 300, reward: 150 }
-        ];
+        const snapshot = state.dailyMissions;
+        const list = state.showAllMissions
+            ? (snapshot?.missions || [])
+            : (snapshot?.featured || snapshot?.missions || []);
+        if (list.length) {
+            return list.map(mission => ({
+                ...mission,
+                iconMarkup: mission.coinIcon,
+                icon: mission.coinIcon ? coinIconMarkup() : mission.icon
+            }));
+        }
+        if (!state.profile?.authenticated) {
+            return (snapshot?.featured || []).map(mission => ({
+                ...mission,
+                iconMarkup: mission.coinIcon,
+                icon: mission.coinIcon ? coinIconMarkup() : mission.icon,
+                current: 0
+            }));
+        }
+        return [];
     }
 
     function renderMissionRow(mission) {
         const pct = mission.target ? Math.min(100, Math.round((mission.current / mission.target) * 100)) : 0;
-        return `<div class="mission-row">
+        const statusClass = mission.claimed ? ' is-claimed' : (mission.completed ? ' is-complete' : '');
+        const claimBtn = mission.claimable
+            ? `<button class="mission-claim-btn" type="button" data-mission-claim="${escapeAttr(mission.id)}">Claim</button>`
+            : (mission.claimed ? '<span class="mission-claimed-label">Claimed</span>' : '');
+        return `<div class="mission-row${statusClass}" data-mission-id="${escapeAttr(mission.id)}">
             <span class="mission-icon">${mission.iconMarkup ? mission.icon : escapeHtml(mission.icon)}</span>
             <div class="mission-copy">
                 <strong>${escapeHtml(mission.title)}</strong>
@@ -949,13 +1033,39 @@
             </div>
             <span class="mission-count">${escapeHtml(mission.current)} / ${escapeHtml(mission.target)}</span>
             <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
+            ${claimBtn}
         </div>`;
     }
 
-    function homeMissionLog() {
+    async function claimDailyMission(missionId) {
+        if (!state.token || !missionId) return;
+        const data = await fetchJson('/api/missions/claim', { method: 'POST', body: JSON.stringify({ missionId }) });
+        if (data?.error) {
+            window.alert(data.error);
+            return;
+        }
+        if (data?.dailyMissions) {
+            state.dailyMissions = data.dailyMissions;
+        } else {
+            await loadDailyMissions();
+        }
+        if (typeof data?.gold === 'number' && state.progression) {
+            state.progression.gold = data.gold;
+        }
+        safeRender(renderGold);
+        safeRender(renderHomeDashboard);
+    }
+
+    function homeMissionLog(missions = []) {
         const history = state.profile?.matchHistory || [];
         const packHistory = state.progression?.packHistory || [];
         const rows = [];
+        missions.filter(m => m.completed).slice(0, 2).forEach(mission => rows.push({
+            title: mission.claimed ? `${mission.title} claimed` : `${mission.title} complete`,
+            detail: mission.claimed
+                ? `${mission.reward} Siegecoins collected`
+                : `Ready to claim ${mission.reward} Siegecoins`
+        }));
         history.slice(0, 3).forEach(row => rows.push({
             title: `${format(row.result || 'Battle')} vs ${row.opponentName || 'Opponent'}`,
             detail: row.loadoutLabel || row.trainerName || 'Match completed'
@@ -1038,7 +1148,14 @@
                 if (directLink) return;
                 return navigateHub('shop');
             }
-            if (action === 'missions') return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (action === 'missions') {
+                state.showAllMissions = !state.showAllMissions;
+                renderHomeDashboard();
+                return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }));
+        root.querySelectorAll('[data-mission-claim]').forEach(btn => btn.addEventListener('click', () => {
+            void claimDailyMission(btn.dataset.missionClaim);
         }));
         root.querySelectorAll('[data-home-lb-period]').forEach(btn => btn.addEventListener('click', () => {
             state.leaderboardPeriod = btn.dataset.homeLbPeriod || 'daily';
@@ -2686,6 +2803,7 @@
         state.progression = data.progression;
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
+        await loadDailyMissions();
         const latest = state.progression?.packHistory?.[0];
         state.packOpeningDismissedKey = '';
         state.packReveal = latest ? {
