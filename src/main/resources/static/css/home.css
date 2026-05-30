@@ -5518,3 +5518,111 @@ body.gacha-active {
 
 .admin-access { display: grid; gap: 12px; margin-top: 8px; }
 .admin-error { color: #ff7676; min-height: 16px; margin: 0; }
+
+/* ============================================================
+   Landscape phones (e.g. iPhone 14 Pro Max 932x430)
+   The desktop nav is ~1285px wide and overflows the 932px
+   viewport. The portrait mobile layout (max-width:900) never
+   triggers here, so this block gives landscape phones a slim,
+   wrap-safe top nav and a denser, fully-scrollable body.
+   ============================================================ */
+@media (orientation: landscape) and (max-width: 960px) and (max-height: 540px) {
+    html, body { overflow-x: hidden; }
+    .home-shell { overflow-x: hidden; min-height: 100dvh; }
+
+    /* Slim single-row top nav (everything on one header line) */
+    .home-nav {
+        position: sticky;
+        top: 0;
+        right: auto;
+        bottom: auto;
+        left: auto;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 8px;
+        min-height: 0;
+        padding: 6px 12px;
+        border-top: 0;
+        border-bottom: 2px solid rgba(255, 215, 0, 0.72);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    .brand {
+        order: 1;
+        flex: 0 0 auto;
+        min-width: 0;
+        justify-content: flex-start;
+    }
+    .brand span { display: none; }
+    .brand-mark { width: 30px; height: 30px; }
+
+    /* Tabs are the flexible middle slot — they scroll only if truly cramped */
+    .nav-tabs {
+        order: 2;
+        flex: 1 1 auto;
+        min-width: 0;
+        gap: 2px;
+        padding: 3px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        justify-content: center;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+    .nav-tabs::-webkit-scrollbar { display: none; }
+    .nav-tabs a {
+        flex: 0 0 auto;
+        padding: 6px 10px;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    /* Actions stay pinned to the right and never wrap off the row */
+    .nav-actions {
+        order: 3;
+        flex: 0 0 auto;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+        gap: 5px;
+    }
+    .nav-actions .primary-btn,
+    .nav-actions .ghost-btn {
+        min-height: 32px;
+        padding: 6px 9px;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+    .gold-pill { padding: 6px 9px; font-size: 11px; }
+    .coin-icon { width: 18px; height: 18px; }
+
+    /* Body: comfortable scroll, no clipped panels */
+    .home-main {
+        padding: 12px 14px 22px;
+        overflow-x: hidden;
+    }
+    .browser-panel { min-height: 0; padding: 12px; }
+
+    /* Tighten the hero for the short 430px viewport */
+    .command-hero { min-height: 0; padding: 16px 18px; gap: 12px; }
+    .command-hero-welcome { font-size: 18px; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .command-hero h2 { font-size: clamp(28px, 5vw, 40px); margin-bottom: 8px; }
+    .command-hero-tagline { font-size: 13px; }
+    .command-hero-top { grid-template-columns: 1fr; gap: 12px; }
+    .command-hero-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .command-hero-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .command-hero-stat-icon { width: 40px; height: 40px; }
+
+    /* Section heads tighter */
+    .section-head { margin-bottom: 10px; }
+    .section-head h1 { font-size: 20px; }
+
+    /* Slightly denser collection grid for the wide-but-short viewport */
+    .card-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
+
+    /* Floating trays sit under the slim single-row nav and stay scrollable */
+    .filter-panel,
+    .detail-panel {
+        top: 54px;
+        max-height: calc(100dvh - 66px);
+    }
+}

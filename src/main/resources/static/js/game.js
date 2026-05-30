@@ -2368,7 +2368,7 @@ function resolveApiBaseUrl(url) {
 }
 
 function isPhoneLandscapeLayout() {
-    return window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches;
+    return window.matchMedia('(orientation: landscape) and (max-width: 979px)').matches;
 }
 
 function isTabletLandscapeLayout() {
@@ -2379,6 +2379,36 @@ function isTabletLandscapeLayout() {
 
 function isCompactLandscapeLayout() {
     return isPhoneLandscapeLayout() || isTabletLandscapeLayout();
+}
+
+/** Landscape arena footer hand strip renders at this fraction of the fit width. */
+const ARENA_FOOTER_HAND_SCALE = 0.55;
+
+/** Phone/tablet landscape: hand along arena footer, primary actions in the right rail. */
+function syncLandscapeUiDocks() {
+    const handSection = document.getElementById('desktopHandSection');
+    const actions = document.getElementById('arenaPrimaryActions');
+    const handFooterDock = document.getElementById('arenaFooterHandDock');
+    const handMenuDock = document.getElementById('desktopMenuHandDock');
+    const actionsFooterDock = document.getElementById('arenaFooterActionsDock');
+    const actionsMenuDock = document.getElementById('desktopMenuActionsDock');
+    if (!handSection || !actions || !handFooterDock || !handMenuDock || !actionsFooterDock || !actionsMenuDock) {
+        return;
+    }
+
+    const dockHandInFooter = isCompactLandscapeLayout();
+    const handTarget = dockHandInFooter ? handFooterDock : handMenuDock;
+    const actionsTarget = dockHandInFooter ? actionsMenuDock : actionsFooterDock;
+
+    if (handSection.parentElement !== handTarget) {
+        handTarget.appendChild(handSection);
+    }
+    if (actions.parentElement !== actionsTarget) {
+        actionsTarget.appendChild(actions);
+    }
+
+    document.body.classList.toggle('compact-landscape-hand-dock', dockHandInFooter);
+    document.body.classList.toggle('compact-landscape-actions-rail', dockHandInFooter);
 }
 
 function isDesktopSidebarLayout() {
@@ -2413,7 +2443,10 @@ function updateResponsiveLayoutVars(force = false) {
     }
     lastViewportSignature = signature;
 
+    syncLandscapeUiDocks();
+
     const root = document.documentElement;
+    const handInArenaFooter = document.body.classList.contains('compact-landscape-hand-dock');
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const desktop = isDesktopSidebarLayout();
@@ -2529,6 +2562,21 @@ function updateResponsiveLayoutVars(force = false) {
         ))
         : isTabletLandscapeLayout()
         ? Math.round(clampNumber(viewportHeight * 0.14, 88, 118))
+        : compactLandscape && handInArenaFooter
+        ? (() => {
+            const handVisibleCards = 5;
+            const boardArea = document.getElementById('boardArea');
+            const sidebarGuess = isPhoneLandscapeLayout() ? 208 : Math.round(clampNumber(viewportWidth * 0.3, 268, 340));
+            const arenaWidth = boardArea?.getBoundingClientRect().width
+                || Math.max(240, viewportWidth - sidebarGuess - 16);
+            const handGap = 6;
+            const horizontalChrome = 36;
+            const fitWidth = Math.floor(
+                (arenaWidth - horizontalChrome - handGap * (handVisibleCards - 1)) / handVisibleCards
+            );
+            const scaledWidth = fitWidth * ARENA_FOOTER_HAND_SCALE;
+            return Math.round(clampNumber(scaledWidth, 26, 52));
+        })()
         : compactLandscape
         ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
         : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
@@ -2585,6 +2633,16 @@ function updateResponsiveLayoutVars(force = false) {
     root.style.setProperty('--hand-card-selected-lift', desktop ? '-6px' : `${-Math.round(handWidth * 0.2)}px`);
     root.style.setProperty('--overlay-shell-width', `${overlayWidth}px`);
     root.style.setProperty('--overlay-shell-padding', `${overlayPadding}px`);
+
+    if (handInArenaFooter) {
+        const footerHandHeight = Math.round((handWidth * cardAspectHeight) + 14);
+        root.style.setProperty('--arena-footer-hand-scale', String(ARENA_FOOTER_HAND_SCALE));
+        root.style.setProperty('--arena-footer-height', `${footerHandHeight}px`);
+    } else {
+        root.style.removeProperty('--arena-footer-height');
+    }
+
+    scheduleDesktopHandSelectorCardScale();
 }
 
 function setMobileInfoTab(tab) {
@@ -7554,10 +7612,13 @@ function renderDomLegacy() {
         resetDrawButton();
     }
     btnDraw.disabled = over || opponentSetupTurn || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
+    const endTurnLabel = playerActive ? 'End Turn' : 'Opponents Turn';
+    const endTurnDisabled = over || !playerActive || phase !== 'SETUP';
     if (btnEndTurn) {
-        btnEndTurn.textContent = playerActive ? 'End Turn' : 'Opponents Turn';
+        btnEndTurn.textContent = endTurnLabel;
+        btnEndTurn.disabled = endTurnDisabled;
+        btnEndTurn.classList.toggle('hidden', phase !== 'SETUP');
     }
-    btnEndTurn.disabled = over || !playerActive || phase !== 'SETUP';
     btnDraw.classList.toggle('hidden', battlePhaseActive);
     btnBattle.classList.toggle('hidden', !battlePhaseActive);
 
@@ -7603,7 +7664,10 @@ function renderDomLegacy() {
     // Highlight the active phase button
     btnDraw.classList.toggle('ab-active', (phase === 'DRAW' || drawButtonActsAsEndTurn) && playerActive && !over);
     btnBattle.classList.toggle('ab-active', phase === 'BATTLE' && !over);
-    btnEndTurn.classList.toggle('ab-active', phase === 'SETUP' && playerActive && !over);
+    const endTurnActive = phase === 'SETUP' && playerActive && !over;
+    if (btnEndTurn) {
+        btnEndTurn.classList.toggle('ab-active', endTurnActive);
+    }
 
     document.getElementById('playerHealth').textContent = gameState.player.health;
     document.getElementById('enemyHealth').textContent = gameState.enemy.health;
@@ -9056,11 +9120,17 @@ function renderLinkConnectors(gridId, board, isPlayer) {
         const cellLocal = getBoardCellLocalRect(grid, cellEl);
         if (!cellLocal) continue;
 
-        const point = getExternalSocketPoint(cellLocal, socket.side);
+        const point = getExternalSocketPoint(
+            cellLocal,
+            resolveExternalSocketRenderSide(isPlayer, socket.side)
+        );
         const activeSocket = activeExternalSockets.get(socket.key);
 
         if (activeSocket) {
-            const anchor = getCellEdgeAnchor(cellLocal, activeSocket.direction);
+            const anchor = getCellEdgeAnchor(
+                cellLocal,
+                resolveExternalEdgeDirection(isPlayer, activeSocket.row, activeSocket.direction)
+            );
             appendExternalLink(grid, anchor, point, getElementHex(activeSocket.element));
         }
 
@@ -9328,6 +9398,41 @@ function getNotchStateClass(notch, options) {
     return '';
 }
 
+/** Phone landscape CSS flips enemy grid rows (Back row renders on the visual bottom). */
+function isEnemyBoardRowsVisuallyFlipped() {
+    return window.matchMedia('(orientation: landscape) and (max-width: 979px)').matches;
+}
+
+const VERTICAL_DIRECTION_FLIP = {
+    TOP: 'BOTTOM',
+    BOTTOM: 'TOP',
+    TOP_LEFT: 'BOTTOM_LEFT',
+    TOP_RIGHT: 'BOTTOM_RIGHT',
+    BOTTOM_LEFT: 'TOP_LEFT',
+    BOTTOM_RIGHT: 'TOP_RIGHT'
+};
+
+function flipVerticalDirection(direction) {
+    return VERTICAL_DIRECTION_FLIP[direction] || direction;
+}
+
+/** Map logical socket side / notch edge to where it appears on screen for the enemy board. */
+function resolveExternalSocketRenderSide(isPlayer, side) {
+    if (isPlayer || !isEnemyBoardRowsVisuallyFlipped()) {
+        return side;
+    }
+    if (side === 'top') return 'bottom';
+    if (side === 'bottom') return 'top';
+    return side;
+}
+
+function resolveExternalEdgeDirection(isPlayer, row, direction) {
+    if (isPlayer || !isEnemyBoardRowsVisuallyFlipped() || row !== 0) {
+        return direction;
+    }
+    return flipVerticalDirection(direction);
+}
+
 function directionDelta(direction, isPlayer = false) {
     switch (direction) {
         case 'TOP': return { dx: 0, dy: isPlayer ? 1 : -1 };
@@ -9472,7 +9577,7 @@ function scheduleDesktopHandSelectorCardScale() {
 }
 
 function syncDesktopHandSelectorCardScale() {
-    if (!isDesktopSidebarLayout() || isHandHiddenForPhase()) {
+    if (isHandHiddenForPhase()) {
         return;
     }
 
@@ -9498,6 +9603,34 @@ function syncDesktopHandSelectorCardScale() {
         return;
     }
 
+    const root = document.documentElement;
+
+    if (isCompactLandscapeLayout()) {
+        const handInFooter = document.body.classList.contains('compact-landscape-hand-dock');
+        const visibleCards = handInFooter ? 5 : 2;
+        const slotWidth = Math.max(
+            handInFooter ? 26 : 44,
+            (contentWidth - (columnGap * (visibleCards - 1))) / visibleCards
+        );
+        const measuredWidth = contentHeight * (5 / 7);
+        const scaledSlotWidth = handInFooter ? slotWidth * ARENA_FOOTER_HAND_SCALE : slotWidth;
+        const nextWidth = Math.round(clampNumber(
+            Math.min(measuredWidth * (handInFooter ? ARENA_FOOTER_HAND_SCALE : 1), scaledSlotWidth),
+            handInFooter ? 26 : 56,
+            scaledSlotWidth
+        ));
+        const nextPadding = Math.round(clampNumber(nextWidth * 0.04, 2, 5));
+        root.style.setProperty('--hand-card-width', `${nextWidth}px`);
+        root.style.setProperty('--hand-card-padding', `${nextPadding}px`);
+        root.style.setProperty('--hand-card-overlap', '0px');
+        root.style.setProperty('--hand-card-gap', `${Math.max(4, Math.round(columnGap || 6))}px`);
+        return;
+    }
+
+    if (!isDesktopSidebarLayout()) {
+        return;
+    }
+
     const visibleCards = 5;
     const maxFiveCardWidth = Math.max(
         48,
@@ -9511,7 +9644,6 @@ function syncDesktopHandSelectorCardScale() {
     ));
     const nextPadding = Math.round(clampNumber(nextWidth * 0.035, 3, 8));
 
-    const root = document.documentElement;
     root.style.setProperty('--hand-card-width', `${nextWidth}px`);
     root.style.setProperty('--hand-card-padding', `${nextPadding}px`);
 }
@@ -11116,13 +11248,17 @@ function updateHandLiftLayer() {
     }
 
     const source = getHandCardSourceElement(liftIndex);
-    const actionBar = document.getElementById('actionBar');
-    if (!source || !actionBar) {
+    const actionAnchor = document.getElementById('desktopMenuActionsDock')
+        || document.querySelector('.arena-footer-actions-dock')
+        || document.querySelector('.arena-landscape-footer')
+        || document.getElementById('handTray')
+        || document.getElementById('actionBar');
+    if (!source || !actionAnchor) {
         return;
     }
 
     const sourceRect = source.getBoundingClientRect();
-    const actionRect = actionBar.getBoundingClientRect();
+    const actionRect = actionAnchor.getBoundingClientRect();
     const targetLeft = Math.min(
         Math.max(12, sourceRect.left),
         window.innerWidth - sourceRect.width - 12
@@ -11240,6 +11376,7 @@ syncDesktopInspectTabUi();
 
 (function setupBoardGridLayoutObservers() {
     const onLayoutModeBoundsChange = () => {
+        updateResponsiveLayoutVars(true);
         scheduleBoardLinkConnectorRefresh();
         setTimeout(scheduleBoardLinkConnectorRefresh, 200);
         if (gameState) updateSafeAreaHpStrip(gameState);
@@ -11264,6 +11401,7 @@ syncDesktopInspectTabUi();
         window.matchMedia('(max-width: 900px)'),
         window.matchMedia('(min-width: 980px)'),
         window.matchMedia('(orientation: landscape) and (max-height: 600px)'),
+        window.matchMedia('(orientation: landscape) and (max-width: 979px)'),
         window.matchMedia('(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)')
     ];
     mqListeners.forEach((mq) => {
