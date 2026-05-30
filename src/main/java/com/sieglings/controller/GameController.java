@@ -850,6 +850,11 @@ public class GameController {
             resp.put("battleWaitingOn", pendingAttacker == null ? null : "ENEMY");
         }
 
+        if (gs.getCurrentPhase() == Phase.BATTLE) {
+            resp.put("battleCursor", gs.getBattleCursor());
+            resp.put("battleQueue", serializeBattleQueue(gs, viewerIsPlayer, viewer.getName(), opponent.getName()));
+        }
+
         List<String> log = gs.getGameLog();
         List<String> latestLog = new ArrayList<>(log.subList(Math.max(0, log.size() - 80), log.size()));
         Collections.reverse(latestLog);
@@ -1422,6 +1427,33 @@ public class GameController {
         return movesPoolService.resolvePrintedAbilities(s).stream()
                 .filter(a -> a != null && !a.isPassive())
                 .toList();
+    }
+
+    private List<Map<String, Object>> serializeBattleQueue(GameState gs,
+                                                           boolean viewerIsPlayer,
+                                                           String viewerName,
+                                                           String opponentName) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        List<String> queue = gs.getBattleQueue();
+        if (queue == null || queue.isEmpty()) {
+            return rows;
+        }
+        int cursor = Math.max(0, Math.min(gs.getBattleCursor(), queue.size()));
+        for (int i = cursor; i < queue.size(); i++) {
+            CardInstance ci = gs.findByInstanceId(queue.get(i));
+            if (ci == null || !ci.isAlive()) {
+                continue;
+            }
+            boolean ownerIsPlayer = ci.isOwner();
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("instanceId", ci.getInstanceId());
+            row.put("name", ci.getName());
+            row.put("speed", ci.getEffectiveSpeed());
+            row.put("ownerSide", ownerIsPlayer ? "PLAYER" : "ENEMY");
+            row.put("ownerLabel", ownerIsPlayer == viewerIsPlayer ? "You" : opponentName);
+            rows.add(row);
+        }
+        return rows;
     }
 
     private Object serializePendingBattle(GameState gs) {

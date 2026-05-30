@@ -15,6 +15,7 @@
     --desktop-board-height-offset: 124px;
     --desktop-board-height-ratio: 1.38;
     --hand-card-width: 138px;
+    --hand-card-height: auto;
     --hand-card-overlap: -34px;
     --hand-card-gap: 12px;
     --hand-card-padding: 6px;
@@ -1136,6 +1137,52 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     box-shadow: 0 0 14px rgba(255, 215, 0, 0.2);
 }
 
+.ab-pass.ab-primary {
+    display: none;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2px;
+    min-height: 42px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(180, 200, 255, 0.35);
+    color: var(--text);
+    text-align: left;
+    line-height: 1.15;
+}
+
+.ab-pass.ab-primary:not(.hidden) {
+    display: inline-flex;
+}
+
+.ab-pass-title {
+    font-size: 0.76em;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ab-pass-next {
+    font-size: 0.62em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(214, 223, 255, 0.82);
+    white-space: nowrap;
+    max-width: min(42vw, 220px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ab-pass.ab-primary:hover:not(:disabled) {
+    border-color: rgba(139, 194, 255, 0.55);
+    box-shadow: 0 0 14px rgba(90, 156, 255, 0.18);
+}
+
+.ab-pass.ab-primary:disabled {
+    opacity: 0.45;
+}
+
 .ab-draw.ab-primary {
     background: rgba(50, 150, 255, 0.1);
     border-color: var(--water);
@@ -1959,6 +2006,140 @@ body.card-drag-active #playerGrid {
     overflow-x: hidden;
 }
 
+/* Inline battle queue: action bar stays visible; abilities live in the hand tray dock */
+body.battle-inline-dock #drawerBattle {
+    display: none !important;
+}
+
+body.battle-inline-dock:has(#drawerBattle.visible) .drawer-backdrop {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.hand-tray.battle-queue-mode {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.hand-tray.battle-queue-mode .desktop-hand-battle-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.hand-tray.battle-queue-mode .battle-queue-shell,
+.hand-tray.battle-queue-mode .battle-queue-flat {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+body.battle-inline-dock .hand-tray.battle-queue-mode,
+body.battle-inline-dock .hand-tray.battle-queue-mode .desktop-hand-battle-panel,
+body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-shell,
+body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-flat {
+    flex: 0 0 auto;
+    overflow: visible;
+}
+
+body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-actions,
+body.battle-inline-dock .battle-queue-actions {
+    flex: 0 0 auto;
+}
+
+.hand-tray.battle-queue-mode .battle-queue-expanded {
+    flex: 0 1 auto;
+    min-height: 0;
+    gap: 5px;
+}
+
+.hand-tray.battle-queue-mode .battle-queue-actions {
+    flex: 0 0 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    justify-content: flex-start;
+}
+
+.hand-tray.battle-queue-mode .battle-queue-expanded .battle-ability-btn {
+    flex: 0 0 auto;
+    min-height: 0;
+    padding: 7px 10px;
+}
+
+@media (max-width: 900px) {
+    .desktop-menu {
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+        min-height: 0;
+    }
+
+    .desktop-menu-hand {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    body.battle-inline-dock .desktop-menu-hand {
+        flex: 0 0 auto;
+        overflow: visible;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode {
+        flex: 0 0 auto;
+        padding: 6px 8px 0;
+    }
+
+    body.battle-inline-dock .desktop-menu-bottom-dock .action-bar {
+        padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-topbar {
+        margin-bottom: 4px;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-card-title {
+        font-size: 0.92em;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-topbar {
+        margin-bottom: 2px;
+    }
+
+    body.battle-inline-dock .battle-queue-expanded .battle-ability-btn {
+        padding: 6px 9px;
+    }
+
+    body.battle-inline-dock .battle-ability-move-name {
+        font-size: 0.9em;
+    }
+
+    body.battle-inline-dock .battle-ability-effect {
+        font-size: 0.78em;
+    }
+
+    body.battle-inline-dock .battle-cost-free,
+    body.battle-inline-dock .battle-cost-label {
+        font-size: 0.78em;
+    }
+
+    body.battle-inline-dock .action-bar {
+        flex-shrink: 0;
+        order: -1;
+    }
+}
+
 .trainer-card .name {
     font-weight: bold;
     font-size: 0.85em;
@@ -2095,11 +2276,11 @@ body.card-drag-active #playerGrid {
 }
 
 .battle-queue-expanded {
-    min-height: 100%;
-    flex: 1 1 auto;
+    min-height: 0;
+    flex: 0 1 auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
 }
 
 .battle-queue-actions {
@@ -2112,18 +2293,33 @@ body.card-drag-active #playerGrid {
 
 .battle-queue-expanded .battle-ability-btn {
     margin-top: 0;
-    padding: 12px 14px;
-    font-size: 0.82em;
-    min-height: 48px;
+    padding: 7px 10px;
+    font-size: 0.78em;
+    min-height: 0;
 }
 
 .battle-queue-expanded .battle-ability-btn-inner {
-    align-items: flex-start;
+    align-items: center;
+    gap: 8px;
+}
+
+.battle-queue-expanded .battle-ability-copy {
+    gap: 1px;
+}
+
+.battle-queue-expanded .battle-ability-move-name {
+    font-size: 0.95em;
+    line-height: 1.12;
+}
+
+.battle-queue-expanded .battle-ability-effect {
+    font-size: 0.82em;
+    line-height: 1.2;
 }
 
 .battle-queue-expanded .battle-ability-name {
     white-space: normal;
-    line-height: 1.35;
+    line-height: 1.2;
 }
 
 .battle-queue-title {
@@ -2573,6 +2769,104 @@ body.battle-phase-active .battlefield::after {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         justify-content: flex-start;
+    }
+
+    /* Battle phase: arena grows; action dock hugs its buttons (no empty filler). */
+    body.battle-inline-dock .app-shell {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    body.battle-inline-dock .battlefield {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+
+    body.battle-inline-dock .desktop-menu {
+        flex: 0 0 auto;
+        flex-shrink: 0;
+        min-height: 0;
+        max-height: none;
+        overflow: visible;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body.battle-inline-dock .desktop-menu-bottom-dock {
+        flex: 0 0 auto;
+        margin-top: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: visible;
+    }
+
+    body.battle-inline-dock .desktop-menu-hand {
+        flex: 0 0 auto;
+        min-height: 0;
+        overflow: visible;
+        padding: 8px 10px 0;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode {
+        flex: 0 0 auto;
+        min-height: 0;
+        max-height: none;
+        overflow: visible;
+        align-items: stretch;
+        justify-content: flex-start;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-shell,
+    body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-flat {
+        flex: 0 0 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-expanded {
+        flex: 0 0 auto;
+        min-height: 0;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-actions {
+        flex: 0 0 auto;
+        min-height: 0;
+        overflow: visible;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel {
+        position: relative;
+        left: auto;
+        top: auto;
+        transform: none;
+        flex: 0 0 auto;
+        width: 100%;
+        height: auto;
+        min-height: 0;
+        max-height: min(42vh, 300px);
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 10px 12px;
+        border-radius: 16px 16px 0 0;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-expanded {
+        flex: 0 0 auto;
+        min-height: 0;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-actions {
+        flex: 0 0 auto;
+        overflow: visible;
+    }
+
+    body.battle-inline-dock .action-bar {
+        flex-shrink: 0;
     }
 }
 
@@ -3109,6 +3403,12 @@ body.battle-phase-active .battlefield::after {
         display: none;
     }
 
+    @media (max-width: 1366px) and (orientation: portrait) {
+        .top-bar {
+            display: none !important;
+        }
+    }
+
     .top-bar-center {
         gap: 10px;
     }
@@ -3353,11 +3653,12 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu {
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr) minmax(var(--desktop-hand-section-min-height), var(--desktop-hand-section-height)) auto;
+        display: flex;
+        flex-direction: column;
         justify-self: stretch;
         align-self: stretch;
         width: 100%;
+        height: 100%;
         min-height: 0;
         z-index: 8;
         padding: clamp(14px, 1.4vw, 20px);
@@ -3371,6 +3672,16 @@ body.battle-phase-active .battlefield::after {
             0 16px 38px rgba(0, 0, 0, 0.24);
         overflow: hidden;
         gap: 12px;
+    }
+
+    .desktop-menu-bottom-dock {
+        margin-top: auto;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+        width: 100%;
     }
 
     .desktop-menu-header,
@@ -3485,11 +3796,11 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu-inspect {
-        order: 1;
+        flex: 1 1 auto;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        min-height: 0;
     }
 
     .desktop-inspect-toolbar {
@@ -3536,7 +3847,7 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-inspect-viewport {
         flex: 1 1 auto;
-        min-height: 0;
+        min-height: min(28vh, 220px);
         display: flex;
         flex-direction: column;
         position: relative;
@@ -3555,13 +3866,21 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu-hand {
-        order: 2;
         min-width: 0;
         min-height: var(--desktop-hand-section-min-height);
         overflow: hidden;
         display: flex;
         flex-direction: column;
         position: relative;
+        flex-shrink: 0;
+    }
+
+    body.battle-inline-dock .desktop-menu-hand {
+        min-height: 0;
+    }
+
+    body.battle-inline-dock .desktop-menu .hand-tray.battle-queue-mode {
+        flex: 0 0 auto;
     }
 
     .desktop-section-title {
@@ -3612,7 +3931,17 @@ body.battle-phase-active .battlefield::after {
         min-height: 0;
     }
 
-    .desktop-preview-card {
+    .desktop-preview-card-slot {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: center;
+        min-height: 0;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .desktop-preview-layout .selected-preview-card.desktop-preview-card {
         box-sizing: border-box;
         width: var(--desktop-preview-card-width) !important;
         min-width: 0 !important;
@@ -3621,8 +3950,7 @@ body.battle-phase-active .battlefield::after {
         min-height: 0;
         max-height: var(--desktop-preview-card-max-height);
         aspect-ratio: var(--card-aspect-ratio);
-        align-self: start;
-        justify-self: start;
+        margin: 0;
         flex-shrink: 0;
         overflow: hidden;
     }
@@ -3749,15 +4077,15 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu .hand-tray.battle-queue-mode {
-        align-items: center;
-        justify-content: center;
+        align-items: stretch;
+        justify-content: flex-end;
         overflow: hidden;
-        padding: 12px;
+        padding: 0;
     }
 
     .desktop-menu .hand-cards {
         justify-content: flex-start;
-        align-items: flex-start;
+        align-items: stretch;
         gap: var(--hand-card-gap);
         padding: 2px 2px 12px;
         overflow-y: hidden;
@@ -3787,15 +4115,15 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu .hand-card {
-        /* JS derives this width from the live rail height so cards fill the selector while keeping 5:7 proportions. */
+        /* JS sets width/height from the live hand tray so cards fill the selector while keeping 5:7 proportions. */
         box-sizing: border-box;
-        height: auto;
+        height: var(--hand-card-height, 100%);
+        max-height: 100%;
         width: var(--hand-card-width);
         min-width: var(--hand-card-width);
         max-width: var(--hand-card-width);
         min-height: 0;
-        max-height: none;
-        align-self: flex-start;
+        align-self: stretch;
         aspect-ratio: var(--card-aspect-ratio);
         padding: var(--hand-card-padding);
         margin-left: 0;
@@ -3836,13 +4164,13 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-hand-battle-panel {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        width: min(calc(100% - 10px), 560px);
-        height: min(calc(100% - 10px), 580px);
-        max-height: min(calc(100% - 10px), 580px);
+        position: relative;
+        left: auto;
+        top: auto;
+        transform: none;
+        width: 100%;
+        height: auto;
+        max-height: min(46vh, 520px);
         z-index: 9;
         display: flex;
         flex-direction: column;
@@ -3864,6 +4192,8 @@ body.battle-phase-active .battlefield::after {
         animation: desktop-queue-pop 0.18s ease-out;
         color: rgba(228, 236, 255, 0.86);
         scrollbar-width: none;
+        flex-shrink: 0;
+        align-self: stretch;
     }
 
     .desktop-hand-battle-panel::-webkit-scrollbar {
@@ -3903,9 +4233,9 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-hand-battle-panel .battle-queue-expanded .battle-ability-btn {
         margin-top: 0;
-        padding: 12px 14px;
-        font-size: 0.82em;
-        min-height: 48px;
+        padding: 7px 10px;
+        font-size: 0.78em;
+        min-height: 0;
     }
 
     .desktop-hand-battle-panel .battle-queue-expanded {
@@ -4144,8 +4474,7 @@ body.battle-phase-active .battlefield::after {
         color: rgba(255, 255, 255, 0.9);
     }
 
-    .action-bar {
-        order: 3;
+    .desktop-menu-bottom-dock .action-bar {
         gap: 12px;
         padding: 0;
         background: transparent;
@@ -4155,6 +4484,7 @@ body.battle-phase-active .battlefield::after {
         justify-content: flex-start;
         flex-direction: column;
         align-items: stretch;
+        flex-shrink: 0;
     }
 
     .action-bar-btns {
@@ -4207,6 +4537,215 @@ body.battle-phase-active .battlefield::after {
     .loadout-box .builder-deck-list {
         max-height: min(56vh, calc(100dvh - 300px));
     }
+}
+
+/* iPad portrait dock: iPhone-style match header + taller hand selector */
+@media (min-width: 980px) and (max-width: 1366px) and (orientation: portrait) {
+    .mobile-hud {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        padding: calc(7px + env(safe-area-inset-top, 0px)) 10px 7px;
+        background:
+            linear-gradient(180deg, rgba(22, 33, 62, 0.98), rgba(13, 22, 43, 0.98)),
+            radial-gradient(circle at center top, rgba(255, 255, 255, 0.06), transparent 64%);
+        border-bottom: 1px solid rgba(255, 215, 0, 0.58);
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+        z-index: 90;
+    }
+
+    .mobile-hud-side {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        border-radius: 8px;
+        outline: none;
+    }
+
+    .mobile-hud-side.right {
+        align-items: flex-end;
+        text-align: right;
+    }
+
+    .mobile-hud-enemy .m-name { color: var(--danger); }
+    .mobile-hud-player .m-name { color: var(--success); }
+
+    .m-hp-bar {
+        width: 100%;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .mobile-hud-enemy .m-hp-fill { background: var(--danger); }
+    .mobile-hud-player .m-hp-fill { background: var(--success); }
+
+    .m-counts {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.62em;
+        color: var(--text-dim);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .m-counts strong { color: var(--text); }
+
+    .m-name {
+        max-width: 108px;
+        font-size: 0.68em;
+        font-weight: 800;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        letter-spacing: 0.04em;
+    }
+
+    .mobile-hud-center {
+        text-align: center;
+        min-width: 42px;
+    }
+
+    .m-phase {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 40px;
+        padding: 2px 7px;
+        border-radius: 3px;
+        background: var(--accent);
+        color: #080b12;
+        font-size: 0.58em;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
+    .m-turn {
+        margin-top: 2px;
+        color: var(--text-dim);
+        font-size: 0.58em;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+    }
+}
+
+body.tablet-portrait-dock .hud-rail-enemy,
+body.tablet-portrait-dock .hud-rail-player {
+    display: none !important;
+}
+
+body.tablet-portrait-dock .app-shell {
+    grid-template-columns:
+        minmax(0, 1fr)
+        minmax(0, var(--desktop-sidebar-width));
+}
+
+body.tablet-portrait-dock .battlefield {
+    grid-column: 1;
+}
+
+body.tablet-portrait-dock .desktop-menu {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 10px 12px;
+    gap: 8px;
+}
+
+body.tablet-portrait-dock .desktop-menu-bottom-dock {
+    margin-top: auto;
+}
+
+body.tablet-portrait-dock .desktop-menu-header {
+    display: none;
+}
+
+body.tablet-portrait-dock .desktop-menu-inspect {
+    padding: 8px 10px;
+    min-height: 0;
+}
+
+body.tablet-portrait-dock .desktop-inspect-tab {
+    min-height: 28px;
+    padding: 4px 8px;
+    font-size: 0.64em;
+}
+
+body.tablet-stacked-preview .desktop-preview-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+}
+
+body.tablet-stacked-preview .desktop-preview-card-slot {
+    order: 0;
+    justify-content: center;
+    align-items: stretch;
+    height: auto;
+    min-height: 0;
+}
+
+body.tablet-stacked-preview .desktop-preview-copy-panel {
+    order: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+body.tablet-stacked-preview .desktop-preview-layout .selected-preview-card.desktop-preview-card {
+    width: min(var(--desktop-preview-card-width), 100%) !important;
+    max-width: 100% !important;
+    margin: 0 auto;
+}
+
+body.tablet-portrait-dock .desktop-preview-title {
+    font-size: 0.92rem;
+}
+
+body.tablet-portrait-dock .desktop-preview-description,
+body.tablet-portrait-dock .desktop-preview-meta,
+body.tablet-portrait-dock .desktop-preview-stats {
+    font-size: 0.72em;
+}
+
+body.tablet-portrait-dock .desktop-menu-hand {
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+body.tablet-portrait-dock .desktop-menu .hand-tray {
+    flex: 1 1 auto;
+}
+
+body.tablet-portrait-dock .desktop-menu .hand-cards {
+    align-items: stretch;
+    padding-bottom: 10px;
+}
+
+body.tablet-portrait-dock .desktop-menu .hand-card {
+    filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.28));
+}
+
+body.tablet-portrait-dock .action-bar {
+    padding-top: 2px;
+}
+
+body.tablet-portrait-dock .ab-btn {
+    min-height: 38px;
 }
 
 /* ── Elemental Link Connectors ───────────────────── */
@@ -10212,8 +10751,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         padding-right: env(safe-area-inset-right, 0px);
     }
 
-    /* Action bar: compact row at the top of the sidebar */
-    .action-bar {
+    .desktop-menu-bottom-dock {
+        margin-top: auto;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        width: 100%;
+    }
+
+    .desktop-menu-inspect {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+    }
+
+    /* Action bar: pinned under battle queue at the bottom of the sidebar */
+    .desktop-menu-bottom-dock .action-bar {
         order: 0;
         flex-direction: column;
         flex-shrink: 0;
@@ -10269,16 +10823,16 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-size: 0.78em;
     }
 
-    /* Card inspector panel: simplified preview above the hand */
+    /* Card inspector panel: grows above the bottom dock */
     .desktop-menu-inspect {
         display: flex;
         flex-direction: column;
-        flex: 0 0 auto;
+        flex: 1 1 auto;
         overflow: hidden;
-        order: 1;
         padding: 6px 8px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        max-height: 110px;
+        max-height: none;
+        min-height: 0;
     }
 
     .desktop-inspect-toolbar {
@@ -10336,14 +10890,14 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         flex-shrink: 0;
     }
 
-    /* Hand section: fills remaining sidebar space */
-    .desktop-menu-hand {
+    /* Hand / battle queue: content-sized above the action bar */
+    .desktop-menu-bottom-dock .desktop-menu-hand {
         display: flex;
         flex-direction: column;
-        flex: 1;
+        flex: 0 0 auto;
         min-height: 0;
         overflow: hidden;
-        order: 2;
+        order: 0;
     }
 
     /* Hand tray: full-width vertical card stack */
@@ -10376,10 +10930,13 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         min-width: 100%;
         max-width: 100%;
         width: 100%;
-        min-height: 0;
+        height: var(--hand-card-height, auto);
+        min-height: var(--hand-card-height, 0);
+        max-height: var(--hand-card-height, none);
         margin-left: 0;
         margin-top: 0;
         border-radius: 10px;
+        flex: 0 0 auto;
     }
 
     .hand-tray .hand-card:hover {
@@ -10627,14 +11184,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         display: none;
     }
 
-    .action-bar {
-        order: 0;
+    .desktop-menu-bottom-dock {
+        margin-top: auto;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        width: 100%;
+    }
+
+    .desktop-menu-bottom-dock .action-bar {
         flex-direction: column;
         flex-shrink: 0;
         width: 100%;
         padding: 8px 10px;
         gap: 6px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        border-bottom: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
         background: rgba(255, 255, 255, 0.02);
     }
 
@@ -10665,12 +11231,12 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .desktop-menu-inspect {
         display: flex;
         flex-direction: column;
-        flex: 0 0 auto;
+        flex: 1 1 auto;
         overflow: hidden;
-        order: 1;
         padding: 8px 10px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        max-height: min(28vh, 168px);
+        max-height: none;
+        min-height: 0;
     }
 
     .desktop-inspect-tab {
@@ -10678,13 +11244,12 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-size: 0.6em;
     }
 
-    .desktop-menu-hand {
+    .desktop-menu-bottom-dock .desktop-menu-hand {
         display: flex;
         flex-direction: column;
-        flex: 1;
+        flex: 0 0 auto;
         min-height: 0;
         overflow: hidden;
-        order: 2;
     }
 
     .hand-tray {
@@ -10701,19 +11266,25 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     .hand-tray .hand-cards {
         flex-direction: row;
-        align-items: flex-end;
+        align-items: stretch;
         gap: var(--hand-card-gap, 10px);
         overflow-x: auto;
         overflow-y: hidden;
         padding: 0 4px 6px;
+        flex: 1 1 auto;
+        min-height: 0;
+        height: 100%;
     }
 
     .hand-tray .hand-card {
+        height: var(--hand-card-height, 100%);
+        max-height: 100%;
         min-width: var(--hand-card-width, 108px);
         max-width: var(--hand-card-width, 108px);
         width: var(--hand-card-width, 108px);
         margin-left: var(--hand-card-overlap, -18px);
         margin-top: 0;
+        align-self: stretch;
     }
 
     .hand-tray .hand-card:first-child {
@@ -10824,8 +11395,25 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     .ab-icon { width: 20px; height: 20px; }
 
-    /* Shrink the card-preview / inspector so it no longer dominates the rail */
-    .desktop-menu-inspect { max-height: 74px; }
+    /* Compact rail: stack card details; keep the miniature card anchored at the bottom. */
+    .desktop-menu-inspect {
+        max-height: min(34vh, 220px);
+    }
+
+    .desktop-preview-layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto;
+    }
+
+    .desktop-preview-copy-panel {
+        order: 0;
+    }
+
+    .desktop-preview-card-slot {
+        order: 1;
+        justify-content: flex-end;
+        min-height: 88px;
+    }
 
     /* Smaller hand cards so the hand tray stops being oversized */
     .hand-tray {
