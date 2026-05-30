@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/home.css?v=45">
+    <link rel="stylesheet" href="/css/home.css?v=43">
 </head>
 <body>
 <div class="home-shell">
@@ -102,26 +102,65 @@
             <section class="browser-panel panel hidden social-section" id="socialSection">
                 <div class="social-grid">
                     <aside class="social-side-stack">
+                        <section class="social-panel social-card social-lobby-tools">
+                            <div class="social-panel-head">
+                                <div><span class="eyebrow">Open Lobbies</span><h2>Find a 1v1 table</h2></div>
+                                <span class="social-soft-pill" id="roomCountLabel">0 open</span>
+                            </div>
+                            <p class="social-muted">Create and host 1v1 tables here. Share your invite link — opponents join the waiting room, pick decks and knights, then both hit Start Match.</p>
+                            <button class="social-create-btn" id="socialCreateLobbyBtn" type="button"><span>+</span>Create 1v1 Lobby</button>
+                            <div class="filter-label">Filters</div>
+                            <select class="search-input" id="roomFormatFilter">
+                                <option value="ALL">All Formats</option>
+                                <option value="PVP">PVP 1v1</option>
+                                <option value="RANKED">Ranked</option>
+                                <option value="CASUAL">Casual</option>
+                            </select>
+                            <select class="search-input" id="roomElementFilter">
+                                <option value="ALL">All Elements</option>
+                                <option value="FIRE">Fire</option>
+                                <option value="EARTH">Earth</option>
+                                <option value="WIND">Wind</option>
+                                <option value="WATER">Water</option>
+                                <option value="ICE">Ice</option>
+                                <option value="SHADOW">Shadow</option>
+                            </select>
+                            <select class="search-input" id="roomSortFilter">
+                                <option value="newest">Newest</option>
+                                <option value="host">Host Name</option>
+                                <option value="players">Players</option>
+                            </select>
+                            <label class="social-toggle-row">
+                                <span>Hide full rooms</span>
+                                <input id="roomHideFullToggle" type="checkbox">
+                            </label>
+                        </section>
+
                         <section class="social-panel social-card">
                             <div class="social-panel-head"><div><span class="eyebrow">Quick Join</span><h2>Jump in fast</h2></div></div>
                             <p class="social-muted">Join the first available 1v1 lobby.</p>
                             <button class="ghost-btn social-wide-action" id="quickJoinBtn" type="button">Quick Join</button>
+                        </section>
+
+                        <section class="social-panel social-card social-how">
+                            <div class="social-panel-head"><div><span class="eyebrow">How It Works</span><h2>Table flow</h2></div></div>
+                            <ol>
+                                <li><span>1</span>Create a lobby on Social or open an invite link</li>
+                                <li><span>2</span>Join the waiting room, pick your deck and knight, then both confirm</li>
+                                <li><span>3</span>Battle for coins and rank</li>
+                            </ol>
                         </section>
                     </aside>
 
                     <section class="social-main-stack">
                         <div class="social-search-row">
                             <input class="search-input" id="roomSearchInput" type="search" placeholder="Search lobbies...">
-                            <button class="ghost-btn social-filter-btn" id="socialFilterBtn" type="button">Filters</button>
                             <button class="ghost-btn" id="refreshRoomsBtn" type="button">Refresh</button>
                         </div>
                         <section class="social-panel social-card social-lobbies-card">
                             <div class="social-panel-head">
                                 <div><span class="eyebrow">Available Lobbies</span><h2>Open tables</h2></div>
-                                <div class="social-lobby-meta">
-                                    <span class="social-soft-pill" id="roomOpenLabel">0 open</span>
-                                    <span class="social-soft-pill" id="roomShownLabel">0 shown</span>
-                                </div>
+                                <span class="social-soft-pill" id="roomShownLabel">0 shown</span>
                             </div>
                             <div class="join-row social-code-row"><input class="search-input" id="roomCodeInput" placeholder="Room code"><button class="primary-btn" id="joinRoomBtn" type="button">Join Code</button></div>
                             <div class="room-list" id="roomList"></div>
@@ -185,11 +224,6 @@
                 <div class="profile-grid" id="profileSectionBody"></div>
             </section>
 
-            <section class="browser-panel panel hidden" id="achievementsSection">
-                <div class="section-head"><div><span class="eyebrow">Achievements</span><h1>Badge cases and goals</h1></div></div>
-                <div class="achievements-grid" id="achievementsSectionBody"></div>
-            </section>
-
             <section class="browser-panel panel hidden" id="shopSection">
                 <div class="section-head"><div><span class="eyebrow">Shop</span><h1>Gacha packs and premade decks</h1></div><span id="shopGoldLabel"></span></div>
                 <div class="pack-grid" id="shopPackGrid"></div>
@@ -223,55 +257,14 @@
         </select>
         <div class="unlock-card" id="customUnlockCard"></div>
     </aside>
-    <aside class="filter-panel panel hud-tray filter-tray lobby-filter-tray is-closed" id="lobbyFilterTray" aria-hidden="true">
-        <div class="section-head">
-            <h2>Lobby Filters</h2>
-            <span id="lobbyFilterOpenLabel">0 open</span>
-        </div>
-        <div class="filter-label">Format</div>
-        <select class="search-input" id="roomFormatFilter">
-            <option value="ALL">All Formats</option>
-            <option value="PVP">PVP 1v1</option>
-            <option value="RANKED">Ranked</option>
-            <option value="CASUAL">Casual</option>
-        </select>
-        <div class="filter-label">Element</div>
-        <select class="search-input" id="roomElementFilter">
-            <option value="ALL">All Elements</option>
-            <option value="FIRE">Fire</option>
-            <option value="EARTH">Earth</option>
-            <option value="WIND">Wind</option>
-            <option value="WATER">Water</option>
-            <option value="ICE">Ice</option>
-            <option value="SHADOW">Shadow</option>
-        </select>
-        <div class="filter-label">Sort</div>
-        <select class="search-input" id="roomSortFilter">
-            <option value="newest">Newest</option>
-            <option value="host">Host Name</option>
-            <option value="players">Players</option>
-        </select>
-        <label class="social-toggle-row lobby-filter-toggle">
-            <span>Hide full rooms</span>
-            <input id="roomHideFullToggle" type="checkbox">
-        </label>
-    </aside>
     <aside class="detail-panel panel hud-tray detail-tray is-closed" id="detailPanel" aria-hidden="true"></aside>
     <div id="editProfileModalHost"></div>
-    <div id="achievementDetailHost"></div>
     <div class="profile-modal hidden" id="viewProfileModal" role="dialog" aria-modal="true" aria-labelledby="viewProfileTitle">
         <div class="profile-edit-panel profile-panel" id="viewProfileBody"></div>
     </div>
 
     <div class="profile-modal hidden" id="optionsModal" role="dialog" aria-modal="true" aria-labelledby="optionsTitle">
         <div class="profile-edit-panel profile-panel options-panel" id="optionsBody"></div>
-    </div>
-
-    <div class="match-review-overlay hidden" id="matchReviewOverlay" role="dialog" aria-modal="true" aria-label="Match review">
-        <div class="match-review-modal">
-            <button class="match-review-close" type="button" data-match-review-close aria-label="Close match review">&times;</button>
-            <div class="match-detail-content" id="matchReviewContent"></div>
-        </div>
     </div>
 
     <div class="auth-modal hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
@@ -320,7 +313,6 @@
 <script src="/js/qrcode-vendor.js?v=1"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
 <script src="/js/card-binder-visual.js?v=1"></script>
-<script src="/js/achievements.js?v=4"></script>
-<script src="/js/home.js?v=53"></script>
+<script src="/js/home.js?v=51"></script>
 </body>
 </html>

@@ -133,7 +133,6 @@ function welcomeLeaderboardBoards() {
 }
 let authMode = 'login';
 let authRegisterStep = 'credentials';
-let authPopupOpen = false;
 let registerDraft = { email: '', password: '' };
 let authState = {
     token: loadSavedAuthToken(),
@@ -2429,7 +2428,7 @@ function resolveApiBaseUrl(url) {
 }
 
 function isPhoneLandscapeLayout() {
-    return window.matchMedia('(orientation: landscape) and (max-width: 979px)').matches;
+    return window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches;
 }
 
 function isTabletLandscapeLayout() {
@@ -2440,36 +2439,6 @@ function isTabletLandscapeLayout() {
 
 function isCompactLandscapeLayout() {
     return isPhoneLandscapeLayout() || isTabletLandscapeLayout();
-}
-
-/** Landscape arena footer hand strip renders at this fraction of the fit width. */
-const ARENA_FOOTER_HAND_SCALE = 0.55;
-
-/** Phone/tablet landscape: hand along arena footer, primary actions in the right rail. */
-function syncLandscapeUiDocks() {
-    const handSection = document.getElementById('desktopHandSection');
-    const actions = document.getElementById('arenaPrimaryActions');
-    const handFooterDock = document.getElementById('arenaFooterHandDock');
-    const handMenuDock = document.getElementById('desktopMenuHandDock');
-    const actionsFooterDock = document.getElementById('arenaFooterActionsDock');
-    const actionsMenuDock = document.getElementById('desktopMenuActionsDock');
-    if (!handSection || !actions || !handFooterDock || !handMenuDock || !actionsFooterDock || !actionsMenuDock) {
-        return;
-    }
-
-    const dockHandInFooter = isCompactLandscapeLayout();
-    const handTarget = dockHandInFooter ? handFooterDock : handMenuDock;
-    const actionsTarget = dockHandInFooter ? actionsMenuDock : actionsFooterDock;
-
-    if (handSection.parentElement !== handTarget) {
-        handTarget.appendChild(handSection);
-    }
-    if (actions.parentElement !== actionsTarget) {
-        actionsTarget.appendChild(actions);
-    }
-
-    document.body.classList.toggle('compact-landscape-hand-dock', dockHandInFooter);
-    document.body.classList.toggle('compact-landscape-actions-rail', dockHandInFooter);
 }
 
 function isDesktopSidebarLayout() {
@@ -2504,10 +2473,7 @@ function updateResponsiveLayoutVars(force = false) {
     }
     lastViewportSignature = signature;
 
-    syncLandscapeUiDocks();
-
     const root = document.documentElement;
-    const handInArenaFooter = document.body.classList.contains('compact-landscape-hand-dock');
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const desktop = isDesktopSidebarLayout();
@@ -2623,21 +2589,6 @@ function updateResponsiveLayoutVars(force = false) {
         ))
         : isTabletLandscapeLayout()
         ? Math.round(clampNumber(viewportHeight * 0.14, 88, 118))
-        : compactLandscape && handInArenaFooter
-        ? (() => {
-            const handVisibleCards = 5;
-            const boardArea = document.getElementById('boardArea');
-            const sidebarGuess = isPhoneLandscapeLayout() ? 208 : Math.round(clampNumber(viewportWidth * 0.3, 268, 340));
-            const arenaWidth = boardArea?.getBoundingClientRect().width
-                || Math.max(240, viewportWidth - sidebarGuess - 16);
-            const handGap = 6;
-            const horizontalChrome = 36;
-            const fitWidth = Math.floor(
-                (arenaWidth - horizontalChrome - handGap * (handVisibleCards - 1)) / handVisibleCards
-            );
-            const scaledWidth = fitWidth * ARENA_FOOTER_HAND_SCALE;
-            return Math.round(clampNumber(scaledWidth, 26, 52));
-        })()
         : compactLandscape
         ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
         : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
@@ -2694,16 +2645,6 @@ function updateResponsiveLayoutVars(force = false) {
     root.style.setProperty('--hand-card-selected-lift', desktop ? '-6px' : `${-Math.round(handWidth * 0.2)}px`);
     root.style.setProperty('--overlay-shell-width', `${overlayWidth}px`);
     root.style.setProperty('--overlay-shell-padding', `${overlayPadding}px`);
-
-    if (handInArenaFooter) {
-        const footerHandHeight = Math.round((handWidth * cardAspectHeight) + 14);
-        root.style.setProperty('--arena-footer-hand-scale', String(ARENA_FOOTER_HAND_SCALE));
-        root.style.setProperty('--arena-footer-height', `${footerHandHeight}px`);
-    } else {
-        root.style.removeProperty('--arena-footer-height');
-    }
-
-    scheduleDesktopHandSelectorCardScale();
 }
 
 function setMobileInfoTab(tab) {
@@ -5164,7 +5105,7 @@ function setAuthMode(mode) {
     authMode = mode;
     authRegisterStep = 'credentials';
     authState.error = '';
-    renderAuthPopup();
+    renderWelcomeAuth();
 }
 
 function beginRegisterDisplayName() {
@@ -5172,128 +5113,24 @@ function beginRegisterDisplayName() {
     const password = document.getElementById('welcomePasswordInput')?.value || '';
     if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
         authState.error = 'Enter a valid email address.';
-        renderAuthPopup();
+        renderWelcomeAuth();
         return;
     }
     if (!password || password.length < 6) {
         authState.error = 'Passwords must be at least 6 characters.';
-        renderAuthPopup();
+        renderWelcomeAuth();
         return;
     }
     registerDraft = { email, password };
     authRegisterStep = 'display-name';
     authState.error = '';
-    renderAuthPopup();
+    renderWelcomeAuth();
 }
 
 function backRegisterCredentials() {
     authRegisterStep = 'credentials';
     authState.error = '';
-    renderAuthPopup();
-}
-
-// Open the sign-in popup over the Play screen (no navigation away).
-function openAuthPopup(mode) {
-    authMode = mode === 'register' ? 'register' : 'login';
-    authRegisterStep = 'credentials';
-    authState.error = '';
-    authState.loading = false;
-    authPopupOpen = true;
-    renderAuthPopup();
-}
-
-function closeAuthPopup(event) {
-    if (event) {
-        // Only close when the backdrop or the close button is clicked,
-        // not when interacting with the form itself.
-        const overlay = document.getElementById('authPopupOverlay');
-        if (event.target !== overlay && !event.target.closest('.auth-popup-close')) {
-            return;
-        }
-    }
-    authPopupOpen = false;
-    authState.error = '';
-    authRegisterStep = 'credentials';
-    document.getElementById('authPopupOverlay')?.classList.add('hidden');
-}
-
-// Builds the credential / display-name form shared by the popup.
-function buildAuthFormMarkup() {
-    const draftEmail = document.getElementById('welcomeEmailInput')?.value || registerDraft.email || '';
-    const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
-    const draftPassword = document.getElementById('welcomePasswordInput')?.value || registerDraft.password || '';
-    const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
-    const onRegisterNameStep = authMode === 'register' && authRegisterStep === 'display-name';
-
-    if (onRegisterNameStep) {
-        return `
-            <div class="welcome-eyebrow">ACCOUNT</div>
-            <h3>Choose your display name</h3>
-            <div class="welcome-auth-meta">${escapeHtml(registerDraft.email)}</div>
-            <label class="online-field">
-                <span>Display Name</span>
-                <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}" autofocus>
-            </label>
-            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
-            <div class="welcome-auth-actions">
-                <button class="btn welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="backRegisterCredentials()">Back</button>
-                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('register')">
-                    ${authState.loading ? 'Working...' : 'Confirm'}
-                </button>
-            </div>
-        `;
-    }
-
-    const primaryAuthAction = authMode === 'register'
-        ? 'beginRegisterDisplayName()'
-        : `submitAuth('${authMode}')`;
-    return `
-        <div class="welcome-eyebrow">ACCOUNT</div>
-        <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
-        <div class="welcome-auth-tabs">
-            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
-            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
-        </div>
-        <label class="online-field">
-            <span>Email</span>
-            <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
-        </label>
-        ${authMode === 'reset-password' ? `
-            <label class="online-field">
-                <span>Reset Code</span>
-                <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
-            </label>
-        ` : ''}
-        <label class="online-field">
-            <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
-            <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
-        </label>
-        ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
-        <div class="welcome-auth-actions">
-            <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="${primaryAuthAction}">
-                ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Register')}
-            </button>
-        </div>
-    `;
-}
-
-function renderAuthPopup() {
-    const overlay = document.getElementById('authPopupOverlay');
-    const body = document.getElementById('authPopupBody');
-    if (!overlay || !body) {
-        return;
-    }
-    overlay.classList.toggle('hidden', !authPopupOpen);
-    if (!authPopupOpen) {
-        return;
-    }
-    body.innerHTML = buildAuthFormMarkup();
-    if (!authState.loading) {
-        const firstInput = body.querySelector('input');
-        if (firstInput) {
-            setTimeout(() => firstInput.focus(), 0);
-        }
-    }
+    renderWelcomeAuth();
 }
 
 async function submitAuth(mode) {
@@ -5308,7 +5145,7 @@ async function submitAuth(mode) {
     const resetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
     authState.loading = true;
     authState.error = '';
-    renderAuthPopup();
+    renderWelcomeAuth();
 
     const body = mode === 'register'
         ? { email, password, displayName }
@@ -5325,7 +5162,7 @@ async function submitAuth(mode) {
     authState.loading = false;
     if (!data || data.error || !data.authenticated) {
         authState.error = data?.error || 'Unable to sign in right now.';
-        renderAuthPopup();
+        renderWelcomeAuth();
         return;
     }
 
@@ -5334,10 +5171,12 @@ async function submitAuth(mode) {
     authState.error = '';
     authRegisterStep = 'credentials';
     registerDraft = { email: '', password: '' };
-    // Sign in completes in place on the Play screen — close the popup and
-    // refresh the account card / loadout without navigating away.
-    authPopupOpen = false;
-    document.getElementById('authPopupOverlay')?.classList.add('hidden');
+    // After signing in or creating an account, send players to the Home hub
+    // (skip when joining via an invite link, where they intend to play right away).
+    if ((mode === 'login' || mode === 'register') && data.authenticated && !isInviteJoinFlow()) {
+        window.location.href = '/home';
+        return;
+    }
     hydrateSavedPlayerName();
     renderWelcomeAuth();
     renderSavedDecks();
@@ -5448,8 +5287,8 @@ function renderWelcomeAuth() {
         <h3>Pick up where you left off</h3>
         <p class="welcome-auth-prompt">Sign in or create an account to save your decks, track your match history, and rejoin the arena with your builds intact.</p>
         <div class="welcome-auth-actions">
-            <button class="btn btn-primary welcome-auth-submit" type="button" onclick="openAuthPopup('login')">Log In</button>
-            <button class="btn welcome-auth-submit" type="button" onclick="openAuthPopup('register')">Register</button>
+            <a class="btn btn-primary welcome-auth-submit" href="/login">Log In</a>
+            <a class="btn welcome-auth-submit" href="/login">Register</a>
         </div>
         <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
     `;
@@ -6300,11 +6139,9 @@ async function loadGameOptions() {
         loadoutErrorMessage = '';
         selectedDeckId = data.defaultDeckId;
         selectedTrainerId = data.defaultTrainerId;
-        ensureOwnedTrainerSelected();
         builderCounts = {};
         loadoutMode = 'preset';
         applyPendingHomeLoadout();
-        ensureOwnedTrainerSelected();
         hydrateOnlineStateFromUrl();
         hydrateSavedPlayerName();
         renderWelcomeTutorial();
@@ -6494,35 +6331,12 @@ function selectDeckOption(deckId) {
 }
 
 function selectTrainerOption(trainerId) {
-    const trainer = gameOptions?.trainers?.find(item => item.id === trainerId);
-    if (trainer && trainer.owned === false) {
-        return;
-    }
     if (loadoutMode !== 'saved') {
         detachSavedDeckSelection();
     }
     selectedTrainerId = trainerId;
     renderLoadoutOptions();
     updateLoadoutSummary();
-}
-
-function isTrainerOwned(trainerId) {
-    const trainer = gameOptions?.trainers?.find(item => item.id === trainerId);
-    return !trainer || trainer.owned !== false;
-}
-
-// Falls back to the first owned SiegeKnight when the current selection is locked.
-function ensureOwnedTrainerSelected() {
-    if (!gameOptions?.trainers?.length) {
-        return;
-    }
-    if (selectedTrainerId && isTrainerOwned(selectedTrainerId)) {
-        return;
-    }
-    const firstOwned = gameOptions.trainers.find(trainer => trainer.owned !== false);
-    if (firstOwned) {
-        selectedTrainerId = firstOwned.id;
-    }
 }
 
 function switchLoadoutMode(mode) {
@@ -6818,33 +6632,16 @@ function renderLoadoutOptions() {
     }).join('');
 
     trainerEl.innerHTML = gameOptions.trainers.map(trainer => {
-        const owned = trainer.owned !== false;
-        const level = Math.max(1, Number(trainer.level) || 1);
-        const abilityBonus = Math.max(0, Number(trainer.abilityBonus) || 0);
-        const selected = owned && trainer.id === selectedTrainerId ? ' selected' : '';
-        const lockedClass = owned ? '' : ' locked';
+        const selected = trainer.id === selectedTrainerId ? ' selected' : '';
         const elHex = getElementHex(trainer.element);
         const sigil = getTrainerSigil(trainer);
         const rarityClass = getRarityClass(trainer.rarity);
         const tier = formatTrainerTier(trainer.tier);
         const activeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
-        const recommended = owned && recommendedTrainerIds.has(trainer.id) ? ' recommended' : '';
-        const levelBadge = owned && level > 1
-            ? `<span class="knight-level-badge">Lv ${level}${abilityBonus > 0 ? ` <em>+${abilityBonus}</em>` : ''}</span>`
-            : '';
-        const clickAttr = owned ? ` onclick="selectTrainerOption('${trainer.id}')"` : ' disabled aria-disabled="true"';
-        let topRibbon = '';
-        if (!owned) {
-            topRibbon = '<span class="knight-locked-ribbon">Locked</span>';
-        } else if (trainer.id === selectedTrainerId) {
-            topRibbon = '<span class="knight-selected-ribbon">Selected</span>';
-        } else if (recommended) {
-            topRibbon = '<span class="knight-recommend-ribbon">Recommended</span>';
-        }
-        const lockedHint = owned ? '' : '<span class="knight-card-locked-hint">Pull from a pack to unlock</span>';
-        return `<button type="button" class="knight-card${selected}${recommended}${lockedClass} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}"${clickAttr} aria-pressed="${owned && trainer.id === selectedTrainerId ? 'true' : 'false'}">
-            ${topRibbon}
-            ${levelBadge}
+        const recommended = recommendedTrainerIds.has(trainer.id) ? ' recommended' : '';
+        return `<button type="button" class="knight-card${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            ${trainer.id === selectedTrainerId ? '<span class="knight-selected-ribbon">Selected</span>' : ''}
+            ${recommended && trainer.id !== selectedTrainerId ? '<span class="knight-recommend-ribbon">Recommended</span>' : ''}
             <div class="knight-card-sigil">${sigil}</div>
             <div class="knight-card-portrait">
                 <div class="knight-card-icon">${getElementSigil(trainer.element)}</div>
@@ -6854,7 +6651,6 @@ function renderLoadoutOptions() {
                 <span class="knight-card-meta"><span class="knight-element">${escapeHtml(formatElementLabel(trainer.element))}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${rarityClass}">${escapeHtml(trainer.rarity)}</span></span>
                 <span class="knight-card-ability"><span>Passive</span>${escapeHtml(readTrainerAbilityText(trainer.passive))}</span>
                 <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(readTrainerAbilityText(trainer.active))}</span>
-                ${lockedHint}
             </div>
         </button>`;
     }).join('');
@@ -7921,13 +7717,10 @@ function renderDomLegacy() {
         resetDrawButton();
     }
     btnDraw.disabled = over || opponentSetupTurn || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
-    const endTurnLabel = playerActive ? 'End Turn' : 'Opponents Turn';
-    const endTurnDisabled = over || !playerActive || phase !== 'SETUP';
     if (btnEndTurn) {
-        btnEndTurn.textContent = endTurnLabel;
-        btnEndTurn.disabled = endTurnDisabled;
-        btnEndTurn.classList.toggle('hidden', phase !== 'SETUP');
+        btnEndTurn.textContent = playerActive ? 'End Turn' : 'Opponents Turn';
     }
+    btnEndTurn.disabled = over || !playerActive || phase !== 'SETUP';
     btnDraw.classList.toggle('hidden', battlePhaseActive);
     btnBattle.classList.toggle('hidden', !battlePhaseActive);
 
@@ -7973,10 +7766,7 @@ function renderDomLegacy() {
     // Highlight the active phase button
     btnDraw.classList.toggle('ab-active', (phase === 'DRAW' || drawButtonActsAsEndTurn) && playerActive && !over);
     btnBattle.classList.toggle('ab-active', phase === 'BATTLE' && !over);
-    const endTurnActive = phase === 'SETUP' && playerActive && !over;
-    if (btnEndTurn) {
-        btnEndTurn.classList.toggle('ab-active', endTurnActive);
-    }
+    btnEndTurn.classList.toggle('ab-active', phase === 'SETUP' && playerActive && !over);
 
     document.getElementById('playerHealth').textContent = gameState.player.health;
     document.getElementById('enemyHealth').textContent = gameState.enemy.health;
@@ -9429,17 +9219,11 @@ function renderLinkConnectors(gridId, board, isPlayer) {
         const cellLocal = getBoardCellLocalRect(grid, cellEl);
         if (!cellLocal) continue;
 
-        const point = getExternalSocketPoint(
-            cellLocal,
-            resolveExternalSocketRenderSide(isPlayer, socket.side)
-        );
+        const point = getExternalSocketPoint(cellLocal, socket.side);
         const activeSocket = activeExternalSockets.get(socket.key);
 
         if (activeSocket) {
-            const anchor = getCellEdgeAnchor(
-                cellLocal,
-                resolveExternalEdgeDirection(isPlayer, activeSocket.row, activeSocket.direction)
-            );
+            const anchor = getCellEdgeAnchor(cellLocal, activeSocket.direction);
             appendExternalLink(grid, anchor, point, getElementHex(activeSocket.element));
         }
 
@@ -9707,41 +9491,6 @@ function getNotchStateClass(notch, options) {
     return '';
 }
 
-/** Phone landscape CSS flips enemy grid rows (Back row renders on the visual bottom). */
-function isEnemyBoardRowsVisuallyFlipped() {
-    return window.matchMedia('(orientation: landscape) and (max-width: 979px)').matches;
-}
-
-const VERTICAL_DIRECTION_FLIP = {
-    TOP: 'BOTTOM',
-    BOTTOM: 'TOP',
-    TOP_LEFT: 'BOTTOM_LEFT',
-    TOP_RIGHT: 'BOTTOM_RIGHT',
-    BOTTOM_LEFT: 'TOP_LEFT',
-    BOTTOM_RIGHT: 'TOP_RIGHT'
-};
-
-function flipVerticalDirection(direction) {
-    return VERTICAL_DIRECTION_FLIP[direction] || direction;
-}
-
-/** Map logical socket side / notch edge to where it appears on screen for the enemy board. */
-function resolveExternalSocketRenderSide(isPlayer, side) {
-    if (isPlayer || !isEnemyBoardRowsVisuallyFlipped()) {
-        return side;
-    }
-    if (side === 'top') return 'bottom';
-    if (side === 'bottom') return 'top';
-    return side;
-}
-
-function resolveExternalEdgeDirection(isPlayer, row, direction) {
-    if (isPlayer || !isEnemyBoardRowsVisuallyFlipped() || row !== 0) {
-        return direction;
-    }
-    return flipVerticalDirection(direction);
-}
-
 function directionDelta(direction, isPlayer = false) {
     switch (direction) {
         case 'TOP': return { dx: 0, dy: isPlayer ? 1 : -1 };
@@ -9886,7 +9635,7 @@ function scheduleDesktopHandSelectorCardScale() {
 }
 
 function syncDesktopHandSelectorCardScale() {
-    if (isHandHiddenForPhase()) {
+    if (!isDesktopSidebarLayout() || isHandHiddenForPhase()) {
         return;
     }
 
@@ -9912,34 +9661,6 @@ function syncDesktopHandSelectorCardScale() {
         return;
     }
 
-    const root = document.documentElement;
-
-    if (isCompactLandscapeLayout()) {
-        const handInFooter = document.body.classList.contains('compact-landscape-hand-dock');
-        const visibleCards = handInFooter ? 5 : 2;
-        const slotWidth = Math.max(
-            handInFooter ? 26 : 44,
-            (contentWidth - (columnGap * (visibleCards - 1))) / visibleCards
-        );
-        const measuredWidth = contentHeight * (5 / 7);
-        const scaledSlotWidth = handInFooter ? slotWidth * ARENA_FOOTER_HAND_SCALE : slotWidth;
-        const nextWidth = Math.round(clampNumber(
-            Math.min(measuredWidth * (handInFooter ? ARENA_FOOTER_HAND_SCALE : 1), scaledSlotWidth),
-            handInFooter ? 26 : 56,
-            scaledSlotWidth
-        ));
-        const nextPadding = Math.round(clampNumber(nextWidth * 0.04, 2, 5));
-        root.style.setProperty('--hand-card-width', `${nextWidth}px`);
-        root.style.setProperty('--hand-card-padding', `${nextPadding}px`);
-        root.style.setProperty('--hand-card-overlap', '0px');
-        root.style.setProperty('--hand-card-gap', `${Math.max(4, Math.round(columnGap || 6))}px`);
-        return;
-    }
-
-    if (!isDesktopSidebarLayout()) {
-        return;
-    }
-
     const visibleCards = 5;
     const maxFiveCardWidth = Math.max(
         48,
@@ -9953,6 +9674,7 @@ function syncDesktopHandSelectorCardScale() {
     ));
     const nextPadding = Math.round(clampNumber(nextWidth * 0.035, 3, 8));
 
+    const root = document.documentElement;
     root.style.setProperty('--hand-card-width', `${nextWidth}px`);
     root.style.setProperty('--hand-card-padding', `${nextPadding}px`);
 }
@@ -11610,17 +11332,13 @@ function updateHandLiftLayer() {
     }
 
     const source = getHandCardSourceElement(liftIndex);
-    const actionAnchor = document.getElementById('desktopMenuActionsDock')
-        || document.querySelector('.arena-footer-actions-dock')
-        || document.querySelector('.arena-landscape-footer')
-        || document.getElementById('handTray')
-        || document.getElementById('actionBar');
-    if (!source || !actionAnchor) {
+    const actionBar = document.getElementById('actionBar');
+    if (!source || !actionBar) {
         return;
     }
 
     const sourceRect = source.getBoundingClientRect();
-    const actionRect = actionAnchor.getBoundingClientRect();
+    const actionRect = actionBar.getBoundingClientRect();
     const targetLeft = Math.min(
         Math.max(12, sourceRect.left),
         window.innerWidth - sourceRect.width - 12
@@ -11738,7 +11456,6 @@ syncDesktopInspectTabUi();
 
 (function setupBoardGridLayoutObservers() {
     const onLayoutModeBoundsChange = () => {
-        updateResponsiveLayoutVars(true);
         scheduleBoardLinkConnectorRefresh();
         setTimeout(scheduleBoardLinkConnectorRefresh, 200);
         if (gameState) updateSafeAreaHpStrip(gameState);
@@ -11763,7 +11480,6 @@ syncDesktopInspectTabUi();
         window.matchMedia('(max-width: 900px)'),
         window.matchMedia('(min-width: 980px)'),
         window.matchMedia('(orientation: landscape) and (max-height: 600px)'),
-        window.matchMedia('(orientation: landscape) and (max-width: 979px)'),
         window.matchMedia('(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)')
     ];
     mqListeners.forEach((mq) => {

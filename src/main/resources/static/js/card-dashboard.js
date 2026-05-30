@@ -901,7 +901,7 @@
                 const parsed = JSON.parse(reader.result);
                 const importSummary = applyDataSet(parsed, true);
                 const conversionNote = importSummary.convertedLegacyMoves > 0
-                    ? ` and converted ${importSummary.convertedLegacyMoves} legacy Siegeling ${importSummary.convertedLegacyMoves === 1 ? "ability" : "abilities"} into shared abilities`
+                    ? ` and converted ${importSummary.convertedLegacyMoves} legacy Siegling ${importSummary.convertedLegacyMoves === 1 ? "ability" : "abilities"} into shared abilities`
                     : "";
                 setStatus(`Imported ${file.name}${conversionNote}. Review and save when ready.`, "warning");
                 renderAll();
@@ -1516,7 +1516,7 @@
         const moveId = createImportedMoveId(baseId, usedMoveIds);
         const move = normalizeMoveFromServer({
             id: moveId,
-            name: normalizedAbility.name || `${String(card?.name || "Imported Siegeling").trim()} Move ${index + 1}`,
+            name: normalizedAbility.name || `${String(card?.name || "Imported Siegling").trim()} Move ${index + 1}`,
             element,
             category: normalizedAbility.passive ? "UTILITY" : "STANDARD",
             targetType: normalizedAbility.targetType,
@@ -1939,7 +1939,7 @@
         return normalizeCard({
             type: "SIEGLING",
             id: createUniqueCardId("new-siegling"),
-            name: "New Siegeling",
+            name: "New Siegling",
             element,
             rarity: firstMetaValue("rarities", "COMMON"),
             health: 10,
@@ -2431,7 +2431,7 @@
         refs.actionTypeFilterSelect.classList.toggle("hidden", state.editorPage !== "ACTION");
         refs.browserTitle.textContent = state.editorPage === "ACTION"
             ? "Spells And Traps"
-            : (state.editorPage === "MOVES_POOL" ? "Shared Abilities" : "Siegelings");
+            : (state.editorPage === "MOVES_POOL" ? "Shared Abilities" : "Sieglings");
         refs.showSieglingsBtn.classList.toggle("active", state.editorPage === "SIEGLING");
         refs.showActionsBtn.classList.toggle("active", state.editorPage === "ACTION");
         refs.showTrainersBtn.classList.toggle("active", state.editorPage === "TRAINERS");
@@ -2931,7 +2931,7 @@
                         <strong>${escapeHtml(deck.name || "Unnamed Deck")}</strong>
                         <span class="summary-badge">${escapeHtml(statusBadge)} | ${deck.cardIds.length} cards</span>
                     </div>
-                    <div class="card-meta">${escapeHtml(`${counts.sieglings} Siegelings | ${counts.spells} Spells | ${counts.traps} Traps`)}</div>
+                    <div class="card-meta">${escapeHtml(`${counts.sieglings} Sieglings | ${counts.spells} Spells | ${counts.traps} Traps`)}</div>
                     <div class="card-id">${escapeHtml(deck.id || "missing-id")}</div>
                 </div>
             `;
@@ -3016,7 +3016,7 @@
                 </div>
                 <div class="stat-strip">
                     <span class="stat-chip">${deck.cardIds.length} cards</span>
-                    <span class="stat-chip">${counts.sieglings} Siegelings</span>
+                    <span class="stat-chip">${counts.sieglings} Sieglings</span>
                     <span class="stat-chip">${counts.spells} Spells</span>
                     <span class="stat-chip">${counts.traps} Traps</span>
                 </div>
@@ -3563,7 +3563,7 @@
         return [
             deck.active ? "Active in loadout" : "Hidden from loadout",
             `${deck.cardIds.length} cards`,
-            `${counts.sieglings} Siegelings`,
+            `${counts.sieglings} Sieglings`,
             `${counts.spells} Spells`,
             `${counts.traps} Traps`,
             elements.length > 0 ? elements.map(formatEnumLabel).join(" / ") : "No element focus"
@@ -3626,16 +3626,16 @@
                 }
                 const mids = card.moveIds || [];
                 if (mids.length === 0) {
-                    issues.push(issue("error", `${trimmedId || card.name || "A Siegeling"} needs at least one move id from the shared moves pool.`));
+                    issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} needs at least one move id from the shared moves pool.`));
                 }
                 const seenMid = new Set();
                 mids.forEach((mid) => {
                     if (seenMid.has(mid)) {
-                        issues.push(issue("error", `${trimmedId || card.name || "A Siegeling"} lists move "${mid}" more than once.`));
+                        issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} lists move "${mid}" more than once.`));
                     }
                     seenMid.add(mid);
                     if (!findMoveById(mid)) {
-                        issues.push(issue("error", `${trimmedId || card.name || "A Siegeling"} references unknown move id "${mid}".`));
+                        issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} references unknown move id "${mid}".`));
                     }
                 });
             } else if (card.cardType === "SPELL") {
@@ -4386,10 +4386,7 @@
     }
 
     function formatEnumLabel(value) {
-        const normalized = String(value || "");
-        if (normalized === "SIEGLING") return "Siegeling";
-        if (normalized === "SIEGLINGS") return "Siegelings";
-        return normalized
+        return String(value || "")
             .toLowerCase()
             .split("_")
             .filter(Boolean)
@@ -4804,7 +4801,7 @@
             case "ALL_ALLIES":
                 return `All ${elementPrefix}allies gain ${signedValue} ${statLabel}`;
             case "SELF":
-                return `This Siegeling gains ${signedValue} ${statLabel}`;
+                return `This Siegling gains ${signedValue} ${statLabel}`;
             default:
                 return "";
         }
@@ -5146,7 +5143,7 @@
         refs.movesPoolList.innerHTML = rows.map((m) => {
             const users = getSieglingsUsingMoveId(m.id);
             const active = m.id === state.selectedMoveId && !state.movesPoolIsNewDraft ? " active" : "";
-            const useLabel = users.length === 0 ? "Unused" : `${users.length} Siegeling${users.length === 1 ? "" : "s"}`;
+            const useLabel = users.length === 0 ? "Unused" : `${users.length} Siegling${users.length === 1 ? "" : "s"}`;
             const theme = elementThemeClass(m.element);
             return `
                 <div class="card-row ${theme}${active}" data-pool-move-id="${escapeHtml(m.id)}">
@@ -5203,16 +5200,16 @@
             const storedId = state.movesPoolIsNewDraft ? "" : String(state.selectedMoveId || "").trim();
             const list = storedId ? getSieglingsUsingMoveId(storedId) : [];
             const renameNote = !state.movesPoolIsNewDraft && storedId && idInForm && idInForm !== storedId
-                ? `<p class="section-help">Move id changed in the form — saving will point every Siegeling that used <strong>${escapeHtml(storedId)}</strong> at <strong>${escapeHtml(idInForm)}</strong> instead.</p>`
+                ? `<p class="section-help">Move id changed in the form — saving will point every Siegling that used <strong>${escapeHtml(storedId)}</strong> at <strong>${escapeHtml(idInForm)}</strong> instead.</p>`
                 : "";
             if (state.movesPoolIsNewDraft) {
-                refs.movesPoolUsedBy.innerHTML = `<p class="section-help">Save to add this ability to the pool, then assign it from any Siegeling’s move list.</p>`;
+                refs.movesPoolUsedBy.innerHTML = `<p class="section-help">Save to add this ability to the pool, then assign it from any Siegling’s move list.</p>`;
             } else if (list.length === 0) {
-                refs.movesPoolUsedBy.innerHTML = `${renameNote}<p class="section-help"><strong>Not assigned</strong> — no Siegeling references this id yet.</p>`;
+                refs.movesPoolUsedBy.innerHTML = `${renameNote}<p class="section-help"><strong>Not assigned</strong> — no Siegling references this id yet.</p>`;
             } else {
                 refs.movesPoolUsedBy.innerHTML = `
                     ${renameNote}
-                    <p class="section-help"><strong>Used by ${list.length} Siegeling${list.length === 1 ? "" : "s"}</strong> (by move id). Edits to name, effect, and cost apply to every assignment.</p>
+                    <p class="section-help"><strong>Used by ${list.length} Siegling${list.length === 1 ? "" : "s"}</strong> (by move id). Edits to name, effect, and cost apply to every assignment.</p>
                     <ul class="moves-pool-used-list">${list.map((c) => `<li>${escapeHtml(c.name || c.id)} <span class="card-id-inline">${escapeHtml(c.id)}</span></li>`).join("")}</ul>
                 `;
             }
@@ -5301,7 +5298,7 @@
         }
         const users = getSieglingsUsingMoveId(id);
         const warn = users.length > 0
-            ? `Delete "${id}" from the pool? It will be removed from ${users.length} Siegeling deck list${users.length === 1 ? "" : "s"}.`
+            ? `Delete "${id}" from the pool? It will be removed from ${users.length} Siegling deck list${users.length === 1 ? "" : "s"}.`
             : `Delete "${id}" from the shared pool?`;
         if (!window.confirm(warn)) {
             return;

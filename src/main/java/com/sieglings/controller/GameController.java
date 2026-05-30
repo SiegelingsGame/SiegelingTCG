@@ -76,7 +76,7 @@ public class GameController {
 
     @GetMapping("/api/game/options")
     @ResponseBody
-    public Map<String, Object> getOptions(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+    public Map<String, Object> getOptions() {
         List<CardDefinitionService.DeckOption> deckOptions = gameService.getDeckOptions();
         CardDefinitionService.DeckOption defaultDeck = deckOptions.stream()
                 .filter(deck -> deck.id().equals("deck_fire_earth"))
@@ -92,7 +92,7 @@ public class GameController {
                 "recommendedTrainerId", deck.recommendedTrainerId(),
                 "cards", deckCardCounts(deck.id())
         )).toList());
-        resp.put("trainers", serializeTrainerOptions(authorizationHeader));
+        resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
         resp.put("deckBuilder", Map.of(
                 "minDeckSize", gameService.getDeckBuilderMinSize(),
                 "maxCopies", gameService.getDeckBuilderMaxCopies()
@@ -118,7 +118,7 @@ public class GameController {
      */
     @GetMapping("/api/game/options-lite")
     @ResponseBody
-    public Map<String, Object> getOptionsLite(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+    public Map<String, Object> getOptionsLite() {
         List<CardDefinitionService.DeckOption> deckOptions = gameService.getDeckOptions();
         CardDefinitionService.DeckOption defaultDeck = deckOptions.stream()
                 .filter(deck -> deck.id().equals("deck_fire_earth"))
@@ -134,7 +134,7 @@ public class GameController {
                 "recommendedTrainerId", deck.recommendedTrainerId(),
                 "cards", deckCardCounts(deck.id())
         )).toList());
-        resp.put("trainers", serializeTrainerOptions(authorizationHeader));
+        resp.put("trainers", gameService.getTrainerOptions().stream().map(this::serializeTrainerOption).toList());
         resp.put("deckBuilder", Map.of(
                 "minDeckSize", gameService.getDeckBuilderMinSize(),
                 "maxCopies", gameService.getDeckBuilderMaxCopies()
@@ -1266,19 +1266,7 @@ public class GameController {
         return m;
     }
 
-    private List<Map<String, Object>> serializeTrainerOptions(String authorizationHeader) {
-        AccountUser user = accountService.findUser(authorizationHeader);
-        // Guests are not gated server-side, so don't lock the picker for them either.
-        boolean gated = user != null;
-        Map<String, Integer> ownedLevels = gated
-                ? playerProgressionService.getOrCreate(user).getTrainerLevels()
-                : Map.of();
-        return gameService.getTrainerOptions().stream()
-                .map(trainer -> serializeTrainerOption(trainer, ownedLevels, gated))
-                .toList();
-    }
-
-    private Map<String, Object> serializeTrainerOption(TrainerCard trainer, Map<String, Integer> ownedLevels, boolean gated) {
+    private Map<String, Object> serializeTrainerOption(TrainerCard trainer) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", trainer.getId());
         m.put("name", trainer.getName());
@@ -1286,12 +1274,6 @@ public class GameController {
         m.put("tier", trainer.getTier());
         m.put("rarity", trainer.getRarity().name());
         m.put("oncePerGame", trainer.isOncePerGame());
-        String key = trainer.getId() == null ? "" : trainer.getId().toLowerCase(java.util.Locale.ROOT);
-        int level = ownedLevels.getOrDefault(key, 0);
-        boolean owned = !gated || level > 0;
-        m.put("owned", owned);
-        m.put("level", Math.max(1, level));
-        m.put("abilityBonus", PlayerProgressionService.trainerAbilityBonus(Math.max(1, level)));
         if (trainer.getAbility() != null) {
             m.put("passive", trainer.getAbility().getDescription());
         }
