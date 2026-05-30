@@ -2145,7 +2145,6 @@ body.battle-inline-dock .battle-queue-actions {
 
     body.battle-inline-dock .action-bar {
         flex-shrink: 0;
-        order: -1;
     }
 }
 
