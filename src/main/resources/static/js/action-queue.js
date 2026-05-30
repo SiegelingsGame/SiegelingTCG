@@ -50,7 +50,7 @@
         STATUS_APPLY: 'gains',
         BLOCK:   'blocks',
         EFFECT:  'effect',
-        DESTROY: 'is destroyed',
+        DESTROY: 'was destroyed',
         PHASE:   'phase'
     };
 
@@ -93,6 +93,10 @@
     function elementHex(element) {
         const k = String(element || '').toUpperCase();
         return ELEMENT_HEX[k] || ELEMENT_HEX.NEUTRAL;
+    }
+
+    function attackFxElement(action) {
+        return action?.elementColor || action?.knightElement || 'NEUTRAL';
     }
     function elementSigil(element) {
         const k = String(element || '').toUpperCase();
@@ -331,6 +335,103 @@
                 resolve();
             }, dur);
         });
+    }
+
+    function destroyBoardCard(cardEl, elementHexValue, durationMs) {
+        if (!cardEl) return Promise.resolve();
+        cardEl.style.setProperty('--sgl-impact-color', elementHexValue || ELEMENT_HEX.NEUTRAL);
+        cardEl.classList.add('sgl-destroying');
+        const dur = Math.max(180, durationMs || 540);
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const cellEl = cardEl.closest('.board-cell');
+                if (cellEl) {
+                    const rowTag = cellEl.querySelector('.row-tag');
+                    const rowTagHtml = rowTag ? rowTag.outerHTML : '';
+                    cellEl.classList.remove('has-card');
+                    cellEl.innerHTML = rowTagHtml;
+                }
+                resolve();
+            }, dur);
+        });
+    }
+
+    function applyAttackImpactVfx(queue, action, target, elColor) {
+        if (!target) return;
+        const boardCard = queue.getHeldBoardCard(target.isPlayer, target.row, target.col);
+        if (boardCard) {
+            boardCard.style.setProperty('--sgl-impact-color', elColor);
+            boardCard.classList.add('sgl-impact');
+            setTimeout(() => boardCard.classList.remove('sgl-impact'), 360);
+        } else {
+            flashImpact(target.isPlayer, target.row, target.col, elColor);
+        }
+        if (target.amount && window.SieglingsFx?.floatingDamage) {
+            window.SieglingsFx.floatingDamage(
+                target.isPlayer, target.row, target.col,
+                target.amount, attackFxElement(action)
+            );
+        }
+        if (target.shieldBroken > 0) {
+            breakShieldPlates(target.isPlayer, target.row, target.col, target.shieldBroken);
+        }
+        if (target.statuses && target.statuses.length) {
+            for (const status of target.statuses) {
+                applyStatusVisual(target.isPlayer, target.row, target.col, status);
+            }
+        }
+    }
+
+    async function playStandardAttackImpact(queue, action, target, elColor, t) {
+        queue.applyPendingImpactHealth(target?.pendingHealthKey);
+        applyAttackImpactVfx(queue, action, target, elColor);
+        if (window.SieglingsFx?.cameraShake) {
+            const shake = Math.min(12, 3 + Math.round((Number(target?.amount) || 0) * 0.6));
+            window.SieglingsFx.cameraShake(shake, t.impactMs);
+        }
+        await sleep(t.impactMs);
+        queue.releasePendingHealth(target?.pendingHealthKey);
+    }
+
+    async function playLethalAttackImpact(queue, action, target, elColor, t) {
+        const pendingKey = target.pendingLethalKey || target.pendingHealthKey;
+        queue.applyLethalImpactHealth(pendingKey, target);
+        applyAttackImpactVfx(queue, action, target, elColor);
+        const boardCard = queue.getHeldBoardCard(target.isPlayer, target.row, target.col);
+        if (window.SieglingsFx?.cameraShake) {
+            const shake = Math.min(12, 3 + Math.round((target.amount || 0) * 0.6));
+            window.SieglingsFx.cameraShake(shake, t.impactMs);
+        }
+        await sleep(t.impactMs);
+        const cardToDestroy = boardCard || findCellEl(target.isPlayer, target.row, target.col)?.querySelector('.board-card');
+        if (cardToDestroy) {
+            await destroyBoardCard(cardToDestroy, elColor, 520);
+        }
+        queue.releasePendingLethalHold(pendingKey);
+    }
+
+    function buildCardDestroyedToast(sourceAction, target) {
+        const ghost = target?.ghostCell || sourceAction?.ghostCell;
+        const name = target?.name || ghost?.name || sourceAction?.actorName || 'Card';
+        const el = normalizeElement(
+            target?.element || ghost?.element || sourceAction?.elementColor || sourceAction?.knightElement
+        );
+        return {
+            kind: 'DESTROY',
+            side: sourceAction?.side || (target?.isPlayer ? 'PLAYER' : 'ENEMY'),
+            actorName: name,
+            targetName: '',
+            label: 'was destroyed',
+            knightElement: sourceAction?.knightElement || el,
+            elementColor: el,
+            portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(el)}</span>`
+        };
+    }
+
+    async function showCardDestroyedToast(queue, sourceAction, target, t) {
+        if (queue.activeToast) queue.activeToast.dismiss();
+        queue.activeToast = queue.toasts.show(buildCardDestroyedToast(sourceAction, target), t.toastDismissMs);
+        await sleep(t.toastEnterMs);
     }
 
     // Apply a one-shot status-application visual on a board cell. The
@@ -614,7 +715,31 @@
             for (let c = 0; c < 3; c++) {
                 const p = prev[r]?.[c];
                 const n = next[r]?.[c];
-                if (!p || !n) continue;
+                if (!p) continue;
+                if (!n) {
+                    const prevHp = Math.max(0, Number(p.hp) || 0);
+                    const prevShield = Math.max(0, Number(p.shieldHp ?? 0) || 0);
+                    if (prevHp <= 0 && prevShield <= 0) continue;
+                    out.push({
+                        isPlayer, row: r, col: c,
+                        amount: prevHp + prevShield,
+                        shieldBroken: prevShield,
+                        hpLoss: prevHp,
+                        shieldFullyBroken: prevShield > 0,
+                        element: normalizeElement(p.element),
+                        name: p.name || '',
+                        instanceId: String(p.instanceId || p.id || ''),
+                        prevHp,
+                        nextHp: 0,
+                        prevShield,
+                        nextShield: 0,
+                        prevMaxHp: p.maxHp,
+                        nextMaxHp: p.maxHp,
+                        printedHealth: p.printedHealth,
+                        lethalRemoval: true
+                    });
+                    continue;
+                }
                 const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
                     || (p.id && n.id && p.id === n.id)
                     || (String(p.name || '') === String(n.name || '') && p.name);
@@ -831,6 +956,7 @@
             // these entries keep that resolved HP visible while the matching
             // attack animation finishes.
             this.pendingHealthChanges = new Map();
+            this.pendingLethalHolds = new Map();
             this._pendingSyncScheduled = false;
             this._loadSpeed();
             this._installPlacementObserver();
@@ -867,6 +993,7 @@
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
             this.settleAllPendingHealth();
+            this.releaseAllPendingLethalHolds();
         }
 
         // ── Pending-placement registry ────────────────────────────────────
@@ -906,6 +1033,7 @@
             requestAnimationFrame(() => {
                 this._pendingSyncScheduled = false;
                 this.syncPendingPlacements();
+                this.syncPendingLethalHolds();
             });
         }
         syncPendingPlacements() {
@@ -980,10 +1108,17 @@
             this.syncShieldVisualsToHealth(card, entry, resolvedShield);
         }
         registerPendingHealth(target) {
-            if (!target || target.destroysTarget) return null;
+            if (!target) return null;
+            if (target.destroysTarget && target.ghostCell) {
+                return this.registerPendingLethalHold(target);
+            }
             const prevHp = Number(target.prevHp);
             const nextHp = Number(target.nextHp);
-            if (!Number.isFinite(prevHp) || !Number.isFinite(nextHp) || nextHp >= prevHp) {
+            const prevShield = Math.max(0, Number(target.prevShield) || 0);
+            const nextShield = Math.max(0, Number(target.nextShield) || 0);
+            const hpDropped = Number.isFinite(prevHp) && Number.isFinite(nextHp) && nextHp < prevHp;
+            const shieldDropped = nextShield < prevShield;
+            if (!hpDropped && !shieldDropped) {
                 return null;
             }
             const id = String(target.instanceId || '');
@@ -996,23 +1131,107 @@
                 row: target.row,
                 col: target.col,
                 instanceId: id,
-                displayHp: nextHp,
-                finalHp: nextHp,
-                displayShield: Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0,
-                finalShield: Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0,
+                displayHp: hpDropped ? prevHp : nextHp,
+                finalHp: Number.isFinite(nextHp) ? nextHp : prevHp,
+                displayShield: prevShield,
+                finalShield: nextShield,
                 maxHp,
                 printedHealth: target.printedHealth,
                 element: target.element
             });
-            this.syncPendingHealth();
             return key;
+        }
+        applyPendingImpactHealth(key) {
+            if (!key) return;
+            const entry = this.pendingHealthChanges.get(key);
+            if (!entry) return;
+            entry.displayHp = entry.finalHp;
+            entry.displayShield = entry.finalShield;
+            this.applyHealthToDom(entry, entry.displayHp, entry.maxHp);
+        }
+        applyPendingImpactHealthForTargets(targets) {
+            for (const target of targets || []) {
+                this.applyPendingImpactHealth(target?.pendingHealthKey);
+            }
+        }
+        registerPendingLethalHold(target) {
+            const cell = target.ghostCell;
+            if (!cell) return null;
+            const id = String(target.instanceId || cell.instanceId || cell.id || '');
+            const key = this._healthKey(target.isPlayer, target.row, target.col, id);
+            const prevHp = Number.isFinite(Number(target.prevHp))
+                ? Number(target.prevHp)
+                : Number(cell.hp ?? 0);
+            const maxHp = Number.isFinite(Number(target.prevMaxHp))
+                ? Number(target.prevMaxHp)
+                : Number(cell.maxHp ?? prevHp);
+            const prevShield = Number.isFinite(Number(target.prevShield))
+                ? Number(target.prevShield)
+                : Math.max(0, Number(cell.shieldHp ?? 0) || 0);
+            this.pendingLethalHolds.set(key, {
+                isPlayer: target.isPlayer,
+                row: target.row,
+                col: target.col,
+                instanceId: id,
+                cell: { ...cell },
+                displayHp: Math.max(0, prevHp),
+                finalHp: 0,
+                displayShield: prevShield,
+                finalShield: 0,
+                maxHp,
+                printedHealth: target.printedHealth ?? cell.printedHealth,
+                element: target.element || cell.element
+            });
+            this.schedulePendingSync();
+            return key;
+        }
+        getHeldBoardCard(isPlayer, row, col) {
+            const cellEl = findCellEl(isPlayer, row, col);
+            return cellEl?.querySelector('.board-card') || null;
+        }
+        applyLethalImpactHealth(key, target) {
+            const entry = key ? this.pendingLethalHolds.get(key) : null;
+            if (entry) {
+                entry.displayHp = entry.finalHp;
+                entry.displayShield = entry.finalShield;
+                this.syncPendingLethalHolds();
+                return;
+            }
+            this.releasePendingHealth(target?.pendingHealthKey);
+        }
+        releasePendingLethalHold(key) {
+            if (!key) return;
+            const entry = this.pendingLethalHolds.get(key);
+            if (!entry) return;
+            this.pendingLethalHolds.delete(key);
+            if (typeof window.SieglingsBoardHold?.unmountHeldBoardCell === 'function') {
+                const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+                if (cellEl) window.SieglingsBoardHold.unmountHeldBoardCell(cellEl);
+            }
+        }
+        releaseAllPendingLethalHolds() {
+            for (const key of Array.from(this.pendingLethalHolds.keys())) {
+                this.releasePendingLethalHold(key);
+            }
+        }
+        syncPendingLethalHolds() {
+            if (!this.pendingLethalHolds.size) return;
+            if (typeof window.SieglingsBoardHold?.syncHeldCards !== 'function') return;
+            window.SieglingsBoardHold.syncHeldCards(this.pendingLethalHolds);
+            for (const entry of this.pendingLethalHolds.values()) {
+                this.applyHealthToDom(entry, entry.displayHp, entry.maxHp);
+            }
         }
         releasePendingHealth(key) {
             if (!key) return;
             const entry = this.pendingHealthChanges.get(key);
             if (!entry) return;
+            if (entry.displayHp !== entry.finalHp || entry.displayShield !== entry.finalShield) {
+                entry.displayHp = entry.finalHp;
+                entry.displayShield = entry.finalShield;
+                this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+            }
             this.pendingHealthChanges.delete(key);
-            this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
         }
         releasePendingHealthForTargets(targets) {
             for (const target of targets || []) {
@@ -1020,9 +1239,9 @@
             }
         }
         settleAllPendingHealth() {
-            for (const [key, entry] of Array.from(this.pendingHealthChanges.entries())) {
-                this.pendingHealthChanges.delete(key);
-                this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+            for (const key of Array.from(this.pendingHealthChanges.keys())) {
+                this.applyPendingImpactHealth(key);
+                this.releasePendingHealth(key);
             }
         }
         syncPendingHealth() {
@@ -1336,6 +1555,9 @@
                         printedHealth: t.printedHealth
                     };
                     targetEntry.pendingHealthKey = this.registerPendingHealth(targetEntry);
+                    if (targetEntry.destroysTarget) {
+                        targetEntry.pendingLethalKey = targetEntry.pendingHealthKey;
+                    }
                     const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || sideKnight;
                     const key = srcRef
                         ? `S:${srcRef.row}:${srcRef.col}:${srcRef.cell?.instanceId || srcRef.cell?.id || ''}`
@@ -1487,6 +1709,7 @@
                         destroysTarget: t.destroysTarget,
                         ghostCell: t.ghostCell,
                         pendingHealthKey: t.pendingHealthKey,
+                        pendingLethalKey: t.pendingLethalKey,
                         statuses: t.statuses && t.statuses.length ? t.statuses.slice() : null,
                         gapAfterMs: BATTLE_GAP_MS
                     });
@@ -1519,6 +1742,7 @@
                         destroysTarget: tt.destroysTarget,
                         ghostCell: tt.ghostCell,
                         pendingHealthKey: tt.pendingHealthKey,
+                        pendingLethalKey: tt.pendingLethalKey,
                         statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null
                     })),
                     gapAfterMs: BATTLE_GAP_MS
@@ -1760,6 +1984,15 @@
             // the case where game.js's render rebuilt the cell DOM while we
             // were processing a previous action.
             this.syncPendingPlacements();
+            this.syncPendingLethalHolds();
+
+            const deferAttackToast = action.kind === 'ATTACK' && !action.target?.healthBar && (
+                (action.source && action.target)
+                || (action.source && Array.isArray(action.targets) && action.targets.length > 0)
+                || (action.target && (action.destroysTarget && action.ghostCell))
+                || (Array.isArray(action.targets) && action.targets.some((tgt) => tgt.destroysTarget && tgt.ghostCell))
+            );
+            const deferEarlyToast = deferAttackToast || action.kind === 'DESTROY';
 
             if (action.kind === 'PHASE') {
                 if (this.activeToast) {
@@ -1808,72 +2041,64 @@
             }
             await sleep(Math.round(t.highlightMs * 0.45));
 
-            // 2. Show toast
-            if (this.activeToast) this.activeToast.dismiss();
-            this.activeToast = this.toasts.show(action, t.toastDismissMs);
-            await sleep(t.toastEnterMs);
+            // 2. Show toast (lethal kills and standalone destroys announce after VFX)
+            if (!deferEarlyToast) {
+                if (this.activeToast) this.activeToast.dismiss();
+                this.activeToast = this.toasts.show(action, t.toastDismissMs);
+                await sleep(t.toastEnterMs);
+            }
+
+            const showDeferredAttackToast = async () => {
+                if (!deferAttackToast) return;
+                if (this.activeToast) this.activeToast.dismiss();
+                this.activeToast = this.toasts.show(action, t.toastDismissMs);
+                await sleep(t.toastEnterMs);
+            };
+
+            const showDeferredDestroyToast = async (targetLike) => {
+                await showCardDestroyedToast(this, action, targetLike || action, t);
+            };
 
             // 2a. Multi-target ATTACK — all projectiles fire simultaneously
             // (no stagger). One coordinated impact + camera shake + per-target
             // damage floater after the projectile duration.
             if (action.kind === 'ATTACK' && Array.isArray(action.targets) && action.targets.length > 1
                 && action.source && window.SieglingsFx?.attackCell) {
-                const ghosts = [];
-                for (const tgt of action.targets) {
-                    if (tgt.destroysTarget && tgt.ghostCell) {
-                        const g = spawnGhost(
-                            tgt.isPlayer, tgt.row, tgt.col,
-                            tgt.ghostCell, knight, elementHex(tgt.element)
-                        );
-                        if (g) ghosts.push({ ghost: g, target: tgt });
-                    }
-                }
+                this.syncPendingLethalHolds();
                 for (const tgt of action.targets) {
                     window.SieglingsFx.attackCell(
                         action.source.isPlayer, action.source.row, action.source.col,
                         tgt.isPlayer, tgt.row, tgt.col,
-                        tgt.element || action.elementColor || action.knightElement,
+                        attackFxElement(action),
                         { duration: t.projectileMs }
                     );
                 }
                 await sleep(t.projectileMs);
 
-                this.releasePendingHealthForTargets(action.targets);
-                for (const tgt of action.targets) {
-                    const ghostEntry = ghosts.find((g) => g.target === tgt);
-                    const tgtColor = elementHex(tgt.element || action.elementColor || action.knightElement);
-                    if (ghostEntry) {
-                        ghostEntry.ghost.classList.add('sgl-ghost-impact');
-                        setTimeout(() => ghostEntry.ghost.classList.remove('sgl-ghost-impact'), 320);
-                    } else {
-                        flashImpact(tgt.isPlayer, tgt.row, tgt.col, tgtColor);
-                    }
-                    if (tgt.amount && window.SieglingsFx?.floatingDamage) {
-                        window.SieglingsFx.floatingDamage(
-                            tgt.isPlayer, tgt.row, tgt.col,
-                            tgt.amount,
-                            tgt.element || action.elementColor || action.knightElement
-                        );
-                    }
-                    if (tgt.shieldBroken > 0) {
-                        breakShieldPlates(tgt.isPlayer, tgt.row, tgt.col, tgt.shieldBroken);
-                    }
-                    if (tgt.statuses && tgt.statuses.length) {
-                        for (const status of tgt.statuses) {
-                            applyStatusVisual(tgt.isPlayer, tgt.row, tgt.col, status);
-                        }
-                    }
+                const lethalTargets = action.targets.filter((tgt) => tgt.destroysTarget && tgt.ghostCell);
+                const survivingTargets = action.targets.filter((tgt) => !tgt.destroysTarget || !tgt.ghostCell);
+                const casterFxColor = elementHex(attackFxElement(action));
+                this.applyPendingImpactHealthForTargets(survivingTargets);
+                for (const tgt of survivingTargets) {
+                    applyAttackImpactVfx(this, action, tgt, casterFxColor);
                 }
-                if (window.SieglingsFx?.cameraShake) {
+                if (window.SieglingsFx?.cameraShake && action.targets.length) {
                     const shake = Math.min(16, 6 + Math.round((action.amount || 0) * 0.35));
                     window.SieglingsFx.cameraShake(shake, t.impactMs);
                 }
-                await sleep(t.impactMs);
-
-                if (ghosts.length) {
-                    await Promise.all(ghosts.map(
-                        (g) => destroyGhost(g.ghost, elementHex(g.target.element), 520)
-                    ));
+                if (survivingTargets.length) {
+                    await sleep(t.impactMs);
+                    this.releasePendingHealthForTargets(survivingTargets);
+                }
+                for (const tgt of lethalTargets) {
+                    await playLethalAttackImpact(this, action, tgt, casterFxColor, t);
+                }
+                if (!survivingTargets.length && !lethalTargets.length) {
+                    await sleep(t.impactMs);
+                }
+                await showDeferredAttackToast();
+                for (const tgt of lethalTargets) {
+                    await showDeferredDestroyToast(tgt);
                 }
                 const multiGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(multiGap);
@@ -2003,15 +2228,9 @@
             const fireProjectile = action.kind === 'ATTACK' && action.source && action.target
                 && !action.target.healthBar && window.SieglingsFx?.attackCell;
             if (fireProjectile) {
-                // If this hit destroys the target, materialize a ghost copy so
-                // the now-empty cell still has something to be hit by the
-                // projectile + impact animation.
-                let ghost = null;
-                if (action.destroysTarget && action.ghostCell) {
-                    ghost = spawnGhost(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.ghostCell, knight, elColor
-                    );
+                const isLethalKill = action.destroysTarget && action.ghostCell;
+                if (isLethalKill) {
+                    this.syncPendingLethalHolds();
                 }
 
                 window.SieglingsFx.attackCell(
@@ -2026,38 +2245,35 @@
                 );
                 await sleep(t.projectileMs);
 
-                this.releasePendingHealth(action.pendingHealthKey);
-                // 4. Impact: hit flash on target + floating damage + screen shake
-                if (ghost) {
-                    ghost.style.setProperty('--sgl-impact-color', elColor);
-                    ghost.classList.add('sgl-ghost-impact');
-                    setTimeout(() => ghost.classList.remove('sgl-ghost-impact'), 320);
-                } else if (action.target) {
-                    flashImpact(action.target.isPlayer, action.target.row, action.target.col, elColor);
-                }
-                if (action.amount && window.SieglingsFx?.floatingDamage) {
-                    window.SieglingsFx.floatingDamage(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.amount, action.elementColor || action.knightElement
-                    );
-                }
-                if (action.shieldBroken > 0) {
-                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
-                }
-                if (action.statuses && action.statuses.length) {
-                    for (const status of action.statuses) {
-                        applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, status);
-                    }
-                }
-                if (window.SieglingsFx?.cameraShake) {
-                    const shake = Math.min(12, 3 + Math.round((action.amount || 0) * 0.6));
-                    window.SieglingsFx.cameraShake(shake, t.impactMs);
-                }
-                await sleep(t.impactMs);
-
-                if (ghost) {
-                    // Destruction animation, then remove the ghost.
-                    await destroyGhost(ghost, elColor, 520);
+                if (isLethalKill) {
+                    const lethalTarget = {
+                        isPlayer: action.target.isPlayer,
+                        row: action.target.row,
+                        col: action.target.col,
+                        name: action.targetName || action.ghostCell?.name,
+                        ghostCell: action.ghostCell,
+                        amount: action.amount,
+                        shieldBroken: action.shieldBroken,
+                        element: action.target.element,
+                        pendingLethalKey: action.pendingLethalKey || action.pendingHealthKey,
+                        pendingHealthKey: action.pendingHealthKey,
+                        statuses: action.statuses
+                    };
+                    await playLethalAttackImpact(this, action, lethalTarget, elColor, t);
+                    await showDeferredAttackToast();
+                    await showDeferredDestroyToast(lethalTarget);
+                } else {
+                    const standardTarget = {
+                        isPlayer: action.target.isPlayer,
+                        row: action.target.row,
+                        col: action.target.col,
+                        amount: action.amount,
+                        shieldBroken: action.shieldBroken,
+                        statuses: action.statuses,
+                        pendingHealthKey: action.pendingHealthKey
+                    };
+                    await playStandardAttackImpact(this, action, standardTarget, elColor, t);
+                    await showDeferredAttackToast();
                 }
             } else if (action.kind === 'ATTACK' && action.target?.healthBar) {
                 // Sourceless health-bar damage — still flash the bar so the
@@ -2085,18 +2301,9 @@
                 await sleep(gap);
                 return;
             } else if (action.kind === 'ATTACK' && action.target) {
-                // Damage event without an identified source (effect tick,
-                // AI attack whose log shape the parser didn't recognize, etc.).
-                // We still fire a projectile from a fallback origin on the
-                // attacker's side so the user sees the element-colored
-                // particle trail flying across the board, and follow up with
-                // the usual impact + ghost + floater.
-                let ghost = null;
-                if (action.destroysTarget && action.ghostCell) {
-                    ghost = spawnGhost(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.ghostCell, knight, elColor
-                    );
+                const isLethalKill = action.destroysTarget && action.ghostCell;
+                if (isLethalKill) {
+                    this.syncPendingLethalHolds();
                 }
                 const targetCellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
                 if (targetCellEl && window.SieglingsFx?.attackBetween) {
@@ -2110,38 +2317,36 @@
                     );
                     await sleep(t.projectileMs);
                 }
-                if (window.SieglingsFx?.impactAt) {
-                    window.SieglingsFx.impactAt(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.elementColor || action.knightElement
-                    );
-                }
-                if (ghost) {
-                    ghost.classList.add('sgl-ghost-impact');
-                    setTimeout(() => ghost.classList.remove('sgl-ghost-impact'), 320);
+                if (isLethalKill) {
+                    const lethalTarget = {
+                        isPlayer: action.target.isPlayer,
+                        row: action.target.row,
+                        col: action.target.col,
+                        name: action.targetName || action.ghostCell?.name,
+                        ghostCell: action.ghostCell,
+                        amount: action.amount,
+                        shieldBroken: action.shieldBroken,
+                        element: action.target.element,
+                        pendingLethalKey: action.pendingLethalKey || action.pendingHealthKey,
+                        pendingHealthKey: action.pendingHealthKey,
+                        statuses: action.statuses
+                    };
+                    await playLethalAttackImpact(this, action, lethalTarget, elColor, t);
+                    await showDeferredAttackToast();
+                    await showDeferredDestroyToast(lethalTarget);
                 } else {
-                    flashImpact(action.target.isPlayer, action.target.row, action.target.col, elColor);
+                    const standardTarget = {
+                        isPlayer: action.target.isPlayer,
+                        row: action.target.row,
+                        col: action.target.col,
+                        amount: action.amount,
+                        shieldBroken: action.shieldBroken,
+                        statuses: action.statuses,
+                        pendingHealthKey: action.pendingHealthKey
+                    };
+                    await playStandardAttackImpact(this, action, standardTarget, elColor, t);
+                    await showDeferredAttackToast();
                 }
-                if (action.amount && window.SieglingsFx?.floatingDamage) {
-                    window.SieglingsFx.floatingDamage(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.amount, action.elementColor || action.knightElement
-                    );
-                }
-                if (action.shieldBroken > 0) {
-                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
-                }
-                if (action.statuses && action.statuses.length) {
-                    for (const status of action.statuses) {
-                        applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, status);
-                    }
-                }
-                if (window.SieglingsFx?.cameraShake) {
-                    const shake = Math.min(10, 3 + Math.round((action.amount || 0) * 0.5));
-                    window.SieglingsFx.cameraShake(shake, t.impactMs);
-                }
-                await sleep(t.impactMs);
-                if (ghost) await destroyGhost(ghost, elColor, 520);
             } else if (action.kind === 'DESTROY' && action.target && action.ghostCell) {
                 // Standalone destruction (no projectile / no attacker we can locate).
                 const ghost = spawnGhost(
@@ -2156,6 +2361,14 @@
                 }
                 await sleep(Math.round(t.impactMs * 0.6));
                 await destroyGhost(ghost, elColor, 520);
+                await showDeferredDestroyToast({
+                    isPlayer: action.target.isPlayer,
+                    row: action.target.row,
+                    col: action.target.col,
+                    name: action.actorName,
+                    ghostCell: action.ghostCell,
+                    element: action.target.element
+                });
             } else if (action.kind === 'ABILITY' && action.source) {
                 // Ability without explicit target → small impact ring on caster
                 if (window.SieglingsFx?.impactAt) {
@@ -2196,11 +2409,19 @@
         const btn = document.createElement('button');
         btn.id = 'sglSpeedToggle';
         btn.type = 'button';
-        btn.className = 'sgl-speed-toggle';
+        btn.className = 'sgl-speed-toggle ab-icon';
         btn.addEventListener('click', () => {
             queue.setSpeed(queue.getSpeed() === 'fast' ? 'normal' : 'fast');
         });
-        document.body.appendChild(btn);
+        const quitBtn = document.getElementById('btnQuitOrNewGame');
+        const auxBar = document.querySelector('#actionBar .action-bar-aux');
+        if (quitBtn?.parentElement) {
+            quitBtn.parentElement.insertBefore(btn, quitBtn);
+        } else if (auxBar) {
+            auxBar.appendChild(btn);
+        } else {
+            document.body.appendChild(btn);
+        }
         queue.setSpeed(queue.getSpeed()); // initialize label
     }
 
@@ -2231,6 +2452,7 @@
             const result = orig.apply(this, arguments);
             try { queue.syncPendingPlacements(); } catch (_) {}
             try { queue.syncPendingHealth(); } catch (_) {}
+            try { queue.syncPendingLethalHolds(); } catch (_) {}
             return result;
         };
         window.__sglRenderHookInstalled = true;
