@@ -299,6 +299,18 @@ class PlayerProgressionServiceTest {
         );
     }
 
+    private static TrainerCard waterKnight() {
+        return new TrainerCard(
+                "trainer02",
+                "Tide Strategist",
+                Element.WATER,
+                Rarity.RARE,
+                Ability.passive("Flow Guard", "All Water allies gain +1 HP", "hp_boost", 1),
+                Ability.damage("Splash Lance", "Deal 2 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 2),
+                false
+        );
+    }
+
     @Test
     void starterPackGrantsMatchingSiegeKnightAtLevelOne() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
@@ -332,19 +344,17 @@ class PlayerProgressionServiceTest {
         progression.setUserId("player@example.com");
         progression.setStarterPackId("pack_fire");
         progression.setGold(5000);
-        LinkedHashMap<String, Integer> levels = new LinkedHashMap<>();
-        levels.put("trainer01", 1);
-        progression.setTrainerLevels(levels);
         store.saved = progression;
         PlayerProgressionService service = createService(store, new TrainerDropPackCatalogService(), new FakeCardDefinitionService());
 
         service.openPack(user(), "pack_siegeknight");
 
-        assertEquals(2, store.saved.getTrainerLevels().get("trainer01"));
+        assertEquals(1, store.saved.getTrainerLevels().get("trainer01"));
+        assertEquals(1, store.saved.getTrainerLevels().get("trainer02"));
         @SuppressWarnings("unchecked")
         Map<String, Object> trainerEntry = (Map<String, Object>) store.saved.getPackHistory().get(0).get("trainer");
-        assertEquals(false, trainerEntry.get("newlyOwned"));
-        assertEquals(true, trainerEntry.get("leveledUp"));
+        assertEquals(true, trainerEntry.get("newlyOwned"));
+        assertEquals("trainer02", trainerEntry.get("id"));
     }
 
     @Test
@@ -387,7 +397,7 @@ class PlayerProgressionServiceTest {
                             new SpellCard("spark", "Spark", Element.FIRE, Rarity.COMMON, 1, Ability.damage("Spark", "", TargetType.SINGLE_ENEMY, null, 1, 1)),
                             new TrapCard("flaretrap", "Flare Trap", Element.FIRE, Rarity.COMMON, Element.FIRE, 2, Ability.damage("Flare", "", TargetType.SINGLE_ENEMY, null, 1, 1))
                     ),
-                    fireKnight()
+                    waterKnight()
             );
         }
     }
