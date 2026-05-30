@@ -1327,6 +1327,15 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.04em;
+    color: #ffd6d6;
+    border-color: rgba(231, 76, 60, 0.55);
+    background: linear-gradient(180deg, rgba(231, 76, 60, 0.22), rgba(140, 28, 28, 0.28));
+    box-shadow: 0 0 0 1px rgba(231, 76, 60, 0.12), 0 4px 12px rgba(120, 20, 20, 0.28);
+}
+.ab-icon.ab-quit-label:hover {
+    color: #fff;
+    border-color: rgba(255, 120, 100, 0.75);
+    background: linear-gradient(180deg, rgba(231, 76, 60, 0.38), rgba(160, 32, 32, 0.42));
 }
 .ab-icon-active {
     color: #f3f8ff;
@@ -4085,7 +4094,7 @@ body.battle-phase-active .battlefield::after {
 
     .desktop-menu .hand-cards {
         justify-content: flex-start;
-        align-items: stretch;
+        align-items: flex-start;
         gap: var(--hand-card-gap);
         padding: 2px 2px 12px;
         overflow-y: hidden;
@@ -4115,15 +4124,15 @@ body.battle-phase-active .battlefield::after {
     }
 
     .desktop-menu .hand-card {
-        /* JS sets width/height from the live hand tray so cards fill the selector while keeping 5:7 proportions. */
+        /* JS derives width from the live rail height so cards keep 5:7 proportions. */
         box-sizing: border-box;
-        height: var(--hand-card-height, 100%);
-        max-height: 100%;
+        height: auto;
         width: var(--hand-card-width);
         min-width: var(--hand-card-width);
         max-width: var(--hand-card-width);
         min-height: 0;
-        align-self: stretch;
+        max-height: none;
+        align-self: flex-start;
         aspect-ratio: var(--card-aspect-ratio);
         padding: var(--hand-card-padding);
         margin-left: 0;
@@ -4732,7 +4741,7 @@ body.tablet-portrait-dock .desktop-menu .hand-tray {
 }
 
 body.tablet-portrait-dock .desktop-menu .hand-cards {
-    align-items: stretch;
+    align-items: flex-start;
     padding-bottom: 10px;
 }
 
@@ -11997,6 +12006,11 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     70%  { filter: brightness(1.3) drop-shadow(0 0 10px var(--sgl-impact-color)); transform: translate(2px, 1px); }
     100% { filter: brightness(1)   drop-shadow(0 0 0 transparent); transform: translate(0, 0); }
 }
+.board-card.sgl-destroying {
+    pointer-events: none;
+    z-index: 12;
+    animation: sgl-ghost-destroy 520ms cubic-bezier(0.55, 0, 0.85, 0.4) forwards;
+}
 .sgl-death-ghost.sgl-destroying {
     animation: sgl-ghost-destroy 520ms cubic-bezier(0.55, 0, 0.85, 0.4) forwards;
 }
@@ -12007,6 +12021,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     100% { transform: scale(0.55) rotate(10deg) translateY(18px); opacity: 0;   filter: brightness(0.5) blur(2.5px); }
 }
 @media (prefers-reduced-motion: reduce) {
+    .board-card.sgl-destroying,
     .sgl-death-ghost.sgl-destroying { animation: sgl-ghost-destroy-reduced 200ms ease-out forwards; }
     @keyframes sgl-ghost-destroy-reduced {
         0%   { opacity: 1; }
@@ -12094,7 +12109,10 @@ body.sgl-opponent-turn .battle-cta-row {
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.36);
     transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
-.sgl-speed-toggle:hover { background: rgba(20, 30, 50, 0.9); border-color: rgba(255, 255, 255, 0.32); }
+.sgl-speed-toggle:hover {
+    background: rgba(20, 30, 50, 0.9);
+    border-color: rgba(255, 255, 255, 0.32);
+}
 .sgl-speed-toggle.fast {
     background: linear-gradient(180deg, rgba(255, 215, 0, 0.18), rgba(255, 130, 40, 0.22));
     border-color: rgba(255, 215, 0, 0.6);

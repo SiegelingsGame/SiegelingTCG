@@ -192,6 +192,20 @@ const TARGET_ARROW_PALETTES = {
     default: { source: '#ffd28a', target: '#ffaa55', glow: '#ffbd70' }
 };
 
+const TARGET_ARROW_ELEMENT_PALETTES = {
+    FIRE:     { source: '#ff9940', target: '#ff5520', glow: '#ff7730' },
+    WATER:    { source: '#80ccff', target: '#3296ff', glow: '#55aaff' },
+    EARTH:    { source: '#e8c870', target: '#c49a4a', glow: '#b08030' },
+    WIND:     { source: '#b0ffd0', target: '#64e89a', glow: '#80f0b0' },
+    ICE:      { source: '#c8f6ff', target: '#76e6ff', glow: '#a8f0ff' },
+    SHADOW:   { source: '#c070ff', target: '#7832b4', glow: '#9040d0' },
+    ELECTRIC: { source: '#ffffff', target: '#ffe040', glow: '#ffe880' },
+    METAL:    { source: '#d8e0e8', target: '#a0aab4', glow: '#c0c8d0' },
+    UNDEAD:   { source: '#b090e0', target: '#6a5080', glow: '#8060a0' },
+    PSYCHIC:  { source: '#f0b0ff', target: '#d060ff', glow: '#e080ff' },
+    NEUTRAL:  { source: '#aabbcc', target: '#8899aa', glow: '#99aabb' }
+};
+
 const LOADOUT_ELEMENT_THEMES = {
     FIRE: {
         element: 'FIRE',
@@ -413,6 +427,7 @@ const targetArrowPreviewState = {
     sourceCell: null,
     targetCells: [],
     kind: 'default',
+    customPalette: null,
     startedAt: 0,
     dashPhase: 0,
     raf: 0,
@@ -1304,6 +1319,19 @@ function effectKindFor(ability) {
     return EFFECT_KIND_MAP[effectType] || 'default';
 }
 
+function resolveTargetingArrowPalette(ability) {
+    const kind = effectKindFor(ability);
+    if (kind === 'heal' || kind === 'buff' || kind === 'freeze' || kind === 'move') {
+        return { kind };
+    }
+    const casterElement = String(gameState?.pendingBattle?.element || '').trim().toUpperCase();
+    const elementPalette = TARGET_ARROW_ELEMENT_PALETTES[casterElement];
+    if (elementPalette) {
+        return { kind: 'custom', palette: elementPalette };
+    }
+    return { kind };
+}
+
 function targetArrowClamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
 }
@@ -1469,7 +1497,9 @@ function drawDomTargetingPreview(timestamp) {
     }
 
     const elapsed = Math.max(0, timestamp - state.startedAt);
-    const palette = TARGET_ARROW_PALETTES[state.kind] || TARGET_ARROW_PALETTES.default;
+    const palette = state.customPalette
+        || TARGET_ARROW_PALETTES[state.kind]
+        || TARGET_ARROW_PALETTES.default;
     const sceneCenterY = height / 2;
     const defs = [];
     const shapes = [];
@@ -1524,7 +1554,7 @@ function drawDomTargetingPreview(timestamp) {
     }
 }
 
-function showDomTargetingPreview(sourceCell, targetCells, kind) {
+function showDomTargetingPreview(sourceCell, targetCells, paletteSpec) {
     if (!sourceCell || !Array.isArray(targetCells) || targetCells.length === 0) {
         clearDomTargetingPreview();
         return;
@@ -1532,6 +1562,10 @@ function showDomTargetingPreview(sourceCell, targetCells, kind) {
     if (targetArrowPreviewState.raf) {
         window.cancelAnimationFrame(targetArrowPreviewState.raf);
     }
+    const resolved = (typeof paletteSpec === 'object' && paletteSpec)
+        ? paletteSpec
+        : { kind: paletteSpec };
+    const kind = resolved.kind || 'default';
     targetArrowPreviewState.active = true;
     targetArrowPreviewState.sourceCell = {
         isPlayer: Boolean(sourceCell.isPlayer),
@@ -1548,6 +1582,7 @@ function showDomTargetingPreview(sourceCell, targetCells, kind) {
             appearedAt: index * TARGET_ARROW_STAGGER_MS
         }));
     targetArrowPreviewState.kind = TARGET_ARROW_PALETTES[kind] ? kind : 'default';
+    targetArrowPreviewState.customPalette = resolved.palette || null;
     targetArrowPreviewState.startedAt = performance.now();
     targetArrowPreviewState.raf = 0;
     drawDomTargetingPreview(targetArrowPreviewState.startedAt);
@@ -1560,6 +1595,7 @@ function clearDomTargetingPreview() {
     targetArrowPreviewState.active = false;
     targetArrowPreviewState.sourceCell = null;
     targetArrowPreviewState.targetCells = [];
+    targetArrowPreviewState.customPalette = null;
     targetArrowPreviewState.raf = 0;
     const svg = document.querySelector('.target-arrow-dom-layer');
     if (svg) {
@@ -1710,7 +1746,7 @@ function showBattleTargetCellsPreview(ability, cells) {
         clearTargetingPreview();
         return;
     }
-    targetPreviewController.show(sourceCell, targetCells, effectKindFor(ability));
+    targetPreviewController.show(sourceCell, targetCells, resolveTargetingArrowPalette(ability));
     applyMatchupBadgesForCells(ability, cells || []);
 }
 
@@ -8942,6 +8978,85 @@ function renderTrainer(containerId, trainer, isPlayer) {
     el.innerHTML = html;
 }
 
+function buildBoardCardMarkup(cell, row, col, isPlayer) {
+    const elemClass = String(cell.element || 'NEUTRAL').toLowerCase();
+    const board = isPlayer ? (gameState?.playerBoard || []) : (gameState?.enemyBoard || []);
+    const legalPlacements = [];
+    let html = `<div class="board-card ${elemClass} sgl-held-card">`;
+    html += renderBoardNotches(cell.notches, { board, row, col, isPlayer, legalPlacements });
+    html += renderCardArt(cell, 'board');
+    html += `<div class="bc-inner">`;
+    html += `<div class="bc-name-box"><span class="card-name">${escapeHtml(cell.name || '')}</span></div>`;
+    html += renderStatusBadgesForCell(cell);
+    html += `<div class="bc-stats-box">`;
+    const barMax = Number(cell.maxHp);
+    const barHp = Number(cell.hp);
+    const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
+    const shield = Math.max(0, Number(cell.shieldHp) || 0);
+    const platesHtml = shield > 0
+        ? `<div class="shield-plates" data-shield="${shield}">${
+            Array.from({ length: shield }, (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`).join('')
+        }</div>`
+        : '';
+    html += `<div class="hp-bar${shield > 0 ? ' is-shielded' : ''}">`
+        + `<div class="hp-fill" style="width:${pct}%"></div>`
+        + platesHtml
+        + `</div>`;
+    const combat = renderBoardCellCombatStatsInner(cell);
+    html += `<div class="card-stats">`;
+    html += `<span class="stat stat-hp">${combat.hpInner}</span>`;
+    html += `<span class="stat stat-spd">${combat.spdInner}</span>`;
+    if (combat.dmgBlock) {
+        html += combat.dmgBlock;
+    }
+    html += `</div>`;
+    html += `</div>`;
+    html += `</div>`;
+    return html;
+}
+
+function mountHeldBoardCard(cellEl, entry) {
+    if (!cellEl || !entry?.cell) return null;
+    const isPlayer = !!entry.isPlayer;
+    const row = Number(entry.row);
+    const col = Number(entry.col);
+    const cell = {
+        ...entry.cell,
+        hp: entry.displayHp,
+        shieldHp: entry.displayShield,
+        maxHp: entry.maxHp
+    };
+    const rowTag = cellEl.querySelector('.row-tag');
+    const rowTagHtml = rowTag ? rowTag.outerHTML : (col === 0 ? `<div class="row-tag">${ROW_NAMES[row]}</div>` : '');
+    cellEl.classList.add('has-card');
+    cellEl.innerHTML = rowTagHtml + buildBoardCardMarkup(cell, row, col, isPlayer);
+    return cellEl.querySelector('.board-card');
+}
+
+function unmountHeldBoardCell(cellEl) {
+    if (!cellEl) return;
+    const rowTag = cellEl.querySelector('.row-tag');
+    const rowTagHtml = rowTag ? rowTag.outerHTML : '';
+    cellEl.classList.remove('has-card');
+    cellEl.innerHTML = rowTagHtml;
+}
+
+window.SieglingsBoardHold = {
+    syncHeldCards(pendingLethalHolds) {
+        if (!pendingLethalHolds || typeof pendingLethalHolds.forEach !== 'function') return;
+        pendingLethalHolds.forEach((entry) => {
+            const cellEl = document.querySelector(
+                `${entry.isPlayer ? '#playerGrid' : '#enemyGrid'} .board-cell[data-row="${entry.row}"][data-col="${entry.col}"]`
+            );
+            if (!cellEl) return;
+            if (!cellEl.querySelector('.board-card')) {
+                mountHeldBoardCard(cellEl, entry);
+            }
+        });
+    },
+    unmountHeldBoardCell
+};
+
 function renderBoard(gridId, board, isPlayer) {
     const grid = document.getElementById(gridId);
     const rowOrder = isPlayer ? [2, 1, 0] : [0, 1, 2];
@@ -10009,16 +10124,15 @@ function syncDesktopHandSelectorCardScale() {
         48,
         (contentWidth - (columnGap * (visibleCards - 1))) / visibleCards
     );
-    const cardHeight = Math.max(56, Math.floor(contentHeight));
-    const measuredWidth = cardHeight * (5 / 7);
+    const measuredWidth = Math.max(56, Math.floor(contentHeight)) * (5 / 7);
     const nextWidth = Math.round(clampNumber(
         Math.min(measuredWidth, maxFiveCardWidth),
-        Math.min(72, maxFiveCardWidth),
-        Math.max(72, maxFiveCardWidth)
+        Math.min(96, maxFiveCardWidth),
+        Math.max(96, maxFiveCardWidth)
     ));
     const nextPadding = Math.round(clampNumber(nextWidth * 0.035, 3, 8));
 
-    root.style.setProperty('--hand-card-height', `${cardHeight}px`);
+    root.style.removeProperty('--hand-card-height');
     root.style.setProperty('--hand-card-width', `${nextWidth}px`);
     root.style.setProperty('--hand-card-padding', `${nextPadding}px`);
 }
