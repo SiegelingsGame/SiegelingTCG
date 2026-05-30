@@ -12063,12 +12063,25 @@ body.sgl-opponent-turn .battle-cta-row {
     pointer-events: none;
 }
 
-/* Speed toggle button -------------------------------------------------- */
+/* Speed toggle — docked in hand tray (avoids overlapping Quit in action bar) */
+.hand-tray-speed-slot {
+    position: absolute;
+    right: clamp(8px, 0.8vw, 14px);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 15;
+    pointer-events: none;
+}
+
+.hand-tray-speed-slot .sgl-speed-toggle {
+    pointer-events: auto;
+}
+
 .sgl-speed-toggle {
-    position: fixed;
-    bottom: 14px;
-    right: 14px;
-    z-index: 720;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     padding: 6px 12px;
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -12087,8 +12100,16 @@ body.sgl-opponent-turn .battle-cta-row {
     border-color: rgba(255, 215, 0, 0.6);
     color: #ffe080;
 }
+
+.desktop-menu .hand-tray .hand-cards {
+    padding-right: clamp(88px, 9vw, 108px);
+}
+
 @media (max-width: 720px) {
-    .sgl-speed-toggle { bottom: 8px; right: 8px; font-size: 0.7rem; padding: 5px 10px; }
+    .sgl-speed-toggle { font-size: 0.7rem; padding: 5px 10px; }
+    .desktop-menu .hand-tray .hand-cards {
+        padding-right: clamp(72px, 18vw, 88px);
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     .board-card.sgl-acting { transform: none; }

@@ -264,6 +264,7 @@
             <section class="desktop-menu-section desktop-menu-hand" id="desktopHandSection">
                 <div class="desktop-section-title" id="desktopHandSectionTitle">Hand Selector</div>
                 <div class="hand-tray" id="handTray" onmousemove="handleHandSelectorPointerMove(event)" onwheel="handleHandSelectorWheel(event)" onmouseleave="stopHandSelectorAutoScroll()">
+                    <div class="hand-tray-speed-slot" id="sglSpeedToggleSlot" aria-label="Animation speed"></div>
                     <div class="hand-cards" id="playerHand" onmousemove="handleHandSelectorPointerMove(event)"></div>
                     <div class="desktop-hand-battle-panel hidden" id="desktopHandBattlePanel" aria-live="polite">
                         Queue actions appear here when battle begins.
@@ -718,7 +719,7 @@
     <script src="/js/game.js?v=140"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
-    <script src="/js/action-queue.js?v=23"></script>
+    <script src="/js/action-queue.js?v=24"></script>
     <script src="/js/loading-gate.js?v=2"></script>
 </body>
 </html>
