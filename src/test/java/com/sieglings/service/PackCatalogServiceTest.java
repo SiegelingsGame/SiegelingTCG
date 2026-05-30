@@ -4,6 +4,7 @@ import com.sieglings.model.Ability;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
+import com.sieglings.model.TrainerCard;
 import com.sieglings.model.TrapCard;
 import com.sieglings.model.enums.CardType;
 import com.sieglings.model.enums.Element;
@@ -37,6 +38,18 @@ class PackCatalogServiceTest {
         assertTrue(counts.getOrDefault(CardType.SPELL, 0L) >= 1);
     }
 
+    @Test
+    void siegeKnightCachePackAlwaysIncludesABonusKnight() throws Exception {
+        PackCatalogService service = new PackCatalogService();
+        setField(service, "cardDefinitionService", new KnightCardDefinitionService());
+
+        PackCatalogService.PackOpenResult result = service.openPack(PackCatalogService.SIEGEKNIGHT_PACK_ID, false);
+
+        assertEquals(5, result.cards().size());
+        assertTrue(result.bonusTrainer() != null, "SiegeKnight Cache should always include a knight");
+        assertEquals(Element.FIRE, result.bonusTrainer().getElement());
+    }
+
     private void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -50,6 +63,11 @@ class PackCatalogServiceTest {
         }
 
         @Override
+        public List<TrainerCard> getTrainerOptions() {
+            return List.of();
+        }
+
+        @Override
         public List<Card> getDeckBuilderCatalog() {
             return List.of(
                     new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
@@ -58,6 +76,21 @@ class PackCatalogServiceTest {
                     new SpellCard("spark", "Spark", Element.FIRE, Rarity.COMMON, 1, Ability.damage("Spark", "", TargetType.SINGLE_ENEMY, null, 1, 1)),
                     new TrapCard("flaretrap", "Flare Trap", Element.FIRE, Rarity.COMMON, Element.FIRE, 2, Ability.damage("Flare", "", TargetType.SINGLE_ENEMY, null, 1, 1))
             );
+        }
+    }
+
+    private static class KnightCardDefinitionService extends FakeCardDefinitionService {
+        @Override
+        public List<TrainerCard> getTrainerOptions() {
+            return List.of(new TrainerCard(
+                    "trainer01",
+                    "Flame Tactician",
+                    Element.FIRE,
+                    Rarity.RARE,
+                    Ability.passive("Battle Focus", "All Fire allies gain +1 attack damage", "damage_boost", 1),
+                    Ability.damage("Kindle Shot", "Deal 2 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 2),
+                    false
+            ));
         }
     }
 }

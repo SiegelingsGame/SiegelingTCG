@@ -133,6 +133,7 @@ function welcomeLeaderboardBoards() {
 }
 let authMode = 'login';
 let authRegisterStep = 'credentials';
+let authPopupOpen = false;
 let registerDraft = { email: '', password: '' };
 let authState = {
     token: loadSavedAuthToken(),
@@ -1440,15 +1441,16 @@ function drawDomTargetingPreview(timestamp) {
         clearDomTargetingPreview();
         return;
     }
-    const width = Math.max(1, boardArea.clientWidth || Math.round(boardArea.getBoundingClientRect().width));
-    const height = Math.max(1, boardArea.clientHeight || Math.round(boardArea.getBoundingClientRect().height));
+    const areaRect = boardArea.getBoundingClientRect();
+    const width = Math.max(1, Math.round(areaRect.width));
+    const height = Math.max(1, Math.round(areaRect.height));
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.setAttribute('width', String(width));
     svg.setAttribute('height', String(height));
 
-    // Resolve live cell centers every frame so the arrows track the board as it
-    // resizes, scrolls, or reflows instead of pointing at stale cached pixels.
-    const source = getDomCardFrontCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
+    // Resolve live card centers every frame so arrows track layout, scroll, and
+    // CSS transforms (e.g. mobile targeting camera scale) instead of stale pixels.
+    const source = getDomCellCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
     const targets = [];
     state.targetCells.forEach((cell) => {
         const center = getDomCellCenter(cell.isPlayer, cell.row, cell.col);
@@ -1582,7 +1584,7 @@ const targetPreviewController = {
 // already re-resolves cell positions every frame, but reduced-motion mode draws
 // a single static frame, so it needs an explicit redraw on resize/scroll/rotate.
 function refreshTargetingPreviewOnLayoutChange() {
-    if (targetArrowPreviewState.active && targetArrowPreviewState.reducedMotion) {
+    if (targetArrowPreviewState.active) {
         drawDomTargetingPreview(performance.now());
     }
 }
@@ -2196,10 +2198,7 @@ function cancelBattleTargetSelection() {
     clearTargetingPreview();
     clearTargetMode();
     render();
-    if (isPortraitMobileHudLayout()) {
-        mobileInfoTab = 'battle';
-        openDrawer('battle');
-    } else if (isMobileLayout()) {
+    if (!usesInlineBattleDock() && isMobileLayout()) {
         mobileInfoTab = 'battle';
         openDrawer('battle');
     }
@@ -2449,11 +2448,29 @@ function isMobileLayout() {
     return window.matchMedia('(max-width: 900px)').matches || isCompactLandscapeLayout();
 }
 
+function isTabletPortraitDockLayout() {
+    return window.matchMedia('(min-width: 980px) and (max-width: 1366px) and (orientation: portrait)').matches;
+}
+
+/** iPad portrait: stack card above copy and scale card to panel width. */
+function usesStackedDesktopCardPreview() {
+    return window.matchMedia('(orientation: portrait) and (min-width: 768px) and (max-width: 1366px)').matches;
+}
+
 function isPortraitMobileHudLayout() {
-    return window.matchMedia('(max-width: 767px) and (orientation: portrait)').matches;
+    return window.matchMedia('(max-width: 767px) and (orientation: portrait)').matches
+        || isTabletPortraitDockLayout();
+}
+
+/** Battle queue renders in the docked hand tray (action bar + hand section), not the slide-up drawer. */
+function usesInlineBattleDock() {
+    return isDesktopSidebarLayout() || isMobileLayout();
 }
 
 function getViewportModeLabel() {
+    if (isTabletPortraitDockLayout()) {
+        return 'iPad Portrait';
+    }
     if (isDesktopSidebarLayout()) {
         return 'Desktop Dock';
     }
@@ -2477,13 +2494,19 @@ function updateResponsiveLayoutVars(force = false) {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const desktop = isDesktopSidebarLayout();
+    const tabletPortraitDock = isTabletPortraitDockLayout();
     const compactLandscape = isCompactLandscapeLayout();
     const density = clampNumber(Math.min(viewportWidth / 1440, viewportHeight / 900), 0.72, 1.08);
+    const stackedTabletPreview = usesStackedDesktopCardPreview();
+    document.body.classList.toggle('tablet-portrait-dock', tabletPortraitDock);
+    document.body.classList.toggle('tablet-stacked-preview', stackedTabletPreview);
+    document.body.classList.toggle('battle-inline-dock', usesInlineBattleDock() && isHandHiddenForPhase());
     const cardAspectHeight = 7 / 5;
     const desktopHandVisibleCards = 5;
     const baseDesktopHudRailWidth = 200;
     const baseDesktopSidebarWidth = 420;
-    const hideEnemyHudRail = desktop && viewportWidth <= 1200;
+    const hidePlayerHudRail = tabletPortraitDock;
+    const hideEnemyHudRail = desktop && (viewportWidth <= 1200 || tabletPortraitDock);
     const desktopPanelScale = desktop
         ? clampNumber((viewportWidth - 1600) / 1600, 0, 1)
         : 0;
@@ -2508,8 +2531,11 @@ function updateResponsiveLayoutVars(force = false) {
     let sidebarWidth = desktop
         ? Math.round(baseDesktopSidebarWidth * (1 + desktopPanelScale))
         : baseDesktopSidebarWidth;
+    const desktopHudRailCount = desktop
+        ? (hideEnemyHudRail ? 0 : 1) + (hidePlayerHudRail ? 0 : 1)
+        : 0;
     const desktopGridGapCount = desktop
-        ? hideEnemyHudRail ? 2 : 3
+        ? Math.max(0, desktopHudRailCount + 1)
         : 0;
     const desktopShortViewport = desktop && viewportHeight <= 1100;
     const boardMaxWidth = desktop
@@ -2528,8 +2554,11 @@ function updateResponsiveLayoutVars(force = false) {
     const topBarHeight = desktop
         ? Math.round(document.querySelector('.top-bar')?.getBoundingClientRect().height || 36)
         : 0;
+    const matchHeaderHeight = tabletPortraitDock
+        ? Math.round(document.querySelector('.mobile-hud')?.getBoundingClientRect().height || 52)
+        : topBarHeight;
     const desktopArenaHeight = desktop
-        ? Math.max(0, viewportHeight - topBarHeight - (desktopLayoutGutter * 2))
+        ? Math.max(0, viewportHeight - matchHeaderHeight - (desktopLayoutGutter * 2))
         : 0;
     const heightLimitedBoardWidth = desktop
         ? Math.max(0, ((desktopArenaHeight - boardHeightOffset) / 2) / boardHeightRatio)
@@ -2547,10 +2576,23 @@ function updateResponsiveLayoutVars(force = false) {
             Math.min(1240, Math.max(boardMaxWidth + 220, viewportWidth - 24))
         ))
         : 0;
-    if (desktop && !hideEnemyHudRail) {
+    if (desktop && hideEnemyHudRail && hidePlayerHudRail) {
+        const availableForColumns = viewportWidth - (desktopLayoutGutter * 2) - desktopLayoutGap;
+        const freedHudWidth = baseDesktopHudRailWidth * 2;
+        sidebarWidth = Math.round(clampNumber(
+            baseDesktopSidebarWidth + freedHudWidth * 0.58,
+            380,
+            availableForColumns * 0.44
+        ));
+        desktopHudRailWidth = 0;
+        desktopArenaColumnWidth = Math.max(
+            desktopBoardTargetWidth + 160,
+            availableForColumns - sidebarWidth - desktopLayoutGap
+        );
+    } else if (desktop && !hideEnemyHudRail && !hidePlayerHudRail) {
         const availableForColumns = viewportWidth - (desktopLayoutGutter * 2) - (desktopLayoutGap * desktopGridGapCount);
-        const minimumPanelWidth = baseDesktopSidebarWidth + baseDesktopHudRailWidth + (hideEnemyHudRail ? 0 : baseDesktopHudRailWidth);
-        const preferredPanelWidth = sidebarWidth + desktopHudRailWidth + (hideEnemyHudRail ? 0 : desktopHudRailWidth);
+        const minimumPanelWidth = baseDesktopSidebarWidth + (desktopHudRailWidth * 2);
+        const preferredPanelWidth = sidebarWidth + (desktopHudRailWidth * 2);
         const maxArenaForPreferredPanels = availableForColumns - preferredPanelWidth;
         if (maxArenaForPreferredPanels < desktopArenaColumnWidth) {
             desktopArenaColumnWidth = Math.max(desktopBoardTargetWidth + 160, maxArenaForPreferredPanels);
@@ -2568,6 +2610,17 @@ function updateResponsiveLayoutVars(force = false) {
                 sidebarWidth += extraPanelWidth - (railBonus * 2);
             }
         }
+    } else if (desktop && hideEnemyHudRail && !hidePlayerHudRail) {
+        const availableForColumns = viewportWidth - (desktopLayoutGutter * 2) - (desktopLayoutGap * 2);
+        sidebarWidth = Math.round(clampNumber(
+            baseDesktopSidebarWidth + baseDesktopHudRailWidth * 0.35,
+            360,
+            availableForColumns * 0.38
+        ));
+        desktopArenaColumnWidth = Math.max(
+            desktopBoardTargetWidth + 160,
+            availableForColumns - sidebarWidth - desktopHudRailWidth - (desktopLayoutGap * 2)
+        );
     }
     const desktopHandHorizontalChrome = desktop
         ? Math.round(clampNumber(sidebarWidth * 0.09, 60, 112))
@@ -2581,7 +2634,7 @@ function updateResponsiveLayoutVars(force = false) {
             Math.floor((desktopHandAvailableWidth - (desktopHandGap * (desktopHandVisibleCards - 1))) / desktopHandVisibleCards)
         )
         : 0;
-    const handWidth = desktop
+    let handWidth = desktop
         ? Math.round(clampNumber(
             Math.min(desktopHandTargetWidth, desktopHandFiveCardFitWidth),
             Math.min(96, desktopHandFiveCardFitWidth),
@@ -2592,13 +2645,13 @@ function updateResponsiveLayoutVars(force = false) {
         : compactLandscape
         ? Math.round(clampNumber(viewportHeight * 0.18, 64, 78))
         : Math.round(clampNumber(Math.min(viewportWidth * 0.16, viewportHeight * 0.19), 52, 138));
-    const desktopHandSectionTargetHeight = desktop
+    let desktopHandSectionTargetHeight = desktop
         ? Math.round((handWidth * cardAspectHeight) + 58)
         : 176;
-    const desktopHandSectionMinHeight = desktop
+    let desktopHandSectionMinHeight = desktop
         ? Math.round(clampNumber(desktopHandSectionTargetHeight, 170, viewportHeight * 0.28))
         : 176;
-    const desktopHandSectionHeight = desktop
+    let desktopHandSectionHeight = desktop
         ? Math.round(clampNumber(
             desktopHandSectionMinHeight + Math.round(clampNumber(viewportHeight * 0.012, 10, 28)),
             desktopHandSectionMinHeight,
@@ -2607,7 +2660,35 @@ function updateResponsiveLayoutVars(force = false) {
         : 208;
     let previewCardWidth = handWidth;
     let previewCardMaxHeight = Math.round(handWidth * cardAspectHeight);
-    if (desktop) {
+    if (desktop && tabletPortraitDock) {
+        const handSectionHeight = Math.round(clampNumber(viewportHeight * 0.46, 320, 560));
+        const handChrome = 88;
+        const handWidthFromSection = Math.floor((handSectionHeight - handChrome) / cardAspectHeight);
+        handWidth = Math.round(clampNumber(
+            Math.min(handWidthFromSection, desktopHandFiveCardFitWidth + 24),
+            112,
+            196
+        ));
+        desktopHandSectionTargetHeight = handSectionHeight;
+        desktopHandSectionMinHeight = Math.round(handSectionHeight * 0.9);
+        desktopHandSectionHeight = handSectionHeight;
+        const inspectPanelWidth = Math.max(220, sidebarWidth - 24);
+        previewCardWidth = Math.round(clampNumber(inspectPanelWidth * 0.94, 220, inspectPanelWidth));
+        previewCardMaxHeight = Math.round(previewCardWidth * cardAspectHeight);
+        const maxStackedPreviewHeight = Math.round(viewportHeight * 0.34);
+        if (previewCardMaxHeight > maxStackedPreviewHeight) {
+            previewCardMaxHeight = maxStackedPreviewHeight;
+            previewCardWidth = Math.round(previewCardMaxHeight * (5 / 7));
+        }
+    } else if (stackedTabletPreview) {
+        previewCardWidth = Math.round(clampNumber(viewportWidth * 0.9, 220, 420));
+        previewCardMaxHeight = Math.round(previewCardWidth * cardAspectHeight);
+        const maxStackedPreviewHeight = Math.round(viewportHeight * 0.3);
+        if (previewCardMaxHeight > maxStackedPreviewHeight) {
+            previewCardMaxHeight = maxStackedPreviewHeight;
+            previewCardWidth = Math.round(previewCardMaxHeight * (5 / 7));
+        }
+    } else if (desktop) {
         const sidebarGutter = 64;
         const maxPreviewWidth = Math.max(148, Math.min(sidebarWidth - sidebarGutter, 272));
         previewCardWidth = Math.round(
@@ -2643,6 +2724,7 @@ function updateResponsiveLayoutVars(force = false) {
     root.style.setProperty('--hand-card-padding', desktop ? '4px' : `${clampNumber(Math.round(handWidth * 0.045), 2, 6)}px`);
     root.style.setProperty('--hand-card-hover-lift', desktop ? '-4px' : `${-Math.round(handWidth * 0.16)}px`);
     root.style.setProperty('--hand-card-selected-lift', desktop ? '-6px' : `${-Math.round(handWidth * 0.2)}px`);
+    scheduleDesktopHandSelectorCardScale();
     root.style.setProperty('--overlay-shell-width', `${overlayWidth}px`);
     root.style.setProperty('--overlay-shell-padding', `${overlayPadding}px`);
 }
@@ -2746,6 +2828,7 @@ function syncMobileTargetingArenaScale() {
         const scale = Math.min(1, (available - 4) / content);
         document.documentElement.style.setProperty('--mobile-targeting-arena-scale', scale.toFixed(3));
         scheduleBoardLinkConnectorRefresh();
+        refreshTargetingPreviewOnLayoutChange();
     };
     window.requestAnimationFrame(() => window.requestAnimationFrame(run));
 }
@@ -3855,11 +3938,13 @@ function renderDesktopCardPreviewPanel() {
     const summaryText = abilities[0] || getBuilderCardSummaryText(focusedCard) || 'No special text.';
 
     let html = '<div class="desktop-preview-layout">';
+    html += '<div class="desktop-preview-card-slot">';
     html += renderShowcaseCard(focusedCard, {
         cardClass: 'selected-preview-card desktop-preview-card',
         artVariant: 'selected',
         bodyMode: 'summary'
     });
+    html += '</div>';
     html += '<div class="desktop-preview-copy-panel">';
     html += `<div class="desktop-preview-kicker">${escapeHtml(formatElementLabel(focusedCard.element))}</div>`;
     html += `<div class="desktop-preview-title">${escapeHtml(focusedCard.name)}</div>`;
@@ -3894,25 +3979,24 @@ function scheduleDesktopPreviewCardScale() {
         window.cancelAnimationFrame(previewCardScaleFrame);
     }
     previewCardScaleFrame = window.requestAnimationFrame(() => {
-        previewCardScaleFrame = null;
-        syncDesktopPreviewCardScale();
+        previewCardScaleFrame = window.requestAnimationFrame(() => {
+            previewCardScaleFrame = null;
+            syncDesktopPreviewCardScale();
+        });
     });
 }
 
 function syncDesktopPreviewCardScale() {
-    if (!isDesktopSidebarLayout() || desktopInspectTab !== 'card') {
+    if (desktopInspectTab !== 'card') {
         return;
     }
 
     const panel = document.getElementById('desktopCardPreviewPanel');
     const layout = panel?.querySelector('.desktop-preview-layout');
+    const slot = layout?.querySelector('.desktop-preview-card-slot');
     const card = panel?.querySelector('.desktop-preview-card');
-    if (!panel || !layout || !card || panel.closest('[hidden]')) {
-        return;
-    }
-
-    const panelRect = panel.getBoundingClientRect();
-    if (panelRect.width <= 0 || panelRect.height <= 0) {
+    const pane = document.getElementById('desktopInspectPaneCard');
+    if (!panel || !layout || !card || panel.closest('[hidden]') || pane?.hidden) {
         return;
     }
 
@@ -3921,21 +4005,47 @@ function syncDesktopPreviewCardScale() {
     const paddingBottom = parseFloat(panelStyles.paddingBottom) || 0;
     const paddingLeft = parseFloat(panelStyles.paddingLeft) || 0;
     const paddingRight = parseFloat(panelStyles.paddingRight) || 0;
-    const contentHeight = panel.clientHeight - paddingTop - paddingBottom;
+    const contentHeight = Math.max(
+        layout.clientHeight,
+        (slot?.clientHeight || 0),
+        panel.clientHeight - paddingTop - paddingBottom
+    );
     const contentWidth = panel.clientWidth - paddingLeft - paddingRight;
-    if (!Number.isFinite(contentHeight) || !Number.isFinite(contentWidth) || contentHeight <= 80 || contentWidth <= 160) {
+    if (!Number.isFinite(contentHeight) || !Number.isFinite(contentWidth) || contentHeight <= 48 || contentWidth <= 120) {
+        return;
+    }
+
+    const root = document.documentElement;
+
+    if (usesStackedDesktopCardPreview()) {
+        const layoutStyles = window.getComputedStyle(layout);
+        const rowGap = parseFloat(layoutStyles.rowGap) || parseFloat(layoutStyles.gap) || 10;
+        const copyPanel = layout.querySelector('.desktop-preview-copy-panel');
+        const copyHeightReserve = copyPanel?.offsetHeight
+            ? Math.min(copyPanel.offsetHeight, Math.round(contentHeight * 0.44))
+            : Math.round(contentHeight * 0.36);
+        const cardAreaHeight = Math.max(140, contentHeight - copyHeightReserve - rowGap);
+        const maxWidth = Math.round(contentWidth * 0.98);
+        let nextWidth = Math.round(Math.min(maxWidth, cardAreaHeight * (5 / 7)));
+        nextWidth = Math.round(clampNumber(nextWidth, 180, maxWidth));
+        const nextHeight = Math.round(nextWidth * (7 / 5));
+        root.style.setProperty('--desktop-preview-card-width', `${nextWidth}px`);
+        root.style.setProperty('--desktop-preview-card-max-height', `${nextHeight}px`);
         return;
     }
 
     const layoutStyles = window.getComputedStyle(layout);
     const columnGap = parseFloat(layoutStyles.columnGap) || parseFloat(layoutStyles.gap) || 0;
-    const copyColumnReserve = Math.round(clampNumber(contentWidth * 0.34, 170, 260));
+    const copyPanel = layout.querySelector('.desktop-preview-copy-panel');
+    const measuredCopyWidth = copyPanel?.offsetWidth || 0;
+    const copyColumnReserve = measuredCopyWidth > 0
+        ? measuredCopyWidth
+        : Math.round(clampNumber(contentWidth * 0.52, 150, 280));
     const maxWidthFromPanel = Math.max(96, contentWidth - columnGap - copyColumnReserve);
     const heightBasedWidth = contentHeight * (5 / 7);
-    const nextWidth = Math.round(clampNumber(heightBasedWidth, 128, maxWidthFromPanel));
+    const nextWidth = Math.round(clampNumber(heightBasedWidth, 108, maxWidthFromPanel));
     const nextHeight = Math.round(nextWidth * (7 / 5));
 
-    const root = document.documentElement;
     root.style.setProperty('--desktop-preview-card-width', `${nextWidth}px`);
     root.style.setProperty('--desktop-preview-card-max-height', `${nextHeight}px`);
 }
@@ -5105,7 +5215,7 @@ function setAuthMode(mode) {
     authMode = mode;
     authRegisterStep = 'credentials';
     authState.error = '';
-    renderWelcomeAuth();
+    renderAuthPopup();
 }
 
 function beginRegisterDisplayName() {
@@ -5113,24 +5223,128 @@ function beginRegisterDisplayName() {
     const password = document.getElementById('welcomePasswordInput')?.value || '';
     if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
         authState.error = 'Enter a valid email address.';
-        renderWelcomeAuth();
+        renderAuthPopup();
         return;
     }
     if (!password || password.length < 6) {
         authState.error = 'Passwords must be at least 6 characters.';
-        renderWelcomeAuth();
+        renderAuthPopup();
         return;
     }
     registerDraft = { email, password };
     authRegisterStep = 'display-name';
     authState.error = '';
-    renderWelcomeAuth();
+    renderAuthPopup();
 }
 
 function backRegisterCredentials() {
     authRegisterStep = 'credentials';
     authState.error = '';
-    renderWelcomeAuth();
+    renderAuthPopup();
+}
+
+// Open the sign-in popup over the Play screen (no navigation away).
+function openAuthPopup(mode) {
+    authMode = mode === 'register' ? 'register' : 'login';
+    authRegisterStep = 'credentials';
+    authState.error = '';
+    authState.loading = false;
+    authPopupOpen = true;
+    renderAuthPopup();
+}
+
+function closeAuthPopup(event) {
+    if (event) {
+        // Only close when the backdrop or the close button is clicked,
+        // not when interacting with the form itself.
+        const overlay = document.getElementById('authPopupOverlay');
+        if (event.target !== overlay && !event.target.closest('.auth-popup-close')) {
+            return;
+        }
+    }
+    authPopupOpen = false;
+    authState.error = '';
+    authRegisterStep = 'credentials';
+    document.getElementById('authPopupOverlay')?.classList.add('hidden');
+}
+
+// Builds the credential / display-name form shared by the popup.
+function buildAuthFormMarkup() {
+    const draftEmail = document.getElementById('welcomeEmailInput')?.value || registerDraft.email || '';
+    const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
+    const draftPassword = document.getElementById('welcomePasswordInput')?.value || registerDraft.password || '';
+    const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
+    const onRegisterNameStep = authMode === 'register' && authRegisterStep === 'display-name';
+
+    if (onRegisterNameStep) {
+        return `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>Choose your display name</h3>
+            <div class="welcome-auth-meta">${escapeHtml(registerDraft.email)}</div>
+            <label class="online-field">
+                <span>Display Name</span>
+                <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}" autofocus>
+            </label>
+            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
+            <div class="welcome-auth-actions">
+                <button class="btn welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="backRegisterCredentials()">Back</button>
+                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('register')">
+                    ${authState.loading ? 'Working...' : 'Confirm'}
+                </button>
+            </div>
+        `;
+    }
+
+    const primaryAuthAction = authMode === 'register'
+        ? 'beginRegisterDisplayName()'
+        : `submitAuth('${authMode}')`;
+    return `
+        <div class="welcome-eyebrow">ACCOUNT</div>
+        <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+        <div class="welcome-auth-tabs">
+            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
+            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
+        </div>
+        <label class="online-field">
+            <span>Email</span>
+            <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
+        </label>
+        ${authMode === 'reset-password' ? `
+            <label class="online-field">
+                <span>Reset Code</span>
+                <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
+            </label>
+        ` : ''}
+        <label class="online-field">
+            <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
+            <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
+        </label>
+        ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
+        <div class="welcome-auth-actions">
+            <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="${primaryAuthAction}">
+                ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Register')}
+            </button>
+        </div>
+    `;
+}
+
+function renderAuthPopup() {
+    const overlay = document.getElementById('authPopupOverlay');
+    const body = document.getElementById('authPopupBody');
+    if (!overlay || !body) {
+        return;
+    }
+    overlay.classList.toggle('hidden', !authPopupOpen);
+    if (!authPopupOpen) {
+        return;
+    }
+    body.innerHTML = buildAuthFormMarkup();
+    if (!authState.loading) {
+        const firstInput = body.querySelector('input');
+        if (firstInput) {
+            setTimeout(() => firstInput.focus(), 0);
+        }
+    }
 }
 
 async function submitAuth(mode) {
@@ -5145,7 +5359,7 @@ async function submitAuth(mode) {
     const resetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
     authState.loading = true;
     authState.error = '';
-    renderWelcomeAuth();
+    renderAuthPopup();
 
     const body = mode === 'register'
         ? { email, password, displayName }
@@ -5162,7 +5376,7 @@ async function submitAuth(mode) {
     authState.loading = false;
     if (!data || data.error || !data.authenticated) {
         authState.error = data?.error || 'Unable to sign in right now.';
-        renderWelcomeAuth();
+        renderAuthPopup();
         return;
     }
 
@@ -5171,12 +5385,10 @@ async function submitAuth(mode) {
     authState.error = '';
     authRegisterStep = 'credentials';
     registerDraft = { email: '', password: '' };
-    // After signing in or creating an account, send players to the Home hub
-    // (skip when joining via an invite link, where they intend to play right away).
-    if ((mode === 'login' || mode === 'register') && data.authenticated && !isInviteJoinFlow()) {
-        window.location.href = '/home';
-        return;
-    }
+    // Sign in completes in place on the Play screen — close the popup and
+    // refresh the account card / loadout without navigating away.
+    authPopupOpen = false;
+    document.getElementById('authPopupOverlay')?.classList.add('hidden');
     hydrateSavedPlayerName();
     renderWelcomeAuth();
     renderSavedDecks();
@@ -5287,8 +5499,8 @@ function renderWelcomeAuth() {
         <h3>Pick up where you left off</h3>
         <p class="welcome-auth-prompt">Sign in or create an account to save your decks, track your match history, and rejoin the arena with your builds intact.</p>
         <div class="welcome-auth-actions">
-            <a class="btn btn-primary welcome-auth-submit" href="/login">Log In</a>
-            <a class="btn welcome-auth-submit" href="/login">Register</a>
+            <button class="btn btn-primary welcome-auth-submit" type="button" onclick="openAuthPopup('login')">Log In</button>
+            <button class="btn welcome-auth-submit" type="button" onclick="openAuthPopup('register')">Register</button>
         </div>
         <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
     `;
@@ -6139,9 +6351,11 @@ async function loadGameOptions() {
         loadoutErrorMessage = '';
         selectedDeckId = data.defaultDeckId;
         selectedTrainerId = data.defaultTrainerId;
+        ensureOwnedTrainerSelected();
         builderCounts = {};
         loadoutMode = 'preset';
         applyPendingHomeLoadout();
+        ensureOwnedTrainerSelected();
         hydrateOnlineStateFromUrl();
         hydrateSavedPlayerName();
         renderWelcomeTutorial();
@@ -6330,13 +6544,57 @@ function selectDeckOption(deckId) {
     updateLoadoutSummary();
 }
 
+function getOwnedTrainerIdSet() {
+    if (!authState.profile?.authenticated) {
+        return null;
+    }
+    const owned = authState.profile?.progression?.ownedTrainers;
+    if (!Array.isArray(owned) || owned.length === 0) {
+        return null;
+    }
+    return new Set(owned.map((entry) => entry?.id).filter(Boolean));
+}
+
+function getVisibleLoadoutTrainers() {
+    if (!gameOptions?.trainers?.length) {
+        return [];
+    }
+    const ownedTrainerIds = getOwnedTrainerIdSet();
+    if (ownedTrainerIds) {
+        return gameOptions.trainers.filter((trainer) => ownedTrainerIds.has(trainer.id));
+    }
+    if (authState.profile?.authenticated) {
+        return gameOptions.trainers.filter((trainer) => trainer.owned !== false);
+    }
+    return gameOptions.trainers;
+}
+
 function selectTrainerOption(trainerId) {
+    if (!getVisibleLoadoutTrainers().some((trainer) => trainer.id === trainerId)) {
+        return;
+    }
     if (loadoutMode !== 'saved') {
         detachSavedDeckSelection();
     }
     selectedTrainerId = trainerId;
     renderLoadoutOptions();
     updateLoadoutSummary();
+}
+
+function isTrainerOwned(trainerId) {
+    return getVisibleLoadoutTrainers().some((trainer) => trainer.id === trainerId);
+}
+
+// Falls back to the first owned SiegeKnight when the current selection is locked.
+function ensureOwnedTrainerSelected() {
+    const visibleTrainers = getVisibleLoadoutTrainers();
+    if (!visibleTrainers.length) {
+        return;
+    }
+    if (selectedTrainerId && visibleTrainers.some((trainer) => trainer.id === selectedTrainerId)) {
+        return;
+    }
+    selectedTrainerId = visibleTrainers[0].id;
 }
 
 function switchLoadoutMode(mode) {
@@ -6631,7 +6889,13 @@ function renderLoadoutOptions() {
         </button>`;
     }).join('');
 
-    trainerEl.innerHTML = gameOptions.trainers.map(trainer => {
+    const visibleTrainers = getVisibleLoadoutTrainers();
+    if (visibleTrainers.length > 0 && !visibleTrainers.some((trainer) => trainer.id === selectedTrainerId)) {
+        selectedTrainerId = visibleTrainers[0].id;
+    }
+    trainerEl.innerHTML = visibleTrainers.map(trainer => {
+        const level = Math.max(1, Number(trainer.level) || 1);
+        const abilityBonus = Math.max(0, Number(trainer.abilityBonus) || 0);
         const selected = trainer.id === selectedTrainerId ? ' selected' : '';
         const elHex = getElementHex(trainer.element);
         const sigil = getTrainerSigil(trainer);
@@ -6639,9 +6903,18 @@ function renderLoadoutOptions() {
         const tier = formatTrainerTier(trainer.tier);
         const activeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
         const recommended = recommendedTrainerIds.has(trainer.id) ? ' recommended' : '';
+        const levelBadge = level > 1
+            ? `<span class="knight-level-badge">Lv ${level}${abilityBonus > 0 ? ` <em>+${abilityBonus}</em>` : ''}</span>`
+            : '';
+        let topRibbon = '';
+        if (trainer.id === selectedTrainerId) {
+            topRibbon = '<span class="knight-selected-ribbon">Selected</span>';
+        } else if (recommended) {
+            topRibbon = '<span class="knight-recommend-ribbon">Recommended</span>';
+        }
         return `<button type="button" class="knight-card${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
-            ${trainer.id === selectedTrainerId ? '<span class="knight-selected-ribbon">Selected</span>' : ''}
-            ${recommended && trainer.id !== selectedTrainerId ? '<span class="knight-recommend-ribbon">Recommended</span>' : ''}
+            ${topRibbon}
+            ${levelBadge}
             <div class="knight-card-sigil">${sigil}</div>
             <div class="knight-card-portrait">
                 <div class="knight-card-icon">${getElementSigil(trainer.element)}</div>
@@ -7550,17 +7823,11 @@ async function executeBattle() {
 
 function openBattlePanel(forceOpen = false) {
     renderBattlePanel();
-    if (gameState?.currentPhase === 'BATTLE' && isDesktopSidebarLayout()) {
-        if (battleHandViewOpen || forceOpen) {
+    if (usesInlineBattleDock()) {
+        if (gameState?.currentPhase === 'BATTLE' && (battleHandViewOpen || forceOpen)) {
             battleHandViewOpen = false;
             render();
         }
-        if (activeDrawer === 'battle') {
-            closeDrawer(true);
-        }
-        return;
-    }
-    if (isDesktopSidebarLayout() && isHandHiddenForPhase()) {
         if (activeDrawer === 'battle') {
             closeDrawer(true);
         }
@@ -7807,11 +8074,13 @@ function renderDomLegacy() {
     renderMulliganOverlay();
     renderLog();
     renderBattlePanel();
+    renderBattlePassButton();
     renderRowSelectBattleOverlay();
     scheduleBattleAutoAdvance();
-    if (isDesktopSidebarLayout() && isHandHiddenForPhase() && activeDrawer === 'battle') {
+    if (usesInlineBattleDock() && isHandHiddenForPhase() && activeDrawer === 'battle') {
         closeDrawer(true);
     }
+    document.body.classList.toggle('battle-inline-dock', usesInlineBattleDock() && isHandHiddenForPhase());
     applyInteractionState();
     renderElementKey();
     syncMobileInfoTab();
@@ -9539,6 +9808,7 @@ function renderHand() {
         if (battlePanel) {
             battlePanel.classList.remove('hidden');
         }
+        scheduleDesktopHandSelectorCardScale();
         return;
     }
     const opponentTurn = gameState.activeSide !== 'PLAYER';
@@ -9631,50 +9901,124 @@ function scheduleDesktopHandSelectorCardScale() {
     handSelectorScaleFrame = window.requestAnimationFrame(() => {
         handSelectorScaleFrame = null;
         syncDesktopHandSelectorCardScale();
+        syncInlineBattleDockScale();
     });
 }
 
+function syncInlineBattleDockScale() {
+    const root = document.documentElement;
+    if (!usesInlineBattleDock() || !isHandHiddenForPhase()) {
+        root.style.removeProperty('--inline-battle-dock-height');
+        return;
+    }
+
+    const tray = document.getElementById('handTray');
+    const battlePanel = document.getElementById('desktopHandBattlePanel');
+    if (!tray || !battlePanel || battlePanel.classList.contains('hidden')) {
+        root.style.removeProperty('--inline-battle-dock-height');
+        return;
+    }
+
+    const trayStyles = window.getComputedStyle(tray);
+    const trayPadY = (parseFloat(trayStyles.paddingTop) || 0) + (parseFloat(trayStyles.paddingBottom) || 0);
+    const trayHeight = tray.clientHeight - trayPadY;
+    if (!Number.isFinite(trayHeight) || trayHeight < 80) {
+        return;
+    }
+
+    root.style.setProperty('--inline-battle-dock-height', `${Math.floor(trayHeight)}px`);
+}
+
 function syncDesktopHandSelectorCardScale() {
-    if (!isDesktopSidebarLayout() || isHandHiddenForPhase()) {
+    if (isHandHiddenForPhase()) {
+        if (usesInlineBattleDock()) {
+            syncInlineBattleDockScale();
+        }
         return;
     }
 
-    const rail = document.getElementById('playerHand');
-    if (!rail || rail.classList.contains('hidden')) {
+    const handCards = document.getElementById('playerHand');
+    if (!handCards || handCards.classList.contains('hidden')) {
         return;
     }
 
-    const railRect = rail.getBoundingClientRect();
-    if (railRect.width <= 0 || railRect.height <= 0) {
+    const tray = handCards.closest('.hand-tray');
+    const handSection = document.getElementById('desktopHandSection');
+    const handLayout = window.getComputedStyle(handCards).flexDirection;
+    const isVerticalHand = handLayout === 'column';
+    const usesDockedSidebarHand = Boolean(
+        tray?.closest('.desktop-menu') && (isDesktopSidebarLayout() || isCompactLandscapeLayout() || isMobileLayout())
+    );
+
+    if (!usesDockedSidebarHand && !isDesktopSidebarLayout()) {
         return;
     }
 
-    const styles = window.getComputedStyle(rail);
-    const paddingTop = parseFloat(styles.paddingTop) || 0;
-    const paddingBottom = parseFloat(styles.paddingBottom) || 0;
-    const paddingLeft = parseFloat(styles.paddingLeft) || 0;
-    const paddingRight = parseFloat(styles.paddingRight) || 0;
-    const columnGap = parseFloat(styles.columnGap || styles.gap) || 0;
-    const contentHeight = rail.clientHeight - paddingTop - paddingBottom;
-    const contentWidth = rail.clientWidth - paddingLeft - paddingRight;
-    if (!Number.isFinite(contentHeight) || contentHeight <= 40) {
+    const handStyles = window.getComputedStyle(handCards);
+    const paddingTop = parseFloat(handStyles.paddingTop) || 0;
+    const paddingBottom = parseFloat(handStyles.paddingBottom) || 0;
+    const paddingLeft = parseFloat(handStyles.paddingLeft) || 0;
+    const paddingRight = parseFloat(handStyles.paddingRight) || 0;
+    const columnGap = parseFloat(handStyles.columnGap || handStyles.gap) || 0;
+    const rowGap = parseFloat(handStyles.rowGap || handStyles.gap) || 0;
+
+    let contentHeight = handCards.clientHeight - paddingTop - paddingBottom;
+    let contentWidth = handCards.clientWidth - paddingLeft - paddingRight;
+
+    if (handSection) {
+        const sectionStyles = window.getComputedStyle(handSection);
+        const sectionPadY = (parseFloat(sectionStyles.paddingTop) || 0) + (parseFloat(sectionStyles.paddingBottom) || 0);
+        const title = document.getElementById('desktopHandSectionTitle');
+        const titleHeight = title?.offsetHeight || 0;
+        const sectionHeight = handSection.clientHeight - sectionPadY - titleHeight;
+        if (sectionHeight > contentHeight) {
+            contentHeight = sectionHeight;
+        }
+    }
+
+    if (tray) {
+        const trayStyles = window.getComputedStyle(tray);
+        const trayPadY = (parseFloat(trayStyles.paddingTop) || 0) + (parseFloat(trayStyles.paddingBottom) || 0);
+        const trayHeight = tray.clientHeight - trayPadY;
+        if (trayHeight > contentHeight) {
+            contentHeight = trayHeight;
+        }
+    }
+
+    if (contentWidth <= 0 || contentHeight <= 40) {
         return;
     }
 
-    const visibleCards = 5;
+    const visibleCards = Math.max(1, handCards.querySelectorAll('.hand-card').length || 5);
+    const root = document.documentElement;
+
+    if (isVerticalHand) {
+        const perCardHeight = Math.max(
+            48,
+            Math.floor((contentHeight - (rowGap * (visibleCards - 1))) / visibleCards)
+        );
+        const nextWidth = Math.round(clampNumber(perCardHeight * (5 / 7), 56, 220));
+        const nextPadding = Math.round(clampNumber(nextWidth * 0.035, 3, 8));
+        root.style.setProperty('--hand-card-height', `${perCardHeight}px`);
+        root.style.setProperty('--hand-card-width', `${nextWidth}px`);
+        root.style.setProperty('--hand-card-padding', `${nextPadding}px`);
+        return;
+    }
+
     const maxFiveCardWidth = Math.max(
         48,
         (contentWidth - (columnGap * (visibleCards - 1))) / visibleCards
     );
-    const measuredWidth = contentHeight * (5 / 7);
+    const cardHeight = Math.max(56, Math.floor(contentHeight));
+    const measuredWidth = cardHeight * (5 / 7);
     const nextWidth = Math.round(clampNumber(
         Math.min(measuredWidth, maxFiveCardWidth),
-        Math.min(96, maxFiveCardWidth),
-        Math.max(96, maxFiveCardWidth)
+        Math.min(72, maxFiveCardWidth),
+        Math.max(72, maxFiveCardWidth)
     ));
     const nextPadding = Math.round(clampNumber(nextWidth * 0.035, 3, 8));
 
-    const root = document.documentElement;
+    root.style.setProperty('--hand-card-height', `${cardHeight}px`);
     root.style.setProperty('--hand-card-width', `${nextWidth}px`);
     root.style.setProperty('--hand-card-padding', `${nextPadding}px`);
 }
@@ -10385,7 +10729,11 @@ function renderBattlePanel() {
         return;
     }
 
-    if (isMobileLayout() && activeDrawer !== 'battle' && !isBattleTargetSelectionActive()) {
+    if (usesInlineBattleDock()) {
+        if (activeDrawer === 'battle') {
+            closeDrawer(true);
+        }
+    } else if (isMobileLayout() && activeDrawer !== 'battle' && !isBattleTargetSelectionActive()) {
         mobileInfoTab = 'battle';
         openDrawer('battle');
     }
@@ -10407,8 +10755,6 @@ function renderBattlePanel() {
             const tip = `${moveName}: ${effectLine}${weaknessPreview ? ` ${weaknessPreview}` : ''}`;
             actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">${escapeHtml(moveName)}</span><span class="battle-ability-effect">${escapeHtml(effectLine)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
         }
-        const passTip = 'Pass: Skip this action without spending energy.';
-        actionsHtml += `<button class="battle-ability-btn battle-pass-btn" type="button" onclick="passBattleAction()" title="${escapeHtmlAttribute(passTip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">Pass</span><span class="battle-ability-effect">Skip this action without spending energy.</span></span><span class="battle-ability-cost"><span class="battle-cost-free">No Cost</span></span></span></button>`;
         bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
     }
 
@@ -10448,9 +10794,11 @@ function chooseBattleAbility(index) {
         selectedRow: -1,
         message: buildBattleTargetMessage(targetSide, ability)
     };
-    if (isPortraitMobileHudLayout()) {
+    if (usesInlineBattleDock()) {
         closeDrawer(true);
-        closeMobileHudSheet();
+        if (isPortraitMobileHudLayout()) {
+            closeMobileHudSheet();
+        }
     } else if (isMobileLayout()) {
         mobileInfoTab = 'battle';
         openDrawer('battle');
@@ -10500,6 +10848,103 @@ function clearRowSelectBattleTarget() {
     if (ability) {
         scheduleBattleTargetingPreview(ability);
     }
+}
+
+function isViewerPlayerSide() {
+    if (!gameState) {
+        return true;
+    }
+    if (gameState.viewerSide) {
+        return gameState.viewerSide === 'PLAYER';
+    }
+    return true;
+}
+
+function formatBattleOwnerLabel(ownerSide) {
+    if (!gameState) {
+        return 'Player';
+    }
+    const ownerIsPlayer = ownerSide === 'PLAYER';
+    const viewerIsPlayer = isViewerPlayerSide();
+    if (ownerIsPlayer === viewerIsPlayer) {
+        return 'You';
+    }
+    return viewerIsPlayer ? (gameState.enemyName || 'Opponent') : (gameState.playerName || 'Player');
+}
+
+function getNextBattleActorAfterPass() {
+    if (!gameState || gameState.currentPhase !== 'BATTLE') {
+        return null;
+    }
+    const queue = gameState.battleQueue;
+    if (Array.isArray(queue) && queue.length > 0) {
+        const next = queue[0];
+        return {
+            siegeling: next.name || 'Siegeling',
+            player: next.ownerLabel || formatBattleOwnerLabel(next.ownerSide)
+        };
+    }
+    const pendingId = gameState.pendingBattle?.instanceId;
+    const entries = [];
+    for (const isPlayer of [true, false]) {
+        const board = isPlayer ? gameState.playerBoard : gameState.enemyBoard;
+        for (let row = 0; row < 3; row += 1) {
+            for (let col = 0; col < 3; col += 1) {
+                const cell = board?.[row]?.[col];
+                if (!cell || cell.instanceId === pendingId) {
+                    continue;
+                }
+                entries.push({
+                    name: cell.name,
+                    spd: cell.spd ?? cell.speed ?? 0,
+                    ownerSide: isPlayer ? 'PLAYER' : 'ENEMY'
+                });
+            }
+        }
+    }
+    entries.sort((left, right) => Number(right.spd) - Number(left.spd));
+    const next = entries[0];
+    if (!next) {
+        return { siegeling: 'Queue', player: 'clear' };
+    }
+    return {
+        siegeling: next.name || 'Siegeling',
+        player: formatBattleOwnerLabel(next.ownerSide)
+    };
+}
+
+function renderBattlePassButton() {
+    const btn = document.getElementById('btnBattlePass');
+    const nextLabel = document.getElementById('btnBattlePassNext');
+    if (!btn) {
+        return;
+    }
+    const phase = gameState?.currentPhase;
+    const over = gameState?.gameOver;
+    const canPass = phase === 'BATTLE'
+        && gameState.pendingBattle
+        && gameState.battleWaitingOn !== 'ENEMY'
+        && !isBattleTargetSelectionActive();
+    btn.classList.toggle('hidden', !canPass);
+    btn.hidden = !canPass;
+    btn.disabled = over || !canPass;
+    if (!canPass) {
+        if (nextLabel) {
+            nextLabel.textContent = '';
+        }
+        return;
+    }
+    const next = getNextBattleActorAfterPass();
+    const nextLine = next
+        ? `Next: ${next.siegeling} · ${next.player}`
+        : 'Skip this action';
+    if (nextLabel) {
+        nextLabel.textContent = nextLine;
+    }
+    btn.title = next
+        ? `Pass. ${nextLine}`
+        : 'Pass: Skip this action without spending energy.';
+    btn.setAttribute('aria-label', next ? `Pass. ${nextLine}` : 'Pass battle action');
 }
 
 function passBattleAction() {
