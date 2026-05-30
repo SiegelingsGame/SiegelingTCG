@@ -155,6 +155,7 @@
         authRegisterStep: 'credentials',
         registerDraft: { email: '', password: '' },
         profileEditOpen: false,
+        activeAchievementId: '',
         profilePrefs: null,
         friendPresence: {},
         messageThreads: [],
@@ -178,8 +179,13 @@
         catalogVersion: 0,
         catalogSyncBound: false,
         profileUserId: '',
+        achievementCategory: '',
         leaderboardTab: 'wins',
-        leaderboardPeriod: 'daily'
+        leaderboardPeriod: 'daily',
+        dailyMissions: null,
+        dailyMissionsError: '',
+        showAllMissions: false,
+        missionResetTimer: null
     };
 
     const LEADERBOARD_PERIODS = [
@@ -264,7 +270,7 @@
         document.getElementById('joinByCodeBtn')?.addEventListener('click', () => navigateHub('social'));
         document.getElementById('joinRoomBtn')?.addEventListener('click', joinRoomFromHome);
         document.getElementById('refreshRoomsBtn')?.addEventListener('click', () => refreshRooms(true));
-        document.getElementById('socialCreateLobbyBtn')?.addEventListener('click', createLobbyFromHome);
+        document.getElementById('socialFilterBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('quickJoinBtn')?.addEventListener('click', quickJoinFirstRoom);
         document.getElementById('roomSearchInput')?.addEventListener('input', (event) => {
             state.roomSearch = event.target.value.trim().toLowerCase();
@@ -312,8 +318,14 @@
         document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
             if (event.target === event.currentTarget) closeDeckPreview();
         });
+        document.getElementById('matchReviewOverlay')?.addEventListener('click', closeMatchReview);
+        document.querySelectorAll('[data-match-review-close]').forEach(btn => btn.addEventListener('click', closeMatchReview));
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') closeDeckPreview();
+            if (event.key === 'Escape') {
+                closeDeckPreview();
+                closeMatchReview();
+                closeAchievementDetail();
+            }
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
             btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'deck-builder' : 'home'));
@@ -337,17 +349,29 @@
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 void syncCatalogIfVersionChanged();
+                void refreshAuthFromStorage();
+            }
+        });
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                void refreshAuthFromStorage();
+            }
+        });
+        window.addEventListener('storage', (event) => {
+            if (event.key === AUTH_TOKEN_KEY || event.key === null) {
+                void refreshAuthFromStorage();
             }
         });
     }
 
     async function loadAll() {
-        const [options, packs, descriptions, profile, leaderboards] = await Promise.all([
+        const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
             fetchCachedJson('gameOptions', '/api/game/options', STATIC_CACHE_TTL_MS),
             fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
-            fetchCachedJson('leaderboards', '/api/leaderboards', STATIC_CACHE_TTL_MS)
+            fetchCachedJson('leaderboards', '/api/leaderboards', STATIC_CACHE_TTL_MS),
+            loadDailyMissions()
         ]);
         applyGameOptions(options);
         state.packs = packs?.packs || [];
@@ -355,6 +379,10 @@
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
         state.leaderboards = leaderboards || null;
         state.leaderboardsError = leaderboards?.error || '';
+        if (dailyMissions && !dailyMissions.error) {
+            state.dailyMissions = dailyMissions;
+            state.dailyMissionsError = '';
+        }
         if (!state.selectedCardId) {
             state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
         }
@@ -383,6 +411,7 @@
         }
         state.profile = data;
         state.progression = data.progression || null;
+        await loadDailyMissions();
         startPresenceHeartbeat();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
@@ -392,6 +421,89 @@
             state.profilePrefs = defaultProfilePrefs(data.user || {});
         }
         return data;
+    }
+
+    async function loadDailyMissions() {
+        if (!state.token) {
+            state.dailyMissions = null;
+            state.dailyMissionsError = '';
+            stopMissionResetTimer();
+            return null;
+        }
+        try {
+            const data = await fetchJson('/api/missions/daily');
+            if (data?.error) {
+                state.dailyMissionsError = data.error;
+                return null;
+            }
+            state.dailyMissions = data;
+            state.dailyMissionsError = '';
+            startMissionResetTimer();
+            return data;
+        } catch (error) {
+            state.dailyMissionsError = 'Could not load daily missions.';
+            return null;
+        }
+    }
+
+    function stopMissionResetTimer() {
+        if (state.missionResetTimer) {
+            clearInterval(state.missionResetTimer);
+            state.missionResetTimer = null;
+        }
+    }
+
+    function startMissionResetTimer() {
+        stopMissionResetTimer();
+        if (!state.dailyMissions?.resetAt) {
+            return;
+        }
+        state.missionResetTimer = setInterval(() => {
+            const pill = document.querySelector('.daily-missions-panel .reset-pill');
+            if (pill) {
+                pill.textContent = formatMissionResetCountdown(state.dailyMissions.resetAt);
+            }
+        }, 1000);
+    }
+
+    function formatMissionResetCountdown(resetAt) {
+        const target = new Date(resetAt).getTime();
+        if (!Number.isFinite(target)) {
+            return 'Resets soon';
+        }
+        const remainingMs = Math.max(0, target - Date.now());
+        const totalSeconds = Math.floor(remainingMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `Resets in ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    async function refreshAuthFromStorage() {
+        let stored = '';
+        try {
+            stored = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+        } catch (e) {
+            stored = '';
+        }
+        const tokenChanged = stored !== state.token;
+        const profileStale = Boolean(stored) && !state.profile?.authenticated;
+        const loggedOutElsewhere = !stored && Boolean(state.profile?.authenticated);
+        if (!tokenChanged && !profileStale && !loggedOutElsewhere) {
+            return state.profile;
+        }
+        state.token = stored;
+        await syncProfile();
+        safeRender(renderProfileMini);
+        safeRender(renderGold);
+        safeRender(renderStarterGate);
+        safeRender(renderHomeDashboard);
+        safeRender(renderProfile);
+        safeRender(renderAuthModal);
+        safeRender(renderCards);
+        safeRender(renderDecks);
+        syncAuthRouteIntent();
+        return state.profile;
     }
 
     async function refreshRooms(force = false) {
@@ -419,6 +531,7 @@
         safeRender(renderHomeDashboard);
         safeRender(renderShop);
         safeRender(renderProfile);
+        safeRender(renderAchievements);
         safeRender(renderRooms);
         safeRender(renderFriends);
         safeRender(renderFriendRequests);
@@ -441,6 +554,8 @@
             syncShopPackView();
         } else if (state.route === 'profile') {
             renderProfile();
+        } else if (state.route === 'achievements') {
+            renderAchievements();
         } else if (state.route === 'social') {
             renderRooms();
             renderFriends();
@@ -485,12 +600,13 @@
             ['deck-builder', 'deckBuilderSection'],
             ['social', 'socialSection'],
             ['profile', 'profileSection'],
+            ['achievements', 'achievementsSection'],
             ['shop', 'shopSection']
         ].forEach(([route, sectionId]) => {
             const active = state.route === route || (route === 'social' && state.route === 'lobby');
             document.getElementById(sectionId)?.classList.toggle('hidden', !active);
         });
-        if (!isBinderRoute()) {
+        if (!isBinderRoute() && !isSocialRoute()) {
             state.filterTrayOpen = false;
             state.cardTrayOpen = false;
         }
@@ -690,7 +806,10 @@
         const featuredPacks = state.packs.slice(0, 4);
         const recentDecks = savedDecks.slice(0, 3);
         const missions = homeDailyMissions();
-        const missionLog = homeMissionLog();
+        const missionLog = homeMissionLog(missions);
+        const resetLabel = state.dailyMissions?.resetAt
+            ? formatMissionResetCountdown(state.dailyMissions.resetAt)
+            : 'Resets at midnight UTC';
         const displayName = (state.profile?.user?.displayName || 'Siegelord').toUpperCase();
         el.innerHTML = `
             <section class="command-hero">
@@ -742,12 +861,12 @@
                 <article class="command-panel daily-missions-panel">
                     <div class="command-panel-head">
                         <div><span class="eyebrow">Daily Missions</span><h3>Today's objectives</h3></div>
-                        <span class="reset-pill">Resets in 06:45:12</span>
+                        <span class="reset-pill">${escapeHtml(resetLabel)}</span>
                     </div>
                     <div class="mission-list">
-                        ${missions.map(renderMissionRow).join('')}
+                        ${missions.length ? missions.map(renderMissionRow).join('') : '<div class="home-empty-emblem">Sign in to track daily missions.</div>'}
                     </div>
-                    <button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">View All Missions</button>
+                    <button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">${state.showAllMissions ? 'Show Featured Missions' : 'View All Missions'}</button>
                 </article>
 
                 <article class="command-panel open-lobbies-panel">
@@ -890,20 +1009,35 @@
     }
 
     function homeDailyMissions() {
-        const history = state.profile?.matchHistory || [];
-        const pvpWins = history.filter(row => String(row.matchType || '').toUpperCase().includes('PVP') && String(row.result || '').toUpperCase().includes('WIN')).length;
-        const openedPacks = state.progression?.packHistory?.length || 0;
-        const coins = state.progression?.gold || 0;
-        return [
-            { icon: 'X', title: 'Win 3 PVP Matches', current: Math.min(3, pvpWins), target: 3, reward: 150 },
-            { icon: 'P', title: 'Open 2 Packs', current: Math.min(2, openedPacks), target: 2, reward: 100 },
-            { icon: coinIconMarkup(), iconMarkup: true, title: 'Earn 300 Siegecoins', current: Math.min(300, coins), target: 300, reward: 150 }
-        ];
+        const snapshot = state.dailyMissions;
+        const list = state.showAllMissions
+            ? (snapshot?.missions || [])
+            : (snapshot?.featured || snapshot?.missions || []);
+        if (list.length) {
+            return list.map(mission => ({
+                ...mission,
+                iconMarkup: mission.coinIcon,
+                icon: mission.coinIcon ? coinIconMarkup() : mission.icon
+            }));
+        }
+        if (!state.profile?.authenticated) {
+            return (snapshot?.featured || []).map(mission => ({
+                ...mission,
+                iconMarkup: mission.coinIcon,
+                icon: mission.coinIcon ? coinIconMarkup() : mission.icon,
+                current: 0
+            }));
+        }
+        return [];
     }
 
     function renderMissionRow(mission) {
         const pct = mission.target ? Math.min(100, Math.round((mission.current / mission.target) * 100)) : 0;
-        return `<div class="mission-row">
+        const statusClass = mission.claimed ? ' is-claimed' : (mission.completed ? ' is-complete' : '');
+        const claimBtn = mission.claimable
+            ? `<button class="mission-claim-btn" type="button" data-mission-claim="${escapeAttr(mission.id)}">Claim</button>`
+            : (mission.claimed ? '<span class="mission-claimed-label">Claimed</span>' : '');
+        return `<div class="mission-row${statusClass}" data-mission-id="${escapeAttr(mission.id)}">
             <span class="mission-icon">${mission.iconMarkup ? mission.icon : escapeHtml(mission.icon)}</span>
             <div class="mission-copy">
                 <strong>${escapeHtml(mission.title)}</strong>
@@ -911,13 +1045,39 @@
             </div>
             <span class="mission-count">${escapeHtml(mission.current)} / ${escapeHtml(mission.target)}</span>
             <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
+            ${claimBtn}
         </div>`;
     }
 
-    function homeMissionLog() {
+    async function claimDailyMission(missionId) {
+        if (!state.token || !missionId) return;
+        const data = await fetchJson('/api/missions/claim', { method: 'POST', body: JSON.stringify({ missionId }) });
+        if (data?.error) {
+            window.alert(data.error);
+            return;
+        }
+        if (data?.dailyMissions) {
+            state.dailyMissions = data.dailyMissions;
+        } else {
+            await loadDailyMissions();
+        }
+        if (typeof data?.gold === 'number' && state.progression) {
+            state.progression.gold = data.gold;
+        }
+        safeRender(renderGold);
+        safeRender(renderHomeDashboard);
+    }
+
+    function homeMissionLog(missions = []) {
         const history = state.profile?.matchHistory || [];
         const packHistory = state.progression?.packHistory || [];
         const rows = [];
+        missions.filter(m => m.completed).slice(0, 2).forEach(mission => rows.push({
+            title: mission.claimed ? `${mission.title} claimed` : `${mission.title} complete`,
+            detail: mission.claimed
+                ? `${mission.reward} Siegecoins collected`
+                : `Ready to claim ${mission.reward} Siegecoins`
+        }));
         history.slice(0, 3).forEach(row => rows.push({
             title: `${format(row.result || 'Battle')} vs ${row.opponentName || 'Opponent'}`,
             detail: row.loadoutLabel || row.trainerName || 'Match completed'
@@ -1000,7 +1160,14 @@
                 if (directLink) return;
                 return navigateHub('shop');
             }
-            if (action === 'missions') return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (action === 'missions') {
+                state.showAllMissions = !state.showAllMissions;
+                renderHomeDashboard();
+                return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }));
+        root.querySelectorAll('[data-mission-claim]').forEach(btn => btn.addEventListener('click', () => {
+            void claimDailyMission(btn.dataset.missionClaim);
         }));
         root.querySelectorAll('[data-home-lb-period]').forEach(btn => btn.addEventListener('click', () => {
             state.leaderboardPeriod = btn.dataset.homeLbPeriod || 'daily';
@@ -1167,7 +1334,6 @@
         }
         navigateHub('deck-builder');
     }
-
     function openDeckPreview(deckId) {
         const deck = (state.options?.decks || []).find(item => item.id === deckId);
         if (!deck) return;
@@ -1184,9 +1350,81 @@
         return (cardCounts || []).reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
     }
 
+    function deckPreviewTypeCounts(cardCounts) {
+        return (cardCounts || []).reduce((acc, entry) => {
+            const card = findCard(entry.id);
+            if (!card) return acc;
+            const qty = Number(entry.count) || 0;
+            const type = String(card.type || '').toUpperCase();
+            if (type === 'SIEGLING') acc.sieglings += qty;
+            else if (type === 'SPELL') acc.spells += qty;
+            else if (type === 'TRAP') acc.traps += qty;
+            return acc;
+        }, { sieglings: 0, spells: 0, traps: 0 });
+    }
+
+    function formatDeckPreviewTypeSummary(counts) {
+        const parts = [
+            `${counts.sieglings} Siegelings`,
+            `${counts.spells} Spells`,
+            `${counts.traps} Traps`
+        ];
+        return parts.join(' · ');
+    }
+
+    function sortDeckPreviewEntries(cardCounts) {
+        return [...(cardCounts || [])]
+            .map(entry => ({ entry, card: findCard(entry.id) }))
+            .filter(item => item.card)
+            .sort((a, b) => {
+                const costA = cardEnergyCost(a.card);
+                const costB = cardEnergyCost(b.card);
+                if (costA !== costB) return costA - costB;
+                const typeOrder = { SIEGLING: 0, SPELL: 1, TRAP: 2 };
+                const typeA = typeOrder[a.card.type] ?? 3;
+                const typeB = typeOrder[b.card.type] ?? 3;
+                if (typeA !== typeB) return typeA - typeB;
+                return (a.card.name || '').localeCompare(b.card.name || '');
+            });
+    }
+
+    function renderDeckPreviewStackRow(card, count) {
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
+        return `<button type="button" class="deck-preview-stack-row" data-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)};--cost-el:${elementColor(costElement)}">
+            <span class="deck-preview-stack-cost" aria-hidden="true">${cost}</span>
+            <span class="deck-preview-stack-art" aria-hidden="true">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}</span>
+            <span class="deck-preview-stack-copy">
+                <strong>${escapeHtml(card.name)}</strong>
+                <span>${escapeHtml(typeLabel)}</span>
+            </span>
+            <span class="deck-preview-stack-count">x${count}</span>
+        </button>`;
+    }
+
+    function focusDeckPreviewCard(cardId) {
+        const grid = document.getElementById('deckPreviewGrid');
+        const stack = document.getElementById('deckPreviewStack');
+        grid?.querySelectorAll('[data-card-id]').forEach(tile => {
+            tile.classList.toggle('preview-focused', tile.dataset.cardId === cardId);
+        });
+        stack?.querySelectorAll('[data-preview-card-id]').forEach(row => {
+            row.classList.toggle('is-active', row.dataset.previewCardId === cardId);
+        });
+        const target = grid?.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const stackRow = stack?.querySelector(`[data-preview-card-id="${CSS.escape(cardId)}"]`);
+        stackRow?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     function showDeckPreview({ eyebrow, name, sub, cardCounts }) {
         const modal = document.getElementById('deckPreviewModal');
         const grid = document.getElementById('deckPreviewGrid');
+        const stack = document.getElementById('deckPreviewStack');
+        const stackTotal = document.getElementById('deckPreviewStackTotal');
+        const typeCountsEl = document.getElementById('deckPreviewTypeCounts');
+        const compositionEl = document.getElementById('deckPreviewComposition');
         if (!modal || !grid) return;
         const titleEl = document.getElementById('deckPreviewTitle');
         const eyebrowEl = document.getElementById('deckPreviewEyebrow');
@@ -1194,22 +1432,37 @@
         if (eyebrowEl) eyebrowEl.textContent = eyebrow || 'Deck';
         if (titleEl) titleEl.textContent = name || 'Deck';
         if (subEl) subEl.textContent = sub || '';
-        const tiles = (cardCounts || []).map(entry => {
-            const card = findCard(entry.id);
-            if (!card) return '';
+        const sorted = sortDeckPreviewEntries(cardCounts);
+        const total = deckTotalCards(cardCounts);
+        const typeCounts = deckPreviewTypeCounts(cardCounts);
+        const typeSummary = formatDeckPreviewTypeSummary(typeCounts);
+        if (compositionEl) compositionEl.textContent = typeSummary;
+        if (typeCountsEl) typeCountsEl.textContent = typeSummary;
+        if (stackTotal) stackTotal.textContent = `${total} cards`;
+        if (stack) {
+            stack.innerHTML = sorted.length
+                ? sorted.map(({ entry, card }) => renderDeckPreviewStackRow(card, Number(entry.count) || 1)).join('')
+                : '<div class="unlock-card deck-preview-stack-empty"><strong>No cards</strong><span>This deck has no resolvable cards in the current catalog.</span></div>';
+        }
+        const tiles = sorted.map(({ entry, card }) => {
             const count = Number(entry.count) || 1;
             return renderCardTile(card).replace(
                 '<div class="binder-card-shell">',
                 `${count > 1 ? `<span class="deck-preview-count">x${count}</span>` : ''}<div class="binder-card-shell">`
             );
-        }).filter(Boolean).join('');
+        }).join('');
         grid.innerHTML = tiles || '<div class="unlock-card"><strong>No cards to preview</strong><span>This deck has no resolvable cards in the current catalog.</span></div>';
-        grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
-            state.selectedCardId = tile.dataset.cardId;
+        const openCardFromPreview = (cardId) => {
+            state.selectedCardId = cardId;
             closeDeckPreview();
             openCardTray();
             renderDetail();
-        }));
+        };
+        grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => openCardFromPreview(tile.dataset.cardId)));
+        stack?.querySelectorAll('[data-preview-card-id]').forEach(row => row.addEventListener('click', () => focusDeckPreviewCard(row.dataset.previewCardId)));
+        if (sorted.length) {
+            focusDeckPreviewCard(sorted[0].card.id);
+        }
         modal.classList.remove('hidden');
     }
 
@@ -1738,10 +1991,13 @@
         if (!list) return;
         const rooms = filteredRooms();
         const totalOpen = state.rooms.filter(room => !isRoomFull(room)).length;
-        const roomCount = document.getElementById('roomCountLabel');
+        const roomOpen = document.getElementById('roomOpenLabel');
+        const lobbyFilterOpen = document.getElementById('lobbyFilterOpenLabel');
         const shownCount = document.getElementById('roomShownLabel');
         const quickJoinBtn = document.getElementById('quickJoinBtn');
-        if (roomCount) roomCount.textContent = `${totalOpen} open`;
+        const openLabel = `${totalOpen} open`;
+        if (roomOpen) roomOpen.textContent = openLabel;
+        if (lobbyFilterOpen) lobbyFilterOpen.textContent = openLabel;
         if (shownCount) shownCount.textContent = `${rooms.length} shown`;
         if (quickJoinBtn) quickJoinBtn.disabled = !rooms.some(room => !isRoomFull(room));
         renderSocialActiveLobby();
@@ -2223,7 +2479,7 @@
         </section>`;
     }
 
-    function renderBattleHistoryList(view) {
+    function renderBattleHistoryList(view, reviewable = true) {
         return `<section class="profile-panel battle-history-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Recent Battles</span><h3>Last Match Scroll</h3></div>
@@ -2231,7 +2487,7 @@
             </div>
             <div class="battle-list">
                 ${view.battles.length
-                    ? view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
+                    ? view.battles.map(battle => `<article class="battle-row ${reviewable ? 'battle-row-clickable' : ''} ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}"${reviewable ? ` data-match-index="${battle.index}" role="button" tabindex="0" aria-label="Review match vs ${escapeAttr(battle.opponentName)}"` : ''}>
                         <div class="battle-result">${escapeHtml(battle.result)}</div>
                         <div class="battle-main">
                             <strong>${escapeHtml(battle.opponentName)}</strong>
@@ -2313,24 +2569,266 @@
         </section>`;
     }
 
+    function achievementHelpers() {
+        return {
+            findCard,
+            normalizeBattle,
+            battleRecord
+        };
+    }
+
+    function evaluateAchievements(view) {
+        const api = window.SiegelingsAchievements;
+        if (!api) return { featured: [], all: [], unlockedCount: 0, total: 0, byCategory: {} };
+        return api.evaluateAll(state, view, achievementHelpers());
+    }
+
+    function renderAchievementBadgeTile(achievement, options = {}) {
+        const compact = options.compact;
+        const unlocked = achievement.unlocked;
+        return `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}${compact ? ' achievement-badge-compact' : ''}" data-achievement-id="${escapeAttr(achievement.id)}" role="button" tabindex="0" aria-label="${escapeAttr(achievement.title)} — ${unlocked ? 'unlocked' : 'locked'}. View requirements.">
+            <span aria-hidden="true">${unlocked ? escapeHtml(achievement.icon || '★') : '−'}</span>
+            <strong>${escapeHtml(achievement.title)}</strong>
+            <small>${unlocked ? 'Unlocked' : 'Locked'}</small>
+        </div>`;
+    }
+
     function renderAchievementBadges(view) {
-        const achievements = [
-            ['First Win', view.record.wins > 0],
-            ['Element Specialist', true],
-            ['Collector', view.collection.uniqueOwned >= 10],
-            ['Deck Builder', view.savedDecks.length > 0],
-            ['Win Streak', view.record.bestStreak >= 3]
-        ];
+        const snapshot = evaluateAchievements(view);
+        const featured = snapshot.featured.length ? snapshot.featured : snapshot.all.slice(0, 6);
         return `<section class="profile-panel achievement-panel">
-            <div class="profile-panel-head"><div><span class="eyebrow">Achievements</span><h3>Badge Case</h3></div></div>
-            <div class="achievement-row">
-                ${achievements.map(([label, unlocked]) => `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}">
-                    <span>${unlocked ? '*' : '-'}</span>
-                    <strong>${escapeHtml(label)}</strong>
-                    <small>${unlocked ? 'Unlocked' : 'Locked'}</small>
-                </div>`).join('')}
+            <div class="profile-panel-head">
+                <div><span class="eyebrow">Achievements</span><h3>Badge Case</h3></div>
+                <button class="ghost-btn compact-btn" type="button" data-achievement-route="">View all (${snapshot.unlockedCount}/${snapshot.total})</button>
             </div>
+            <div class="achievement-row achievement-row-featured">
+                ${featured.map(item => renderAchievementBadgeTile(item)).join('')}
+            </div>
+            <p class="profile-muted achievement-panel-note">Six featured badges on your profile. Open the full badge case for ${snapshot.total} goals across collection, remnants, decks, and arena play.</p>
         </section>`;
+    }
+
+    function achievementsPath(category = '') {
+        const normalized = String(category || '').trim().toLowerCase();
+        if (!normalized) return '/achievements';
+        return `/achievements/${encodeURIComponent(normalized)}`;
+    }
+
+    function navigateAchievementCategory(category = '', options = {}) {
+        const path = achievementsPath(category);
+        state.route = 'achievements';
+        state.achievementCategory = String(category || '').trim().toLowerCase();
+        state.activeAchievementId = '';
+        state.shopView = 'browse';
+        state.profileUserId = '';
+        state.profileEditOpen = false;
+        if (options.replace) {
+            history.replaceState(null, '', path);
+        } else {
+            history.pushState(null, '', path);
+        }
+        setActiveRoute();
+        renderSections();
+        renderRoute();
+    }
+
+    function renderAchievements() {
+        const body = document.getElementById('achievementsSectionBody');
+        if (!body) return;
+        if (!state.profile?.authenticated) {
+            body.innerHTML = `<div class="achievements-signed-out unlock-card">
+                <strong>Sign in to track achievements</strong>
+                <span>Your badge cases unlock from wins, collection, remnants, deck building, and arena matches.</span>
+                <button class="primary-btn" type="button" id="achievementsSignInBtn">Sign In</button>
+            </div>`;
+            document.getElementById('achievementsSignInBtn')?.addEventListener('click', openAuth);
+            return;
+        }
+        const view = profileViewModel();
+        const snapshot = evaluateAchievements(view);
+        const activeCategory = state.achievementCategory;
+        const categories = window.SiegelingsAchievements?.CATEGORIES || [];
+        const categoryUnlocked = (id) => (snapshot.byCategory[id] || []).filter(a => a.unlocked).length;
+        const categoryTotal = (id) => (snapshot.byCategory[id] || []).length;
+
+        if (activeCategory && snapshot.byCategory[activeCategory]) {
+            const meta = window.SiegelingsAchievements.categoryMeta(activeCategory);
+            const rows = snapshot.byCategory[activeCategory];
+            const unlockedInCase = rows.filter(a => a.unlocked).length;
+            body.innerHTML = `<div class="achievements-dashboard" style="${profileThemeStyle(view.theme)}">
+                <div class="achievements-case-head">
+                    <button class="ghost-btn compact-btn" type="button" data-achievement-route="">All badge cases</button>
+                    <div>
+                        <span class="eyebrow">${escapeHtml(meta.eyebrow)}</span>
+                        <h2>${escapeHtml(meta.label)}</h2>
+                        <p class="achievements-case-copy">${escapeHtml(meta.description)}</p>
+                    </div>
+                    <span class="profile-soft-pill">${unlockedInCase}/${rows.length} unlocked</span>
+                </div>
+                <div class="achievement-grid achievement-grid-extended">
+                    ${rows.map(item => renderAchievementBadgeTile(item, { extended: true })).join('')}
+                </div>
+                <div class="achievement-detail-list">
+                    ${rows.map(item => `<article class="achievement-detail-row ${item.unlocked ? 'is-unlocked' : 'is-locked'}" data-achievement-id="${escapeAttr(item.id)}" role="button" tabindex="0" aria-label="${escapeAttr(item.title)} — ${item.unlocked ? 'unlocked' : 'locked'}. View requirements.">
+                        <div class="achievement-detail-icon" aria-hidden="true">${escapeHtml(item.unlocked ? item.icon : '−')}</div>
+                        <div>
+                            <strong>${escapeHtml(item.title)}</strong>
+                            <p>${escapeHtml(item.description)}</p>
+                        </div>
+                        <span class="achievement-detail-status">${item.unlocked ? 'Unlocked' : 'Locked'}</span>
+                    </article>`).join('')}
+                </div>
+            </div>`;
+        } else {
+            body.innerHTML = `<div class="achievements-dashboard" style="${profileThemeStyle(view.theme)}">
+                <div class="achievements-overview-head">
+                    <div>
+                        <span class="eyebrow">Achievements</span>
+                        <h2>Badge Case Hall</h2>
+                        <p class="achievements-case-copy">General goals, elemental mastery, card collection, remnants, deck creation, and arena loadouts — each case holds its own badge set.</p>
+                    </div>
+                    <div class="achievements-overview-stats">
+                        <strong>${snapshot.unlockedCount}<span>/${snapshot.total}</span></strong>
+                        <small>badges unlocked</small>
+                    </div>
+                </div>
+                <div class="achievement-category-grid">
+                    ${categories.map(cat => {
+                        const rows = snapshot.byCategory[cat.id] || [];
+                        const preview = rows.slice(0, 4);
+                        const unlocked = categoryUnlocked(cat.id);
+                        return `<section class="achievement-category-card">
+                            <div class="achievement-category-head">
+                                <div>
+                                    <span class="eyebrow">${escapeHtml(cat.eyebrow)}</span>
+                                    <h3>${escapeHtml(cat.label)}</h3>
+                                    <p>${escapeHtml(cat.description)}</p>
+                                </div>
+                                <span class="profile-soft-pill">${unlocked}/${categoryTotal(cat.id)}</span>
+                            </div>
+                            <div class="achievement-row achievement-row-preview">
+                                ${preview.map(item => renderAchievementBadgeTile(item, { compact: true })).join('')}
+                            </div>
+                            <button class="ghost-btn compact-btn" type="button" data-achievement-route="${escapeAttr(cat.id)}">Open badge case</button>
+                        </section>`;
+                    }).join('')}
+                </div>
+                <section class="profile-panel achievement-panel achievement-panel-all">
+                    <div class="profile-panel-head">
+                        <div><span class="eyebrow">Full roster</span><h3>Every badge</h3></div>
+                    </div>
+                    <div class="achievement-grid achievement-grid-extended">
+                        ${snapshot.all.map(item => renderAchievementBadgeTile(item)).join('')}
+                    </div>
+                </section>
+            </div>`;
+        }
+        bindAchievementRoutes(body);
+    }
+
+    function bindAchievementRoutes(root = document) {
+        root.querySelectorAll('[data-achievement-route]').forEach(btn => {
+            btn.addEventListener('click', () => navigateAchievementCategory(btn.dataset.achievementRoute || ''));
+        });
+        bindAchievementBadges(root);
+    }
+
+    function bindAchievementBadges(root = document) {
+        root.querySelectorAll('[data-achievement-id]').forEach(el => {
+            el.addEventListener('click', () => openAchievementDetail(el.dataset.achievementId));
+            el.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openAchievementDetail(el.dataset.achievementId);
+                }
+            });
+        });
+    }
+
+    function openAchievementDetail(id) {
+        if (!id) return;
+        state.activeAchievementId = String(id);
+        renderAchievementDetailHost();
+    }
+
+    function closeAchievementDetail() {
+        if (!state.activeAchievementId) return;
+        state.activeAchievementId = '';
+        renderAchievementDetailHost();
+    }
+
+    function renderAchievementDetailHost() {
+        const host = document.getElementById('achievementDetailHost');
+        if (!host) return;
+        const id = state.activeAchievementId;
+        if (!id) {
+            host.innerHTML = '';
+            return;
+        }
+        const view = state.profile?.authenticated ? profileViewModel() : null;
+        const snapshot = evaluateAchievements(view);
+        const achievement = (snapshot.all || []).find(a => a.id === id);
+        if (!achievement) {
+            host.innerHTML = '';
+            return;
+        }
+        host.innerHTML = renderAchievementDetailModal(achievement, view);
+        const overlay = host.querySelector('.profile-modal');
+        overlay?.addEventListener('click', (event) => {
+            if (event.target === overlay) closeAchievementDetail();
+        });
+        host.querySelectorAll('[data-achievement-detail-close]').forEach(btn => {
+            btn.addEventListener('click', closeAchievementDetail);
+        });
+    }
+
+    function renderAchievementDetailModal(achievement, view) {
+        const api = window.SiegelingsAchievements;
+        const meta = api?.categoryMeta ? api.categoryMeta(achievement.category) : { eyebrow: 'Achievement', label: 'Achievement' };
+        const unlocked = achievement.unlocked;
+        const measurable = achievement.measurable;
+        const current = Number(achievement.progressCurrent) || 0;
+        const target = Number(achievement.progressTarget) || 0;
+        const pct = Math.max(0, Math.min(100, Number(achievement.progressPct) || 0));
+        const progressBlock = measurable
+            ? `<div class="achievement-modal-progress">
+                    <div class="achievement-modal-progress-head">
+                        <span>Progress</span>
+                        <strong>${escapeHtml(formatProgressCount(current))} / ${escapeHtml(formatProgressCount(target))}</strong>
+                    </div>
+                    <div class="achievement-modal-bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+                        <span style="width:${pct}%"></span>
+                    </div>
+                    <small>${unlocked ? 'Requirement met.' : `${escapeHtml(formatProgressCount(Math.max(0, target - current)))} to go.`}</small>
+                </div>`
+            : `<div class="achievement-modal-progress achievement-modal-progress-binary">
+                    <small>${unlocked ? 'You have met this requirement.' : 'Complete the requirement above to unlock this badge.'}</small>
+                </div>`;
+        return `<div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="achievementDetailTitle">
+            <div class="profile-edit-panel profile-panel achievement-modal-panel" style="${profileThemeStyle(view?.theme || elementThemes.Neutral)}">
+                <div class="profile-panel-head">
+                    <div><span class="eyebrow">${escapeHtml(meta.eyebrow)} · ${escapeHtml(meta.label)}</span><h3 id="achievementDetailTitle">Badge Requirements</h3></div>
+                    <button class="ghost-btn compact-btn" type="button" data-achievement-detail-close>Close</button>
+                </div>
+                <div class="achievement-modal-body">
+                    <div class="achievement-modal-emblem ${unlocked ? 'is-unlocked' : 'is-locked'}" aria-hidden="true">${escapeHtml(unlocked ? (achievement.icon || '★') : '−')}</div>
+                    <div class="achievement-modal-headline">
+                        <strong>${escapeHtml(achievement.title)}</strong>
+                        <span class="achievement-modal-status ${unlocked ? 'is-unlocked' : 'is-locked'}">${unlocked ? 'Unlocked' : 'Locked'}</span>
+                    </div>
+                </div>
+                <div class="achievement-modal-requirement">
+                    <span class="eyebrow">Requirement</span>
+                    <p>${escapeHtml(achievement.description)}</p>
+                </div>
+                ${progressBlock}
+            </div>
+        </div>`;
+    }
+
+    function formatProgressCount(value) {
+        const num = Number(value) || 0;
+        return num >= 1000 ? num.toLocaleString() : String(num);
     }
 
     function renderEditProfileModal(view) {
@@ -2378,6 +2876,76 @@
         }));
         document.querySelectorAll('[data-profile-save]').forEach(btn => btn.addEventListener('click', saveProfilePrefs));
         document.querySelectorAll('[data-profile-route]').forEach(btn => btn.addEventListener('click', () => navigateHub(btn.dataset.profileRoute)));
+        document.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
+            const index = Number(row.dataset.matchIndex);
+            row.addEventListener('click', () => openMatchReview(index));
+            row.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openMatchReview(index);
+                }
+            });
+        });
+        bindAchievementRoutes(document.getElementById('profileSectionBody') || document);
+    }
+
+    // Opens a read-only review of a recorded match (stats + turn-by-turn log),
+    // mirroring the match detail surface on the Play screen.
+    function openMatchReview(index) {
+        const entry = (state.profile?.matchHistory || [])[index];
+        const overlay = document.getElementById('matchReviewOverlay');
+        const content = document.getElementById('matchReviewContent');
+        if (!entry || !overlay || !content) return;
+
+        const resultLabel = entry.result || 'Result';
+        const resultClass = String(resultLabel).toUpperCase().includes('WIN') ? 'win' : 'loss';
+        const finishedAt = entry.finishedAt ? new Date(entry.finishedAt) : null;
+        const finishedLabel = finishedAt && !isNaN(finishedAt.getTime())
+            ? finishedAt.toLocaleString()
+            : '';
+        const ph = Number(entry.playerHealthRemaining);
+        const oh = Number(entry.opponentHealthRemaining);
+        const en = Number(entry.playerEnergyRemaining);
+
+        const statRow = (label, value) =>
+            `<div class="match-detail-stat"><span class="md-stat-label">${escapeHtml(label)}</span><span class="md-stat-value">${escapeHtml(String(value))}</span></div>`;
+
+        const logLines = Array.isArray(entry.gameLog) ? entry.gameLog : [];
+        const logHtml = logLines.length > 0
+            ? `<div class="match-detail-log">${logLines.map(line => `<div class="md-log-line">${escapeHtml(line)}</div>`).join('')}</div>`
+            : '<div class="match-review-empty">No turn-by-turn breakdown was recorded for this match.</div>';
+
+        content.innerHTML = `
+            <div class="match-detail-header result-${resultClass}">
+                <div class="match-detail-result history-result-${resultClass}">${escapeHtml(resultLabel)}</div>
+                <div class="match-detail-sub">${escapeHtml(entry.loadoutLabel || 'Loadout')} vs ${escapeHtml(entry.opponentName || 'Opponent')}</div>
+                ${finishedLabel ? `<div class="match-detail-date">${escapeHtml(finishedLabel)}</div>` : ''}
+            </div>
+            <div class="match-detail-stats">
+                ${statRow('Your Health', Number.isFinite(ph) ? ph : '—')}
+                ${statRow('Opponent Health', Number.isFinite(oh) ? oh : '—')}
+                ${statRow('Energy Left', Number.isFinite(en) ? en : '—')}
+                ${statRow('Turns', entry.turnNumber ?? '—')}
+                ${statRow('SiegeKnight', entry.trainerName || '—')}
+                ${statRow('Match Type', entry.matchType || '—')}
+                ${statRow('Spells Cast', entry.spellsCast ?? 0)}
+                ${statRow('Traps Sprung', entry.trapsSprung ?? 0)}
+                ${statRow('Siegelings Defeated', entry.siegelingsDefeated ?? 0)}
+            </div>
+            <div class="match-detail-log-title">Game Breakdown</div>
+            ${logHtml}
+        `;
+        overlay.classList.remove('hidden');
+    }
+
+    function closeMatchReview(event) {
+        if (event) {
+            const overlay = document.getElementById('matchReviewOverlay');
+            if (event.target !== overlay && !event.target.closest('[data-match-review-close]')) {
+                return;
+            }
+        }
+        document.getElementById('matchReviewOverlay')?.classList.add('hidden');
     }
 
     async function saveProfilePrefs() {
@@ -2508,13 +3076,15 @@
         const matchType = String(row.matchType || '').toUpperCase();
         return {
             result,
+            matchType,
             opponentName: row.opponentName || 'Opponent',
             opponentType: matchType.includes('PVP') || matchType.includes('PLAYER') ? 'Player' : 'AI',
             deckUsed: row.loadoutLabel || row.trainerName || 'Battle Loadout',
             element: inferElementFromText(row.loadoutLabel || row.trainerName || '', fallbackElement),
             date: formatProfileDate(row.finishedAt) || '',
             duration: row.turnNumber ? `${row.turnNumber} turns` : '',
-            reward: result === 'WIN' ? '+25' : '+5'
+            reward: result === 'WIN' ? '+25' : '+5',
+            index
         };
     }
 
@@ -2608,6 +3178,7 @@
         state.progression = data.progression;
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
+        await loadDailyMissions();
         const latest = state.progression?.packHistory?.[0];
         state.packOpeningDismissedKey = '';
         state.packReveal = latest ? {
@@ -3143,10 +3714,15 @@
         if (!state.profile?.authenticated) return openAuth();
         const data = await fetchJson('/api/cards/craft', { method: 'POST', body: JSON.stringify({ cardId }) });
         if (data?.error) return alert(data.error);
+        if (window.SiegelingsAchievements?.incrementStat) {
+            window.SiegelingsAchievements.incrementStat('crafts', 1);
+        }
         state.progression = data.progression;
         renderCards();
         renderHomeDashboard();
         renderGold();
+        renderProfile();
+        renderAchievements();
     }
 
     async function saveCustomDeck() {
@@ -3305,16 +3881,21 @@
     }
 
     function queuePlayLoadout(payload = {}) {
+        const savedDeck = selectedSavedDeck();
+        const customDeckCards = payload.customDeckCards
+            || (savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null);
+        const loadoutLabel = payload.loadoutLabel
+            || (customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : '');
         localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
             createdAt: Date.now(),
             deckId: payload.deckId || selectedDeckId(),
-            trainerId: payload.trainerId || state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id,
+            trainerId: payload.trainerId || selectedTrainerId(),
             mode: payload.mode || 'solo',
             onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
             battleLaunch: Boolean(payload.battleLaunch),
-            customDeckCards: payload.customDeckCards || null,
-            loadoutLabel: payload.loadoutLabel || ''
+            customDeckCards,
+            loadoutLabel
         }));
     }
 
@@ -3326,15 +3907,28 @@
     function navigateHub(route, options = {}) {
         const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
         const nextShopView = route === 'shop' ? (options.shopView || state.shopView || 'browse') : 'browse';
-        const nextPath = `${hubPath(route, nextShopView)}${hash}`;
+        const achievementCategory = route === 'achievements' ? (options.achievementCategory ?? state.achievementCategory ?? '') : '';
+        const nextPath = route === 'achievements'
+            ? achievementsPath(achievementCategory)
+            : `${hubPath(route, nextShopView)}${hash}`;
         const samePlace = route === state.route
             && (route !== 'shop' || nextShopView === state.shopView)
-            && (route !== 'profile' || !state.profileUserId);
+            && (route !== 'profile' || !state.profileUserId)
+            && (route !== 'achievements' || achievementCategory === state.achievementCategory);
 
         state.route = route;
         state.shopView = nextShopView;
+        if (state.activeAchievementId) {
+            state.activeAchievementId = '';
+            renderAchievementDetailHost();
+        }
         if (route === 'profile') {
             state.profileUserId = '';
+        }
+        if (route === 'achievements') {
+            state.achievementCategory = achievementCategory;
+        } else {
+            state.achievementCategory = '';
         }
 
         if (options.replace) {
@@ -3376,8 +3970,17 @@
         return state.route === 'cards' || state.route === 'decks';
     }
 
+    function isSocialRoute() {
+        return state.route === 'social' || state.route === 'lobby';
+    }
+
+    function isFilterRoute() {
+        return isBinderRoute() || isSocialRoute();
+    }
+
     function toggleTray(type) {
-        if (!isBinderRoute()) return;
+        if (type === 'filter' && !isFilterRoute()) return;
+        if (type === 'card' && !isBinderRoute()) return;
         if (type === 'filter') {
             state.filterTrayOpen = !state.filterTrayOpen;
             if (state.filterTrayOpen) state.cardTrayOpen = false;
@@ -3404,22 +4007,35 @@
 
     function renderHudTools() {
         const binder = isBinderRoute();
+        const social = isSocialRoute();
+        const filterOpen = state.filterTrayOpen;
         const optionsBtn = document.getElementById('optionsBtn');
         optionsBtn?.classList.toggle('hidden', state.route !== 'home');
+        // Hide "Join With Code" on the Cards/Decks binder routes; it crowds the
+        // HUD there and the same action lives on the Social tab.
+        const joinBtn = document.getElementById('joinByCodeBtn');
+        joinBtn?.classList.toggle('hidden', binder);
         const filterBtn = document.getElementById('filterTrayBtn');
+        const socialFilterBtn = document.getElementById('socialFilterBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
         const filterTray = document.getElementById('filterTray');
+        const lobbyFilterTray = document.getElementById('lobbyFilterTray');
         const cardTray = document.getElementById('detailPanel');
         const backdrop = document.getElementById('trayBackdrop');
-        filterBtn?.classList.toggle('hidden', !binder);
+        const showFilterHud = binder || social;
+        filterBtn?.classList.toggle('hidden', !showFilterHud);
         cardBtn?.classList.toggle('hidden', !binder);
-        filterBtn?.classList.toggle('active', binder && state.filterTrayOpen);
+        filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
+        socialFilterBtn?.classList.toggle('active', social && filterOpen);
         cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
-        filterTray?.classList.toggle('is-closed', !binder || !state.filterTrayOpen);
+        filterTray?.classList.toggle('is-closed', !binder || !filterOpen);
+        lobbyFilterTray?.classList.toggle('is-closed', !social || !filterOpen);
         cardTray?.classList.toggle('is-closed', !binder || !state.cardTrayOpen);
-        filterTray?.setAttribute('aria-hidden', String(!binder || !state.filterTrayOpen));
+        filterTray?.setAttribute('aria-hidden', String(!binder || !filterOpen));
+        lobbyFilterTray?.setAttribute('aria-hidden', String(!social || !filterOpen));
         cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
-        backdrop?.classList.toggle('hidden', !binder || (!state.filterTrayOpen && !state.cardTrayOpen));
+        const trayOpen = (binder && filterOpen) || (social && filterOpen) || (binder && state.cardTrayOpen);
+        backdrop?.classList.toggle('hidden', !trayOpen);
     }
 
     async function fetchJson(path, options = {}) {
@@ -3690,7 +4306,19 @@
     function selectedCard() { return findCard(state.selectedCardId) || state.options?.cardCatalog?.[0]; }
     function findCard(id) { return (state.options?.cardCatalog || []).find(card => card.id === id); }
     function ownedCount(id) { return state.progression?.ownedCards?.[id] || 0; }
-    function selectedDeckId() { return state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth'; }
+    function selectedSavedDeck() {
+        const selected = state.selectedDeckId;
+        if (!selected) return null;
+        return (state.profile?.savedDecks || []).find(deck => deck.id === selected || deck.deckId === selected) || null;
+    }
+    function selectedDeckId() {
+        const savedDeck = selectedSavedDeck();
+        if (savedDeck?.deckId) return savedDeck.deckId;
+        if (state.selectedDeckId && (state.options?.decks || []).some(deck => deck.id === state.selectedDeckId)) {
+            return state.selectedDeckId;
+        }
+        return state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth';
+    }
     function indexCreatureDescriptions(descriptions) {
         const entries = Array.isArray(descriptions) ? descriptions : [];
         return entries.reduce((out, item) => {
@@ -3792,24 +4420,28 @@
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
         const head = segments[0] || 'home';
-        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         if (head === 'social' && segments[1] === 'lobby' && segments[2]) {
-            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '' };
+            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '', achievementCategory: '' };
         }
         if (head === 'shop') {
-            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '' };
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
         if (head === 'profile') {
             const profileUserId = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
-            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId };
+            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId, achievementCategory: '' };
+        }
+        if (head === 'achievements') {
+            const achievementCategory = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
+            return { route: 'achievements', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory };
         }
         if (head === 'deck-builder') {
-            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
         if (['cards', 'decks', 'social'].includes(head)) {
-            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
-        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
     }
 
     function normalizePlayerId(userId) {
@@ -3846,6 +4478,7 @@
         if (route === 'home') return '/home';
         if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
         if (route === 'deck-builder') return '/deck-builder';
+        if (route === 'achievements') return '/achievements';
         return `/${route}`;
     }
 
@@ -3855,6 +4488,7 @@
         state.shopView = parsed.shopView;
         state.lobbyRoomId = parsed.lobbyRoomId || '';
         state.profileUserId = parsed.profileUserId || '';
+        state.achievementCategory = parsed.achievementCategory || '';
         if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
             state.shopView = 'browse';
             if (location.pathname !== hubPath('shop', 'browse')) {
@@ -4041,15 +4675,22 @@
     }
 
     function buildSocialMatchBody() {
+        const savedDeck = selectedSavedDeck();
+        const customDeckCards = savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null;
         return {
             deckId: selectedDeckId(),
             trainerId: selectedTrainerId(),
             playerName: socialBattleName(),
-            loadoutLabel: ''
+            customDeckCards,
+            loadoutLabel: customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : ''
         };
     }
 
     function selectedTrainerId() {
+        const savedDeck = selectedSavedDeck();
+        if (savedDeck?.trainerId && isTrainerOwned(savedDeck.trainerId)) {
+            return savedDeck.trainerId;
+        }
         const preferred = state.options?.defaultTrainerId;
         if (preferred && isTrainerOwned(preferred)) return preferred;
         return firstOwnedTrainerId();
@@ -4087,7 +4728,29 @@
         const normalized = String(roomId).trim().toUpperCase();
         const hostLobby = readHostLobby();
         if (hostLobby?.roomId && hostLobby.roomId.toUpperCase() === normalized) return true;
+        const listed = state.rooms.find(entry => String(entry.roomId || '').toUpperCase() === normalized);
+        if (listed && listed.hostUserId && listed.hostUserId === state.profile?.user?.id) return true;
         return false;
+    }
+
+    async function reconnectHostLobbySession(roomId) {
+        if (!state.token || !roomId) return null;
+        const data = await fetchJson('/api/match/reconnect-host', {
+            method: 'POST',
+            body: JSON.stringify({ roomId })
+        });
+        if (data?.error) {
+            alert(data.error);
+            return null;
+        }
+        if (!data?.roomId || !data?.playerToken) return null;
+        writeHostLobby({
+            roomId: data.roomId,
+            playerToken: data.playerToken,
+            expiresAt: data.expiresAt || null,
+            shareUrl: data.shareUrl || buildSocialRoomShareUrl(data.roomId)
+        });
+        return { roomId: data.roomId, playerToken: data.playerToken, role: 'host' };
     }
 
     function openLobbyWaitingRoom(roomId, options = {}) {
@@ -4144,8 +4807,8 @@
             }
         }
         if (isOwnLobbyRoomId(roomId)) {
-            alert('Reconnect from the device that created this lobby, or create a new table.');
-            navigateHub('social', { focus: 'lobby' });
+            const reconnected = await reconnectHostLobbySession(roomId);
+            if (reconnected) return reconnected;
             return null;
         }
         if (!state.options?.decks?.length) {
@@ -4278,7 +4941,7 @@
 
     function bindLobbyWaitingRoomControls() {
         document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
-        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
+        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => void leaveLobbyWaitingRoom());
         document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
             const hostLobby = readHostLobby();
             if (hostLobby) void closeHostLobby(hostLobby);
@@ -4472,7 +5135,7 @@
         stopLobbyPolling();
         if (session?.role === 'guest' && session.roomId && session.playerToken && !state.lobbyStatus?.started) {
             try {
-                await fetchJson('/api/match/leave', {
+                const data = await fetchJson('/api/match/leave', {
                     method: 'POST',
                     headers: {
                         'X-Room-Id': session.roomId,
@@ -4480,8 +5143,16 @@
                     },
                     body: JSON.stringify({ roomId: session.roomId })
                 });
+                if (data?.error) {
+                    alert(data.error);
+                }
             } catch (error) {
                 console.warn('Unable to leave lobby', error);
+            }
+            try {
+                localStorage.removeItem(MULTIPLAYER_SESSION_KEY);
+            } catch (_error) {
+                // ignore storage failures
             }
         }
         clearLobbySession();
@@ -4507,10 +5178,10 @@
         const session = currentLobbySession();
         if (!session) return;
         const status = await fetchMatchStatus(session);
-        if (!status || status.error) {
-            if (status?.error) {
-                alert(status.error);
-                leaveLobbyWaitingRoom();
+        if (!status || status.error || status.closed) {
+            if (status?.error || status?.closed) {
+                alert(status?.error || 'This lobby has been closed.');
+                await leaveLobbyWaitingRoom();
             }
             return;
         }
@@ -4929,7 +5600,7 @@
             ${renderPublicProfileStats(view)}
             ${view.battles.length ? renderBattleRecordPanel(view) : ''}
             ${view.battles.length
-                ? renderBattleHistoryList(view)
+                ? renderBattleHistoryList(view, false)
                 : `<section class="profile-panel"><p class="profile-muted">${view.data.isFriend ? 'No recorded battles yet.' : 'Recent battles are visible once you are friends.'}</p></section>`}
             ${renderPublicProfileActions(view)}
         </div>`;

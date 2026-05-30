@@ -3,9 +3,11 @@ package com.sieglings.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
@@ -31,6 +33,18 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        Path uploadedCardArtDir = Path.of("src", "main", "resources", "static", "assets", "cards")
+                .toAbsolutePath()
+                .normalize();
+        registry.addResourceHandler("/assets/cards/**")
+                .addResourceLocations(
+                        "classpath:/static/assets/cards/",
+                        "file:" + uploadedCardArtDir + "/"
+                );
+    }
+
+    @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addRedirectViewController("/", "/landing");
         registry.addViewController("/landing").setViewName("forward:/landing.html");
@@ -43,6 +57,8 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/social/lobby/**").setViewName("forward:/home.html");
         registry.addViewController("/profile").setViewName("forward:/home.html");
         registry.addViewController("/profile/**").setViewName("forward:/home.html");
+        registry.addViewController("/achievements").setViewName("forward:/home.html");
+        registry.addViewController("/achievements/**").setViewName("forward:/home.html");
         registry.addViewController("/shop").setViewName("forward:/home.html");
         registry.addViewController("/shop/cardpack").setViewName("forward:/home.html");
         registry.addViewController("/login").setViewName("forward:/home.html");

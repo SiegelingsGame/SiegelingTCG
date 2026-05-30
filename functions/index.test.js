@@ -45,6 +45,51 @@ test('empty submitted arrays preserve existing catalog sections', () => {
   );
 });
 
+test('normalizes card art ids and extensions for uploads', () => {
+  assert.equal(_private.normalizeCardArtId(' Hurricrane! '), 'hurricrane');
+  assert.throws(() => _private.normalizeCardArtId('   '), /valid card id/);
+  assert.equal(
+    _private.resolveCardArtExtension({ originalname: 'art.PNG', mimetype: 'image/png' }),
+    'png'
+  );
+  assert.equal(
+    _private.resolveCardArtExtension({ originalname: 'art.bin', mimetype: 'image/webp' }),
+    'webp'
+  );
+  assert.throws(
+    () => _private.resolveCardArtExtension({ originalname: 'art.bin', mimetype: 'application/octet-stream' }),
+    /Unsupported image type/
+  );
+  assert.equal(
+    _private.buildCardArtPublicUrl('example.appspot.com', 'cards/hurricrane.png'),
+    'https://storage.googleapis.com/example.appspot.com/cards/hurricrane.png'
+  );
+  assert.equal(
+    _private.buildCardArtPublicUrl('example.appspot.com', 'cards/hurricrane.png', 'token-123'),
+    'https://firebasestorage.googleapis.com/v0/b/example.appspot.com/o/cards%2Fhurricrane.png?alt=media&token=token-123'
+  );
+});
+
+test('rejects embedded card art data urls during publish validation', () => {
+  const bundle = validBundle();
+  bundle.cards[0].cardArtUrl = 'data:image/png;base64,abc';
+  bundle.cards[0].cardArtMode = 'REPLACE';
+  assert.throws(
+    () => _private.validateEditorBundle(bundle),
+    /embedded image upload/
+  );
+});
+
+test('rejects project-relative card art paths during live publish validation', () => {
+  const bundle = validBundle();
+  bundle.cards[0].cardArtUrl = '/assets/cards/seedling.png';
+  bundle.cards[0].cardArtMode = 'REPLACE';
+  assert.throws(
+    () => _private.validateEditorBundle(bundle),
+    /not hosted for the live game/
+  );
+});
+
 test('validates live publish bundle before writing Firestore', () => {
   assert.doesNotThrow(() => _private.validateEditorBundle(validBundle()));
 

@@ -92,7 +92,8 @@
         updatedBy: "",
         updatedAt: "",
         auth: { ...DEFAULT_AUTH },
-        status: { ...DEFAULT_STATUS }
+        status: { ...DEFAULT_STATUS },
+        ephemeralCardArtPreview: null
     };
 
     const refs = {};
@@ -415,7 +416,11 @@
             if (!row) {
                 return;
             }
-            state.selectedCardId = row.dataset.cardId;
+            const nextCardId = row.dataset.cardId;
+            if (nextCardId !== state.selectedCardId) {
+                clearEphemeralCardArtPreview();
+            }
+            state.selectedCardId = nextCardId;
             state.selectedAbilityIndex = 0;
             renderAll();
         });
@@ -427,6 +432,10 @@
             }
             mutateSelectedCard((card) => {
                 card.cardArtMode = normalizeCardArtMode(modeInput.value);
+                if (!card.cardArtMode) {
+                    clearEphemeralCardArtPreview();
+                    card.cardArtUrl = "";
+                }
             });
         });
 
@@ -454,25 +463,47 @@
                 event.target.value = "";
                 return;
             }
+            if (state.liveEditingEnabled && !state.auth?.canEdit) {
+                setStatus("Sign in under Live Publishing before uploading card art.", "error");
+                event.target.value = "";
+                renderStatus();
+                return;
+            }
+
+            const localPreviewUrl = URL.createObjectURL(file);
+            setEphemeralCardArtPreview(cardId, localPreviewUrl);
+            mutateSelectedCard((selected) => {
+                if (!selected.cardArtMode) {
+                    selected.cardArtMode = "REPLACE";
+                }
+            }, { render: false });
+
             setStatus("Uploading card art...", "warning");
             renderStatus();
+            renderCardVisual();
             try {
-                const formData = new FormData();
-                formData.append("cardId", cardId);
-                formData.append("file", file);
-                const payload = await requestJson(apiUrl("/api/cards/editor/art"), {
-                    method: "POST",
-                    body: formData
-                });
+                const payload = await uploadCardArtFile(cardId, file);
+                const hostedUrl = String(payload?.url || "").trim();
+                if (!hostedUrl) {
+                    throw new Error("Upload finished but the server did not return an image URL.");
+                }
+                clearEphemeralCardArtPreview();
                 mutateSelectedCard((selected) => {
-                    selected.cardArtUrl = String(payload?.url || "").trim();
-                    if (selected.cardArtUrl && !selected.cardArtMode) {
-                        selected.cardArtMode = "REPLACE";
-                    }
-                });
-                setStatus(`Uploaded art for ${cardId}. Publish when ready.`, "warning");
+                    selected.cardArtUrl = hostedUrl;
+                    selected.cardArtMode = "REPLACE";
+                }, { render: false });
+                setStatus(
+                    state.liveEditingEnabled
+                        ? `Uploaded art for ${cardId}. Adjust scale/placement below, then click Publish Live Changes.`
+                        : `Uploaded art for ${cardId}. Adjust scale/placement below, then click Save To Project File.`,
+                    "success"
+                );
+                refs.cardArtTransformControls?.scrollIntoView({ behavior: "smooth", block: "nearest" });
             } catch (error) {
-                setStatus(error?.message || "Unable to upload card art.", "error");
+                setStatus(
+                    `${error?.message || "Unable to upload card art."} Your local preview is still visible; fix the issue above and try Upload Image again.`,
+                    "error"
+                );
             } finally {
                 event.target.value = "";
                 renderAll();
@@ -480,6 +511,7 @@
         });
 
         refs.clearCardArtBtn?.addEventListener("click", () => {
+            clearEphemeralCardArtPreview();
             mutateSelectedCard((card) => {
                 card.cardArtUrl = "";
                 card.cardArtMode = "";
@@ -491,19 +523,19 @@
         });
 
         refs.cardArtScaleInput?.addEventListener("input", (event) => {
-            mutateSelectedCard((card) => {
+            updateSelectedCardArtTransform((card) => {
                 card.cardArtScale = clampCardArtScale(event.target.value);
             });
         });
 
         refs.cardArtRotationInput?.addEventListener("input", (event) => {
-            mutateSelectedCard((card) => {
+            updateSelectedCardArtTransform((card) => {
                 card.cardArtRotation = clampCardArtRotation(event.target.value);
             });
         });
 
         refs.resetCardArtTransformBtn?.addEventListener("click", () => {
-            mutateSelectedCard((card) => {
+            updateSelectedCardArtTransform((card) => {
                 resetCardArtTransform(card);
             });
         });
@@ -869,7 +901,7 @@
                 const parsed = JSON.parse(reader.result);
                 const importSummary = applyDataSet(parsed, true);
                 const conversionNote = importSummary.convertedLegacyMoves > 0
-                    ? ` and converted ${importSummary.convertedLegacyMoves} legacy Siegling ${importSummary.convertedLegacyMoves === 1 ? "ability" : "abilities"} into shared abilities`
+                    ? ` and converted ${importSummary.convertedLegacyMoves} legacy Siegeling ${importSummary.convertedLegacyMoves === 1 ? "ability" : "abilities"} into shared abilities`
                     : "";
                 setStatus(`Imported ${file.name}${conversionNote}. Review and save when ready.`, "warning");
                 renderAll();
@@ -1242,7 +1274,7 @@
         });
     }
 
-    function mutateSelectedCard(mutator) {
+    function mutateSelectedCard(mutator, options = {}) {
         const card = getSelectedCard();
         if (!card) {
             return;
@@ -1251,7 +1283,52 @@
         state.dirty = true;
         state.validation = validateDashboard();
         setStatus("You have unsaved changes in the dashboard.", "warning");
-        renderAll();
+        if (options.render !== false) {
+            renderAll();
+        }
+    }
+
+    function updateSelectedCardArtTransform(mutator) {
+        const card = getSelectedCard();
+        if (!card) {
+            return;
+        }
+        mutator(card);
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        applyCardArtTransformToPreview(card);
+        syncCardArtTransformControls(card);
+        renderPreview();
+        renderValidation();
+        renderChrome();
+        renderStatus();
+    }
+
+    function clearEphemeralCardArtPreview() {
+        if (state.ephemeralCardArtPreview?.url) {
+            URL.revokeObjectURL(state.ephemeralCardArtPreview.url);
+        }
+        state.ephemeralCardArtPreview = null;
+    }
+
+    function setEphemeralCardArtPreview(cardId, url) {
+        clearEphemeralCardArtPreview();
+        state.ephemeralCardArtPreview = {
+            cardId: String(cardId || "").trim(),
+            url
+        };
+    }
+
+    function getEphemeralCardArtPreviewUrl(cardId) {
+        const preview = state.ephemeralCardArtPreview;
+        if (!preview?.url) {
+            return "";
+        }
+        if (preview.cardId !== String(cardId || "").trim()) {
+            return "";
+        }
+        return preview.url;
     }
 
     function mutateSelectedAbility(mutator) {
@@ -1318,6 +1395,9 @@
     }
 
     function applyDataSet(data, dirty) {
+        if (!dirty) {
+            clearEphemeralCardArtPreview();
+        }
         const preparedData = prepareImportedDataSet(data);
         const resolvedData = preparedData.data;
         const cards = Array.isArray(resolvedData?.cards)
@@ -1436,7 +1516,7 @@
         const moveId = createImportedMoveId(baseId, usedMoveIds);
         const move = normalizeMoveFromServer({
             id: moveId,
-            name: normalizedAbility.name || `${String(card?.name || "Imported Siegling").trim()} Move ${index + 1}`,
+            name: normalizedAbility.name || `${String(card?.name || "Imported Siegeling").trim()} Move ${index + 1}`,
             element,
             category: normalizedAbility.passive ? "UTILITY" : "STANDARD",
             targetType: normalizedAbility.targetType,
@@ -1472,6 +1552,33 @@
     function normalizeCardArtMode(value) {
         const mode = String(value || "").trim().toUpperCase();
         return mode === "REPLACE" || mode === "OVERLAY" ? mode : "";
+    }
+
+    function defaultCardArtPath(cardId) {
+        const normalizedId = slugify(cardId);
+        return normalizedId ? `/assets/cards/${normalizedId}.png` : "";
+    }
+
+    function isHostedCardArtUrl(cardArtUrl) {
+        const url = String(cardArtUrl || "").trim();
+        return /^https?:\/\//i.test(url);
+    }
+
+    function isProjectRelativeCardArtPath(cardArtUrl) {
+        const url = String(cardArtUrl || "").trim();
+        return url.startsWith("/assets/cards/") && !isHostedCardArtUrl(url);
+    }
+
+    function cardArtPathMatchesCardId(cardId, cardArtUrl) {
+        const normalizedId = slugify(cardId);
+        const url = String(cardArtUrl || "").trim().toLowerCase();
+        if (!normalizedId || !url) {
+            return true;
+        }
+        if (url.startsWith("data:") || /^https?:\/\//i.test(url)) {
+            return true;
+        }
+        return url.includes(normalizedId);
     }
 
     function clampCardArtScale(value) {
@@ -1668,9 +1775,7 @@
         const url = String(card?.cardArtUrl || "").trim();
         if (url) {
             exported.cardArtUrl = url;
-            if (card.cardArtMode) {
-                exported.cardArtMode = card.cardArtMode;
-            }
+            exported.cardArtMode = normalizeCardArtMode(card?.cardArtMode) || "REPLACE";
             const offsetX = toNumber(card.cardArtOffsetX, 0);
             const offsetY = toNumber(card.cardArtOffsetY, 0);
             const scale = clampCardArtScale(card.cardArtScale ?? 1);
@@ -1834,7 +1939,7 @@
         return normalizeCard({
             type: "SIEGLING",
             id: createUniqueCardId("new-siegling"),
-            name: "New Siegling",
+            name: "New Siegeling",
             element,
             rarity: firstMetaValue("rarities", "COMMON"),
             health: 10,
@@ -2326,7 +2431,7 @@
         refs.actionTypeFilterSelect.classList.toggle("hidden", state.editorPage !== "ACTION");
         refs.browserTitle.textContent = state.editorPage === "ACTION"
             ? "Spells And Traps"
-            : (state.editorPage === "MOVES_POOL" ? "Shared Abilities" : "Sieglings");
+            : (state.editorPage === "MOVES_POOL" ? "Shared Abilities" : "Siegelings");
         refs.showSieglingsBtn.classList.toggle("active", state.editorPage === "SIEGLING");
         refs.showActionsBtn.classList.toggle("active", state.editorPage === "ACTION");
         refs.showTrainersBtn.classList.toggle("active", state.editorPage === "TRAINERS");
@@ -2605,11 +2710,16 @@
     }
 
     function toBinderPreviewCard(card) {
+        const ephemeralArtUrl = getEphemeralCardArtPreviewUrl(card.id);
         const preview = {
             ...card,
             type: card.cardType,
             abilities: card.cardType === "SIEGLING" ? [] : (card.abilities || [])
         };
+        if (ephemeralArtUrl) {
+            preview.cardArtUrl = ephemeralArtUrl;
+            preview.cardArtMode = preview.cardArtMode || "REPLACE";
+        }
         if (card.cardType !== "SIEGLING" && preview.abilities[0]) {
             preview.ability = preview.abilities[0];
         }
@@ -2661,9 +2771,32 @@
         });
         if (refs.cardArtUrlInput && document.activeElement !== refs.cardArtUrlInput) {
             setInputValue(refs.cardArtUrlInput, card.cardArtUrl || "");
+            refs.cardArtUrlInput.placeholder = defaultCardArtPath(card.id) || "/assets/cards/example.png";
         }
         syncCardArtTransformControls(card);
         setupCardArtDragInteraction(card);
+        attachCardArtPreviewErrorHandler(card);
+    }
+
+    function attachCardArtPreviewErrorHandler(card) {
+        if (getEphemeralCardArtPreviewUrl(card.id)) {
+            return;
+        }
+        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card");
+        if (!artImg) {
+            return;
+        }
+        artImg.addEventListener("error", () => {
+            const artUrl = String(card.cardArtUrl || "").trim();
+            if (!artUrl) {
+                return;
+            }
+            setStatus(
+                `Card art did not load (${artUrl}). Use Upload Image to host the file, or fix the Art URL path (expected ${defaultCardArtPath(card.id) || "/assets/cards/<card-id>.png"}).`,
+                "error"
+            );
+            renderStatus();
+        }, { once: true });
     }
 
     function renderSummary() {
@@ -2798,7 +2931,7 @@
                         <strong>${escapeHtml(deck.name || "Unnamed Deck")}</strong>
                         <span class="summary-badge">${escapeHtml(statusBadge)} | ${deck.cardIds.length} cards</span>
                     </div>
-                    <div class="card-meta">${escapeHtml(`${counts.sieglings} Sieglings | ${counts.spells} Spells | ${counts.traps} Traps`)}</div>
+                    <div class="card-meta">${escapeHtml(`${counts.sieglings} Siegelings | ${counts.spells} Spells | ${counts.traps} Traps`)}</div>
                     <div class="card-id">${escapeHtml(deck.id || "missing-id")}</div>
                 </div>
             `;
@@ -2883,7 +3016,7 @@
                 </div>
                 <div class="stat-strip">
                     <span class="stat-chip">${deck.cardIds.length} cards</span>
-                    <span class="stat-chip">${counts.sieglings} Sieglings</span>
+                    <span class="stat-chip">${counts.sieglings} Siegelings</span>
                     <span class="stat-chip">${counts.spells} Spells</span>
                     <span class="stat-chip">${counts.traps} Traps</span>
                 </div>
@@ -3226,7 +3359,22 @@
         refs.deleteDeckBtn.disabled = !hasDeck;
         refs.clearDeckCardsBtn.disabled = !hasDeck;
         refs.duplicateTrainerBtn.disabled = !hasTrainer;
-        refs.saveProjectBtn.disabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
+        const saveDisabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
+        refs.saveProjectBtn.disabled = saveDisabled;
+        refs.saveProjectBtn.title = saveDisabled ? describeSaveButtonState(hasErrors) : "";
+    }
+
+    function describeSaveButtonState(hasErrors) {
+        if (!state.dirty) {
+            return "No unsaved changes yet.";
+        }
+        if (!canSaveCurrentData()) {
+            return saveUnavailableMessage();
+        }
+        if (!state.liveEditingEnabled && hasErrors) {
+            return "Fix validation errors before saving to the project file.";
+        }
+        return "";
     }
 
     function renderCardIdOptions() {
@@ -3415,7 +3563,7 @@
         return [
             deck.active ? "Active in loadout" : "Hidden from loadout",
             `${deck.cardIds.length} cards`,
-            `${counts.sieglings} Sieglings`,
+            `${counts.sieglings} Siegelings`,
             `${counts.spells} Spells`,
             `${counts.traps} Traps`,
             elements.length > 0 ? elements.map(formatEnumLabel).join(" / ") : "No element focus"
@@ -3449,6 +3597,16 @@
                 ));
             } else if (cardArtUrl.length > 2048) {
                 issues.push(issue("error", `${trimmedId || card.name || "A card"} cardArtUrl is too long for Firestore.`));
+            } else if (state.liveEditingEnabled && isProjectRelativeCardArtPath(cardArtUrl)) {
+                issues.push(issue(
+                    "error",
+                    `${trimmedId || card.name || "A card"} uses ${cardArtUrl}, which is not hosted for the live game. Use Upload Image so art is stored in cloud storage, then publish again.`
+                ));
+            } else if (card.cardArtMode && !cardArtPathMatchesCardId(trimmedId, cardArtUrl)) {
+                issues.push(issue(
+                    "warn",
+                    `${trimmedId || card.name || "A card"} art path "${cardArtUrl}" does not include the card id "${trimmedId}". Use Upload Image or ${defaultCardArtPath(trimmedId) || "/assets/cards/<card-id>.png"}.`
+                ));
             }
             if (card.cardType === "SIEGLING") {
                 if (card.health <= 0) {
@@ -3468,16 +3626,16 @@
                 }
                 const mids = card.moveIds || [];
                 if (mids.length === 0) {
-                    issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} needs at least one move id from the shared moves pool.`));
+                    issues.push(issue("error", `${trimmedId || card.name || "A Siegeling"} needs at least one move id from the shared moves pool.`));
                 }
                 const seenMid = new Set();
                 mids.forEach((mid) => {
                     if (seenMid.has(mid)) {
-                        issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} lists move "${mid}" more than once.`));
+                        issues.push(issue("error", `${trimmedId || card.name || "A Siegeling"} lists move "${mid}" more than once.`));
                     }
                     seenMid.add(mid);
                     if (!findMoveById(mid)) {
-                        issues.push(issue("error", `${trimmedId || card.name || "A Siegling"} references unknown move id "${mid}".`));
+                        issues.push(issue("error", `${trimmedId || card.name || "A Siegeling"} references unknown move id "${mid}".`));
                     }
                 });
             } else if (card.cardType === "SPELL") {
@@ -4133,6 +4291,35 @@
         return data;
     }
 
+    async function uploadCardArtFile(cardId, file) {
+        const formData = new FormData();
+        formData.append("cardId", cardId);
+        formData.append("file", file);
+        const response = await fetch(apiUrl("/api/cards/editor/art"), buildRequestOptions({
+            method: "POST",
+            body: formData
+        }));
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(formatCardArtUploadError(data?.error, response.status));
+        }
+        return data;
+    }
+
+    function formatCardArtUploadError(message, status) {
+        const detail = String(message || "").trim();
+        if (status === 404) {
+            return detail || "Card art upload is not available on this server (missing /api/cards/editor/art). Deploy the latest Firebase api function.";
+        }
+        if (status === 401 || status === 403) {
+            return detail || "Sign in under Live Publishing before uploading card art.";
+        }
+        if (detail) {
+            return detail;
+        }
+        return `Card art upload failed with status ${status}.`;
+    }
+
     function buildRequestOptions(options) {
         const headers = new Headers(options?.headers || {});
         const editorToken = getEditorToken();
@@ -4199,7 +4386,10 @@
     }
 
     function formatEnumLabel(value) {
-        return String(value || "")
+        const normalized = String(value || "");
+        if (normalized === "SIEGLING") return "Siegeling";
+        if (normalized === "SIEGLINGS") return "Siegelings";
+        return normalized
             .toLowerCase()
             .split("_")
             .filter(Boolean)
@@ -4614,7 +4804,7 @@
             case "ALL_ALLIES":
                 return `All ${elementPrefix}allies gain ${signedValue} ${statLabel}`;
             case "SELF":
-                return `This Siegling gains ${signedValue} ${statLabel}`;
+                return `This Siegeling gains ${signedValue} ${statLabel}`;
             default:
                 return "";
         }
@@ -4956,7 +5146,7 @@
         refs.movesPoolList.innerHTML = rows.map((m) => {
             const users = getSieglingsUsingMoveId(m.id);
             const active = m.id === state.selectedMoveId && !state.movesPoolIsNewDraft ? " active" : "";
-            const useLabel = users.length === 0 ? "Unused" : `${users.length} Siegling${users.length === 1 ? "" : "s"}`;
+            const useLabel = users.length === 0 ? "Unused" : `${users.length} Siegeling${users.length === 1 ? "" : "s"}`;
             const theme = elementThemeClass(m.element);
             return `
                 <div class="card-row ${theme}${active}" data-pool-move-id="${escapeHtml(m.id)}">
@@ -5013,16 +5203,16 @@
             const storedId = state.movesPoolIsNewDraft ? "" : String(state.selectedMoveId || "").trim();
             const list = storedId ? getSieglingsUsingMoveId(storedId) : [];
             const renameNote = !state.movesPoolIsNewDraft && storedId && idInForm && idInForm !== storedId
-                ? `<p class="section-help">Move id changed in the form — saving will point every Siegling that used <strong>${escapeHtml(storedId)}</strong> at <strong>${escapeHtml(idInForm)}</strong> instead.</p>`
+                ? `<p class="section-help">Move id changed in the form — saving will point every Siegeling that used <strong>${escapeHtml(storedId)}</strong> at <strong>${escapeHtml(idInForm)}</strong> instead.</p>`
                 : "";
             if (state.movesPoolIsNewDraft) {
-                refs.movesPoolUsedBy.innerHTML = `<p class="section-help">Save to add this ability to the pool, then assign it from any Siegling’s move list.</p>`;
+                refs.movesPoolUsedBy.innerHTML = `<p class="section-help">Save to add this ability to the pool, then assign it from any Siegeling’s move list.</p>`;
             } else if (list.length === 0) {
-                refs.movesPoolUsedBy.innerHTML = `${renameNote}<p class="section-help"><strong>Not assigned</strong> — no Siegling references this id yet.</p>`;
+                refs.movesPoolUsedBy.innerHTML = `${renameNote}<p class="section-help"><strong>Not assigned</strong> — no Siegeling references this id yet.</p>`;
             } else {
                 refs.movesPoolUsedBy.innerHTML = `
                     ${renameNote}
-                    <p class="section-help"><strong>Used by ${list.length} Siegling${list.length === 1 ? "" : "s"}</strong> (by move id). Edits to name, effect, and cost apply to every assignment.</p>
+                    <p class="section-help"><strong>Used by ${list.length} Siegeling${list.length === 1 ? "" : "s"}</strong> (by move id). Edits to name, effect, and cost apply to every assignment.</p>
                     <ul class="moves-pool-used-list">${list.map((c) => `<li>${escapeHtml(c.name || c.id)} <span class="card-id-inline">${escapeHtml(c.id)}</span></li>`).join("")}</ul>
                 `;
             }
@@ -5111,7 +5301,7 @@
         }
         const users = getSieglingsUsingMoveId(id);
         const warn = users.length > 0
-            ? `Delete "${id}" from the pool? It will be removed from ${users.length} Siegling deck list${users.length === 1 ? "" : "s"}.`
+            ? `Delete "${id}" from the pool? It will be removed from ${users.length} Siegeling deck list${users.length === 1 ? "" : "s"}.`
             : `Delete "${id}" from the shared pool?`;
         if (!window.confirm(warn)) {
             return;

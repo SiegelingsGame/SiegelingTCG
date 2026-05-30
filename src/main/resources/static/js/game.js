@@ -133,6 +133,7 @@ function welcomeLeaderboardBoards() {
 }
 let authMode = 'login';
 let authRegisterStep = 'credentials';
+let authPopupOpen = false;
 let registerDraft = { email: '', password: '' };
 let authState = {
     token: loadSavedAuthToken(),
@@ -765,9 +766,34 @@ function buildCardArtMeta(entry) {
     };
 }
 
+function getDashboardCardArtMeta(card) {
+    if (!card) {
+        return null;
+    }
+    const url = String(card.cardArtUrl || '').trim();
+    const mode = String(card.cardArtMode || '').trim().toUpperCase();
+    if (!url || (mode !== 'REPLACE' && mode !== 'OVERLAY')) {
+        return null;
+    }
+    return {
+        url,
+        mode,
+        transformStyle: window.SieglingsCardBinderVisual?.buildArtTransformStyle(card) || ''
+    };
+}
+
 function getCardArtMeta(card) {
     if (!card) {
         return null;
+    }
+
+    const dashboardArt = getDashboardCardArtMeta(card);
+    if (dashboardArt?.url) {
+        return {
+            url: dashboardArt.url,
+            crop: dashboardArt.mode === 'REPLACE' ? 'illustration' : 'default',
+            transformStyle: dashboardArt.transformStyle
+        };
     }
 
     const candidates = [
@@ -796,7 +822,8 @@ function renderCardArt(card, variant, fallbackLabel = '') {
         const cropClass = artMeta.crop && artMeta.crop !== 'default'
             ? ` card-art-crop-${artMeta.crop}`
             : '';
-        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${artMeta.url}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"></div>`;
+        const styleAttr = artMeta.transformStyle ? ` style="${escapeHtmlAttribute(artMeta.transformStyle)}"` : '';
+        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${escapeHtmlAttribute(artMeta.url)}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
@@ -1351,21 +1378,55 @@ function ensureDomTargetingPreviewLayer() {
     return svg;
 }
 
-function getDomCellCenter(isPlayer, row, col) {
+// Resolve the rendered card's box (relative to the board area) for a given
+// cell. We anchor to the inner `.board-card` element rather than the `.board-cell`
+// so arrows attach to the visible card, not the larger padded grid slot (which
+// also contains the row tag). Falls back to the cell when no card is present.
+function getDomCardRect(isPlayer, row, col) {
     const boardArea = document.getElementById('boardArea');
     const grid = document.getElementById(isPlayer ? 'playerGrid' : 'enemyGrid');
     const cell = grid?.querySelector(`.board-cell[data-row="${row}"][data-col="${col}"]`);
     if (!boardArea || !cell) {
         return null;
     }
+    const anchor = cell.querySelector(':scope > .board-card') || cell;
     const areaRect = boardArea.getBoundingClientRect();
-    const cellRect = cell.getBoundingClientRect();
-    if (cellRect.width <= 0 || cellRect.height <= 0) {
+    const rect = anchor.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
         return null;
     }
     return {
-        x: (cellRect.left - areaRect.left) + (cellRect.width / 2),
-        y: (cellRect.top - areaRect.top) + (cellRect.height / 2)
+        left: rect.left - areaRect.left,
+        top: rect.top - areaRect.top,
+        width: rect.width,
+        height: rect.height
+    };
+}
+
+function getDomCellCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: rect.top + (rect.height / 2)
+    };
+}
+
+// Source anchor for attack lines: the centre of the card's FRONT edge — the
+// edge facing the opponent. Player cards face upward (front = top edge); enemy
+// cards face downward (front = bottom edge). Computed from the live card box so
+// the line consistently starts at the front-centre of the attacking card on any
+// screen size.
+function getDomCardFrontCenter(isPlayer, row, col) {
+    const rect = getDomCardRect(isPlayer, row, col);
+    if (!rect) {
+        return null;
+    }
+    return {
+        x: rect.left + (rect.width / 2),
+        y: isPlayer ? rect.top : rect.top + rect.height
     };
 }
 
@@ -1388,7 +1449,7 @@ function drawDomTargetingPreview(timestamp) {
 
     // Resolve live cell centers every frame so the arrows track the board as it
     // resizes, scrolls, or reflows instead of pointing at stale cached pixels.
-    const source = getDomCellCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
+    const source = getDomCardFrontCenter(state.sourceCell.isPlayer, state.sourceCell.row, state.sourceCell.col);
     const targets = [];
     state.targetCells.forEach((cell) => {
         const center = getDomCellCenter(cell.isPlayer, cell.row, cell.col);
@@ -4607,6 +4668,25 @@ function clearAuthState() {
     renderSavedDecks();
 }
 
+function renderPlayHubAuth() {
+    const pill = document.querySelector('.play-hub-pill');
+    if (!pill) {
+        return;
+    }
+    if (authState.profile?.authenticated) {
+        const name = authState.profile.user?.displayName || 'Profile';
+        pill.textContent = name;
+        pill.href = '/profile';
+        pill.classList.add('is-authenticated');
+        pill.setAttribute('aria-label', `Signed in as ${name}. Open profile.`);
+        return;
+    }
+    pill.textContent = 'Sign In';
+    pill.href = '/profile';
+    pill.classList.remove('is-authenticated');
+    pill.removeAttribute('aria-label');
+}
+
 function getAuthHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
     if (authState.token && !headers.Authorization) {
@@ -5084,7 +5164,7 @@ function setAuthMode(mode) {
     authMode = mode;
     authRegisterStep = 'credentials';
     authState.error = '';
-    renderWelcomeAuth();
+    renderAuthPopup();
 }
 
 function beginRegisterDisplayName() {
@@ -5092,24 +5172,128 @@ function beginRegisterDisplayName() {
     const password = document.getElementById('welcomePasswordInput')?.value || '';
     if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
         authState.error = 'Enter a valid email address.';
-        renderWelcomeAuth();
+        renderAuthPopup();
         return;
     }
     if (!password || password.length < 6) {
         authState.error = 'Passwords must be at least 6 characters.';
-        renderWelcomeAuth();
+        renderAuthPopup();
         return;
     }
     registerDraft = { email, password };
     authRegisterStep = 'display-name';
     authState.error = '';
-    renderWelcomeAuth();
+    renderAuthPopup();
 }
 
 function backRegisterCredentials() {
     authRegisterStep = 'credentials';
     authState.error = '';
-    renderWelcomeAuth();
+    renderAuthPopup();
+}
+
+// Open the sign-in popup over the Play screen (no navigation away).
+function openAuthPopup(mode) {
+    authMode = mode === 'register' ? 'register' : 'login';
+    authRegisterStep = 'credentials';
+    authState.error = '';
+    authState.loading = false;
+    authPopupOpen = true;
+    renderAuthPopup();
+}
+
+function closeAuthPopup(event) {
+    if (event) {
+        // Only close when the backdrop or the close button is clicked,
+        // not when interacting with the form itself.
+        const overlay = document.getElementById('authPopupOverlay');
+        if (event.target !== overlay && !event.target.closest('.auth-popup-close')) {
+            return;
+        }
+    }
+    authPopupOpen = false;
+    authState.error = '';
+    authRegisterStep = 'credentials';
+    document.getElementById('authPopupOverlay')?.classList.add('hidden');
+}
+
+// Builds the credential / display-name form shared by the popup.
+function buildAuthFormMarkup() {
+    const draftEmail = document.getElementById('welcomeEmailInput')?.value || registerDraft.email || '';
+    const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
+    const draftPassword = document.getElementById('welcomePasswordInput')?.value || registerDraft.password || '';
+    const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
+    const onRegisterNameStep = authMode === 'register' && authRegisterStep === 'display-name';
+
+    if (onRegisterNameStep) {
+        return `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>Choose your display name</h3>
+            <div class="welcome-auth-meta">${escapeHtml(registerDraft.email)}</div>
+            <label class="online-field">
+                <span>Display Name</span>
+                <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}" autofocus>
+            </label>
+            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
+            <div class="welcome-auth-actions">
+                <button class="btn welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="backRegisterCredentials()">Back</button>
+                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('register')">
+                    ${authState.loading ? 'Working...' : 'Confirm'}
+                </button>
+            </div>
+        `;
+    }
+
+    const primaryAuthAction = authMode === 'register'
+        ? 'beginRegisterDisplayName()'
+        : `submitAuth('${authMode}')`;
+    return `
+        <div class="welcome-eyebrow">ACCOUNT</div>
+        <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+        <div class="welcome-auth-tabs">
+            <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
+            <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
+        </div>
+        <label class="online-field">
+            <span>Email</span>
+            <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
+        </label>
+        ${authMode === 'reset-password' ? `
+            <label class="online-field">
+                <span>Reset Code</span>
+                <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
+            </label>
+        ` : ''}
+        <label class="online-field">
+            <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
+            <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
+        </label>
+        ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
+        <div class="welcome-auth-actions">
+            <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="${primaryAuthAction}">
+                ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Register')}
+            </button>
+        </div>
+    `;
+}
+
+function renderAuthPopup() {
+    const overlay = document.getElementById('authPopupOverlay');
+    const body = document.getElementById('authPopupBody');
+    if (!overlay || !body) {
+        return;
+    }
+    overlay.classList.toggle('hidden', !authPopupOpen);
+    if (!authPopupOpen) {
+        return;
+    }
+    body.innerHTML = buildAuthFormMarkup();
+    if (!authState.loading) {
+        const firstInput = body.querySelector('input');
+        if (firstInput) {
+            setTimeout(() => firstInput.focus(), 0);
+        }
+    }
 }
 
 async function submitAuth(mode) {
@@ -5124,7 +5308,7 @@ async function submitAuth(mode) {
     const resetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
     authState.loading = true;
     authState.error = '';
-    renderWelcomeAuth();
+    renderAuthPopup();
 
     const body = mode === 'register'
         ? { email, password, displayName }
@@ -5141,7 +5325,7 @@ async function submitAuth(mode) {
     authState.loading = false;
     if (!data || data.error || !data.authenticated) {
         authState.error = data?.error || 'Unable to sign in right now.';
-        renderWelcomeAuth();
+        renderAuthPopup();
         return;
     }
 
@@ -5150,12 +5334,10 @@ async function submitAuth(mode) {
     authState.error = '';
     authRegisterStep = 'credentials';
     registerDraft = { email: '', password: '' };
-    // After signing in or creating an account, send players to the Home hub
-    // (skip when joining via an invite link, where they intend to play right away).
-    if ((mode === 'login' || mode === 'register') && data.authenticated && !isInviteJoinFlow()) {
-        window.location.href = '/home';
-        return;
-    }
+    // Sign in completes in place on the Play screen — close the popup and
+    // refresh the account card / loadout without navigating away.
+    authPopupOpen = false;
+    document.getElementById('authPopupOverlay')?.classList.add('hidden');
     hydrateSavedPlayerName();
     renderWelcomeAuth();
     renderSavedDecks();
@@ -5208,6 +5390,7 @@ async function logoutAccount() {
 }
 
 function renderWelcomeAuth() {
+    renderPlayHubAuth();
     const authCard = document.getElementById('welcomeAuthCard');
     const historyCard = document.getElementById('welcomeHistoryCard');
     if (!authCard || !historyCard) {
@@ -5260,64 +5443,16 @@ function renderWelcomeAuth() {
         return;
     }
 
-    const draftEmail = document.getElementById('welcomeEmailInput')?.value || registerDraft.email || '';
-    const draftDisplayName = document.getElementById('welcomeDisplayNameInput')?.value || '';
-    const draftPassword = document.getElementById('welcomePasswordInput')?.value || registerDraft.password || '';
-    const draftResetCode = document.getElementById('welcomeResetCodeInput')?.value || '';
-    const onRegisterNameStep = authMode === 'register' && authRegisterStep === 'display-name';
-
-    if (onRegisterNameStep) {
-        authCard.innerHTML = `
-            <div class="welcome-eyebrow">ACCOUNT</div>
-            <h3>Choose your display name</h3>
-            <div class="welcome-auth-meta">${escapeHtml(registerDraft.email)}</div>
-            <label class="online-field">
-                <span>Display Name</span>
-                <input type="text" id="welcomeDisplayNameInput" maxlength="20" placeholder="Arena name" value="${escapeHtmlAttribute(draftDisplayName)}" autofocus>
-            </label>
-            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
-            <div class="welcome-auth-actions">
-                <button class="btn welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="backRegisterCredentials()">Back</button>
-                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="submitAuth('register')">
-                    ${authState.loading ? 'Working...' : 'Confirm'}
-                </button>
-            </div>
-            <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
-        `;
-    } else {
-        const primaryAuthAction = authMode === 'register'
-            ? 'beginRegisterDisplayName()'
-            : `submitAuth('${authMode}')`;
-        authCard.innerHTML = `
-            <div class="welcome-eyebrow">ACCOUNT</div>
-            <h3>${authMode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
-            <div class="welcome-auth-tabs">
-                <button class="welcome-auth-tab${authMode === 'login' ? ' active' : ''}" type="button" aria-selected="${authMode === 'login'}" onclick="setAuthMode('login')">Log In</button>
-                <button class="welcome-auth-tab${authMode === 'register' ? ' active' : ''}" type="button" aria-selected="${authMode === 'register'}" onclick="setAuthMode('register')">Register</button>
-            </div>
-            <label class="online-field">
-                <span>Email</span>
-                <input type="email" id="welcomeEmailInput" placeholder="you@example.com" value="${escapeHtmlAttribute(draftEmail)}">
-            </label>
-            ${authMode === 'reset-password' ? `
-                <label class="online-field">
-                    <span>Reset Code</span>
-                    <input type="password" id="welcomeResetCodeInput" placeholder="Server recovery code" value="${escapeHtmlAttribute(draftResetCode)}">
-                </label>
-            ` : ''}
-            <label class="online-field">
-                <span>${authMode === 'reset-password' ? 'New Password' : 'Password'}</span>
-                <input type="password" id="welcomePasswordInput" placeholder="At least 6 characters" value="${escapeHtmlAttribute(draftPassword)}">
-            </label>
-            ${authState.error ? `<div class="welcome-auth-error">${escapeHtml(authState.error)}</div>` : ''}
-            <div class="welcome-auth-actions">
-                <button class="btn btn-primary welcome-auth-submit" type="button" ${authState.loading ? 'disabled' : ''} onclick="${primaryAuthAction}">
-                    ${authState.loading ? 'Working...' : (authMode === 'login' ? 'Log In' : 'Register')}
-                </button>
-                <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
-            </div>
-        `;
-    }
+    authCard.innerHTML = `
+        <div class="welcome-eyebrow">ACCOUNT</div>
+        <h3>Pick up where you left off</h3>
+        <p class="welcome-auth-prompt">Sign in or create an account to save your decks, track your match history, and rejoin the arena with your builds intact.</p>
+        <div class="welcome-auth-actions">
+            <button class="btn btn-primary welcome-auth-submit" type="button" onclick="openAuthPopup('login')">Log In</button>
+            <button class="btn welcome-auth-submit" type="button" onclick="openAuthPopup('register')">Register</button>
+        </div>
+        <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
+    `;
 
     historyCard.innerHTML = `
         <div class="welcome-eyebrow">WHY SIGN IN</div>
@@ -5328,6 +5463,119 @@ function renderWelcomeAuth() {
             <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
         </div>
     `;
+}
+
+function getSavedDeckElements(savedDeck) {
+    if (!savedDeck) return ['NEUTRAL'];
+    if (savedDeck.custom) {
+        const elements = [...new Set((savedDeck.customDeckCards || []).map(cardId => {
+            return gameOptions?.cardCatalog?.find(card => card.id === cardId)?.element;
+        }).filter(Boolean))].slice(0, 4);
+        return elements.length ? elements : ['NEUTRAL'];
+    }
+    const preset = gameOptions?.decks?.find(deck => deck.id === savedDeck.deckId);
+    return preset?.elements?.length ? preset.elements : ['NEUTRAL'];
+}
+
+function getSavedDeckDescription(savedDeck) {
+    if (!savedDeck) return '';
+    if (savedDeck.custom) {
+        const count = (savedDeck.customDeckCards || []).length;
+        return `${count} card custom build from your binder.`;
+    }
+    return savedDeck.deckName
+        ? `Saved preset: ${savedDeck.deckName}.`
+        : 'Saved premade loadout.';
+}
+
+function getSelectedSavedDeck() {
+    return authState.profile?.savedDecks?.find(deck => deck.id === selectedSavedDeckId) || null;
+}
+
+function applySavedDeckState(savedDeck) {
+    if (!savedDeck) return;
+    selectedSavedDeckId = savedDeck.id;
+    selectedTrainerId = savedDeck.trainerId || selectedTrainerId;
+    if (savedDeck.custom) {
+        builderCounts = buildCountsFromCardList(savedDeck.customDeckCards || []);
+    } else {
+        builderCounts = {};
+        selectedDeckId = savedDeck.deckId || selectedDeckId;
+    }
+    const input = document.getElementById('saveDeckNameInput');
+    if (input) {
+        input.value = savedDeck.name || '';
+    }
+}
+
+function selectSavedDeckForLoadout(deckId) {
+    const savedDeck = authState.profile?.savedDecks?.find(deck => deck.id === deckId);
+    if (!savedDeck) return;
+    applySavedDeckState(savedDeck);
+    renderLoadoutOptions();
+    updateLoadoutSummary();
+}
+
+function renderSavedDeckLoadoutOptions() {
+    const optionsEl = document.getElementById('savedDeckOptions');
+    const noteEl = document.getElementById('savedDeckLoadoutNote');
+    if (!optionsEl) return;
+
+    if (!authState.profile?.authenticated) {
+        if (noteEl) {
+            noteEl.textContent = 'Sign in to use decks saved on the home Decks screen.';
+        }
+        optionsEl.innerHTML = '<div class="builder-empty">Sign in to pick saved custom and premade decks from your binder.</div>';
+        return;
+    }
+
+    const savedDecks = authState.profile.savedDecks || [];
+    if (noteEl) {
+        noteEl.textContent = savedDecks.length
+            ? 'Pick a deck you saved on the home Decks screen, then choose your SiegeKnight.'
+            : 'No saved decks yet. Create one on the home Decks screen, or use Preset Decks / Deck Builder here.';
+    }
+    if (!savedDecks.length) {
+        optionsEl.innerHTML = '<div class="builder-empty">No saved decks in your binder yet.</div>';
+        return;
+    }
+
+    optionsEl.innerHTML = savedDecks.map(savedDeck => {
+        const selected = savedDeck.id === selectedSavedDeckId;
+        const elements = getSavedDeckElements(savedDeck);
+        const bg = buildDeckBackground(elements);
+        const borderColor = buildDeckBorderColors(elements);
+        const elementLabels = elements.map(formatElementLabel).join(' / ');
+        const elClasses = elements.map(element => `el-${element.toLowerCase()}`).join(' ');
+        const primaryElement = elements[0] || 'NEUTRAL';
+        const primaryHex = getElementHex(primaryElement);
+        const deckArt = deckArtAssetForElements(elements);
+        const artStyle = deckArt?.back ? `;--deck-art:url('${deckArt.back}')` : '';
+        const presetDeck = savedDeck.custom ? null : gameOptions.decks.find(deck => deck.id === savedDeck.deckId);
+        const theme = getDeckLoadoutTheme(presetDeck);
+        const traits = savedDeck.custom
+            ? ['Custom', 'Binder', 'Saved']
+            : (theme.traits || []).slice(0, 3);
+        const spineBands = elements.map(element => {
+            const color = getElementHex(element);
+            return `<div class="spine-band" style="background:${color}"></div>`;
+        }).join('');
+        const faceSigils = deckArt ? '' : buildDeckFaceSigils(elements);
+        const stateLabel = savedDeck.custom ? 'Custom' : 'Saved';
+
+        return `<button type="button" class="deck-card${selected ? ' selected' : ''} ${elClasses}${deckArt ? ' has-deck-art' : ''}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}${artStyle}" onclick="selectSavedDeckForLoadout('${savedDeck.id}')" aria-pressed="${selected ? 'true' : 'false'}">
+            <div class="deck-card-spine">${spineBands}</div>
+            ${faceSigils}
+            <span class="deck-card-state">${selected ? 'Selected' : escapeHtml(stateLabel)}</span>
+            <div class="deck-card-body">
+                <span class="deck-card-name">${escapeHtml(savedDeck.name || 'Saved Deck')}</span>
+                <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
+                <span class="deck-card-desc">${escapeHtml(getSavedDeckDescription(savedDeck))}</span>
+                <span class="deck-card-tags">${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}</span>
+                <span class="deck-card-meta-line">${escapeHtml(savedDeck.trainerName || 'SiegeKnight')}</span>
+            </div>
+        </button>`;
+    }).join('');
 }
 
 function renderSavedDecks() {
@@ -5358,7 +5606,7 @@ function renderSavedDecks() {
                     <span>${escapeHtml(deck.custom ? `Custom build (${deck.customDeckCards.length} cards)` : (deck.deckName || 'Preset deck'))} | ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
                 </div>
                 <div class="saved-deck-row-actions">
-                    <button class="btn" type="button" onclick="loadSavedDeck('${deck.id}')">Load</button>
+                    <button class="btn" type="button" onclick="loadSavedDeck('${deck.id}')">Select</button>
                     <button class="btn" type="button" onclick="deleteSavedDeck('${deck.id}')">Delete</button>
                 </div>
             </div>
@@ -5378,8 +5626,8 @@ function detachSavedDeckSelection() {
 }
 
 function getActiveLoadoutLabel() {
-    const savedDeck = authState.profile?.savedDecks?.find(deck => deck.id === selectedSavedDeckId);
-    if (savedDeck) {
+    const savedDeck = getSelectedSavedDeck();
+    if (loadoutMode === 'saved' && savedDeck) {
         return savedDeck.name;
     }
     const saveName = document.getElementById('saveDeckNameInput')?.value?.trim();
@@ -5426,28 +5674,8 @@ async function saveCurrentLoadout() {
 }
 
 function loadSavedDeck(deckId) {
-    const savedDeck = authState.profile?.savedDecks?.find(deck => deck.id === deckId);
-    if (!savedDeck) {
-        return;
-    }
-
-    selectedSavedDeckId = deckId;
-    selectedTrainerId = savedDeck.trainerId;
-    if (savedDeck.custom) {
-        loadoutMode = 'builder';
-        builderCounts = buildCountsFromCardList(savedDeck.customDeckCards);
-    } else {
-        loadoutMode = 'preset';
-        builderCounts = {};
-        selectedDeckId = savedDeck.deckId;
-    }
-
-    const input = document.getElementById('saveDeckNameInput');
-    if (input) {
-        input.value = savedDeck.name;
-    }
-    renderLoadoutOptions();
-    updateLoadoutSummary();
+    loadoutMode = 'saved';
+    selectSavedDeckForLoadout(deckId);
 }
 
 async function deleteSavedDeck(deckId) {
@@ -6270,7 +6498,9 @@ function selectTrainerOption(trainerId) {
     if (trainer && trainer.owned === false) {
         return;
     }
-    detachSavedDeckSelection();
+    if (loadoutMode !== 'saved') {
+        detachSavedDeckSelection();
+    }
     selectedTrainerId = trainerId;
     renderLoadoutOptions();
     updateLoadoutSummary();
@@ -6296,8 +6526,17 @@ function ensureOwnedTrainerSelected() {
 }
 
 function switchLoadoutMode(mode) {
-    detachSavedDeckSelection();
+    if (mode !== 'saved') {
+        detachSavedDeckSelection();
+    }
     loadoutMode = mode;
+    if (mode === 'saved') {
+        const savedDecks = authState.profile?.savedDecks || [];
+        if (savedDecks.length && !selectedSavedDeckId) {
+            selectSavedDeckForLoadout(savedDecks[0].id);
+            return;
+        }
+    }
     renderLoadoutOptions();
     updateLoadoutSummary();
 }
@@ -6529,8 +6768,10 @@ function renderLoadoutOptions() {
     const joinRoomTab = document.getElementById('joinRoomTab');
     const roomCodeField = document.getElementById('roomCodeField');
     const presetTab = document.getElementById('presetTab');
+    const savedTab = document.getElementById('savedTab');
     const builderTab = document.getElementById('builderTab');
     const presetPanel = document.getElementById('presetLoadoutPanel');
+    const savedPanel = document.getElementById('savedLoadoutPanel');
     const builderPanel = document.getElementById('builderLoadoutPanel');
     const loadoutKicker = document.getElementById('loadoutKicker');
     const loadoutTitle = document.getElementById('loadoutTitle');
@@ -6673,12 +6914,17 @@ function renderLoadoutOptions() {
     roomCodeField.classList.toggle('hidden', inviteFlow || onlineRoomMode !== 'join');
 
     presetTab.classList.toggle('active', loadoutMode === 'preset');
+    savedTab?.classList.toggle('active', loadoutMode === 'saved');
     builderTab.classList.toggle('active', loadoutMode === 'builder');
     presetTab.setAttribute('aria-pressed', loadoutMode === 'preset' ? 'true' : 'false');
+    savedTab?.setAttribute('aria-pressed', loadoutMode === 'saved' ? 'true' : 'false');
     builderTab.setAttribute('aria-pressed', loadoutMode === 'builder' ? 'true' : 'false');
     presetPanel.classList.toggle('hidden', loadoutMode !== 'preset');
+    savedPanel?.classList.toggle('hidden', loadoutMode !== 'saved');
     builderPanel.classList.toggle('hidden', loadoutMode !== 'builder');
     loadoutBox?.classList.toggle('loadout-mode-builder', loadoutMode === 'builder');
+    loadoutBox?.classList.toggle('loadout-mode-saved', loadoutMode === 'saved');
+    renderSavedDeckLoadoutOptions();
     renderSelectedLoadoutPreview();
     renderDeckBuilder();
     renderOnlineStatus();
@@ -6760,23 +7006,30 @@ function renderSelectedLoadoutPreview() {
         return;
     }
 
-    const deck = gameOptions.decks.find(item => item.id === selectedDeckId);
+    const savedDeck = loadoutMode === 'saved' ? getSelectedSavedDeck() : null;
+    const deck = loadoutMode === 'saved'
+        ? (savedDeck?.custom ? null : gameOptions.decks.find(item => item.id === savedDeck?.deckId))
+        : gameOptions.decks.find(item => item.id === selectedDeckId);
     const trainer = gameOptions.trainers.find(item => item.id === selectedTrainerId);
-    const theme = loadoutMode === 'builder' ? getDeckLoadoutTheme(null) : getDeckLoadoutTheme(deck);
+    const theme = loadoutMode === 'builder' || (loadoutMode === 'saved' && savedDeck?.custom)
+        ? getDeckLoadoutTheme(null)
+        : getDeckLoadoutTheme(deck);
     const element = theme.element || deck?.elements?.[0] || trainer?.element || 'NEUTRAL';
     const accent = getElementHex(element);
     panel.style.setProperty('--loadout-accent', accent);
     panel.style.setProperty('--loadout-accent-soft', hexToRgba(accent, 0.18));
     panel.style.setProperty('--loadout-accent-glow', hexToRgba(accent, 0.32));
 
-    const deckName = loadoutMode === 'builder'
+    const deckName = loadoutMode === 'builder' || loadoutMode === 'saved'
         ? getActiveLoadoutLabel()
         : (getActiveLoadoutLabel() || deck?.name || 'Choose a Deck');
     const elementLabel = loadoutMode === 'builder'
         ? (collectBuilderElements() || 'Custom Elements')
-        : (deck?.elements || []).map(formatElementLabel).join(' / ');
+        : loadoutMode === 'saved'
+            ? getSavedDeckElements(savedDeck).map(formatElementLabel).join(' / ')
+            : (deck?.elements || []).map(formatElementLabel).join(' / ');
     const traits = theme.traits?.length ? theme.traits : ['Build', 'Adapt', 'Plan'];
-    const recommendedIds = loadoutMode === 'builder' ? [] : getRecommendedTrainerIdsForDeck(deck);
+    const recommendedIds = (loadoutMode === 'builder' || savedDeck?.custom) ? [] : getRecommendedTrainerIdsForDeck(deck);
     const recommendedNames = recommendedIds
         .map(id => gameOptions.trainers.find(item => item.id === id)?.name)
         .filter(Boolean)
@@ -7039,6 +7292,37 @@ function updateLoadoutSummary() {
         return;
     }
 
+    if (loadoutMode === 'saved') {
+        const savedDeck = getSelectedSavedDeck();
+        if (!authState.profile?.authenticated) {
+            summary.textContent = 'Sign in to use decks from your binder.';
+            syncLoadoutStartButton(startBtn, true, startButtonLabel);
+            return;
+        }
+        if (!savedDeck) {
+            summary.textContent = 'Choose a saved deck from your binder, then pick a SiegeKnight.';
+            syncLoadoutStartButton(startBtn, true, startButtonLabel);
+            return;
+        }
+        const cardCount = savedDeck.custom ? (savedDeck.customDeckCards || []).length : null;
+        const valid = savedDeck.custom
+            ? cardCount >= gameOptions.deckBuilder.minDeckSize
+            : Boolean(savedDeck.deckId);
+        const elementList = getSavedDeckElements(savedDeck).map(formatElementLabel).join(' / ');
+        summary.innerHTML = `My Deck: <strong>${escapeHtml(savedDeck.name)}</strong>${cardCount != null ? ` | <strong>${cardCount}</strong> cards` : ''}${elementList ? ` | Elements: <strong>${elementList}</strong>` : ''} | SiegeKnight: <strong>${trainer.name}</strong>${playerName ? ` | Name: <strong>${playerName}</strong>` : ''}`;
+        if (!valid) {
+            summary.innerHTML += savedDeck.custom
+                ? ` | This deck needs at least <strong>${gameOptions.deckBuilder.minDeckSize}</strong> cards.`
+                : ' | This saved deck is missing its premade reference.';
+        }
+        syncLoadoutStartButton(
+            startBtn,
+            loadoutStartPending || !valid || (matchMode === 'online' && onlineRoomMode === 'join' && !getCurrentRoomCode()) || (needsPlayerName && !playerName),
+            startButtonLabel
+        );
+        return;
+    }
+
     if (!deck) {
         summary.textContent = 'Choose a preset deck and SiegeKnight to begin.';
         syncLoadoutStartButton(startBtn, true, startButtonLabel);
@@ -7058,6 +7342,12 @@ async function startSelectedGame() {
     if (!selectedTrainerId) return;
     if (loadoutMode === 'preset' && !selectedDeckId) return;
     if (loadoutMode === 'builder' && getBuilderCardCount() < gameOptions.deckBuilder.minDeckSize) return;
+    if (loadoutMode === 'saved') {
+        const savedDeck = getSelectedSavedDeck();
+        if (!savedDeck) return;
+        if (savedDeck.custom && (savedDeck.customDeckCards || []).length < gameOptions.deckBuilder.minDeckSize) return;
+        if (!savedDeck.custom && !savedDeck.deckId) return;
+    }
 
     loadoutStartPending = true;
     loadoutErrorMessage = '';
@@ -7123,9 +7413,28 @@ function getCurrentRoomCode() {
 }
 
 function getSelectedLoadoutBody() {
-    return loadoutMode === 'builder'
-        ? { trainerId: selectedTrainerId, customDeckCards: getBuilderSelectedCards(), loadoutLabel: getActiveLoadoutLabel() }
-        : { deckId: selectedDeckId, trainerId: selectedTrainerId, loadoutLabel: getActiveLoadoutLabel() };
+    if (loadoutMode === 'builder') {
+        return { trainerId: selectedTrainerId, customDeckCards: getBuilderSelectedCards(), loadoutLabel: getActiveLoadoutLabel() };
+    }
+    if (loadoutMode === 'saved') {
+        const savedDeck = getSelectedSavedDeck();
+        if (!savedDeck) {
+            return { trainerId: selectedTrainerId, loadoutLabel: getActiveLoadoutLabel() };
+        }
+        if (savedDeck.custom) {
+            return {
+                trainerId: selectedTrainerId,
+                customDeckCards: savedDeck.customDeckCards || [],
+                loadoutLabel: savedDeck.name || getActiveLoadoutLabel()
+            };
+        }
+        return {
+            deckId: savedDeck.deckId,
+            trainerId: selectedTrainerId,
+            loadoutLabel: savedDeck.name || getActiveLoadoutLabel()
+        };
+    }
+    return { deckId: selectedDeckId, trainerId: selectedTrainerId, loadoutLabel: getActiveLoadoutLabel() };
 }
 
 async function createRoom() {
@@ -10795,6 +11104,58 @@ function onTrainerUse() {
     }
 }
 
+function renderBoardCardBuffsList(card) {
+    if (!card) return '';
+    const statuses = Array.isArray(card.statuses) ? card.statuses : [];
+    const has = (s) => statuses.includes(s);
+    const entries = [];
+
+    const damageBoost = Number(card.damageBoost) || 0;
+    if (damageBoost > 0) {
+        entries.push({ kind: 'DAMAGE_BOOST', label: 'Damage', amount: damageBoost });
+    } else if (has('DAMAGE_BOOST')) {
+        entries.push({ kind: 'DAMAGE_BOOST', label: 'Damage Boost' });
+    }
+
+    const shield = Number(card.shieldHp) || 0;
+    if (shield > 0) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Shield', amount: shield });
+    } else if (has('HEALTH_BOOST') && !(Number(card.maxHp) > Number(card.printedHealth))) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Shield' });
+    }
+
+    const printedSpeed = Number(card.printedSpeed);
+    const spd = Number(card.spd ?? card.speed);
+    const speedDelta = Number.isFinite(printedSpeed) && Number.isFinite(spd) ? spd - printedSpeed : 0;
+    if (speedDelta > 0) {
+        entries.push({ kind: 'SPEED_BOOST', label: 'Speed', amount: speedDelta });
+    } else if (has('SPEED_BOOST') && speedDelta === 0) {
+        entries.push({ kind: 'SPEED_BOOST', label: 'Speed Boost' });
+    }
+
+    const printedHp = Number(card.printedHealth);
+    const maxHp = Number(card.maxHp);
+    if (Number.isFinite(printedHp) && Number.isFinite(maxHp) && maxHp > printedHp) {
+        entries.push({ kind: 'HEALTH_BOOST', label: 'Max HP', amount: maxHp - printedHp });
+    }
+
+    if (has('FREEZE')) entries.push({ kind: 'FREEZE', label: 'Frozen' });
+    if (has('SPEED_ZERO')) entries.push({ kind: 'SPEED_ZERO', label: 'Stunned' });
+    if (has('WEAK')) entries.push({ kind: 'WEAK', label: 'Weak' });
+    if (has('STRONG')) entries.push({ kind: 'STRONG', label: 'Strong' });
+
+    if (entries.length === 0) return '';
+    const items = entries.map((e) => {
+        const color = STATUS_BADGE_PALETTE[e.kind] || '#cbd5f5';
+        const amount = (typeof e.amount === 'number' && e.amount > 0)
+            ? `<span class="buff-pill-amount">+${e.amount}</span>`
+            : '';
+        const title = STATUS_BADGE_LABEL[e.kind] || e.label;
+        return `<span class="buff-pill" style="--bp:${color}" title="${escapeHtmlAttribute(title)}"><span class="buff-pill-label">${escapeHtml(e.label)}</span>${amount}</span>`;
+    }).join('');
+    return `<div class="selected-copy-buffs" aria-label="Active buffs and debuffs">${items}</div>`;
+}
+
 function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
     if (!card && !msg) {
@@ -10824,6 +11185,7 @@ function updateSelectedInfo(card, msg) {
             const own = boardCardOwnershipLabel(card);
             const phases = Number(card.battlePhasesSeen || 0);
             html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
+            html += renderBoardCardBuffsList(card);
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`
@@ -11427,6 +11789,7 @@ renderDesktopMenuMeta();
 renderDesktopActionHistory();
 renderWelcomeTutorial();
 renderWelcomeAuth();
+void syncAuthProfile(true);
 syncEntryOverlays();
 if (typeof SieglingsCatalogSync !== 'undefined') {
     SieglingsCatalogSync.onCatalogPublished(() => {
