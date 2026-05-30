@@ -2192,15 +2192,22 @@
 
     // ── Speed toggle UI ───────────────────────────────────────────────────────
     function ensureSpeedToggle(queue) {
-        if (document.getElementById('sglSpeedToggle')) return;
-        const btn = document.createElement('button');
-        btn.id = 'sglSpeedToggle';
-        btn.type = 'button';
-        btn.className = 'sgl-speed-toggle';
-        btn.addEventListener('click', () => {
-            queue.setSpeed(queue.getSpeed() === 'fast' ? 'normal' : 'fast');
-        });
-        document.body.appendChild(btn);
+        const mount = document.getElementById('sglSpeedToggleSlot')
+            || document.getElementById('handTray')
+            || document.body;
+        let btn = document.getElementById('sglSpeedToggle');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'sglSpeedToggle';
+            btn.type = 'button';
+            btn.className = 'sgl-speed-toggle';
+            btn.addEventListener('click', () => {
+                queue.setSpeed(queue.getSpeed() === 'fast' ? 'normal' : 'fast');
+            });
+        } else if (btn.parentElement !== mount) {
+            mount.appendChild(btn);
+        }
+        if (!btn.parentElement) mount.appendChild(btn);
         queue.setSpeed(queue.getSpeed()); // initialize label
     }
 
