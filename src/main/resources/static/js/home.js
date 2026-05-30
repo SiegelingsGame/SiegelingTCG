@@ -155,7 +155,6 @@
         authRegisterStep: 'credentials',
         registerDraft: { email: '', password: '' },
         profileEditOpen: false,
-        activeAchievementId: '',
         profilePrefs: null,
         friendPresence: {},
         messageThreads: [],
@@ -179,7 +178,6 @@
         catalogVersion: 0,
         catalogSyncBound: false,
         profileUserId: '',
-        achievementCategory: '',
         leaderboardTab: 'wins',
         leaderboardPeriod: 'daily',
         dailyMissions: null,
@@ -270,7 +268,7 @@
         document.getElementById('joinByCodeBtn')?.addEventListener('click', () => navigateHub('social'));
         document.getElementById('joinRoomBtn')?.addEventListener('click', joinRoomFromHome);
         document.getElementById('refreshRoomsBtn')?.addEventListener('click', () => refreshRooms(true));
-        document.getElementById('socialFilterBtn')?.addEventListener('click', () => toggleTray('filter'));
+        document.getElementById('socialCreateLobbyBtn')?.addEventListener('click', createLobbyFromHome);
         document.getElementById('quickJoinBtn')?.addEventListener('click', quickJoinFirstRoom);
         document.getElementById('roomSearchInput')?.addEventListener('input', (event) => {
             state.roomSearch = event.target.value.trim().toLowerCase();
@@ -318,14 +316,8 @@
         document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
             if (event.target === event.currentTarget) closeDeckPreview();
         });
-        document.getElementById('matchReviewOverlay')?.addEventListener('click', closeMatchReview);
-        document.querySelectorAll('[data-match-review-close]').forEach(btn => btn.addEventListener('click', closeMatchReview));
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') {
-                closeDeckPreview();
-                closeMatchReview();
-                closeAchievementDetail();
-            }
+            if (event.key === 'Escape') closeDeckPreview();
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
             btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'deck-builder' : 'home'));
@@ -531,7 +523,6 @@
         safeRender(renderHomeDashboard);
         safeRender(renderShop);
         safeRender(renderProfile);
-        safeRender(renderAchievements);
         safeRender(renderRooms);
         safeRender(renderFriends);
         safeRender(renderFriendRequests);
@@ -554,8 +545,6 @@
             syncShopPackView();
         } else if (state.route === 'profile') {
             renderProfile();
-        } else if (state.route === 'achievements') {
-            renderAchievements();
         } else if (state.route === 'social') {
             renderRooms();
             renderFriends();
@@ -600,13 +589,12 @@
             ['deck-builder', 'deckBuilderSection'],
             ['social', 'socialSection'],
             ['profile', 'profileSection'],
-            ['achievements', 'achievementsSection'],
             ['shop', 'shopSection']
         ].forEach(([route, sectionId]) => {
             const active = state.route === route || (route === 'social' && state.route === 'lobby');
             document.getElementById(sectionId)?.classList.toggle('hidden', !active);
         });
-        if (!isBinderRoute() && !isSocialRoute()) {
+        if (!isBinderRoute()) {
             state.filterTrayOpen = false;
             state.cardTrayOpen = false;
         }
@@ -1765,22 +1753,10 @@
         });
     }
 
-    function isTrainerOwned(trainerId) {
-        const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
-        return !!trainer && trainer.owned !== false;
-    }
-
-    function firstOwnedTrainerId() {
-        const owned = (state.options?.trainers || []).find(trainer => trainer.owned !== false);
-        return owned ? owned.id : (state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '');
-    }
-
     function builderTrainerId() {
         const saved = localStorage.getItem('sieglingsBuilderTrainerId');
-        if (saved && isTrainerOwned(saved)) return saved;
-        const preferred = state.options?.defaultTrainerId;
-        if (preferred && isTrainerOwned(preferred)) return preferred;
-        return firstOwnedTrainerId();
+        if (saved && (state.options?.trainers || []).some(trainer => trainer.id === saved)) return saved;
+        return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
     }
 
     function builderDeckName() {
@@ -1788,13 +1764,7 @@
     }
 
     function builderTrainerOptions(selectedId) {
-        return (state.options?.trainers || []).map(trainer => {
-            const owned = trainer.owned !== false;
-            const level = Math.max(1, Number(trainer.level) || 1);
-            const levelLabel = owned && level > 1 ? ` (Lv ${level})` : '';
-            const lockLabel = owned ? '' : ' \u2014 Locked';
-            return `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}${owned ? '' : ' disabled'}>${escapeHtml((trainer.name || trainer.id) + levelLabel + lockLabel)}</option>`;
-        }).join('');
+        return (state.options?.trainers || []).map(trainer => `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}>${escapeHtml(trainer.name || trainer.id)}</option>`).join('');
     }
 
     function builderCatalogCards() {
@@ -1991,13 +1961,10 @@
         if (!list) return;
         const rooms = filteredRooms();
         const totalOpen = state.rooms.filter(room => !isRoomFull(room)).length;
-        const roomOpen = document.getElementById('roomOpenLabel');
-        const lobbyFilterOpen = document.getElementById('lobbyFilterOpenLabel');
+        const roomCount = document.getElementById('roomCountLabel');
         const shownCount = document.getElementById('roomShownLabel');
         const quickJoinBtn = document.getElementById('quickJoinBtn');
-        const openLabel = `${totalOpen} open`;
-        if (roomOpen) roomOpen.textContent = openLabel;
-        if (lobbyFilterOpen) lobbyFilterOpen.textContent = openLabel;
+        if (roomCount) roomCount.textContent = `${totalOpen} open`;
         if (shownCount) shownCount.textContent = `${rooms.length} shown`;
         if (quickJoinBtn) quickJoinBtn.disabled = !rooms.some(room => !isRoomFull(room));
         renderSocialActiveLobby();
@@ -2479,7 +2446,7 @@
         </section>`;
     }
 
-    function renderBattleHistoryList(view, reviewable = true) {
+    function renderBattleHistoryList(view) {
         return `<section class="profile-panel battle-history-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Recent Battles</span><h3>Last Match Scroll</h3></div>
@@ -2487,7 +2454,7 @@
             </div>
             <div class="battle-list">
                 ${view.battles.length
-                    ? view.battles.map(battle => `<article class="battle-row ${reviewable ? 'battle-row-clickable' : ''} ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}"${reviewable ? ` data-match-index="${battle.index}" role="button" tabindex="0" aria-label="Review match vs ${escapeAttr(battle.opponentName)}"` : ''}>
+                    ? view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
                         <div class="battle-result">${escapeHtml(battle.result)}</div>
                         <div class="battle-main">
                             <strong>${escapeHtml(battle.opponentName)}</strong>
@@ -2569,266 +2536,24 @@
         </section>`;
     }
 
-    function achievementHelpers() {
-        return {
-            findCard,
-            normalizeBattle,
-            battleRecord
-        };
-    }
-
-    function evaluateAchievements(view) {
-        const api = window.SiegelingsAchievements;
-        if (!api) return { featured: [], all: [], unlockedCount: 0, total: 0, byCategory: {} };
-        return api.evaluateAll(state, view, achievementHelpers());
-    }
-
-    function renderAchievementBadgeTile(achievement, options = {}) {
-        const compact = options.compact;
-        const unlocked = achievement.unlocked;
-        return `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}${compact ? ' achievement-badge-compact' : ''}" data-achievement-id="${escapeAttr(achievement.id)}" role="button" tabindex="0" aria-label="${escapeAttr(achievement.title)} — ${unlocked ? 'unlocked' : 'locked'}. View requirements.">
-            <span aria-hidden="true">${unlocked ? escapeHtml(achievement.icon || '★') : '−'}</span>
-            <strong>${escapeHtml(achievement.title)}</strong>
-            <small>${unlocked ? 'Unlocked' : 'Locked'}</small>
-        </div>`;
-    }
-
     function renderAchievementBadges(view) {
-        const snapshot = evaluateAchievements(view);
-        const featured = snapshot.featured.length ? snapshot.featured : snapshot.all.slice(0, 6);
+        const achievements = [
+            ['First Win', view.record.wins > 0],
+            ['Element Specialist', true],
+            ['Collector', view.collection.uniqueOwned >= 10],
+            ['Deck Builder', view.savedDecks.length > 0],
+            ['Win Streak', view.record.bestStreak >= 3]
+        ];
         return `<section class="profile-panel achievement-panel">
-            <div class="profile-panel-head">
-                <div><span class="eyebrow">Achievements</span><h3>Badge Case</h3></div>
-                <button class="ghost-btn compact-btn" type="button" data-achievement-route="">View all (${snapshot.unlockedCount}/${snapshot.total})</button>
+            <div class="profile-panel-head"><div><span class="eyebrow">Achievements</span><h3>Badge Case</h3></div></div>
+            <div class="achievement-row">
+                ${achievements.map(([label, unlocked]) => `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}">
+                    <span>${unlocked ? '*' : '-'}</span>
+                    <strong>${escapeHtml(label)}</strong>
+                    <small>${unlocked ? 'Unlocked' : 'Locked'}</small>
+                </div>`).join('')}
             </div>
-            <div class="achievement-row achievement-row-featured">
-                ${featured.map(item => renderAchievementBadgeTile(item)).join('')}
-            </div>
-            <p class="profile-muted achievement-panel-note">Six featured badges on your profile. Open the full badge case for ${snapshot.total} goals across collection, remnants, decks, and arena play.</p>
         </section>`;
-    }
-
-    function achievementsPath(category = '') {
-        const normalized = String(category || '').trim().toLowerCase();
-        if (!normalized) return '/achievements';
-        return `/achievements/${encodeURIComponent(normalized)}`;
-    }
-
-    function navigateAchievementCategory(category = '', options = {}) {
-        const path = achievementsPath(category);
-        state.route = 'achievements';
-        state.achievementCategory = String(category || '').trim().toLowerCase();
-        state.activeAchievementId = '';
-        state.shopView = 'browse';
-        state.profileUserId = '';
-        state.profileEditOpen = false;
-        if (options.replace) {
-            history.replaceState(null, '', path);
-        } else {
-            history.pushState(null, '', path);
-        }
-        setActiveRoute();
-        renderSections();
-        renderRoute();
-    }
-
-    function renderAchievements() {
-        const body = document.getElementById('achievementsSectionBody');
-        if (!body) return;
-        if (!state.profile?.authenticated) {
-            body.innerHTML = `<div class="achievements-signed-out unlock-card">
-                <strong>Sign in to track achievements</strong>
-                <span>Your badge cases unlock from wins, collection, remnants, deck building, and arena matches.</span>
-                <button class="primary-btn" type="button" id="achievementsSignInBtn">Sign In</button>
-            </div>`;
-            document.getElementById('achievementsSignInBtn')?.addEventListener('click', openAuth);
-            return;
-        }
-        const view = profileViewModel();
-        const snapshot = evaluateAchievements(view);
-        const activeCategory = state.achievementCategory;
-        const categories = window.SiegelingsAchievements?.CATEGORIES || [];
-        const categoryUnlocked = (id) => (snapshot.byCategory[id] || []).filter(a => a.unlocked).length;
-        const categoryTotal = (id) => (snapshot.byCategory[id] || []).length;
-
-        if (activeCategory && snapshot.byCategory[activeCategory]) {
-            const meta = window.SiegelingsAchievements.categoryMeta(activeCategory);
-            const rows = snapshot.byCategory[activeCategory];
-            const unlockedInCase = rows.filter(a => a.unlocked).length;
-            body.innerHTML = `<div class="achievements-dashboard" style="${profileThemeStyle(view.theme)}">
-                <div class="achievements-case-head">
-                    <button class="ghost-btn compact-btn" type="button" data-achievement-route="">All badge cases</button>
-                    <div>
-                        <span class="eyebrow">${escapeHtml(meta.eyebrow)}</span>
-                        <h2>${escapeHtml(meta.label)}</h2>
-                        <p class="achievements-case-copy">${escapeHtml(meta.description)}</p>
-                    </div>
-                    <span class="profile-soft-pill">${unlockedInCase}/${rows.length} unlocked</span>
-                </div>
-                <div class="achievement-grid achievement-grid-extended">
-                    ${rows.map(item => renderAchievementBadgeTile(item, { extended: true })).join('')}
-                </div>
-                <div class="achievement-detail-list">
-                    ${rows.map(item => `<article class="achievement-detail-row ${item.unlocked ? 'is-unlocked' : 'is-locked'}" data-achievement-id="${escapeAttr(item.id)}" role="button" tabindex="0" aria-label="${escapeAttr(item.title)} — ${item.unlocked ? 'unlocked' : 'locked'}. View requirements.">
-                        <div class="achievement-detail-icon" aria-hidden="true">${escapeHtml(item.unlocked ? item.icon : '−')}</div>
-                        <div>
-                            <strong>${escapeHtml(item.title)}</strong>
-                            <p>${escapeHtml(item.description)}</p>
-                        </div>
-                        <span class="achievement-detail-status">${item.unlocked ? 'Unlocked' : 'Locked'}</span>
-                    </article>`).join('')}
-                </div>
-            </div>`;
-        } else {
-            body.innerHTML = `<div class="achievements-dashboard" style="${profileThemeStyle(view.theme)}">
-                <div class="achievements-overview-head">
-                    <div>
-                        <span class="eyebrow">Achievements</span>
-                        <h2>Badge Case Hall</h2>
-                        <p class="achievements-case-copy">General goals, elemental mastery, card collection, remnants, deck creation, and arena loadouts — each case holds its own badge set.</p>
-                    </div>
-                    <div class="achievements-overview-stats">
-                        <strong>${snapshot.unlockedCount}<span>/${snapshot.total}</span></strong>
-                        <small>badges unlocked</small>
-                    </div>
-                </div>
-                <div class="achievement-category-grid">
-                    ${categories.map(cat => {
-                        const rows = snapshot.byCategory[cat.id] || [];
-                        const preview = rows.slice(0, 4);
-                        const unlocked = categoryUnlocked(cat.id);
-                        return `<section class="achievement-category-card">
-                            <div class="achievement-category-head">
-                                <div>
-                                    <span class="eyebrow">${escapeHtml(cat.eyebrow)}</span>
-                                    <h3>${escapeHtml(cat.label)}</h3>
-                                    <p>${escapeHtml(cat.description)}</p>
-                                </div>
-                                <span class="profile-soft-pill">${unlocked}/${categoryTotal(cat.id)}</span>
-                            </div>
-                            <div class="achievement-row achievement-row-preview">
-                                ${preview.map(item => renderAchievementBadgeTile(item, { compact: true })).join('')}
-                            </div>
-                            <button class="ghost-btn compact-btn" type="button" data-achievement-route="${escapeAttr(cat.id)}">Open badge case</button>
-                        </section>`;
-                    }).join('')}
-                </div>
-                <section class="profile-panel achievement-panel achievement-panel-all">
-                    <div class="profile-panel-head">
-                        <div><span class="eyebrow">Full roster</span><h3>Every badge</h3></div>
-                    </div>
-                    <div class="achievement-grid achievement-grid-extended">
-                        ${snapshot.all.map(item => renderAchievementBadgeTile(item)).join('')}
-                    </div>
-                </section>
-            </div>`;
-        }
-        bindAchievementRoutes(body);
-    }
-
-    function bindAchievementRoutes(root = document) {
-        root.querySelectorAll('[data-achievement-route]').forEach(btn => {
-            btn.addEventListener('click', () => navigateAchievementCategory(btn.dataset.achievementRoute || ''));
-        });
-        bindAchievementBadges(root);
-    }
-
-    function bindAchievementBadges(root = document) {
-        root.querySelectorAll('[data-achievement-id]').forEach(el => {
-            el.addEventListener('click', () => openAchievementDetail(el.dataset.achievementId));
-            el.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openAchievementDetail(el.dataset.achievementId);
-                }
-            });
-        });
-    }
-
-    function openAchievementDetail(id) {
-        if (!id) return;
-        state.activeAchievementId = String(id);
-        renderAchievementDetailHost();
-    }
-
-    function closeAchievementDetail() {
-        if (!state.activeAchievementId) return;
-        state.activeAchievementId = '';
-        renderAchievementDetailHost();
-    }
-
-    function renderAchievementDetailHost() {
-        const host = document.getElementById('achievementDetailHost');
-        if (!host) return;
-        const id = state.activeAchievementId;
-        if (!id) {
-            host.innerHTML = '';
-            return;
-        }
-        const view = state.profile?.authenticated ? profileViewModel() : null;
-        const snapshot = evaluateAchievements(view);
-        const achievement = (snapshot.all || []).find(a => a.id === id);
-        if (!achievement) {
-            host.innerHTML = '';
-            return;
-        }
-        host.innerHTML = renderAchievementDetailModal(achievement, view);
-        const overlay = host.querySelector('.profile-modal');
-        overlay?.addEventListener('click', (event) => {
-            if (event.target === overlay) closeAchievementDetail();
-        });
-        host.querySelectorAll('[data-achievement-detail-close]').forEach(btn => {
-            btn.addEventListener('click', closeAchievementDetail);
-        });
-    }
-
-    function renderAchievementDetailModal(achievement, view) {
-        const api = window.SiegelingsAchievements;
-        const meta = api?.categoryMeta ? api.categoryMeta(achievement.category) : { eyebrow: 'Achievement', label: 'Achievement' };
-        const unlocked = achievement.unlocked;
-        const measurable = achievement.measurable;
-        const current = Number(achievement.progressCurrent) || 0;
-        const target = Number(achievement.progressTarget) || 0;
-        const pct = Math.max(0, Math.min(100, Number(achievement.progressPct) || 0));
-        const progressBlock = measurable
-            ? `<div class="achievement-modal-progress">
-                    <div class="achievement-modal-progress-head">
-                        <span>Progress</span>
-                        <strong>${escapeHtml(formatProgressCount(current))} / ${escapeHtml(formatProgressCount(target))}</strong>
-                    </div>
-                    <div class="achievement-modal-bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
-                        <span style="width:${pct}%"></span>
-                    </div>
-                    <small>${unlocked ? 'Requirement met.' : `${escapeHtml(formatProgressCount(Math.max(0, target - current)))} to go.`}</small>
-                </div>`
-            : `<div class="achievement-modal-progress achievement-modal-progress-binary">
-                    <small>${unlocked ? 'You have met this requirement.' : 'Complete the requirement above to unlock this badge.'}</small>
-                </div>`;
-        return `<div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="achievementDetailTitle">
-            <div class="profile-edit-panel profile-panel achievement-modal-panel" style="${profileThemeStyle(view?.theme || elementThemes.Neutral)}">
-                <div class="profile-panel-head">
-                    <div><span class="eyebrow">${escapeHtml(meta.eyebrow)} · ${escapeHtml(meta.label)}</span><h3 id="achievementDetailTitle">Badge Requirements</h3></div>
-                    <button class="ghost-btn compact-btn" type="button" data-achievement-detail-close>Close</button>
-                </div>
-                <div class="achievement-modal-body">
-                    <div class="achievement-modal-emblem ${unlocked ? 'is-unlocked' : 'is-locked'}" aria-hidden="true">${escapeHtml(unlocked ? (achievement.icon || '★') : '−')}</div>
-                    <div class="achievement-modal-headline">
-                        <strong>${escapeHtml(achievement.title)}</strong>
-                        <span class="achievement-modal-status ${unlocked ? 'is-unlocked' : 'is-locked'}">${unlocked ? 'Unlocked' : 'Locked'}</span>
-                    </div>
-                </div>
-                <div class="achievement-modal-requirement">
-                    <span class="eyebrow">Requirement</span>
-                    <p>${escapeHtml(achievement.description)}</p>
-                </div>
-                ${progressBlock}
-            </div>
-        </div>`;
-    }
-
-    function formatProgressCount(value) {
-        const num = Number(value) || 0;
-        return num >= 1000 ? num.toLocaleString() : String(num);
     }
 
     function renderEditProfileModal(view) {
@@ -2876,76 +2601,6 @@
         }));
         document.querySelectorAll('[data-profile-save]').forEach(btn => btn.addEventListener('click', saveProfilePrefs));
         document.querySelectorAll('[data-profile-route]').forEach(btn => btn.addEventListener('click', () => navigateHub(btn.dataset.profileRoute)));
-        document.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
-            const index = Number(row.dataset.matchIndex);
-            row.addEventListener('click', () => openMatchReview(index));
-            row.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openMatchReview(index);
-                }
-            });
-        });
-        bindAchievementRoutes(document.getElementById('profileSectionBody') || document);
-    }
-
-    // Opens a read-only review of a recorded match (stats + turn-by-turn log),
-    // mirroring the match detail surface on the Play screen.
-    function openMatchReview(index) {
-        const entry = (state.profile?.matchHistory || [])[index];
-        const overlay = document.getElementById('matchReviewOverlay');
-        const content = document.getElementById('matchReviewContent');
-        if (!entry || !overlay || !content) return;
-
-        const resultLabel = entry.result || 'Result';
-        const resultClass = String(resultLabel).toUpperCase().includes('WIN') ? 'win' : 'loss';
-        const finishedAt = entry.finishedAt ? new Date(entry.finishedAt) : null;
-        const finishedLabel = finishedAt && !isNaN(finishedAt.getTime())
-            ? finishedAt.toLocaleString()
-            : '';
-        const ph = Number(entry.playerHealthRemaining);
-        const oh = Number(entry.opponentHealthRemaining);
-        const en = Number(entry.playerEnergyRemaining);
-
-        const statRow = (label, value) =>
-            `<div class="match-detail-stat"><span class="md-stat-label">${escapeHtml(label)}</span><span class="md-stat-value">${escapeHtml(String(value))}</span></div>`;
-
-        const logLines = Array.isArray(entry.gameLog) ? entry.gameLog : [];
-        const logHtml = logLines.length > 0
-            ? `<div class="match-detail-log">${logLines.map(line => `<div class="md-log-line">${escapeHtml(line)}</div>`).join('')}</div>`
-            : '<div class="match-review-empty">No turn-by-turn breakdown was recorded for this match.</div>';
-
-        content.innerHTML = `
-            <div class="match-detail-header result-${resultClass}">
-                <div class="match-detail-result history-result-${resultClass}">${escapeHtml(resultLabel)}</div>
-                <div class="match-detail-sub">${escapeHtml(entry.loadoutLabel || 'Loadout')} vs ${escapeHtml(entry.opponentName || 'Opponent')}</div>
-                ${finishedLabel ? `<div class="match-detail-date">${escapeHtml(finishedLabel)}</div>` : ''}
-            </div>
-            <div class="match-detail-stats">
-                ${statRow('Your Health', Number.isFinite(ph) ? ph : '—')}
-                ${statRow('Opponent Health', Number.isFinite(oh) ? oh : '—')}
-                ${statRow('Energy Left', Number.isFinite(en) ? en : '—')}
-                ${statRow('Turns', entry.turnNumber ?? '—')}
-                ${statRow('SiegeKnight', entry.trainerName || '—')}
-                ${statRow('Match Type', entry.matchType || '—')}
-                ${statRow('Spells Cast', entry.spellsCast ?? 0)}
-                ${statRow('Traps Sprung', entry.trapsSprung ?? 0)}
-                ${statRow('Siegelings Defeated', entry.siegelingsDefeated ?? 0)}
-            </div>
-            <div class="match-detail-log-title">Game Breakdown</div>
-            ${logHtml}
-        `;
-        overlay.classList.remove('hidden');
-    }
-
-    function closeMatchReview(event) {
-        if (event) {
-            const overlay = document.getElementById('matchReviewOverlay');
-            if (event.target !== overlay && !event.target.closest('[data-match-review-close]')) {
-                return;
-            }
-        }
-        document.getElementById('matchReviewOverlay')?.classList.add('hidden');
     }
 
     async function saveProfilePrefs() {
@@ -3076,15 +2731,13 @@
         const matchType = String(row.matchType || '').toUpperCase();
         return {
             result,
-            matchType,
             opponentName: row.opponentName || 'Opponent',
             opponentType: matchType.includes('PVP') || matchType.includes('PLAYER') ? 'Player' : 'AI',
             deckUsed: row.loadoutLabel || row.trainerName || 'Battle Loadout',
             element: inferElementFromText(row.loadoutLabel || row.trainerName || '', fallbackElement),
             date: formatProfileDate(row.finishedAt) || '',
             duration: row.turnNumber ? `${row.turnNumber} turns` : '',
-            reward: result === 'WIN' ? '+25' : '+5',
-            index
+            reward: result === 'WIN' ? '+25' : '+5'
         };
     }
 
@@ -3271,37 +2924,11 @@
                 </div>
             </div>
             <canvas class="gacha-particles" aria-hidden="true"></canvas>
-            ${buildPackTrainerBanner(latest.trainer)}
             <div class="gacha-stage">
                 ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), latest.packId, index)).join('')}
             </div>
             ${previewCard ? renderRevealPreview(previewCard) : ''}
         </section>`;
-    }
-
-    function buildPackTrainerBanner(trainer) {
-        if (!trainer) return '';
-        const name = escapeHtml(trainer.name || 'SiegeKnight');
-        const level = Math.max(1, Number(trainer.level) || 1);
-        let tag;
-        let detail;
-        if (trainer.newlyOwned) {
-            tag = 'New SiegeKnight!';
-            detail = `${name} joins your roster.`;
-        } else if (trainer.leveledUp) {
-            tag = `Combined to Lv ${level}!`;
-            detail = `${name} grows stronger (+${Math.max(0, level - 1)} to ability effects).`;
-        } else {
-            const remaining = Math.max(0, (Number(trainer.pointsForNext) || 0) - (Number(trainer.points) || 0));
-            tag = 'SiegeKnight Combine Point';
-            detail = level >= 5
-                ? `${name} is already at max level.`
-                : `${name} gains a combine point${remaining ? ` (${remaining} more to Lv ${level + 1}).` : '.'}`;
-        }
-        return `<div class="pack-trainer-banner">
-            <span class="pack-trainer-tag">${escapeHtml(tag)}</span>
-            <span class="pack-trainer-detail">${escapeHtml(detail)}</span>
-        </div>`;
     }
 
     function patchPackOpening({ result, latest, cards, reveal }) {
@@ -3714,15 +3341,10 @@
         if (!state.profile?.authenticated) return openAuth();
         const data = await fetchJson('/api/cards/craft', { method: 'POST', body: JSON.stringify({ cardId }) });
         if (data?.error) return alert(data.error);
-        if (window.SiegelingsAchievements?.incrementStat) {
-            window.SiegelingsAchievements.incrementStat('crafts', 1);
-        }
         state.progression = data.progression;
         renderCards();
         renderHomeDashboard();
         renderGold();
-        renderProfile();
-        renderAchievements();
     }
 
     async function saveCustomDeck() {
@@ -3907,28 +3529,15 @@
     function navigateHub(route, options = {}) {
         const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
         const nextShopView = route === 'shop' ? (options.shopView || state.shopView || 'browse') : 'browse';
-        const achievementCategory = route === 'achievements' ? (options.achievementCategory ?? state.achievementCategory ?? '') : '';
-        const nextPath = route === 'achievements'
-            ? achievementsPath(achievementCategory)
-            : `${hubPath(route, nextShopView)}${hash}`;
+        const nextPath = `${hubPath(route, nextShopView)}${hash}`;
         const samePlace = route === state.route
             && (route !== 'shop' || nextShopView === state.shopView)
-            && (route !== 'profile' || !state.profileUserId)
-            && (route !== 'achievements' || achievementCategory === state.achievementCategory);
+            && (route !== 'profile' || !state.profileUserId);
 
         state.route = route;
         state.shopView = nextShopView;
-        if (state.activeAchievementId) {
-            state.activeAchievementId = '';
-            renderAchievementDetailHost();
-        }
         if (route === 'profile') {
             state.profileUserId = '';
-        }
-        if (route === 'achievements') {
-            state.achievementCategory = achievementCategory;
-        } else {
-            state.achievementCategory = '';
         }
 
         if (options.replace) {
@@ -3970,17 +3579,8 @@
         return state.route === 'cards' || state.route === 'decks';
     }
 
-    function isSocialRoute() {
-        return state.route === 'social' || state.route === 'lobby';
-    }
-
-    function isFilterRoute() {
-        return isBinderRoute() || isSocialRoute();
-    }
-
     function toggleTray(type) {
-        if (type === 'filter' && !isFilterRoute()) return;
-        if (type === 'card' && !isBinderRoute()) return;
+        if (!isBinderRoute()) return;
         if (type === 'filter') {
             state.filterTrayOpen = !state.filterTrayOpen;
             if (state.filterTrayOpen) state.cardTrayOpen = false;
@@ -4007,8 +3607,6 @@
 
     function renderHudTools() {
         const binder = isBinderRoute();
-        const social = isSocialRoute();
-        const filterOpen = state.filterTrayOpen;
         const optionsBtn = document.getElementById('optionsBtn');
         optionsBtn?.classList.toggle('hidden', state.route !== 'home');
         // Hide "Join With Code" on the Cards/Decks binder routes; it crowds the
@@ -4016,26 +3614,19 @@
         const joinBtn = document.getElementById('joinByCodeBtn');
         joinBtn?.classList.toggle('hidden', binder);
         const filterBtn = document.getElementById('filterTrayBtn');
-        const socialFilterBtn = document.getElementById('socialFilterBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
         const filterTray = document.getElementById('filterTray');
-        const lobbyFilterTray = document.getElementById('lobbyFilterTray');
         const cardTray = document.getElementById('detailPanel');
         const backdrop = document.getElementById('trayBackdrop');
-        const showFilterHud = binder || social;
-        filterBtn?.classList.toggle('hidden', !showFilterHud);
+        filterBtn?.classList.toggle('hidden', !binder);
         cardBtn?.classList.toggle('hidden', !binder);
-        filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
-        socialFilterBtn?.classList.toggle('active', social && filterOpen);
+        filterBtn?.classList.toggle('active', binder && state.filterTrayOpen);
         cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
-        filterTray?.classList.toggle('is-closed', !binder || !filterOpen);
-        lobbyFilterTray?.classList.toggle('is-closed', !social || !filterOpen);
+        filterTray?.classList.toggle('is-closed', !binder || !state.filterTrayOpen);
         cardTray?.classList.toggle('is-closed', !binder || !state.cardTrayOpen);
-        filterTray?.setAttribute('aria-hidden', String(!binder || !filterOpen));
-        lobbyFilterTray?.setAttribute('aria-hidden', String(!social || !filterOpen));
+        filterTray?.setAttribute('aria-hidden', String(!binder || !state.filterTrayOpen));
         cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
-        const trayOpen = (binder && filterOpen) || (social && filterOpen) || (binder && state.cardTrayOpen);
-        backdrop?.classList.toggle('hidden', !trayOpen);
+        backdrop?.classList.toggle('hidden', !binder || (!state.filterTrayOpen && !state.cardTrayOpen));
     }
 
     async function fetchJson(path, options = {}) {
@@ -4420,28 +4011,24 @@
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
         const head = segments[0] || 'home';
-        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
         if (head === 'social' && segments[1] === 'lobby' && segments[2]) {
-            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '', achievementCategory: '' };
+            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '' };
         }
         if (head === 'shop') {
-            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '' };
         }
         if (head === 'profile') {
             const profileUserId = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
-            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId, achievementCategory: '' };
-        }
-        if (head === 'achievements') {
-            const achievementCategory = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
-            return { route: 'achievements', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory };
+            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId };
         }
         if (head === 'deck-builder') {
-            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
+            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
         }
         if (['cards', 'decks', 'social'].includes(head)) {
-            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
+            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
         }
-        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
+        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
     }
 
     function normalizePlayerId(userId) {
@@ -4478,7 +4065,6 @@
         if (route === 'home') return '/home';
         if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
         if (route === 'deck-builder') return '/deck-builder';
-        if (route === 'achievements') return '/achievements';
         return `/${route}`;
     }
 
@@ -4488,7 +4074,6 @@
         state.shopView = parsed.shopView;
         state.lobbyRoomId = parsed.lobbyRoomId || '';
         state.profileUserId = parsed.profileUserId || '';
-        state.achievementCategory = parsed.achievementCategory || '';
         if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
             state.shopView = 'browse';
             if (location.pathname !== hubPath('shop', 'browse')) {
@@ -4688,12 +4273,8 @@
 
     function selectedTrainerId() {
         const savedDeck = selectedSavedDeck();
-        if (savedDeck?.trainerId && isTrainerOwned(savedDeck.trainerId)) {
-            return savedDeck.trainerId;
-        }
-        const preferred = state.options?.defaultTrainerId;
-        if (preferred && isTrainerOwned(preferred)) return preferred;
-        return firstOwnedTrainerId();
+        if (savedDeck?.trainerId) return savedDeck.trainerId;
+        return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
     }
 
     function socialBattleName() {
@@ -4906,13 +4487,7 @@
         const selectedDeck = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.deckId || selectedDeckId();
         const selectedTrainer = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.trainerId || selectedTrainerId();
         const deckOptions = decks.map(deck => `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`).join('');
-        const trainerOptions = trainers.map(trainer => {
-            const owned = trainer.owned !== false;
-            const level = Math.max(1, Number(trainer.level) || 1);
-            const levelLabel = owned && level > 1 ? ` (Lv ${level})` : '';
-            const lockLabel = owned ? '' : ' \u2014 Locked';
-            return `<option value="${escapeAttr(trainer.id)}" ${trainer.id === selectedTrainer ? 'selected' : ''}${owned ? '' : ' disabled'}>${escapeHtml(trainer.name + levelLabel + lockLabel)}</option>`;
-        }).join('');
+        const trainerOptions = trainers.map(trainer => `<option value="${escapeAttr(trainer.id)}" ${trainer.id === selectedTrainer ? 'selected' : ''}>${escapeHtml(trainer.name)}</option>`).join('');
         const players = status?.players || [];
         const hostPlayer = players.find(player => player.role === 'host') || { name: status?.hostName || 'Host', ready: false };
         const guestPlayer = players.find(player => player.role === 'guest');
@@ -5600,7 +5175,7 @@
             ${renderPublicProfileStats(view)}
             ${view.battles.length ? renderBattleRecordPanel(view) : ''}
             ${view.battles.length
-                ? renderBattleHistoryList(view, false)
+                ? renderBattleHistoryList(view)
                 : `<section class="profile-panel"><p class="profile-muted">${view.data.isFriend ? 'No recorded battles yet.' : 'Recent battles are visible once you are friends.'}</p></section>`}
             ${renderPublicProfileActions(view)}
         </div>`;
