@@ -7093,8 +7093,9 @@ body.placement-active .board-cell.legal {
 
 .loadout-options {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, clamp(180px, 17vw, 260px)), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 220px));
     gap: clamp(12px, 1.4vw, 20px);
+    justify-content: start;
 }
 
 .loadout-core {
@@ -7428,10 +7429,6 @@ body.placement-active .board-cell.legal {
 
 /* ── SiegeKnight Cards ──────────────────────────────── */
 
-.trainer-section .loadout-options {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(120px, 11.5vw, 200px)), 1fr));
-}
-
 .knight-card {
     position: relative;
     width: 100%;
@@ -7696,8 +7693,19 @@ body.placement-active .board-cell.legal {
 /* ── Legacy loadout-option kept for builder or future use ── */
 
 /* Premium Battle Loadout card treatments */
-.deck-section .loadout-options {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+.deck-section .loadout-options,
+.trainer-section .loadout-options {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 220px));
+    justify-content: start;
+}
+
+.loadout-flow .deck-card,
+.loadout-flow .knight-card {
+    width: 100%;
+    max-width: 220px;
+    min-height: 0;
+    justify-self: start;
+    aspect-ratio: 5 / 7;
 }
 
 .deck-card {
@@ -7707,7 +7715,6 @@ body.placement-active .board-cell.legal {
         radial-gradient(circle at 72% 18%, var(--deck-glow), transparent 32%),
         linear-gradient(145deg, rgba(255, 255, 255, 0.08), transparent 24%),
         var(--deck-bg, rgba(255, 255, 255, 0.04));
-    min-height: clamp(250px, 27vw, 360px);
     box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34), inset 0 0 24px rgba(255, 255, 255, 0.035);
     transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
@@ -7856,10 +7863,6 @@ body.placement-active .board-cell.legal {
     font-weight: 800;
 }
 
-.trainer-section .loadout-options {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
-}
-
 .knight-card {
     border-radius: 18px;
     border-width: 2px;
@@ -7867,7 +7870,6 @@ body.placement-active .board-cell.legal {
     background:
         radial-gradient(circle at 50% 26%, var(--knight-glow), transparent 34%),
         linear-gradient(180deg, rgba(22, 26, 48, 0.98), rgba(5, 8, 22, 0.98));
-    min-height: clamp(280px, 25vw, 390px);
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38), inset 0 0 20px rgba(255, 255, 255, 0.035);
     transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
@@ -10200,17 +10202,28 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     }
 
     .loadout-options,
-    .deck-section .loadout-options {
+    .deck-section .loadout-options,
+    .trainer-section .loadout-options {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
     }
-    .trainer-section .loadout-options {
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+
+    .loadout-flow .deck-card,
+    .loadout-flow .knight-card {
+        max-width: none;
+        width: 100%;
+        min-height: 0;
+        aspect-ratio: 5 / 7;
     }
 
     .deck-card {
         aspect-ratio: 5 / 7;
-        min-height: 220px;
+        min-height: 0;
+    }
+
+    .trainer-section .knight-card {
+        aspect-ratio: 5 / 7;
+        min-height: 0;
     }
     .deck-card-sigils {
         inset: 18px 10px 76px 36px;
@@ -10493,6 +10506,14 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .trainer-section .loadout-options {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
+    }
+
+    .loadout-flow .deck-card,
+    .loadout-flow .knight-card {
+        max-width: none;
+        width: 100%;
+        min-height: 0;
+        aspect-ratio: 5 / 7;
     }
     .deck-card-sigils {
         inset: 16px 10px 72px 34px;
