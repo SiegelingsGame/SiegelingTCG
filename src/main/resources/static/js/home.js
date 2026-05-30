@@ -752,14 +752,30 @@
         const craftLabel = state.profile?.authenticated
             ? `Craft for ${craftCost.toLocaleString()} Remnants`
             : 'Sign in to craft';
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview)
+            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
+                ownedOverride: ownedCount(card.id),
+                previewClass: 'detail-card-preview'
+            })
+            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
-            <div class="detail-art art" style="--el:${elementColor(card.element)}">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}</div>
-            <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
-            <h2>${escapeHtml(card.name)}</h2>
-            <div class="chip-wrap">
-                <span class="chip">Owned x${ownedCount(card.id)}</span>
-                <span class="chip">${format(card.rarity)}</span>
+            <div class="detail-card-preview-wrap">${cardPreview}</div>
+            <div class="chip-wrap detail-chip-wrap">
                 ${renderActiveNotchChips(card.notches)}
+            </div>
+            <div class="detail-cost-block">
+                <span class="detail-cost-label">Energy cost</span>
+                ${renderBinderCardEnergyCost(cost, costElement)}
+            </div>
+            <div class="detail-grid">
+                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
+                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
+                <div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>
             </div>
             ${flavorText ? `
                 <div class="detail-flavor" style="--el:${elementColor(card.element)}">
@@ -767,16 +783,10 @@
                     <p>${escapeHtml(flavorText)}</p>
                 </div>
             ` : ''}
-            <div class="detail-grid">
-                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
-                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
-                <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
-                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
-                <div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>
-                <div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>
+            <h3 class="detail-section-title">Moves &amp; abilities</h3>
+            <div class="detail-abilities">
+            ${abilities.length ? abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('') : '<p class="detail-ability-empty">No printed ability.</p>'}
             </div>
-            <h3>Abilities</h3>
-            ${abilities.length ? abilities.map(a => `<p><strong>${escapeHtml(a.name || 'Ability')}</strong><br>${escapeHtml(a.description || '')}</p>`).join('') : '<p>No printed ability.</p>'}
             <div class="craft-card-action">
                 <button class="primary-btn" type="button" id="craftSelectedCard"${canCraft || !state.profile?.authenticated ? '' : ' disabled'}>${escapeHtml(craftLabel)}</button>
                 <span>${escapeHtml(remnants.toLocaleString())} Remnants available</span>
@@ -1647,23 +1657,29 @@
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview)
+            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
+                ownedOverride: ownedCount(card.id),
+                ownedLabel: `In deck x${inDeck}`,
+                previewClass: 'detail-card-preview deck-builder-detail-preview'
+            })
+            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
-            <div class="detail-art art">${renderBinderCardArt(card)}</div>
-            <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
-            <h3>${escapeHtml(card.name)}</h3>
-            <div class="chip-wrap">
-                <span class="chip">Owned x${ownedCount(card.id)}</span>
-                <span class="chip">In deck x${inDeck}</span>
-                <span class="chip">${format(card.rarity)}</span>
+            <div class="detail-card-preview-wrap">${cardPreview}</div>
+            <div class="detail-cost-block">
+                <span class="detail-cost-label">Energy cost</span>
+                ${renderBinderCardEnergyCost(cost, costElement)}
             </div>
             ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
             <div class="detail-grid">
                 ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
                 <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
                 <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
-                <div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>
+                ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
             </div>
-            ${abilities.length ? `<div class="deck-builder-preview-abilities">${abilities.map(a => `<p><strong>${escapeHtml(a.name || 'Ability')}</strong><br>${escapeHtml(a.description || '')}</p>`).join('')}</div>` : ''}
+            ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
                 <strong>${inDeck} / ${maxCopies}</strong>
