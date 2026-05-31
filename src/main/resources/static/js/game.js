@@ -1097,6 +1097,12 @@ function handleBoardCellInspectTouch(event, isPlayer, row, col) {
     }
     event.preventDefault();
     onArenaCardClick(isPlayer, row, col);
+    // Mobile: surface the Card Preview tray for the tapped Siegeling (or close it on deselect).
+    if (arenaSelection) {
+        openDrawer('selected');
+    } else if (activeDrawer === 'selected') {
+        closeDrawer();
+    }
 }
 
 let _boardLongPressTimer = null;
@@ -3806,12 +3812,14 @@ function syncSetupActionsCounter() {
         el.removeAttribute('title');
         el.classList.remove('is-zero', 'is-decrement', 'is-increment');
         lastSetupActionsRemaining = null;
+        closeSetupActionsBreakdown();
         return;
     }
     const budget = gs.setupSieglingActionBudget;
     const used = gs.setupSieglingActionsUsed;
     if (budget == null || used == null) {
         el.hidden = true;
+        closeSetupActionsBreakdown();
         if (valueEl) valueEl.textContent = '';
         lastSetupActionsRemaining = null;
         return;
@@ -3844,6 +3852,91 @@ function syncSetupActionsCounter() {
         }, 520);
     }
     lastSetupActionsRemaining = remaining;
+}
+
+/**
+ * Setup action budget = 1 base placement + 1 per pooled energy captured when Setup began.
+ * Returns the breakdown the action counter popover explains, or null outside Setup.
+ */
+function getSetupActionsBreakdown() {
+    const gs = gameState;
+    if (!gs || gs.gameOver || gs.currentPhase !== 'SETUP' || gs.mulligan?.active) {
+        return null;
+    }
+    const budget = gs.setupSieglingActionBudget;
+    const used = gs.setupSieglingActionsUsed;
+    if (budget == null || used == null) {
+        return null;
+    }
+    const energyBonus = Math.max(0, budget - 1);
+    return {
+        base: 1,
+        energyBonus,
+        budget,
+        used,
+        remaining: Math.max(0, budget - used)
+    };
+}
+
+function closeSetupActionsBreakdown() {
+    const pop = document.getElementById('setupActionsBreakdown');
+    if (pop) pop.remove();
+    document.removeEventListener('pointerdown', handleSetupActionsBreakdownOutside, true);
+    window.removeEventListener('resize', closeSetupActionsBreakdown);
+    window.removeEventListener('scroll', closeSetupActionsBreakdown, true);
+}
+
+function handleSetupActionsBreakdownOutside(event) {
+    const pop = document.getElementById('setupActionsBreakdown');
+    const counter = document.getElementById('setupActionsCounter');
+    if (!pop) return;
+    if (pop.contains(event.target) || (counter && counter.contains(event.target))) {
+        return;
+    }
+    closeSetupActionsBreakdown();
+}
+
+function toggleSetupActionsBreakdown(event) {
+    if (event) event.stopPropagation();
+    if (document.getElementById('setupActionsBreakdown')) {
+        closeSetupActionsBreakdown();
+        return;
+    }
+    const counter = document.getElementById('setupActionsCounter');
+    const data = getSetupActionsBreakdown();
+    if (!counter || !data) return;
+
+    const energyLine = data.energyBonus > 0
+        ? `<div class="sap-row"><span>Pooled energy</span><span class="sap-add">+${data.energyBonus}</span></div>`
+        : `<div class="sap-row sap-muted"><span>Pooled energy</span><span>+0</span></div>`;
+
+    const pop = document.createElement('div');
+    pop.id = 'setupActionsBreakdown';
+    pop.className = 'setup-actions-popover';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Where your setup actions come from');
+    pop.innerHTML = `
+        <div class="sap-title">Setup actions this turn</div>
+        <div class="sap-row"><span>Base placement</span><span class="sap-add">+1</span></div>
+        ${energyLine}
+        <div class="sap-row sap-total"><span>Total budget</span><span>${data.budget}</span></div>
+        <div class="sap-row sap-sub"><span>Used</span><span>${data.used}</span></div>
+        <div class="sap-row sap-sub"><span>Remaining</span><span>${data.remaining}</span></div>
+        <div class="sap-note">You always get 1 placement. Each unit of elemental energy pooled when Setup began adds one more Siegeling placement.</div>
+    `;
+    document.body.appendChild(pop);
+
+    const rect = counter.getBoundingClientRect();
+    const margin = 8;
+    const popRect = pop.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - popRect.width / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - popRect.width - margin));
+    pop.style.left = `${Math.round(left)}px`;
+    pop.style.top = `${Math.round(rect.top - popRect.height - margin)}px`;
+
+    document.addEventListener('pointerdown', handleSetupActionsBreakdownOutside, true);
+    window.addEventListener('resize', closeSetupActionsBreakdown);
+    window.addEventListener('scroll', closeSetupActionsBreakdown, true);
 }
 
 let desktopInspectTab = 'card';
@@ -8563,7 +8656,8 @@ function updateMobileHud(state) {
         statElementsId: 'mobilePlayerStatElements',
         knightIconId: 'mobilePlayerKnightIcon',
         knightNameId: 'mobilePlayerKnightName',
-        knightInfoId: 'mobilePlayerKnightInfo'
+        knightInfoId: 'mobilePlayerKnightInfo',
+        showFullAbilities: true
     });
     updateMobileHudSide('Enemy', e, {
         name: state.enemyName || e.name || 'AI',
@@ -8609,7 +8703,14 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.statHandId, handSize);
     setTextIfExists(ids.statDeckId, deckSize);
     setTextIfExists(ids.knightNameId, trainer?.name || '-');
-    setTextIfExists(ids.knightInfoId, trainerInfo);
+    const knightInfoEl = document.getElementById(ids.knightInfoId);
+    if (knightInfoEl) {
+        if (ids.showFullAbilities) {
+            knightInfoEl.innerHTML = buildKnightAbilitiesHtml(trainer);
+        } else {
+            knightInfoEl.textContent = trainerInfo;
+        }
+    }
     if (hpBar) {
         hpBar.style.width = `${pct}%`;
         hpBar.style.background = trainerColor || '';
@@ -8630,6 +8731,28 @@ function updateHudRailKnight(prefix, trainer) {
     if (portrait) {
         portrait.innerHTML = elementEmoji(trainer?.element);
     }
+}
+
+/** Full SiegeKnight readout (element + passive + active/ultimate) for the player detail tray. */
+function buildKnightAbilitiesHtml(trainer) {
+    if (!trainer) return '';
+    const parts = [];
+    if (trainer.element) {
+        parts.push(`<span class="m-knight-type" style="color:${getElementHex(trainer.element)}">${escapeHtml(formatElementLabel(trainer.element))}</span>`);
+    }
+    const passiveText = readTrainerAbilityText(trainer.passive);
+    if (passiveText && passiveText !== 'None') {
+        parts.push(`<span class="m-knight-ability"><span class="m-knight-ability-tag">Passive</span>${escapeHtml(passiveText)}</span>`);
+    }
+    const activeText = readTrainerAbilityText(trainer.active);
+    if (activeText && activeText !== 'None') {
+        const label = trainer.oncePerGame ? 'Ultimate' : 'Active';
+        const activeName = trainer.active?.name && trainer.active.name !== activeText
+            ? `${escapeHtml(trainer.active.name)}: `
+            : '';
+        parts.push(`<span class="m-knight-ability"><span class="m-knight-ability-tag tag-active">${label}</span>${activeName}${escapeHtml(activeText)}</span>`);
+    }
+    return parts.join('');
 }
 
 function getTrainerRailAbilityText(trainer) {
@@ -9065,22 +9188,77 @@ function buildNexusHubGraphics(hx, hy, hubR, distinctElements) {
         + `<circle cx="${hx}" cy="${hy}" r="${hubR + 3}" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2.5" />`;
 }
 
+const ELEMENT_KEY_ICON_PATHS = {
+    FIRE: '/img/elements/element-fire.png',
+    EARTH: '/img/elements/element-earth.png',
+    WIND: '/img/elements/element-wind.png',
+    WATER: '/img/elements/element-water.svg',
+    ICE: '/img/elements/element-ice.png',
+    SHADOW: '/img/elements/element-shadow.svg',
+    ELECTRIC: '/img/elements/element-electric.svg',
+    METAL: '/img/elements/element-metal.svg',
+    UNDEAD: '/img/elements/element-undead.svg',
+    PSYCHIC: '/img/elements/element-psychic.svg'
+};
+
+// Elemental weakness chart — mirrors EffectService.isWeakTo (attacker hits these for +1 damage).
+const ELEMENT_STRENGTHS = [
+    ['WATER', ['FIRE', 'EARTH']],
+    ['EARTH', ['WIND', 'ELECTRIC']],
+    ['WIND', ['FIRE']],
+    ['ELECTRIC', ['WATER']]
+];
+
+/** Element legend chip — icon art when available, falling back to the solid colour token. */
+function elementKeyIconHtml(key) {
+    const lower = String(key || '').toLowerCase();
+    const upper = lower.toUpperCase();
+    const path = ELEMENT_KEY_ICON_PATHS[upper];
+    if (path) {
+        const color = getElementHex(upper);
+        return `<span class="element-key-icon" style="--el:${color}">`
+            + `<img src="${escapeHtmlAttribute(path)}" alt="" loading="lazy" `
+            + `onerror="this.remove();this.parentElement&amp;&amp;this.parentElement.classList.add('icon-missing')">`
+            + `</span>`;
+    }
+    return `<span class="energy-token solid-token token-${lower} key-token"></span>`;
+}
+
 function renderElementKey() {
     const el = document.getElementById('elementKeyPanel');
     if (!el) return;
 
-    let html = `<div class="element-key-card">`;
+    let html = '';
+
+    // Half 1 — element identities with their icon art.
+    html += `<section class="element-key-section">`;
+    html += `<div class="element-key-heading">Elements</div>`;
+    html += `<div class="element-key-grid">`;
     for (const [key, label] of ENERGY_ORDER) {
-        html += `<div class="element-key-row">`;
-        html += `<span class="energy-token solid-token token-${key} key-token"></span>`;
-        html += `<span>${label}</span>`;
-        html += `</div>`;
+        html += `<div class="element-key-row">${elementKeyIconHtml(key)}<span>${label}</span></div>`;
     }
-    html += `<div class="element-key-row">`;
+    html += `</div>`;
+    html += `<div class="element-key-row element-key-combo">`;
     html += `<span class="energy-token combo-token token-2 key-token" style="${buildComboStyle(['FIRE', 'EARTH'])}"></span>`;
     html += `<span>Combo point mixes its linked elements</span>`;
     html += `</div>`;
-    html += `</div>`;
+    html += `</section>`;
+
+    // Half 2 — elemental matchups: who is strong vs whom (weak side takes +1 damage).
+    html += `<section class="element-key-section element-key-matchups">`;
+    html += `<div class="element-key-heading">Matchups <span class="element-key-sub">strong deal +1 vs weak</span></div>`;
+    for (const [attacker, defenders] of ELEMENT_STRENGTHS) {
+        const targets = defenders
+            .map((d) => `<span class="matchup-chip">${elementKeyIconHtml(d)}<span>${formatElementLabel(d)}</span></span>`)
+            .join('');
+        html += `<div class="matchup-row">`
+            + `<span class="matchup-chip matchup-attacker">${elementKeyIconHtml(attacker)}<span>${formatElementLabel(attacker)}</span></span>`
+            + `<span class="matchup-arrow" aria-label="is strong against">&#9656;</span>`
+            + `<span class="matchup-targets">${targets}</span>`
+            + `</div>`;
+    }
+    html += `<div class="element-key-note">Strong attacker = weak defender. Other elements deal normal damage (no bonus yet).</div>`;
+    html += `</section>`;
 
     el.innerHTML = html;
 }
@@ -12127,6 +12305,74 @@ syncDesktopInspectTabUi();
     document.addEventListener('pointermove', handleCardDragPointerMove, { passive: false });
     document.addEventListener('pointerup', handleCardDragPointerEnd);
     document.addEventListener('pointercancel', handleCardDragPointerEnd);
+})();
+
+// Drag-to-close for every slide-up drawer tray (Card Preview, Element Key, Hints, Log, Battle).
+(function setupDrawerDragToClose() {
+    const CLOSE_DISTANCE_PX = 90;
+    const CLOSE_VELOCITY = 0.6; // px per ms (a quick flick down)
+    const START_SLOP_PX = 6;
+    let session = null;
+
+    function onPointerDown(event) {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        const target = event.target;
+        if (!target || !target.closest) return;
+        const drawer = target.closest('.drawer.visible');
+        if (!drawer) return;
+        // Start a drag from the grip/header always; from scrollable content only when at the top.
+        const fromGrip = !!target.closest('.drawer-handle, .drawer > h3');
+        if (!fromGrip && drawer.scrollTop > 0) return;
+        session = {
+            drawer,
+            pointerId: event.pointerId,
+            startY: event.clientY,
+            lastY: event.clientY,
+            lastT: performance.now(),
+            velocity: 0,
+            dragging: false,
+            fromGrip
+        };
+    }
+
+    function onPointerMove(event) {
+        if (!session || event.pointerId !== session.pointerId) return;
+        const dy = event.clientY - session.startY;
+        if (!session.dragging) {
+            // Let upward / content scrolling proceed natively.
+            if (dy <= START_SLOP_PX) {
+                if (!session.fromGrip && dy < 0) session = null;
+                return;
+            }
+            session.dragging = true;
+            session.drawer.classList.add('drawer-dragging');
+        }
+        const now = performance.now();
+        const dt = now - session.lastT;
+        if (dt > 0) session.velocity = (event.clientY - session.lastY) / dt;
+        session.lastY = event.clientY;
+        session.lastT = now;
+        session.drawer.style.transform = `translateY(${Math.max(0, dy)}px)`;
+        if (event.cancelable) event.preventDefault();
+    }
+
+    function finish(event) {
+        if (!session || (event && event.pointerId !== session.pointerId)) return;
+        const { drawer, dragging, velocity, startY, lastY } = session;
+        const travelled = lastY - startY;
+        const shouldClose = dragging && (travelled > CLOSE_DISTANCE_PX || velocity > CLOSE_VELOCITY);
+        drawer.classList.remove('drawer-dragging');
+        drawer.style.transform = '';
+        session = null;
+        if (shouldClose) {
+            closeDrawer();
+        }
+    }
+
+    document.addEventListener('pointerdown', onPointerDown, { passive: true });
+    document.addEventListener('pointermove', onPointerMove, { passive: false });
+    document.addEventListener('pointerup', finish);
+    document.addEventListener('pointercancel', finish);
 })();
 
 renderDesktopMenuMeta();
