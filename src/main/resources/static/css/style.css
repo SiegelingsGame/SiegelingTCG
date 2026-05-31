@@ -5347,8 +5347,29 @@ body.placement-active .board-cell.legal {
     padding: 3px 4px 4px;
 }
 
-.board-card.arena-board-card .hand-card-header {
-    display: none;
+.board-card.arena-board-card .hand-card-header.arena-board-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 0;
+    padding: 1px 2px 0;
+    gap: 0;
+}
+
+.board-card.arena-board-card .hand-card-header.arena-board-header .card-title {
+    font-size: 0.5em;
+    line-height: 1.05;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    color: #f4f8ff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    letter-spacing: 0.02em;
 }
 
 .board-card.arena-board-card .arena-board-health {
@@ -5410,21 +5431,28 @@ body.placement-active .board-cell.legal {
 .board-card.arena-board-card .arena-board-combat {
     flex: 0 0 auto;
     display: flex;
-    flex-direction: row;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     gap: 2px;
     width: 100%;
     margin-top: auto;
 }
 
 .board-card.arena-board-card .card-stat-pills {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
     min-width: 0;
-    gap: 2px;
+    gap: 3px;
 }
 
 .board-card.arena-board-card .card-stat-pill {
-    font-size: 0.43em;
+    flex: 1 1 0;
+    text-align: center;
+    font-size: 0.4em;
     padding: 1px 2px;
     border-radius: 4px;
 }
@@ -5436,26 +5464,42 @@ body.placement-active .board-cell.legal {
     overflow: hidden;
 }
 
+.board-card.arena-board-card .arena-board-badges {
+    flex: 0 0 auto;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 12px;
+}
+
+.board-card.arena-board-card .arena-board-badges:empty {
+    display: none;
+}
+
 .board-card.arena-board-card .status-icons {
     gap: 2px;
     padding: 0;
     min-height: 0;
     margin-top: 0;
     line-height: 0;
-    flex: 0 0 auto;
-    max-width: 28px;
+    flex: 0 1 auto;
+    max-width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 .board-card.arena-board-card .sb-badge {
-    width: 14px;
-    height: 14px;
+    width: 11px;
+    height: 11px;
 }
 
 .board-card.arena-board-card .sb-num {
-    min-width: 9px;
-    height: 9px;
+    min-width: 7px;
+    height: 7px;
     padding: 0;
-    font-size: 6px;
+    font-size: 5px;
     bottom: 0;
     right: 0;
     border-width: 1px;
