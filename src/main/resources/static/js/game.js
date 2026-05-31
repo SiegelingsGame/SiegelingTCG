@@ -482,13 +482,15 @@ function renderArenaBoardHpBar(cell) {
         + `</div>`;
 }
 
+const ARENA_BOARD_NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
+
 function renderArenaBoardFrameNotches(notches, options) {
     const notchMap = {};
     for (const n of (notches || [])) {
         notchMap[n.direction] = n;
     }
     let html = `<div class="hand-notches arena-board-notches"><div class="notch-center"></div>`;
-    for (const dir of NOTCH_DIRECTIONS) {
+    for (const dir of ARENA_BOARD_NOTCH_DIRECTIONS) {
         const notch = notchMap[dir];
         if (notch) {
             const elemClass = notch.element.toLowerCase();
