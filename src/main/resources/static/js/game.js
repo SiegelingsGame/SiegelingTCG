@@ -526,14 +526,13 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     }
     html += renderArenaBoardFrameNotches(cell.notches, { board, row, col, isPlayer, legalPlacements });
     html += `<div class="hand-card-shell arena-board-shell">`;
-    html += `<div class="hand-card-header">`;
-    html += `<div class="card-title">${escapeHtml(cell.name || '')}</div>`;
-    html += statusBadgesHtml;
+    html += `<div class="arena-board-health">`;
+    html += renderArenaBoardHpBar(cell);
     html += `</div>`;
     html += renderCardArt(cell, 'hand', fallbackArtLabel);
     html += `<div class="arena-board-combat">`;
     html += renderCardStatPills(cell, { mode: 'board' });
-    html += renderArenaBoardHpBar(cell);
+    html += statusBadgesHtml;
     html += `</div>`;
     html += `</div>`;
     html += `</div>`;
