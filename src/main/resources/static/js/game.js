@@ -482,6 +482,26 @@ function renderArenaBoardHpBar(cell) {
         + `</div>`;
 }
 
+function renderArenaBoardFrameNotches(notches, options) {
+    const notchMap = {};
+    for (const n of (notches || [])) {
+        notchMap[n.direction] = n;
+    }
+    let html = `<div class="hand-notches arena-board-notches"><div class="notch-center"></div>`;
+    for (const dir of NOTCH_DIRECTIONS) {
+        const notch = notchMap[dir];
+        if (notch) {
+            const elemClass = notch.element.toLowerCase();
+            const stateClass = options ? getNotchStateClass(notch, { ...options, isBoard: true }) : '';
+            html += `<div class="notch-dot ${elemClass} notch-${dir} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
+        } else {
+            html += `<div class="notch-dot notch-${dir}"></div>`;
+        }
+    }
+    html += `</div>`;
+    return html;
+}
+
 function buildArenaBoardCardMarkup(cell, context = {}) {
     const elemClass = String(cell.element || 'NEUTRAL').toLowerCase();
     const shieldInfo = getShieldInfo(cell);
@@ -502,7 +522,7 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     if (context.isClaimable) {
         html += `<div class="claim-prompt" title="Claim" aria-label="Claim" onclick="event.stopPropagation(); openClaimPopup(${row}, ${col})"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.4 1.2v13.6M3.4 2.2h8.7L10.4 5.4l1.7 3.2H3.4"/></svg></div>`;
     }
-    html += renderBoardNotches(cell.notches, { board, row, col, isPlayer, legalPlacements });
+    html += renderArenaBoardFrameNotches(cell.notches, { board, row, col, isPlayer, legalPlacements });
     html += `<div class="hand-card-shell arena-board-shell">`;
     html += `<div class="hand-card-header">`;
     html += `<div class="card-title">${escapeHtml(cell.name || '')}</div>`;

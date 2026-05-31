@@ -5288,6 +5288,10 @@ body.placement-active .board-cell.legal {
 .board-card.arena-board-card {
     --notch-edge-offset: 4px;
     --notch-corner-offset: 5px;
+    min-width: 0;
+    max-width: none;
+    flex-shrink: 1;
+    aspect-ratio: auto;
     display: flex;
     flex-direction: column;
     padding: 4px;
@@ -5298,6 +5302,7 @@ body.placement-active .board-cell.legal {
         linear-gradient(180deg, rgba(70, 108, 175, 0.22), rgba(14, 20, 36, 0.18)),
         var(--surface-strong);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    overflow: visible;
 }
 
 .board-card.arena-board-card::before {
@@ -5351,7 +5356,7 @@ body.placement-active .board-cell.legal {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     width: 100%;
     margin-top: auto;
 }
@@ -5376,7 +5381,8 @@ body.placement-active .board-cell.legal {
 .board-card.arena-board-card .status-icons {
     gap: 2px;
     padding: 0;
-    min-height: 18px;
+    min-height: 16px;
+    margin-top: -1px;
 }
 
 .board-card.arena-board-card .sb-badge {
@@ -5390,6 +5396,28 @@ body.placement-active .board-cell.legal {
     font-size: 7px;
     bottom: -3px;
     right: -3px;
+}
+
+.board-card.arena-board-card .arena-board-notches {
+    z-index: 6;
+}
+
+.board-card.arena-board-card .notch-center {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+}
+
+.board-card.arena-board-card .notch-dot {
+    width: 9px;
+    height: 9px;
+    border-width: 1.2px;
+}
+
+.board-card.arena-board-card .notch-dot.linked,
+.board-card.arena-board-card .notch-dot.expandable {
+    width: 10px;
+    height: 10px;
 }
 
 .board-card.arena-board-card .acting-badge {
