@@ -529,10 +529,13 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     html += `<div class="arena-board-health">`;
     html += renderArenaBoardHpBar(cell);
     html += `</div>`;
+    html += `<div class="hand-card-header arena-board-header">`;
+    html += `<div class="card-title">${escapeHtml(cell.name || '')}</div>`;
+    html += `</div>`;
     html += renderCardArt(cell, 'hand', fallbackArtLabel);
     html += `<div class="arena-board-combat">`;
     html += renderCardStatPills(cell, { mode: 'board' });
-    html += statusBadgesHtml;
+    html += `<div class="arena-board-badges">${statusBadgesHtml}</div>`;
     html += `</div>`;
     html += `</div>`;
     html += `</div>`;
