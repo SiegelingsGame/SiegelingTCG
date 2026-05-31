@@ -1413,6 +1413,14 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 .hand-tray .card-info-panel { padding: 2px 3px; }
 .hand-tray .card-info-panel .card-stat-row { font-size: 0.6em; }
 .hand-tray .hand-card-body { display: none; }
+.hand-tray .card-stat-pills {
+    display: flex;
+    margin-top: 2px;
+}
+.hand-tray .card-stat-pill {
+    font-size: 0.52em;
+    padding: 2px 4px;
+}
 .hand-tray .card-label { font-size: 0.62em; }
 .hand-tray .card-title { font-size: 0.82em; line-height: 1.12; }
 .hand-tray .card-art-hand { min-height: 104px; padding: 4px; border-radius: 10px; }
@@ -5268,18 +5276,131 @@ body.placement-active .board-cell.legal {
     stroke-linejoin: round;
 }
 
-/* ── Board Card (TCG card template) ───────────────── */
+/* ── Board Card (hand-selector style on arena) ─────── */
 
 .board-card {
     width: 100%;
     height: 100%;
     position: relative;
-    background:
-        radial-gradient(circle at top, rgba(255,255,255,0.98), rgba(240,240,240,0.9) 62%),
-        #f0f0f0;
-    border: 2px solid #444;
-    border-radius: 6px;
     overflow: visible;
+}
+
+.board-card.arena-board-card {
+    --notch-edge-offset: 4px;
+    --notch-corner-offset: 5px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    border-radius: 10px;
+    border: 2px solid #2a3a5a;
+    background:
+        radial-gradient(circle at top, rgba(255,255,255,0.12), transparent 36%),
+        linear-gradient(180deg, rgba(70, 108, 175, 0.22), rgba(14, 20, 36, 0.18)),
+        var(--surface-strong);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.board-card.arena-board-card::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.board-card.arena-board-card .arena-board-shell {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+.board-card.arena-board-card .hand-card-header {
+    flex: 0 0 auto;
+    gap: 1px;
+}
+
+.board-card.arena-board-card .card-title {
+    font-size: 0.58em;
+    line-height: 1.1;
+}
+
+.board-card.arena-board-card .card-label {
+    font-size: 0.44em;
+    letter-spacing: 0.06em;
+}
+
+.board-card.arena-board-card .card-art-hand {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 2px;
+    border-radius: 6px;
+}
+
+.board-card.arena-board-card .card-art-hand img {
+    max-height: 100%;
+}
+
+.board-card.arena-board-card .arena-board-combat {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+    margin-top: auto;
+}
+
+.board-card.arena-board-card .card-stat-pills {
+    gap: 3px;
+}
+
+.board-card.arena-board-card .card-stat-pill {
+    font-size: 0.48em;
+    padding: 2px 3px;
+    border-radius: 5px;
+}
+
+.board-card.arena-board-card .hp-bar {
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+.board-card.arena-board-card .status-icons {
+    gap: 2px;
+    padding: 0;
+    min-height: 18px;
+}
+
+.board-card.arena-board-card .sb-badge {
+    width: 16px;
+    height: 16px;
+}
+
+.board-card.arena-board-card .sb-num {
+    min-width: 11px;
+    height: 11px;
+    font-size: 7px;
+    bottom: -3px;
+    right: -3px;
+}
+
+.board-card.arena-board-card .acting-badge {
+    top: 3px;
+    padding: 2px 6px;
+    font-size: 0.42em;
+    z-index: 8;
+}
+
+.board-card.arena-board-card.has-shield .card-stat-pill-hp.is-shielded {
+    animation: none;
 }
 
 .card-art {
@@ -6205,6 +6326,45 @@ body.placement-active .board-cell.legal {
 
 .card-cost-text.combo-cost {
     color: var(--accent);
+}
+
+.card-stat-pills {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+}
+
+.card-stat-pill {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    font-size: 0.62em;
+    font-weight: 700;
+    padding: 3px 5px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #f0f4ff;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+}
+
+.card-stat-pill-spd {
+    color: #d8ecff;
+}
+
+.card-stat-pill.is-buffed {
+    color: var(--accent);
+    border-color: rgba(226, 183, 20, 0.35);
+}
+
+.card-stat-pill.is-shielded {
+    background: linear-gradient(180deg, #c8d0d8 0%, #8a939e 100%);
+    color: #18202a;
+    border-color: rgba(24, 32, 42, 0.28);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.45),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.18);
 }
 
 .card-stats-line {
@@ -7239,7 +7399,7 @@ body.placement-active .board-cell.legal {
 
 .preview-knight-card {
     display: grid;
-    grid-template-columns: 52px minmax(0, 1fr);
+    grid-template-columns: 72px minmax(0, 1fr);
     gap: 12px;
     align-items: center;
     margin-top: 10px;
@@ -7437,6 +7597,61 @@ body.placement-active .board-cell.legal {
 }
 
 /* ── SiegeKnight Cards ──────────────────────────────── */
+
+.knight-card-portrait.has-knight-back,
+.preview-knight-icon.has-knight-back,
+.hud-knight-portrait.has-knight-back {
+    background-image: var(--knight-card-back, url('/img/knights/card-back-siegeknight.png'));
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.knight-card.has-knight-back .knight-card-sigil {
+    display: none;
+}
+
+.knight-card.has-knight-back .knight-card-portrait {
+    flex: 1 1 48%;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.knight-card.has-knight-back .knight-card-portrait .knight-card-icon {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(4, 8, 20, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.preview-knight-icon.has-knight-back {
+    position: relative;
+    overflow: hidden;
+    width: 72px;
+    height: 96px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.preview-knight-icon.has-knight-back .preview-knight-element-badge,
+.preview-knight-icon.has-knight-back .deck-sigil {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(4, 8, 20, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
 
 .knight-card {
     position: relative;
@@ -7883,6 +8098,10 @@ body.placement-active .board-cell.legal {
     transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
+.knight-card.has-knight-back {
+    background: linear-gradient(180deg, rgba(14, 18, 34, 0.98), rgba(4, 6, 16, 0.99));
+}
+
 .knight-card:hover {
     transform: translateY(-6px) scale(1.02);
     border-color: color-mix(in srgb, var(--rarity-frame, var(--knight-color)) 80%, #fff 20%);
@@ -7941,7 +8160,11 @@ body.placement-active .board-cell.legal {
     height: 96%;
 }
 
-.knight-card-portrait {
+.knight-card.has-knight-back .knight-card-portrait {
+    height: auto;
+}
+
+.knight-card:not(.has-knight-back) .knight-card-portrait {
     height: 42%;
 }
 
@@ -12078,56 +12301,20 @@ body.sgl-opponent-turn .battle-cta-row {
     pointer-events: none;
 }
 
-/* Speed toggle — docked in hand tray (avoids overlapping Quit in action bar) */
-.hand-tray-speed-slot {
-    position: absolute;
-    right: clamp(8px, 0.8vw, 14px);
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 15;
-    pointer-events: none;
+/* Speed toggle — circular HUD control in action-bar-aux */
+.ab-icon.ab-speed-toggle {
+    font-size: 0.72em;
+    line-height: 1;
 }
-
-.hand-tray-speed-slot .sgl-speed-toggle {
-    pointer-events: auto;
-}
-
-.sgl-speed-toggle {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(10, 14, 24, 0.78);
-    color: #d8e0ee;
-    font-size: 0.76rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.36);
-    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-.sgl-speed-toggle:hover {
-    background: rgba(20, 30, 50, 0.9);
-    border-color: rgba(255, 255, 255, 0.32);
-}
-.sgl-speed-toggle.fast {
-    background: linear-gradient(180deg, rgba(255, 215, 0, 0.18), rgba(255, 130, 40, 0.22));
-    border-color: rgba(255, 215, 0, 0.6);
+.ab-icon.ab-speed-toggle.fast {
     color: #ffe080;
+    border-color: rgba(255, 215, 0, 0.6);
+    background: linear-gradient(180deg, rgba(255, 215, 0, 0.18), rgba(255, 130, 40, 0.22));
+    box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.12), 0 0 12px rgba(255, 180, 40, 0.22);
 }
-
-.desktop-menu .hand-tray .hand-cards {
-    padding-right: clamp(88px, 9vw, 108px);
-}
-
-@media (max-width: 720px) {
-    .sgl-speed-toggle { font-size: 0.7rem; padding: 5px 10px; }
-    .desktop-menu .hand-tray .hand-cards {
-        padding-right: clamp(72px, 18vw, 88px);
-    }
+.ab-icon.ab-speed-toggle.fast:hover {
+    color: #fff6c8;
+    border-color: rgba(255, 230, 120, 0.75);
 }
 @media (prefers-reduced-motion: reduce) {
     .board-card.sgl-acting { transform: none; }

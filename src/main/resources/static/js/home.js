@@ -13,6 +13,14 @@
     const SOCIAL_POLL_MS = 6 * 1000;
     const PRESENCE_HEARTBEAT_MS = 45 * 1000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
+    const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
+    const PACK_CARD_BACK_VERSION = 2;
+
+    function versionedPackAsset(path) {
+        if (!path) return '';
+        const separator = path.includes('?') ? '&' : '?';
+        return `${path}${separator}v=${PACK_CARD_BACK_VERSION}`;
+    }
     const HERO_STAT_ICONS = {
         coins: COIN_ICON_PATH,
         remnants: '/img/ui/home-stats/remnants.png',
@@ -625,7 +633,7 @@
             renderFilters();
             renderCards();
         });
-        renderFilter('typeFilters', ['ALL', 'SIEGLING', 'SPELL', 'TRAP'], state.typeFilter, (value) => {
+        renderFilter('typeFilters', ['ALL', 'SIEGLING', 'SIEGEKNIGHT', 'SPELL', 'TRAP'], state.typeFilter, (value) => {
             state.typeFilter = value;
             renderFilters();
             renderCards();
@@ -679,8 +687,47 @@
         renderUnlock();
     }
 
+    function trainerOwnedLevel(trainerId) {
+        if (!trainerId) return 0;
+        const key = String(trainerId).toLowerCase();
+        const ownedEntry = (state.progression?.ownedTrainers || []).find(entry => String(entry?.id || '').toLowerCase() === key);
+        if (ownedEntry) return Math.max(1, Number(ownedEntry.level) || 1);
+        const trainer = (state.options?.trainers || []).find(item => String(item?.id || '').toLowerCase() === key);
+        if (trainer?.owned) return Math.max(1, Number(trainer.level) || 1);
+        return 0;
+    }
+
+    function siegeknightBinderCards() {
+        return (state.options?.trainers || []).map(trainer => {
+            const level = Math.max(1, Number(trainer.level) || trainerOwnedLevel(trainer.id) || 1);
+            const owned = trainerOwnedLevel(trainer.id) > 0;
+            const abilities = [
+                trainer.passive ? { name: 'Passive', description: trainer.passive } : null,
+                trainer.active ? { name: 'Active', description: trainer.active } : null
+            ].filter(Boolean);
+            return {
+                id: trainer.id,
+                name: trainer.name,
+                type: 'SIEGEKNIGHT',
+                element: trainer.element,
+                rarity: trainer.rarity || 'RARE',
+                tier: trainer.tier || 'SiegeKnight',
+                level,
+                owned,
+                abilityBonus: trainer.abilityBonus,
+                oncePerGame: trainer.oncePerGame,
+                abilities,
+                description: abilities.map(ability => ability.description).filter(Boolean).join(' ')
+            };
+        });
+    }
+
+    function binderCatalog() {
+        return [...(state.options?.cardCatalog || []), ...siegeknightBinderCards()];
+    }
+
     function filteredCards() {
-        const cards = [...(state.options?.cardCatalog || [])].filter(card => {
+        const cards = binderCatalog().filter(card => {
             if (!state.showUnowned && ownedCount(card.id) <= 0) return false;
             if (state.elementFilter !== 'ALL' && card.element !== state.elementFilter) return false;
             if (state.typeFilter !== 'ALL' && card.type !== state.typeFilter) return false;
@@ -703,25 +750,36 @@
     }
 
     function renderBinderCardShell(card, options = {}) {
-        const owned = Number.isFinite(options.ownedOverride) ? options.ownedOverride : ownedCount(card.id);
+        const isSiegeknight = card.type === 'SIEGEKNIGHT';
+        const owned = Number.isFinite(options.ownedOverride)
+            ? options.ownedOverride
+            : (isSiegeknight ? (trainerOwnedLevel(card.id) > 0 ? 1 : 0) : ownedCount(card.id));
+        const knightLevel = isSiegeknight ? Math.max(1, trainerOwnedLevel(card.id) || card.level || 1) : 0;
         const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const isSiegling = card.type === 'SIEGLING';
+        const ownedLabel = isSiegeknight
+            ? (owned ? `Owned · Lv ${knightLevel}` : 'Unowned')
+            : (owned ? `Owned x${owned}` : 'Unowned');
+        const energyCost = isSiegeknight ? '' : renderBinderCardEnergyCost(cost, costElement);
+        const binderOverlay = isSiegeknight ? '' : (window.SieglingsCardBinderVisual?.renderBinderCardOverlay(card) || '');
         return `${isSiegling ? renderBinderNotches(card.notches) : ''}
-            ${window.SieglingsCardBinderVisual?.renderBinderCardOverlay(card) || ''}
+            ${binderOverlay}
             <div class="binder-card-shell">
                 <div class="binder-card-header">
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(typeLabel)}</span>
                 </div>
-                <div class="binder-card-art">
-                    ${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}
+                <div class="binder-card-art${isSiegeknight ? ' binder-card-art-knight' : ''}">
+                    ${(window.SieglingsCardBinderVisual?.renderBinderCardArt && !isSiegeknight
+                        ? window.SieglingsCardBinderVisual.renderBinderCardArt(card)
+                        : renderBinderCardArt(card))}
                 </div>
                 <div class="binder-card-body shop-card-body">
                     ${renderShopCardStats(card)}
-                    <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${owned ? `Owned x${owned}` : 'Unowned'}</div>
-                    ${renderBinderCardEnergyCost(cost, costElement)}
+                    <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${ownedLabel}</div>
+                    ${energyCost}
                     ${renderShopCardAbilityLine(card)}
                     ${renderShopCardDescription(card)}
                 </div>
@@ -730,8 +788,9 @@
 
     function renderCardTile(card) {
         const selected = card.id === state.selectedCardId ? ' selected' : '';
-        const modeClass = window.SieglingsCardBinderVisual?.resolveArtModeClass(card) || '';
-        return `<button class="card-tile binder-card${selected}${modeClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+        const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (window.SieglingsCardBinderVisual?.resolveArtModeClass(card) || '');
+        const knightClass = card.type === 'SIEGEKNIGHT' ? ' siegeknight-binder-card' : '';
+        return `<button class="card-tile binder-card${selected}${modeClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
             ${renderBinderCardShell(card)}
         </button>`;
     }
@@ -746,52 +805,58 @@
         }
         const abilities = card.abilities || (card.ability ? [card.ability] : []);
         const flavorText = creatureDescriptionFor(card);
+        const isSiegeknight = card.type === 'SIEGEKNIGHT';
         const craftCost = remnantCraftCost(card);
         const remnants = remnantBalance();
-        const canCraft = state.profile?.authenticated && state.progression?.starterChosen && remnants >= craftCost;
+        const canCraft = !isSiegeknight && state.profile?.authenticated && state.progression?.starterChosen && remnants >= craftCost;
         const craftLabel = state.profile?.authenticated
             ? `Craft for ${craftCost.toLocaleString()} Remnants`
             : 'Sign in to craft';
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
-        const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview)
+        const knightLevel = isSiegeknight ? Math.max(1, trainerOwnedLevel(card.id) || card.level || 1) : 0;
+        const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview && !isSiegeknight)
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id),
                 previewClass: 'detail-card-preview'
             })
-            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+            : `<div class="binder-card detail-card-preview${isSiegeknight ? ' siegeknight-binder-card' : ''}" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
             <div class="detail-card-preview-wrap">${cardPreview}</div>
-            <div class="chip-wrap detail-chip-wrap">
+            ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
                 ${renderActiveNotchChips(card.notches)}
             </div>
             <div class="detail-cost-block">
                 <span class="detail-cost-label">Energy cost</span>
                 ${renderBinderCardEnergyCost(cost, costElement)}
-            </div>
+            </div>`}
             <div class="detail-grid">
+                ${isSiegeknight ? `<div><span>Level</span><strong>${knightLevel}</strong></div>
+                <div><span>Tier</span><strong>${escapeHtml(card.tier || 'SiegeKnight')}</strong></div>
+                <div><span>Element</span><strong>${format(card.element)}</strong></div>
+                <div><span>Ability bonus</span><strong>+${Math.max(0, knightLevel - 1)} effect</strong></div>` : ''}
                 ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
                 <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
                 <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
                 <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
-                ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
-                <div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>
+                ${!isSiegeknight && card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
+                ${!isSiegeknight ? `<div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>` : ''}
             </div>
-            ${flavorText ? `
+            ${flavorText && !isSiegeknight ? `
                 <div class="detail-flavor" style="--el:${elementColor(card.element)}">
                     <span>Background</span>
                     <p>${escapeHtml(flavorText)}</p>
                 </div>
             ` : ''}
-            <h3 class="detail-section-title">Moves &amp; abilities</h3>
+            <h3 class="detail-section-title">${isSiegeknight ? 'SiegeKnight abilities' : 'Moves &amp; abilities'}</h3>
             <div class="detail-abilities">
             ${abilities.length ? abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('') : '<p class="detail-ability-empty">No printed ability.</p>'}
             </div>
-            <div class="craft-card-action">
+            ${isSiegeknight ? '<p class="detail-knight-hint">Pull duplicates from packs to combine and raise this knight\'s level.</p>' : `<div class="craft-card-action">
                 <button class="primary-btn" type="button" id="craftSelectedCard"${canCraft || !state.profile?.authenticated ? '' : ' disabled'}>${escapeHtml(craftLabel)}</button>
                 <span>${escapeHtml(remnants.toLocaleString())} Remnants available</span>
-            </div>
-            ${state.route === 'deck-builder' ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
+            </div>`}
+            ${state.route === 'deck-builder' && !isSiegeknight ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
         `;
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
         document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
@@ -1924,6 +1989,11 @@
                 : 'Trap set';
             return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
         }
+        if (type === 'SIEGEKNIGHT') {
+            const level = Math.max(1, trainerOwnedLevel(card.id) || card.level || 1);
+            const tier = card.tier || 'SiegeKnight';
+            return `<div class="binder-card-stats shop-card-stats-alt"><span>Lv ${level}</span><span>${escapeHtml(tier)}</span></div>`;
+        }
         return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(card.type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span></div>`;
     }
 
@@ -1954,7 +2024,7 @@
         const label = starterMode && pack.starterEligible ? 'Choose Starter' : renderCoinAmount(pack.price, '');
         const primaryElement = pack.elements?.[0] || 'FIRE';
         const image = packImageFor(pack);
-        const imageStyle = image ? `background-image: url('${image}');` : '';
+        const imageStyle = image ? `--pack-art-image:url('${escapeAttr(image)}');` : '';
         const kicker = pack.starterEligible ? (starterMode ? 'Starter Pack' : 'Element Pack') : 'Pack Group';
         const displayName = pack.starterEligible && !starterMode
             ? `${format(primaryElement)} Element Pack`
@@ -1980,26 +2050,31 @@
             ICE: '/img/packs/starter-ice.jpg',
             pack_siegeling_random: '/img/packs/siegeling-back.png',
             pack_spell_random: '/img/packs/spell-card-back.png',
-            pack_trap_random: '/img/packs/trap-card-back.png'
+            pack_trap_random: '/img/packs/trap-card-back.png',
+            pack_siegeknight: SIEGEKNIGHT_CARD_BACK
         };
-        if (images[pack.id]) return images[pack.id];
-        return pack.starterEligible ? images[element] : '';
+        const path = images[pack.id] || (pack.starterEligible ? images[element] : '');
+        return versionedPackAsset(path);
     }
 
     function packBackForElement(element, packId = '') {
         const special = {
-            pack_siegeling_random: "url('/img/packs/siegeling-back.png')",
-            pack_spell_random: "url('/img/packs/spell-card-back.png')",
-            pack_trap_random: "url('/img/packs/trap-card-back.png')"
+            pack_siegeling_random: '/img/packs/siegeling-back.png',
+            pack_spell_random: '/img/packs/spell-card-back.png',
+            pack_trap_random: '/img/packs/trap-card-back.png',
+            pack_siegeknight: SIEGEKNIGHT_CARD_BACK
         };
-        if (special[packId]) return special[packId];
+        const specialPath = special[packId];
+        if (specialPath) return `url('${versionedPackAsset(specialPath)}')`;
         const images = {
-            FIRE: "url('/img/packs/starter-fire.jpg')",
-            EARTH: "url('/img/packs/starter-earth.jpg')",
-            WIND: "url('/img/packs/starter-wind.jpg')",
-            ICE: "url('/img/packs/starter-ice.jpg')"
+            FIRE: '/img/packs/starter-fire.jpg',
+            EARTH: '/img/packs/starter-earth.jpg',
+            WIND: '/img/packs/starter-wind.jpg',
+            ICE: '/img/packs/starter-ice.jpg'
         };
-        return images[String(element || '').toUpperCase()] || "linear-gradient(145deg, #1b2238, #070a12)";
+        const starterPath = images[String(element || '').toUpperCase()];
+        if (starterPath) return `url('${versionedPackAsset(starterPath)}')`;
+        return "linear-gradient(145deg, #1b2238, #070a12)";
     }
 
     function renderRooms() {
@@ -4319,9 +4394,16 @@
         if (!state.profile?.authenticated || !state.progression?.ownedTotal) return 3;
         return 0;
     }
-    function selectedCard() { return findCard(state.selectedCardId) || state.options?.cardCatalog?.[0]; }
-    function findCard(id) { return (state.options?.cardCatalog || []).find(card => card.id === id); }
-    function ownedCount(id) { return state.progression?.ownedCards?.[id] || 0; }
+    function selectedCard() { return findCard(state.selectedCardId) || binderCatalog()[0]; }
+    function findCard(id) { return binderCatalog().find(card => card.id === id); }
+    function ownedCount(id) {
+        if (trainerOwnedLevel(id) > 0) return 1;
+        return state.progression?.ownedCards?.[id] || 0;
+    }
+
+    function renderSiegeknightBinderArt(card) {
+        return `<div class="siegeknight-binder-art has-knight-back" style="--knight-card-back:url('${escapeAttr(SIEGEKNIGHT_CARD_BACK)}')" role="img" aria-label="${escapeAttr(card?.name || 'SiegeKnight')} card back"></div>`;
+    }
     function selectedSavedDeck() {
         const selected = state.selectedDeckId;
         if (!selected) return null;
@@ -4541,6 +4623,9 @@
     }
 
     function renderBinderCardArt(card) {
+        if (String(card?.type || '').toUpperCase() === 'SIEGEKNIGHT') {
+            return renderSiegeknightBinderArt(card);
+        }
         const dashboardArtUrl = String(card?.cardArtUrl || '').trim();
         const dashboardMode = window.SieglingsCardBinderVisual?.normalizeArtMode(card?.cardArtMode) || '';
         if (dashboardArtUrl && dashboardMode && window.SieglingsCardBinderVisual) {
@@ -4584,6 +4669,7 @@
         const normalized = String(value || '');
         if (normalized === 'SIEGLING') return 'Siegeling';
         if (normalized === 'SIEGLINGS') return 'Siegelings';
+        if (normalized === 'SIEGEKNIGHT') return 'SiegeKnight';
         return normalized
             .toLowerCase()
             .replace(/_/g, ' ')
