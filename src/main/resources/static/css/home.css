@@ -4592,13 +4592,58 @@ body.gacha-active {
 .record-list div,
 .collection-facts div,
 .deck-snapshot-grid div,
-.friend-activity div {
+.friend-activity > div {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     align-items: center;
     padding: 9px 0;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.friend-activity-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.friend-activity-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.friend-activity-main span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.friend-activity-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.friend-activity-note {
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr) !important;
+}
+
+.friend-activity-note span {
+    text-align: right;
+}
+
+@media (max-width: 560px) {
+    .friend-activity > div {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    .friend-activity-actions {
+        justify-content: flex-start;
+    }
+    .friend-activity-note span {
+        text-align: left;
+    }
 }
 
 .record-list div:first-child,
