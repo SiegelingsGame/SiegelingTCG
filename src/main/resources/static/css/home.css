@@ -631,17 +631,54 @@ select.search-input { color-scheme: dark; }
     }
 }
 
+.siegeknight-binder-art.has-knight-back {
+    width: 100%;
+    min-height: 118px;
+    flex: 1 1 auto;
+    border-radius: 10px;
+    background-image: var(--knight-card-back, url('/img/knights/card-back-siegeknight.png'));
+    background-size: cover;
+    background-position: center;
+}
+
+.binder-card-art-knight {
+    display: flex;
+    align-items: stretch;
+    min-height: 118px;
+}
+
+.card-tile.siegeknight-binder-card .binder-card-shell,
+.detail-card-preview.siegeknight-binder-card .binder-card-shell {
+    border-color: color-mix(in srgb, var(--el, var(--accent)) 42%, rgba(255, 213, 74, 0.35));
+}
+
+.detail-knight-hint {
+    margin: 0;
+    color: var(--muted, #9aa3b2);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
 .pack-art {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 50% 22%, color-mix(in srgb, var(--el, var(--accent)) 48%, transparent), transparent 36%),
-        linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.55)),
-        color-mix(in srgb, var(--el, var(--accent)) 52%, #080b16);
+    --pack-art-image: none;
+    background-image:
+        linear-gradient(180deg, rgba(5, 8, 18, 0.06) 0%, rgba(5, 8, 18, 0.42) 70%, rgba(5, 8, 18, 0.68) 100%),
+        radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--el, var(--accent)) 24%, transparent), transparent 40%),
+        var(--pack-art-image);
     background-size: cover;
     background-position: center;
     transform: scale(1.02);
     transition: transform 0.28s ease;
+}
+
+.pack-tile:not(.pack-tile-art) .pack-art {
+    --pack-art-image: none;
+    background-image:
+        radial-gradient(circle at 50% 22%, color-mix(in srgb, var(--el, var(--accent)) 48%, transparent), transparent 36%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.55)),
+        color-mix(in srgb, var(--el, var(--accent)) 52%, #080b16);
 }
 
 .pack-tile-art:hover .pack-art,

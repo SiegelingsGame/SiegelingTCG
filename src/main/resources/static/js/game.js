@@ -69,6 +69,11 @@ const DECK_ART_ASSETS = {
     WATER: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
     ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
 };
+const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
+
+function siegeknightCardBackStyle() {
+    return `--knight-card-back:url('${SIEGEKNIGHT_CARD_BACK}')`;
+}
 let handTouchSuppressHandIndex = null;
 let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
@@ -418,6 +423,105 @@ function renderStatusBadgesForCell(cell) {
     if (items.length === 0) return '';
     return `<div class="status-icons">${items.join('')}</div>`;
 }
+
+function formatStatPillNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? String(n) : '—';
+}
+
+function renderCardStatPills(entity, options = {}) {
+    if (!entity) {
+        return '';
+    }
+    const mode = options.mode === 'board' ? 'board' : 'hand';
+    const hpVal = mode === 'board'
+        ? formatStatPillNumber(entity.hp)
+        : formatStatPillNumber(entity.health ?? entity.hp);
+    const spdVal = mode === 'board'
+        ? formatStatPillNumber(entity.spd)
+        : formatStatPillNumber(entity.speed ?? entity.spd);
+
+    let hpClass = '';
+    let spdClass = '';
+    if (mode === 'board') {
+        const printedHp = Number(entity.printedHealth);
+        const maxHp = Number(entity.maxHp);
+        const printedSpd = Number(entity.printedSpeed);
+        const shieldInfo = getShieldInfo(entity);
+        if (shieldInfo.active && shieldInfo.intact > 0) {
+            hpClass = ' is-shielded';
+        } else if (Number.isFinite(printedHp) && maxHp > printedHp) {
+            hpClass = ' is-buffed';
+        }
+        if (Number.isFinite(printedSpd) && entity.spd !== printedSpd) {
+            spdClass = ' is-buffed';
+        }
+    } else if (options.shielded) {
+        hpClass = ' is-shielded';
+    }
+
+    return `<div class="card-stat-pills" role="group" aria-label="Combat stats">`
+        + `<span class="card-stat-pill card-stat-pill-hp${hpClass}">HP: ${hpVal}</span>`
+        + `<span class="card-stat-pill card-stat-pill-spd${spdClass}">SPD: ${spdVal}</span>`
+        + `</div>`;
+}
+
+function renderArenaBoardHpBar(cell) {
+    const barMax = Number(cell.maxHp);
+    const barHp = Number(cell.hp);
+    const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
+    const shield = Math.max(0, Number(cell.shieldHp) || 0);
+    const platesHtml = shield > 0
+        ? `<div class="shield-plates" data-shield="${shield}">${
+            Array.from({ length: shield }, (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`).join('')
+        }</div>`
+        : '';
+    return `<div class="hp-bar${shield > 0 ? ' is-shielded' : ''}">`
+        + `<div class="hp-fill" style="width:${pct}%"></div>`
+        + platesHtml
+        + `</div>`;
+}
+
+function buildArenaBoardCardMarkup(cell, context = {}) {
+    const elemClass = String(cell.element || 'NEUTRAL').toLowerCase();
+    const shieldInfo = getShieldInfo(cell);
+    const hasShield = shieldInfo.active && shieldInfo.intact > 0;
+    const board = context.board || [];
+    const row = Number(context.row);
+    const col = Number(context.col);
+    const isPlayer = !!context.isPlayer;
+    const legalPlacements = context.legalPlacements || [];
+    const fallbackArtLabel = formatElementLabel(cell.element);
+    const labelText = `SIEGELING / ${formatElementLabel(cell.element)}`;
+
+    const heldClass = context.heldCard ? ' sgl-held-card' : '';
+    let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}">`;
+    if (context.isActing) {
+        html += `<div class="acting-badge">Acting</div>`;
+    }
+    if (context.isClaimable) {
+        html += `<div class="claim-prompt" title="Claim" aria-label="Claim" onclick="event.stopPropagation(); openClaimPopup(${row}, ${col})"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.4 1.2v13.6M3.4 2.2h8.7L10.4 5.4l1.7 3.2H3.4"/></svg></div>`;
+    }
+    html += renderBoardNotches(cell.notches, { board, row, col, isPlayer, legalPlacements });
+    html += `<div class="hand-card-shell arena-board-shell">`;
+    html += `<div class="hand-card-header">`;
+    html += `<div class="card-title">${escapeHtml(cell.name || '')}</div>`;
+    html += `<div class="card-label">${escapeHtml(labelText)}</div>`;
+    html += `</div>`;
+    html += renderCardArt(cell, 'hand', fallbackArtLabel);
+    html += `<div class="arena-board-combat">`;
+    html += renderCardStatPills(cell, { mode: 'board' });
+    html += renderArenaBoardHpBar(cell);
+    html += renderStatusBadgesForCell(cell);
+    html += `</div>`;
+    html += `</div>`;
+    html += `</div>`;
+    if (context.isLegal) {
+        html += `<div class="evolve-prompt">Evolve</div>`;
+    }
+    return html;
+}
+
 const TARGET_ARROW_STAGGER_MS = 40;
 const TARGET_ARROW_FADE_MS = 200;
 const TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
@@ -2409,7 +2513,9 @@ function renderShowcaseCard(card, options = {}) {
         if (Array.isArray(card.statuses) && card.statuses.length > 0) {
             html += renderStatusBadgesForCell(card);
         }
-        if (statLine) {
+        if (card.type === 'SIEGLING') {
+            html += renderCardStatPills(card, { mode: 'hand', shielded: showcaseHasShield });
+        } else if (statLine) {
             html += `<div class="card-detail card-stats-line${showcaseHasShield ? ' is-shielded' : ''}">${escapeHtml(statLine)}</div>`;
         }
         visibleDetailEntries.forEach((entry) => {
@@ -6948,11 +7054,11 @@ function renderLoadoutOptions() {
         } else if (recommended) {
             topRibbon = '<span class="knight-recommend-ribbon">Recommended</span>';
         }
-        return `<button type="button" class="knight-card${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
             ${topRibbon}
             ${levelBadge}
             <div class="knight-card-sigil">${sigil}</div>
-            <div class="knight-card-portrait">
+            <div class="knight-card-portrait has-knight-back">
                 <div class="knight-card-icon">${getElementSigil(trainer.element)}</div>
             </div>
             <div class="knight-card-body">
@@ -7142,7 +7248,9 @@ function renderSelectedLoadoutPreview() {
 
     const trainerSummary = trainer
         ? `<div class="preview-knight-card">
-                <div class="preview-knight-icon" style="color:${getElementHex(trainer.element)}">${getElementSigil(trainer.element)}</div>
+                <div class="preview-knight-icon has-knight-back" style="color:${getElementHex(trainer.element)};${siegeknightCardBackStyle()}">
+                    <span class="preview-knight-element-badge">${getElementSigil(trainer.element)}</span>
+                </div>
                 <div>
                     <div class="preview-knight-name">${escapeHtml(trainer.name)}</div>
                     <div class="preview-knight-meta">${escapeHtml(formatElementLabel(trainer.element))} | ${escapeHtml(formatTrainerTier(trainer.tier))} | ${escapeHtml(trainer.rarity || 'Common')}</div>
@@ -7742,7 +7850,7 @@ function renderBuilderPreviewCard(card) {
     html += renderCardArt(card, 'preview', fallbackArtLabel);
     html += `<div class="hand-card-body">`;
     if (card.type === 'SIEGLING') {
-        html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
+        html += renderCardStatPills(card, { mode: 'hand' });
     }
     html += renderCardAbilitiesFlavorSection(card);
     if (card.type === 'TRAP' && card.trapBucketElement) {
@@ -8979,40 +9087,15 @@ function renderTrainer(containerId, trainer, isPlayer) {
 }
 
 function buildBoardCardMarkup(cell, row, col, isPlayer) {
-    const elemClass = String(cell.element || 'NEUTRAL').toLowerCase();
     const board = isPlayer ? (gameState?.playerBoard || []) : (gameState?.enemyBoard || []);
-    const legalPlacements = [];
-    let html = `<div class="board-card ${elemClass} sgl-held-card">`;
-    html += renderBoardNotches(cell.notches, { board, row, col, isPlayer, legalPlacements });
-    html += renderCardArt(cell, 'board');
-    html += `<div class="bc-inner">`;
-    html += `<div class="bc-name-box"><span class="card-name">${escapeHtml(cell.name || '')}</span></div>`;
-    html += renderStatusBadgesForCell(cell);
-    html += `<div class="bc-stats-box">`;
-    const barMax = Number(cell.maxHp);
-    const barHp = Number(cell.hp);
-    const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
-    const shield = Math.max(0, Number(cell.shieldHp) || 0);
-    const platesHtml = shield > 0
-        ? `<div class="shield-plates" data-shield="${shield}">${
-            Array.from({ length: shield }, (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`).join('')
-        }</div>`
-        : '';
-    html += `<div class="hp-bar${shield > 0 ? ' is-shielded' : ''}">`
-        + `<div class="hp-fill" style="width:${pct}%"></div>`
-        + platesHtml
-        + `</div>`;
-    const combat = renderBoardCellCombatStatsInner(cell);
-    html += `<div class="card-stats">`;
-    html += `<span class="stat stat-hp">${combat.hpInner}</span>`;
-    html += `<span class="stat stat-spd">${combat.spdInner}</span>`;
-    if (combat.dmgBlock) {
-        html += combat.dmgBlock;
-    }
-    html += `</div>`;
-    html += `</div>`;
-    html += `</div>`;
-    return html;
+    return buildArenaBoardCardMarkup(cell, {
+        board,
+        row,
+        col,
+        isPlayer,
+        legalPlacements: [],
+        heldCard: true
+    });
 }
 
 function mountHeldBoardCard(cellEl, entry) {
@@ -9117,56 +9200,16 @@ function renderBoard(gridId, board, isPlayer) {
             }
 
             if (cell) {
-                const elemClass = cell.element.toLowerCase();
-                html += `<div class="board-card ${elemClass}">`;
-                if (isActing) {
-                    html += `<div class="acting-badge">Acting</div>`;
-                }
-                if (isClaimable) {
-                    html += `<div class="claim-prompt" title="Claim" aria-label="Claim" onclick="event.stopPropagation(); openClaimPopup(${r}, ${c})"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.4 1.2v13.6M3.4 2.2h8.7L10.4 5.4l1.7 3.2H3.4"/></svg></div>`;
-                }
-                html += renderBoardNotches(cell.notches, { board, row: r, col: c, isPlayer, legalPlacements });
-                html += renderCardArt(cell, 'board');
-                html += `<div class="bc-inner">`;
-                html += `<div class="bc-name-box"><span class="card-name">${cell.name}</span></div>`;
-                html += renderStatusBadgesForCell(cell);
-                html += `<div class="bc-stats-box">`;
-                {
-                    // Temporary shields are tracked separately from max HP
-                    // (shieldHp), so the bar can show permanent max-health
-                    // boosts normally. Shield points overlay the green HP bar
-                    // with grey metal plates — one per shield point — that
-                    // animate off as the shield breaks.
-                    const _barMax = Number(cell.maxHp);
-                    const _barHp = Number(cell.hp);
-                    const _pct = _barMax > 0 ? Math.max(0, Math.min(100, (_barHp / _barMax) * 100)) : 0;
-                    const _shield = Math.max(0, Number(cell.shieldHp) || 0);
-                    const _platesHtml = _shield > 0
-                        ? `<div class="shield-plates" data-shield="${_shield}">${
-                                Array.from({ length: _shield },
-                                    (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
-                                ).join('')
-                            }</div>`
-                        : '';
-                    html += `<div class="hp-bar${_shield > 0 ? ' is-shielded' : ''}">`
-                        + `<div class="hp-fill" style="width:${_pct}%"></div>`
-                        + _platesHtml
-                        + `</div>`;
-                }
-                const combat = renderBoardCellCombatStatsInner(cell);
-                html += `<div class="card-stats">`;
-                html += `<span class="stat stat-hp">${combat.hpInner}</span>`;
-                html += `<span class="stat stat-spd">${combat.spdInner}</span>`;
-                if (combat.dmgBlock) {
-                    html += combat.dmgBlock;
-                }
-                html += `</div>`;
-                html += `</div>`;
-                html += `</div>`;
-                if (isLegal) {
-                    html += `<div class="evolve-prompt">Evolve</div>`;
-                }
-                html += `</div>`;
+                html += buildArenaBoardCardMarkup(cell, {
+                    board,
+                    row: r,
+                    col: c,
+                    isPlayer,
+                    legalPlacements,
+                    isActing,
+                    isClaimable,
+                    isLegal
+                });
             } else if (isLegal) {
                 html += `<div class="placement-prompt">+ Place</div>`;
             }
@@ -9976,13 +10019,16 @@ function renderHand() {
         html += `<div class="hand-card-shell">`;
         html += `<div class="hand-card-header">`;
         html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
-        html += `<div class="card-label">${escapeHtml(card.type)} / ${escapeHtml(card.rarity)}</div>`;
+        const handLabel = card.type === 'SIEGLING'
+            ? `SIEGELING / ${formatElementLabel(card.element)}`
+            : `${card.type} / ${card.rarity}`;
+        html += `<div class="card-label">${escapeHtml(handLabel)}</div>`;
         html += `</div>`;
         html += renderCardArt(card, 'hand', fallbackArtLabel);
-        html += `<div class="hand-card-body">`;
         if (card.type === 'SIEGLING') {
-            html += `<div class="card-detail card-stats-line">HP:${card.health} SPD:${card.speed}</div>`;
+            html += renderCardStatPills(card, { mode: 'hand' });
         }
+        html += `<div class="hand-card-body">`;
         html += renderCardAbilitiesFlavorSection(card);
         if (card.type === 'TRAP' && card.trapBucketElement) {
             html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;

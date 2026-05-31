@@ -976,9 +976,12 @@
             try { localStorage.setItem(SPEED_STORAGE_KEY, this.speed); } catch (_) {}
             const btn = document.getElementById('sglSpeedToggle');
             if (btn) {
-                btn.classList.toggle('fast', this.speed === 'fast');
-                btn.textContent = this.speed === 'fast' ? '⏩ Fast' : '▶ Normal';
-                btn.title = `Playback speed: ${this.speed === 'fast' ? 'Fast (40%)' : 'Normal'} — click to toggle`;
+                const isFast = this.speed === 'fast';
+                btn.classList.toggle('fast', isFast);
+                btn.textContent = isFast ? '\u23E9' : '\u25B6';
+                const label = isFast ? 'Fast' : 'Normal';
+                btn.title = `Playback speed: ${label}${isFast ? ' (40%)' : ''} — click to toggle`;
+                btn.setAttribute('aria-label', `Animation speed: ${label}`);
             }
         }
         isProcessing() { return this.processing; }
@@ -2405,23 +2408,15 @@
 
     // ── Speed toggle UI ───────────────────────────────────────────────────────
     function ensureSpeedToggle(queue) {
-        const mount = document.getElementById('sglSpeedToggleSlot')
-            || document.getElementById('handTray')
-            || document.body;
-        let btn = document.getElementById('sglSpeedToggle');
-        if (!btn) {
-            btn = document.createElement('button');
-            btn.id = 'sglSpeedToggle';
-            btn.type = 'button';
-            btn.className = 'sgl-speed-toggle';
+        const btn = document.getElementById('sglSpeedToggle');
+        if (!btn) return;
+        if (!btn.dataset.speedBound) {
             btn.addEventListener('click', () => {
                 queue.setSpeed(queue.getSpeed() === 'fast' ? 'normal' : 'fast');
             });
-        } else if (btn.parentElement !== mount) {
-            mount.appendChild(btn);
+            btn.dataset.speedBound = '1';
         }
-        if (!btn.parentElement) mount.appendChild(btn);
-        queue.setSpeed(queue.getSpeed()); // initialize label
+        queue.setSpeed(queue.getSpeed());
     }
 
     // ── Bootstrap ─────────────────────────────────────────────────────────────
