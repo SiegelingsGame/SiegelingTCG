@@ -5286,6 +5286,7 @@ body.placement-active .board-cell.legal {
 }
 
 .board-card.arena-board-card {
+    --el: var(--neutral);
     --notch-edge-offset: 0px;
     --notch-corner-offset: 0px;
     min-width: 0;
@@ -5296,24 +5297,43 @@ body.placement-active .board-cell.legal {
     flex-direction: column;
     padding: 3px;
     border-radius: 10px;
-    border: 2px solid #2a3a5a;
+    border: 1px solid color-mix(in srgb, var(--el) 58%, rgba(255, 255, 255, 0.18));
     background:
-        radial-gradient(circle at top, rgba(255,255,255,0.12), transparent 36%),
-        linear-gradient(180deg, rgba(70, 108, 175, 0.22), rgba(14, 20, 36, 0.18)),
-        var(--surface-strong);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.32)),
+        color-mix(in srgb, var(--el) 20%, rgba(6, 10, 24, 0.95));
+    box-shadow:
+        0 0 12px color-mix(in srgb, var(--el) 20%, transparent),
+        inset 0 1px 0 rgba(255, 255, 255, 0.16);
     overflow: visible;
 }
 
 .board-card.arena-board-card::before {
     content: '';
     position: absolute;
-    inset: 3px;
+    inset: 4px;
     border-radius: 7px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid color-mix(in srgb, var(--el) 52%, rgba(255, 255, 255, 0.14));
+    background:
+        radial-gradient(circle at 50% 11%, color-mix(in srgb, var(--el) 30%, transparent), transparent 35%),
+        linear-gradient(180deg, rgba(15, 24, 48, 0.94), rgba(3, 7, 18, 0.97));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 0 0 18px rgba(255, 255, 255, 0.03);
     pointer-events: none;
     z-index: 0;
 }
+
+.board-card.arena-board-card.fire { --el: var(--fire); }
+.board-card.arena-board-card.earth { --el: var(--earth); }
+.board-card.arena-board-card.wind { --el: var(--wind); }
+.board-card.arena-board-card.water { --el: var(--water); }
+.board-card.arena-board-card.ice { --el: var(--ice); }
+.board-card.arena-board-card.shadow { --el: var(--shadow); }
+.board-card.arena-board-card.electric { --el: var(--electric); }
+.board-card.arena-board-card.metal { --el: var(--metal); }
+.board-card.arena-board-card.undead { --el: var(--undead); }
+.board-card.arena-board-card.psychic { --el: var(--psychic); }
+.board-card.arena-board-card.neutral { --el: var(--neutral); }
 
 .board-card.arena-board-card .arena-board-shell {
     position: relative;
@@ -5324,48 +5344,89 @@ body.placement-active .board-cell.legal {
     width: 100%;
     height: 100%;
     min-height: 0;
+    padding: 3px 4px 4px;
 }
 
 .board-card.arena-board-card .hand-card-header {
-    flex: 0 0 auto;
-    gap: 1px;
-    min-height: 18px;
-    justify-content: flex-start;
+    display: none;
 }
 
-.board-card.arena-board-card .card-title {
-    font-size: 0.58em;
-    line-height: 1.1;
+.board-card.arena-board-card .arena-board-health {
+    flex: 0 0 auto;
+    width: 100%;
+}
+
+.board-card.arena-board-card .arena-board-health .hp-bar {
+    height: 5px;
+    border-radius: 999px;
+    border: 1px solid rgba(9, 32, 24, 0.74);
+    background: rgba(0, 0, 0, 0.42);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 0 7px rgba(48, 255, 132, 0.18);
 }
 
 .board-card.arena-board-card .card-art-hand {
     flex: 1 1 auto;
-    min-height: 0;
-    padding: 2px;
+    min-height: 22px;
+    padding: 0;
     border-radius: 6px;
+    background:
+        radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.2), transparent 17%),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--el) 58%, transparent), transparent 64%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.46));
+    border: 1px solid color-mix(in srgb, var(--el) 62%, rgba(255, 255, 255, 0.14));
+    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.3);
+    isolation: isolate;
 }
 
 .board-card.arena-board-card .card-art-hand img {
+    width: 100%;
+    height: 100%;
     max-height: 100%;
+    object-fit: cover;
+    object-position: center;
+    filter: saturate(1.08) contrast(1.04);
+}
+
+.board-card.arena-board-card .card-art-hand.card-art-fallback::before {
+    content: '';
+    width: 46%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.55), transparent 26%),
+        color-mix(in srgb, var(--el) 74%, rgba(0, 0, 0, 0.24));
+    border: 1px solid color-mix(in srgb, var(--el) 54%, #ffffff);
+    box-shadow:
+        0 0 14px color-mix(in srgb, var(--el) 62%, transparent),
+        inset 0 0 0 2px rgba(0, 0, 0, 0.28);
+}
+
+.board-card.arena-board-card .card-art-hand.card-art-fallback span {
+    display: none;
 }
 
 .board-card.arena-board-card .arena-board-combat {
     flex: 0 0 auto;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
     gap: 2px;
     width: 100%;
     margin-top: auto;
 }
 
 .board-card.arena-board-card .card-stat-pills {
-    gap: 3px;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 2px;
 }
 
 .board-card.arena-board-card .card-stat-pill {
-    font-size: 0.48em;
-    padding: 2px 3px;
-    border-radius: 5px;
+    font-size: 0.43em;
+    padding: 1px 2px;
+    border-radius: 4px;
 }
 
 .board-card.arena-board-card .hp-bar {
@@ -5381,19 +5442,23 @@ body.placement-active .board-cell.legal {
     min-height: 0;
     margin-top: 0;
     line-height: 0;
+    flex: 0 0 auto;
+    max-width: 28px;
 }
 
 .board-card.arena-board-card .sb-badge {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
 }
 
 .board-card.arena-board-card .sb-num {
-    min-width: 11px;
-    height: 11px;
-    font-size: 7px;
-    bottom: -3px;
-    right: -3px;
+    min-width: 9px;
+    height: 9px;
+    padding: 0;
+    font-size: 6px;
+    bottom: 0;
+    right: 0;
+    border-width: 1px;
 }
 
 .board-card.arena-board-card .arena-board-notches {
@@ -6059,6 +6124,7 @@ body.placement-active .board-cell.legal {
 }
 
 .hand-card {
+    --el: var(--neutral);
     --notch-edge-offset: 6px;
     --notch-corner-offset: 7px;
     min-width: 146px;
@@ -6068,10 +6134,9 @@ body.placement-active .board-cell.legal {
     position: relative;
     display: flex;
     background:
-        radial-gradient(circle at top, rgba(255,255,255,0.12), transparent 36%),
-        linear-gradient(180deg, rgba(70, 108, 175, 0.22), rgba(14, 20, 36, 0.18)),
-        var(--surface-strong);
-    border: 2px solid #2a3a5a;
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.3)),
+        color-mix(in srgb, var(--el) 20%, rgba(6, 10, 24, 0.95));
+    border: 1px solid color-mix(in srgb, var(--el) 58%, rgba(255, 255, 255, 0.18));
     border-radius: 12px;
     padding: 8px;
     cursor: pointer;
@@ -6085,8 +6150,31 @@ body.placement-active .board-cell.legal {
     position: absolute;
     inset: 4px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid color-mix(in srgb, var(--el) 52%, rgba(255, 255, 255, 0.14));
+    background:
+        radial-gradient(circle at 50% 10%, color-mix(in srgb, var(--el) 28%, transparent), transparent 34%),
+        linear-gradient(180deg, rgba(15, 24, 48, 0.95), rgba(3, 7, 18, 0.96));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 0 22px rgba(255, 255, 255, 0.03);
     pointer-events: none;
+    z-index: 0;
+}
+
+.hand-card.fire { --el: var(--fire); }
+.hand-card.earth { --el: var(--earth); }
+.hand-card.wind { --el: var(--wind); }
+.hand-card.water { --el: var(--water); }
+.hand-card.ice { --el: var(--ice); }
+.hand-card.shadow { --el: var(--shadow); }
+.hand-card.electric { --el: var(--electric); }
+.hand-card.metal { --el: var(--metal); }
+.hand-card.undead { --el: var(--undead); }
+.hand-card.psychic { --el: var(--psychic); }
+.hand-card.neutral { --el: var(--neutral); }
+
+.hand-card .notch-center {
+    display: none;
 }
 
 .hand-card-shell {
@@ -6115,10 +6203,12 @@ body.placement-active .board-cell.legal {
     align-items: center;
     justify-content: center;
     background:
-        radial-gradient(circle at 26% 20%, rgba(255,255,255,0.24), transparent 24%),
-        linear-gradient(180deg, rgba(255,255,255,0.96), rgba(225,232,242,0.92));
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.22), transparent 16%),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--el) 58%, transparent), transparent 64%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.45));
+    border: 1px solid color-mix(in srgb, var(--el) 62%, rgba(255, 255, 255, 0.14));
+    box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.32);
+    isolation: isolate;
 }
 
 .card-art-hand.card-art-crop-illustration {
@@ -6142,9 +6232,11 @@ body.placement-active .board-cell.legal {
     align-items: center;
     justify-content: center;
     background:
-        radial-gradient(circle at 28% 18%, rgba(255,255,255,0.24), transparent 24%),
-        linear-gradient(180deg, rgba(255,255,255,0.96), rgba(225,232,242,0.92));
-    border: 1px solid rgba(255, 255, 255, 0.14);
+        radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.22), transparent 16%),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--el) 58%, transparent), transparent 64%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.45));
+    border: 1px solid color-mix(in srgb, var(--el) 62%, rgba(255, 255, 255, 0.14));
+    box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.32);
 }
 
 .card-art-selected.card-art-crop-illustration {
@@ -6166,9 +6258,11 @@ body.placement-active .board-cell.legal {
     align-items: center;
     justify-content: center;
     background:
-        radial-gradient(circle at 28% 18%, rgba(255,255,255,0.24), transparent 24%),
-        linear-gradient(180deg, rgba(255,255,255,0.96), rgba(225,232,242,0.92));
-    border: 1px solid rgba(255, 255, 255, 0.14);
+        radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.22), transparent 16%),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--el) 58%, transparent), transparent 64%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.45));
+    border: 1px solid color-mix(in srgb, var(--el) 62%, rgba(255, 255, 255, 0.14));
+    box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.32);
 }
 
 .card-art-preview.card-art-crop-illustration {
@@ -6184,10 +6278,11 @@ body.placement-active .board-cell.legal {
 }
 
 .card-art-fallback {
-    color: #22314f;
+    color: #f8fbff;
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: bold;
+    text-shadow: 0 0 14px color-mix(in srgb, var(--el) 56%, transparent);
 }
 
 .card-art-fallback span {
