@@ -2578,9 +2578,18 @@
                 ${friends.length ? friends.slice(0, 4).map(friend => {
                     const playerId = friend.userId || friend.email;
                     const label = friend.displayName || friend.email;
-                    return `<div><a class="profile-friend-link" href="${escapeAttr(playerProfilePath(playerId))}" data-player-profile="${escapeAttr(playerId)}"><strong>${escapeHtml(label)}</strong></a><span>${escapeHtml(friend.email)}</span></div>`;
-                }).join('') : '<div><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
-                <div><strong>Open lobbies</strong><span>Use Social to join rooms or invite friends once room invites are connected.</span></div>
+                    return `<div class="friend-activity-row">
+                        <div class="friend-activity-main">
+                            <a class="profile-friend-link" href="${escapeAttr(playerProfilePath(playerId))}" data-player-profile="${escapeAttr(playerId)}"><strong>${escapeHtml(label)}</strong></a>
+                            <span>${escapeHtml(friend.email)}</span>
+                        </div>
+                        <div class="friend-activity-actions">
+                            <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(playerId)}">Profile</button>
+                            <button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>
+                        </div>
+                    </div>`;
+                }).join('') : '<div class="friend-activity-note"><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
+                <div class="friend-activity-note"><strong>Open lobbies</strong><span>Use Social to join rooms or invite friends once room invites are connected.</span></div>
             </div>
         </section>`;
     }
@@ -2892,6 +2901,8 @@
         }));
         document.querySelectorAll('[data-profile-save]').forEach(btn => btn.addEventListener('click', saveProfilePrefs));
         document.querySelectorAll('[data-profile-route]').forEach(btn => btn.addEventListener('click', () => navigateHub(btn.dataset.profileRoute)));
+        document.querySelectorAll('.friend-activity [data-view-profile]').forEach(btn => btn.addEventListener('click', () => navigateToPlayerProfile(btn.dataset.viewProfile)));
+        document.querySelectorAll('.friend-activity [data-message-friend]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.messageFriend)));
         document.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
             const index = Number(row.dataset.matchIndex);
             row.addEventListener('click', () => openMatchReview(index));
