@@ -1465,9 +1465,20 @@
             // single ATTACK action whose toast announces the whole row /
             // whole side rather than one of the hit cards.
             const ROW_LABELS = ['Back', 'Middle', 'Front'];
+            const formatNameList = (names) => {
+                const list = (names || []).filter(Boolean);
+                if (list.length === 0) return '';
+                if (list.length === 1) return list[0];
+                if (list.length === 2) return `${list[0]} & ${list[1]}`;
+                return `${list.slice(0, -1).join(', ')} & ${list[list.length - 1]}`;
+            };
             const describeTargets = (targets, defenderLabel) => {
                 if (!targets || !targets.length) return '';
                 if (targets.length === 1) return targets[0].name || defenderLabel;
+                const names = targets.map((tt) => tt.name).filter(Boolean);
+                if (names.length === targets.length) {
+                    return formatNameList(names);
+                }
                 const rows = new Set(targets.map((tt) => tt.row));
                 const cols = new Set(targets.map((tt) => tt.col));
                 if (rows.size === 1) {
@@ -1718,11 +1729,21 @@
                     });
                     return;
                 }
-                // Multi-target: simultaneous barrage. Aggregate shield/HP
-                // damage across the targets so the toast can show the total.
+                // Multi-target: simultaneous barrage. When every target took
+                // the same hit, the toast shows that per-target value next to
+                // the named list ("2 dmg → X, Y, Z"). Mixed amounts fall back
+                // to aggregating across the targets.
                 const totalDmg = targets.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
                 const totalShieldBroken = targets.reduce((sum, tt) => sum + (Number(tt.shieldBroken) || 0), 0);
                 const totalHpLoss = targets.reduce((sum, tt) => sum + (Number(tt.hpLoss) || 0), 0);
+                const firstAmount = Number(targets[0].amount) || 0;
+                const firstShield = Number(targets[0].shieldBroken) || 0;
+                const firstHpLoss = Number(targets[0].hpLoss) || 0;
+                const uniformHits = targets.every((tt) =>
+                    (Number(tt.amount) || 0) === firstAmount
+                    && (Number(tt.shieldBroken) || 0) === firstShield
+                    && (Number(tt.hpLoss) || 0) === firstHpLoss
+                );
                 const groupLabel = describeTargets(targets, defenderLabel);
                 this.enqueueAction({
                     kind: 'ATTACK',
@@ -1730,9 +1751,9 @@
                     actorName: realAttacker || groupLabel,
                     targetName: realAttacker ? groupLabel : '',
                     label: realAttacker ? undefined : 'takes',
-                    amount: totalDmg,
-                    shieldBroken: totalShieldBroken,
-                    hpLoss: totalHpLoss,
+                    amount: uniformHits ? firstAmount : totalDmg,
+                    shieldBroken: uniformHits ? firstShield : totalShieldBroken,
+                    hpLoss: uniformHits ? firstHpLoss : totalHpLoss,
                     knightElement: knight,
                     elementColor: srcElement,
                     source: sourcePayload,
