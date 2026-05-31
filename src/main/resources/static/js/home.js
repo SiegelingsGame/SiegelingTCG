@@ -4,6 +4,9 @@
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
     const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
+    // Leaderboards change as matches finish today, so cache them briefly rather
+    // than reusing the same snapshot for the full static TTL.
+    const LEADERBOARD_CACHE_TTL_MS = 60 * 1000;
     const ROOM_CACHE_TTL_MS = 20 * 1000;
     const HOST_LOBBY_KEY = 'sieglingsHostLobby';
     const LOBBY_SESSION_KEY = 'sieglingsLobbySession';
@@ -378,7 +381,7 @@
             fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
-            fetchCachedJson('leaderboards', '/api/leaderboards', STATIC_CACHE_TTL_MS),
+            fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS),
             loadDailyMissions()
         ]);
         applyGameOptions(options);

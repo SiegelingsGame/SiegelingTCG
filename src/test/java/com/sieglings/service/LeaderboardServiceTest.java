@@ -9,6 +9,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LeaderboardServiceTest {
@@ -74,6 +75,23 @@ class LeaderboardServiceTest {
         Instant start = LeaderboardService.periodStart(zone, LeaderboardService.PERIOD_YEAR, midYear);
         assertTrue(start.isBefore(midYear));
         assertEquals(Instant.parse("2026-01-01T00:00:00Z"), start);
+    }
+
+    @Test
+    void isStale_rebuildsWhenNeverBuiltOrPastTtl() {
+        Instant now = Instant.parse("2026-05-31T16:28:00Z");
+
+        // Never built yet -> always stale.
+        assertTrue(LeaderboardService.isStale(null, now, 120_000L));
+
+        // Within the TTL window -> still fresh.
+        assertFalse(LeaderboardService.isStale(now.minusMillis(30_000L), now, 120_000L));
+
+        // Past the TTL window -> stale so today's matches get picked up.
+        assertTrue(LeaderboardService.isStale(now.minusMillis(180_000L), now, 120_000L));
+
+        // TTL disabled -> never stale once a snapshot exists.
+        assertFalse(LeaderboardService.isStale(now.minusMillis(180_000L), now, 0L));
     }
 
     private static MatchHistoryEntity matchFinishedAt(Instant finishedAt) {
