@@ -5008,7 +5008,7 @@ body.tablet-portrait-dock .ab-btn {
 }
 
 .board-cell.has-card {
-    padding: 4px;
+    padding: 0;
 }
 
 .board-cell.arena-selected {
@@ -5286,15 +5286,15 @@ body.placement-active .board-cell.legal {
 }
 
 .board-card.arena-board-card {
-    --notch-edge-offset: 4px;
-    --notch-corner-offset: 5px;
+    --notch-edge-offset: 0px;
+    --notch-corner-offset: 0px;
     min-width: 0;
     max-width: none;
     flex-shrink: 1;
     aspect-ratio: auto;
     display: flex;
     flex-direction: column;
-    padding: 4px;
+    padding: 3px;
     border-radius: 10px;
     border: 2px solid #2a3a5a;
     background:
@@ -5320,7 +5320,7 @@ body.placement-active .board-cell.legal {
     z-index: 1;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     width: 100%;
     height: 100%;
     min-height: 0;
@@ -5329,16 +5329,13 @@ body.placement-active .board-cell.legal {
 .board-card.arena-board-card .hand-card-header {
     flex: 0 0 auto;
     gap: 1px;
+    min-height: 18px;
+    justify-content: flex-start;
 }
 
 .board-card.arena-board-card .card-title {
     font-size: 0.58em;
     line-height: 1.1;
-}
-
-.board-card.arena-board-card .card-label {
-    font-size: 0.44em;
-    letter-spacing: 0.06em;
 }
 
 .board-card.arena-board-card .card-art-hand {
@@ -5381,8 +5378,9 @@ body.placement-active .board-cell.legal {
 .board-card.arena-board-card .status-icons {
     gap: 2px;
     padding: 0;
-    min-height: 16px;
-    margin-top: -1px;
+    min-height: 0;
+    margin-top: 0;
+    line-height: 0;
 }
 
 .board-card.arena-board-card .sb-badge {
@@ -5399,13 +5397,12 @@ body.placement-active .board-cell.legal {
 }
 
 .board-card.arena-board-card .arena-board-notches {
+    inset: -2px;
     z-index: 6;
 }
 
 .board-card.arena-board-card .notch-center {
-    width: 11px;
-    height: 11px;
-    border-radius: 3px;
+    display: none;
 }
 
 .board-card.arena-board-card .notch-dot {

@@ -514,7 +514,7 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     const isPlayer = !!context.isPlayer;
     const legalPlacements = context.legalPlacements || [];
     const fallbackArtLabel = formatElementLabel(cell.element);
-    const labelText = `SIEGELING / ${formatElementLabel(cell.element)}`;
+    const statusBadgesHtml = renderStatusBadgesForCell(cell);
 
     const heldClass = context.heldCard ? ' sgl-held-card' : '';
     let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}">`;
@@ -528,13 +528,12 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     html += `<div class="hand-card-shell arena-board-shell">`;
     html += `<div class="hand-card-header">`;
     html += `<div class="card-title">${escapeHtml(cell.name || '')}</div>`;
-    html += `<div class="card-label">${escapeHtml(labelText)}</div>`;
+    html += statusBadgesHtml;
     html += `</div>`;
     html += renderCardArt(cell, 'hand', fallbackArtLabel);
     html += `<div class="arena-board-combat">`;
     html += renderCardStatPills(cell, { mode: 'board' });
     html += renderArenaBoardHpBar(cell);
-    html += renderStatusBadgesForCell(cell);
     html += `</div>`;
     html += `</div>`;
     html += `</div>`;
