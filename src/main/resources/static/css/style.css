@@ -10310,6 +10310,11 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     position: relative;
     width: 100%;
     max-width: 200px;
+    /* The slot is the fixed-proportion box so every card is identical in size,
+       regardless of type. Cards used to self-size to content via aspect-ratio,
+       which let spell/trap cards (lighter bodies) grow taller than siegelings
+       (HP/SPD pills shrink their art). */
+    aspect-ratio: var(--card-aspect-ratio);
     display: flex;
     justify-content: center;
     align-items: stretch;
@@ -10359,7 +10364,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     width: 100%;
     min-width: 0;
     max-width: none;
-    aspect-ratio: var(--card-aspect-ratio);
+    /* Fill the slot's fixed proportion instead of self-sizing to content. */
+    height: 100%;
     min-height: 0;
     cursor: inherit;
     overflow: hidden;
