@@ -63,6 +63,17 @@ public class PlayerProgressionStore {
         }
     }
 
+    public void deleteByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            doc(userId).delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to delete player progression from Firestore.", ex);
+        }
+    }
+
     private DocumentReference doc(String userId) {
         return client.requireFirestore().collection(client.progressionCollection()).document(userId);
     }

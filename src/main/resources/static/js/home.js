@@ -322,6 +322,7 @@
             handleOptionsClick(event);
         });
         document.getElementById('optionsModal')?.addEventListener('submit', handleOptionsSubmit);
+        document.getElementById('optionsModal')?.addEventListener('input', handleOptionsInput);
         document.getElementById('trayBackdrop')?.addEventListener('click', closeTrays);
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
@@ -4379,6 +4380,32 @@
         render();
     }
 
+    async function deleteAccount(confirmationText) {
+        const btn = document.getElementById('deleteAccountBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+        const data = await fetchJson('/api/auth/delete-account', {
+            method: 'POST',
+            body: JSON.stringify({ confirmationText })
+        });
+        if (data?.error) {
+            const err = document.getElementById('deleteAccountError');
+            if (err) err.textContent = data.error;
+            if (btn) { btn.disabled = false; btn.textContent = 'Permanently delete my account'; }
+            return;
+        }
+        stopPresenceHeartbeat();
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
+        state.token = '';
+        state.profile = null;
+        state.progression = null;
+        state.profilePrefs = null;
+        state.profileEditOpen = false;
+        closeOptions();
+        render();
+        alert('Your account and all associated data have been permanently deleted.');
+    }
+
     function adjustBuilder(cardId, delta) {
         if (!state.options?.cardCatalog?.length) return;
         const cardLimit = builderCardLimit(cardId);
@@ -5901,6 +5928,10 @@
                         <span class="options-menu-icon">&#128279;</span>
                         <span><strong>Share Profile</strong><small>Show a QR code so others can view and friend you</small></span>
                     </button>
+                    <button class="options-menu-item" type="button" data-options-view="account">
+                        <span class="options-menu-icon">&#128100;</span>
+                        <span><strong>Account</strong><small>Manage or permanently delete your account</small></span>
+                    </button>
                     <button class="options-menu-item" type="button" data-options-view="admin">
                         <span class="options-menu-icon">&#9881;</span>
                         <span><strong>Admin</strong><small>Password-protected dashboard access</small></span>
@@ -5951,6 +5982,26 @@
                         <button class="primary-btn" type="button" id="copyShareLinkBtn">Copy link</button>
                     </div>` : ''}
                 </div>`;
+        } else if (view === 'account') {
+            const authed = Boolean(state.profile?.authenticated);
+            const email = state.profile?.user?.email || '';
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Account</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                ${authed ? `<div class="account-panel">
+                    <p class="guide-note">Signed in as <strong>${escapeHtml(email)}</strong>.</p>
+                    <div class="account-danger">
+                        <h3>Delete account</h3>
+                        <p class="guide-note">This permanently removes your account and all associated data &mdash; saved decks, match history, collection progress, friends, and messages. This cannot be undone.</p>
+                        <form class="account-danger-form" id="deleteAccountForm">
+                            <label class="account-danger-label" for="deleteAccountConfirm">Type <strong>DELETE</strong> to confirm</label>
+                            <input class="search-input" id="deleteAccountConfirm" type="text" autocomplete="off" placeholder="DELETE">
+                            <p class="admin-error" id="deleteAccountError"></p>
+                            <button class="danger-btn" id="deleteAccountBtn" type="submit" disabled>Permanently delete my account</button>
+                        </form>
+                    </div>
+                </div>` : `<p class="guide-note">Sign in to manage your account.</p>`}`;
         } else if (view === 'admin') {
             body.innerHTML = `<div class="view-profile-modal-head">
                     <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Admin</h2></div>
@@ -5983,6 +6034,18 @@
     }
 
     function handleOptionsSubmit(event) {
+        if (event.target.closest('#deleteAccountForm')) {
+            event.preventDefault();
+            const value = (document.getElementById('deleteAccountConfirm')?.value || '').trim();
+            const err = document.getElementById('deleteAccountError');
+            if (value !== 'DELETE') {
+                if (err) err.textContent = 'Type DELETE exactly to confirm.';
+                return;
+            }
+            if (err) err.textContent = '';
+            deleteAccount(value);
+            return;
+        }
         const form = event.target.closest('#optionsAdminForm');
         if (!form) return;
         event.preventDefault();
@@ -5992,6 +6055,13 @@
         } else {
             const err = document.getElementById('optionsAdminError');
             if (err) err.textContent = 'Incorrect password.';
+        }
+    }
+
+    function handleOptionsInput(event) {
+        if (event.target.id === 'deleteAccountConfirm') {
+            const btn = document.getElementById('deleteAccountBtn');
+            if (btn) btn.disabled = event.target.value.trim() !== 'DELETE';
         }
     }
 

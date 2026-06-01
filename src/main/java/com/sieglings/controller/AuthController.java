@@ -117,6 +117,21 @@ public class AuthController {
         return Map.of("ok", true, "authenticated", false);
     }
 
+    @PostMapping("/api/auth/delete-account")
+    public Map<String, Object> deleteAccount(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                             @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            accountService.deleteAccount(user, (String) req.get("confirmationText"));
+            return Map.of("ok", true, "authenticated", false);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        } catch (RuntimeException ex) {
+            log.error("Account deletion failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE);
+        }
+    }
+
     @GetMapping("/api/auth/me")
     public Map<String, Object> me(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         AccountUser user = accountService.findUser(authorizationHeader);
