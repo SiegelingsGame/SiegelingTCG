@@ -2110,10 +2110,6 @@ body.battle-inline-dock .battle-queue-actions {
         padding: 6px 8px 0;
     }
 
-    body.battle-inline-dock .desktop-menu-bottom-dock .action-bar {
-        padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
-    }
-
     body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-topbar {
         margin-bottom: 4px;
     }
