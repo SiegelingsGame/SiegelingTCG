@@ -10297,6 +10297,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 .mulligan-box {
     width: min(calc(var(--overlay-shell-width) * 0.74), 100%);
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .mulligan-hand-preview {
@@ -10311,6 +10313,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 .mulligan-card-slot {
     position: relative;
     width: 100%;
+    min-width: 0;
     max-width: 200px;
     /* The slot is the fixed-proportion box so every card is identical in size,
        regardless of type. Cards used to self-size to content via aspect-ratio,
@@ -11054,7 +11057,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     }
 
     .mulligan-hand-preview {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
     }
 
@@ -11781,7 +11784,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .mulligan-box { padding: 14px; }
 
     .mulligan-hand-preview {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
         margin: 12px 0;
     }
