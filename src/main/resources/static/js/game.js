@@ -8525,12 +8525,54 @@ function renderEnergyDetailPanel() {
 }
 
 const SAFE_AREA_HP_MAX = 50;
+// Soft reference used to scale the notch energy underline (energy can pool past this).
+const SAFE_AREA_ENERGY_REF = 10;
+// At or below this HP %, the side switches to the red danger tint and pulses.
+const SAFE_AREA_HP_DANGER_PCT = 30;
 
 function getSafeAreaHpTierColor(pct) {
     if (pct > 60) return '#34c759';
     if (pct > 35) return '#ffcc00';
     if (pct > 15) return '#ff9500';
     return '#ff3b30';
+}
+
+// Element-tinted fill, but a low-HP side always falls back to the red danger
+// tier so the warning reads clearly regardless of the trainer's element.
+function safeAreaHpGradient(pct, element) {
+    if (pct > SAFE_AREA_HP_DANGER_PCT && element) {
+        const hex = getElementHex(element);
+        if (hex) return `linear-gradient(90deg, ${hexToRgba(hex, 0.5)}, ${hex})`;
+    }
+    const tier = getSafeAreaHpTierColor(pct);
+    return `linear-gradient(90deg, ${hexToRgba(tier, 0.55)}, ${tier})`;
+}
+
+function applySafeAreaHpSide(side, data) {
+    const cap = side === 'enemy' ? 'Enemy' : 'Player';
+    const health = Number(data?.health ?? 0);
+    const pct = Math.max(0, Math.min(100, Math.round((health / SAFE_AREA_HP_MAX) * 100)));
+    const element = data?.trainer?.element || null;
+
+    const fill = document.getElementById(`safeHpFill${cap}`);
+    if (fill) {
+        fill.style.width = `${pct}%`;
+        fill.style.background = safeAreaHpGradient(pct, element);
+    }
+
+    const half = fill?.closest('.safe-hp-half');
+    if (half) half.classList.toggle('danger', pct > 0 && pct <= SAFE_AREA_HP_DANGER_PCT);
+
+    const energyFill = document.getElementById(`safeEnergyFill${cap}`);
+    if (energyFill) {
+        const energyTotal = getEnergyRowsForPlayer(data).reduce((sum, entry) => sum + entry.val, 0);
+        const ePct = Math.max(0, Math.min(100, Math.round((energyTotal / SAFE_AREA_ENERGY_REF) * 100)));
+        energyFill.style.width = `${ePct}%`;
+        if (element) {
+            const hex = getElementHex(element);
+            if (hex) energyFill.style.background = `linear-gradient(90deg, ${hexToRgba(hex, 0.4)}, ${hex})`;
+        }
+    }
 }
 
 function updateSafeAreaHpStrip(state) {
@@ -8543,21 +8585,8 @@ function updateSafeAreaHpStrip(state) {
     strip.setAttribute('aria-hidden', mobileGameplay ? 'false' : 'true');
     if (!mobileGameplay) return;
 
-    const eHealth = Number(state.enemy?.health ?? 0);
-    const pHealth = Number(state.player?.health ?? 0);
-    const ePct = Math.max(0, Math.min(100, Math.round((eHealth / SAFE_AREA_HP_MAX) * 100)));
-    const pPct = Math.max(0, Math.min(100, Math.round((pHealth / SAFE_AREA_HP_MAX) * 100)));
-
-    const eFill = document.getElementById('safeHpFillEnemy');
-    const pFill = document.getElementById('safeHpFillPlayer');
-    if (eFill) {
-        eFill.style.width = `${ePct}%`;
-        eFill.style.backgroundColor = getSafeAreaHpTierColor(ePct);
-    }
-    if (pFill) {
-        pFill.style.width = `${pPct}%`;
-        pFill.style.backgroundColor = getSafeAreaHpTierColor(pPct);
-    }
+    applySafeAreaHpSide('enemy', state.enemy);
+    applySafeAreaHpSide('player', state.player);
 }
 
 function updateHudRails(state) {
