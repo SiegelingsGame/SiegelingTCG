@@ -601,7 +601,9 @@ const ENERGY_ORDER = [
     ['electric', 'Electric'],
     ['metal', 'Metal'],
     ['undead', 'Undead'],
-    ['psychic', 'Psychic']
+    ['psychic', 'Psychic'],
+    ['poison', 'Poison'],
+    ['light', 'Light']
 ];
 const API_BASE_URL = normalizeApiBaseUrl(
     window.SIEGLINGS_CONFIG?.apiBaseUrl || window.SIEGLINGS_API_BASE || ''
@@ -8733,7 +8735,8 @@ function updateMobileHud(state) {
         statElementsId: 'mobileEnemyStatElements',
         knightIconId: 'mobileEnemyKnightIcon',
         knightNameId: 'mobileEnemyKnightName',
-        knightInfoId: 'mobileEnemyKnightInfo'
+        knightInfoId: 'mobileEnemyKnightInfo',
+        showFullAbilities: true
     });
 
     setTextIfExists('mobileStatPlayerTab', state.playerName || p.name || 'Player');
@@ -9297,11 +9300,21 @@ const ELEMENT_KEY_ICON_PATHS = {
 };
 
 // Elemental weakness chart — mirrors EffectService.isWeakTo (attacker hits these for +1 damage).
+// Primary cycle: Fire > Ice > Wind > Earth > Fire.
+// Shadow cycle: Shadow > Psychic > Light > Undead > Shadow.
 const ELEMENT_STRENGTHS = [
-    ['WATER', ['FIRE', 'EARTH']],
-    ['EARTH', ['WIND', 'ELECTRIC']],
-    ['WIND', ['FIRE']],
-    ['ELECTRIC', ['WATER']]
+    ['FIRE', ['ICE']],
+    ['ICE', ['WIND']],
+    ['WIND', ['EARTH']],
+    ['EARTH', ['FIRE']],
+    ['WATER', ['FIRE', 'ICE']],
+    ['METAL', ['EARTH', 'WIND']],
+    ['ELECTRIC', ['WIND', 'FIRE']],
+    ['POISON', ['ICE', 'EARTH']],
+    ['SHADOW', ['PSYCHIC']],
+    ['PSYCHIC', ['LIGHT']],
+    ['LIGHT', ['UNDEAD']],
+    ['UNDEAD', ['SHADOW']]
 ];
 
 /** Element legend chip — icon art when available, falling back to the solid colour token. */
