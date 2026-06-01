@@ -48,6 +48,7 @@
         HEAL:    'heals',
         SHIELD:  'shields',
         STATUS_APPLY: 'gains',
+        MOVE:    'shifts',
         BLOCK:   'blocks',
         EFFECT:  'effect',
         DESTROY: 'was destroyed',
@@ -356,6 +357,128 @@
         });
     }
 
+    function clearTransientCardClasses(card) {
+        if (!card?.classList) return;
+        card.classList.remove(
+            'sgl-acting',
+            'sgl-acting-attack',
+            'sgl-acting-play',
+            'sgl-impact',
+            'sgl-destroying',
+            'sgl-status-applied'
+        );
+    }
+
+    async function animateBoardMove(queue, action, durationMs) {
+        const source = action?.source;
+        const target = action?.target;
+        if (!source || !target) {
+            queue.revealPendingMove(action?.moveKey);
+            return;
+        }
+
+        const sourceCell = findCellEl(source.isPlayer, source.row, source.col);
+        const targetCell = findCellEl(target.isPlayer, target.row, target.col);
+        const targetCard = targetCell?.querySelector('.board-card');
+        const sourceRect = sourceCell?.getBoundingClientRect();
+        const targetRect = targetCell?.getBoundingClientRect();
+        if (!sourceCell || !targetCell || !targetCard || !sourceRect || !targetRect
+            || sourceRect.width <= 0 || sourceRect.height <= 0
+            || targetRect.width <= 0 || targetRect.height <= 0) {
+            queue.revealPendingMove(action.moveKey);
+            await sleep(120);
+            return;
+        }
+
+        const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+        const dur = prefersReduced ? 140 : Math.max(220, durationMs || 520);
+        const dx = targetRect.left - sourceRect.left;
+        const dy = targetRect.top - sourceRect.top;
+        const scaleX = targetRect.width / sourceRect.width;
+        const scaleY = targetRect.height / sourceRect.height;
+        const elementColor = elementHex(action.elementColor || action.knightElement);
+
+        const clone = targetCard.cloneNode(true);
+        clearTransientCardClasses(clone);
+        clone.classList.add('sgl-shift-card');
+        clone.style.position = 'fixed';
+        clone.style.left = `${sourceRect.left}px`;
+        clone.style.top = `${sourceRect.top}px`;
+        clone.style.width = `${sourceRect.width}px`;
+        clone.style.height = `${sourceRect.height}px`;
+        clone.style.margin = '0';
+        clone.style.pointerEvents = 'none';
+        clone.style.visibility = 'visible';
+        clone.style.opacity = '1';
+        clone.style.zIndex = '560';
+        clone.style.setProperty('--sgl-shift-color', elementColor);
+
+        sourceCell.style.setProperty('--sgl-shift-color', elementColor);
+        targetCell.style.setProperty('--sgl-shift-color', elementColor);
+        sourceCell.classList.add('sgl-move-origin');
+        targetCell.classList.add('sgl-move-destination');
+        targetCard.style.visibility = 'hidden';
+        targetCard.style.opacity = '0';
+        document.body.appendChild(clone);
+
+        if (window.SieglingsFx?.impactAt) {
+            window.SieglingsFx.impactAt(
+                source.isPlayer, source.row, source.col,
+                action.elementColor || action.knightElement
+            );
+        }
+
+        try {
+            if (typeof clone.animate === 'function') {
+                const animation = clone.animate([
+                    {
+                        transform: 'translate(0, 0) scale(0.98)',
+                        opacity: 0.96,
+                        filter: `drop-shadow(0 0 6px ${elementColor})`
+                    },
+                    {
+                        transform: `translate(${dx * 0.55}px, ${dy * 0.55 - 10}px) scale(1.04)`,
+                        opacity: 1,
+                        filter: `drop-shadow(0 0 18px ${elementColor}) brightness(1.18)`,
+                        offset: 0.58
+                    },
+                    {
+                        transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
+                        opacity: 1,
+                        filter: `drop-shadow(0 0 8px ${elementColor})`
+                    }
+                ], {
+                    duration: dur,
+                    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                    fill: 'forwards'
+                });
+                await animation.finished.catch(() => {});
+            } else {
+                clone.style.transition = `transform ${dur}ms cubic-bezier(0.22, 1, 0.36, 1), filter ${dur}ms ease`;
+                requestAnimationFrame(() => {
+                    clone.style.transform = `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`;
+                    clone.style.filter = `drop-shadow(0 0 10px ${elementColor})`;
+                });
+                await sleep(dur);
+            }
+        } finally {
+            if (clone.parentNode) clone.parentNode.removeChild(clone);
+            sourceCell.classList.remove('sgl-move-origin');
+            targetCell.classList.remove('sgl-move-destination');
+            sourceCell.style.removeProperty('--sgl-shift-color');
+            targetCell.style.removeProperty('--sgl-shift-color');
+            queue.revealPendingMove(action.moveKey);
+        }
+
+        if (window.SieglingsFx?.impactAt) {
+            window.SieglingsFx.impactAt(
+                target.isPlayer, target.row, target.col,
+                action.elementColor || action.knightElement
+            );
+        }
+        await sleep(prefersReduced ? 40 : 120);
+    }
+
     function applyAttackImpactVfx(queue, action, target, elColor) {
         if (!target) return;
         const boardCard = queue.getHeldBoardCard(target.isPlayer, target.row, target.col);
@@ -622,6 +745,40 @@
                     }
                 }
             }
+        }
+        return out;
+    }
+    function diffMoves(prev, next, isPlayer) {
+        const out = [];
+        if (!prev || !next) return out;
+        const prevById = new Map();
+        const nextById = new Map();
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const p = prev[r]?.[c];
+                const n = next[r]?.[c];
+                const pid = String(p?.instanceId || '');
+                const nid = String(n?.instanceId || '');
+                if (pid) prevById.set(pid, { row: r, col: c, cell: p });
+                if (nid) nextById.set(nid, { row: r, col: c, cell: n });
+            }
+        }
+        for (const [id, from] of prevById.entries()) {
+            const to = nextById.get(id);
+            if (!to) continue;
+            if (from.row === to.row && from.col === to.col) continue;
+            out.push({
+                isPlayer,
+                fromRow: from.row,
+                fromCol: from.col,
+                toRow: to.row,
+                toCol: to.col,
+                previousCell: from.cell,
+                cell: to.cell,
+                instanceId: id,
+                name: to.cell?.name || from.cell?.name || '',
+                element: normalizeElement(to.cell?.element || from.cell?.element)
+            });
         }
         return out;
     }
@@ -951,6 +1108,7 @@
             // the player can't see new cards appear before earlier battle
             // animations finish.
             this.pendingPlacements = new Map();
+            this.pendingMoves = new Map();
             // Map<key, { isPlayer, row, col, displayHp, finalHp, maxHp, element }>
             // Board renders receive the server's post-damage state immediately;
             // these entries keep that resolved HP visible while the matching
@@ -995,6 +1153,7 @@
             this.processing = false;
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
+            this.revealAllPendingMoves();
             this.settleAllPendingHealth();
             this.releaseAllPendingLethalHolds();
         }
@@ -1030,12 +1189,40 @@
                 this.revealPendingPlacement(key);
             }
         }
+        _moveKey(isPlayer, fromRow, fromCol, toRow, toCol, instanceId) {
+            return `${isPlayer ? 'P' : 'E'}:${fromRow}:${fromCol}->${toRow}:${toCol}:${instanceId || ''}`;
+        }
+        registerPendingMove(isPlayer, fromRow, fromCol, toRow, toCol, cell) {
+            const id = String(cell?.instanceId || cell?.id || '');
+            const key = this._moveKey(isPlayer, fromRow, fromCol, toRow, toCol, id);
+            this.pendingMoves.set(key, { isPlayer, fromRow, fromCol, toRow, toCol, instanceId: id });
+            this.schedulePendingSync();
+            return key;
+        }
+        revealPendingMove(key) {
+            const entry = this.pendingMoves.get(key);
+            if (!entry) return null;
+            this.pendingMoves.delete(key);
+            const cellEl = findCellEl(entry.isPlayer, entry.toRow, entry.toCol);
+            const card = cellEl?.querySelector('.board-card');
+            if (card) {
+                card.style.removeProperty('visibility');
+                card.style.removeProperty('opacity');
+            }
+            return cellEl;
+        }
+        revealAllPendingMoves() {
+            for (const key of Array.from(this.pendingMoves.keys())) {
+                this.revealPendingMove(key);
+            }
+        }
         schedulePendingSync() {
             if (this._pendingSyncScheduled) return;
             this._pendingSyncScheduled = true;
             requestAnimationFrame(() => {
                 this._pendingSyncScheduled = false;
                 this.syncPendingPlacements();
+                this.syncPendingMoves();
                 this.syncPendingLethalHolds();
             });
         }
@@ -1046,6 +1233,16 @@
             // state change and would strip any classes we added previously.
             for (const entry of this.pendingPlacements.values()) {
                 const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+                const card = cellEl?.querySelector('.board-card');
+                if (card && card.style.visibility !== 'hidden') {
+                    card.style.visibility = 'hidden';
+                    card.style.opacity = '0';
+                }
+            }
+        }
+        syncPendingMoves() {
+            for (const entry of this.pendingMoves.values()) {
+                const cellEl = findCellEl(entry.isPlayer, entry.toRow, entry.toCol);
                 const card = cellEl?.querySelector('.board-card');
                 if (card && card.style.visibility !== 'hidden') {
                     card.style.visibility = 'hidden';
@@ -1386,6 +1583,18 @@
             // Collect placements and damage now but enqueue them in the right
             // order at the end of this method.
             const evolutionLogs = newLogs.map(parseEvolutionFromLog).filter(Boolean);
+            const movesOnPlayer = diffMoves(prevPlayer, nextPlayer, true);
+            const movesOnEnemy  = diffMoves(prevEnemy,  nextEnemy,  false);
+            const isMoveOrigin = (entry, moves) => moves.some((move) =>
+                move.fromRow === entry.row
+                && move.fromCol === entry.col
+                && (!entry.instanceId || !move.instanceId || move.instanceId === entry.instanceId)
+            );
+            const isMoveDestination = (entry, moves) => moves.some((move) =>
+                move.toRow === entry.row
+                && move.toCol === entry.col
+                && (!entry.cell?.instanceId || !move.instanceId || move.instanceId === String(entry.cell.instanceId))
+            );
             const tagEvolutionPlacements = (placements, prevBoard) => placements.map((p) => {
                 const previousCell = prevBoard?.[p.row]?.[p.col];
                 if (!previousCell) return p;
@@ -1394,12 +1603,16 @@
                 );
                 return loggedEvolution ? { ...p, evolutionFrom: previousCell } : p;
             });
-            const newPlayerPlacements = tagEvolutionPlacements(diffPlacements(prevPlayer, nextPlayer, true), prevPlayer);
-            const newEnemyPlacements  = tagEvolutionPlacements(diffPlacements(prevEnemy,  nextEnemy,  false), prevEnemy);
+            const newPlayerPlacements = tagEvolutionPlacements(diffPlacements(prevPlayer, nextPlayer, true), prevPlayer)
+                .filter((p) => !isMoveDestination(p, movesOnPlayer));
+            const newEnemyPlacements  = tagEvolutionPlacements(diffPlacements(prevEnemy,  nextEnemy,  false), prevEnemy)
+                .filter((p) => !isMoveDestination(p, movesOnEnemy));
 
             // Damage events (attacks / abilities that hit)
-            const damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true);
-            const damageOnEnemy  = diffDamage(prevEnemy,  nextEnemy,  false);
+            const damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true)
+                .filter((t) => !isMoveOrigin(t, movesOnPlayer));
+            const damageOnEnemy  = diffDamage(prevEnemy,  nextEnemy,  false)
+                .filter((t) => !isMoveOrigin(t, movesOnEnemy));
 
             // Destruction events (cards that no longer exist). Paired with attacks
             // below so the killed card stays visible until the projectile lands.
@@ -1410,9 +1623,11 @@
                 && namesMatch(p.evolutionFrom.name, d.name)
             );
             const destructionsOnPlayer = diffDestructions(prevPlayer, nextPlayer, true)
-                .filter((d) => !isEvolutionDestruction(d, newPlayerPlacements));
+                .filter((d) => !isEvolutionDestruction(d, newPlayerPlacements))
+                .filter((d) => !isMoveOrigin(d, movesOnPlayer));
             const destructionsOnEnemy  = diffDestructions(prevEnemy,  nextEnemy,  false)
-                .filter((d) => !isEvolutionDestruction(d, newEnemyPlacements));
+                .filter((d) => !isEvolutionDestruction(d, newEnemyPlacements))
+                .filter((d) => !isMoveOrigin(d, movesOnEnemy));
             const matchDestruction = (list, t) => {
                 const idx = list.findIndex((d) =>
                     d.row === t.row && d.col === t.col
@@ -1755,6 +1970,35 @@
             for (const group of playerGroups.values()) enqueueAttackGroup(group, 'PLAYER', playerKnight, playerName, 'enemies');
             for (const group of enemyGroups.values())  enqueueAttackGroup(group, 'ENEMY',  enemyKnight,  enemyName,  'allies');
 
+            const enqueueMove = (move, side, knight) => {
+                const el = normalizeElement(move.cell?.element || move.previousCell?.element) || knight;
+                const rowName = ROW_LABELS[move.toRow] || 'Row';
+                const moveKey = this.registerPendingMove(
+                    move.isPlayer,
+                    move.fromRow,
+                    move.fromCol,
+                    move.toRow,
+                    move.toCol,
+                    move.cell || move.previousCell
+                );
+                if (move.name) enqueuedAttackerNames.add(move.name);
+                this.enqueueAction({
+                    kind: 'MOVE',
+                    side,
+                    actorName: move.name || 'Card',
+                    label: 'shifts to',
+                    targetName: `${rowName} row, col ${move.toCol}`,
+                    knightElement: knight,
+                    elementColor: el,
+                    source: { isPlayer: move.isPlayer, row: move.fromRow, col: move.fromCol },
+                    target: { isPlayer: move.isPlayer, row: move.toRow, col: move.toCol, element: el },
+                    moveKey,
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            };
+            for (const move of movesOnPlayer) enqueueMove(move, 'PLAYER', playerKnight);
+            for (const move of movesOnEnemy)  enqueueMove(move, 'ENEMY',  enemyKnight);
+
             // Unpaired destructions (e.g. effect damage, end-of-turn cleanup) →
             // standalone DESTROY action that shows a ghost + fade-out.
             const queueDestruction = (d, side, knight) => {
@@ -1971,6 +2215,7 @@
                 // Defensive: never leave a card permanently hidden because no
                 // PLAY action was queued for it.
                 this.revealAllPendingPlacements();
+                this.revealAllPendingMoves();
                 if (typeof window.scheduleBattleAutoAdvance === 'function') {
                     window.scheduleBattleAutoAdvance();
                 }
@@ -1987,6 +2232,7 @@
             // the case where game.js's render rebuilt the cell DOM while we
             // were processing a previous action.
             this.syncPendingPlacements();
+            this.syncPendingMoves();
             this.syncPendingLethalHolds();
 
             const deferAttackToast = action.kind === 'ATTACK' && !action.target?.healthBar && (
@@ -2189,6 +2435,13 @@
                 await sleep(t.impactMs);
                 const shieldGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(shieldGap);
+                return;
+            }
+
+            if (action.kind === 'MOVE' && action.source && action.target) {
+                await animateBoardMove(this, action, this.speed === 'fast' ? 260 : 620);
+                const moveGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(moveGap);
                 return;
             }
 
@@ -2445,6 +2698,7 @@
         window.render = function () {
             const result = orig.apply(this, arguments);
             try { queue.syncPendingPlacements(); } catch (_) {}
+            try { queue.syncPendingMoves(); } catch (_) {}
             try { queue.syncPendingHealth(); } catch (_) {}
             try { queue.syncPendingLethalHolds(); } catch (_) {}
             return result;
