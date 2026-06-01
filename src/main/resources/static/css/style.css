@@ -33,6 +33,8 @@
     --metal: #a0aab4;
     --undead: #8c78a0;
     --psychic: #c896ff;
+    --poison: #78dc50;
+    --light: #fffac8;
     --neutral: #95a5a6;
     --bg: #1a1c2c;
     --surface: #16213e;
@@ -2063,6 +2065,8 @@ body.card-drag-active #playerGrid {
 .solid-token.token-metal { background: var(--metal); }
 .solid-token.token-undead { background: var(--undead); }
 .solid-token.token-psychic { background: var(--psychic); }
+.solid-token.token-poison { background: var(--poison); }
+.solid-token.token-light { background: var(--light); }
 .solid-token.token-neutral { background: var(--neutral); }
 
 .combo-token {

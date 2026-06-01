@@ -134,7 +134,7 @@ class EffectServiceTest {
     void oneDamageAttackAppliesAndLogsWeaknessBonus() {
         GameState state = battleState();
         CardInstance source = instance("earth-source", Element.EARTH, 1, 1, true);
-        CardInstance target = instance("wind-target", Element.WIND, 1, 1, false);
+        CardInstance target = instance("fire-target", Element.FIRE, 1, 1, false);
         state.setAt(true, 1, 1, source);
         state.setAt(false, 1, 1, target);
 
