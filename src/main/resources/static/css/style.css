@@ -10296,7 +10296,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 }
 
 .mulligan-box {
-    width: min(calc(var(--overlay-shell-width) * 0.74), 100%);
+    width: min(calc(var(--overlay-shell-width) * 0.94), 100%);
     min-width: 0;
     box-sizing: border-box;
 }
