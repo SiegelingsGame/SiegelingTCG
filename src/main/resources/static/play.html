@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=131">
+    <link rel="stylesheet" href="/css/style.css?v=132">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -20,9 +20,11 @@
 <div class="safe-hp-strip" id="safeHpStrip" hidden aria-hidden="true">
     <div class="safe-hp-half safe-hp-enemy" data-side="enemy">
         <div class="safe-hp-fill" id="safeHpFillEnemy" style="width:100%"></div>
+        <div class="safe-energy-bar"><div class="safe-energy-fill" id="safeEnergyFillEnemy"></div></div>
     </div>
     <div class="safe-hp-half safe-hp-player" data-side="player">
         <div class="safe-hp-fill" id="safeHpFillPlayer" style="width:100%"></div>
+        <div class="safe-energy-bar"><div class="safe-energy-fill" id="safeEnergyFillPlayer"></div></div>
     </div>
 </div>
 <nav class="play-hub-nav" aria-label="Siegelings hub navigation">
