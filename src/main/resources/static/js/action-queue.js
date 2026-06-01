@@ -48,6 +48,7 @@
         HEAL:    'heals',
         SHIELD:  'shields',
         STATUS_APPLY: 'gains',
+        STATUS_SKIP: 'is',
         MOVE:    'shifts',
         BLOCK:   'blocks',
         EFFECT:  'effect',
@@ -969,6 +970,19 @@
         m = text.match(/^(.+?)\s+activates\s+(.+?)\.?$/i);
         if (m) return { kind: 'ABILITY', actor: m[1].trim(), name: m[2].trim() };
         return null;
+    }
+
+    function parseStatusSkipFromLog(line) {
+        const text = stripLogPrefix(line);
+        const m = text.match(/^(.+?)\s+is\s+(frozen|stunned)(?:\s+and\s+cannot\s+act)?[!.]?$/i);
+        if (!m) return null;
+        const word = m[2].trim().toLowerCase();
+        const status = word === 'frozen' ? 'FREEZE' : 'SPEED_ZERO';
+        return {
+            actor: m[1].trim(),
+            status,
+            label: formatStatusLabel(status)
+        };
     }
 
     // "Fireball deals 5 damage to Sleaf" → { abilityOrSource, amount, target }
@@ -2019,6 +2033,39 @@
             for (const d of destructionsOnPlayer) queueDestruction(d, 'ENEMY', enemyKnight);
             for (const d of destructionsOnEnemy)  queueDestruction(d, 'PLAYER', playerKnight);
 
+            // Status-caused lost turns are log-only state changes, so surface
+            // them as a short toast + pulse on the skipped card.
+            for (const line of newLogs) {
+                const parsed = parseStatusSkipFromLog(line);
+                if (!parsed) continue;
+                const playerHit = findCellByName(nextPlayer, parsed.actor) || findCellByName(prevPlayer, parsed.actor);
+                const enemyHit = findCellByName(nextEnemy, parsed.actor) || findCellByName(prevEnemy, parsed.actor);
+                const hit = playerHit
+                    ? { ...playerHit, isPlayer: true }
+                    : enemyHit
+                        ? { ...enemyHit, isPlayer: false }
+                        : null;
+                if (!hit) continue;
+                const knight = hit.isPlayer ? playerKnight : enemyKnight;
+                const statusEl = statusProfile(parsed.status).element;
+                this.enqueueAction({
+                    kind: 'STATUS_SKIP',
+                    side: hit.isPlayer ? 'PLAYER' : 'ENEMY',
+                    actorName: parsed.actor,
+                    targetName: parsed.label,
+                    knightElement: knight,
+                    elementColor: statusEl,
+                    target: {
+                        isPlayer: hit.isPlayer,
+                        row: hit.row,
+                        col: hit.col,
+                        element: normalizeElement(hit.cell?.element) || statusEl
+                    },
+                    statuses: [parsed.status],
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            }
+
             // Ability/use lines from the log → ABILITY toasts (skip ones already
             // covered by a queued ATTACK from the same attacker).
             for (const line of newLogs) {
@@ -2354,14 +2401,11 @@
                 return;
             }
 
-            // 2a-status. STATUS_APPLY — status-only events (aura debuffs,
-            // boost auras) that the queue used to mis-classify as attacks.
-            // Fires a short projectile from the caster (if one was
-            // identified) and lands the status-specific overlay on the
-            // target. Never shows the "X attacks Y" verb, never spawns a
-            // damage floater.
-            if (action.kind === 'STATUS_APPLY' && action.target) {
-                if (action.source && window.SieglingsFx?.attackCell) {
+            // 2a-status. STATUS_APPLY / STATUS_SKIP — status-only events
+            // that should read as status feedback rather than attacks.
+            if ((action.kind === 'STATUS_APPLY' || action.kind === 'STATUS_SKIP') && action.target) {
+                const isSkip = action.kind === 'STATUS_SKIP';
+                if (!isSkip && action.source && window.SieglingsFx?.attackCell) {
                     window.SieglingsFx.attackCell(
                         action.source.isPlayer, action.source.row, action.source.col,
                         action.target.isPlayer, action.target.row, action.target.col,
@@ -2369,6 +2413,17 @@
                         { duration: t.projectileMs }
                     );
                     await sleep(t.projectileMs);
+                }
+                if (isSkip) {
+                    pulseCard(
+                        action.target.isPlayer,
+                        action.target.row,
+                        action.target.col,
+                        knight,
+                        elColor,
+                        action.kind,
+                        t.highlightMs + t.impactMs
+                    );
                 }
                 if (action.statuses && action.statuses.length) {
                     for (const status of action.statuses) {

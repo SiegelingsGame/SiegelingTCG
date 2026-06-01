@@ -14,6 +14,7 @@ import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.StatusEffect;
 import com.sieglings.model.enums.TargetType;
 import org.junit.jupiter.api.Test;
 
@@ -116,6 +117,47 @@ class BattleServiceTest {
 
         assertFalse(state.isBattleActionPausePending());
         assertTrue(state.getBattleQueue().isEmpty(), "The follow-up advance should finish and clear the battle queue.");
+    }
+
+    @Test
+    void frozenBattleActorLogsStatusLostTurn() throws Exception {
+        BattleService battleService = createBattleService();
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard card = new SieglingCard("frostling", "Frostling", Element.ICE, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance frozen = new CardInstance(card, 1, 1, true);
+        frozen.getStatusEffects().add(StatusEffect.FREEZE);
+        state.setAt(true, 1, 1, frozen);
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("Frostling is Frozen and cannot act!")));
+        assertFalse(frozen.getStatusEffects().contains(StatusEffect.FREEZE), "Freeze should be consumed by the lost action.");
+    }
+
+    @Test
+    void stunnedBattleActorLogsStatusLostTurnWhenNoActionIsAvailable() throws Exception {
+        BattleService battleService = createBattleService();
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard card = new SieglingCard("zapling", "Zapling", Element.ELECTRIC, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance stunned = new CardInstance(card, 1, 1, true);
+        stunned.getStatusEffects().add(StatusEffect.SPEED_ZERO);
+        state.setAt(true, 1, 1, stunned);
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("Zapling is Stunned and cannot act!")));
     }
 
     @Test

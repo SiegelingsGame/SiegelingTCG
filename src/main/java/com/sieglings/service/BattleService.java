@@ -85,7 +85,7 @@ public class BattleService {
             }
 
             if (attacker.isFrozen()) {
-                state.log(attacker.getName() + " is frozen and cannot act!");
+                logStatusLostTurn(state, attacker, StatusEffect.FREEZE);
                 attacker.getStatusEffects().remove(StatusEffect.FREEZE);
                 pauseAfterAction(state);
                 return;
@@ -94,7 +94,12 @@ public class BattleService {
             List<BattleAbilityOption> abilities = getAvailableAbilities(state, attacker);
             boolean hasAffordableAbility = abilities.stream().anyMatch(BattleAbilityOption::isAffordable);
             if (!hasAffordableAbility) {
-                state.log(attacker.getName() + " cannot find an ability it can afford.");
+                StatusEffect lostTurnStatus = lostTurnStatus(attacker);
+                if (lostTurnStatus != null) {
+                    logStatusLostTurn(state, attacker, lostTurnStatus);
+                } else {
+                    state.log(attacker.getName() + " cannot find an ability it can afford.");
+                }
                 pauseAfterAction(state);
                 return;
             }
@@ -169,6 +174,31 @@ public class BattleService {
 
     private void pauseAfterAction(GameState state) {
         state.setBattleActionPausePending(true);
+    }
+
+    private StatusEffect lostTurnStatus(CardInstance attacker) {
+        if (attacker == null) {
+            return null;
+        }
+        if (attacker.isFrozen()) {
+            return StatusEffect.FREEZE;
+        }
+        if (attacker.isSpeedZero()) {
+            return StatusEffect.SPEED_ZERO;
+        }
+        return null;
+    }
+
+    private void logStatusLostTurn(GameState state, CardInstance attacker, StatusEffect status) {
+        state.log(attacker.getName() + " is " + lostTurnStatusLabel(status) + " and cannot act!");
+    }
+
+    private String lostTurnStatusLabel(StatusEffect status) {
+        return switch (status) {
+            case FREEZE -> "Frozen";
+            case SPEED_ZERO -> "Stunned";
+            default -> status.name();
+        };
     }
 
     private void resolveBattleAction(GameState state, CardInstance attacker, int abilityIndex, int targetRow, int targetCol) {
