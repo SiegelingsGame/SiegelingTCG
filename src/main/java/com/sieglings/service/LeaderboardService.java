@@ -54,7 +54,14 @@ public class LeaderboardService {
     @Value("${app.leaderboard.time-zone:UTC}")
     private String leaderboardTimeZoneId;
 
+    // How long a built snapshot stays fresh before the next read rebuilds it.
+    // Keeps the daily board reflecting matches played today without scanning
+    // Firestore on every request. Set to 0 to disable TTL refresh (cron only).
+    @Value("${app.leaderboard.refresh-ttl-ms:120000}")
+    private long refreshTtlMs;
+
     private final AtomicReference<Map<String, Object>> snapshot = new AtomicReference<>();
+    private volatile Instant lastRefresh;
 
     @PostConstruct
     public void warmOnStartup() {
@@ -89,15 +96,28 @@ public class LeaderboardService {
         // Backward compatibility: top-level boards mirror the daily period.
         payload.put("boards", periods.get(PERIOD_DAILY));
         snapshot.set(payload);
+        lastRefresh = now;
     }
 
     public Map<String, Object> getSnapshot() {
-        Map<String, Object> current = snapshot.get();
-        if (current == null) {
+        refreshIfStale(Instant.now());
+        return snapshot.get();
+    }
+
+    private synchronized void refreshIfStale(Instant now) {
+        if (snapshot.get() == null || isStale(lastRefresh, now, refreshTtlMs)) {
             refreshSnapshot();
-            current = snapshot.get();
         }
-        return current;
+    }
+
+    static boolean isStale(Instant lastRefresh, Instant now, long ttlMs) {
+        if (lastRefresh == null) {
+            return true;
+        }
+        if (ttlMs <= 0) {
+            return false;
+        }
+        return !now.isBefore(lastRefresh.plusMillis(ttlMs));
     }
 
     @SuppressWarnings("unchecked")

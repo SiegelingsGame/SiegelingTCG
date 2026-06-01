@@ -183,6 +183,62 @@ button { color: inherit; }
     background: rgba(50, 150, 255, 0.11);
 }
 
+.danger-btn {
+    min-height: 38px;
+    padding: 9px 13px;
+    border-radius: 8px;
+    font-weight: 900;
+    cursor: pointer;
+    width: 100%;
+    color: #fff;
+    border: 1px solid rgba(255, 90, 90, 0.55);
+    background: linear-gradient(135deg, #b91c1c, #ef4444);
+    box-shadow: 0 10px 24px rgba(220, 38, 38, 0.24);
+    transition: transform 0.16s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.danger-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.danger-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.account-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.account-danger {
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 12px;
+    padding: 16px;
+    background: rgba(239, 68, 68, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.account-danger h3 {
+    margin: 0;
+    color: #fca5a5;
+}
+
+.account-danger-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.account-danger-label {
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
 .gold-pill {
     display: inline-flex;
     align-items: center;
@@ -4648,13 +4704,58 @@ body.gacha-active {
 .record-list div,
 .collection-facts div,
 .deck-snapshot-grid div,
-.friend-activity div {
+.friend-activity > div {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     align-items: center;
     padding: 9px 0;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.friend-activity-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.friend-activity-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.friend-activity-main span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.friend-activity-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.friend-activity-note {
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr) !important;
+}
+
+.friend-activity-note span {
+    text-align: right;
+}
+
+@media (max-width: 560px) {
+    .friend-activity > div {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    .friend-activity-actions {
+        justify-content: flex-start;
+    }
+    .friend-activity-note span {
+        text-align: left;
+    }
 }
 
 .record-list div:first-child,

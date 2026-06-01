@@ -80,6 +80,17 @@ public class UserPresenceStore {
         }
     }
 
+    public void deleteByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            doc(userId).delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to delete presence from Firestore.", ex);
+        }
+    }
+
     private DocumentReference doc(String userId) {
         return client.requireFirestore().collection(client.presenceCollection()).document(userId);
     }

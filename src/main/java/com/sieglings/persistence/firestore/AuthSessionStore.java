@@ -61,6 +61,25 @@ public class AuthSessionStore {
         }
     }
 
+    public void deleteByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            var docs = client.requireFirestore()
+                    .collection(client.sessionsCollection())
+                    .whereEqualTo("userId", userId)
+                    .get()
+                    .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .getDocuments();
+            for (var doc : docs) {
+                doc.getReference().delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to delete sessions from Firestore.", ex);
+        }
+    }
+
     private DocumentReference sessionDoc(String token) {
         return client.requireFirestore().collection(client.sessionsCollection()).document(token);
     }

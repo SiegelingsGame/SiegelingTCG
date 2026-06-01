@@ -438,17 +438,29 @@ public class EffectService {
     }
 
     private CardInstance findFirstEnemy(GameState state, boolean side, Row preferredRow) {
+        List<CardInstance> candidates = new ArrayList<>();
         // Check preferred row first if specified
         if (preferredRow != null) {
-            var inRow = getSieglingsInRow(state, side, preferredRow.getIndex());
-            if (!inRow.isEmpty()) return inRow.get(0);
+            candidates.addAll(getSieglingsInRow(state, side, preferredRow.getIndex()));
         }
-        // Otherwise front -> middle -> back
-        for (int r = 2; r >= 0; r--) {
-            var inRow = getSieglingsInRow(state, side, r);
-            if (!inRow.isEmpty()) return inRow.get(0);
+        // Otherwise (or as a fallback) front -> middle -> back
+        if (candidates.isEmpty()) {
+            for (int r = 2; r >= 0; r--) {
+                candidates.addAll(getSieglingsInRow(state, side, r));
+            }
         }
-        return null;
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        // Prioritize the weakest enemy (lowest current health) to secure knockouts;
+        // ties keep the front-first ordering.
+        CardInstance weakest = candidates.get(0);
+        for (CardInstance candidate : candidates) {
+            if (candidate.getCurrentHealth() < weakest.getCurrentHealth()) {
+                weakest = candidate;
+            }
+        }
+        return weakest;
     }
 
     private List<CardInstance> getSieglingsInRow(GameState state, boolean isPlayer, int row) {

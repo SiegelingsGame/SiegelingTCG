@@ -297,10 +297,10 @@
                         </div>
                     </details>
                     <a class="ab-icon" href="/home" title="Back to Home" aria-label="Back to Home">&#8592;</a>
-                    <span id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" title="Setup actions remaining this turn">
+                    <button type="button" id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" aria-haspopup="dialog" title="Setup actions remaining this turn — tap for details" onclick="toggleSetupActionsBreakdown(event)">
                         <span class="ab-action-counter-label">Act</span>
                         <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
-                    </span>
+                    </button>
                     <button class="ab-icon ab-targeting-keep" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
                     <button class="ab-icon ab-targeting-keep" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
                     <button class="ab-icon ab-targeting-keep" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>

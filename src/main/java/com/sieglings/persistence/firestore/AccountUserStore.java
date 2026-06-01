@@ -55,6 +55,17 @@ public class AccountUserStore {
         }
     }
 
+    public void deleteById(String id) {
+        if (id == null || id.isBlank()) {
+            return;
+        }
+        try {
+            userDoc(id).delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to delete account from Firestore.", ex);
+        }
+    }
+
     private DocumentReference userDoc(String id) {
         return client.requireFirestore().collection(client.usersCollection()).document(id);
     }
