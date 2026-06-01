@@ -183,6 +183,62 @@ button { color: inherit; }
     background: rgba(50, 150, 255, 0.11);
 }
 
+.danger-btn {
+    min-height: 38px;
+    padding: 9px 13px;
+    border-radius: 8px;
+    font-weight: 900;
+    cursor: pointer;
+    width: 100%;
+    color: #fff;
+    border: 1px solid rgba(255, 90, 90, 0.55);
+    background: linear-gradient(135deg, #b91c1c, #ef4444);
+    box-shadow: 0 10px 24px rgba(220, 38, 38, 0.24);
+    transition: transform 0.16s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.danger-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.danger-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.account-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.account-danger {
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 12px;
+    padding: 16px;
+    background: rgba(239, 68, 68, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.account-danger h3 {
+    margin: 0;
+    color: #fca5a5;
+}
+
+.account-danger-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.account-danger-label {
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
 .gold-pill {
     display: inline-flex;
     align-items: center;
@@ -631,17 +687,54 @@ select.search-input { color-scheme: dark; }
     }
 }
 
+.siegeknight-binder-art.has-knight-back {
+    width: 100%;
+    min-height: 118px;
+    flex: 1 1 auto;
+    border-radius: 10px;
+    background-image: var(--knight-card-back, url('/img/knights/card-back-siegeknight.png'));
+    background-size: cover;
+    background-position: center;
+}
+
+.binder-card-art-knight {
+    display: flex;
+    align-items: stretch;
+    min-height: 118px;
+}
+
+.card-tile.siegeknight-binder-card .binder-card-shell,
+.detail-card-preview.siegeknight-binder-card .binder-card-shell {
+    border-color: color-mix(in srgb, var(--el, var(--accent)) 42%, rgba(255, 213, 74, 0.35));
+}
+
+.detail-knight-hint {
+    margin: 0;
+    color: var(--muted, #9aa3b2);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
 .pack-art {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 50% 22%, color-mix(in srgb, var(--el, var(--accent)) 48%, transparent), transparent 36%),
-        linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.55)),
-        color-mix(in srgb, var(--el, var(--accent)) 52%, #080b16);
+    --pack-art-image: none;
+    background-image:
+        linear-gradient(180deg, rgba(5, 8, 18, 0.06) 0%, rgba(5, 8, 18, 0.42) 70%, rgba(5, 8, 18, 0.68) 100%),
+        radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--el, var(--accent)) 24%, transparent), transparent 40%),
+        var(--pack-art-image);
     background-size: cover;
     background-position: center;
     transform: scale(1.02);
     transition: transform 0.28s ease;
+}
+
+.pack-tile:not(.pack-tile-art) .pack-art {
+    --pack-art-image: none;
+    background-image:
+        radial-gradient(circle at 50% 22%, color-mix(in srgb, var(--el, var(--accent)) 48%, transparent), transparent 36%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.55)),
+        color-mix(in srgb, var(--el, var(--accent)) 52%, #080b16);
 }
 
 .pack-tile-art:hover .pack-art,
@@ -1277,14 +1370,116 @@ select.search-input { color-scheme: dark; }
 }
 
 .detail-art {
+    position: relative;
     height: 285px;
     margin-bottom: 12px;
     border-radius: 12px;
     overflow: hidden;
 }
 
-.detail-art .element-icon-art {
-    min-height: 100%;
+.detail-art .element-icon-art,
+.detail-art .binder-card-custom-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+.detail-card-preview-wrap {
+    display: grid;
+    place-items: center;
+    margin: 0 0 12px;
+}
+
+.detail-panel .detail-card-preview,
+.deck-builder-preview-card .detail-card-preview {
+    width: min(100%, 300px);
+    margin: 0 auto;
+    pointer-events: none;
+}
+
+.detail-panel .detail-card-preview .binder-card-shell,
+.deck-builder-preview-card .detail-card-preview .binder-card-shell {
+    min-height: 0;
+}
+
+.detail-panel .detail-card-preview .binder-card-art,
+.deck-builder-preview-card .detail-card-preview .binder-card-art {
+    height: clamp(128px, 36vw, 168px);
+}
+
+.detail-panel .detail-card-preview .binder-card-description,
+.deck-builder-preview-card .detail-card-preview .binder-card-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: normal;
+    line-height: 1.25;
+    max-height: none;
+}
+
+.detail-chip-wrap {
+    margin-bottom: 8px;
+}
+
+.detail-cost-block {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.detail-cost-label {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.detail-cost-block .binder-card-cost-emblems {
+    justify-content: flex-start;
+}
+
+.detail-section-title {
+    margin: 14px 0 8px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.detail-abilities {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.detail-ability-row {
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.detail-ability-row strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #fff7d9;
+    font-size: 13px;
+}
+
+.detail-ability-row p,
+.detail-ability-empty {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.4;
 }
 
 .detail-panel h2 {
@@ -1903,13 +2098,40 @@ select.search-input { color-scheme: dark; }
 
 .mission-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
     gap: 10px;
     align-items: center;
     padding: 9px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.035);
+}
+
+.mission-row.is-complete {
+    border-color: rgba(90, 180, 255, 0.35);
+}
+
+.mission-row.is-claimed {
+    opacity: 0.72;
+}
+
+.mission-claim-btn {
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 215, 0, 0.45);
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.22), rgba(255, 120, 30, 0.18));
+    color: #ffe7a4;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.mission-claimed-label {
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: var(--text-dim);
 }
 
 .mission-icon,
@@ -2174,6 +2396,62 @@ select.search-input { color-scheme: dark; }
     line-height: 1.5;
 }
 
+body.starter-onboarding-active {
+    overflow: hidden;
+}
+
+body.starter-onboarding-active .home-nav,
+body.starter-onboarding-active .hud-tray,
+body.starter-onboarding-active .tray-backdrop {
+    display: none !important;
+}
+
+body.starter-onboarding-active .home-shell {
+    min-height: 100dvh;
+}
+
+body.starter-onboarding-active .home-main {
+    min-height: 100dvh;
+    height: 100dvh;
+    padding: 0;
+    overflow: auto;
+}
+
+body.starter-onboarding-active .starter-gate {
+    min-height: 100dvh;
+    grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
+    align-items: center;
+    border: 0;
+    border-radius: 0;
+    padding: clamp(24px, 5vw, 64px);
+}
+
+body.starter-onboarding-active .starter-gate h1 {
+    font-size: 56px;
+}
+
+@media (max-width: 900px) {
+    body.starter-onboarding-active {
+        overflow: auto;
+    }
+
+    body.starter-onboarding-active .home-main {
+        height: auto;
+        min-height: 100dvh;
+    }
+
+    body.starter-onboarding-active .starter-gate {
+        grid-template-columns: 1fr;
+        align-content: start;
+        gap: 22px;
+        padding: 24px 14px;
+    }
+
+    body.starter-onboarding-active .starter-gate h1 {
+        font-size: 34px;
+    }
+}
+
 .deck-tile button,
 .room-tile button {
     width: 100%;
@@ -2327,15 +2605,35 @@ select.search-input { color-scheme: dark; }
 
 .social-search-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 10px;
+}
+
+.social-filter-btn.active {
+    border-color: rgba(255, 215, 0, 0.62);
+    color: #ffe9a0;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.social-lobby-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.lobby-filter-tray .search-input {
+    margin-bottom: 10px;
+}
+
+.lobby-filter-toggle {
+    margin-top: 4px;
 }
 
 .social-search-row .search-input,
 .social-code-row .search-input,
 .social-friends-card .search-input,
-.friend-add-row .search-input,
-.social-lobby-tools .search-input {
+.friend-add-row .search-input {
     margin-bottom: 0;
 }
 
@@ -3034,8 +3332,7 @@ select.search-input { color-scheme: dark; }
     margin-bottom: 12px;
 }
 
-.deck-builder-preview-card .detail-art {
-    min-height: 120px;
+.deck-builder-preview-card .detail-card-preview-wrap {
     margin-bottom: 10px;
 }
 
@@ -3086,11 +3383,14 @@ select.search-input { color-scheme: dark; }
 .pack-result {
     position: fixed;
     inset: 0;
-    z-index: 1200;
+    z-index: 2000;
     margin: 0;
     padding: 0;
     border: 0;
     border-radius: 0;
+    /* Full-screen modal: clip any decorative overflow to the viewport so the
+       reveal behaves like an app screen, never a horizontally scrolling page. */
+    overflow: hidden;
     background: rgba(3, 6, 14, 0.94);
 }
 
@@ -3101,7 +3401,10 @@ body.gacha-active {
 .pack-opening {
     position: relative;
     min-height: 100dvh;
-    overflow: auto;
+    /* Never scroll horizontally — the decorative spinner/particles extend past
+       the edges and would otherwise turn the reveal into a scrollable page. */
+    overflow-x: hidden;
+    overflow-y: auto;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: clamp(14px, 2vw, 26px);
@@ -4407,13 +4710,58 @@ body.gacha-active {
 .record-list div,
 .collection-facts div,
 .deck-snapshot-grid div,
-.friend-activity div {
+.friend-activity > div {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     align-items: center;
     padding: 9px 0;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.friend-activity-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.friend-activity-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.friend-activity-main span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.friend-activity-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.friend-activity-note {
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr) !important;
+}
+
+.friend-activity-note span {
+    text-align: right;
+}
+
+@media (max-width: 560px) {
+    .friend-activity > div {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    .friend-activity-actions {
+        justify-content: flex-start;
+    }
+    .friend-activity-note span {
+        text-align: left;
+    }
 }
 
 .record-list div:first-child,
@@ -4500,6 +4848,148 @@ body.gacha-active {
 .battle-meta,
 .battle-reward {
     text-align: right;
+}
+
+.battle-row-clickable {
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.battle-row-clickable:hover,
+.battle-row-clickable:focus-visible {
+    border-color: color-mix(in srgb, var(--profile-accent, #ff6a2a) 60%, rgba(255, 255, 255, 0.2));
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+/* Match review modal (Profile recent battle detail) */
+.match-review-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(4, 8, 18, 0.74);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.match-review-overlay.hidden { display: none; }
+
+.match-review-modal {
+    position: relative;
+    width: min(560px, 100%);
+    max-height: min(88vh, 760px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 26px 22px 22px;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #142048, #0d1733);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 28px 64px rgba(0, 0, 0, 0.55);
+    color: #eef3fb;
+}
+
+.match-review-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.4);
+    color: #fff;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.match-review-close:hover { background: rgba(0, 0, 0, 0.6); }
+
+.match-detail-header { margin-bottom: 16px; }
+.match-detail-result {
+    font-size: 1.8rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.match-detail-result.history-result-win { color: #6ee7a0; }
+.match-detail-result.history-result-loss { color: #ff8a8a; }
+.match-detail-sub {
+    font-size: 0.96rem;
+    color: #c2d2ea;
+    margin-top: 2px;
+}
+.match-detail-date {
+    font-size: 0.78rem;
+    color: #7e93b2;
+    margin-top: 4px;
+}
+.match-detail-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 18px;
+}
+.match-detail-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.md-stat-label {
+    font-size: 0.66rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #8aa0bd;
+}
+.md-stat-value {
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: #eef3fb;
+}
+.match-detail-log-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #aebbd2;
+    margin-bottom: 8px;
+}
+.match-detail-log {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.md-log-line {
+    font-size: 0.82rem;
+    line-height: 1.4;
+    color: #cdd9ec;
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.md-log-line:last-child { border-bottom: none; }
+.match-review-empty {
+    font-size: 0.86rem;
+    color: #8aa0bd;
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 520px) {
+    .match-detail-stats { grid-template-columns: repeat(2, 1fr); }
 }
 
 .collection-meter {
@@ -4597,8 +5087,171 @@ body.gacha-active {
 
 .achievement-row {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 9px;
+}
+
+.achievement-row-featured {
+    margin-bottom: 8px;
+}
+
+.achievement-row-preview {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-bottom: 10px;
+}
+
+.achievement-panel-note {
+    margin: 0;
+}
+
+.achievements-grid {
+    display: grid;
+    gap: 14px;
+}
+
+.achievements-dashboard {
+    display: grid;
+    gap: 18px;
+}
+
+.achievements-overview-head,
+.achievements-case-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 18px;
+}
+
+.achievements-case-copy {
+    margin: 6px 0 0;
+    color: var(--text-dim);
+    max-width: 62ch;
+    line-height: 1.45;
+}
+
+.achievements-overview-stats {
+    display: grid;
+    justify-items: end;
+    gap: 2px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--profile-border, rgba(255, 126, 56, 0.35));
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.achievements-overview-stats strong {
+    font-size: 28px;
+    line-height: 1;
+}
+
+.achievements-overview-stats strong span {
+    font-size: 16px;
+    color: var(--text-dim);
+    font-weight: 800;
+}
+
+.achievement-category-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.achievement-category-card {
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.035);
+    display: grid;
+    gap: 8px;
+}
+
+.achievement-category-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.achievement-category-head h3 {
+    margin: 4px 0 0;
+}
+
+.achievement-category-head p {
+    margin: 6px 0 0;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.achievement-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+    gap: 9px;
+}
+
+.achievement-grid-extended .achievement-badge {
+    min-height: 104px;
+}
+
+.achievement-detail-list {
+    display: grid;
+    gap: 8px;
+}
+
+.achievement-detail-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.achievement-detail-row.is-unlocked {
+    border-color: var(--profile-border, rgba(255, 126, 56, 0.35));
+}
+
+.achievement-detail-row.is-locked {
+    opacity: 0.62;
+    filter: grayscale(0.75);
+}
+
+.achievement-detail-icon {
+    width: 36px;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    font-weight: 950;
+    color: #081021;
+    background: var(--profile-badge, linear-gradient(135deg, #ff8a2a, #f43f1c));
+}
+
+.achievement-detail-row p {
+    margin: 4px 0 0;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.achievement-detail-status {
+    font-size: 11px;
+    font-weight: 850;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.achievements-signed-out {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+}
+
+.achievement-panel-all {
+    margin-top: 4px;
 }
 
 .achievement-badge {
@@ -4612,6 +5265,27 @@ body.gacha-active {
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.045);
     text-align: center;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.achievement-badge:hover,
+.achievement-badge:focus-visible {
+    transform: translateY(-2px);
+    border-color: var(--profile-border, rgba(255, 126, 56, 0.6));
+    outline: none;
+}
+
+.achievement-detail-row {
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.achievement-detail-row:hover,
+.achievement-detail-row:focus-visible {
+    transform: translateY(-1px);
+    border-color: var(--profile-border, rgba(255, 126, 56, 0.5));
+    outline: none;
 }
 
 .achievement-badge.unlocked {
@@ -4662,6 +5336,126 @@ body.gacha-active {
     width: min(760px, 100%);
     max-height: min(760px, calc(100vh - 36px));
     overflow-y: auto;
+}
+
+.achievement-modal-panel {
+    width: min(440px, 100%);
+    display: grid;
+    gap: 16px;
+}
+
+.achievement-modal-body {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.achievement-modal-emblem {
+    width: 58px;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    font-size: 26px;
+    font-weight: 950;
+    color: #081021;
+    background: var(--profile-badge, linear-gradient(135deg, #ff8a2a, #f43f1c));
+    flex: 0 0 auto;
+}
+
+.achievement-modal-emblem.is-locked {
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.08);
+    filter: grayscale(0.7);
+}
+
+.achievement-modal-headline {
+    display: grid;
+    gap: 6px;
+}
+
+.achievement-modal-headline strong {
+    font-size: 19px;
+    line-height: 1.15;
+}
+
+.achievement-modal-status {
+    justify-self: start;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: 3px 9px;
+    border-radius: 999px;
+}
+
+.achievement-modal-status.is-unlocked {
+    color: #081021;
+    background: var(--profile-badge, linear-gradient(135deg, #ff8a2a, #f43f1c));
+}
+
+.achievement-modal-status.is-locked {
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.achievement-modal-requirement {
+    display: grid;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.achievement-modal-requirement p {
+    margin: 0;
+    line-height: 1.45;
+}
+
+.achievement-modal-progress {
+    display: grid;
+    gap: 8px;
+}
+
+.achievement-modal-progress-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.achievement-modal-progress-head span {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.achievement-modal-progress-head strong {
+    font-size: 15px;
+}
+
+.achievement-modal-bar {
+    height: 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.achievement-modal-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--profile-badge, linear-gradient(135deg, #ff8a2a, #f43f1c));
+    transition: width 0.3s ease;
+}
+
+.achievement-modal-progress small {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 750;
 }
 
 .profile-edit-grid {
@@ -4792,6 +5586,15 @@ body.gacha-active {
     text-transform: uppercase;
 }
 
+.deck-preview-composition {
+    display: block;
+    margin-top: 6px;
+    color: #fff7d9;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
 .deck-preview-body {
     flex: 1 1 auto;
     min-height: 0;
@@ -4815,11 +5618,25 @@ body.gacha-active {
 
 .deck-preview-stack-head {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
     padding: 12px 12px 10px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.deck-preview-stack-head-copy {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.deck-preview-type-counts {
+    color: #fff7d9;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: .02em;
 }
 
 .deck-preview-stack-head strong {
@@ -4832,9 +5649,11 @@ body.gacha-active {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 8px;
     display: grid;
     gap: 6px;
+    grid-auto-rows: max-content;
     align-content: start;
 }
 
@@ -4845,6 +5664,7 @@ body.gacha-active {
     gap: 8px;
     align-items: center;
     width: 100%;
+    min-height: 46px;
     padding: 6px 8px 6px 6px;
     border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 28%, rgba(255, 255, 255, 0.1));
     border-radius: 10px;
@@ -4994,7 +5814,7 @@ body.gacha-active {
         grid-template-columns: 1fr;
     }
     .deck-preview-stack {
-        max-height: 220px;
+        max-height: min(42vh, 320px);
     }
     .deck-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
@@ -5150,6 +5970,7 @@ body.gacha-active {
         -webkit-backdrop-filter: blur(4px);
     }
     .filter-tray.is-closed,
+    .lobby-filter-tray.is-closed,
     .detail-tray.is-closed { transform: translateY(12px); }
     .command-hero-top,
     .command-hero-actions,
@@ -5202,6 +6023,12 @@ body.gacha-active {
     }
     .achievement-row {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .achievement-row-featured {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .achievement-category-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
     .friend-tile,
     .social-friend-tile {
@@ -5419,9 +6246,20 @@ body.gacha-active {
         white-space: normal;
         overflow-wrap: anywhere;
     }
+    /* Full-screen takeover during a pull so the reveal isn't squeezed above
+       (or hidden behind) the bottom nav. */
+    body.gacha-active .home-nav {
+        display: none;
+    }
     .pack-opening {
-        min-height: 100dvh;
-        padding: 12px 10px calc(18px + env(safe-area-inset-bottom, 0px));
+        height: 100dvh;
+        min-height: 0;
+        /* Clip the decorative spinner/particles instead of letting them create
+           a scrollable page; the card grid sizes itself to fit below. */
+        overflow: hidden;
+        gap: 10px;
+        padding: calc(10px + env(safe-area-inset-top, 0px)) 10px
+                 calc(10px + env(safe-area-inset-bottom, 0px));
     }
     .pack-opening-head,
     .pack-opening-actions {
@@ -5434,10 +6272,23 @@ body.gacha-active {
     }
     .gacha-stage {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        /* Fill the leftover height and split it evenly across rows so every card
+           is on screen at once — no horizontal scroll, no offscreen cards. */
+        align-self: stretch;
+        align-content: center;
+        grid-auto-rows: 1fr;
+        min-height: 0;
         gap: 10px;
+        overflow: hidden;
     }
     .reveal-card {
-        width: min(100%, 174px);
+        /* Size to the row height (kept to a 5:7 ratio) and never exceed the
+           column width, so the whole pack fits the screen regardless of count. */
+        width: auto;
+        height: 100%;
+        max-width: 100%;
+        max-height: 100%;
+        margin: auto;
         min-height: 0;
     }
     .reveal-card-copy strong {
@@ -5727,3 +6578,24 @@ body.gacha-active {
 
 .admin-access { display: grid; gap: 12px; margin-top: 8px; }
 .admin-error { color: #ff7676; min-height: 16px; margin: 0; }
+
+@media (max-width: 900px) {
+    body.starter-onboarding-active {
+        height: auto;
+        min-height: 100dvh;
+        overflow: auto;
+    }
+
+    body.starter-onboarding-active .home-shell {
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+    }
+
+    body.starter-onboarding-active .home-main {
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+        padding: 0;
+    }
+}

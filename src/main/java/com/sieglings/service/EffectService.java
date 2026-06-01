@@ -438,17 +438,29 @@ public class EffectService {
     }
 
     private CardInstance findFirstEnemy(GameState state, boolean side, Row preferredRow) {
+        List<CardInstance> candidates = new ArrayList<>();
         // Check preferred row first if specified
         if (preferredRow != null) {
-            var inRow = getSieglingsInRow(state, side, preferredRow.getIndex());
-            if (!inRow.isEmpty()) return inRow.get(0);
+            candidates.addAll(getSieglingsInRow(state, side, preferredRow.getIndex()));
         }
-        // Otherwise front -> middle -> back
-        for (int r = 2; r >= 0; r--) {
-            var inRow = getSieglingsInRow(state, side, r);
-            if (!inRow.isEmpty()) return inRow.get(0);
+        // Otherwise (or as a fallback) front -> middle -> back
+        if (candidates.isEmpty()) {
+            for (int r = 2; r >= 0; r--) {
+                candidates.addAll(getSieglingsInRow(state, side, r));
+            }
         }
-        return null;
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        // Prioritize the weakest enemy (lowest current health) to secure knockouts;
+        // ties keep the front-first ordering.
+        CardInstance weakest = candidates.get(0);
+        for (CardInstance candidate : candidates) {
+            if (candidate.getCurrentHealth() < weakest.getCurrentHealth()) {
+                weakest = candidate;
+            }
+        }
+        return weakest;
     }
 
     private List<CardInstance> getSieglingsInRow(GameState state, boolean isPlayer, int row) {
@@ -461,19 +473,30 @@ public class EffectService {
     }
 
     /**
-     * Adapted from the Roblox reference chart:
-     * Water > Fire, Earth | Earth > Wind, Electric | Wind > Fire | Electric > Water.
-     * Shadow's current Roblox strengths target Psychic-only matchups, and Ice does not yet use
-     * an elemental weakness relationship in the live TCG rule set, so both remain neutral here.
+     * Elemental weakness chart (attacker deals +1 to these defenders):
+     * Primary cycle: Fire > Ice > Wind > Earth > Fire.
+     * Shadow cycle: Shadow > Psychic > Light > Undead > Shadow.
+     * Off-cycle attackers: Water > Fire, Ice | Metal > Earth, Wind |
+     * Electric > Wind, Fire | Poison > Ice, Earth.
      */
     private boolean isWeakTo(com.sieglings.model.enums.Element attacker, com.sieglings.model.enums.Element defender) {
         return switch (attacker) {
+            case FIRE -> defender == com.sieglings.model.enums.Element.ICE;
+            case ICE -> defender == com.sieglings.model.enums.Element.WIND;
+            case WIND -> defender == com.sieglings.model.enums.Element.EARTH;
+            case EARTH -> defender == com.sieglings.model.enums.Element.FIRE;
             case WATER -> defender == com.sieglings.model.enums.Element.FIRE
+                    || defender == com.sieglings.model.enums.Element.ICE;
+            case METAL -> defender == com.sieglings.model.enums.Element.EARTH
+                    || defender == com.sieglings.model.enums.Element.WIND;
+            case ELECTRIC -> defender == com.sieglings.model.enums.Element.WIND
+                    || defender == com.sieglings.model.enums.Element.FIRE;
+            case POISON -> defender == com.sieglings.model.enums.Element.ICE
                     || defender == com.sieglings.model.enums.Element.EARTH;
-            case EARTH -> defender == com.sieglings.model.enums.Element.WIND
-                    || defender == com.sieglings.model.enums.Element.ELECTRIC;
-            case WIND -> defender == com.sieglings.model.enums.Element.FIRE;
-            case ELECTRIC -> defender == com.sieglings.model.enums.Element.WATER;
+            case SHADOW -> defender == com.sieglings.model.enums.Element.PSYCHIC;
+            case PSYCHIC -> defender == com.sieglings.model.enums.Element.LIGHT;
+            case LIGHT -> defender == com.sieglings.model.enums.Element.UNDEAD;
+            case UNDEAD -> defender == com.sieglings.model.enums.Element.SHADOW;
             default -> false;
         };
     }

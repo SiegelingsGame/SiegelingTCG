@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sieglings.model.Ability;
 import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.BattleAbilityOption;
 import com.sieglings.model.CardInstance;
@@ -13,6 +14,7 @@ import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.StatusEffect;
 import com.sieglings.model.enums.TargetType;
 import org.junit.jupiter.api.Test;
 
@@ -115,6 +117,47 @@ class BattleServiceTest {
 
         assertFalse(state.isBattleActionPausePending());
         assertTrue(state.getBattleQueue().isEmpty(), "The follow-up advance should finish and clear the battle queue.");
+    }
+
+    @Test
+    void frozenBattleActorLogsStatusLostTurn() throws Exception {
+        BattleService battleService = createBattleService();
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard card = new SieglingCard("frostling", "Frostling", Element.ICE, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance frozen = new CardInstance(card, 1, 1, true);
+        frozen.getStatusEffects().add(StatusEffect.FREEZE);
+        state.setAt(true, 1, 1, frozen);
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("Frostling is Frozen and cannot act!")));
+        assertFalse(frozen.getStatusEffects().contains(StatusEffect.FREEZE), "Freeze should be consumed by the lost action.");
+    }
+
+    @Test
+    void stunnedBattleActorLogsStatusLostTurnWhenNoActionIsAvailable() throws Exception {
+        BattleService battleService = createBattleService();
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard card = new SieglingCard("zapling", "Zapling", Element.ELECTRIC, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance stunned = new CardInstance(card, 1, 1, true);
+        stunned.getStatusEffects().add(StatusEffect.SPEED_ZERO);
+        state.setAt(true, 1, 1, stunned);
+
+        battleService.initializeBattle(state);
+        battleService.advanceBattle(state);
+
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("Zapling is Stunned and cannot act!")));
     }
 
     @Test
@@ -326,6 +369,49 @@ class BattleServiceTest {
 
         assertEquals(1, options.size());
         assertFalse(options.get(0).isAffordable());
+    }
+
+    @Test
+    void fullHealthAiPrefersAttackOverHigherScoringHeal() throws Exception {
+        BattleService battleService = createBattleService();
+
+        // Heal scores higher than the attack under the raw energy*10+value heuristic,
+        // so without the full-health rule the AI would waste its turn healing.
+        Ability strike = Ability.damage("Strike", "Deal 3 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 3);
+        Ability mend = Ability.heal("Mend", "Heal 5", TargetType.SELF, null, 1, 5);
+        BattleAbilityOption attackOption = new BattleAbilityOption(0, strike, strike.getRequiredElement(), 1, true);
+        BattleAbilityOption healOption = new BattleAbilityOption(1, mend, mend.getRequiredElement(), 1, true);
+
+        SieglingCard card = new SieglingCard("medic", "Medic", Element.WATER, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance fullHealth = new CardInstance(card, 1, 1, false);
+
+        BattleAbilityOption choice = invokePickAiAbility(battleService, fullHealth, List.of(attackOption, healOption));
+        assertEquals(0, choice.getIndex(), "A full-health Siegeling should attack instead of healing when it can deal damage.");
+    }
+
+    @Test
+    void woundedAiCanStillChooseHeal() throws Exception {
+        BattleService battleService = createBattleService();
+
+        Ability strike = Ability.damage("Strike", "Deal 3 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 3);
+        Ability mend = Ability.heal("Mend", "Heal 5", TargetType.SELF, null, 1, 5);
+        BattleAbilityOption attackOption = new BattleAbilityOption(0, strike, strike.getRequiredElement(), 1, true);
+        BattleAbilityOption healOption = new BattleAbilityOption(1, mend, mend.getRequiredElement(), 1, true);
+
+        SieglingCard card = new SieglingCard("medic", "Medic", Element.WATER, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        CardInstance wounded = new CardInstance(card, 1, 1, false);
+        wounded.setCurrentHealth(4);
+
+        BattleAbilityOption choice = invokePickAiAbility(battleService, wounded, List.of(attackOption, healOption));
+        assertEquals(1, choice.getIndex(), "A wounded Siegeling may still pick the higher-scoring heal.");
+    }
+
+    private BattleAbilityOption invokePickAiAbility(BattleService battleService, CardInstance attacker,
+                                                    List<BattleAbilityOption> options) throws Exception {
+        java.lang.reflect.Method method = BattleService.class.getDeclaredMethod(
+                "pickAiAbility", CardInstance.class, List.class);
+        method.setAccessible(true);
+        return (BattleAbilityOption) method.invoke(battleService, attacker, options);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

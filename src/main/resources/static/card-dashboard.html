@@ -2,22 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sieglings Card, Siegeknight, And Deck Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Siegelings Card, Siegeknight, And Deck Dashboard</title>
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
     <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=11">
-    <link rel="stylesheet" href="/css/home.css?v=37">
+    <!-- home.css supplies the binder-card preview component styles; it must load
+         BEFORE card-dashboard.css so the dashboard's own body/.panel/.browser-panel
+         rules stay authoritative. Loading it last leaked home's
+         `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
+         full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
+    <link rel="stylesheet" href="/css/home.css?v=45">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=13">
 </head>
 <body>
 <div class="dashboard-shell">
     <header class="dashboard-header panel">
         <div class="header-copy">
-            <div class="eyebrow">Sieglings Creator Tool</div>
+            <div class="eyebrow">Siegelings Creator Tool</div>
             <h1>Card, Siegeknight, And Deck Dashboard</h1>
             <p>Load the current live data, edit cards, Siegeknights, and premade decks in structured forms, and export or save JSON without hand-editing every target rule or deck list.</p>
         </div>
@@ -92,7 +97,7 @@
     </section>
 
     <section class="dashboard-pages panel">
-        <button class="page-tab active" id="showSieglingsBtn" type="button" data-editor-page="SIEGLING">Siegling Page</button>
+        <button class="page-tab active" id="showSieglingsBtn" type="button" data-editor-page="SIEGLING">Siegeling Page</button>
         <button class="page-tab" id="showActionsBtn" type="button" data-editor-page="ACTION">Spell / Trap Page</button>
         <button class="page-tab" id="showTrainersBtn" type="button" data-editor-page="TRAINERS">Siegeknights</button>
         <button class="page-tab" id="showDecksBtn" type="button" data-editor-page="DECKS">Premade Decks</button>
@@ -106,10 +111,10 @@
             <div class="panel-heading">
                 <div>
                     <div class="section-kicker">Browse</div>
-                    <h2 id="browserTitle">Sieglings</h2>
+                    <h2 id="browserTitle">Siegelings</h2>
                 </div>
                 <div class="inline-actions">
-                    <button class="btn btn-secondary" id="newSieglingBtn" type="button">New Siegling</button>
+                    <button class="btn btn-secondary" id="newSieglingBtn" type="button">New Siegeling</button>
                     <button class="btn btn-secondary hidden" id="newSpellBtn" type="button">New Spell</button>
                     <button class="btn btn-secondary hidden" id="newTrapBtn" type="button">New Trap</button>
                     <button class="btn btn-secondary" id="duplicateCardBtn" type="button">Duplicate</button>
@@ -244,14 +249,14 @@
                         <div class="panel-heading sub-heading">
                             <div>
                                 <div class="section-kicker">Moves pool</div>
-                                <h3>Siegling Moves</h3>
+                                <h3>Siegeling Moves</h3>
                             </div>
                             <div class="inline-actions">
                                 <button class="btn btn-secondary" type="button" id="newMoveBtn">New move</button>
                                 <button class="btn btn-secondary" type="button" id="openMovePickerBtn">Add from pool</button>
                             </div>
                         </div>
-                        <p class="section-help">Up to five move ids per Siegling. Passives apply when the card is on the board; actives (0–6 energy) appear in battle. Define shared moves in the pool; use Copy to fork an existing move. Edit the <strong>Shared Abilities</strong> page to change one definition everywhere it is assigned.</p>
+                        <p class="section-help">Up to five move ids per Siegeling. Passives apply when the card is on the board; actives (0–6 energy) appear in battle. Define shared moves in the pool; use Copy to fork an existing move. Edit the <strong>Shared Abilities</strong> page to change one definition everywhere it is assigned.</p>
                         <div id="sieglingAssignedMoves" class="move-assigned-list"></div>
                         <div id="moveDraftPanelHostSiegling">
                         <div class="form-grid" id="moveDraftPanel" style="display:none;">
@@ -524,7 +529,7 @@
                     <select id="deckCatalogElementFilterSelect"></select>
                     <select id="deckCatalogTypeFilterSelect">
                         <option value="ALL">All Card Types</option>
-                        <option value="SIEGLING">Sieglings</option>
+                        <option value="SIEGLING">Siegelings</option>
                         <option value="SPELL">Spells</option>
                         <option value="TRAP">Traps</option>
                     </select>
@@ -765,7 +770,7 @@
                     <h2>Live Element Roster</h2>
                 </div>
             </div>
-            <p class="section-help">When an element is off, its Sieglings, spells, traps, matching Siegeknights, and premade decks that use it are hidden from the live game. Publish saves this together with cards, Siegeknights, and decks. At least one element must stay on.</p>
+            <p class="section-help">When an element is off, its Siegelings, spells, traps, matching Siegeknights, and premade decks that use it are hidden from the live game. Publish saves this together with cards, Siegeknights, and decks. At least one element must stay on.</p>
             <div id="liveElementToggles" class="live-element-toggle-grid"></div>
             <div class="panel validation-panel">
                 <div class="panel-heading sub-heading">
@@ -796,7 +801,7 @@
                     <h2>Pack Groups</h2>
                 </div>
             </div>
-            <p class="section-help">Starter and shop packs are generated from live cards by element. Each opened pack contains five cards: 2-3 Sieglings, 1-2 traps, and 1-2 spells from the selected elements.</p>
+            <p class="section-help">Starter and shop packs are generated from live cards by element. Each opened pack contains five cards: 2-3 Siegelings, 1-2 traps, and 1-2 spells from the selected elements.</p>
             <div class="deck-card-list" id="packList"></div>
             <div class="panel preview-panel">
                 <div class="panel-heading sub-heading">
@@ -821,7 +826,7 @@
                     <button class="btn btn-secondary" id="newPoolMoveBtn" type="button">New ability</button>
                 </div>
             </div>
-            <p class="section-help browser-help">These entries power every Siegling move slot. Updating an ability here updates the rules text and effect for every card that references its id.</p>
+            <p class="section-help browser-help">These entries power every Siegeling move slot. Updating an ability here updates the rules text and effect for every card that references its id.</p>
             <div class="browser-filters moves-pool-filters form-grid">
                 <label class="full-width">
                     <span>Search</span>
@@ -884,7 +889,7 @@
             </div>
 
             <div class="empty-state" id="emptyMovesPoolEditorState">
-                Select a shared ability on the left or create a new one. Sieglings only store references by id—edits here apply to every card using that id.
+                Select a shared ability on the left or create a new one. Siegelings only store references by id—edits here apply to every card using that id.
             </div>
 
             <div class="editor-content hidden" id="movesPoolEditorContent">
@@ -946,6 +951,6 @@
 <script src="/js/config.js"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
 <script src="/js/card-binder-visual.js?v=1"></script>
-<script src="/js/card-dashboard.js?v=28"></script>
+<script src="/js/card-dashboard.js?v=29"></script>
 </body>
 </html>

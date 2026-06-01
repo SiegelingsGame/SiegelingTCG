@@ -79,6 +79,30 @@ public class FriendRequestStore {
         }
     }
 
+    public void deleteByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        deleteWhereEqual("fromUserId", userId);
+        deleteWhereEqual("toUserId", userId);
+    }
+
+    private void deleteWhereEqual(String field, String value) {
+        try {
+            List<QueryDocumentSnapshot> docs = client.requireFirestore()
+                    .collection(client.friendRequestsCollection())
+                    .whereEqualTo(field, value)
+                    .get()
+                    .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .getDocuments();
+            for (QueryDocumentSnapshot doc : docs) {
+                doc.getReference().delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to delete friend requests from Firestore.", ex);
+        }
+    }
+
     private List<FriendRequestEntity> listWhereEqual(String field, String value) {
         if (value == null || value.isBlank()) {
             return List.of();

@@ -99,6 +99,25 @@ public class SavedDeckStore {
         }
     }
 
+    public void deleteByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            List<QueryDocumentSnapshot> docs = client.requireFirestore()
+                    .collection(client.decksCollection())
+                    .whereEqualTo("userId", userId)
+                    .get()
+                    .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .getDocuments();
+            for (QueryDocumentSnapshot doc : docs) {
+                doc.getReference().delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to delete saved decks from Firestore.", ex);
+        }
+    }
+
     private DocumentReference deckDoc(String id) {
         return client.requireFirestore().collection(client.decksCollection()).document(id);
     }
