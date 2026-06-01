@@ -33,8 +33,8 @@ public class PlayerProgressionService {
 
     public record CardGrantOutcome(Card card, boolean grantedCopy, int remnantsAwarded, int ownedAfter) {}
 
-    public record TrainerGrantOutcome(String trainerId, String trainerName, boolean newlyOwned,
-                                      boolean leveledUp, int level, int points, int pointsForNext) {}
+    public record TrainerGrantOutcome(String trainerId, String trainerName, String element, String rarity, String tier,
+                                      boolean newlyOwned, boolean leveledUp, int level, int points, int pointsForNext) {}
 
     @Autowired
     private PlayerProgressionStore store;
@@ -113,6 +113,8 @@ public class PlayerProgressionService {
         TrainerGrantOutcome trainerOutcome = null;
         TrainerCard starterTrainer = starterTrainerForPack(result.pack().id());
         if (starterTrainer != null) {
+            progression.setTrainerLevels(new LinkedHashMap<>());
+            progression.setTrainerPoints(new LinkedHashMap<>());
             trainerOutcome = grantTrainer(progression, starterTrainer);
         }
         addPackHistory(progression, result, outcomes, trainerOutcome, 0, "STARTER");
@@ -400,7 +402,7 @@ public class PlayerProgressionService {
         progression.setTrainerLevels(levels);
         progression.setTrainerPoints(points);
 
-        return new TrainerGrantOutcome(trainerId, trainer.getName(), newlyOwned, leveledUp,
+        return new TrainerGrantOutcome(trainerId, trainer.getName(), trainer.getElement().name(), trainer.getRarity().name(), trainer.getTier(), newlyOwned, leveledUp,
                 level, progress, pointsForNextLevel(level));
     }
 
@@ -483,6 +485,9 @@ public class PlayerProgressionService {
             Map<String, Object> trainerEntry = new LinkedHashMap<>();
             trainerEntry.put("id", trainerOutcome.trainerId());
             trainerEntry.put("name", trainerOutcome.trainerName());
+            trainerEntry.put("element", trainerOutcome.element());
+            trainerEntry.put("rarity", trainerOutcome.rarity());
+            trainerEntry.put("tier", trainerOutcome.tier());
             trainerEntry.put("newlyOwned", trainerOutcome.newlyOwned());
             trainerEntry.put("leveledUp", trainerOutcome.leveledUp());
             trainerEntry.put("level", trainerOutcome.level());

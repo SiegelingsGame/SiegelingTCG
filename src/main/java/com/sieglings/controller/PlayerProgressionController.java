@@ -7,6 +7,7 @@ import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.PackCatalogService;
 import com.sieglings.service.PlayerProgressionService;
+import com.sieglings.service.ProfileSettingsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,6 +32,9 @@ public class PlayerProgressionController {
     @Autowired
     private CardDefinitionService cardDefinitionService;
 
+    @Autowired(required = false)
+    private ProfileSettingsService profileSettingsService;
+
     @GetMapping("/api/player/progression")
     public Map<String, Object> progression(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         AccountUser user = accountService.requireUser(authorizationHeader);
@@ -43,7 +47,14 @@ public class PlayerProgressionController {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
             PlayerProgressionEntity progression = progressionService.chooseStarterPack(user, string(req, "packId"));
-            return buildResponse(progression);
+            Map<String, Object> response = buildResponse(progression);
+            if (profileSettingsService != null) {
+                response.put("profileSettings", profileSettingsService.serialize(
+                        profileSettingsService.save(user, starterProfileSettings(progression.getStarterPackId())),
+                        user
+                ));
+            }
+            return response;
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
@@ -112,6 +123,55 @@ public class PlayerProgressionController {
         out.put("dailyOffers", packCatalogService.serializeDailyOffers());
         out.put("cardCatalog", cardDefinitionService.getDeckBuilderCatalog().stream().map(this::serializeCardLite).toList());
         return out;
+    }
+
+    private Map<String, Object> starterProfileSettings(String packId) {
+        String element = starterElement(packId);
+        Map<String, Object> settings = new LinkedHashMap<>();
+        settings.put("favoriteElement", element);
+        settings.put("playerTitle", switch (element) {
+            case "WIND" -> "Gale-Thread Strategist";
+            case "EARTH" -> "Mossgold Sentinel";
+            case "ICE", "WATER" -> "Frostglass Tactician";
+            default -> "Blazing Core Duelist";
+        });
+        settings.put("bio", switch (element) {
+            case "WIND" -> "Wind starter chosen. Build around tempo, disruption, and fast Siegelings.";
+            case "EARTH" -> "Earth starter chosen. Build around durability, healing, and strong board lines.";
+            case "ICE", "WATER" -> "Ice starter chosen. Build around freezes, control, and resilient board lines.";
+            default -> "Fire starter chosen. Build around pressure, direct attacks, and strong openings.";
+        });
+        settings.put("preferredCardBack", switch (element) {
+            case "WIND" -> "Gale Sigil";
+            case "EARTH" -> "Stone Sigil";
+            case "ICE", "WATER" -> "Frost Sigil";
+            default -> "Molten Sigil";
+        });
+        settings.put("favoriteSiegling", starterFavoriteSiegling(element));
+        return settings;
+    }
+
+    private String starterElement(String packId) {
+        String value = packId == null ? "" : packId.trim();
+        if (!value.startsWith("pack_")) {
+            return "FIRE";
+        }
+        String element = value.substring("pack_".length()).split("_")[0].toUpperCase(java.util.Locale.ROOT);
+        return element.isBlank() ? "FIRE" : element;
+    }
+
+    private String starterFavoriteSiegling(String element) {
+        return cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(card -> "SIEGLING".equals(card.getCardType().name()))
+                .filter(card -> card.getElement().name().equals(element))
+                .findFirst()
+                .map(Card::getName)
+                .orElse(switch (element) {
+                    case "WIND" -> "Cacty";
+                    case "EARTH" -> "Applehead";
+                    case "ICE", "WATER" -> "Pylme";
+                    default -> "Sundile";
+                });
     }
 
     private Map<String, Object> serializeCardLite(Card card) {

@@ -593,6 +593,7 @@
         const gate = document.getElementById('starterGate');
         const hub = document.getElementById('hubGrid');
         const mustChoose = Boolean(state.profile?.authenticated && state.progression && !state.progression.starterChosen);
+        document.body.classList.toggle('starter-onboarding-active', mustChoose);
         gate.classList.toggle('hidden', !mustChoose);
         hub.classList.toggle('hidden', mustChoose);
         const grid = document.getElementById('starterPackGrid');
@@ -1848,11 +1849,11 @@
 
     function isTrainerOwned(trainerId) {
         const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
-        return !!trainer && trainer.owned !== false;
+        return trainerOwnedLevel(trainerId) > 0 || (!!trainer && trainer.owned !== false);
     }
 
     function firstOwnedTrainerId() {
-        const owned = (state.options?.trainers || []).find(trainer => trainer.owned !== false);
+        const owned = (state.options?.trainers || []).find(trainer => isTrainerOwned(trainer.id));
         return owned ? owned.id : (state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '');
     }
 
@@ -1870,8 +1871,8 @@
 
     function builderTrainerOptions(selectedId) {
         return (state.options?.trainers || []).map(trainer => {
-            const owned = trainer.owned !== false;
-            const level = Math.max(1, Number(trainer.level) || 1);
+            const owned = isTrainerOwned(trainer.id);
+            const level = Math.max(1, trainerOwnedLevel(trainer.id) || Number(trainer.level) || 1);
             const levelLabel = owned && level > 1 ? ` (Lv ${level})` : '';
             const lockLabel = owned ? '' : ' \u2014 Locked';
             return `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}${owned ? '' : ' disabled'}>${escapeHtml((trainer.name || trainer.id) + levelLabel + lockLabel)}</option>`;
@@ -2472,17 +2473,78 @@
 
     function defaultProfilePrefs(user = {}) {
         const displayName = user.displayName || 'New Duelist';
+        const favoriteElement = starterProfileElement();
+        const theme = elementThemes[favoriteElement] || elementThemes.Fire;
         return {
             displayName,
             avatarMode: 'INITIAL',
             avatar: initials(displayName),
             avatarUrl: '',
-            favoriteElement: 'Fire',
-            playerTitle: elementThemes.Fire.mood,
-            bio: 'Ready to tune a deck, open a pack, and make the next match count.',
-            preferredCardBack: 'Molten Sigil',
-            favoriteSiegling: 'Sundile'
+            favoriteElement,
+            playerTitle: theme.mood,
+            bio: starterProfileBio(favoriteElement),
+            preferredCardBack: starterCardBackName(favoriteElement),
+            favoriteSiegling: starterFavoriteSiegling(favoriteElement)
         };
+    }
+
+    function applyStarterProfileDefaults() {
+        const current = state.profilePrefs || {};
+        const next = {
+            ...defaultProfilePrefs(state.profile?.user || {}),
+            displayName: current.displayName || state.profile?.user?.displayName || 'New Duelist',
+            avatarMode: current.avatarMode || 'INITIAL',
+            avatar: current.avatar || initials(current.displayName || state.profile?.user?.displayName || 'New Duelist'),
+            avatarUrl: current.avatarUrl || ''
+        };
+        state.profilePrefs = next;
+        cacheProfilePrefs(next);
+    }
+
+    function starterProfileElement() {
+        return normalizeProfileElement(starterElementFromPackId(state.progression?.starterPackId) || 'FIRE');
+    }
+
+    function starterElementFromPackId(packId) {
+        const match = String(packId || '').trim().match(/^pack_([a-z0-9_]+)/i);
+        return match ? match[1].split('_')[0] : '';
+    }
+
+    function starterFavoriteSiegling(element) {
+        const normalized = normalizeProfileElement(element);
+        const ownedCards = state.progression?.ownedCards || {};
+        const catalog = state.options?.cardCatalog || [];
+        const ownedMatch = catalog.find(card => card.type === 'SIEGLING'
+            && normalizeProfileElement(card.element) === normalized
+            && Number(ownedCards[card.id] || 0) > 0);
+        if (ownedMatch?.name) return ownedMatch.name;
+        const catalogMatch = catalog.find(card => card.type === 'SIEGLING'
+            && normalizeProfileElement(card.element) === normalized);
+        if (catalogMatch?.name) return catalogMatch.name;
+        return {
+            Fire: 'Sundile',
+            Earth: 'Applehead',
+            Wind: 'Cacty',
+            Ice: 'Pylme'
+        }[normalized] || `${normalized} Siegeling`;
+    }
+
+    function starterCardBackName(element) {
+        return {
+            Fire: 'Molten Sigil',
+            Earth: 'Stone Sigil',
+            Wind: 'Gale Sigil',
+            Ice: 'Frost Sigil'
+        }[normalizeProfileElement(element)] || 'Molten Sigil';
+    }
+
+    function starterProfileBio(element) {
+        return {
+            Fire: 'Fire starter chosen. Build around pressure, direct attacks, and strong openings.',
+            Earth: 'Earth starter chosen. Build around durability, healing, and strong board lines.',
+            Wind: 'Wind starter chosen. Build around tempo, disruption, and fast Siegelings.',
+            Ice: 'Ice starter chosen. Build around freezes, control, and resilient board lines.'
+        }[normalizeProfileElement(element)] || 'Ready to tune a deck, open a pack, and make the next match count.';
     }
 
     function profileThemeStyle(theme) {
@@ -3281,6 +3343,15 @@
             previewId: '',
             sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
         } : null;
+        if (starterMode) {
+            const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
+            if (serverPrefs) {
+                state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
+                cacheProfilePrefs(state.profilePrefs);
+            } else {
+                applyStarterProfileDefaults();
+            }
+        }
         renderPackResult();
         navigateHub('shop', { shopView: 'cardpack' });
         render();
@@ -3308,7 +3379,7 @@
         const latest = state.progression?.packHistory?.[0];
         if (!result || !latest) return;
         const reveal = ensurePackReveal(latest);
-        const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
+        const cards = packRevealCards(latest);
         const sessionKey = packSessionKey(latest);
         const opening = result.querySelector('.pack-opening');
         const sameSession = opening?.dataset.packKey === sessionKey;
@@ -3362,7 +3433,6 @@
                 </div>
             </div>
             <canvas class="gacha-particles" aria-hidden="true"></canvas>
-            ${buildPackTrainerBanner(latest.trainer)}
             <div class="gacha-stage">
                 ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), latest.packId, index)).join('')}
             </div>
@@ -3418,6 +3488,7 @@
             if (!btn) return;
             const wasRevealed = btn.classList.contains('is-revealed');
             btn.classList.toggle('is-revealed', revealed);
+            if (revealed) hydrateRevealCardFront(btn, card);
             if (revealed && !wasRevealed && animateId === card.revealId) {
                 if (card.duplicateAtCap && card.remnantsAwarded > 0 && !reveal.dissolvedRemnants.has(card.revealId)) {
                     window.setTimeout(() => playRemnantDissolve(btn, card, () => renderPackResult()), 720);
@@ -3509,6 +3580,38 @@
         };
     }
 
+    function packRevealCards(latest) {
+        const cards = (latest?.cards || []).map((card, index) => enrichPackCard(card, index));
+        const trainerCard = trainerRevealCard(latest, cards.length);
+        return trainerCard ? [...cards, trainerCard] : cards;
+    }
+
+    function trainerRevealCard(latest, index) {
+        const trainer = latest?.trainer;
+        if (!trainer?.id) return null;
+        const option = (state.options?.trainers || []).find(item => String(item.id || '').toLowerCase() === String(trainer.id).toLowerCase());
+        const element = trainer.element || option?.element || starterElementFromPackId(latest.packId).toUpperCase() || latest.cards?.[0]?.element || 'FIRE';
+        const abilities = [
+            option?.passive ? { name: 'Passive', description: option.passive } : null,
+            option?.active ? { name: option.oncePerGame ? 'Ultimate' : 'Active', description: option.active } : null
+        ].filter(Boolean);
+        return {
+            id: trainer.id,
+            name: trainer.name || option?.name || 'SiegeKnight',
+            type: 'SIEGEKNIGHT',
+            element,
+            rarity: trainer.rarity || option?.rarity || 'COMMON',
+            tier: trainer.tier || option?.tier || 'SiegeKnight',
+            level: trainer.level || option?.level || 1,
+            owned: true,
+            abilities,
+            description: abilities.map(ability => ability.description).filter(Boolean).join(' '),
+            revealId: `${trainer.id || 'trainer'}-${index}`,
+            duplicateAtCap: false,
+            remnantsAwarded: 0
+        };
+    }
+
     function duplicateRemnantPreview(rarity) {
         return DUPLICATE_REMNANT_PREVIEW[String(rarity || 'COMMON').toUpperCase()] || DUPLICATE_REMNANT_PREVIEW.COMMON;
     }
@@ -3545,19 +3648,33 @@
                 ${renderRevealRemnantFace(card)}
             </button>`;
         }
-        return `<button class="reveal-card${revealed ? ' is-revealed' : ''}${remnantPull ? ' is-remnant-pull' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="${remnantPull ? 'true' : 'false'}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
+        return `<button class="reveal-card${revealed ? ' is-revealed' : ''}${remnantPull ? ' is-remnant-pull' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="${remnantPull ? 'true' : 'false'}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}" aria-label="${revealed ? escapeAttr(card.name || 'Revealed card') : 'Mystery card'}">
             <span class="rarity-burst" aria-hidden="true"></span>
             <span class="reveal-dust-burst" aria-hidden="true"></span>
-            <span class="reveal-face reveal-back">
-                <strong>Tap to reveal</strong>
-                <small>${remnantPull ? 'May become Remnants' : `${escapeHtml(format(rarity))} pulse`}</small>
-            </span>
-            <span class="reveal-face reveal-front">
-                <div class="card-tile binder-card gacha-card-front" style="--el:${elementColor(element)}">
-                    ${renderBinderCardShell(card, { ownedOverride: ownedPreview })}
-                </div>
+            <span class="reveal-face reveal-back" aria-hidden="${revealed ? 'true' : 'false'}"></span>
+            <span class="reveal-face reveal-front" aria-hidden="${revealed ? 'false' : 'true'}">
+                ${revealed ? renderRevealFrontContent(card, ownedPreview) : ''}
             </span>
         </button>`;
+    }
+
+    function renderRevealFrontContent(card, ownedPreview) {
+        return `<div class="card-tile binder-card gacha-card-front" style="--el:${elementColor(card.element || 'FIRE')}">
+            ${renderBinderCardShell(card, { ownedOverride: ownedPreview })}
+        </div>`;
+    }
+
+    function hydrateRevealCardFront(cardEl, card) {
+        if (!cardEl || !card) return;
+        const remnantPull = Boolean(card.duplicateAtCap && card.remnantsAwarded > 0);
+        const ownedPreview = Math.max(1, Math.min(3, ownedCount(card.id) || (!remnantPull ? 1 : 0)));
+        const front = cardEl.querySelector('.reveal-front');
+        if (front && !front.innerHTML.trim()) {
+            front.innerHTML = renderRevealFrontContent(card, ownedPreview);
+        }
+        front?.setAttribute('aria-hidden', 'false');
+        cardEl.querySelector('.reveal-back')?.setAttribute('aria-hidden', 'true');
+        cardEl.setAttribute('aria-label', card.name || 'Revealed card');
     }
 
     function spawnRemnantDust(cardEl) {
@@ -3605,8 +3722,7 @@
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
         if (reveal.dissolvedRemnants.has(revealId)) return;
-        const index = latest.cards.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId);
-        const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
+        const card = packRevealCards(latest).find(item => item.revealId === revealId);
         if (!card) return;
         if (reveal.revealed.has(revealId)) return;
         reveal.revealed.add(revealId);
@@ -3624,7 +3740,7 @@
         reveal.previewId = revealId;
         reveal.lastRevealedId = '';
         const result = document.getElementById('packResult');
-        const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
+        const cards = packRevealCards(latest);
         const opening = result?.querySelector('.pack-opening');
         if (opening && opening.dataset.packKey === packSessionKey(latest)) {
             patchPackPreview(opening, cards.find(card => card.revealId === revealId));
@@ -3662,11 +3778,11 @@
         };
         const entry = lore[String(element || '').toUpperCase()] || { title: 'Relics Uncovered', sub: 'Unknown powers wait beyond the seal.' };
         const words = ['no', 'a single', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
-        const pulses = words[count] || `${count}`;
+        const pulls = words[count] || `${count}`;
         return {
             eyebrow: 'Gacha reveal',
             title: entry.title,
-            sub: `${pulses.charAt(0).toUpperCase() + pulses.slice(1)} ancient pulses resonate within — tap each to reveal its fate. ${entry.sub}`
+            sub: `${pulls.charAt(0).toUpperCase() + pulls.slice(1)} sealed pulls wait inside — tap each to reveal its fate. ${entry.sub}`
         };
     }
 
@@ -3702,7 +3818,7 @@
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
-        const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
+        const cards = packRevealCards(latest);
         cards.forEach(card => reveal.revealed.add(card.revealId));
         reveal.lastRevealedId = '';
         reveal.sparkColor = elementColor(latest.cards?.[0]?.element || 'FIRE');
@@ -5009,8 +5125,8 @@
         const selectedTrainer = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.trainerId || selectedTrainerId();
         const deckOptions = decks.map(deck => `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`).join('');
         const trainerOptions = trainers.map(trainer => {
-            const owned = trainer.owned !== false;
-            const level = Math.max(1, Number(trainer.level) || 1);
+            const owned = isTrainerOwned(trainer.id);
+            const level = Math.max(1, trainerOwnedLevel(trainer.id) || Number(trainer.level) || 1);
             const levelLabel = owned && level > 1 ? ` (Lv ${level})` : '';
             const lockLabel = owned ? '' : ' \u2014 Locked';
             return `<option value="${escapeAttr(trainer.id)}" ${trainer.id === selectedTrainer ? 'selected' : ''}${owned ? '' : ' disabled'}>${escapeHtml(trainer.name + levelLabel + lockLabel)}</option>`;
@@ -6009,8 +6125,7 @@
             const alreadyRevealed = Boolean(state.packReveal?.revealed?.has?.(revealId));
             if (alreadyRevealed) {
                 const latest = state.progression?.packHistory?.[0];
-                const index = latest?.cards?.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId) ?? -1;
-                const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
+                const card = latest ? packRevealCards(latest).find(item => item.revealId === revealId) : null;
                 if (card?.duplicateAtCap && card?.remnantsAwarded > 0) return;
                 openPackPreview(revealId);
             } else {
