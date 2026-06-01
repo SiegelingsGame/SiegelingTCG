@@ -104,7 +104,7 @@ public class BattleService {
                 return;
             }
 
-            BattleAbilityOption choice = pickAiAbility(abilities);
+            BattleAbilityOption choice = pickAiAbility(attacker, abilities);
             resolveBattleAction(state, attacker, choice.getIndex(), -1, -1);
             pauseAfterAction(state);
             return;
@@ -216,11 +216,40 @@ public class BattleService {
         updateWinnerFromHealth(state);
     }
 
-    private BattleAbilityOption pickAiAbility(List<BattleAbilityOption> options) {
-        return options.stream()
+    private BattleAbilityOption pickAiAbility(CardInstance attacker, List<BattleAbilityOption> options) {
+        List<BattleAbilityOption> affordable = options.stream()
                 .filter(BattleAbilityOption::isAffordable)
+                .toList();
+        if (affordable.isEmpty()) {
+            return options.get(0);
+        }
+        // A Siegeling at full health gains nothing from healing — if it can deal
+        // damage this turn, prefer an attack over a heal/self-sustain ability.
+        if (isAtFullHealth(attacker)) {
+            List<BattleAbilityOption> damaging = affordable.stream()
+                    .filter(o -> dealsDamage(o.getAbility()))
+                    .toList();
+            if (!damaging.isEmpty()) {
+                return bestScoringAbility(damaging);
+            }
+        }
+        return bestScoringAbility(affordable);
+    }
+
+    private BattleAbilityOption bestScoringAbility(List<BattleAbilityOption> options) {
+        return options.stream()
                 .max(Comparator.comparingInt(o -> o.getRequiredEnergy() * 10 + o.getAbility().getEffectValue()))
                 .orElse(options.get(0));
+    }
+
+    private boolean dealsDamage(Ability ability) {
+        String effectType = ability.getEffectType();
+        return AbilityEffectKeys.DAMAGE.equals(effectType)
+                || AbilityEffectKeys.PLAYER_DAMAGE.equals(effectType);
+    }
+
+    private boolean isAtFullHealth(CardInstance unit) {
+        return unit != null && unit.isAlive() && unit.getCurrentHealth() >= unit.getEffectiveMaxHealth();
     }
 
     private boolean isSelfMoveLink(Ability ability) {

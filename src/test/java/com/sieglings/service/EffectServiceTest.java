@@ -653,6 +653,59 @@ class EffectServiceTest {
         assertEquals(1, player.getDeck().size(), "Draw should remove the same number of cards from deck.");
     }
 
+    @Test
+    void autoSingleEnemyTargetPrioritizesLowestHealthEnemy() {
+        GameState state = battleState();
+        CardInstance source = instance("source", 1, 0, true);
+        // Front-row enemy is at full health; a back-row enemy is nearly dead.
+        CardInstance fullFront = instance("full-front", 2, 1, false);
+        CardInstance woundedBack = instance("wounded-back", 0, 0, false);
+        woundedBack.setCurrentHealth(2);
+        state.setAt(true, 1, 0, source);
+        state.setAt(false, 2, 1, fullFront);
+        state.setAt(false, 0, 0, woundedBack);
+
+        Ability strike = Ability.damage(
+                "Strike",
+                "Deal 3 damage to 1 enemy",
+                TargetType.SINGLE_ENEMY,
+                null,
+                0,
+                3
+        );
+
+        // No explicit target (-1,-1): the AI auto-target should pick the weakest enemy to finish it.
+        effectService.resolveAbility(state, strike, source, true, -1, -1);
+
+        assertEquals(0, woundedBack.getCurrentHealth(), "Lowest-health enemy should be targeted to secure the kill.");
+        assertEquals(10, fullFront.getCurrentHealth(), "Healthy front enemy should be skipped.");
+    }
+
+    @Test
+    void autoSingleEnemyTargetKeepsFrontPriorityOnHealthTie() {
+        GameState state = battleState();
+        CardInstance source = instance("source", 1, 0, true);
+        CardInstance front = instance("front", 2, 1, false);
+        CardInstance back = instance("back", 0, 0, false);
+        state.setAt(true, 1, 0, source);
+        state.setAt(false, 2, 1, front);
+        state.setAt(false, 0, 0, back);
+
+        Ability strike = Ability.damage(
+                "Strike",
+                "Deal 3 damage to 1 enemy",
+                TargetType.SINGLE_ENEMY,
+                null,
+                0,
+                3
+        );
+
+        effectService.resolveAbility(state, strike, source, true, -1, -1);
+
+        assertEquals(7, front.getCurrentHealth(), "On equal health, the front-row enemy keeps priority.");
+        assertEquals(10, back.getCurrentHealth());
+    }
+
     private CardInstance instance(String id, List<Notch> notches, int row, int col) {
         SieglingCard card = new SieglingCard(id, id, Element.EARTH, Rarity.COMMON, 10, 4, notches, Row.MIDDLE);
         return new CardInstance(card, row, col, true);
