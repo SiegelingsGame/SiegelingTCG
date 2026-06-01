@@ -108,6 +108,18 @@ public class PlayerProgressionController {
         }
     }
 
+    @PostMapping("/api/knights/buy-xp")
+    public Map<String, Object> buyTrainerXp(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                              @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            PlayerProgressionEntity progression = progressionService.buyTrainerXp(user, string(req, "trainerId"));
+            return buildResponse(progression);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @GetMapping("/api/shop/packs")
     public Map<String, Object> packs() {
         return Map.of(

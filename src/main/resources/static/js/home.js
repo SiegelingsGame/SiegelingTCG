@@ -702,6 +702,37 @@
         return 0;
     }
 
+    function trainerOwnedEntry(trainerId) {
+        if (!trainerId) return null;
+        const key = String(trainerId).toLowerCase();
+        return (state.progression?.ownedTrainers || []).find(entry => String(entry?.id || '').toLowerCase() === key) || null;
+    }
+
+    function renderTrainerXpBar(trainerId, options = {}) {
+        const entry = trainerOwnedEntry(trainerId);
+        if (!entry) {
+            if (options.unownedPlaceholder) {
+                return '<div class="trainer-xp-bar trainer-xp-bar--unowned"><span>Not owned</span></div>';
+            }
+            return '';
+        }
+        const level = Math.max(1, Number(entry.level) || 1);
+        const maxLevel = Number(entry.maxLevel) || 5;
+        const points = Math.max(0, Number(entry.points) || 0);
+        const pointsForNext = Math.max(1, Number(entry.pointsForNext) || level);
+        if (level >= maxLevel) {
+            return `<div class="trainer-xp-bar trainer-xp-bar--max" aria-label="Max level">
+                <div class="trainer-xp-bar-track"><div class="trainer-xp-bar-fill" style="width:100%"></div></div>
+                <span class="trainer-xp-bar-label">MAX · Lv ${level}</span>
+            </div>`;
+        }
+        const pct = Math.min(100, Math.round((points / pointsForNext) * 100));
+        return `<div class="trainer-xp-bar" aria-label="Level ${level}, ${points} of ${pointsForNext} XP to level ${level + 1}">
+            <div class="trainer-xp-bar-track"><div class="trainer-xp-bar-fill" style="width:${pct}%"></div></div>
+            <span class="trainer-xp-bar-label">Lv ${level} · ${points}/${pointsForNext} XP</span>
+        </div>`;
+    }
+
     function siegeknightBinderCards() {
         return (state.options?.trainers || []).map(trainer => {
             const level = Math.max(1, Number(trainer.level) || trainerOwnedLevel(trainer.id) || 1);
@@ -820,6 +851,21 @@
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const knightLevel = isSiegeknight ? Math.max(1, trainerOwnedLevel(card.id) || card.level || 1) : 0;
+        const trainerEntry = isSiegeknight ? trainerOwnedEntry(card.id) : null;
+        const ownedKnight = isSiegeknight && trainerOwnedLevel(card.id) > 0;
+        const maxKnightLevel = Number(trainerEntry?.maxLevel) || 5;
+        const atMaxKnightLevel = ownedKnight && knightLevel >= maxKnightLevel;
+        const nextXpCost = ownedKnight && !atMaxKnightLevel
+            ? (Number(trainerEntry?.nextXpCoinCost) || 50 * knightLevel)
+            : 0;
+        const abilityBonus = trainerEntry != null
+            ? Math.max(0, Number(trainerEntry.abilityBonus) || knightLevel - 1)
+            : Math.max(0, knightLevel - 1);
+        const canBuyKnightXp = ownedKnight
+            && !atMaxKnightLevel
+            && state.profile?.authenticated
+            && state.progression?.starterChosen
+            && (state.progression?.gold || 0) >= nextXpCost;
         const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview && !isSiegeknight)
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id),
@@ -839,7 +885,7 @@
                 ${isSiegeknight ? `<div><span>Level</span><strong>${knightLevel}</strong></div>
                 <div><span>Tier</span><strong>${escapeHtml(card.tier || 'SiegeKnight')}</strong></div>
                 <div><span>Element</span><strong>${format(card.element)}</strong></div>
-                <div><span>Ability bonus</span><strong>+${Math.max(0, knightLevel - 1)} effect</strong></div>` : ''}
+                <div><span>Ability bonus</span><strong>+${abilityBonus} effect</strong></div>` : ''}
                 ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
                 <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
                 <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
@@ -857,13 +903,24 @@
             <div class="detail-abilities">
             ${abilities.length ? abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('') : '<p class="detail-ability-empty">No printed ability.</p>'}
             </div>
-            ${isSiegeknight ? '<p class="detail-knight-hint">Pull duplicates from packs to combine and raise this knight\'s level.</p>' : `<div class="craft-card-action">
+            ${isSiegeknight ? `<div class="detail-knight-xp-panel">
+                ${ownedKnight ? renderTrainerXpBar(card.id) : ''}
+                <div class="detail-knight-xp-action">
+                    ${!state.profile?.authenticated ? '<span class="detail-knight-hint">Sign in to track knight XP and buy levels.</span>'
+                        : !ownedKnight ? '<span class="detail-knight-hint">Pull this knight from packs to unlock leveling.</span>'
+                        : atMaxKnightLevel ? '<span class="detail-knight-hint">Max level reached — ability effects are fully powered.</span>'
+                        : `<button class="primary-btn" type="button" id="buyKnightXpBtn"${canBuyKnightXp ? '' : ' disabled'}>Buy 1 XP · ${renderCoinAmount(nextXpCost, '')}</button>
+                           <span>${(state.progression?.gold || 0).toLocaleString()} Siegecoins available</span>`}
+                </div>
+                <p class="detail-knight-hint">Pull duplicates from packs to combine, or buy XP with Siegecoins (${50} × current level per point).</p>
+            </div>` : `<div class="craft-card-action">
                 <button class="primary-btn" type="button" id="craftSelectedCard"${canCraft || !state.profile?.authenticated ? '' : ' disabled'}>${escapeHtml(craftLabel)}</button>
                 <span>${escapeHtml(remnants.toLocaleString())} Remnants available</span>
             </div>`}
             ${state.route === 'deck-builder' && !isSiegeknight ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
         `;
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
+        document.getElementById('buyKnightXpBtn')?.addEventListener('click', () => buyKnightXp(card.id));
         document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
             if (state.route !== 'deck-builder') {
                 openDeckBuilder();
@@ -2018,6 +2075,9 @@
     }
 
     function renderShopCardAbilityLine(card) {
+        if (card?.type === 'SIEGEKNIGHT') {
+            return renderTrainerXpBar(card.id, { unownedPlaceholder: true });
+        }
         const abilities = card?.abilities || (card?.ability ? [card.ability] : []);
         const primary = abilities[0];
         if (!primary?.name) return '';
@@ -3945,6 +4005,18 @@
         renderGold();
         renderProfile();
         renderAchievements();
+    }
+
+    async function buyKnightXp(trainerId) {
+        if (!state.profile?.authenticated) return openAuth();
+        const data = await fetchJson('/api/knights/buy-xp', { method: 'POST', body: JSON.stringify({ trainerId }) });
+        if (data?.error) return alert(data.error);
+        state.progression = data.progression;
+        renderCards();
+        renderDetail();
+        renderHomeDashboard();
+        renderGold();
+        renderProfile();
     }
 
     async function saveCustomDeck() {
