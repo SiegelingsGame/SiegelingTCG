@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -133,8 +134,8 @@ class EffectServiceTest {
     @Test
     void oneDamageAttackAppliesAndLogsWeaknessBonus() {
         GameState state = battleState();
-        CardInstance source = instance("earth-source", Element.EARTH, 1, 1, true);
-        CardInstance target = instance("fire-target", Element.FIRE, 1, 1, false);
+        CardInstance source = instance("wind-source", Element.WIND, 1, 1, true);
+        CardInstance target = instance("earth-target", Element.EARTH, 1, 1, false);
         state.setAt(true, 1, 1, source);
         state.setAt(false, 1, 1, target);
 
@@ -151,6 +152,30 @@ class EffectServiceTest {
 
         assertEquals(8, target.getCurrentHealth());
         assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("weakness +1")));
+    }
+
+    @Test
+    void elementalWeaknessChartMatchesCurrentRules() {
+        assertWeaknessBonus(Element.FIRE, Element.ICE);
+        assertWeaknessBonus(Element.ICE, Element.WIND);
+        assertWeaknessBonus(Element.WIND, Element.EARTH);
+        assertWeaknessBonus(Element.EARTH, Element.FIRE);
+        assertWeaknessBonus(Element.WATER, Element.FIRE);
+        assertWeaknessBonus(Element.WATER, Element.ICE);
+        assertWeaknessBonus(Element.METAL, Element.EARTH);
+        assertWeaknessBonus(Element.METAL, Element.WIND);
+        assertWeaknessBonus(Element.ELECTRIC, Element.WIND);
+        assertWeaknessBonus(Element.ELECTRIC, Element.FIRE);
+        assertWeaknessBonus(Element.POISON, Element.ICE);
+        assertWeaknessBonus(Element.POISON, Element.EARTH);
+        assertWeaknessBonus(Element.SHADOW, Element.PSYCHIC);
+        assertWeaknessBonus(Element.PSYCHIC, Element.LIGHT);
+        assertWeaknessBonus(Element.LIGHT, Element.UNDEAD);
+        assertWeaknessBonus(Element.UNDEAD, Element.SHADOW);
+
+        assertNoWeaknessBonus(Element.EARTH, Element.WIND);
+        assertNoWeaknessBonus(Element.WATER, Element.EARTH);
+        assertNoWeaknessBonus(Element.ELECTRIC, Element.WATER);
     }
 
     @Test
@@ -719,6 +744,45 @@ class EffectServiceTest {
     private CardInstance instance(String id, Element element, int row, int col, boolean owner) {
         SieglingCard card = new SieglingCard(id, id, element, Rarity.COMMON, 10, 4, List.of(), Row.MIDDLE);
         return new CardInstance(card, row, col, owner);
+    }
+
+    private void assertWeaknessBonus(Element attacker, Element defender) {
+        GameState state = battleState();
+        CardInstance source = instance(attacker.name().toLowerCase() + "-source", attacker, 1, 1, true);
+        CardInstance target = instance(defender.name().toLowerCase() + "-target", defender, 1, 1, false);
+        state.setAt(true, 1, 1, source);
+        state.setAt(false, 1, 1, target);
+
+        effectService.resolveAbility(state, oneDamageAbility(), source, true, 1, 1);
+
+        assertEquals(8, target.getCurrentHealth(), attacker + " should be strong into " + defender);
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("weakness +1")),
+                attacker + " into " + defender + " should log a weakness bonus");
+    }
+
+    private void assertNoWeaknessBonus(Element attacker, Element defender) {
+        GameState state = battleState();
+        CardInstance source = instance(attacker.name().toLowerCase() + "-source", attacker, 1, 1, true);
+        CardInstance target = instance(defender.name().toLowerCase() + "-target", defender, 1, 1, false);
+        state.setAt(true, 1, 1, source);
+        state.setAt(false, 1, 1, target);
+
+        effectService.resolveAbility(state, oneDamageAbility(), source, true, 1, 1);
+
+        assertEquals(9, target.getCurrentHealth(), attacker + " should not get weakness damage into " + defender);
+        assertFalse(state.getGameLog().stream().anyMatch(line -> line.contains("weakness +1")),
+                attacker + " into " + defender + " should not log a weakness bonus");
+    }
+
+    private Ability oneDamageAbility() {
+        return Ability.damage(
+                "Weakness Probe",
+                "Deal 1 damage to 1 enemy",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                1
+        );
     }
 
     private GameState battleState() {

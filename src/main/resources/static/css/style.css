@@ -33,8 +33,8 @@
     --metal: #a0aab4;
     --undead: #8c78a0;
     --psychic: #c896ff;
-    --poison: #78dc50;
-    --light: #fffac8;
+    --poison: #7ecb4d;
+    --light: #ffe59a;
     --neutral: #95a5a6;
     --bg: #1a1c2c;
     --surface: #16213e;
@@ -607,6 +607,7 @@ body {
 }
 
 .safe-hp-half {
+    position: relative;
     flex: 1 1 50%;
     min-width: 0;
     height: 100%;
@@ -621,7 +622,49 @@ body {
 .safe-hp-fill {
     height: 100%;
     width: 100%;
-    transition: width 0.35s ease, background-color 0.25s ease;
+    transition: width 0.35s ease, background 0.25s ease;
+}
+
+/* Mirror the player side so both health bars drain toward the outer edges,
+   leaving the centre (Dynamic Island / notch) and system clock/battery clear. */
+.safe-hp-player .safe-hp-fill {
+    margin-left: auto;
+}
+
+/* Thin energy underline pinned to the very bottom of the strip, below the
+   system status-bar text baseline so it never collides with the clock/battery. */
+.safe-energy-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.safe-energy-fill {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.45), #ffd700);
+    transition: width 0.35s ease, background 0.25s ease;
+}
+
+.safe-hp-player .safe-energy-fill {
+    margin-left: auto;
+}
+
+/* Low-HP danger pulse on the affected side. */
+@keyframes safeHpDangerPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
+.safe-hp-half.danger .safe-hp-fill {
+    animation: safeHpDangerPulse 0.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .safe-hp-half.danger .safe-hp-fill { animation: none; }
 }
 
 @media (max-width: 767px) {
@@ -824,11 +867,43 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 .hud-knight-ability {
     font-size: 0.6em;
     color: var(--text-dim);
-    font-style: italic;
     margin-top: 2px;
-    white-space: nowrap;
+}
+
+.hud-knight-ability-lines {
+    display: grid;
+    gap: 2px;
+}
+
+.hud-knight-ability-line {
+    display: grid;
+    gap: 1px;
+    line-height: 1.25;
+}
+
+.hud-knight-ability-line strong {
+    color: var(--accent);
+    font-size: 0.84em;
+    font-style: normal;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.hud-knight-ability-line span {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    font-style: italic;
+}
+
+.hud-knight-ability-element {
+    color: var(--text);
+    font-size: 0.9em;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
 }
 
 .hud-counts-row {
@@ -3368,9 +3443,33 @@ body.battle-phase-active .battlefield::after {
         margin-top: 1px;
         color: var(--text-dim);
         font-size: 0.58em;
+        overflow: hidden;
+        line-height: 1.25;
+    }
+
+    .m-knight-elem .hud-knight-ability-lines {
+        gap: 1px;
+    }
+
+    .m-knight-elem .hud-knight-ability-line {
+        display: block;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+
+    .m-knight-elem .hud-knight-ability-line strong {
+        margin-right: 3px;
+        font-size: 0.9em;
+    }
+
+    .m-knight-elem .hud-knight-ability-line span {
+        display: inline;
+        font-style: italic;
+    }
+
+    .m-knight-elem .hud-knight-ability-element {
+        font-size: 0.9em;
     }
 
     /* Player tray: full passive + active SiegeKnight readout wraps onto stacked lines. */
@@ -10213,6 +10312,11 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     position: relative;
     width: 100%;
     max-width: 200px;
+    /* The slot is the fixed-proportion box so every card is identical in size,
+       regardless of type. Cards used to self-size to content via aspect-ratio,
+       which let spell/trap cards (lighter bodies) grow taller than siegelings
+       (HP/SPD pills shrink their art). */
+    aspect-ratio: var(--card-aspect-ratio);
     display: flex;
     justify-content: center;
     align-items: stretch;
@@ -10262,7 +10366,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     width: 100%;
     min-width: 0;
     max-width: none;
-    aspect-ratio: var(--card-aspect-ratio);
+    /* Fill the slot's fixed proportion instead of self-sizing to content. */
+    height: 100%;
     min-height: 0;
     cursor: inherit;
     overflow: hidden;
@@ -12578,6 +12683,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .sgl-heal-cross .sgl-heal-icon,
     .sgl-heal-cross .sgl-heal-glow,
     .sgl-heal-cross .sgl-heal-particle { animation-duration: 0.3s !important; }
+}
+
+/* Notch movement shift */
+.board-card.sgl-shift-card {
+    pointer-events: none;
+    z-index: 560;
+    will-change: transform, opacity, filter;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.16) inset,
+        0 0 24px color-mix(in srgb, var(--sgl-shift-color, #95a5a6) 48%, transparent),
+        0 18px 32px rgba(0, 0, 0, 0.48);
+}
+.board-cell.sgl-move-origin,
+.board-cell.sgl-move-destination {
+    box-shadow:
+        inset 0 0 0 2px var(--sgl-shift-color, rgba(149, 165, 166, 0.8)),
+        0 0 18px color-mix(in srgb, var(--sgl-shift-color, #95a5a6) 42%, transparent);
 }
 
 /* Death ghost — keeps the killed card visible until the projectile lands */
