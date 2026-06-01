@@ -1000,7 +1000,10 @@ textarea {
 @media (max-width: 1080px) {
     .dashboard-shell {
         width: min(100vw - 20px, 1600px);
-        margin: 10px auto 24px;
+        /* Let the page background bleed into the notch (viewport-fit=cover) while
+           keeping the header clear of the camera/status bar, matching the Home UI. */
+        margin: calc(10px + env(safe-area-inset-top, 0px)) auto
+                calc(24px + env(safe-area-inset-bottom, 0px));
     }
 
     .dashboard-header,
