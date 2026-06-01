@@ -546,7 +546,14 @@
                         amount: nextHp - prevHp,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
-                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
+                        prevHp,
+                        nextHp,
+                        prevShield,
+                        nextShield,
+                        prevMaxHp: p.maxHp,
+                        nextMaxHp: n.maxHp,
+                        printedHealth: n.printedHealth ?? p.printedHealth
                     });
                 }
             }
@@ -831,6 +838,12 @@
             // these entries keep that resolved HP visible while the matching
             // attack animation finishes.
             this.pendingHealthChanges = new Map();
+            // Map<key, { isPlayer, row, col, status }> — status badges (Freeze,
+            // Weak, Damage Boost, etc.) that the server already reports but whose
+            // animation hasn't played yet. The matching badge is held hidden
+            // until the STATUS_APPLY / ATTACK action lands its effect, so the
+            // player sees the status arrive with the animation rather than before.
+            this.pendingStatusChanges = new Map();
             this._pendingSyncScheduled = false;
             this._loadSpeed();
             this._installPlacementObserver();
@@ -867,6 +880,7 @@
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
             this.settleAllPendingHealth();
+            this.settleAllPendingStatuses();
         }
 
         // ── Pending-placement registry ────────────────────────────────────
@@ -1007,11 +1021,50 @@
             this.syncPendingHealth();
             return key;
         }
+        // Register a heal whose displayed HP should be HELD at the pre-heal
+        // value until its animation lands. Mirrors registerPendingHealth (used
+        // for damage), but keeps the OLD hp/shield on screen (displayHp =
+        // prevHp) and commits to the new values on release, so the bar visibly
+        // rises during the heal cross instead of jumping ahead of it.
+        registerPendingHeal(target) {
+            if (!target) return null;
+            const prevHp = Number(target.prevHp);
+            const nextHp = Number(target.nextHp);
+            if (!Number.isFinite(prevHp) || !Number.isFinite(nextHp)) {
+                return null;
+            }
+            const id = String(target.instanceId || '');
+            const key = this._healthKey(target.isPlayer, target.row, target.col, id);
+            const maxHp = Number.isFinite(Number(target.nextMaxHp))
+                ? Number(target.nextMaxHp)
+                : Number(target.prevMaxHp);
+            const prevShield = Number.isFinite(Number(target.prevShield)) ? Number(target.prevShield) : 0;
+            const nextShield = Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0;
+            this.pendingHealthChanges.set(key, {
+                isPlayer: target.isPlayer,
+                row: target.row,
+                col: target.col,
+                instanceId: id,
+                displayHp: prevHp,
+                finalHp: nextHp,
+                displayShield: prevShield,
+                finalShield: nextShield,
+                maxHp,
+                printedHealth: target.printedHealth,
+                element: target.element
+            });
+            this.syncPendingHealth();
+            return key;
+        }
         releasePendingHealth(key) {
             if (!key) return;
             const entry = this.pendingHealthChanges.get(key);
             if (!entry) return;
             this.pendingHealthChanges.delete(key);
+            // Commit the held display values to their final state so the bar,
+            // numbers and shield plates all land on the post-effect values.
+            entry.displayHp = entry.finalHp;
+            entry.displayShield = entry.finalShield;
             this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
         }
         releasePendingHealthForTargets(targets) {
@@ -1028,6 +1081,61 @@
         syncPendingHealth() {
             for (const entry of this.pendingHealthChanges.values()) {
                 this.applyHealthToDom(entry, entry.displayHp, entry.maxHp);
+            }
+        }
+
+        // ── Pending-status registry ───────────────────────────────────────
+        _statusKey(isPlayer, row, col, status) {
+            return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${String(status || '').toUpperCase()}`;
+        }
+        _setStatusBadgeHidden(entry, hidden) {
+            const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+            const card = cellEl?.querySelector('.board-card');
+            if (!card) return;
+            const badge = card.querySelector(
+                `.status-icons .sb-badge[data-status="${entry.status}"]`
+            );
+            if (!badge) return;
+            if (hidden) {
+                // visibility (not display) keeps the badge's slot so the card
+                // doesn't reflow when the icon pops in with its animation.
+                badge.style.visibility = 'hidden';
+                badge.style.opacity = '0';
+            } else {
+                badge.style.removeProperty('visibility');
+                badge.style.removeProperty('opacity');
+            }
+        }
+        registerPendingStatus(isPlayer, row, col, status) {
+            const norm = String(status || '').toUpperCase();
+            if (!norm) return null;
+            const key = this._statusKey(isPlayer, row, col, norm);
+            this.pendingStatusChanges.set(key, { isPlayer, row, col, status: norm });
+            this.syncPendingStatuses();
+            return key;
+        }
+        revealPendingStatus(isPlayer, row, col, status) {
+            const key = this._statusKey(isPlayer, row, col, status);
+            const entry = this.pendingStatusChanges.get(key);
+            if (!entry) return;
+            this.pendingStatusChanges.delete(key);
+            this._setStatusBadgeHidden(entry, false);
+        }
+        revealPendingStatusesForTarget(target, statuses) {
+            if (!target || !Array.isArray(statuses)) return;
+            for (const status of statuses) {
+                this.revealPendingStatus(target.isPlayer, target.row, target.col, status);
+            }
+        }
+        settleAllPendingStatuses() {
+            for (const [key, entry] of Array.from(this.pendingStatusChanges.entries())) {
+                this.pendingStatusChanges.delete(key);
+                this._setStatusBadgeHidden(entry, false);
+            }
+        }
+        syncPendingStatuses() {
+            for (const entry of this.pendingStatusChanges.values()) {
+                this._setStatusBadgeHidden(entry, true);
             }
         }
         _installPlacementObserver() {
@@ -1358,6 +1466,10 @@
             // the status landing.
             const newStatusesOnEnemy  = diffStatuses(prevEnemy,  nextEnemy,  false);
             const newStatusesOnPlayer = diffStatuses(prevPlayer, nextPlayer, true);
+            // Hold each newly-applied status badge hidden until its action plays
+            // so the icon appears with the landing animation, not before it.
+            for (const s of newStatusesOnEnemy)  this.registerPendingStatus(s.isPlayer, s.row, s.col, s.status);
+            for (const s of newStatusesOnPlayer) this.registerPendingStatus(s.isPlayer, s.row, s.col, s.status);
             const mergeStatusInto = (groups, statusList, resolveSource, sideKnight, defenderIsPlayer) => {
                 for (const s of statusList) {
                     let merged = false;
@@ -1591,6 +1703,23 @@
                 const side = healerRef ? (healerRef.isPlayer ? 'PLAYER' : 'ENEMY')
                                        : (targetIsPlayer ? 'PLAYER' : 'ENEMY');
                 const knight = side === 'PLAYER' ? playerKnight : enemyKnight;
+                // Hold the target's HP at its pre-heal value until the heal
+                // animation lands, so the green "+N" and the rising bar play
+                // together rather than the number being updated up front.
+                const pendingHealthKey = this.registerPendingHeal({
+                    isPlayer: h.isPlayer,
+                    row: h.row,
+                    col: h.col,
+                    instanceId: h.instanceId,
+                    prevHp: h.prevHp,
+                    nextHp: h.nextHp,
+                    prevShield: h.prevShield,
+                    nextShield: h.nextShield,
+                    prevMaxHp: h.prevMaxHp,
+                    nextMaxHp: h.nextMaxHp,
+                    printedHealth: h.printedHealth,
+                    element: h.element
+                });
                 this.enqueueAction({
                     kind: 'HEAL',
                     side,
@@ -1604,6 +1733,7 @@
                         ? { isPlayer: healerRef.isPlayer, row: healerRef.row, col: healerRef.col }
                         : null,
                     target: { isPlayer: h.isPlayer, row: h.row, col: h.col, element: ownerKnight },
+                    pendingHealthKey,
                     gapAfterMs: BATTLE_GAP_MS
                 });
             };
@@ -1742,8 +1872,11 @@
                 this.processing = false;
                 if (this.opponentThinking) this.markOpponentThinking(false);
                 // Defensive: never leave a card permanently hidden because no
-                // PLAY action was queued for it.
+                // PLAY action was queued for it, and never leave a heal/status
+                // held back because its action was dropped or unmatched.
                 this.revealAllPendingPlacements();
+                this.settleAllPendingHealth();
+                this.settleAllPendingStatuses();
                 if (typeof window.scheduleBattleAutoAdvance === 'function') {
                     window.scheduleBattleAutoAdvance();
                 }
@@ -1760,6 +1893,7 @@
             // the case where game.js's render rebuilt the cell DOM while we
             // were processing a previous action.
             this.syncPendingPlacements();
+            this.syncPendingStatuses();
 
             if (action.kind === 'PHASE') {
                 if (this.activeToast) {
@@ -1862,6 +1996,7 @@
                         for (const status of tgt.statuses) {
                             applyStatusVisual(tgt.isPlayer, tgt.row, tgt.col, status);
                         }
+                        this.revealPendingStatusesForTarget(tgt, tgt.statuses);
                     }
                 }
                 if (window.SieglingsFx?.cameraShake) {
@@ -1903,6 +2038,7 @@
                             status
                         );
                     }
+                    this.revealPendingStatusesForTarget(action.target, action.statuses);
                 }
                 await sleep(t.impactMs);
                 const statusGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
@@ -1937,6 +2073,9 @@
                         );
                     }
                 }
+                // Now that the cross + "+N" are on screen, raise the bar to its
+                // post-heal value so the heal visibly resolves with the effect.
+                this.releasePendingHealth(action.pendingHealthKey);
                 await sleep(t.impactMs);
                 const healGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(healGap);
@@ -2048,6 +2187,7 @@
                     for (const status of action.statuses) {
                         applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, status);
                     }
+                    this.revealPendingStatusesForTarget(action.target, action.statuses);
                 }
                 if (window.SieglingsFx?.cameraShake) {
                     const shake = Math.min(12, 3 + Math.round((action.amount || 0) * 0.6));
@@ -2231,6 +2371,7 @@
             const result = orig.apply(this, arguments);
             try { queue.syncPendingPlacements(); } catch (_) {}
             try { queue.syncPendingHealth(); } catch (_) {}
+            try { queue.syncPendingStatuses(); } catch (_) {}
             return result;
         };
         window.__sglRenderHookInstalled = true;
