@@ -183,6 +183,62 @@ button { color: inherit; }
     background: rgba(50, 150, 255, 0.11);
 }
 
+.danger-btn {
+    min-height: 38px;
+    padding: 9px 13px;
+    border-radius: 8px;
+    font-weight: 900;
+    cursor: pointer;
+    width: 100%;
+    color: #fff;
+    border: 1px solid rgba(255, 90, 90, 0.55);
+    background: linear-gradient(135deg, #b91c1c, #ef4444);
+    box-shadow: 0 10px 24px rgba(220, 38, 38, 0.24);
+    transition: transform 0.16s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.danger-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.danger-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.account-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.account-danger {
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 12px;
+    padding: 16px;
+    background: rgba(239, 68, 68, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.account-danger h3 {
+    margin: 0;
+    color: #fca5a5;
+}
+
+.account-danger-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.account-danger-label {
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
 .gold-pill {
     display: inline-flex;
     align-items: center;

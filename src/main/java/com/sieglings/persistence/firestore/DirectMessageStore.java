@@ -105,6 +105,30 @@ public class DirectMessageStore {
         }
     }
 
+    public void deleteByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        deleteWhereEqual("senderId", userId);
+        deleteWhereEqual("recipientId", userId);
+    }
+
+    private void deleteWhereEqual(String field, String value) {
+        try {
+            List<QueryDocumentSnapshot> docs = client.requireFirestore()
+                    .collection(client.directMessagesCollection())
+                    .whereEqualTo(field, value)
+                    .get()
+                    .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .getDocuments();
+            for (QueryDocumentSnapshot doc : docs) {
+                doc.getReference().delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to delete direct messages from Firestore.", ex);
+        }
+    }
+
     private DocumentReference doc(String id) {
         return client.requireFirestore().collection(client.directMessagesCollection()).document(id);
     }
