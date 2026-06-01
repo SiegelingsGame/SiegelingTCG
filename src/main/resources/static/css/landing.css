@@ -49,8 +49,10 @@ img { display: block; }
 /* ── PartyChatGaming watermark ───────────────────────────────────────────── */
 .pcg-watermark {
     position: fixed;
-    top: 18px;
-    left: 22px;
+    /* Background flows edge-to-edge (viewport-fit=cover); keep the chip itself
+       clear of the notch/camera and the rounded corner. */
+    top: calc(18px + env(safe-area-inset-top, 0px));
+    left: calc(22px + env(safe-area-inset-left, 0px));
     z-index: 60;
     display: flex;
     align-items: center;
