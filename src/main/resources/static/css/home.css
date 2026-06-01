@@ -2396,6 +2396,62 @@ select.search-input { color-scheme: dark; }
     line-height: 1.5;
 }
 
+body.starter-onboarding-active {
+    overflow: hidden;
+}
+
+body.starter-onboarding-active .home-nav,
+body.starter-onboarding-active .hud-tray,
+body.starter-onboarding-active .tray-backdrop {
+    display: none !important;
+}
+
+body.starter-onboarding-active .home-shell {
+    min-height: 100dvh;
+}
+
+body.starter-onboarding-active .home-main {
+    min-height: 100dvh;
+    height: 100dvh;
+    padding: 0;
+    overflow: auto;
+}
+
+body.starter-onboarding-active .starter-gate {
+    min-height: 100dvh;
+    grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
+    align-items: center;
+    border: 0;
+    border-radius: 0;
+    padding: clamp(24px, 5vw, 64px);
+}
+
+body.starter-onboarding-active .starter-gate h1 {
+    font-size: 56px;
+}
+
+@media (max-width: 900px) {
+    body.starter-onboarding-active {
+        overflow: auto;
+    }
+
+    body.starter-onboarding-active .home-main {
+        height: auto;
+        min-height: 100dvh;
+    }
+
+    body.starter-onboarding-active .starter-gate {
+        grid-template-columns: 1fr;
+        align-content: start;
+        gap: 22px;
+        padding: 24px 14px;
+    }
+
+    body.starter-onboarding-active .starter-gate h1 {
+        font-size: 34px;
+    }
+}
+
 .deck-tile button,
 .room-tile button {
     width: 100%;
@@ -6492,3 +6548,24 @@ body.gacha-active {
 
 .admin-access { display: grid; gap: 12px; margin-top: 8px; }
 .admin-error { color: #ff7676; min-height: 16px; margin: 0; }
+
+@media (max-width: 900px) {
+    body.starter-onboarding-active {
+        height: auto;
+        min-height: 100dvh;
+        overflow: auto;
+    }
+
+    body.starter-onboarding-active .home-shell {
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+    }
+
+    body.starter-onboarding-active .home-main {
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+        padding: 0;
+    }
+}
