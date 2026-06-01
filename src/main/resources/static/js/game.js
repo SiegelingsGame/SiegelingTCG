@@ -208,6 +208,8 @@ const TARGET_ARROW_ELEMENT_PALETTES = {
     METAL:    { source: '#d8e0e8', target: '#a0aab4', glow: '#c0c8d0' },
     UNDEAD:   { source: '#b090e0', target: '#6a5080', glow: '#8060a0' },
     PSYCHIC:  { source: '#f0b0ff', target: '#d060ff', glow: '#e080ff' },
+    POISON:   { source: '#d4ff95', target: '#7ecb4d', glow: '#9ee85f' },
+    LIGHT:    { source: '#fff8cc', target: '#ffe59a', glow: '#fff1aa' },
     NEUTRAL:  { source: '#aabbcc', target: '#8899aa', glow: '#99aabb' }
 };
 
@@ -281,6 +283,20 @@ const LOADOUT_ELEMENT_THEMES = {
         traits: ['Disrupt', 'Boost', 'Control'],
         description: 'Bend the flow of battle with disruptive timing and precision buffs.',
         recommendedTrainerIds: ['trainer28', 'trainer29', 'trainer30']
+    },
+    POISON: {
+        element: 'POISON',
+        playstyle: 'Attrition',
+        traits: ['Toxin', 'Pressure', 'Control'],
+        description: 'Wear down resilient enemies with toxic pressure and board disruption.',
+        recommendedTrainerIds: []
+    },
+    LIGHT: {
+        element: 'LIGHT',
+        playstyle: 'Radiant Control',
+        traits: ['Radiance', 'Cleanse', 'Tempo'],
+        description: 'Stabilize the field with radiant tempo swings and precision control.',
+        recommendedTrainerIds: []
     }
 };
 
@@ -1344,14 +1360,30 @@ function isElementWeakTo(attackerElement, defenderElement) {
     const attacker = String(attackerElement || '').trim().toUpperCase();
     const defender = String(defenderElement || '').trim().toUpperCase();
     switch (attacker) {
-        case 'WATER':
-            return defender === 'FIRE' || defender === 'EARTH';
-        case 'EARTH':
-            return defender === 'WIND' || defender === 'ELECTRIC';
+        case 'FIRE':
+            return defender === 'ICE';
+        case 'ICE':
+            return defender === 'WIND';
         case 'WIND':
+            return defender === 'EARTH';
+        case 'EARTH':
             return defender === 'FIRE';
+        case 'WATER':
+            return defender === 'FIRE' || defender === 'ICE';
+        case 'METAL':
+            return defender === 'EARTH' || defender === 'WIND';
         case 'ELECTRIC':
-            return defender === 'WATER';
+            return defender === 'WIND' || defender === 'FIRE';
+        case 'POISON':
+            return defender === 'ICE' || defender === 'EARTH';
+        case 'SHADOW':
+            return defender === 'PSYCHIC';
+        case 'PSYCHIC':
+            return defender === 'LIGHT';
+        case 'LIGHT':
+            return defender === 'UNDEAD';
+        case 'UNDEAD':
+            return defender === 'SHADOW';
         default:
             return false;
     }
@@ -8594,11 +8626,6 @@ function updateMobileHudSide(label, playerData, ids) {
     const deckSize = playerData?.deckSize ?? 0;
     const energyTotal = getEnergyRowsForPlayer(playerData).reduce((sum, entry) => sum + entry.val, 0);
     const trainer = playerData?.trainer;
-    const trainerAbility = getTrainerRailAbilityText(trainer);
-    const trainerInfo = [
-        trainer?.element ? formatElementLabel(trainer.element) : '',
-        trainerAbility
-    ].filter(Boolean).join(' - ');
     const hpBar = document.getElementById(ids.hpBarId);
     const trainerColor = trainer?.element ? getElementHex(trainer.element) : null;
 
@@ -8609,7 +8636,10 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.statHandId, handSize);
     setTextIfExists(ids.statDeckId, deckSize);
     setTextIfExists(ids.knightNameId, trainer?.name || '-');
-    setTextIfExists(ids.knightInfoId, trainerInfo);
+    setTrainerAbilityMarkup(ids.knightInfoId, trainer, {
+        includeElement: true,
+        compact: true
+    });
     if (hpBar) {
         hpBar.style.width = `${pct}%`;
         hpBar.style.background = trainerColor || '';
@@ -8625,7 +8655,7 @@ function updateMobileHudSide(label, playerData, ids) {
 function updateHudRailKnight(prefix, trainer) {
     setTextIfExists(`${prefix}KnightName`, trainer?.name || '-');
     setTextIfExists(`${prefix}KnightElement`, trainer?.element ? formatElementLabel(trainer.element) : '');
-    setTextIfExists(`${prefix}KnightAbility`, getTrainerRailAbilityText(trainer));
+    setTrainerAbilityMarkup(`${prefix}KnightAbility`, trainer);
     const portrait = document.getElementById(`${prefix}KnightPortrait`);
     if (portrait) {
         portrait.innerHTML = elementEmoji(trainer?.element);
@@ -8633,23 +8663,58 @@ function updateHudRailKnight(prefix, trainer) {
 }
 
 function getTrainerRailAbilityText(trainer) {
-    if (!trainer) return '';
-    if (typeof trainer.passiveDescription === 'string' && trainer.passiveDescription.trim()) {
-        return trainer.passiveDescription.trim();
+    return getTrainerAbilitySummaries(trainer)
+        .map((entry) => `${entry.label}: ${entry.text}`)
+        .join(' | ');
+}
+
+function getTrainerAbilitySummaries(trainer) {
+    if (!trainer) return [];
+    const summaries = [];
+    const passive = readTrainerAbilityDescription(trainer.passiveDescription || trainer.passive);
+    if (passive) {
+        summaries.push({ label: 'Passive', text: passive });
     }
-    if (typeof trainer.passive === 'string' && trainer.passive.trim()) {
-        return trainer.passive.trim();
+    const active = readTrainerAbilityDescription(trainer.active);
+    if (active) {
+        summaries.push({ label: trainer.oncePerGame ? 'Ultimate' : 'Active', text: active });
     }
-    if (trainer.passive?.description) {
-        return trainer.passive.description;
+    return summaries;
+}
+
+function readTrainerAbilityDescription(ability) {
+    if (typeof ability === 'string' && ability.trim()) {
+        return ability.trim();
     }
-    if (trainer.active?.description) {
-        return trainer.active.description;
+    const name = ability?.name ? String(ability.name).trim() : '';
+    if (ability?.description) {
+        const description = String(ability.description).trim();
+        if (name && !description.toLowerCase().includes(name.toLowerCase())) {
+            return `${name}: ${description}`;
+        }
+        return description;
     }
-    if (trainer.active?.name) {
-        return trainer.active.name;
+    if (name) {
+        return name;
     }
     return '';
+}
+
+function setTrainerAbilityMarkup(id, trainer, options = {}) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const summaries = getTrainerAbilitySummaries(trainer);
+    const element = options.includeElement && trainer?.element
+        ? `<div class="hud-knight-ability-element">${escapeHtml(formatElementLabel(trainer.element))}</div>`
+        : '';
+    if (summaries.length === 0) {
+        el.innerHTML = element;
+        return;
+    }
+    const compactClass = options.compact ? ' compact' : '';
+    el.innerHTML = `${element}<div class="hud-knight-ability-lines${compactClass}">${summaries.map((entry) => `
+        <div class="hud-knight-ability-line"><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.text)}</span></div>
+    `).join('')}</div>`;
 }
 
 function getEnergyRowsForPlayer(playerData) {
@@ -8726,7 +8791,9 @@ function elementEmoji(element) {
         ELECTRIC: '&#9889;',
         METAL: '&#9881;',
         UNDEAD: '&#9760;',
-        PSYCHIC: '&#9679;'
+        PSYCHIC: '&#9679;',
+        POISON: '&#9762;',
+        LIGHT: '&#9728;'
     };
     return map[String(element || '').toUpperCase()] || '&#9876;';
 }
@@ -8779,6 +8846,8 @@ function getElementHex(element) {
         case 'METAL': return '#a0aab4';
         case 'UNDEAD': return '#8c78a0';
         case 'PSYCHIC': return '#c896ff';
+        case 'POISON': return '#7ecb4d';
+        case 'LIGHT': return '#ffe59a';
         default: return '#95a5a6';
     }
 }
@@ -8878,7 +8947,9 @@ function getElementSigil(element, variant = 'soft') {
         ELECTRIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><polygon points="32,10 49,20 49,44 32,54 15,44 15,20" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.14"/><path d="M36 16 L27 31 L35 31 L28 47 L40 31 L32 31 L39 16 Z" fill="currentColor" opacity="0.18"/><path d="M24 22 L30 18 M34 46 L40 42" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.18"/></svg>`,
         METAL: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M32 14 L38 22 L46 22 L40 28 L42 36 L32 30 L22 36 L24 28 L18 22 L26 22 Z" fill="currentColor" opacity="0.16"/><circle cx="32" cy="32" r="7" fill="none" stroke="currentColor" stroke-width="2" opacity="0.22"/><circle cx="32" cy="32" r="3" fill="currentColor" opacity="0.24"/></svg>`,
         UNDEAD: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M22 34 C22 22 28 14 32 14 C36 14 42 22 42 34 C42 38 40 40 38 40 L36 36 L34 40 L30 40 L28 36 L26 40 C24 40 22 38 22 34 Z" fill="currentColor" opacity="0.16"/><circle cx="27" cy="28" r="3.5" fill="currentColor" opacity="0.28"/><circle cx="37" cy="28" r="3.5" fill="currentColor" opacity="0.28"/></svg>`,
-        PSYCHIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M32 12 C40 12 46 18 46 26 C46 34 40 38 40 44 L24 44 C24 38 18 34 18 26 C18 18 24 12 32 12 Z" fill="currentColor" opacity="0.14"/><circle cx="32" cy="26" r="5" fill="currentColor" opacity="0.26"/><path d="M28 44 L28 50 M32 44 L32 52 M36 44 L36 50" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.22"/></svg>`
+        PSYCHIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M32 12 C40 12 46 18 46 26 C46 34 40 38 40 44 L24 44 C24 38 18 34 18 26 C18 18 24 12 32 12 Z" fill="currentColor" opacity="0.14"/><circle cx="32" cy="26" r="5" fill="currentColor" opacity="0.26"/><path d="M28 44 L28 50 M32 44 L32 52 M36 44 L36 50" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.22"/></svg>`,
+        POISON: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><path d="M32 13 C39 23 45 30 45 39 C45 47 39 53 32 53 C25 53 19 47 19 39 C19 30 25 23 32 13 Z" fill="currentColor" opacity="0.14"/><circle cx="28" cy="38" r="3" fill="currentColor" opacity="0.28"/><circle cx="37" cy="34" r="2.4" fill="currentColor" opacity="0.22"/><path d="M25 48 C29 45 35 45 39 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.22"/></svg>`,
+        LIGHT: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.12"/><circle cx="32" cy="32" r="9" fill="currentColor" opacity="0.18"/><path d="M32 13 L32 22 M32 42 L32 51 M13 32 L22 32 M42 32 L51 32 M18 18 L24 24 M40 40 L46 46 M46 18 L40 24 M24 40 L18 46" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity="0.24"/></svg>`
     };
 
     const faceSigils = {
@@ -8891,7 +8962,9 @@ function getElementSigil(element, variant = 'soft') {
         ELECTRIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><polygon points="32,10 49,20 49,44 32,54 15,44 15,20" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.95"/><path d="M36 16 L27 31 L35 31 L28 47 L40 31 L32 31 L39 16 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 22 L30 18 M34 46 L40 42" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`,
         METAL: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><path d="M32 14 L38 22 L46 22 L40 28 L42 36 L32 30 L22 36 L24 28 L18 22 L26 22 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="32" cy="32" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="32" cy="32" r="3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>`,
         UNDEAD: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><path d="M22 34 C22 22 28 14 32 14 C36 14 42 22 42 34 C42 38 40 40 38 40 L36 36 L34 40 L30 40 L28 36 L26 40 C24 40 22 38 22 34 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="27" cy="28" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="37" cy="28" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>`,
-        PSYCHIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><path d="M32 12 C40 12 46 18 46 26 C46 34 40 38 40 44 L24 44 C24 38 18 34 18 26 C18 18 24 12 32 12 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="32" cy="26" r="5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M28 44 L28 50 M32 44 L32 52 M36 44 L36 50" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`
+        PSYCHIC: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><path d="M32 12 C40 12 46 18 46 26 C46 34 40 38 40 44 L24 44 C24 38 18 34 18 26 C18 18 24 12 32 12 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="32" cy="26" r="5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M28 44 L28 50 M32 44 L32 52 M36 44 L36 50" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`,
+        POISON: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><path d="M32 13 C39 23 45 30 45 39 C45 47 39 53 32 53 C25 53 19 47 19 39 C19 30 25 23 32 13 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="28" cy="38" r="3" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="37" cy="34" r="2.4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M25 48 C29 45 35 45 39 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`,
+        LIGHT: `<svg viewBox="0 0 64 64" class="deck-sigil"><circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="2.25" opacity="0.92"/><circle cx="32" cy="32" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M32 13 L32 22 M32 42 L32 51 M13 32 L22 32 M42 32 L51 32 M18 18 L24 24 M40 40 L46 46 M46 18 L40 24 M24 40 L18 46" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`
     };
 
     if (variant === 'card-face') {
@@ -12001,6 +12074,8 @@ function getElementCssVar(element) {
         case 'METAL': return 'var(--metal)';
         case 'UNDEAD': return 'var(--undead)';
         case 'PSYCHIC': return 'var(--psychic)';
+        case 'POISON': return 'var(--poison)';
+        case 'LIGHT': return 'var(--light)';
         default: return 'var(--neutral)';
     }
 }

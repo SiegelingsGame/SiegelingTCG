@@ -33,6 +33,8 @@
     --metal: #a0aab4;
     --undead: #8c78a0;
     --psychic: #c896ff;
+    --poison: #7ecb4d;
+    --light: #ffe59a;
     --neutral: #95a5a6;
     --bg: #1a1c2c;
     --surface: #16213e;
@@ -822,11 +824,43 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 .hud-knight-ability {
     font-size: 0.6em;
     color: var(--text-dim);
-    font-style: italic;
     margin-top: 2px;
-    white-space: nowrap;
+}
+
+.hud-knight-ability-lines {
+    display: grid;
+    gap: 2px;
+}
+
+.hud-knight-ability-line {
+    display: grid;
+    gap: 1px;
+    line-height: 1.25;
+}
+
+.hud-knight-ability-line strong {
+    color: var(--accent);
+    font-size: 0.84em;
+    font-style: normal;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.hud-knight-ability-line span {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    font-style: italic;
+}
+
+.hud-knight-ability-element {
+    color: var(--text);
+    font-size: 0.9em;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
 }
 
 .hud-counts-row {
@@ -3156,9 +3190,33 @@ body.battle-phase-active .battlefield::after {
         margin-top: 1px;
         color: var(--text-dim);
         font-size: 0.58em;
+        overflow: hidden;
+        line-height: 1.25;
+    }
+
+    .m-knight-elem .hud-knight-ability-lines {
+        gap: 1px;
+    }
+
+    .m-knight-elem .hud-knight-ability-line {
+        display: block;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+
+    .m-knight-elem .hud-knight-ability-line strong {
+        margin-right: 3px;
+        font-size: 0.9em;
+    }
+
+    .m-knight-elem .hud-knight-ability-line span {
+        display: inline;
+        font-style: italic;
+    }
+
+    .m-knight-elem .hud-knight-ability-element {
+        font-size: 0.9em;
     }
 
     .m-count-box {
@@ -12321,6 +12379,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .sgl-heal-cross .sgl-heal-icon,
     .sgl-heal-cross .sgl-heal-glow,
     .sgl-heal-cross .sgl-heal-particle { animation-duration: 0.3s !important; }
+}
+
+/* Notch movement shift */
+.board-card.sgl-shift-card {
+    pointer-events: none;
+    z-index: 560;
+    will-change: transform, opacity, filter;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.16) inset,
+        0 0 24px color-mix(in srgb, var(--sgl-shift-color, #95a5a6) 48%, transparent),
+        0 18px 32px rgba(0, 0, 0, 0.48);
+}
+.board-cell.sgl-move-origin,
+.board-cell.sgl-move-destination {
+    box-shadow:
+        inset 0 0 0 2px var(--sgl-shift-color, rgba(149, 165, 166, 0.8)),
+        0 0 18px color-mix(in srgb, var(--sgl-shift-color, #95a5a6) 42%, transparent);
 }
 
 /* Death ghost — keeps the killed card visible until the projectile lands */
