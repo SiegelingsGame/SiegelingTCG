@@ -2541,8 +2541,8 @@ function getCardPreviewEntries(card) {
     }
     if (card.evolvesFromName) {
         entries.push({
-            text: `Evolution: ${card.evolvesFromName}`,
-            className: 'card-cost'
+            text: `Evolves from ${card.evolvesFromName} — needs that card to evolve`,
+            className: 'card-cost card-evolve-note'
         });
     }
 
@@ -10873,6 +10873,88 @@ function renderMulliganOverlay() {
             ${showcase}
         </div>`;
     }).join('');
+
+    // Mulligan slots are a fixed proportion, so long move lists used to clip.
+    // After the markup lands, shrink each card's text (and its art when text
+    // alone won't fit) until every ability line is visible.
+    scheduleMulliganTextFit();
+}
+
+let mulliganFitFrame = 0;
+let mulliganFitResizeBound = false;
+
+function scheduleMulliganTextFit() {
+    if (mulliganFitFrame) {
+        cancelAnimationFrame(mulliganFitFrame);
+    }
+    mulliganFitFrame = requestAnimationFrame(() => {
+        mulliganFitFrame = 0;
+        fitMulliganCardText();
+    });
+    if (!mulliganFitResizeBound) {
+        mulliganFitResizeBound = true;
+        window.addEventListener('resize', () => {
+            const overlay = document.getElementById('mulliganOverlay');
+            if (overlay?.classList.contains('visible')) {
+                scheduleMulliganTextFit();
+            }
+        });
+    }
+}
+
+function fitMulliganCardText() {
+    const cards = document.querySelectorAll('#mulliganHandPreview .hand-card.mulligan-showcase');
+    cards.forEach((card) => {
+        const body = card.querySelector('.hand-card-body');
+        if (!body) {
+            return;
+        }
+        const art = card.querySelector('.card-art-preview');
+        // Clear any prior fit so we always measure against the natural layout.
+        body.style.fontSize = '';
+        if (art) {
+            art.style.flex = '';
+            art.style.height = '';
+            art.style.maxHeight = '';
+            art.style.aspectRatio = '';
+            art.style.minHeight = '';
+        }
+
+        const overflowing = () => body.scrollHeight - body.clientHeight > 1;
+        if (!overflowing()) {
+            return;
+        }
+
+        // 1) Scale the body text down first — keep it readable (>= 70%).
+        const baseFont = parseFloat(getComputedStyle(body).fontSize) || 12;
+        let font = baseFont;
+        const softMinFont = baseFont * 0.7;
+        while (overflowing() && font > softMinFont) {
+            font -= 0.5;
+            body.style.fontSize = `${font}px`;
+        }
+
+        // 2) Still clipped: reclaim vertical space from the art viewport.
+        if (overflowing() && art) {
+            let artH = art.getBoundingClientRect().height;
+            const minArtH = artH * 0.4;
+            art.style.aspectRatio = 'auto';
+            art.style.minHeight = '0';
+            while (overflowing() && artH > minArtH) {
+                artH -= 6;
+                art.style.flex = `0 0 ${artH}px`;
+                art.style.height = `${artH}px`;
+                art.style.maxHeight = `${artH}px`;
+            }
+        }
+
+        // 3) Last resort: shrink text a little further so nothing is cut off.
+        const hardMinFont = baseFont * 0.55;
+        while (overflowing() && font > hardMinFont) {
+            font -= 0.5;
+            body.style.fontSize = `${font}px`;
+        }
+    });
 }
 
 function renderLog() {
