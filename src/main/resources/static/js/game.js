@@ -10873,6 +10873,54 @@ function renderMulliganOverlay() {
             ${showcase}
         </div>`;
     }).join('');
+
+    // Scale each card's ability text to fill its template region: sparse cards
+    // grow, dense cards shrink, both wrapping inside the same fixed art/body
+    // layout. Run after layout settles so body heights are known.
+    requestAnimationFrame(() => requestAnimationFrame(fitMulliganCardText));
+    ensureMulliganRefitListener();
+}
+
+// Largest font (px) where a mulligan card body's wrapped content still fits
+// its fixed template region — found per card by binary search. This is what
+// makes every card "fill the template" by scaling text + wrapping rather than
+// leaving empty space (sparse cards) or clipping (dense cards).
+function fitMulliganCardText() {
+    const preview = document.getElementById('mulliganHandPreview');
+    if (!preview) return;
+    const MIN_PX = 7;
+    const MAX_PX = 19;
+    preview.querySelectorAll('.mulligan-showcase .hand-card-body').forEach((body) => {
+        if (!body.clientHeight) return;
+        let lo = MIN_PX;
+        let hi = MAX_PX;
+        let best = MIN_PX;
+        for (let i = 0; i < 9; i++) {
+            const mid = (lo + hi) / 2;
+            body.style.fontSize = `${mid}px`;
+            // scrollHeight reflects full wrapped content even though the body
+            // clips via overflow:hidden; +0.5 absorbs sub-pixel rounding.
+            if (body.scrollHeight <= body.clientHeight + 0.5) {
+                best = mid;
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        body.style.fontSize = `${best.toFixed(2)}px`;
+    });
+}
+
+let mulliganRefitListenerBound = false;
+function ensureMulliganRefitListener() {
+    if (mulliganRefitListenerBound) return;
+    mulliganRefitListenerBound = true;
+    let raf = 0;
+    window.addEventListener('resize', () => {
+        if (!document.getElementById('mulliganOverlay')?.classList.contains('visible')) return;
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(fitMulliganCardText);
+    });
 }
 
 function renderLog() {
