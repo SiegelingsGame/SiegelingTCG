@@ -472,6 +472,13 @@ public class EffectService {
         return list;
     }
 
+    /**
+     * Elemental weakness chart (attacker deals +1 to these defenders):
+     * Primary cycle: Fire > Ice > Wind > Earth > Fire.
+     * Shadow cycle: Shadow > Psychic > Light > Undead > Shadow.
+     * Off-cycle attackers: Water > Fire, Ice | Metal > Earth, Wind |
+     * Electric > Wind, Fire | Poison > Ice, Earth.
+     */
     private boolean isWeakTo(com.sieglings.model.enums.Element attacker, com.sieglings.model.enums.Element defender) {
         return switch (attacker) {
             case FIRE -> defender == com.sieglings.model.enums.Element.ICE;

@@ -30,9 +30,8 @@ public class PlayerProgressionService {
     // SiegeKnight leveling / combining (tunable balance knobs).
     public static final int TRAINER_MAX_LEVEL = 5;
     public static final int TRAINER_DUP_POINTS = 1;
-    // Siegecoin cost of buying a single XP point, scaled by the knight's current
-    // level so higher levels stay a premium versus pulling duplicates.
-    public static final int TRAINER_XP_COST_PER_LEVEL = 50;
+    /** Siegecoins per XP point; scales with current knight level (cost = level × this value). */
+    public static final int TRAINER_XP_COIN_COST_PER_LEVEL = 50;
 
     public record CardGrantOutcome(Card card, boolean grantedCopy, int remnantsAwarded, int ownedAfter) {}
 
@@ -206,58 +205,6 @@ public class PlayerProgressionService {
         return store.save(progression);
     }
 
-    /**
-     * Spend Siegecoins to add XP points to an owned SiegeKnight, applying the same
-     * auto-level logic as pulling duplicates. Each point costs
-     * {@code TRAINER_XP_COST_PER_LEVEL * currentLevel}; the price re-evaluates as the
-     * knight levels up mid-purchase. Buys as many of {@code requested} points as the
-     * balance allows, and errors only if none are affordable.
-     */
-    public PlayerProgressionEntity buyTrainerXp(AccountUser user, String trainerId, int requested) {
-        PlayerProgressionEntity progression = getOrCreate(user);
-        String id = normalizeTrainerId(trainerId);
-        Map<String, Integer> levels = new LinkedHashMap<>(progression.getTrainerLevels());
-        Map<String, Integer> points = new LinkedHashMap<>(progression.getTrainerPoints());
-        if (!levels.containsKey(id)) {
-            throw new IllegalArgumentException("Pull this SiegeKnight from a pack before buying XP.");
-        }
-        int level = Math.max(1, levels.get(id));
-        if (level >= TRAINER_MAX_LEVEL) {
-            throw new IllegalArgumentException("This SiegeKnight is already at max level.");
-        }
-        int amount = Math.max(1, requested);
-        int progress = Math.max(0, points.getOrDefault(id, 0));
-        int gold = progression.getGold();
-        int spent = 0;
-        int applied = 0;
-        for (int i = 0; i < amount && level < TRAINER_MAX_LEVEL; i++) {
-            int cost = TRAINER_XP_COST_PER_LEVEL * level;
-            if (gold - spent < cost) {
-                if (applied == 0) {
-                    throw new IllegalArgumentException("Not enough Siegecoins to buy XP for this SiegeKnight.");
-                }
-                break;
-            }
-            spent += cost;
-            progress += TRAINER_DUP_POINTS;
-            applied++;
-            while (level < TRAINER_MAX_LEVEL && progress >= pointsForNextLevel(level)) {
-                progress -= pointsForNextLevel(level);
-                level++;
-            }
-            if (level >= TRAINER_MAX_LEVEL) {
-                progress = 0;
-            }
-        }
-        progression.setGold(gold - spent);
-        levels.put(id, level);
-        points.put(id, progress);
-        progression.setTrainerLevels(levels);
-        progression.setTrainerPoints(points);
-        progression.setUpdatedAt(Instant.now());
-        return store.save(progression);
-    }
-
     public void awardMatchGold(MatchHistoryEntity history) {
         if (history == null || history.getUserId() == null || history.getId() == null) {
             return;
@@ -385,8 +332,8 @@ public class PlayerProgressionService {
             trainer.put("maxLevel", TRAINER_MAX_LEVEL);
             trainer.put("points", progress);
             trainer.put("pointsForNext", pointsForNextLevel(level));
+            trainer.put("nextXpCoinCost", trainerXpCoinCost(level));
             trainer.put("abilityBonus", trainerAbilityBonus(level));
-            trainer.put("xpCost", level >= TRAINER_MAX_LEVEL ? 0 : TRAINER_XP_COST_PER_LEVEL * level);
             out.add(trainer);
         }
         return out;
@@ -468,6 +415,51 @@ public class PlayerProgressionService {
             return 0;
         }
         return Math.max(1, level);
+    }
+
+    /** Siegecoin cost to buy one XP point at the given knight level. */
+    public static int trainerXpCoinCost(int level) {
+        if (level >= TRAINER_MAX_LEVEL) {
+            return 0;
+        }
+        return TRAINER_XP_COIN_COST_PER_LEVEL * Math.max(1, level);
+    }
+
+    public PlayerProgressionEntity buyTrainerXp(AccountUser user, String trainerId) {
+        PlayerProgressionEntity progression = getOrCreate(user);
+        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+            throw new IllegalArgumentException("Choose a starter pack before buying knight XP.");
+        }
+        String id = normalizeTrainerId(trainerId);
+        if (id == null || !progression.getTrainerLevels().containsKey(id)) {
+            throw new IllegalArgumentException("You don't own that SiegeKnight.");
+        }
+        int level = Math.max(1, progression.getTrainerLevels().get(id));
+        if (level >= TRAINER_MAX_LEVEL) {
+            throw new IllegalArgumentException("This SiegeKnight is already at max level.");
+        }
+        int cost = trainerXpCoinCost(level);
+        if (progression.getGold() < cost) {
+            throw new IllegalArgumentException("Not enough Siegecoins for knight XP.");
+        }
+        progression.setGold(progression.getGold() - cost);
+
+        Map<String, Integer> levels = new LinkedHashMap<>(progression.getTrainerLevels());
+        Map<String, Integer> points = new LinkedHashMap<>(progression.getTrainerPoints());
+        int progress = Math.max(0, points.getOrDefault(id, 0)) + TRAINER_DUP_POINTS;
+        while (level < TRAINER_MAX_LEVEL && progress >= pointsForNextLevel(level)) {
+            progress -= pointsForNextLevel(level);
+            level++;
+        }
+        if (level >= TRAINER_MAX_LEVEL) {
+            progress = 0;
+        }
+        levels.put(id, level);
+        points.put(id, progress);
+        progression.setTrainerLevels(levels);
+        progression.setTrainerPoints(points);
+        progression.setUpdatedAt(Instant.now());
+        return store.save(progression);
     }
 
     public boolean ownsTrainer(AccountUser user, String trainerId) {

@@ -715,85 +715,80 @@ select.search-input { color-scheme: dark; }
     line-height: 1.45;
 }
 
-/* SiegeKnight XP-to-next-level bar (replaces the passive line on knight cards). */
-.trainer-xp-bar {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    width: 100%;
-}
-
-.trainer-xp-track {
-    position: relative;
-    width: 100%;
-    height: 7px;
-    border-radius: 999px;
-    background: rgba(8, 12, 24, 0.55);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    overflow: hidden;
-}
-
-.trainer-xp-fill {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--el, var(--accent)) 70%, #ffd54a), #ffd54a);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--el, var(--accent)) 50%, transparent);
-    transition: width 0.35s ease;
-}
-
-.trainer-xp-label {
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    color: var(--muted, #9aa3b2);
-}
-
-.trainer-xp-bar-detail .trainer-xp-track {
-    height: 10px;
-}
-
-.trainer-xp-bar-detail .trainer-xp-label {
-    font-size: 0.82rem;
-}
-
-.trainer-xp-bar.is-max .trainer-xp-fill {
-    background: linear-gradient(90deg, #ffd54a, #ffe9a8);
-}
-
-.trainer-xp-bar.is-max .trainer-xp-label {
-    color: #ffd54a;
-}
-
-.trainer-xp-bar.is-locked .trainer-xp-track {
-    opacity: 0.5;
-}
-
-.trainer-xp-purchase {
-    display: flex;
-    flex-direction: column;
+.detail-knight-xp-panel {
+    display: grid;
     gap: 10px;
 }
 
-.trainer-xp-actions {
+.detail-knight-xp-action {
     display: flex;
-    align-items: center;
-    gap: 12px;
     flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
 }
 
-.trainer-xp-actions span {
+.detail-knight-xp-action .primary-btn {
+    min-width: 0;
+}
+
+.detail-knight-xp-action > span {
     color: var(--muted, #9aa3b2);
     font-size: 0.85rem;
 }
 
-.buy-xp-btn .coin-glyph {
-    color: #ffd54a;
+.trainer-xp-bar {
+    display: grid;
+    gap: 4px;
+    width: 100%;
+    min-height: 12px;
 }
 
-.buy-xp-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+.trainer-xp-bar-track {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    border: 1px solid rgba(255, 213, 74, 0.18);
+}
+
+.trainer-xp-bar-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--el, var(--accent)) 70%, #ffd54a), #ffd54a);
+    transition: width 0.35s ease;
+}
+
+.trainer-xp-bar-label {
+    color: rgba(255, 246, 218, 0.88);
+    font-size: clamp(8px, 2.2cqi, 9px);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1.15;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.trainer-xp-bar--unowned .trainer-xp-bar-label,
+.trainer-xp-bar--unowned span {
+    color: rgba(154, 163, 178, 0.85);
+    font-size: clamp(8px, 2.2cqi, 9px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.trainer-xp-bar--max .trainer-xp-bar-fill {
+    background: linear-gradient(90deg, #c9a227, #ffd54a);
+}
+
+.detail-card-preview-wrap .trainer-xp-bar,
+.card-tile .trainer-xp-bar {
+    padding: 0 2px;
+}
+
+.detail-knight-xp-panel .trainer-xp-bar-label {
+    font-size: 0.78rem;
 }
 
 .pack-art {

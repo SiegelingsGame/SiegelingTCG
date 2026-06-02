@@ -385,6 +385,68 @@ class PlayerProgressionServiceTest {
         assertEquals(3, PlayerProgressionService.trainerAbilityBonus(4));
     }
 
+    @Test
+    void buyTrainerXpSpendsLevelScaledCoinsAndGrantsProgress() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        LinkedHashMap<String, Integer> levels = new LinkedHashMap<>();
+        levels.put("trainer01", 2);
+        progression.setTrainerLevels(levels);
+        LinkedHashMap<String, Integer> points = new LinkedHashMap<>();
+        points.put("trainer01", 0);
+        progression.setTrainerPoints(points);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.buyTrainerXp(user(), "trainer01");
+
+        assertEquals(400, store.saved.getGold());
+        assertEquals(1, store.saved.getTrainerPoints().get("trainer01"));
+        assertEquals(2, store.saved.getTrainerLevels().get("trainer01"));
+    }
+
+    @Test
+    void buyTrainerXpLevelsUpWhenThresholdReached() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        LinkedHashMap<String, Integer> levels = new LinkedHashMap<>();
+        levels.put("trainer01", 1);
+        progression.setTrainerLevels(levels);
+        LinkedHashMap<String, Integer> points = new LinkedHashMap<>();
+        points.put("trainer01", 0);
+        progression.setTrainerPoints(points);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.buyTrainerXp(user(), "trainer01");
+
+        assertEquals(450, store.saved.getGold());
+        assertEquals(2, store.saved.getTrainerLevels().get("trainer01"));
+        assertEquals(0, store.saved.getTrainerPoints().get("trainer01"));
+    }
+
+    @Test
+    void buyTrainerXpRejectsUnownedKnight() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        LinkedHashMap<String, Integer> levels = new LinkedHashMap<>();
+        levels.put("trainer01", 1);
+        progression.setTrainerLevels(levels);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        assertThrows(IllegalArgumentException.class, () -> service.buyTrainerXp(user(), "trainer02"));
+    }
+
     private static class TrainerDropPackCatalogService extends PackCatalogService {
         @Override
         public PackOpenResult openPack(String packId, boolean starterOnly) {
