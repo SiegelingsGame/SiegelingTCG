@@ -241,7 +241,7 @@ public class AuthController {
         response.put("matchHistory", loadMatchHistory(user));
         if (playerProgressionService != null) {
             try {
-                response.put("progression", playerProgressionService.serialize(playerProgressionService.getOrCreate(user)));
+                response.put("progression", playerProgressionService.serialize(playerProgressionService.getOrCreate(user), user));
             } catch (RuntimeException ex) {
                 log.warn("Unable to load progression for authenticated user {}", user.getId(), ex);
             }
