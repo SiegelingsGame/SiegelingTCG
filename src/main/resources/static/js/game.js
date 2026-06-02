@@ -475,13 +475,12 @@ function renderCardStatPills(entity, options = {}) {
         if (Number.isFinite(hpNow) && Number.isFinite(maxHp) && hpNow < maxHp) {
             hpClass += ' is-damaged';
         }
-        // Speed increased -> green text; a reduction keeps the existing buffed accent.
-        if (Number.isFinite(printedSpd) && Number.isFinite(spdNow)) {
-            if (spdNow > printedSpd) {
-                spdClass = ' is-spd-up';
-            } else if (spdNow < printedSpd) {
-                spdClass = ' is-buffed';
-            }
+        // Speed increased -> green text; a reduction (or a speed of 0) turns
+        // the SPD text red so a slowed/disabled Siegeling reads at a glance.
+        if (Number.isFinite(spdNow) && (spdNow === 0 || (Number.isFinite(printedSpd) && spdNow < printedSpd))) {
+            spdClass = ' is-spd-down';
+        } else if (Number.isFinite(printedSpd) && Number.isFinite(spdNow) && spdNow > printedSpd) {
+            spdClass = ' is-spd-up';
         }
     } else if (options.shielded) {
         hpClass = ' is-shielded';

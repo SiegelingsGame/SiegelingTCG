@@ -5909,6 +5909,13 @@ body.placement-active .board-cell.legal {
     border-color: rgba(67, 224, 122, 0.4);
 }
 
+/* Speed text reads red when SPD is reduced below its printed value or zeroed
+   out (frozen / disabled), matching the damaged-HP treatment. */
+.board-card.arena-board-card .card-stat-pill-spd.is-spd-down {
+    color: #ff5a5a;
+    border-color: rgba(255, 90, 90, 0.4);
+}
+
 .card-art {
     position: relative;
     overflow: hidden;
