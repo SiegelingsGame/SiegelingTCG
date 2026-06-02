@@ -6136,7 +6136,10 @@ body.placement-active .board-cell.legal {
 .hp-fill {
     height: 100%;
     background: var(--success);
-    transition: width 0.3s;
+    /* Animate the colour alongside the width so the tier hue
+       (green→yellow→orange→red) morphs during the same bar shrink the
+       damage triggers, instead of snapping at the end. */
+    transition: width 0.3s, background-color 0.3s;
 }
 
 /* Shield plates — cover the HP bar while a shield buffer is up. Each
