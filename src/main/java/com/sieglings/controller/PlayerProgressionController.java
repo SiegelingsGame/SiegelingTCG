@@ -6,6 +6,7 @@ import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.PackCatalogService;
+import com.sieglings.service.PlayerTitleCatalogService;
 import com.sieglings.service.PlayerProgressionService;
 import com.sieglings.service.ProfileSettingsService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,10 +36,13 @@ public class PlayerProgressionController {
     @Autowired(required = false)
     private ProfileSettingsService profileSettingsService;
 
+    @Autowired
+    private PlayerTitleCatalogService playerTitleCatalogService;
+
     @GetMapping("/api/player/progression")
     public Map<String, Object> progression(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         AccountUser user = accountService.requireUser(authorizationHeader);
-        return buildResponse(progressionService.getOrCreate(user));
+        return buildResponse(user, progressionService.getOrCreate(user));
     }
 
     @PostMapping("/api/player/starter-pack")
@@ -47,7 +51,7 @@ public class PlayerProgressionController {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
             PlayerProgressionEntity progression = progressionService.chooseStarterPack(user, string(req, "packId"));
-            Map<String, Object> response = buildResponse(progression);
+            Map<String, Object> response = buildResponse(user, progression);
             if (profileSettingsService != null) {
                 response.put("profileSettings", profileSettingsService.serialize(
                         profileSettingsService.save(user, starterProfileSettings(progression.getStarterPackId())),
@@ -66,7 +70,7 @@ public class PlayerProgressionController {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
             PlayerProgressionEntity progression = progressionService.openPack(user, string(req, "packId"));
-            return buildResponse(progression);
+            return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
@@ -78,7 +82,7 @@ public class PlayerProgressionController {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
             PlayerProgressionEntity progression = progressionService.purchaseDeck(user, string(req, "deckId"));
-            return buildResponse(progression);
+            return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
@@ -90,7 +94,7 @@ public class PlayerProgressionController {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
             PlayerProgressionEntity progression = progressionService.purchaseDailyOffer(user, string(req, "offerId"));
-            return buildResponse(progression);
+            return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
@@ -102,7 +106,7 @@ public class PlayerProgressionController {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
             PlayerProgressionEntity progression = progressionService.craftCard(user, string(req, "cardId"));
-            return buildResponse(progression);
+            return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
@@ -114,7 +118,19 @@ public class PlayerProgressionController {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
             PlayerProgressionEntity progression = progressionService.buyTrainerXp(user, string(req, "trainerId"));
-            return buildResponse(progression);
+            return buildResponse(user, progression);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/shop/purchase-title")
+    public Map<String, Object> purchaseTitle(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                             @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            PlayerProgressionEntity progression = progressionService.purchaseTitle(user, string(req, "titleId"));
+            return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
         }
@@ -122,17 +138,19 @@ public class PlayerProgressionController {
 
     @GetMapping("/api/shop/packs")
     public Map<String, Object> packs() {
-        return Map.of(
-                "packs", packCatalogService.serializePacks(),
-                "dailyOffers", packCatalogService.serializeDailyOffers()
-        );
-    }
-
-    private Map<String, Object> buildResponse(PlayerProgressionEntity progression) {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("progression", progressionService.serialize(progression));
         out.put("packs", packCatalogService.serializePacks());
         out.put("dailyOffers", packCatalogService.serializeDailyOffers());
+        out.put("titleCatalog", playerTitleCatalogService.serializeCatalog());
+        return out;
+    }
+
+    private Map<String, Object> buildResponse(AccountUser user, PlayerProgressionEntity progression) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("progression", progressionService.serialize(progression, user));
+        out.put("packs", packCatalogService.serializePacks());
+        out.put("dailyOffers", packCatalogService.serializeDailyOffers());
+        out.put("titleCatalog", playerTitleCatalogService.serializeCatalog());
         out.put("cardCatalog", cardDefinitionService.getDeckBuilderCatalog().stream().map(this::serializeCardLite).toList());
         return out;
     }
@@ -141,11 +159,11 @@ public class PlayerProgressionController {
         String element = starterElement(packId);
         Map<String, Object> settings = new LinkedHashMap<>();
         settings.put("favoriteElement", element);
-        settings.put("playerTitle", switch (element) {
-            case "WIND" -> "Gale-Thread Strategist";
-            case "EARTH" -> "Mossgold Sentinel";
-            case "ICE", "WATER" -> "Frostglass Tactician";
-            default -> "Blazing Core Duelist";
+        settings.put("playerTitleId", switch (element) {
+            case "WIND" -> "title_starter_wind";
+            case "EARTH" -> "title_starter_earth";
+            case "ICE", "WATER" -> "title_starter_ice";
+            default -> "title_starter_fire";
         });
         settings.put("bio", switch (element) {
             case "WIND" -> "Wind starter chosen. Build around tempo, disruption, and fast Siegelings.";
@@ -159,7 +177,7 @@ public class PlayerProgressionController {
             case "ICE", "WATER" -> "Frost Sigil";
             default -> "Molten Sigil";
         });
-        settings.put("favoriteSiegling", starterFavoriteSiegling(element));
+        settings.put("favoriteSieglingId", starterFavoriteSieglingId(element));
         return settings;
     }
 
@@ -172,18 +190,15 @@ public class PlayerProgressionController {
         return element.isBlank() ? "FIRE" : element;
     }
 
-    private String starterFavoriteSiegling(String element) {
+    private String starterFavoriteSieglingId(String element) {
         return cardDefinitionService.getDeckBuilderCatalog().stream()
                 .filter(card -> "SIEGLING".equals(card.getCardType().name()))
-                .filter(card -> card.getElement().name().equals(element))
+                .filter(card -> card.getElement().name().equals(element)
+                        || ("ICE".equals(element) && card.getElement().name().equals("WATER"))
+                        || ("WATER".equals(element) && card.getElement().name().equals("ICE")))
                 .findFirst()
-                .map(Card::getName)
-                .orElse(switch (element) {
-                    case "WIND" -> "Cacty";
-                    case "EARTH" -> "Applehead";
-                    case "ICE", "WATER" -> "Pylme";
-                    default -> "Sundile";
-                });
+                .map(Card::getId)
+                .orElse("");
     }
 
     private Map<String, Object> serializeCardLite(Card card) {

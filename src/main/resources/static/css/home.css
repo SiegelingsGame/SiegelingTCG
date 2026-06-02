@@ -791,6 +791,74 @@ select.search-input { color-scheme: dark; }
     font-size: 0.78rem;
 }
 
+.profile-favorite-card-wrap {
+    display: grid;
+    gap: 8px;
+    width: min(100%, 168px);
+}
+
+.profile-favorite-kicker {
+    color: rgba(255, 246, 218, 0.72);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.profile-favorite-card {
+    width: 100%;
+    max-width: 168px;
+    pointer-events: none;
+}
+
+.profile-favorite-card-empty {
+    color: var(--muted, #9aa3b2);
+    font-size: 0.85rem;
+}
+
+.shop-title-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    margin-bottom: 18px;
+}
+
+.shop-title-tile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 213, 74, 0.16);
+    background: rgba(8, 12, 24, 0.72);
+}
+
+.shop-title-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.shop-title-kicker {
+    color: rgba(255, 246, 218, 0.62);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.shop-title-copy strong {
+    font-size: 1rem;
+}
+
+.shop-title-copy p {
+    margin: 0;
+    color: var(--muted, #9aa3b2);
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
 .pack-art {
     position: absolute;
     inset: 0;
@@ -5532,6 +5600,24 @@ body.gacha-active {
     color: var(--text-dim);
     font-size: 12px;
     font-weight: 750;
+}
+
+.achievement-modal-reward {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.achievement-modal-reward p {
+    margin: 6px 0 4px;
+}
+
+.achievement-modal-reward small {
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.45;
 }
 
 .profile-edit-grid {
