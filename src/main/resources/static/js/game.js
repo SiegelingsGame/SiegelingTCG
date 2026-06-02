@@ -7400,9 +7400,15 @@ function renderSelectedLoadoutPreview() {
     panel.style.setProperty('--loadout-accent-soft', hexToRgba(accent, 0.18));
     panel.style.setProperty('--loadout-accent-glow', hexToRgba(accent, 0.32));
 
-    const deckName = loadoutMode === 'builder' || loadoutMode === 'saved'
-        ? getActiveLoadoutLabel()
-        : (getActiveLoadoutLabel() || deck?.name || 'Choose a Deck');
+    // Title reflects what the player actually selected: the premade deck's
+    // own name in preset mode, or the custom/saved loadout name otherwise.
+    // The free-text "save loadout" input must not shadow the selected deck's
+    // name (otherwise picking Gale Talons could still read "Blazing Core").
+    const deckName = loadoutMode === 'builder'
+        ? (getActiveLoadoutLabel() || 'Custom Loadout')
+        : loadoutMode === 'saved'
+            ? (savedDeck?.name || deck?.name || 'Saved Loadout')
+            : (deck?.name || 'Choose a Deck');
     const elementLabel = loadoutMode === 'builder'
         ? (collectBuilderElements() || 'Custom Elements')
         : loadoutMode === 'saved'
@@ -7711,7 +7717,7 @@ function updateLoadoutSummary() {
         return;
     }
 
-    summary.innerHTML = `${matchMode === 'online' ? 'Build' : 'Deck'}: <strong>${escapeHtml(getActiveLoadoutLabel() || deck.name)}</strong> | SiegeKnight: <strong>${trainer.name}</strong>${playerName ? ` | Name: <strong>${playerName}</strong>` : ''}`;
+    summary.innerHTML = `${matchMode === 'online' ? 'Build' : 'Deck'}: <strong>${escapeHtml(deck.name)}</strong> | SiegeKnight: <strong>${trainer.name}</strong>${playerName ? ` | Name: <strong>${playerName}</strong>` : ''}`;
     syncLoadoutStartButton(
         startBtn,
         loadoutStartPending || (matchMode === 'online' && onlineRoomMode === 'join' && !getCurrentRoomCode()) || (needsPlayerName && !playerName),
