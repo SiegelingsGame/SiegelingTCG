@@ -108,6 +108,18 @@ public class PlayerProgressionController {
         }
     }
 
+    @PostMapping("/api/trainer/buy-xp")
+    public Map<String, Object> buyTrainerXp(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                            @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            PlayerProgressionEntity progression = progressionService.buyTrainerXp(user, string(req, "trainerId"), intValue(req, "amount", 1));
+            return buildResponse(progression);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @GetMapping("/api/shop/packs")
     public Map<String, Object> packs() {
         return Map.of(
@@ -187,5 +199,17 @@ public class PlayerProgressionController {
     private String string(Map<String, Object> req, String key) {
         Object value = req == null ? null : req.get(key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private int intValue(Map<String, Object> req, String key, int fallback) {
+        Object value = req == null ? null : req.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return value == null ? fallback : Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
     }
 }

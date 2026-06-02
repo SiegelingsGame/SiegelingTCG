@@ -702,6 +702,59 @@
         return 0;
     }
 
+    function trainerOwnedEntry(trainerId) {
+        if (!trainerId) return null;
+        const key = String(trainerId).toLowerCase();
+        return (state.progression?.ownedTrainers || []).find(entry => String(entry?.id || '').toLowerCase() === key) || null;
+    }
+
+    // XP-to-next-level bar shown on SiegeKnight cards in place of the passive line.
+    function renderTrainerXpBar(card, variant = 'card') {
+        const level = trainerOwnedLevel(card.id);
+        const entry = trainerOwnedEntry(card.id);
+        const maxLevel = Number(entry?.maxLevel) || 5;
+        const cls = `trainer-xp-bar trainer-xp-bar-${variant}`;
+        if (level <= 0) {
+            return `<div class="${cls} is-locked"><div class="trainer-xp-track"></div><span class="trainer-xp-label">Unowned · pull to unlock</span></div>`;
+        }
+        if (level >= maxLevel) {
+            return `<div class="${cls} is-max"><div class="trainer-xp-track"><span class="trainer-xp-fill" style="width:100%"></span></div><span class="trainer-xp-label">Lv ${level} · Max level</span></div>`;
+        }
+        const points = Math.max(0, Number(entry?.points) || 0);
+        const next = Math.max(1, Number(entry?.pointsForNext) || 1);
+        const pct = Math.max(6, Math.min(100, Math.round((points / next) * 100)));
+        return `<div class="${cls}">
+            <div class="trainer-xp-track"><span class="trainer-xp-fill" style="width:${pct}%"></span></div>
+            <span class="trainer-xp-label">Lv ${level} → ${level + 1} · ${points}/${next} XP</span>
+        </div>`;
+    }
+
+    // Detail-panel block: XP bar plus a "buy XP" button for owned, non-max knights.
+    function renderTrainerXpPurchase(card) {
+        const level = trainerOwnedLevel(card.id);
+        const entry = trainerOwnedEntry(card.id);
+        const maxLevel = Number(entry?.maxLevel) || 5;
+        const bar = renderTrainerXpBar(card, 'detail');
+        if (level <= 0) {
+            return `<div class="trainer-xp-purchase">${bar}
+                <p class="detail-knight-hint">Pull this SiegeKnight from a pack before buying XP.</p></div>`;
+        }
+        if (level >= maxLevel) {
+            return `<div class="trainer-xp-purchase">${bar}
+                <p class="detail-knight-hint">This SiegeKnight has reached the maximum level.</p></div>`;
+        }
+        const authed = !!state.profile?.authenticated;
+        const cost = Math.max(0, Number(entry?.xpCost) || 0);
+        const coins = authed ? (state.progression?.gold || 0) : 0;
+        const canAfford = authed && coins >= cost;
+        return `<div class="trainer-xp-purchase">${bar}
+            <div class="trainer-xp-actions">
+                <button class="primary-btn buy-xp-btn" type="button" id="buyTrainerXp"${canAfford ? '' : ' disabled'}>Buy 1 XP · ${cost.toLocaleString()} <span class="coin-glyph">◎</span></button>
+                <span>${coins.toLocaleString()} Siegecoins available</span>
+            </div>
+            <p class="detail-knight-hint">Or pull duplicates from packs to combine and raise this knight's level.</p></div>`;
+    }
+
     function siegeknightBinderCards() {
         return (state.options?.trainers || []).map(trainer => {
             const level = Math.max(1, Number(trainer.level) || trainerOwnedLevel(trainer.id) || 1);
@@ -785,7 +838,7 @@
                     ${renderShopCardStats(card)}
                     <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${ownedLabel}</div>
                     ${energyCost}
-                    ${renderShopCardAbilityLine(card)}
+                    ${isSiegeknight ? renderTrainerXpBar(card, 'card') : renderShopCardAbilityLine(card)}
                     ${renderShopCardDescription(card)}
                 </div>
             </div>`;
@@ -857,13 +910,14 @@
             <div class="detail-abilities">
             ${abilities.length ? abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('') : '<p class="detail-ability-empty">No printed ability.</p>'}
             </div>
-            ${isSiegeknight ? '<p class="detail-knight-hint">Pull duplicates from packs to combine and raise this knight\'s level.</p>' : `<div class="craft-card-action">
+            ${isSiegeknight ? renderTrainerXpPurchase(card) : `<div class="craft-card-action">
                 <button class="primary-btn" type="button" id="craftSelectedCard"${canCraft || !state.profile?.authenticated ? '' : ' disabled'}>${escapeHtml(craftLabel)}</button>
                 <span>${escapeHtml(remnants.toLocaleString())} Remnants available</span>
             </div>`}
             ${state.route === 'deck-builder' && !isSiegeknight ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
         `;
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
+        document.getElementById('buyTrainerXp')?.addEventListener('click', () => buyTrainerXp(card.id));
         document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
             if (state.route !== 'deck-builder') {
                 openDeckBuilder();
@@ -3945,6 +3999,17 @@
         renderGold();
         renderProfile();
         renderAchievements();
+    }
+
+    async function buyTrainerXp(trainerId, amount = 1) {
+        if (!state.profile?.authenticated) return openAuth();
+        const data = await fetchJson('/api/trainer/buy-xp', { method: 'POST', body: JSON.stringify({ trainerId, amount }) });
+        if (data?.error) return alert(data.error);
+        state.progression = data.progression;
+        renderCards();
+        renderHomeDashboard();
+        renderGold();
+        renderProfile();
     }
 
     async function saveCustomDeck() {

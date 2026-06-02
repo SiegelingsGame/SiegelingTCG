@@ -462,15 +462,26 @@ function renderCardStatPills(entity, options = {}) {
     if (mode === 'board') {
         const printedHp = Number(entity.printedHealth);
         const maxHp = Number(entity.maxHp);
+        const hpNow = Number(entity.hp);
         const printedSpd = Number(entity.printedSpeed);
+        const spdNow = Number(entity.spd);
         const shieldInfo = getShieldInfo(entity);
         if (shieldInfo.active && shieldInfo.intact > 0) {
             hpClass = ' is-shielded';
         } else if (Number.isFinite(printedHp) && maxHp > printedHp) {
             hpClass = ' is-buffed';
         }
-        if (Number.isFinite(printedSpd) && entity.spd !== printedSpd) {
-            spdClass = ' is-buffed';
+        // Turn the HP text red the moment the card drops below its max health.
+        if (Number.isFinite(hpNow) && Number.isFinite(maxHp) && hpNow < maxHp) {
+            hpClass += ' is-damaged';
+        }
+        // Speed increased -> green text; a reduction keeps the existing buffed accent.
+        if (Number.isFinite(printedSpd) && Number.isFinite(spdNow)) {
+            if (spdNow > printedSpd) {
+                spdClass = ' is-spd-up';
+            } else if (spdNow < printedSpd) {
+                spdClass = ' is-buffed';
+            }
         }
     } else if (options.shielded) {
         hpClass = ' is-shielded';
@@ -482,10 +493,19 @@ function renderCardStatPills(entity, options = {}) {
         + `</div>`;
 }
 
+function hpFillTierClass(pct) {
+    // Dynamic health-bar colour by remaining-health percentage.
+    if (pct >= 75) return ' hp-fill-high';      // 75-100% green
+    if (pct >= 50) return ' hp-fill-mid';        // 50-75%  yellow
+    if (pct >= 25) return ' hp-fill-low';        // 25-50%  orange
+    return ' hp-fill-critical';                  // <25%    red
+}
+
 function renderArenaBoardHpBar(cell) {
     const barMax = Number(cell.maxHp);
     const barHp = Number(cell.hp);
     const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
+    const tierClass = hpFillTierClass(pct);
     const shield = Math.max(0, Number(cell.shieldHp) || 0);
     const platesHtml = shield > 0
         ? `<div class="shield-plates" data-shield="${shield}">${
@@ -493,7 +513,7 @@ function renderArenaBoardHpBar(cell) {
         }</div>`
         : '';
     return `<div class="hp-bar${shield > 0 ? ' is-shielded' : ''}">`
-        + `<div class="hp-fill" style="width:${pct}%"></div>`
+        + `<div class="hp-fill${tierClass}" style="width:${pct}%"></div>`
         + platesHtml
         + `</div>`;
 }
