@@ -10466,17 +10466,13 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     overflow: hidden;
     padding: 2px 2px 4px;
     gap: 2px;
-    /* Fixed, consistent text size on every card. Long ability lines wrap
-       inside the consistent text area instead of pushing the layout around or
-       being scaled down. */
+    /* Fixed fallback text size; the live size is set per-card by
+       fitMulliganCardText() so the ability text scales up on sparse cards and
+       down on dense ones, filling the template either way (see game.js). */
     font-size: 0.72em;
     line-height: 1.2;
     overflow-wrap: anywhere;
     word-break: break-word;
-    /* On the rare card too text-dense to fully fit the consistent area, fade
-       the overflow out instead of hard-chopping the last line. */
-    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent);
-    mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent);
 }
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-stats-line {
@@ -10486,6 +10482,12 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-ability-flavor {
     line-height: 1.2;
+}
+
+/* Keep the HP/SPD pills a stable size so the per-card auto-fit only scales
+   the ability text — mirrors the balanced look of the Gagglestand card. */
+.mulligan-card-slot .hand-card.mulligan-showcase .card-stat-pill {
+    font-size: 11px;
 }
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-label {

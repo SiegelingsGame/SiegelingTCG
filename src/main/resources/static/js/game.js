@@ -10880,9 +10880,11 @@ function renderMulliganOverlay() {
         </div>`;
     }).join('');
 
-    // Mulligan slots are a fixed proportion, so long move lists used to clip.
-    // After the markup lands, shrink each card's text (and its art when text
-    // alone won't fit) until every ability line is visible.
+    // Mulligan slots are a fixed proportion. After the markup lands, scale each
+    // card's ability text so it FILLS the template: sparse cards grow, dense
+    // cards shrink, both wrapping. The art stays a consistent size; only an
+    // extremely text-dense card reclaims a little art height as a last resort
+    // so no ability line is cut off.
     scheduleMulliganTextFit();
 }
 
@@ -10893,9 +10895,12 @@ function scheduleMulliganTextFit() {
     if (mulliganFitFrame) {
         cancelAnimationFrame(mulliganFitFrame);
     }
+    // Double rAF so the slot/body heights are settled before we measure.
     mulliganFitFrame = requestAnimationFrame(() => {
-        mulliganFitFrame = 0;
-        fitMulliganCardText();
+        mulliganFitFrame = requestAnimationFrame(() => {
+            mulliganFitFrame = 0;
+            fitMulliganCardText();
+        });
     });
     if (!mulliganFitResizeBound) {
         mulliganFitResizeBound = true;
@@ -10912,7 +10917,7 @@ function fitMulliganCardText() {
     const cards = document.querySelectorAll('#mulliganHandPreview .hand-card.mulligan-showcase');
     cards.forEach((card) => {
         const body = card.querySelector('.hand-card-body');
-        if (!body) {
+        if (!body || !body.clientHeight) {
             return;
         }
         const art = card.querySelector('.card-art-preview');
@@ -10926,39 +10931,44 @@ function fitMulliganCardText() {
             art.style.minHeight = '';
         }
 
-        const overflowing = () => body.scrollHeight - body.clientHeight > 1;
-        if (!overflowing()) {
-            return;
-        }
+        // scrollHeight reflects the full wrapped content even though the body
+        // clips via overflow:hidden; +0.5 absorbs sub-pixel rounding.
+        const fits = () => body.scrollHeight <= body.clientHeight + 0.5;
 
-        // 1) Scale the body text down first — keep it readable (>= 70%).
-        const baseFont = parseFloat(getComputedStyle(body).fontSize) || 12;
-        let font = baseFont;
-        const softMinFont = baseFont * 0.7;
-        while (overflowing() && font > softMinFont) {
-            font -= 0.5;
-            body.style.fontSize = `${font}px`;
+        const MIN_PX = 7;
+        const MAX_PX = 19;
+        // Binary-search the largest font that still fits the fixed template
+        // region: grows sparse cards to fill it, shrinks dense ones to fit.
+        // Text wraps either way (overflow-wrap/word-break in CSS).
+        let lo = MIN_PX;
+        let hi = MAX_PX;
+        let best = MIN_PX;
+        for (let i = 0; i < 9; i++) {
+            const mid = (lo + hi) / 2;
+            body.style.fontSize = `${mid}px`;
+            if (fits()) {
+                best = mid;
+                lo = mid;
+            } else {
+                hi = mid;
+            }
         }
+        body.style.fontSize = `${best.toFixed(2)}px`;
 
-        // 2) Still clipped: reclaim vertical space from the art viewport.
-        if (overflowing() && art) {
+        // Extremely dense card that won't fit even at MIN_PX: reclaim a little
+        // art height as a last resort so no ability line is cut off, keeping
+        // the art mostly intact (>= 55%).
+        if (best <= MIN_PX && !fits() && art) {
             let artH = art.getBoundingClientRect().height;
-            const minArtH = artH * 0.4;
+            const minArtH = artH * 0.55;
             art.style.aspectRatio = 'auto';
             art.style.minHeight = '0';
-            while (overflowing() && artH > minArtH) {
+            while (!fits() && artH > minArtH) {
                 artH -= 6;
                 art.style.flex = `0 0 ${artH}px`;
                 art.style.height = `${artH}px`;
                 art.style.maxHeight = `${artH}px`;
             }
-        }
-
-        // 3) Last resort: shrink text a little further so nothing is cut off.
-        const hardMinFont = baseFont * 0.55;
-        while (overflowing() && font > hardMinFont) {
-            font -= 0.5;
-            body.style.fontSize = `${font}px`;
         }
     });
 }
