@@ -6884,6 +6884,13 @@ body.placement-active .board-cell.legal {
     margin-top: 2px;
 }
 
+/* Evolution requirement: this card needs another card on the field to
+   evolve from. Call it out in gold so it reads as a prerequisite. */
+.card-evolve-note {
+    color: #ffd700;
+    font-weight: 600;
+}
+
 .card-cost-text.combo-cost {
     color: var(--accent);
 }

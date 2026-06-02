@@ -2541,8 +2541,8 @@ function getCardPreviewEntries(card) {
     }
     if (card.evolvesFromName) {
         entries.push({
-            text: `Evolution: ${card.evolvesFromName}`,
-            className: 'card-cost'
+            text: `Evolves from ${card.evolvesFromName} — needs that card to evolve`,
+            className: 'card-cost card-evolve-note'
         });
     }
 
@@ -7400,9 +7400,15 @@ function renderSelectedLoadoutPreview() {
     panel.style.setProperty('--loadout-accent-soft', hexToRgba(accent, 0.18));
     panel.style.setProperty('--loadout-accent-glow', hexToRgba(accent, 0.32));
 
-    const deckName = loadoutMode === 'builder' || loadoutMode === 'saved'
-        ? getActiveLoadoutLabel()
-        : (getActiveLoadoutLabel() || deck?.name || 'Choose a Deck');
+    // Title reflects what the player actually selected: the premade deck's
+    // own name in preset mode, or the custom/saved loadout name otherwise.
+    // The free-text "save loadout" input must not shadow the selected deck's
+    // name (otherwise picking Gale Talons could still read "Blazing Core").
+    const deckName = loadoutMode === 'builder'
+        ? (getActiveLoadoutLabel() || 'Custom Loadout')
+        : loadoutMode === 'saved'
+            ? (savedDeck?.name || deck?.name || 'Saved Loadout')
+            : (deck?.name || 'Choose a Deck');
     const elementLabel = loadoutMode === 'builder'
         ? (collectBuilderElements() || 'Custom Elements')
         : loadoutMode === 'saved'
@@ -7711,7 +7717,7 @@ function updateLoadoutSummary() {
         return;
     }
 
-    summary.innerHTML = `${matchMode === 'online' ? 'Build' : 'Deck'}: <strong>${escapeHtml(getActiveLoadoutLabel() || deck.name)}</strong> | SiegeKnight: <strong>${trainer.name}</strong>${playerName ? ` | Name: <strong>${playerName}</strong>` : ''}`;
+    summary.innerHTML = `${matchMode === 'online' ? 'Build' : 'Deck'}: <strong>${escapeHtml(deck.name)}</strong> | SiegeKnight: <strong>${trainer.name}</strong>${playerName ? ` | Name: <strong>${playerName}</strong>` : ''}`;
     syncLoadoutStartButton(
         startBtn,
         loadoutStartPending || (matchMode === 'online' && onlineRoomMode === 'join' && !getCurrentRoomCode()) || (needsPlayerName && !playerName),
@@ -10874,33 +10880,73 @@ function renderMulliganOverlay() {
         </div>`;
     }).join('');
 
-    // Scale each card's ability text to fill its template region: sparse cards
-    // grow, dense cards shrink, both wrapping inside the same fixed art/body
-    // layout. Run after layout settles so body heights are known.
-    requestAnimationFrame(() => requestAnimationFrame(fitMulliganCardText));
-    ensureMulliganRefitListener();
+    // Mulligan slots are a fixed proportion. After the markup lands, scale each
+    // card's ability text so it FILLS the template: sparse cards grow, dense
+    // cards shrink, both wrapping. The art stays a consistent size; only an
+    // extremely text-dense card reclaims a little art height as a last resort
+    // so no ability line is cut off.
+    scheduleMulliganTextFit();
 }
 
-// Largest font (px) where a mulligan card body's wrapped content still fits
-// its fixed template region — found per card by binary search. This is what
-// makes every card "fill the template" by scaling text + wrapping rather than
-// leaving empty space (sparse cards) or clipping (dense cards).
+let mulliganFitFrame = 0;
+let mulliganFitResizeBound = false;
+
+function scheduleMulliganTextFit() {
+    if (mulliganFitFrame) {
+        cancelAnimationFrame(mulliganFitFrame);
+    }
+    // Double rAF so the slot/body heights are settled before we measure.
+    mulliganFitFrame = requestAnimationFrame(() => {
+        mulliganFitFrame = requestAnimationFrame(() => {
+            mulliganFitFrame = 0;
+            fitMulliganCardText();
+        });
+    });
+    if (!mulliganFitResizeBound) {
+        mulliganFitResizeBound = true;
+        window.addEventListener('resize', () => {
+            const overlay = document.getElementById('mulliganOverlay');
+            if (overlay?.classList.contains('visible')) {
+                scheduleMulliganTextFit();
+            }
+        });
+    }
+}
+
 function fitMulliganCardText() {
-    const preview = document.getElementById('mulliganHandPreview');
-    if (!preview) return;
-    const MIN_PX = 7;
-    const MAX_PX = 19;
-    preview.querySelectorAll('.mulligan-showcase .hand-card-body').forEach((body) => {
-        if (!body.clientHeight) return;
+    const cards = document.querySelectorAll('#mulliganHandPreview .hand-card.mulligan-showcase');
+    cards.forEach((card) => {
+        const body = card.querySelector('.hand-card-body');
+        if (!body || !body.clientHeight) {
+            return;
+        }
+        const art = card.querySelector('.card-art-preview');
+        // Clear any prior fit so we always measure against the natural layout.
+        body.style.fontSize = '';
+        if (art) {
+            art.style.flex = '';
+            art.style.height = '';
+            art.style.maxHeight = '';
+            art.style.aspectRatio = '';
+            art.style.minHeight = '';
+        }
+
+        // scrollHeight reflects the full wrapped content even though the body
+        // clips via overflow:hidden; +0.5 absorbs sub-pixel rounding.
+        const fits = () => body.scrollHeight <= body.clientHeight + 0.5;
+
+        const MIN_PX = 7;
+        const MAX_PX = 19;
+        // Binary-search the largest font that still fits the fixed template
+        // region: grows sparse cards to fill it, shrinks dense ones to fit.
+        // Text wraps either way (overflow-wrap/word-break in CSS).
         let lo = MIN_PX;
         let hi = MAX_PX;
         let best = MIN_PX;
         for (let i = 0; i < 9; i++) {
             const mid = (lo + hi) / 2;
             body.style.fontSize = `${mid}px`;
-            // scrollHeight reflects full wrapped content even though the body
-            // clips via overflow:hidden; +0.5 absorbs sub-pixel rounding.
-            if (body.scrollHeight <= body.clientHeight + 0.5) {
+            if (fits()) {
                 best = mid;
                 lo = mid;
             } else {
@@ -10908,18 +10954,22 @@ function fitMulliganCardText() {
             }
         }
         body.style.fontSize = `${best.toFixed(2)}px`;
-    });
-}
 
-let mulliganRefitListenerBound = false;
-function ensureMulliganRefitListener() {
-    if (mulliganRefitListenerBound) return;
-    mulliganRefitListenerBound = true;
-    let raf = 0;
-    window.addEventListener('resize', () => {
-        if (!document.getElementById('mulliganOverlay')?.classList.contains('visible')) return;
-        cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(fitMulliganCardText);
+        // Extremely dense card that won't fit even at MIN_PX: reclaim a little
+        // art height as a last resort so no ability line is cut off, keeping
+        // the art mostly intact (>= 55%).
+        if (best <= MIN_PX && !fits() && art) {
+            let artH = art.getBoundingClientRect().height;
+            const minArtH = artH * 0.55;
+            art.style.aspectRatio = 'auto';
+            art.style.minHeight = '0';
+            while (!fits() && artH > minArtH) {
+                artH -= 6;
+                art.style.flex = `0 0 ${artH}px`;
+                art.style.height = `${artH}px`;
+                art.style.maxHeight = `${artH}px`;
+            }
+        }
     });
 }
 
