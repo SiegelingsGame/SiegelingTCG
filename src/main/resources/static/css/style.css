@@ -5892,6 +5892,23 @@ body.placement-active .board-cell.legal {
     animation: none;
 }
 
+/* HP text reads gold while healthy, and flips to red once the card has
+   taken damage (dropped below its max health). Shielded cards keep their
+   brushed-metal plate styling. */
+.board-card.arena-board-card .card-stat-pill-hp:not(.is-shielded) {
+    color: var(--accent, #e2b714);
+}
+.board-card.arena-board-card .card-stat-pill-hp.is-damaged:not(.is-shielded) {
+    color: #ff5a5a;
+    border-color: rgba(255, 90, 90, 0.4);
+}
+
+/* Speed text turns green when SPD is boosted above its printed value. */
+.board-card.arena-board-card .card-stat-pill-spd.is-spd-up {
+    color: #43e07a;
+    border-color: rgba(67, 224, 122, 0.4);
+}
+
 .card-art {
     position: relative;
     overflow: hidden;
@@ -6120,6 +6137,20 @@ body.placement-active .board-cell.legal {
 .hp-bar.is-shielded .hp-fill {
     opacity: 0.55;
     filter: grayscale(0.45);
+}
+
+/* Dynamic health-bar colour keyed off remaining-health percentage. */
+.hp-fill.hp-fill-high {
+    background: var(--success, #30ff84);
+}
+.hp-fill.hp-fill-mid {
+    background: #f2c744;
+}
+.hp-fill.hp-fill-low {
+    background: #f5933d;
+}
+.hp-fill.hp-fill-critical {
+    background: #ff4d4d;
 }
 .shield-plates {
     position: absolute;
