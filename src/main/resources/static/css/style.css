@@ -10436,8 +10436,16 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview {
     min-height: 0;
-    flex: 0 1 auto;
-    aspect-ratio: 5 / 4;
+    /* Pin the art to a consistent size (don't let it shrink). Previously
+       `flex: 0 1 auto` let text-heavy cards collapse the art to a thin pill to
+       make room for more ability lines, so the art size — and the text area
+       below it — varied wildly card-to-card. Fixing the art keeps the text
+       block the same size and starting position on every card. */
+    flex: 0 0 auto;
+    /* Flatter than the hand art (5/4) so the fixed art leaves a generously
+       tall, consistent text area below it — enough for dense multi-ability
+       cards without collapsing the art. */
+    aspect-ratio: 3 / 2;
     padding: 4px;
 }
 
@@ -10458,8 +10466,17 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     overflow: hidden;
     padding: 2px 2px 4px;
     gap: 2px;
+    /* Fixed, consistent text size on every card. Long ability lines wrap
+       inside the consistent text area instead of pushing the layout around or
+       being scaled down. */
     font-size: 0.72em;
     line-height: 1.2;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    /* On the rare card too text-dense to fully fit the consistent area, fade
+       the overflow out instead of hard-chopping the last line. */
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent);
 }
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-stats-line {
