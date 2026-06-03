@@ -29,6 +29,48 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BattleServiceTest {
 
     @Test
+    void defeatedSieglingsDamageTheirOwnerByRarityBounty() {
+        Object[][] cases = {
+                { Rarity.COMMON, 5 },
+                { Rarity.UNCOMMON, 6 },
+                { Rarity.RARE, 7 },
+                { Rarity.EPIC, 8 },
+                { Rarity.LEGENDARY, 10 }
+        };
+
+        for (Object[] c : cases) {
+            Rarity rarity = (Rarity) c[0];
+            int bounty = (int) c[1];
+            GameState state = new GameState();
+            Player player = new Player("Player", true);
+            Player enemy = new Player("AI", false);
+            state.setPlayer(player);
+            state.setEnemy(enemy);
+
+            SieglingCard card = new SieglingCard(
+                    rarity.name().toLowerCase() + "-test",
+                    rarity.name() + " Test",
+                    Element.FIRE,
+                    rarity,
+                    10,
+                    4,
+                    List.of(),
+                    Row.FRONT
+            );
+            CardInstance defeated = new CardInstance(card, 1, 1, true);
+            defeated.setCurrentHealth(0);
+            state.setAt(true, 1, 1, defeated);
+
+            state.removeDeadSieglings();
+
+            assertEquals(50 - bounty, player.getHealth(), rarity + " bounty should damage the defeated card owner.");
+            assertEquals(1, enemy.getOpponentSieglingsDefeatedThisMatch());
+            assertTrue(state.getGameLog().stream().anyMatch(line ->
+                    line.contains(defeated.getName() + "'s bounty deals " + bounty + " damage to Player")));
+        }
+    }
+
+    @Test
     void battleDamageThatEndsGameRecordsMatchHistoryImmediately() throws Exception {
         BattleService battleService = createBattleService();
         AtomicInteger recordCalls = new AtomicInteger();

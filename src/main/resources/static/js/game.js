@@ -457,24 +457,29 @@ function renderCardStatPills(entity, options = {}) {
         ? formatStatPillNumber(entity.spd)
         : formatStatPillNumber(entity.speed ?? entity.spd);
 
-    let hpClass = '';
+    const hpClasses = [];
     let spdClass = '';
     if (mode === 'board') {
         const printedHp = Number(entity.printedHealth);
+        const currentHp = Number(entity.hp);
         const maxHp = Number(entity.maxHp);
         const printedSpd = Number(entity.printedSpeed);
         const shieldInfo = getShieldInfo(entity);
+        if (Number.isFinite(currentHp) && Number.isFinite(maxHp) && currentHp < maxHp) {
+            hpClasses.push('is-damaged');
+        }
         if (shieldInfo.active && shieldInfo.intact > 0) {
-            hpClass = ' is-shielded';
+            hpClasses.push('is-shielded');
         } else if (Number.isFinite(printedHp) && maxHp > printedHp) {
-            hpClass = ' is-buffed';
+            hpClasses.push('is-buffed');
         }
         if (Number.isFinite(printedSpd) && entity.spd !== printedSpd) {
             spdClass = ' is-buffed';
         }
     } else if (options.shielded) {
-        hpClass = ' is-shielded';
+        hpClasses.push('is-shielded');
     }
+    const hpClass = hpClasses.length ? ` ${hpClasses.join(' ')}` : '';
 
     return `<div class="card-stat-pills" role="group" aria-label="Combat stats">`
         + `<span class="card-stat-pill card-stat-pill-hp${hpClass}">HP: ${hpVal}</span>`
@@ -1369,29 +1374,21 @@ function isElementWeakTo(attackerElement, defenderElement) {
     const defender = String(defenderElement || '').trim().toUpperCase();
     switch (attacker) {
         case 'FIRE':
-            return defender === 'ICE';
+            return defender === 'ICE' || defender === 'METAL';
         case 'ICE':
-            return defender === 'WIND';
+            return defender === 'WIND' || defender === 'POISON';
         case 'WIND':
-            return defender === 'EARTH';
+            return defender === 'EARTH' || defender === 'WATER';
         case 'EARTH':
-            return defender === 'FIRE';
-        case 'WATER':
-            return defender === 'FIRE' || defender === 'ICE';
-        case 'METAL':
-            return defender === 'EARTH' || defender === 'WIND';
-        case 'ELECTRIC':
-            return defender === 'WIND' || defender === 'FIRE';
-        case 'POISON':
-            return defender === 'ICE' || defender === 'EARTH';
+            return defender === 'FIRE' || defender === 'ELECTRIC';
         case 'SHADOW':
-            return defender === 'PSYCHIC';
+            return defender === 'PSYCHIC' || defender === 'LIGHT';
         case 'PSYCHIC':
-            return defender === 'LIGHT';
+            return defender === 'LIGHT' || defender === 'UNDEAD';
         case 'LIGHT':
-            return defender === 'UNDEAD';
+            return defender === 'UNDEAD' || defender === 'SHADOW';
         case 'UNDEAD':
-            return defender === 'SHADOW';
+            return defender === 'SHADOW' || defender === 'PSYCHIC';
         default:
             return false;
     }
@@ -8329,8 +8326,8 @@ function renderDomLegacy() {
     btnBattle.classList.toggle('ab-active', phase === 'BATTLE' && !over);
     btnEndTurn.classList.toggle('ab-active', phase === 'SETUP' && playerActive && !over);
 
-    document.getElementById('playerHealth').textContent = gameState.player.health;
-    document.getElementById('enemyHealth').textContent = gameState.enemy.health;
+    document.getElementById('playerHealth').textContent = getDisplayedSideHealth(true, gameState.player.health);
+    document.getElementById('enemyHealth').textContent = getDisplayedSideHealth(false, gameState.enemy.health);
 
     renderEnergyTopBar('playerEnergy', gameState.player);
     renderEnergyTopBar('enemyEnergy', gameState.enemy);
@@ -8487,18 +8484,26 @@ function energyDetailNexusBlock(playerData) {
     }).join('');
 }
 
+function getDisplayedSideHealth(isPlayer, value) {
+    const numeric = Number(value ?? 0);
+    const fallback = Number.isFinite(numeric) ? numeric : 0;
+    return window.SieglingsActionQueue?.getDisplayedHealth?.(!!isPlayer, fallback) ?? fallback;
+}
+
 function renderEnergyDetailPanel() {
     const panel = document.getElementById('energyDetailPanel');
     if (!panel || !gameState) return;
 
     const p = gameState.player;
     const e = gameState.enemy;
+    const pHealth = getDisplayedSideHealth(true, p.health);
+    const eHealth = getDisplayedSideHealth(false, e.health);
     const enemyTitle = escapeHtml(gameState.enemyName || 'Opponent');
     let html = '';
     html += '<div class="energy-detail-columns">';
     html += '<div class="energy-detail-section">';
     html += `<div class="energy-detail-h2">${escapeHtml(gameState.playerName || 'You')}</div>`;
-    html += `<div class="energy-detail-hp">${p.health ?? 0} HP</div>`;
+    html += `<div class="energy-detail-hp">${pHealth} HP</div>`;
     html += energyDetailElementRows(p);
     html += '<div class="energy-detail-subh">Combos</div>';
     html += energyDetailComboBlock(p);
@@ -8511,7 +8516,7 @@ function renderEnergyDetailPanel() {
 
     html += '<div class="energy-detail-section">';
     html += `<div class="energy-detail-h2">${enemyTitle}</div>`;
-    html += `<div class="energy-detail-hp">${e.health ?? 0} HP</div>`;
+    html += `<div class="energy-detail-hp">${eHealth} HP</div>`;
     html += energyDetailElementRows(e);
     html += '<div class="energy-detail-subh">Combos</div>';
     html += energyDetailComboBlock(e);
@@ -8552,7 +8557,7 @@ function safeAreaHpGradient(pct, element) {
 
 function applySafeAreaHpSide(side, data) {
     const cap = side === 'enemy' ? 'Enemy' : 'Player';
-    const health = Number(data?.health ?? 0);
+    const health = getDisplayedSideHealth(side !== 'enemy', data?.health ?? 0);
     const pct = Math.max(0, Math.min(100, Math.round((health / SAFE_AREA_HP_MAX) * 100)));
     const element = data?.trainer?.element || null;
 
@@ -8599,8 +8604,8 @@ function updateHudRails(state) {
     setTextIfExists('railPlayerHeading', state.playerName || p.name || 'Player');
     setTextIfExists('railEnemyHeading', state.enemyName || e.name || 'AI');
 
-    const pHealth = Number(p.health ?? 0);
-    const eHealth = Number(e.health ?? 0);
+    const pHealth = getDisplayedSideHealth(true, p.health ?? 0);
+    const eHealth = getDisplayedSideHealth(false, e.health ?? 0);
     const pPct = Math.max(0, Math.min(100, Math.round((pHealth / 50) * 100)));
     const ePct = Math.max(0, Math.min(100, Math.round((eHealth / 50) * 100)));
     setTextIfExists('railPlayerHealth', pHealth);
@@ -8707,6 +8712,7 @@ function updateMobileHud(state) {
     setTextIfExists('mobileTurnNumber', state.turnNumber ?? 0);
 
     updateMobileHudSide('Player', p, {
+        isPlayer: true,
         name: state.playerName || p.name || 'Player',
         hpBarId: 'mobilePlayerHpBar',
         nameId: 'mobilePlayerName',
@@ -8723,6 +8729,7 @@ function updateMobileHud(state) {
         showFullAbilities: true
     });
     updateMobileHudSide('Enemy', e, {
+        isPlayer: false,
         name: state.enemyName || e.name || 'AI',
         hpBarId: 'mobileEnemyHpBar',
         nameId: 'mobileEnemyName',
@@ -8746,7 +8753,7 @@ function updateMobileHud(state) {
 }
 
 function updateMobileHudSide(label, playerData, ids) {
-    const health = Number(playerData?.health ?? 0);
+    const health = getDisplayedSideHealth(!!ids.isPlayer, playerData?.health ?? 0);
     const pct = Math.max(0, Math.min(100, Math.round((health / 50) * 100)));
     const handSize = playerData?.handSize ?? (Array.isArray(playerData?.hand) ? playerData.hand.length : 0);
     const deckSize = playerData?.deckSize ?? 0;
@@ -9296,25 +9303,23 @@ const ELEMENT_KEY_ICON_PATHS = {
     ELECTRIC: '/img/elements/element-electric.svg',
     METAL: '/img/elements/element-metal.svg',
     UNDEAD: '/img/elements/element-undead.svg',
-    PSYCHIC: '/img/elements/element-psychic.svg'
+    PSYCHIC: '/img/elements/element-psychic.svg',
+    POISON: '/img/elements/element-poison.svg',
+    LIGHT: '/img/elements/element-light.svg'
 };
 
 // Elemental weakness chart — mirrors EffectService.isWeakTo (attacker hits these for +1 damage).
-// Primary cycle: Fire > Ice > Wind > Earth > Fire.
-// Shadow cycle: Shadow > Psychic > Light > Undead > Shadow.
+// Natural cycle: Fire > Ice, Metal | Ice > Wind, Poison | Wind > Earth, Water | Earth > Fire, Electric.
+// Shadow cycle: Shadow > Psychic, Light | Psychic > Light, Undead | Light > Undead, Shadow | Undead > Shadow, Psychic.
 const ELEMENT_STRENGTHS = [
-    ['FIRE', ['ICE']],
-    ['ICE', ['WIND']],
-    ['WIND', ['EARTH']],
-    ['EARTH', ['FIRE']],
-    ['WATER', ['FIRE', 'ICE']],
-    ['METAL', ['EARTH', 'WIND']],
-    ['ELECTRIC', ['WIND', 'FIRE']],
-    ['POISON', ['ICE', 'EARTH']],
-    ['SHADOW', ['PSYCHIC']],
-    ['PSYCHIC', ['LIGHT']],
-    ['LIGHT', ['UNDEAD']],
-    ['UNDEAD', ['SHADOW']]
+    ['FIRE', ['ICE', 'METAL']],
+    ['ICE', ['WIND', 'POISON']],
+    ['WIND', ['EARTH', 'WATER']],
+    ['EARTH', ['FIRE', 'ELECTRIC']],
+    ['SHADOW', ['PSYCHIC', 'LIGHT']],
+    ['PSYCHIC', ['LIGHT', 'UNDEAD']],
+    ['LIGHT', ['UNDEAD', 'SHADOW']],
+    ['UNDEAD', ['SHADOW', 'PSYCHIC']]
 ];
 
 /** Element legend chip — icon art when available, falling back to the solid colour token. */

@@ -6005,10 +6005,15 @@ body.placement-active .board-cell.legal {
 }
 
 .stat-hp  {
-    background: var(--success);
-    color: var(--bg);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--accent);
+    border: 1px solid rgba(226, 183, 20, 0.34);
     gap: 2px;
-    transition: background 0.22s ease, color 0.22s ease;
+    transition: background 0.22s ease, border-color 0.22s ease, color 0.22s ease;
+}
+.stat-hp.is-damaged {
+    color: var(--danger);
+    border-color: rgba(255, 80, 80, 0.42);
 }
 /* While the HEALTH_BOOST buff (shield) is on the card, mute the HP
    background to a metal grey so the HP block reads as "armored". The
@@ -6017,9 +6022,12 @@ body.placement-active .board-cell.legal {
    the green background returns automatically. */
 .stat-hp.is-shielded {
     background: linear-gradient(180deg, #c8d0d8 0%, #8a939e 100%);
-    color: #18202a;
+    color: var(--accent);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45),
                 inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+.stat-hp.is-shielded.is-damaged {
+    color: var(--danger);
 }
 .stat-spd { background: var(--accent); color: var(--bg); }
 .stat-shield {
@@ -6872,18 +6880,37 @@ body.placement-active .board-cell.legal {
     color: #d8ecff;
 }
 
+.card-stat-pill-hp {
+    color: var(--accent);
+}
+
+.card-stat-pill-hp.is-damaged {
+    color: var(--danger);
+    border-color: rgba(255, 80, 80, 0.42);
+    text-shadow: 0 0 8px rgba(255, 59, 48, 0.36);
+}
+
 .card-stat-pill.is-buffed {
     color: var(--accent);
     border-color: rgba(226, 183, 20, 0.35);
 }
 
+.card-stat-pill-hp.is-buffed.is-damaged,
+.card-stat-pill-hp.is-damaged {
+    color: var(--danger);
+}
+
 .card-stat-pill.is-shielded {
     background: linear-gradient(180deg, #c8d0d8 0%, #8a939e 100%);
-    color: #18202a;
+    color: var(--accent);
     border-color: rgba(24, 32, 42, 0.28);
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.45),
         inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+
+.card-stat-pill-hp.is-shielded.is-damaged {
+    color: var(--danger);
 }
 
 .card-stats-line {
@@ -12508,7 +12535,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 /* Health-bar direct-attack impact: shake + element-colored flash on the
    top HUD HP container when an attack targets the player/enemy directly. */
-.tb-hp, .mobile-hud-side {
+.tb-hp, .mobile-hud-side, .hud-hp-row, .safe-hp-half {
+    position: relative;
     transition: filter 0.2s ease, box-shadow 0.2s ease;
 }
 .tb-hp.sgl-hp-impact, .mobile-hud-side.sgl-hp-impact, .hud-hp-row.sgl-hp-impact, .safe-hp-half.sgl-hp-impact {
@@ -13930,4 +13958,104 @@ body.sgl-opponent-turn .battle-cta-row {
     body.gameplay-active .mulligan-box {
         max-height: calc(100dvh - 20px - env(safe-area-inset-bottom, 0px));
     }
+}
+
+/* Siege bounty damage: fractured health-bar impact when a destroyed card
+   breaks through to its owner's life total. */
+.tb-hp,
+.mobile-hud-side,
+.hud-hp-row,
+.safe-hp-half {
+    position: relative;
+}
+
+.tb-hp.sgl-health-fracture,
+.mobile-hud-side.sgl-health-fracture,
+.hud-hp-row.sgl-health-fracture,
+.safe-hp-half.sgl-health-fracture {
+    --sgl-siege-crack: #ffd463;
+    animation: sgl-health-fracture-shock 0.86s cubic-bezier(0.18, 0.78, 0.22, 1);
+}
+
+.sgl-health-cracks {
+    position: absolute;
+    inset: -10px -8px;
+    z-index: 18;
+    pointer-events: none;
+    opacity: 0;
+    filter: drop-shadow(0 0 8px rgba(255, 236, 178, 0.85));
+    animation: sgl-health-cracks-fade 0.88s ease-out forwards;
+}
+
+.sgl-health-cracks::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: inherit;
+    border: 1px solid rgba(255, 244, 205, 0.5);
+    box-shadow:
+        0 0 18px var(--sgl-siege-crack),
+        inset 0 0 18px rgba(255, 224, 142, 0.25);
+    opacity: 0;
+    animation: sgl-health-crack-ring 0.7s ease-out forwards;
+}
+
+.sgl-health-cracks span {
+    position: absolute;
+    display: block;
+    height: 2px;
+    border-radius: 999px;
+    background:
+        linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.92) 15%,
+            var(--sgl-siege-crack) 48%,
+            rgba(255, 123, 92, 0.9) 72%,
+            transparent 100%);
+    transform-origin: left center;
+    opacity: 0;
+    animation: sgl-health-crack-line 0.68s cubic-bezier(0.14, 0.86, 0.22, 1) forwards;
+}
+
+.sgl-health-cracks span::after {
+    content: '';
+    position: absolute;
+    left: 68%;
+    top: 50%;
+    width: 18px;
+    height: 2px;
+    border-radius: 999px;
+    background: inherit;
+    transform: translateY(-50%) rotate(55deg);
+    transform-origin: left center;
+}
+
+@keyframes sgl-health-fracture-shock {
+    0%   { transform: translate(0, 0) scale(1); filter: brightness(1); }
+    9%   { transform: translate(-5px, 3px) scale(1.03); filter: brightness(2.25) contrast(1.15); }
+    18%  { transform: translate(5px, -3px) scale(0.985); filter: brightness(1.8) contrast(1.12); }
+    34%  { transform: translate(-3px, -1px) scale(1.012); filter: brightness(1.42); }
+    52%  { transform: translate(3px, 2px) scale(0.996); filter: brightness(1.18); }
+    72%  { transform: translate(-1px, 1px) scale(1); filter: brightness(1.06); }
+    100% { transform: translate(0, 0) scale(1); filter: brightness(1); }
+}
+
+@keyframes sgl-health-cracks-fade {
+    0%   { opacity: 0; transform: scale(0.88); }
+    14%  { opacity: 1; transform: scale(1.03); }
+    62%  { opacity: 0.9; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.08); }
+}
+
+@keyframes sgl-health-crack-line {
+    0%   { opacity: 0; clip-path: inset(0 100% 0 0); }
+    22%  { opacity: 1; clip-path: inset(0 12% 0 0); }
+    74%  { opacity: 0.92; clip-path: inset(0 0 0 0); }
+    100% { opacity: 0; clip-path: inset(0 0 0 100%); }
+}
+
+@keyframes sgl-health-crack-ring {
+    0%   { opacity: 0; transform: scale(0.86); }
+    20%  { opacity: 0.8; transform: scale(1.03); }
+    100% { opacity: 0; transform: scale(1.14); }
 }

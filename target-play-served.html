@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=136">
+    <link rel="stylesheet" href="/css/style.css?v=114">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press — the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -20,11 +20,9 @@
 <div class="safe-hp-strip" id="safeHpStrip" hidden aria-hidden="true">
     <div class="safe-hp-half safe-hp-enemy" data-side="enemy">
         <div class="safe-hp-fill" id="safeHpFillEnemy" style="width:100%"></div>
-        <div class="safe-energy-bar"><div class="safe-energy-fill" id="safeEnergyFillEnemy"></div></div>
     </div>
     <div class="safe-hp-half safe-hp-player" data-side="player">
         <div class="safe-hp-fill" id="safeHpFillPlayer" style="width:100%"></div>
-        <div class="safe-energy-bar"><div class="safe-energy-fill" id="safeEnergyFillPlayer"></div></div>
     </div>
 </div>
 <nav class="play-hub-nav" aria-label="Siegelings hub navigation">
@@ -63,6 +61,32 @@
             <summary class="energy-detail-summary">Energy detail</summary>
             <div class="energy-detail-dropdown" id="energyDetailPanel" role="region" aria-label="Energy breakdown for both players"></div>
         </details>
+        <div class="top-bar-hud" id="topBarHud" aria-label="Match controls">
+            <details class="play-hub-menu-flyout" id="playHubMenuFlyout">
+                <summary class="ab-icon" title="Site menu" aria-label="Site menu">&#9776;</summary>
+                <div class="play-hub-menu-panel" role="menu" aria-label="Siegelings hub navigation">
+                    <a href="/home" role="menuitem">Home</a>
+                    <a class="active" href="/play" role="menuitem" aria-current="page">Play</a>
+                    <a href="/cards" role="menuitem">Cards</a>
+                    <a href="/decks" role="menuitem">Decks</a>
+                    <a href="/social" role="menuitem">Social</a>
+                    <a href="/profile" role="menuitem">Profile</a>
+                    <a href="/shop" role="menuitem">Shop</a>
+                </div>
+            </details>
+            <a class="ab-icon" href="/home" title="Back to Home" aria-label="Back to Home">&#8592;</a>
+            <span id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" title="Setup actions remaining this turn">
+                <span class="ab-action-counter-label">Act</span>
+                <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
+            </span>
+            <button class="ab-icon ab-targeting-keep" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
+            <button class="ab-icon ab-targeting-keep" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
+            <button class="ab-icon ab-targeting-keep" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
+            <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
+            <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
+            <button class="ab-icon" id="btnMuteSound" onclick="toggleSieglingsMute()" title="Toggle Sound" aria-label="Toggle Sound">&#128266;</button>
+            <button class="ab-icon" id="btnQuitOrNewGame" onclick="handleQuitOrNewGame()" title="New Game" type="button">&#9654;</button>
+        </div>
         <span class="hidden" id="activeSideLabel">Player</span>
         <span class="hidden" id="firstPlayerLabel">Player</span>
         <span class="hidden" id="roomBadge"></span>
@@ -109,16 +133,36 @@
         <div class="interaction-banner hidden" id="interactionBanner"></div>
         <div class="battle-row-confirm-overlay hidden" id="battleRowConfirmOverlay"></div>
 
-        <div class="bf-half bf-enemy">
-            <div class="board-label">ENEMY</div>
-            <div class="board-grid" id="enemyGrid"></div>
-            <!-- Floating card preview overlaid on enemy half -->
-            <div class="card-preview-float hidden" id="cardPreviewFloat" onclick="onPreviewFloatTap()"></div>
+        <div class="arena-row-labels" aria-hidden="true">
+            <span class="arena-row-label">Front</span>
+            <span class="arena-row-label">Middle</span>
+            <span class="arena-row-label">Back</span>
         </div>
 
-        <div class="bf-half bf-player">
-            <div class="board-label">YOU</div>
-            <div class="board-grid" id="playerGrid"></div>
+        <div class="arena-columns">
+            <div class="bf-half bf-enemy">
+                <div class="board-label">Enemy</div>
+                <div class="board-grid" id="enemyGrid"></div>
+                <!-- Floating card preview overlaid on enemy half -->
+                <div class="card-preview-float hidden" id="cardPreviewFloat" onclick="onPreviewFloatTap()"></div>
+            </div>
+
+            <div class="arena-center-seam" aria-hidden="true"></div>
+
+            <div class="bf-half bf-player">
+                <div class="board-label">You</div>
+                <div class="board-grid" id="playerGrid"></div>
+            </div>
+        </div>
+
+        <div class="arena-landscape-footer" aria-label="Primary actions">
+            <div class="arena-primary-actions" id="arenaPrimaryActions">
+                <button class="ab-btn ab-trainer ab-primary" id="btnTrainerAbility" type="button" onclick="openTrainerAbilityPopup()">&#9876; Knight</button>
+                <button class="ab-btn ab-cancel-move ab-primary hidden" id="btnCancelBattleMove" type="button" onclick="cancelBattleTargetSelection()" hidden>Cancel Move</button>
+                <button class="ab-btn ab-draw ab-primary" id="btnDraw" type="button" onclick="playerDraw()">&#127183; Draw</button>
+                <button class="ab-btn ab-battle" id="btnBattle" type="button" onclick="executeBattle()" title="Battle starts automatically after both players finish Setup.">Auto Battle</button>
+                <button class="ab-btn ab-end arena-end-turn-btn" id="btnEndTurn" type="button" onclick="endTurn()">End Turn</button>
+            </div>
         </div>
     </div>
 
@@ -235,6 +279,9 @@
             </div>
         </div>
 
+        <!-- Legacy anchor for targeting-camera layout (buttons live in arena footer + top bar). -->
+        <div class="action-bar action-bar--relocated" id="actionBar" hidden aria-hidden="true"></div>
+
         <section class="desktop-menu-section desktop-menu-inspect" id="desktopInspectSection" aria-label="Card, deck, and battle log inspector">
             <div class="desktop-inspect-toolbar">
                 <div class="desktop-inspect-toggle" role="tablist" aria-label="Inspector view">
@@ -262,58 +309,15 @@
             </div>
         </section>
 
-        <div class="desktop-menu-bottom-dock" id="desktopMenuBottomDock">
-            <section class="desktop-menu-section desktop-menu-hand" id="desktopHandSection">
-                <div class="desktop-section-title" id="desktopHandSectionTitle">Hand Selector</div>
-                <div class="hand-tray" id="handTray" onmousemove="handleHandSelectorPointerMove(event)" onwheel="handleHandSelectorWheel(event)" onmouseleave="stopHandSelectorAutoScroll()">
-                    <div class="hand-cards" id="playerHand" onmousemove="handleHandSelectorPointerMove(event)"></div>
-                    <div class="desktop-hand-battle-panel hidden" id="desktopHandBattlePanel" aria-live="polite">
-                        Queue actions appear here when battle begins.
-                    </div>
-                </div>
-            </section>
-
-            <div class="action-bar" id="actionBar">
-                <div class="action-bar-btns" id="actionButtons">
-                    <button class="ab-btn ab-trainer ab-primary" id="btnTrainerAbility" onclick="openTrainerAbilityPopup()">&#9876; Knight</button>
-                    <button class="ab-btn ab-pass ab-primary hidden" id="btnBattlePass" type="button" onclick="passBattleAction()" hidden aria-label="Pass battle action">
-                        <span class="ab-pass-title">Pass</span>
-                        <span class="ab-pass-next" id="btnBattlePassNext">Next up</span>
-                    </button>
-                    <button class="ab-btn ab-cancel-move ab-primary hidden" id="btnCancelBattleMove" type="button" onclick="cancelBattleTargetSelection()" hidden>Cancel Move</button>
-                    <button class="ab-btn ab-draw ab-primary" id="btnDraw" onclick="playerDraw()">&#127183; Draw</button>
-                    <button class="ab-btn ab-battle" id="btnBattle" onclick="executeBattle()" title="Battle starts automatically after both players finish Setup.">Auto Battle</button>
-                    <button class="ab-btn ab-end" id="btnEndTurn" onclick="endTurn()">End Turn</button>
-                </div>
-                <div class="action-bar-aux">
-                    <details class="play-hub-menu-flyout" id="playHubMenuFlyout">
-                        <summary class="ab-icon" title="Site menu" aria-label="Site menu">&#9776;</summary>
-                        <div class="play-hub-menu-panel" role="menu" aria-label="Siegelings hub navigation">
-                            <a href="/home" role="menuitem">Home</a>
-                            <a class="active" href="/play" role="menuitem" aria-current="page">Play</a>
-                            <a href="/cards" role="menuitem">Cards</a>
-                            <a href="/decks" role="menuitem">Decks</a>
-                            <a href="/social" role="menuitem">Social</a>
-                            <a href="/profile" role="menuitem">Profile</a>
-                            <a href="/shop" role="menuitem">Shop</a>
-                        </div>
-                    </details>
-                    <a class="ab-icon" href="/home" title="Back to Home" aria-label="Back to Home">&#8592;</a>
-                    <button type="button" id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" aria-haspopup="dialog" title="Setup actions remaining this turn — tap for details" onclick="toggleSetupActionsBreakdown(event)">
-                        <span class="ab-action-counter-label">Act</span>
-                        <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
-                    </button>
-                    <button class="ab-icon ab-targeting-keep" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
-                    <button class="ab-icon ab-targeting-keep" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
-                    <button class="ab-icon ab-targeting-keep" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
-                    <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
-                    <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
-                    <button class="ab-icon ab-targeting-keep ab-speed-toggle" id="sglSpeedToggle" type="button" title="Playback speed: Normal — click to toggle" aria-label="Animation speed: Normal">&#9654;</button>
-                    <button class="ab-icon" id="btnMuteSound" onclick="toggleSieglingsMute()" title="Toggle Sound" aria-label="Toggle Sound">&#128266;</button>
-                    <button class="ab-icon" id="btnQuitOrNewGame" onclick="handleQuitOrNewGame()" title="New Game" type="button">&#9654;</button>
+        <section class="desktop-menu-section desktop-menu-hand" id="desktopHandSection">
+            <div class="desktop-section-title" id="desktopHandSectionTitle">Hand Selector</div>
+            <div class="hand-tray" id="handTray" onmousemove="handleHandSelectorPointerMove(event)" onwheel="handleHandSelectorWheel(event)" onmouseleave="stopHandSelectorAutoScroll()">
+                <div class="hand-cards" id="playerHand" onmousemove="handleHandSelectorPointerMove(event)"></div>
+                <div class="desktop-hand-battle-panel hidden" id="desktopHandBattlePanel" aria-live="polite">
+                    Queue actions appear here when battle begins.
                 </div>
             </div>
-        </div>
+        </section>
     </aside>
 
     <aside class="desktop-battle-drawer" id="desktopBattleDrawer" aria-hidden="true">
@@ -424,14 +428,6 @@
     <div class="match-detail-modal" id="matchDetailModal" onclick="event.stopPropagation()">
         <button class="match-detail-close" type="button" onclick="closeMatchDetail(event)" aria-label="Close match details">&times;</button>
         <div class="match-detail-content" id="matchDetailContent"></div>
-    </div>
-</div>
-
-<!-- Sign-in popup (opens over the Play screen, no navigation) -->
-<div class="auth-popup-overlay hidden" id="authPopupOverlay" onclick="closeAuthPopup(event)">
-    <div class="auth-popup-modal welcome-auth-card" onclick="event.stopPropagation()">
-        <button class="match-detail-close auth-popup-close" type="button" onclick="closeAuthPopup(event)" aria-label="Close sign in">&times;</button>
-        <div class="auth-popup-body" id="authPopupBody"></div>
     </div>
 </div>
 
@@ -597,7 +593,6 @@
             <div class="loadout-toggle-label">Deck Source</div>
             <div class="loadout-tabs" role="group" aria-label="Deck Source">
                 <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Preset Decks</button>
-                <button class="loadout-tab" id="savedTab" type="button" onclick="switchLoadoutMode('saved')" aria-pressed="false">My Decks</button>
                 <button class="loadout-tab" id="builderTab" type="button" onclick="switchLoadoutMode('builder')" aria-pressed="false">Deck Builder</button>
             </div>
         </div>
@@ -611,16 +606,6 @@
                         </div>
                     </div>
                     <div id="deckOptions" class="loadout-options"></div>
-                </div>
-                <div id="savedLoadoutPanel" class="loadout-section hidden">
-                    <div class="loadout-section-title-row">
-                        <div>
-                            <div class="loadout-section-kicker">Deck Binder</div>
-                            <h3>Choose a Saved Deck</h3>
-                        </div>
-                    </div>
-                    <p class="loadout-saved-note" id="savedDeckLoadoutNote">Decks you saved on the home Decks screen appear here.</p>
-                    <div id="savedDeckOptions" class="loadout-options"></div>
                 </div>
                 <div id="builderLoadoutPanel" class="loadout-section hidden">
                     <div class="builder-toolbar">
@@ -718,10 +703,11 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=151"></script>
+    <script src="/js/game.js?v=130"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
-    <script src="/js/action-queue.js?v=32"></script>
+    <script src="/js/action-queue.js?v=23"></script>
     <script src="/js/loading-gate.js?v=2"></script>
 </body>
 </html>
+
