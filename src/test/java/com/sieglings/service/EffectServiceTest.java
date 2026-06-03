@@ -157,25 +157,29 @@ class EffectServiceTest {
     @Test
     void elementalWeaknessChartMatchesCurrentRules() {
         assertWeaknessBonus(Element.FIRE, Element.ICE);
+        assertWeaknessBonus(Element.FIRE, Element.METAL);
         assertWeaknessBonus(Element.ICE, Element.WIND);
+        assertWeaknessBonus(Element.ICE, Element.POISON);
         assertWeaknessBonus(Element.WIND, Element.EARTH);
+        assertWeaknessBonus(Element.WIND, Element.WATER);
         assertWeaknessBonus(Element.EARTH, Element.FIRE);
-        assertWeaknessBonus(Element.WATER, Element.FIRE);
-        assertWeaknessBonus(Element.WATER, Element.ICE);
-        assertWeaknessBonus(Element.METAL, Element.EARTH);
-        assertWeaknessBonus(Element.METAL, Element.WIND);
-        assertWeaknessBonus(Element.ELECTRIC, Element.WIND);
-        assertWeaknessBonus(Element.ELECTRIC, Element.FIRE);
-        assertWeaknessBonus(Element.POISON, Element.ICE);
-        assertWeaknessBonus(Element.POISON, Element.EARTH);
+        assertWeaknessBonus(Element.EARTH, Element.ELECTRIC);
         assertWeaknessBonus(Element.SHADOW, Element.PSYCHIC);
+        assertWeaknessBonus(Element.SHADOW, Element.LIGHT);
         assertWeaknessBonus(Element.PSYCHIC, Element.LIGHT);
+        assertWeaknessBonus(Element.PSYCHIC, Element.UNDEAD);
         assertWeaknessBonus(Element.LIGHT, Element.UNDEAD);
+        assertWeaknessBonus(Element.LIGHT, Element.SHADOW);
         assertWeaknessBonus(Element.UNDEAD, Element.SHADOW);
+        assertWeaknessBonus(Element.UNDEAD, Element.PSYCHIC);
 
         assertNoWeaknessBonus(Element.EARTH, Element.WIND);
+        assertNoWeaknessBonus(Element.WATER, Element.FIRE);
         assertNoWeaknessBonus(Element.WATER, Element.EARTH);
+        assertNoWeaknessBonus(Element.METAL, Element.EARTH);
+        assertNoWeaknessBonus(Element.ELECTRIC, Element.WIND);
         assertNoWeaknessBonus(Element.ELECTRIC, Element.WATER);
+        assertNoWeaknessBonus(Element.POISON, Element.ICE);
     }
 
     @Test

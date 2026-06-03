@@ -1400,29 +1400,21 @@ function isElementWeakTo(attackerElement, defenderElement) {
     const defender = String(defenderElement || '').trim().toUpperCase();
     switch (attacker) {
         case 'FIRE':
-            return defender === 'ICE';
+            return defender === 'ICE' || defender === 'METAL';
         case 'ICE':
-            return defender === 'WIND';
+            return defender === 'WIND' || defender === 'POISON';
         case 'WIND':
-            return defender === 'EARTH';
+            return defender === 'EARTH' || defender === 'WATER';
         case 'EARTH':
-            return defender === 'FIRE';
-        case 'WATER':
-            return defender === 'FIRE' || defender === 'ICE';
-        case 'METAL':
-            return defender === 'EARTH' || defender === 'WIND';
-        case 'ELECTRIC':
-            return defender === 'WIND' || defender === 'FIRE';
-        case 'POISON':
-            return defender === 'ICE' || defender === 'EARTH';
+            return defender === 'FIRE' || defender === 'ELECTRIC';
         case 'SHADOW':
-            return defender === 'PSYCHIC';
+            return defender === 'PSYCHIC' || defender === 'LIGHT';
         case 'PSYCHIC':
-            return defender === 'LIGHT';
+            return defender === 'LIGHT' || defender === 'UNDEAD';
         case 'LIGHT':
-            return defender === 'UNDEAD';
+            return defender === 'UNDEAD' || defender === 'SHADOW';
         case 'UNDEAD':
-            return defender === 'SHADOW';
+            return defender === 'SHADOW' || defender === 'PSYCHIC';
         default:
             return false;
     }
@@ -9399,21 +9391,17 @@ const ELEMENT_KEY_ICON_PATHS = {
 };
 
 // Elemental weakness chart — mirrors EffectService.isWeakTo (attacker hits these for +1 damage).
-// Primary cycle: Fire > Ice > Wind > Earth > Fire.
-// Shadow cycle: Shadow > Psychic > Light > Undead > Shadow.
+// Natural cycle: Fire > Ice, Metal | Ice > Wind, Poison | Wind > Earth, Water | Earth > Fire, Electric.
+// Shadow cycle: Shadow > Psychic, Light | Psychic > Light, Undead | Light > Undead, Shadow | Undead > Shadow, Psychic.
 const ELEMENT_STRENGTHS = [
-    ['FIRE', ['ICE']],
-    ['ICE', ['WIND']],
-    ['WIND', ['EARTH']],
-    ['EARTH', ['FIRE']],
-    ['WATER', ['FIRE', 'ICE']],
-    ['METAL', ['EARTH', 'WIND']],
-    ['ELECTRIC', ['WIND', 'FIRE']],
-    ['POISON', ['ICE', 'EARTH']],
-    ['SHADOW', ['PSYCHIC']],
-    ['PSYCHIC', ['LIGHT']],
-    ['LIGHT', ['UNDEAD']],
-    ['UNDEAD', ['SHADOW']]
+    ['FIRE', ['ICE', 'METAL']],
+    ['ICE', ['WIND', 'POISON']],
+    ['WIND', ['EARTH', 'WATER']],
+    ['EARTH', ['FIRE', 'ELECTRIC']],
+    ['SHADOW', ['PSYCHIC', 'LIGHT']],
+    ['PSYCHIC', ['LIGHT', 'UNDEAD']],
+    ['LIGHT', ['UNDEAD', 'SHADOW']],
+    ['UNDEAD', ['SHADOW', 'PSYCHIC']]
 ];
 
 /** Element legend chip — icon art when available, falling back to the solid colour token. */
