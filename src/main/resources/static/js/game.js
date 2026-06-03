@@ -6553,45 +6553,76 @@ function scheduleBattleAutoAdvance() {
 }
 window.scheduleBattleAutoAdvance = scheduleBattleAutoAdvance;
 
-// Surface a server/application error to the player as a toast (the in-game
-// toast system), so failed actions give visible feedback instead of only a
-// console message. Falls back to the toast stack directly if the action queue
-// hasn't initialised yet.
-function showErrorToast(message, holdMs = 4000) {
+// Surface a server/application error to the player as an on-screen toast, so
+// failed actions give visible feedback instead of only a console message.
+// Deliberately self-contained with inline styles (no dependency on the
+// in-game toast CSS or the action queue) so it renders on every screen,
+// including the loadout / match-start flow where the error is reported.
+function showErrorToast(message, holdMs = 4200) {
     const text = String(message == null ? '' : message).trim();
-    if (!text) return;
-    const warnPortrait = '<span class="sgl-toast-sigil" aria-hidden="true">⚠️</span>';
-    if (window.SieglingsActionQueue?.showToast) {
-        window.SieglingsActionQueue.showToast({
-            label: text,
-            side: 'ENEMY',
-            actorName: '',
-            targetName: '',
-            portraitHtml: warnPortrait
-        }, holdMs);
-        return;
-    }
-    let stack = document.getElementById('sieglingsToastStack');
+    if (!text || typeof document === 'undefined' || !document.body) return;
+
+    let stack = document.getElementById('sglErrorToastStack');
     if (!stack) {
         stack = document.createElement('div');
-        stack.id = 'sieglingsToastStack';
-        stack.className = 'sgl-toast-stack';
+        stack.id = 'sglErrorToastStack';
+        stack.style.cssText = [
+            'position:fixed',
+            'top:max(16px, env(safe-area-inset-top, 0px))',
+            'left:50%',
+            'transform:translateX(-50%)',
+            'z-index:2147483000',
+            'display:flex',
+            'flex-direction:column',
+            'align-items:center',
+            'gap:8px',
+            'width:min(560px, 92vw)',
+            'pointer-events:none'
+        ].join(';');
         document.body.appendChild(stack);
     }
+
     const node = document.createElement('div');
-    node.className = 'sgl-toast sgl-toast-enemy';
-    node.innerHTML = `
-        <div class="sgl-toast-portrait">${warnPortrait}</div>
-        <div class="sgl-toast-body">
-            <div class="sgl-toast-line"><span class="sgl-toast-action">${escapeHtml(text)}</span></div>
-        </div>`;
+    node.setAttribute('role', 'alert');
+    node.style.cssText = [
+        'pointer-events:auto',
+        'display:flex',
+        'align-items:center',
+        'gap:10px',
+        'width:100%',
+        'box-sizing:border-box',
+        'padding:12px 16px',
+        'border-radius:12px',
+        'background:linear-gradient(180deg, rgba(40,12,16,0.97), rgba(26,8,12,0.97))',
+        'border:1px solid rgba(255,90,90,0.6)',
+        'box-shadow:0 10px 30px rgba(0,0,0,0.45)',
+        'color:#ffe9e9',
+        'font:600 14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+        'opacity:0',
+        'transform:translateY(-8px)',
+        'transition:opacity 0.18s ease, transform 0.18s ease'
+    ].join(';');
+
+    const icon = document.createElement('span');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.style.cssText = 'font-size:18px;line-height:1;flex:0 0 auto';
+    icon.textContent = '⚠️';
+    const body = document.createElement('span');
+    body.style.cssText = 'flex:1 1 auto';
+    body.textContent = text; // textContent keeps the server message XSS-safe
+    node.appendChild(icon);
+    node.appendChild(body);
     stack.appendChild(node);
-    requestAnimationFrame(() => node.classList.add('visible'));
+
+    requestAnimationFrame(() => {
+        node.style.opacity = '1';
+        node.style.transform = 'translateY(0)';
+    });
     setTimeout(() => {
-        node.classList.remove('visible');
-        node.classList.add('leaving');
-        setTimeout(() => node.remove(), 240);
-    }, Math.max(400, holdMs));
+        node.style.opacity = '0';
+        node.style.transform = 'translateY(-8px)';
+        setTimeout(() => { if (node.parentNode) node.parentNode.removeChild(node); }, 220);
+    }, Math.max(1500, holdMs));
 }
 window.showErrorToast = showErrorToast;
 
