@@ -5321,8 +5321,26 @@ function dismissWelcome() {
     }
 }
 
+// When entering a battle flow without a confirmed account, make sure no lingering
+// auth token rides along on /api/game/new. The welcome overlay only shows the
+// guest/sign-in card (and the Solo Battle button) when no authenticated profile is
+// loaded; if /api/auth/me failed on a network blip the token is left in place and
+// would otherwise still be sent as a Bearer header, making the server resolve a stale
+// account and gate SiegeKnight ownership while the UI shows guest affordances. Guarded
+// on `authenticated` so a genuinely signed-in player keeps their token (and knight
+// progression) untouched.
+function dropStaleGuestToken() {
+    if (!authState.profile?.authenticated && (authState.token || authState.profile)) {
+        clearAuthState();
+    }
+}
+
 function playAsGuest() {
     authState.error = '';
+    // Explicitly continuing as a guest: drop any lingering/expired token so the server
+    // treats this as a true guest session (user == null → no ownership gate, every
+    // SiegeKnight is selectable).
+    dropStaleGuestToken();
     dismissWelcome();
 }
 
@@ -5330,6 +5348,7 @@ function startPlaySolo() {
     matchMode = 'solo';
     onlineRoomMode = 'create';
     resetPlayLobbyState(false);
+    dropStaleGuestToken();
     dismissWelcome();
 }
 
