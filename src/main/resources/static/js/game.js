@@ -6616,13 +6616,12 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
     if (data.error) {
         console.error(data.error);
+        // Always surface a toast so failed actions (including match start, e.g.
+        // picking a SiegeKnight you haven't unlocked) give visible feedback.
+        showErrorToast(String(data.error));
         if (endpoint === 'new') {
             showLoadoutLoadingError(String(data.error));
             syncEntryOverlays();
-        } else {
-            // Non-startup actions had no visible feedback on failure (e.g.
-            // picking a SiegeKnight you haven't unlocked) — surface a toast.
-            showErrorToast(String(data.error));
         }
         return null;
     }
@@ -7897,6 +7896,7 @@ async function createRoom() {
     if (!data || data.error) {
         loadoutErrorMessage = data?.error || 'Unable to create room. Please try again from Social.';
         console.error(loadoutErrorMessage);
+        showErrorToast(loadoutErrorMessage);
         return false;
     }
 
@@ -7942,6 +7942,7 @@ async function joinRoom() {
     if (!data || data.error) {
         loadoutErrorMessage = data?.error || 'Unable to join room. Check the room in Social, then try again.';
         console.error(loadoutErrorMessage);
+        showErrorToast(loadoutErrorMessage);
         return false;
     }
 
@@ -7993,6 +7994,8 @@ async function submitMatchLoadout() {
 
     if (!data || data.error) {
         loadoutErrorMessage = data?.error || 'Unable to lock in loadout. Try again.';
+        console.error(loadoutErrorMessage);
+        showErrorToast(loadoutErrorMessage);
         return false;
     }
 
