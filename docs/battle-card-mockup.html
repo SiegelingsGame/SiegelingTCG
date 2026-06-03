@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sieglings — Battle Card Mockup (Hand vs Board)</title>
+  <style>
+    :root {
+      --bg: #0a0f1a;
+      --surface: #16213e;
+      --accent: #e2b714;
+      --text: #e8ecf4;
+      --text-dim: #9aa8c4;
+      --success: #39ff14;
+      --danger: #e74c3c;
+      --earth: #b48c50;
+      --fire: #ff501e;
+      --water: #3296ff;
+      --card-aspect: 5 / 7;
+    }
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      font-family: "Segoe UI", Consolas, monospace;
+      background: radial-gradient(ellipse at 30% 0%, #1a2848, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 1.1rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      margin-bottom: 24px;
+      max-width: 720px;
+      line-height: 1.45;
+    }
+    .mockup-shell {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 20px;
+      max-width: 1100px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .mockup-shell { grid-template-columns: 1fr; }
+    }
+    .play-panel {
+      background: linear-gradient(180deg, rgba(28, 40, 72, 0.98), rgba(16, 26, 48, 0.98));
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+    }
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(22, 33, 62, 0.95);
+      border-bottom: 2px solid var(--accent);
+      font-size: 0.65rem;
+    }
+    .hud strong { color: var(--danger); }
+    .hud .you strong { color: var(--success); }
+    .phase {
+      background: var(--accent);
+      color: #0a0f1a;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-size: 0.58rem;
+    }
+    .arena {
+      padding: 10px;
+      background:
+        linear-gradient(180deg, rgba(11, 17, 31, 0.9), rgba(8, 12, 22, 0.96)),
+        radial-gradient(circle at 20% 20%, rgba(50, 150, 255, 0.12), transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(180, 140, 80, 0.1), transparent 45%);
+    }
+    .bf-label {
+      text-align: center;
+      font-size: 0.52rem;
+      letter-spacing: 0.14em;
+      color: var(--text-dim);
+      margin: 4px 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      max-width: 280px;
+      margin: 0 auto 12px;
+    }
+    .cell {
+      aspect-ratio: 5 / 5.8;
+      border: 2px dashed rgba(255,255,255,0.12);
+      border-radius: 8px;
+      background: rgba(0,0,0,0.2);
+      position: relative;
+      padding: 4px;
+    }
+    .cell.filled { border-style: solid; border-color: rgba(255,255,255,0.2); }
+
+    /* —— Arena board card (compact) —— */
+    .board-card {
+      width: 100%;
+      height: 100%;
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(160deg, #c4a574 0%, #8a6c40 45%, #5c4528 100%);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+    }
+    .board-card .art {
+      position: absolute;
+      inset: 0;
+      opacity: 0.35;
+      background: radial-gradient(circle at 50% 35%, rgba(255,255,255,0.5), transparent 55%);
+    }
+    .acting-badge {
+      position: absolute;
+      top: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 4;
+      font-size: 0.38rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: rgba(226, 183, 20, 0.95);
+      color: #1a1208;
+    }
+    .bc-inner {
+      position: absolute;
+      inset: 6px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      z-index: 2;
+    }
+    .bc-name-box {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+    }
+    .board-card .card-name {
+      font-weight: 700;
+      font-size: 0.55rem;
+      line-height: 1.1;
+      text-align: center;
+      color: #1a1208;
+    }
+    .sb-row {
+      display: flex;
+      justify-content: center;
+      gap: 3px;
+      margin-bottom: 2px;
+      flex-wrap: wrap;
+    }
+    .sb-badge {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.45rem;
+      font-weight: 800;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    }
+    .sb-badge.shield { background: linear-gradient(180deg, #e8ecf0, #8a939e); color: #333; }
+    .sb-badge.dmg { background: linear-gradient(180deg, #ff8866, #cc3311); color: #fff; }
+    .sb-badge.spd { background: linear-gradient(180deg, #7adfff, #2a88cc); color: #fff; }
+    .bc-stats-box {
+      border: 1.5px solid #555;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.75);
+      padding: 3px 2px 2px;
+    }
+    .hp-bar {
+      height: 5px;
+      border-radius: 3px;
+      background: rgba(0,0,0,0.2);
+      overflow: hidden;
+      margin-bottom: 3px;
+    }
+    .hp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2ecc71, var(--success));
+      border-radius: 3px;
+      width: 62%;
+    }
+    .card-stats {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr;
+      gap: 2px;
+      font-size: 0.48rem;
+    }
+    .stat {
+      padding: 1px 2px;
+      border-radius: 2px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .stat-hp { background: var(--success); color: var(--bg); }
+    .stat-spd { background: #7adfff; color: var(--bg); }
+
+    /* —— Hand selector card (Cards menu style) —— */
+    .compare-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .compare-block h2 {
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #8bc2ff;
+      margin-bottom: 8px;
+    }
+    .hand-card {
+      width: 138px;
+      aspect-ratio: var(--card-aspect);
+      background: linear-gradient(180deg, #1a2238 0%, #0d1220 100%);
+      border: 2px solid rgba(226, 183, 20, 0.45);
+      border-radius: 12px;
+      padding: 8px 7px 10px;
+      position: relative;
+      box-shadow: 0 14px 28px rgba(0,0,0,0.4);
+    }
+    .hand-card::before,
+    .hand-card::after {
+      content: "";
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #4a5568, #1a2030);
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .hand-card::before { top: 5px; left: 5px; }
+    .hand-card::after { top: 5px; right: 5px; }
+    .hc-header { text-align: center; margin-bottom: 6px; }
+    .hc-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: #f5f8ff;
+      line-height: 1.1;
+    }
+    .hc-label {
+      font-size: 0.48rem;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .card-art-hand {
+      border: 2px solid rgba(226, 183, 20, 0.5);
+      border-radius: 8px;
+      min-height: 88px;
+      margin-bottom: 6px;
+      background:
+        radial-gradient(circle at 50% 40%, rgba(180, 140, 80, 0.5), transparent 50%),
+        linear-gradient(145deg, #3d5c32, #2a3d22 40%, #5c4528);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .art-emblem {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 3px solid rgba(226, 183, 20, 0.7);
+      background: radial-gradient(circle, #6b8f4a, #3d5c32);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+    .hc-stats {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .hc-stat-pill {
+      flex: 1;
+      text-align: center;
+      font-size: 0.5rem;
+      font-weight: 700;
+      padding: 3px 4px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .hc-rarity {
+      text-align: center;
+      font-size: 0.46rem;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .hc-ability {
+      text-align: center;
+      font-size: 0.5rem;
+      font-weight: 700;
+      color: var(--earth);
+      letter-spacing: 0.06em;
+    }
+    .hc-flavor {
+      margin-top: 6px;
+      padding: 6px 5px;
+      border-radius: 6px;
+      border: 1px solid rgba(226, 183, 20, 0.25);
+      background: rgba(0,0,0,0.35);
+      font-size: 0.42rem;
+      font-style: italic;
+      line-height: 1.35;
+      color: rgba(226, 183, 20, 0.85);
+      text-align: center;
+    }
+    .element-notch {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--earth);
+      border: 1px solid #8a6c30;
+      font-size: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .element-notch.t { top: 50%; left: -2px; transform: translateY(-50%); }
+    .element-notch.r { top: 50%; right: -2px; transform: translateY(-50%); }
+    .element-notch.b { bottom: 4px; left: 50%; transform: translateX(-50%); }
+
+    .arrow-note {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      padding: 8px 0;
+    }
+    .arrow-note span { color: var(--accent); font-weight: 700; }
+
+    .dock-preview {
+      margin-top: 12px;
+      padding: 10px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.25);
+    }
+    .dock-preview .label {
+      font-size: 0.58rem;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .ab-row {
+      display: flex;
+      gap: 6px;
+    }
+    .ab-knight, .ab-pass {
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 2px solid rgba(255, 215, 0, 0.3);
+      background: rgba(255,255,255,0.06);
+      font-size: 0.62rem;
+      text-align: left;
+    }
+    .ab-pass {
+      border-color: rgba(139, 194, 255, 0.4);
+    }
+    .ab-pass small {
+      display: block;
+      margin-top: 2px;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sieglings TCG — Battle card mockup</h1>
+  <p class="subtitle">
+    Left: play battlefield with compact <strong>arena board cards</strong> (HP bar + status badges).
+    Right: <strong>Cards menu / hand selector</strong> full-detail card (Bonoblade) for comparison.
+  </p>
+
+  <div class="mockup-shell">
+    <section class="play-panel">
+      <div class="hud">
+        <span>AI Opponent · H:5 D:24</span>
+        <span class="phase">BATTLE · T1</span>
+        <span class="you">You · H:5 D:24</span>
+      </div>
+      <div class="arena">
+        <div class="bf-label">ENEMY</div>
+        <div class="grid">
+          <div class="cell filled"><div class="board-card earth"><div class="art"></div><div class="bc-inner"><div class="bc-name-box"><span class="card-name">Falcool</span></div><div class="sb-row"><span class="sb-badge dmg" title="Damage +1">+1</span></div><div class="bc-stats-box"><div class="hp-bar"><div class="hp-fill" style="width:100%"></div></div><div class="card-stats"><span class="stat stat-hp">10/10</span><span class="stat stat-spd">8</span></div></div></div></div></div>
+          <div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+        </div>
+        <div class="bf-label">YOU</div>
+        <div class="grid">
+          <div class="cell"></div>
+          <div class="cell filled">
+            <div class="board-card earth">
+              <div class="acting-badge">Acting</div>
+              <div class="art"></div>
+              <div class="bc-inner">
+                <div class="bc-name-box"><span class="card-name">Bonoblade</span></div>
+                <div class="sb-row">
+                  <span class="sb-badge shield" title="Shield +2">+2</span>
+                  <span class="sb-badge spd" title="Speed +1">+1</span>
+                </div>
+                <div class="bc-stats-box">
+                  <div class="hp-bar"><div class="hp-fill" style="width:62%"></div></div>
+                  <div class="card-stats">
+                    <span class="stat stat-hp">10/16</span>
+                    <span class="stat stat-spd">11</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+        </div>
+        <div class="dock-preview">
+          <div class="label">Action bar (compact dock)</div>
+          <div class="ab-row">
+            <button type="button" class="ab-knight">⚔ Knight</button>
+            <button type="button" class="ab-pass">Pass<small>Next: Falcool · AI Opponent</small></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="compare-panel">
+      <div class="compare-block">
+        <h2>Hand selector / Cards menu</h2>
+        <article class="hand-card">
+          <span class="element-notch t">🌿</span>
+          <span class="element-notch r">🌿</span>
+          <span class="element-notch b">🌿</span>
+          <div class="hc-header">
+            <div class="hc-title">Bonoblade</div>
+            <div class="hc-label">Siegeling / Earth</div>
+          </div>
+          <div class="card-art-hand">
+            <div class="art-emblem">⛰</div>
+          </div>
+          <div class="hc-stats">
+            <span class="hc-stat-pill">HP: 16</span>
+            <span class="hc-stat-pill">SPD: 10</span>
+          </div>
+          <div class="hc-rarity">Uncommon / Owned</div>
+          <div class="hc-ability">🌿 FRUIT FIGHT</div>
+          <div class="hc-flavor">A burrowing predator that erupts from the ground to ambush unsuspecting prey with snapping jaws.</div>
+        </article>
+      </div>
+
+      <div class="arrow-note">↓ Same Siegeling on board becomes ↓</div>
+
+      <div class="compare-block">
+        <h2>Arena board tile</h2>
+        <div style="width: 92px; aspect-ratio: 5/5.8;">
+          <div class="board-card earth" style="height:100%">
+            <div class="acting-badge">Acting</div>
+            <div class="art"></div>
+            <div class="bc-inner">
+              <div class="bc-name-box"><span class="card-name">Bonoblade</span></div>
+              <div class="sb-row">
+                <span class="sb-badge shield">+2</span>
+                <span class="sb-badge spd">+1</span>
+              </div>
+              <div class="bc-stats-box">
+                <div class="hp-bar"><div class="hp-fill" style="width:62%"></div></div>
+                <div class="card-stats">
+                  <span class="stat stat-hp">10/16</span>
+                  <span class="stat stat-spd">11</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:0.65rem;color:var(--text-dim);margin-top:8px;line-height:1.4;">
+          HP bar shows current/max. Circular badges = shield, damage boost, speed boost, etc. (from live game).
+        </p>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>

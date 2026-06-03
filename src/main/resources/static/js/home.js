@@ -35,6 +35,7 @@
     const ELEMENT_COLORS = {
         FIRE: '#f05b2f', EARTH: '#a7773d', WIND: '#64c987', WATER: '#3c8ed8', ICE: '#7ad9e7',
         SHADOW: '#6d4a9e', ELECTRIC: '#f5cf3d', METAL: '#aeb5b8', UNDEAD: '#9f7c73', PSYCHIC: '#db73b4',
+        POISON: '#7ecb4d', LIGHT: '#ffe59a',
         NEUTRAL: '#95a5a6'
     };
     const ELEMENT_ICON_PATHS = {
@@ -48,6 +49,8 @@
         METAL: '/img/elements/element-metal.svg',
         UNDEAD: '/img/elements/element-undead.svg',
         PSYCHIC: '/img/elements/element-psychic.svg',
+        POISON: '/img/elements/element-poison.svg',
+        LIGHT: '/img/elements/element-light.svg',
         NEUTRAL: '/img/elements/element-neutral.svg'
     };
     const NOTCH_ICON_PATHS = {

@@ -1010,6 +1010,17 @@
         };
     }
 
+    function parseSiegeBountyFromLog(line) {
+        const text = stripLogPrefix(line);
+        const m = text.match(/^(.+?)'s\s+bounty\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?[.!]?$/i);
+        if (!m) return null;
+        return {
+            source: m[1].trim(),
+            amount: parseInt(m[2], 10),
+            target: m[3].trim()
+        };
+    }
+
     // Healing log shapes:
     //   "Cleansing Breath heals Sundile for 4 (HP: 12)"
     //   "Cleansing Breath restores 4 HP to Sundile"
@@ -1138,6 +1149,10 @@
             // these entries keep that resolved HP visible while the matching
             // attack animation finishes.
             this.pendingHealthChanges = new Map();
+            // Map<P|E, { isPlayer, displayHealth, finalHealth, maxHealth }>
+            // Direct player HP drops are held at the old number until the
+            // health-bar projectile lands, matching board-card damage pacing.
+            this.pendingDirectHealthChanges = new Map();
             // Map<key, { isPlayer, row, col, status }> — status badges (Freeze,
             // Weak, Damage Boost, etc.) that the server already reports but whose
             // animation hasn't played yet. The matching badge is held hidden
@@ -1185,6 +1200,7 @@
             this.revealAllPendingPlacements();
             this.revealAllPendingMoves();
             this.settleAllPendingHealth();
+            this.settleAllPendingDirectHealth();
             this.settleAllPendingStatuses();
             this.releaseAllPendingLethalHolds();
         }
@@ -1254,6 +1270,7 @@
                 this._pendingSyncScheduled = false;
                 this.syncPendingPlacements();
                 this.syncPendingMoves();
+                this.syncPendingDirectHealth();
                 this.syncPendingLethalHolds();
             });
         }
@@ -1333,6 +1350,7 @@
             const barHp = resolvedHp;
             const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
             const fill = card.querySelector('.hp-fill');
+            const damaged = resolvedMax > 0 && resolvedHp < resolvedMax;
             if (fill) {
                 fill.style.width = `${pct}%`;
                 // Re-key the colour tier so the bar's hue tracks the new
@@ -1346,8 +1364,16 @@
                 fill.classList.remove('hp-fill-high', 'hp-fill-mid', 'hp-fill-low', 'hp-fill-critical');
                 if (tierClass) fill.classList.add(tierClass);
             }
+            const hpPill = card.querySelector('.card-stat-pill-hp');
+            if (hpPill) {
+                hpPill.textContent = `HP: ${Math.max(0, resolvedHp)}`;
+                hpPill.classList.toggle('is-damaged', damaged);
+            }
             const hpStat = card.querySelector('.stat-hp');
-            if (hpStat) hpStat.innerHTML = this.renderHealthInner(entry, resolvedHp, resolvedMax);
+            if (hpStat) {
+                hpStat.innerHTML = this.renderHealthInner(entry, resolvedHp, resolvedMax);
+                hpStat.classList.toggle('is-damaged', damaged);
+            }
             this.syncShieldVisualsToHealth(card, entry, resolvedShield);
         }
         registerPendingHealth(target) {
@@ -1528,6 +1554,79 @@
             }
         }
 
+        _directHealthKey(isPlayer) {
+            return isPlayer ? 'P' : 'E';
+        }
+        registerPendingDirectHealth(target) {
+            if (!target) return null;
+            const prevHealth = Number(target.prevHealth);
+            const nextHealth = Number(target.nextHealth);
+            if (!Number.isFinite(prevHealth) || !Number.isFinite(nextHealth) || nextHealth >= prevHealth) {
+                return null;
+            }
+            const key = this._directHealthKey(!!target.isPlayer);
+            this.pendingDirectHealthChanges.set(key, {
+                isPlayer: !!target.isPlayer,
+                displayHealth: prevHealth,
+                finalHealth: nextHealth,
+                maxHealth: Number.isFinite(Number(target.maxHealth)) ? Number(target.maxHealth) : 50
+            });
+            this.syncPendingDirectHealth();
+            return key;
+        }
+        getDisplayedHealth(isPlayer, fallbackHealth) {
+            const entry = this.pendingDirectHealthChanges.get(this._directHealthKey(!!isPlayer));
+            if (entry) return entry.displayHealth;
+            const value = Number(fallbackHealth);
+            return Number.isFinite(value) ? value : 0;
+        }
+        applyDirectHealthToDom(entry, health) {
+            if (!entry) return;
+            const isPlayer = !!entry.isPlayer;
+            const safeHealth = Math.max(0, Number.isFinite(Number(health)) ? Number(health) : 0);
+            const maxHealth = Math.max(1, Number.isFinite(Number(entry.maxHealth)) ? Number(entry.maxHealth) : 50);
+            const pct = Math.max(0, Math.min(100, Math.round((safeHealth / maxHealth) * 100)));
+            const textIds = isPlayer
+                ? ['playerHealth', 'railPlayerHealth']
+                : ['enemyHealth', 'railEnemyHealth'];
+            for (const id of textIds) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = String(safeHealth);
+            }
+            const fillIds = isPlayer
+                ? ['railPlayerHpBar', 'mobilePlayerHpBar', 'safeHpFillPlayer']
+                : ['railEnemyHpBar', 'mobileEnemyHpBar', 'safeHpFillEnemy'];
+            for (const id of fillIds) {
+                const fill = document.getElementById(id);
+                if (fill) fill.style.width = `${pct}%`;
+            }
+            const safeFill = document.getElementById(isPlayer ? 'safeHpFillPlayer' : 'safeHpFillEnemy');
+            const safeHalf = safeFill?.closest('.safe-hp-half');
+            if (safeHalf) safeHalf.classList.toggle('danger', pct > 0 && pct <= 30);
+        }
+        syncPendingDirectHealth() {
+            for (const entry of this.pendingDirectHealthChanges.values()) {
+                this.applyDirectHealthToDom(entry, entry.displayHealth);
+            }
+        }
+        applyPendingDirectHealth(key) {
+            if (!key) return;
+            const entry = this.pendingDirectHealthChanges.get(key);
+            if (!entry) return;
+            entry.displayHealth = entry.finalHealth;
+            this.applyDirectHealthToDom(entry, entry.finalHealth);
+        }
+        releasePendingDirectHealth(key) {
+            if (!key) return;
+            this.applyPendingDirectHealth(key);
+            this.pendingDirectHealthChanges.delete(key);
+        }
+        settleAllPendingDirectHealth() {
+            for (const key of Array.from(this.pendingDirectHealthChanges.keys())) {
+                this.releasePendingDirectHealth(key);
+            }
+        }
+
         // ── Pending-status registry ───────────────────────────────────────
         _statusKey(isPlayer, row, col, status) {
             return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${String(status || '').toUpperCase()}`;
@@ -1642,6 +1741,36 @@
             el.classList.add('sgl-hp-impact');
             setTimeout(() => el.classList.remove('sgl-hp-impact'), 720);
         }
+        _fractureHealthBar(isPlayer, elementHexValue) {
+            const el = this._getHealthBarEl(isPlayer);
+            if (!el) return;
+            const crackColor = elementHexValue || ELEMENT_HEX.NEUTRAL;
+            el.style.setProperty('--sgl-siege-crack', crackColor);
+            el.classList.remove('sgl-health-fracture');
+            el.querySelectorAll(':scope > .sgl-health-cracks').forEach((node) => node.remove());
+
+            const overlay = document.createElement('span');
+            overlay.className = 'sgl-health-cracks';
+            overlay.setAttribute('aria-hidden', 'true');
+            const cracks = [
+                ['16%', '44%', '44px', '-18deg'],
+                ['30%', '24%', '54px', '36deg'],
+                ['45%', '52%', '66px', '-7deg'],
+                ['58%', '31%', '46px', '54deg'],
+                ['70%', '57%', '58px', '-34deg'],
+                ['81%', '38%', '38px', '20deg']
+            ];
+            overlay.innerHTML = cracks.map(([left, top, width, rotate], index) =>
+                `<span style="left:${left};top:${top};width:${width};transform:rotate(${rotate});animation-delay:${index * 28}ms"></span>`
+            ).join('');
+            el.appendChild(overlay);
+            void el.offsetWidth;
+            el.classList.add('sgl-health-fracture');
+            setTimeout(() => {
+                el.classList.remove('sgl-health-fracture');
+                overlay.remove();
+            }, 920);
+        }
 
         // Where to launch a "sourceless" projectile from when we can't
         // identify the attacking cell (e.g. an AI counter-attack whose log
@@ -1690,6 +1819,26 @@
             const playerName   = nextState.playerName || prevState.playerName || 'Player';
             const enemyName    = nextState.enemyName  || prevState.enemyName  || 'Opponent';
             const newLogs      = getNewLogEntries(prevState, nextState);
+            const siegeBountyLogs = newLogs.map(parseSiegeBountyFromLog).filter(Boolean);
+            const findSiegeBountyHit = (targetNames, amount) => {
+                if (!amount || !siegeBountyLogs.length) return null;
+                const names = (targetNames || []).filter(Boolean);
+                const matches = siegeBountyLogs.filter((entry) =>
+                    entry.amount > 0
+                    && (!names.length || names.some((name) => namesMatch(entry.target, name)))
+                );
+                const exact = matches.find((entry) => entry.amount === amount);
+                if (exact) return exact;
+                const total = matches.reduce((sum, entry) => sum + entry.amount, 0);
+                if (total === amount) {
+                    return {
+                        source: matches.map((entry) => entry.source).filter(Boolean).join(', '),
+                        amount: total,
+                        target: matches[0]?.target || ''
+                    };
+                }
+                return null;
+            };
 
             // A state diff can span a whole battle resolution + the next phase's
             // placements (e.g. player commits attack → server resolves battle →
@@ -2313,6 +2462,17 @@
 
             if (Number.isFinite(prevEnemyHp) && Number.isFinite(nextEnemyHp) && nextEnemyHp < prevEnemyHp) {
                 const dmg = prevEnemyHp - nextEnemyHp;
+                const siegeHit = findSiegeBountyHit([
+                    enemyName,
+                    nextState.enemy?.name,
+                    prevState.enemy?.name
+                ], dmg);
+                const pendingDirectHealthKey = this.registerPendingDirectHealth({
+                    isPlayer: false,
+                    prevHealth: prevEnemyHp,
+                    nextHealth: nextEnemyHp,
+                    maxHealth: 50
+                });
                 const srcRef = (() => {
                     const pending = prevState.pendingBattle;
                     if (pending) {
@@ -2325,30 +2485,47 @@
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side: 'PLAYER',
-                    actorName: srcRef?.cell?.name || srcRef?.pending?.name || playerName,
+                    actorName: siegeHit?.source ? `${siegeHit.source}'s bounty` : (srcRef?.cell?.name || srcRef?.pending?.name || playerName),
                     targetName: enemyName,
                     amount: dmg,
+                    label: siegeHit ? 'Siege damage' : undefined,
+                    siegeDamage: Boolean(siegeHit),
                     knightElement: playerKnight,
-                    elementColor: srcElement,
-                    source: srcRef ? { isPlayer: true, row: srcRef.row, col: srcRef.col } : null,
-                    target: { healthBar: true, isPlayer: false, element: srcElement },
+                    elementColor: siegeHit ? enemyKnight : srcElement,
+                    source: (!siegeHit && srcRef) ? { isPlayer: true, row: srcRef.row, col: srcRef.col } : null,
+                    target: { healthBar: true, isPlayer: false, element: siegeHit ? enemyKnight : srcElement, pendingDirectHealthKey },
+                    pendingDirectHealthKey,
                     gapAfterMs: BATTLE_GAP_MS
                 });
             }
             if (Number.isFinite(prevPlayerHp) && Number.isFinite(nextPlayerHp) && nextPlayerHp < prevPlayerHp) {
                 const dmg = prevPlayerHp - nextPlayerHp;
+                const siegeHit = findSiegeBountyHit([
+                    playerName,
+                    nextState.player?.name,
+                    prevState.player?.name
+                ], dmg);
+                const pendingDirectHealthKey = this.registerPendingDirectHealth({
+                    isPlayer: true,
+                    prevHealth: prevPlayerHp,
+                    nextHealth: nextPlayerHp,
+                    maxHealth: 50
+                });
                 const srcRef = findCellOnBoard(prevEnemy, () => true);
                 const srcElement = normalizeElement(srcRef?.cell?.element) || enemyKnight;
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side: 'ENEMY',
-                    actorName: srcRef?.cell?.name || enemyName,
+                    actorName: siegeHit?.source ? `${siegeHit.source}'s bounty` : (srcRef?.cell?.name || enemyName),
                     targetName: playerName,
                     amount: dmg,
+                    label: siegeHit ? 'Siege damage' : undefined,
+                    siegeDamage: Boolean(siegeHit),
                     knightElement: enemyKnight,
-                    elementColor: srcElement,
-                    source: srcRef ? { isPlayer: false, row: srcRef.row, col: srcRef.col } : null,
-                    target: { healthBar: true, isPlayer: true, element: srcElement },
+                    elementColor: siegeHit ? playerKnight : srcElement,
+                    source: (!siegeHit && srcRef) ? { isPlayer: false, row: srcRef.row, col: srcRef.col } : null,
+                    target: { healthBar: true, isPlayer: true, element: siegeHit ? playerKnight : srcElement, pendingDirectHealthKey },
+                    pendingDirectHealthKey,
                     gapAfterMs: BATTLE_GAP_MS
                 });
             }
@@ -2406,6 +2583,7 @@
                 this.revealAllPendingPlacements();
                 this.revealAllPendingMoves();
                 this.settleAllPendingHealth();
+                this.settleAllPendingDirectHealth();
                 this.settleAllPendingStatuses();
                 if (typeof window.scheduleBattleAutoAdvance === 'function') {
                     window.scheduleBattleAutoAdvance();
@@ -2425,6 +2603,8 @@
             this.syncPendingPlacements();
             this.syncPendingStatuses();
             this.syncPendingMoves();
+            this.syncPendingHealth();
+            this.syncPendingDirectHealth();
             this.syncPendingLethalHolds();
 
             const deferAttackToast = action.kind === 'ATTACK' && !action.target?.healthBar && (
@@ -2660,7 +2840,12 @@
                         { duration: t.projectileMs }
                     );
                     await sleep(t.projectileMs);
+                    const directHealthKey = action.pendingDirectHealthKey || action.target?.pendingDirectHealthKey;
+                    this.applyPendingDirectHealth(directHealthKey);
                     this._flashHealthBar(action.target.isPlayer, elColor);
+                    if (action.siegeDamage) {
+                        this._fractureHealthBar(action.target.isPlayer, elColor);
+                    }
                     if (window.SieglingsFx?.impactAtPoint) {
                         window.SieglingsFx.impactAtPoint(
                             barCenter.x, barCenter.y,
@@ -2678,6 +2863,7 @@
                         window.SieglingsFx.cameraShake(shake, t.impactMs);
                     }
                     await sleep(t.impactMs);
+                    this.releasePendingDirectHealth(directHealthKey);
                     const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                     await sleep(gap);
                     return;
@@ -2739,7 +2925,12 @@
                 // Sourceless health-bar damage — still flash the bar so the
                 // player registers the hit.
                 const barCenter = this._getHealthBarCenter(action.target.isPlayer);
+                const directHealthKey = action.pendingDirectHealthKey || action.target?.pendingDirectHealthKey;
+                this.applyPendingDirectHealth(directHealthKey);
                 this._flashHealthBar(action.target.isPlayer, elColor);
+                if (action.siegeDamage) {
+                    this._fractureHealthBar(action.target.isPlayer, elColor);
+                }
                 if (barCenter && window.SieglingsFx?.impactAtPoint) {
                     window.SieglingsFx.impactAtPoint(
                         barCenter.x, barCenter.y,
@@ -2757,6 +2948,7 @@
                     window.SieglingsFx.cameraShake(shake, t.impactMs);
                 }
                 await sleep(t.impactMs);
+                this.releasePendingDirectHealth(directHealthKey);
                 const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(gap);
                 return;
@@ -2887,6 +3079,8 @@
         isProcessing: () => queue.isProcessing(),
         markOpponentThinking: (a, s) => queue.markOpponentThinking(a, s),
         syncPendingPlacements: () => queue.syncPendingPlacements(),
+        syncPendingDirectHealth: () => queue.syncPendingDirectHealth(),
+        getDisplayedHealth: (isPlayer, fallbackHealth) => queue.getDisplayedHealth(isPlayer, fallbackHealth),
         showToast: (toast, holdMs) => queue.toasts.show(toast, holdMs)
     };
 
@@ -2904,6 +3098,7 @@
             try { queue.syncPendingPlacements(); } catch (_) {}
             try { queue.syncPendingMoves(); } catch (_) {}
             try { queue.syncPendingHealth(); } catch (_) {}
+            try { queue.syncPendingDirectHealth(); } catch (_) {}
             try { queue.syncPendingStatuses(); } catch (_) {}
             try { queue.syncPendingLethalHolds(); } catch (_) {}
             return result;

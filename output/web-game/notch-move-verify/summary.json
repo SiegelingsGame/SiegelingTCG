@@ -1,0 +1,32 @@
+{
+  "during": {
+    "shiftCloneVisible": true,
+    "destroyAnimationVisible": false,
+    "targetVisibility": "hidden",
+    "targetOpacity": "0",
+    "targetRect": {
+      "x": 510.21875,
+      "y": 492.828125,
+      "width": 46.921875,
+      "height": 55.0625
+    },
+    "toastText": "🌪\nBreezee\nshifts to\nFront row, col 1"
+  },
+  "after": {
+    "shiftCloneVisible": false,
+    "destroyAnimationVisible": false,
+    "originHasCard": false,
+    "targetHasCard": true,
+    "targetVisibility": "visible",
+    "targetOpacity": "1",
+    "targetRect": {
+      "x": 510.21875,
+      "y": 492.828125,
+      "width": 46.921875,
+      "height": 55.0625
+    },
+    "targetName": "Breezee\nHP: 10\nSPD: —",
+    "queueProcessing": false
+  },
+  "errors": []
+}
