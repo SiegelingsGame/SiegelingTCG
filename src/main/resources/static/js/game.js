@@ -6553,6 +6553,48 @@ function scheduleBattleAutoAdvance() {
 }
 window.scheduleBattleAutoAdvance = scheduleBattleAutoAdvance;
 
+// Surface a server/application error to the player as a toast (the in-game
+// toast system), so failed actions give visible feedback instead of only a
+// console message. Falls back to the toast stack directly if the action queue
+// hasn't initialised yet.
+function showErrorToast(message, holdMs = 4000) {
+    const text = String(message == null ? '' : message).trim();
+    if (!text) return;
+    const warnPortrait = '<span class="sgl-toast-sigil" aria-hidden="true">⚠️</span>';
+    if (window.SieglingsActionQueue?.showToast) {
+        window.SieglingsActionQueue.showToast({
+            label: text,
+            side: 'ENEMY',
+            actorName: '',
+            targetName: '',
+            portraitHtml: warnPortrait
+        }, holdMs);
+        return;
+    }
+    let stack = document.getElementById('sieglingsToastStack');
+    if (!stack) {
+        stack = document.createElement('div');
+        stack.id = 'sieglingsToastStack';
+        stack.className = 'sgl-toast-stack';
+        document.body.appendChild(stack);
+    }
+    const node = document.createElement('div');
+    node.className = 'sgl-toast sgl-toast-enemy';
+    node.innerHTML = `
+        <div class="sgl-toast-portrait">${warnPortrait}</div>
+        <div class="sgl-toast-body">
+            <div class="sgl-toast-line"><span class="sgl-toast-action">${escapeHtml(text)}</span></div>
+        </div>`;
+    stack.appendChild(node);
+    requestAnimationFrame(() => node.classList.add('visible'));
+    setTimeout(() => {
+        node.classList.remove('visible');
+        node.classList.add('leaving');
+        setTimeout(() => node.remove(), 240);
+    }, Math.max(400, holdMs));
+}
+window.showErrorToast = showErrorToast;
+
 async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
     const opts = { method, headers: getAuthHeaders({ 'Content-Type': 'application/json' }) };
     if (multiplayerSession?.roomId && multiplayerSession?.playerToken) {
@@ -6577,6 +6619,10 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         if (endpoint === 'new') {
             showLoadoutLoadingError(String(data.error));
             syncEntryOverlays();
+        } else {
+            // Non-startup actions had no visible feedback on failure (e.g.
+            // picking a SiegeKnight you haven't unlocked) — surface a toast.
+            showErrorToast(String(data.error));
         }
         return null;
     }
