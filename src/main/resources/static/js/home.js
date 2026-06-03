@@ -368,10 +368,11 @@
                 void refreshAuthFromStorage();
             }
         });
-        window.addEventListener('pageshow', (event) => {
-            if (event.persisted) {
-                void refreshAuthFromStorage();
-            }
+        window.addEventListener('pageshow', () => {
+            void refreshAuthFromStorage();
+        });
+        window.addEventListener('focus', () => {
+            void refreshAuthFromStorage();
         });
         window.addEventListener('storage', (event) => {
             if (event.key === AUTH_TOKEN_KEY || event.key === null) {
@@ -511,14 +512,7 @@
         }
         state.token = stored;
         await syncProfile();
-        safeRender(renderProfileMini);
-        safeRender(renderGold);
-        safeRender(renderStarterGate);
-        safeRender(renderHomeDashboard);
-        safeRender(renderProfile);
-        safeRender(renderAuthModal);
-        safeRender(renderCards);
-        safeRender(renderDecks);
+        render();
         syncAuthRouteIntent();
         return state.profile;
     }
