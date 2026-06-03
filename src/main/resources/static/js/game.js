@@ -1412,6 +1412,14 @@ function isElementWeakTo(attackerElement, defenderElement) {
             return defender === 'EARTH' || defender === 'WATER';
         case 'EARTH':
             return defender === 'FIRE' || defender === 'ELECTRIC';
+        case 'WATER':
+            return defender === 'FIRE' || defender === 'ICE';
+        case 'METAL':
+            return defender === 'EARTH' || defender === 'WIND';
+        case 'ELECTRIC':
+            return defender === 'WIND' || defender === 'FIRE';
+        case 'POISON':
+            return defender === 'ICE' || defender === 'EARTH';
         case 'SHADOW':
             return defender === 'PSYCHIC' || defender === 'LIGHT';
         case 'PSYCHIC':
@@ -9409,12 +9417,17 @@ const ELEMENT_KEY_ICON_PATHS = {
 
 // Elemental weakness chart — mirrors EffectService.isWeakTo (attacker hits these for +1 damage).
 // Natural cycle: Fire > Ice, Metal | Ice > Wind, Poison | Wind > Earth, Water | Earth > Fire, Electric.
+// Added element attackers: Water > Fire, Ice | Metal > Earth, Wind | Electric > Wind, Fire | Poison > Ice, Earth.
 // Shadow cycle: Shadow > Psychic, Light | Psychic > Light, Undead | Light > Undead, Shadow | Undead > Shadow, Psychic.
 const ELEMENT_STRENGTHS = [
     ['FIRE', ['ICE', 'METAL']],
     ['ICE', ['WIND', 'POISON']],
     ['WIND', ['EARTH', 'WATER']],
     ['EARTH', ['FIRE', 'ELECTRIC']],
+    ['WATER', ['FIRE', 'ICE']],
+    ['METAL', ['EARTH', 'WIND']],
+    ['ELECTRIC', ['WIND', 'FIRE']],
+    ['POISON', ['ICE', 'EARTH']],
     ['SHADOW', ['PSYCHIC', 'LIGHT']],
     ['PSYCHIC', ['LIGHT', 'UNDEAD']],
     ['LIGHT', ['UNDEAD', 'SHADOW']],
