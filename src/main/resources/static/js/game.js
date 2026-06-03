@@ -5043,8 +5043,59 @@ function clearAuthState() {
     authState.profile = null;
     authState.error = '';
     selectedSavedDeckId = null;
+    renderAuthDependentSurfaces();
+}
+
+function renderAuthDependentSurfaces() {
     renderWelcomeAuth();
     renderSavedDecks();
+    if (gameOptions) {
+        ensureOwnedTrainerSelected();
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+    }
+}
+
+async function refreshAuthFromStorage(silent = true) {
+    const stored = loadSavedAuthToken();
+    const tokenChanged = stored !== authState.token;
+    const profileStale = Boolean(stored) && !authState.profile?.authenticated;
+    const loggedOutElsewhere = !stored && Boolean(authState.profile?.authenticated);
+    if (!tokenChanged && !profileStale && !loggedOutElsewhere) {
+        return authState.profile;
+    }
+
+    authState.token = stored;
+    if (!stored) {
+        authState.profile = null;
+        authState.error = '';
+        selectedSavedDeckId = null;
+        renderAuthDependentSurfaces();
+        return null;
+    }
+
+    await syncAuthProfile(silent);
+    renderAuthDependentSurfaces();
+    return authState.profile;
+}
+
+function bindAuthStorageSync() {
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            void refreshAuthFromStorage(true);
+        }
+    });
+    window.addEventListener('pageshow', () => {
+        void refreshAuthFromStorage(true);
+    });
+    window.addEventListener('focus', () => {
+        void refreshAuthFromStorage(true);
+    });
+    window.addEventListener('storage', (event) => {
+        if (event.key === AUTH_TOKEN_STORAGE_KEY || event.key === null) {
+            void refreshAuthFromStorage(true);
+        }
+    });
 }
 
 function renderPlayHubAuth() {
@@ -12739,6 +12790,7 @@ syncDesktopInspectTabUi();
 renderDesktopMenuMeta();
 renderDesktopActionHistory();
 renderWelcomeTutorial();
+bindAuthStorageSync();
 renderWelcomeAuth();
 void syncAuthProfile(true);
 syncEntryOverlays();
