@@ -10931,9 +10931,30 @@ function fitMulliganCardText() {
 
         const MIN_PX = 7;
         const MAX_PX = 19;
-        // Binary-search the largest font that still fits the fixed template
-        // region: grows sparse cards to fill it, shrinks dense ones to fit.
-        // Text wraps either way (overflow-wrap/word-break in CSS).
+
+        // 1) Dense card (e.g. a 4-ability Siegeling) whose text won't fit even
+        //    at the minimum size with the natural art: reclaim art height
+        //    (down to 45%) so the text has room. Done BEFORE sizing the font so
+        //    step 2 can then grow the text into the enlarged body — otherwise
+        //    the font stays pinned at the minimum and reads tiny with empty
+        //    space below it.
+        body.style.fontSize = `${MIN_PX}px`;
+        if (art && !fits()) {
+            let artH = art.getBoundingClientRect().height;
+            const minArtH = artH * 0.45;
+            art.style.aspectRatio = 'auto';
+            art.style.minHeight = '0';
+            while (!fits() && artH > minArtH) {
+                artH -= 6;
+                art.style.flex = `0 0 ${artH}px`;
+                art.style.height = `${artH}px`;
+                art.style.maxHeight = `${artH}px`;
+            }
+        }
+
+        // 2) Binary-search the largest font that fits the (possibly enlarged)
+        //    body so the text grows to fill it. Sparse cards grow toward MAX,
+        //    dense cards settle lower. Text wraps either way.
         let lo = MIN_PX;
         let hi = MAX_PX;
         let best = MIN_PX;
@@ -10949,19 +10970,21 @@ function fitMulliganCardText() {
         }
         body.style.fontSize = `${best.toFixed(2)}px`;
 
-        // Extremely dense card that won't fit even at MIN_PX: reclaim a little
-        // art height as a last resort so no ability line is cut off, keeping
-        // the art mostly intact (>= 55%).
-        if (best <= MIN_PX && !fits() && art) {
-            let artH = art.getBoundingClientRect().height;
-            const minArtH = artH * 0.55;
-            art.style.aspectRatio = 'auto';
-            art.style.minHeight = '0';
-            while (!fits() && artH > minArtH) {
-                artH -= 6;
-                art.style.flex = `0 0 ${artH}px`;
-                art.style.height = `${artH}px`;
-                art.style.maxHeight = `${artH}px`;
+        // 3) Line wrapping makes the fitted height jump in steps, so the best
+        //    font often leaves slack below the text. Grow the art to absorb that
+        //    slack so the card fills its template instead of showing tiny text
+        //    over empty space (and so the art never sits as a thin pill with a
+        //    gap beneath the text).
+        if (art) {
+            const slack = body.clientHeight - body.scrollHeight - 2;
+            if (slack > 3) {
+                const curArtH = art.getBoundingClientRect().height;
+                const grownArtH = curArtH + slack;
+                art.style.aspectRatio = 'auto';
+                art.style.minHeight = '0';
+                art.style.flex = `0 0 ${grownArtH}px`;
+                art.style.height = `${grownArtH}px`;
+                art.style.maxHeight = `${grownArtH}px`;
             }
         }
     });
