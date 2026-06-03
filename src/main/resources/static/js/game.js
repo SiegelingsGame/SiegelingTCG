@@ -500,6 +500,18 @@ function hpFillTierClass(pct) {
     return ' hp-fill-critical';                  // <25%    red
 }
 
+// Solid HP-tier colour for the top HUD player/enemy health bars, using the
+// same thresholds and palette as the board-card HP bars (hpFillTierClass) so a
+// player's health bar shifts green -> yellow -> orange -> red as it drops.
+// Solid (not a gradient) so background-color transitions smoothly, letting the
+// colour morph during the same bar-shrink the damage triggers.
+function hudHpTierColor(pct) {
+    if (pct >= 75) return '#30ff84';   // green
+    if (pct >= 50) return '#f2c744';   // yellow
+    if (pct >= 25) return '#f5933d';   // orange
+    return '#ff4d4d';                  // red
+}
+
 function renderArenaBoardHpBar(cell) {
     const barMax = Number(cell.maxHp);
     const barHp = Number(cell.hp);
@@ -8554,26 +8566,8 @@ function renderEnergyDetailPanel() {
 const SAFE_AREA_HP_MAX = 50;
 // Soft reference used to scale the notch energy underline (energy can pool past this).
 const SAFE_AREA_ENERGY_REF = 10;
-// At or below this HP %, the side switches to the red danger tint and pulses.
+// At or below this HP %, the side pulses to warn of low health.
 const SAFE_AREA_HP_DANGER_PCT = 30;
-
-function getSafeAreaHpTierColor(pct) {
-    if (pct > 60) return '#34c759';
-    if (pct > 35) return '#ffcc00';
-    if (pct > 15) return '#ff9500';
-    return '#ff3b30';
-}
-
-// Element-tinted fill, but a low-HP side always falls back to the red danger
-// tier so the warning reads clearly regardless of the trainer's element.
-function safeAreaHpGradient(pct, element) {
-    if (pct > SAFE_AREA_HP_DANGER_PCT && element) {
-        const hex = getElementHex(element);
-        if (hex) return `linear-gradient(90deg, ${hexToRgba(hex, 0.5)}, ${hex})`;
-    }
-    const tier = getSafeAreaHpTierColor(pct);
-    return `linear-gradient(90deg, ${hexToRgba(tier, 0.55)}, ${tier})`;
-}
 
 function applySafeAreaHpSide(side, data) {
     const cap = side === 'enemy' ? 'Enemy' : 'Player';
@@ -8584,7 +8578,10 @@ function applySafeAreaHpSide(side, data) {
     const fill = document.getElementById(`safeHpFill${cap}`);
     if (fill) {
         fill.style.width = `${pct}%`;
-        fill.style.background = safeAreaHpGradient(pct, element);
+        // Colour purely by remaining HP (green -> red), matching the rail,
+        // mobile and board-card HP bars. The low-HP side still pulses via the
+        // .danger class below.
+        fill.style.background = hudHpTierColor(pct);
     }
 
     const half = fill?.closest('.safe-hp-half');
@@ -8633,19 +8630,15 @@ function updateHudRails(state) {
 
     const pBar = document.getElementById('railPlayerHpBar');
     const eBar = document.getElementById('railEnemyHpBar');
+    // Colour the rail health bars by remaining HP (green -> red), matching the
+    // board-card HP bars, so the bar recolours as the player/enemy takes damage.
     if (pBar) {
         pBar.style.width = `${pPct}%`;
-        const pColor = p.trainer?.element ? getElementHex(p.trainer.element) : null;
-        pBar.style.background = pColor
-            ? `linear-gradient(90deg, ${hexToRgba(pColor, 0.55)}, ${pColor})`
-            : '';
+        pBar.style.background = hudHpTierColor(pPct);
     }
     if (eBar) {
         eBar.style.width = `${ePct}%`;
-        const eColor = e.trainer?.element ? getElementHex(e.trainer.element) : null;
-        eBar.style.background = eColor
-            ? `linear-gradient(90deg, ${hexToRgba(eColor, 0.55)}, ${eColor})`
-            : '';
+        eBar.style.background = hudHpTierColor(ePct);
     }
 
     setTextIfExists('railPlayerHandSize', p.handSize ?? (Array.isArray(p.hand) ? p.hand.length : 0));
@@ -8778,7 +8771,6 @@ function updateMobileHudSide(label, playerData, ids) {
     const energyTotal = getEnergyRowsForPlayer(playerData).reduce((sum, entry) => sum + entry.val, 0);
     const trainer = playerData?.trainer;
     const hpBar = document.getElementById(ids.hpBarId);
-    const trainerColor = trainer?.element ? getElementHex(trainer.element) : null;
 
     setTextIfExists(ids.nameId, ids.name || label);
     setTextIfExists(ids.handId, handSize);
@@ -8793,7 +8785,9 @@ function updateMobileHudSide(label, playerData, ids) {
     });
     if (hpBar) {
         hpBar.style.width = `${pct}%`;
-        hpBar.style.background = trainerColor || '';
+        // Colour by remaining HP (green -> red) like the board-card HP bars so
+        // the bar recolours as the player/enemy takes damage.
+        hpBar.style.background = hudHpTierColor(pct);
     }
 
     const icon = document.getElementById(ids.knightIconId);
