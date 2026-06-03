@@ -775,7 +775,9 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 .hud-hp-fill {
     height: 100%;
     border-radius: 4px;
-    transition: width 0.4s ease;
+    /* Animate colour alongside width so the HP-tier hue morphs during the same
+       bar-shrink a damage update triggers (see hudHpTierColor in game.js). */
+    transition: width 0.4s ease, background-color 0.4s ease;
 }
 
 .hud-hp-fill-enemy { background: linear-gradient(90deg, #7b0a1a, var(--danger)); }
@@ -3246,7 +3248,8 @@ body.battle-phase-active .battlefield::after {
     .m-hp-fill {
         height: 100%;
         border-radius: 3px;
-        transition: width 0.35s ease;
+        /* Colour morphs with the bar as HP drops (see hudHpTierColor). */
+        transition: width 0.35s ease, background-color 0.35s ease;
     }
 
     .mobile-hud-enemy .m-hp-fill { background: var(--danger); }
