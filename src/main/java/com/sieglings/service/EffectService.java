@@ -476,6 +476,8 @@ public class EffectService {
      * Elemental weakness chart (attacker deals +1 to these defenders):
      * Natural cycle: Fire > Ice, Metal | Ice > Wind, Poison |
      * Wind > Earth, Water | Earth > Fire, Electric.
+     * Added element attackers: Water > Fire, Ice | Metal > Earth, Wind |
+     * Electric > Wind, Fire | Poison > Ice, Earth.
      * Shadow cycle: Shadow > Psychic, Light | Psychic > Light, Undead |
      * Light > Undead, Shadow | Undead > Shadow, Psychic.
      */
@@ -489,6 +491,14 @@ public class EffectService {
                     || defender == com.sieglings.model.enums.Element.WATER;
             case EARTH -> defender == com.sieglings.model.enums.Element.FIRE
                     || defender == com.sieglings.model.enums.Element.ELECTRIC;
+            case WATER -> defender == com.sieglings.model.enums.Element.FIRE
+                    || defender == com.sieglings.model.enums.Element.ICE;
+            case METAL -> defender == com.sieglings.model.enums.Element.EARTH
+                    || defender == com.sieglings.model.enums.Element.WIND;
+            case ELECTRIC -> defender == com.sieglings.model.enums.Element.WIND
+                    || defender == com.sieglings.model.enums.Element.FIRE;
+            case POISON -> defender == com.sieglings.model.enums.Element.ICE
+                    || defender == com.sieglings.model.enums.Element.EARTH;
             case SHADOW -> defender == com.sieglings.model.enums.Element.PSYCHIC
                     || defender == com.sieglings.model.enums.Element.LIGHT;
             case PSYCHIC -> defender == com.sieglings.model.enums.Element.LIGHT
