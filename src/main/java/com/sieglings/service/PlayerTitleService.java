@@ -5,6 +5,7 @@ import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.firestore.ProfileSettingsStore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -19,7 +20,13 @@ public class PlayerTitleService {
     @Autowired
     private PlayerTitleCatalogService titleCatalogService;
 
+    // @Lazy breaks the startup bean cycle PlayerProgressionService →
+    // PlayerTitleService → AchievementEvaluationService → SavedDeckService →
+    // PlayerProgressionService. Achievement state is only consulted at request
+    // time (resolving title-unlock status), so a lazy proxy here is safe and
+    // lets the application context refresh.
     @Autowired
+    @Lazy
     private AchievementEvaluationService achievementEvaluationService;
 
     @Autowired
