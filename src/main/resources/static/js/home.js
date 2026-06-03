@@ -822,7 +822,9 @@
                     ${renderShopCardStats(card)}
                     <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${ownedLabel}</div>
                     ${energyCost}
-                    ${renderShopCardAbilityLine(card)}
+                    ${isSiegeknight
+                        ? `<div class="binder-card-knight-xp">${renderTrainerXpBar(card.id, { unownedPlaceholder: true })}</div>`
+                        : renderShopCardAbilityLine(card)}
                     ${renderShopCardDescription(card)}
                 </div>
             </div>`;

@@ -1350,8 +1350,20 @@
             const barHp = resolvedHp;
             const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
             const fill = card.querySelector('.hp-fill');
-            if (fill) fill.style.width = `${pct}%`;
             const damaged = resolvedMax > 0 && resolvedHp < resolvedMax;
+            if (fill) {
+                fill.style.width = `${pct}%`;
+                // Re-key the colour tier so the bar's hue tracks the new
+                // remaining-HP percentage during the SAME width transition the
+                // damage just triggered. Without this the fill keeps the tier
+                // class it was first rendered with and only recolours on a later
+                // full re-render — visibly lagging behind the bar shrink.
+                const tierClass = (typeof hpFillTierClass === 'function')
+                    ? hpFillTierClass(pct).trim()
+                    : '';
+                fill.classList.remove('hp-fill-high', 'hp-fill-mid', 'hp-fill-low', 'hp-fill-critical');
+                if (tierClass) fill.classList.add(tierClass);
+            }
             const hpPill = card.querySelector('.card-stat-pill-hp');
             if (hpPill) {
                 hpPill.textContent = `HP: ${Math.max(0, resolvedHp)}`;

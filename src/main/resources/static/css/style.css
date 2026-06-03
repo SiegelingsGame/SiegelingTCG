@@ -775,7 +775,9 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 .hud-hp-fill {
     height: 100%;
     border-radius: 4px;
-    transition: width 0.4s ease;
+    /* Animate colour alongside width so the HP-tier hue morphs during the same
+       bar-shrink a damage update triggers (see hudHpTierColor in game.js). */
+    transition: width 0.4s ease, background-color 0.4s ease;
 }
 
 .hud-hp-fill-enemy { background: linear-gradient(90deg, #7b0a1a, var(--danger)); }
@@ -3246,7 +3248,8 @@ body.battle-phase-active .battlefield::after {
     .m-hp-fill {
         height: 100%;
         border-radius: 3px;
-        transition: width 0.35s ease;
+        /* Colour morphs with the bar as HP drops (see hudHpTierColor). */
+        transition: width 0.35s ease, background-color 0.35s ease;
     }
 
     .mobile-hud-enemy .m-hp-fill { background: var(--danger); }
@@ -5892,6 +5895,30 @@ body.placement-active .board-cell.legal {
     animation: none;
 }
 
+/* HP text reads gold while healthy, and flips to red once the card has
+   taken damage (dropped below its max health). Shielded cards keep their
+   brushed-metal plate styling. */
+.board-card.arena-board-card .card-stat-pill-hp:not(.is-shielded) {
+    color: var(--accent, #e2b714);
+}
+.board-card.arena-board-card .card-stat-pill-hp.is-damaged:not(.is-shielded) {
+    color: #ff5a5a;
+    border-color: rgba(255, 90, 90, 0.4);
+}
+
+/* Speed text turns green when SPD is boosted above its printed value. */
+.board-card.arena-board-card .card-stat-pill-spd.is-spd-up {
+    color: #43e07a;
+    border-color: rgba(67, 224, 122, 0.4);
+}
+
+/* Speed text reads red when SPD is reduced below its printed value or zeroed
+   out (frozen / disabled), matching the damaged-HP treatment. */
+.board-card.arena-board-card .card-stat-pill-spd.is-spd-down {
+    color: #ff5a5a;
+    border-color: rgba(255, 90, 90, 0.4);
+}
+
 .card-art {
     position: relative;
     overflow: hidden;
@@ -6120,7 +6147,10 @@ body.placement-active .board-cell.legal {
 .hp-fill {
     height: 100%;
     background: var(--success);
-    transition: width 0.3s;
+    /* Animate the colour alongside the width so the tier hue
+       (green→yellow→orange→red) morphs during the same bar shrink the
+       damage triggers, instead of snapping at the end. */
+    transition: width 0.3s, background-color 0.3s;
 }
 
 /* Shield plates — cover the HP bar while a shield buffer is up. Each
@@ -6128,6 +6158,20 @@ body.placement-active .board-cell.legal {
 .hp-bar.is-shielded .hp-fill {
     opacity: 0.55;
     filter: grayscale(0.45);
+}
+
+/* Dynamic health-bar colour keyed off remaining-health percentage. */
+.hp-fill.hp-fill-high {
+    background: var(--success, #30ff84);
+}
+.hp-fill.hp-fill-mid {
+    background: #f2c744;
+}
+.hp-fill.hp-fill-low {
+    background: #f5933d;
+}
+.hp-fill.hp-fill-critical {
+    background: #ff4d4d;
 }
 .shield-plates {
     position: absolute;
@@ -6849,6 +6893,13 @@ body.placement-active .board-cell.legal {
     margin-top: 4px;
     color: var(--text-dim);
     margin-top: 2px;
+}
+
+/* Evolution requirement: this card needs another card on the field to
+   evolve from. Call it out in gold so it reads as a prerequisite. */
+.card-evolve-note {
+    color: #ffd700;
+    font-weight: 600;
 }
 
 .card-cost-text.combo-cost {
@@ -10415,8 +10466,16 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview {
     min-height: 0;
-    flex: 0 1 auto;
-    aspect-ratio: 5 / 4;
+    /* Pin the art to a consistent size (don't let it shrink). Previously
+       `flex: 0 1 auto` let text-heavy cards collapse the art to a thin pill to
+       make room for more ability lines, so the art size — and the text area
+       below it — varied wildly card-to-card. Fixing the art keeps the text
+       block the same size and starting position on every card. */
+    flex: 0 0 auto;
+    /* Flatter than the hand art (5/4) so the fixed art leaves a generously
+       tall, consistent text area below it — enough for dense multi-ability
+       cards without collapsing the art. */
+    aspect-ratio: 3 / 2;
     padding: 4px;
 }
 
@@ -10437,8 +10496,13 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     overflow: hidden;
     padding: 2px 2px 4px;
     gap: 2px;
+    /* Fixed fallback text size; the live size is set per-card by
+       fitMulliganCardText() so the ability text scales up on sparse cards and
+       down on dense ones, filling the template either way (see game.js). */
     font-size: 0.72em;
     line-height: 1.2;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-stats-line {
@@ -10448,6 +10512,12 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-ability-flavor {
     line-height: 1.2;
+}
+
+/* Keep the HP/SPD pills a stable size so the per-card auto-fit only scales
+   the ability text — mirrors the balanced look of the Gagglestand card. */
+.mulligan-card-slot .hand-card.mulligan-showcase .card-stat-pill {
+    font-size: 11px;
 }
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-label {
