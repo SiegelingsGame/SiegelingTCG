@@ -462,15 +462,25 @@ function renderCardStatPills(entity, options = {}) {
     if (mode === 'board') {
         const printedHp = Number(entity.printedHealth);
         const maxHp = Number(entity.maxHp);
+        const hpNow = Number(entity.hp);
         const printedSpd = Number(entity.printedSpeed);
+        const spdNow = Number(entity.spd);
         const shieldInfo = getShieldInfo(entity);
         if (shieldInfo.active && shieldInfo.intact > 0) {
             hpClass = ' is-shielded';
         } else if (Number.isFinite(printedHp) && maxHp > printedHp) {
             hpClass = ' is-buffed';
         }
-        if (Number.isFinite(printedSpd) && entity.spd !== printedSpd) {
-            spdClass = ' is-buffed';
+        // Turn the HP text red the moment the card drops below its max health.
+        if (Number.isFinite(hpNow) && Number.isFinite(maxHp) && hpNow < maxHp) {
+            hpClass += ' is-damaged';
+        }
+        // Speed increased -> green text; a reduction (or a speed of 0) turns
+        // the SPD text red so a slowed/disabled Siegeling reads at a glance.
+        if (Number.isFinite(spdNow) && (spdNow === 0 || (Number.isFinite(printedSpd) && spdNow < printedSpd))) {
+            spdClass = ' is-spd-down';
+        } else if (Number.isFinite(printedSpd) && Number.isFinite(spdNow) && spdNow > printedSpd) {
+            spdClass = ' is-spd-up';
         }
     } else if (options.shielded) {
         hpClass = ' is-shielded';
@@ -482,10 +492,31 @@ function renderCardStatPills(entity, options = {}) {
         + `</div>`;
 }
 
+function hpFillTierClass(pct) {
+    // Dynamic health-bar colour by remaining-health percentage.
+    if (pct >= 75) return ' hp-fill-high';      // 75-100% green
+    if (pct >= 50) return ' hp-fill-mid';        // 50-75%  yellow
+    if (pct >= 25) return ' hp-fill-low';        // 25-50%  orange
+    return ' hp-fill-critical';                  // <25%    red
+}
+
+// Solid HP-tier colour for the top HUD player/enemy health bars, using the
+// same thresholds and palette as the board-card HP bars (hpFillTierClass) so a
+// player's health bar shifts green -> yellow -> orange -> red as it drops.
+// Solid (not a gradient) so background-color transitions smoothly, letting the
+// colour morph during the same bar-shrink the damage triggers.
+function hudHpTierColor(pct) {
+    if (pct >= 75) return '#30ff84';   // green
+    if (pct >= 50) return '#f2c744';   // yellow
+    if (pct >= 25) return '#f5933d';   // orange
+    return '#ff4d4d';                  // red
+}
+
 function renderArenaBoardHpBar(cell) {
     const barMax = Number(cell.maxHp);
     const barHp = Number(cell.hp);
     const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
+    const tierClass = hpFillTierClass(pct);
     const shield = Math.max(0, Number(cell.shieldHp) || 0);
     const platesHtml = shield > 0
         ? `<div class="shield-plates" data-shield="${shield}">${
@@ -493,7 +524,7 @@ function renderArenaBoardHpBar(cell) {
         }</div>`
         : '';
     return `<div class="hp-bar${shield > 0 ? ' is-shielded' : ''}">`
-        + `<div class="hp-fill" style="width:${pct}%"></div>`
+        + `<div class="hp-fill${tierClass}" style="width:${pct}%"></div>`
         + platesHtml
         + `</div>`;
 }
@@ -2514,8 +2545,8 @@ function getCardPreviewEntries(card) {
     }
     if (card.evolvesFromName) {
         entries.push({
-            text: `Evolution: ${card.evolvesFromName}`,
-            className: 'card-cost'
+            text: `Evolves from ${card.evolvesFromName} — needs that card to evolve`,
+            className: 'card-cost card-evolve-note'
         });
     }
 
@@ -6514,6 +6545,79 @@ function scheduleBattleAutoAdvance() {
 }
 window.scheduleBattleAutoAdvance = scheduleBattleAutoAdvance;
 
+// Surface a server/application error to the player as an on-screen toast, so
+// failed actions give visible feedback instead of only a console message.
+// Deliberately self-contained with inline styles (no dependency on the
+// in-game toast CSS or the action queue) so it renders on every screen,
+// including the loadout / match-start flow where the error is reported.
+function showErrorToast(message, holdMs = 4200) {
+    const text = String(message == null ? '' : message).trim();
+    if (!text || typeof document === 'undefined' || !document.body) return;
+
+    let stack = document.getElementById('sglErrorToastStack');
+    if (!stack) {
+        stack = document.createElement('div');
+        stack.id = 'sglErrorToastStack';
+        stack.style.cssText = [
+            'position:fixed',
+            'top:max(16px, env(safe-area-inset-top, 0px))',
+            'left:50%',
+            'transform:translateX(-50%)',
+            'z-index:2147483000',
+            'display:flex',
+            'flex-direction:column',
+            'align-items:center',
+            'gap:8px',
+            'width:min(560px, 92vw)',
+            'pointer-events:none'
+        ].join(';');
+        document.body.appendChild(stack);
+    }
+
+    const node = document.createElement('div');
+    node.setAttribute('role', 'alert');
+    node.style.cssText = [
+        'pointer-events:auto',
+        'display:flex',
+        'align-items:center',
+        'gap:10px',
+        'width:100%',
+        'box-sizing:border-box',
+        'padding:12px 16px',
+        'border-radius:12px',
+        'background:linear-gradient(180deg, rgba(40,12,16,0.97), rgba(26,8,12,0.97))',
+        'border:1px solid rgba(255,90,90,0.6)',
+        'box-shadow:0 10px 30px rgba(0,0,0,0.45)',
+        'color:#ffe9e9',
+        'font:600 14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+        'opacity:0',
+        'transform:translateY(-8px)',
+        'transition:opacity 0.18s ease, transform 0.18s ease'
+    ].join(';');
+
+    const icon = document.createElement('span');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.style.cssText = 'font-size:18px;line-height:1;flex:0 0 auto';
+    icon.textContent = '⚠️';
+    const body = document.createElement('span');
+    body.style.cssText = 'flex:1 1 auto';
+    body.textContent = text; // textContent keeps the server message XSS-safe
+    node.appendChild(icon);
+    node.appendChild(body);
+    stack.appendChild(node);
+
+    requestAnimationFrame(() => {
+        node.style.opacity = '1';
+        node.style.transform = 'translateY(0)';
+    });
+    setTimeout(() => {
+        node.style.opacity = '0';
+        node.style.transform = 'translateY(-8px)';
+        setTimeout(() => { if (node.parentNode) node.parentNode.removeChild(node); }, 220);
+    }, Math.max(1500, holdMs));
+}
+window.showErrorToast = showErrorToast;
+
 async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
     const opts = { method, headers: getAuthHeaders({ 'Content-Type': 'application/json' }) };
     if (multiplayerSession?.roomId && multiplayerSession?.playerToken) {
@@ -6535,6 +6639,9 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
     if (data.error) {
         console.error(data.error);
+        // Always surface a toast so failed actions (including match start, e.g.
+        // picking a SiegeKnight you haven't unlocked) give visible feedback.
+        showErrorToast(String(data.error));
         if (endpoint === 'new') {
             showLoadoutLoadingError(String(data.error));
             syncEntryOverlays();
@@ -7373,9 +7480,15 @@ function renderSelectedLoadoutPreview() {
     panel.style.setProperty('--loadout-accent-soft', hexToRgba(accent, 0.18));
     panel.style.setProperty('--loadout-accent-glow', hexToRgba(accent, 0.32));
 
-    const deckName = loadoutMode === 'builder' || loadoutMode === 'saved'
-        ? getActiveLoadoutLabel()
-        : (getActiveLoadoutLabel() || deck?.name || 'Choose a Deck');
+    // Title reflects what the player actually selected: the premade deck's
+    // own name in preset mode, or the custom/saved loadout name otherwise.
+    // The free-text "save loadout" input must not shadow the selected deck's
+    // name (otherwise picking Gale Talons could still read "Blazing Core").
+    const deckName = loadoutMode === 'builder'
+        ? (getActiveLoadoutLabel() || 'Custom Loadout')
+        : loadoutMode === 'saved'
+            ? (savedDeck?.name || deck?.name || 'Saved Loadout')
+            : (deck?.name || 'Choose a Deck');
     const elementLabel = loadoutMode === 'builder'
         ? (collectBuilderElements() || 'Custom Elements')
         : loadoutMode === 'saved'
@@ -7684,7 +7797,7 @@ function updateLoadoutSummary() {
         return;
     }
 
-    summary.innerHTML = `${matchMode === 'online' ? 'Build' : 'Deck'}: <strong>${escapeHtml(getActiveLoadoutLabel() || deck.name)}</strong> | SiegeKnight: <strong>${trainer.name}</strong>${playerName ? ` | Name: <strong>${playerName}</strong>` : ''}`;
+    summary.innerHTML = `${matchMode === 'online' ? 'Build' : 'Deck'}: <strong>${escapeHtml(deck.name)}</strong> | SiegeKnight: <strong>${trainer.name}</strong>${playerName ? ` | Name: <strong>${playerName}</strong>` : ''}`;
     syncLoadoutStartButton(
         startBtn,
         loadoutStartPending || (matchMode === 'online' && onlineRoomMode === 'join' && !getCurrentRoomCode()) || (needsPlayerName && !playerName),
@@ -7806,6 +7919,7 @@ async function createRoom() {
     if (!data || data.error) {
         loadoutErrorMessage = data?.error || 'Unable to create room. Please try again from Social.';
         console.error(loadoutErrorMessage);
+        showErrorToast(loadoutErrorMessage);
         return false;
     }
 
@@ -7851,6 +7965,7 @@ async function joinRoom() {
     if (!data || data.error) {
         loadoutErrorMessage = data?.error || 'Unable to join room. Check the room in Social, then try again.';
         console.error(loadoutErrorMessage);
+        showErrorToast(loadoutErrorMessage);
         return false;
     }
 
@@ -7902,6 +8017,8 @@ async function submitMatchLoadout() {
 
     if (!data || data.error) {
         loadoutErrorMessage = data?.error || 'Unable to lock in loadout. Try again.';
+        console.error(loadoutErrorMessage);
+        showErrorToast(loadoutErrorMessage);
         return false;
     }
 
@@ -8521,26 +8638,8 @@ function renderEnergyDetailPanel() {
 const SAFE_AREA_HP_MAX = 50;
 // Soft reference used to scale the notch energy underline (energy can pool past this).
 const SAFE_AREA_ENERGY_REF = 10;
-// At or below this HP %, the side switches to the red danger tint and pulses.
+// At or below this HP %, the side pulses to warn of low health.
 const SAFE_AREA_HP_DANGER_PCT = 30;
-
-function getSafeAreaHpTierColor(pct) {
-    if (pct > 60) return '#34c759';
-    if (pct > 35) return '#ffcc00';
-    if (pct > 15) return '#ff9500';
-    return '#ff3b30';
-}
-
-// Element-tinted fill, but a low-HP side always falls back to the red danger
-// tier so the warning reads clearly regardless of the trainer's element.
-function safeAreaHpGradient(pct, element) {
-    if (pct > SAFE_AREA_HP_DANGER_PCT && element) {
-        const hex = getElementHex(element);
-        if (hex) return `linear-gradient(90deg, ${hexToRgba(hex, 0.5)}, ${hex})`;
-    }
-    const tier = getSafeAreaHpTierColor(pct);
-    return `linear-gradient(90deg, ${hexToRgba(tier, 0.55)}, ${tier})`;
-}
 
 function applySafeAreaHpSide(side, data) {
     const cap = side === 'enemy' ? 'Enemy' : 'Player';
@@ -8551,7 +8650,10 @@ function applySafeAreaHpSide(side, data) {
     const fill = document.getElementById(`safeHpFill${cap}`);
     if (fill) {
         fill.style.width = `${pct}%`;
-        fill.style.background = safeAreaHpGradient(pct, element);
+        // Colour purely by remaining HP (green -> red), matching the rail,
+        // mobile and board-card HP bars. The low-HP side still pulses via the
+        // .danger class below.
+        fill.style.background = hudHpTierColor(pct);
     }
 
     const half = fill?.closest('.safe-hp-half');
@@ -8600,19 +8702,15 @@ function updateHudRails(state) {
 
     const pBar = document.getElementById('railPlayerHpBar');
     const eBar = document.getElementById('railEnemyHpBar');
+    // Colour the rail health bars by remaining HP (green -> red), matching the
+    // board-card HP bars, so the bar recolours as the player/enemy takes damage.
     if (pBar) {
         pBar.style.width = `${pPct}%`;
-        const pColor = p.trainer?.element ? getElementHex(p.trainer.element) : null;
-        pBar.style.background = pColor
-            ? `linear-gradient(90deg, ${hexToRgba(pColor, 0.55)}, ${pColor})`
-            : '';
+        pBar.style.background = hudHpTierColor(pPct);
     }
     if (eBar) {
         eBar.style.width = `${ePct}%`;
-        const eColor = e.trainer?.element ? getElementHex(e.trainer.element) : null;
-        eBar.style.background = eColor
-            ? `linear-gradient(90deg, ${hexToRgba(eColor, 0.55)}, ${eColor})`
-            : '';
+        eBar.style.background = hudHpTierColor(ePct);
     }
 
     setTextIfExists('railPlayerHandSize', p.handSize ?? (Array.isArray(p.hand) ? p.hand.length : 0));
@@ -8745,7 +8843,6 @@ function updateMobileHudSide(label, playerData, ids) {
     const energyTotal = getEnergyRowsForPlayer(playerData).reduce((sum, entry) => sum + entry.val, 0);
     const trainer = playerData?.trainer;
     const hpBar = document.getElementById(ids.hpBarId);
-    const trainerColor = trainer?.element ? getElementHex(trainer.element) : null;
 
     setTextIfExists(ids.nameId, ids.name || label);
     setTextIfExists(ids.handId, handSize);
@@ -8760,7 +8857,9 @@ function updateMobileHudSide(label, playerData, ids) {
     });
     if (hpBar) {
         hpBar.style.width = `${pct}%`;
-        hpBar.style.background = trainerColor || '';
+        // Colour by remaining HP (green -> red) like the board-card HP bars so
+        // the bar recolours as the player/enemy takes damage.
+        hpBar.style.background = hudHpTierColor(pct);
     }
 
     const icon = document.getElementById(ids.knightIconId);
@@ -10842,6 +10941,121 @@ function renderMulliganOverlay() {
             ${showcase}
         </div>`;
     }).join('');
+
+    // Mulligan slots are a fixed proportion. After the markup lands, scale each
+    // card's ability text so it FILLS the template: sparse cards grow, dense
+    // cards shrink, both wrapping. The art stays a consistent size; only an
+    // extremely text-dense card reclaims a little art height as a last resort
+    // so no ability line is cut off.
+    scheduleMulliganTextFit();
+}
+
+let mulliganFitFrame = 0;
+let mulliganFitResizeBound = false;
+
+function scheduleMulliganTextFit() {
+    if (mulliganFitFrame) {
+        cancelAnimationFrame(mulliganFitFrame);
+    }
+    // Double rAF so the slot/body heights are settled before we measure.
+    mulliganFitFrame = requestAnimationFrame(() => {
+        mulliganFitFrame = requestAnimationFrame(() => {
+            mulliganFitFrame = 0;
+            fitMulliganCardText();
+        });
+    });
+    if (!mulliganFitResizeBound) {
+        mulliganFitResizeBound = true;
+        window.addEventListener('resize', () => {
+            const overlay = document.getElementById('mulliganOverlay');
+            if (overlay?.classList.contains('visible')) {
+                scheduleMulliganTextFit();
+            }
+        });
+    }
+}
+
+function fitMulliganCardText() {
+    const cards = document.querySelectorAll('#mulliganHandPreview .hand-card.mulligan-showcase');
+    cards.forEach((card) => {
+        const body = card.querySelector('.hand-card-body');
+        if (!body || !body.clientHeight) {
+            return;
+        }
+        const art = card.querySelector('.card-art-preview');
+        // Clear any prior fit so we always measure against the natural layout.
+        body.style.fontSize = '';
+        if (art) {
+            art.style.flex = '';
+            art.style.height = '';
+            art.style.maxHeight = '';
+            art.style.aspectRatio = '';
+            art.style.minHeight = '';
+        }
+
+        // scrollHeight reflects the full wrapped content even though the body
+        // clips via overflow:hidden; +0.5 absorbs sub-pixel rounding.
+        const fits = () => body.scrollHeight <= body.clientHeight + 0.5;
+
+        const MIN_PX = 7;
+        const MAX_PX = 19;
+
+        // 1) Dense card (e.g. a 4-ability Siegeling) whose text won't fit even
+        //    at the minimum size with the natural art: reclaim art height
+        //    (down to 45%) so the text has room. Done BEFORE sizing the font so
+        //    step 2 can then grow the text into the enlarged body — otherwise
+        //    the font stays pinned at the minimum and reads tiny with empty
+        //    space below it.
+        body.style.fontSize = `${MIN_PX}px`;
+        if (art && !fits()) {
+            let artH = art.getBoundingClientRect().height;
+            const minArtH = artH * 0.45;
+            art.style.aspectRatio = 'auto';
+            art.style.minHeight = '0';
+            while (!fits() && artH > minArtH) {
+                artH -= 6;
+                art.style.flex = `0 0 ${artH}px`;
+                art.style.height = `${artH}px`;
+                art.style.maxHeight = `${artH}px`;
+            }
+        }
+
+        // 2) Binary-search the largest font that fits the (possibly enlarged)
+        //    body so the text grows to fill it. Sparse cards grow toward MAX,
+        //    dense cards settle lower. Text wraps either way.
+        let lo = MIN_PX;
+        let hi = MAX_PX;
+        let best = MIN_PX;
+        for (let i = 0; i < 9; i++) {
+            const mid = (lo + hi) / 2;
+            body.style.fontSize = `${mid}px`;
+            if (fits()) {
+                best = mid;
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        body.style.fontSize = `${best.toFixed(2)}px`;
+
+        // 3) Line wrapping makes the fitted height jump in steps, so the best
+        //    font often leaves slack below the text. Grow the art to absorb that
+        //    slack so the card fills its template instead of showing tiny text
+        //    over empty space (and so the art never sits as a thin pill with a
+        //    gap beneath the text).
+        if (art) {
+            const slack = body.clientHeight - body.scrollHeight - 2;
+            if (slack > 3) {
+                const curArtH = art.getBoundingClientRect().height;
+                const grownArtH = curArtH + slack;
+                art.style.aspectRatio = 'auto';
+                art.style.minHeight = '0';
+                art.style.flex = `0 0 ${grownArtH}px`;
+                art.style.height = `${grownArtH}px`;
+                art.style.maxHeight = `${grownArtH}px`;
+            }
+        }
+    });
 }
 
 function renderLog() {

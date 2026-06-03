@@ -51,6 +51,31 @@ public class MatchHistoryStore {
         }
     }
 
+    public List<MatchHistoryEntity> findAllByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return List.of();
+        }
+        try {
+            QuerySnapshot snapshot = client.requireFirestore()
+                    .collection(client.matchesCollection())
+                    .whereEqualTo("userId", userId)
+                    .get()
+                    .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            List<MatchHistoryEntity> out = new ArrayList<>();
+            for (QueryDocumentSnapshot doc : snapshot.getDocuments()) {
+                out.add(toMatch(doc.getId(), doc));
+            }
+            return out.stream()
+                    .sorted(Comparator.comparing(
+                            MatchHistoryEntity::getFinishedAt,
+                            Comparator.nullsLast(Comparator.reverseOrder())
+                    ))
+                    .toList();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to load match history from Firestore.", ex);
+        }
+    }
+
     /**
      * Returns every match document. Used by the daily leaderboard refresh, which aggregates
      * stats in memory because Firestore lacks GROUP BY. Fine for the current scale; if match

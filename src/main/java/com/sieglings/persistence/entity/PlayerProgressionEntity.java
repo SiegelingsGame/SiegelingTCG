@@ -20,6 +20,8 @@ public class PlayerProgressionEntity {
     private List<Map<String, Object>> packHistory = new ArrayList<>();
     private int soloWinStreak;
     private int onlineWinStreak;
+    private List<String> purchasedTitleIds = new ArrayList<>();
+    private int craftCount;
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -62,6 +64,12 @@ public class PlayerProgressionEntity {
     public void setSoloWinStreak(int soloWinStreak) { this.soloWinStreak = Math.max(0, soloWinStreak); }
     public int getOnlineWinStreak() { return onlineWinStreak; }
     public void setOnlineWinStreak(int onlineWinStreak) { this.onlineWinStreak = Math.max(0, onlineWinStreak); }
+    public List<String> getPurchasedTitleIds() { return purchasedTitleIds; }
+    public void setPurchasedTitleIds(List<String> purchasedTitleIds) {
+        this.purchasedTitleIds = purchasedTitleIds == null ? new ArrayList<>() : new ArrayList<>(purchasedTitleIds);
+    }
+    public int getCraftCount() { return craftCount; }
+    public void setCraftCount(int craftCount) { this.craftCount = Math.max(0, craftCount); }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

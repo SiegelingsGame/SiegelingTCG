@@ -50,6 +50,9 @@ public class PlayerProgressionService {
     @Autowired(required = false)
     private DailyMissionService dailyMissionService;
 
+    @Autowired(required = false)
+    private PlayerTitleService playerTitleService;
+
     public PlayerProgressionEntity getOrCreate(AccountUser user) {
         PlayerProgressionEntity progression = store.findByUserId(user.getId()).orElseGet(() -> {
             PlayerProgressionEntity created = new PlayerProgressionEntity();
@@ -201,6 +204,7 @@ public class PlayerProgressionService {
         }
         progression.setRemnants(progression.getRemnants() - cost);
         grantCardsWithCap(progression, List.of(card));
+        progression.setCraftCount(progression.getCraftCount() + 1);
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -297,6 +301,10 @@ public class PlayerProgressionService {
     }
 
     public Map<String, Object> serialize(PlayerProgressionEntity progression) {
+        return serialize(progression, null);
+    }
+
+    public Map<String, Object> serialize(PlayerProgressionEntity progression, AccountUser user) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("gold", progression.getGold());
         out.put("remnants", progression.getRemnants());
@@ -312,7 +320,24 @@ public class PlayerProgressionService {
         out.put("packHistory", progression.getPackHistory().stream().limit(12).toList());
         out.put("soloWinStreak", progression.getSoloWinStreak());
         out.put("onlineWinStreak", progression.getOnlineWinStreak());
+        out.put("craftCount", progression.getCraftCount());
+        if (playerTitleService != null) {
+            out.put("playerTitles", playerTitleService.serializeTitlesForUser(user, progression));
+        } else {
+            out.put("playerTitles", List.of());
+        }
+        out.put("purchasedTitleIds", progression.getPurchasedTitleIds());
         return out;
+    }
+
+    public PlayerProgressionEntity purchaseTitle(AccountUser user, String titleId) {
+        if (playerTitleService == null) {
+            throw new IllegalStateException("Title purchases are unavailable.");
+        }
+        PlayerProgressionEntity progression = getOrCreate(user);
+        progression = playerTitleService.applyTitlePurchase(user, progression, titleId);
+        progression.setUpdatedAt(Instant.now());
+        return store.save(progression);
     }
 
     private int ownedTotal(PlayerProgressionEntity progression) {

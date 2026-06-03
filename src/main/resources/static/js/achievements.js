@@ -213,13 +213,13 @@
             favoriteElementWins,
             missionsClaimed,
             missionsCompleted,
-            crafts: Number(stats.crafts) || 0,
+            crafts: Number(progression.craftCount ?? stats.crafts) || 0,
             friendCount,
             purchasedOffers: (progression.purchasedDailyOfferIds || []).length,
             prefs,
             avatarElement: String(prefs.avatarMode || '').toUpperCase() === 'ELEMENT',
             hasAvatarUrl: Boolean(String(prefs.avatarUrl || '').trim()),
-            hasFavoriteSiegling: Boolean(String(prefs.favoriteSiegling || '').trim()),
+            hasFavoriteSiegling: Boolean(String(prefs.favoriteSieglingId || prefs.favoriteSiegling || '').trim()),
             trainerDeckCount: customDecks.filter(d => d.trainerId).length
         };
     }
@@ -257,7 +257,7 @@
         tier('online_streak_3', 'general', 'Online Heater', 'Reach an online win streak of 3.', '⇈', 3, c => c.onlineWinStreak),
         tier('solo_streak_3', 'general', 'Solo Heater', 'Reach a solo win streak of 3.', '⇈', 3, c => c.soloWinStreak),
         { id: 'tactician', category: 'general', title: 'Tactician', description: 'Maintain 50% win rate over 20+ matches.', icon: '◈', check: c => c.totalMatches >= 20 && c.winRate >= 50 },
-        tier('profile_ready', 'general', 'Profile Ready', 'Set a player title and bio on your profile.', '✎', 1, c => (String(c.prefs?.playerTitle || '').trim() && String(c.prefs?.bio || '').trim()) ? 1 : 0),
+        tier('profile_ready', 'general', 'Profile Ready', 'Set a player title and bio on your profile.', '✎', 1, c => (String(c.prefs?.playerTitleId || c.prefs?.playerTitle || '').trim() && String(c.prefs?.bio || '').trim()) ? 1 : 0),
         tier('siegecoin_hoarder', 'general', 'Siegecoin Hoarder', 'Hold 1,000 Siegecoins at once.', '◎', 1000, c => c.gold),
         tier('siegecoin_tycoon', 'general', 'Siegecoin Tycoon', 'Hold 5,000 Siegecoins at once.', '◎', 5000, c => c.gold),
         tier('siegecoin_magnate', 'general', 'Siegecoin Magnate', 'Hold 10,000 Siegecoins at once.', '◎', 10000, c => c.gold),

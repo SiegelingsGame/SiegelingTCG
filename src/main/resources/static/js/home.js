@@ -134,6 +134,7 @@
         options: null,
         packs: [],
         dailyOffers: [],
+        titleCatalog: [],
         creatureDescriptions: {},
         rooms: [],
         selectedCardId: null,
@@ -388,6 +389,7 @@
         applyGameOptions(options);
         state.packs = packs?.packs || [];
         state.dailyOffers = packs?.dailyOffers || [];
+        state.titleCatalog = packs?.titleCatalog || state.titleCatalog || [];
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
         state.leaderboards = leaderboards || null;
         state.leaderboardsError = leaderboards?.error || '';
@@ -530,6 +532,7 @@
         const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS);
         state.packs = packs?.packs || [];
         state.dailyOffers = packs?.dailyOffers || [];
+        state.titleCatalog = packs?.titleCatalog || state.titleCatalog || [];
     }
 
     function render() {
@@ -816,7 +819,9 @@
                     ${renderShopCardStats(card)}
                     <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${ownedLabel}</div>
                     ${energyCost}
-                    ${renderShopCardAbilityLine(card)}
+                    ${isSiegeknight
+                        ? `<div class="binder-card-knight-xp">${renderTrainerXpBar(card.id, { unownedPlaceholder: true })}</div>`
+                        : renderShopCardAbilityLine(card)}
                     ${renderShopCardDescription(card)}
                 </div>
             </div>`;
@@ -1958,6 +1963,13 @@
             });
     }
 
+    function shopTitleOffers() {
+        const unlocked = new Set((state.progression?.playerTitles || []).filter(title => title.unlocked).map(title => title.id));
+        return (state.titleCatalog || [])
+            .filter(title => title.source === 'SHOP')
+            .map(title => ({ ...title, unlocked: unlocked.has(title.id) || Boolean(title.unlocked) }));
+    }
+
     function renderShop() {
         const grid = document.getElementById('shopPackGrid');
         if (!grid) return;
@@ -1965,12 +1977,38 @@
         const starterPacks = state.packs.filter(pack => pack.starterEligible);
         const packs = starterMode ? starterPacks : state.packs;
         const dailyOffers = starterMode ? [] : state.dailyOffers;
+        const shopTitles = shopTitleOffers();
         grid.innerHTML = `
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
+            ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Unlock by playing or buy with Siegecoins</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
             ${packs.length ? packs.map(renderPackTile).join('') : '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>'}
         `;
         document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
+    }
+
+    function renderShopTitleTile(title) {
+        const unlocked = Boolean(title.unlocked);
+        const price = Number(title.shopPrice) || 0;
+        return `<article class="shop-title-tile">
+            <div class="shop-title-copy">
+                <span class="shop-title-kicker">${escapeHtml(title.source || 'SHOP')}</span>
+                <strong>${escapeHtml(title.label || 'Title')}</strong>
+                <p>${escapeHtml(title.description || '')}</p>
+            </div>
+            <button class="primary-btn" type="button" data-purchase-title-id="${escapeAttr(title.id)}"${unlocked ? ' disabled' : ''}>${unlocked ? 'Owned' : renderCoinAmount(price, '')}</button>
+        </article>`;
+    }
+
+    async function purchasePlayerTitle(titleId) {
+        if (!state.profile?.authenticated) return openAuth();
+        const data = await fetchJson('/api/shop/purchase-title', { method: 'POST', body: JSON.stringify({ titleId }) });
+        if (data?.error) return alert(data.error);
+        state.progression = data.progression;
+        state.titleCatalog = data.titleCatalog || state.titleCatalog;
+        renderShop();
+        renderGold();
+        renderProfile();
     }
 
     function renderDailyOfferTile(offer) {
@@ -2546,10 +2584,88 @@
             avatarUrl: '',
             favoriteElement,
             playerTitle: theme.mood,
+            playerTitleId: defaultStarterTitleId(favoriteElement),
             bio: starterProfileBio(favoriteElement),
             preferredCardBack: starterCardBackName(favoriteElement),
-            favoriteSiegling: starterFavoriteSiegling(favoriteElement)
+            favoriteSiegling: '',
+            favoriteSieglingId: starterFavoriteSieglingId(favoriteElement)
         };
+    }
+
+    function defaultStarterTitleId(element) {
+        const normalized = normalizeProfileElement(element);
+        if (normalized === 'Earth') return 'title_starter_earth';
+        if (normalized === 'Wind') return 'title_starter_wind';
+        if (normalized === 'Ice' || normalized === 'Water') return 'title_starter_ice';
+        return 'title_starter_fire';
+    }
+
+    function starterFavoriteSieglingId(element) {
+        const normalized = normalizeProfileElement(element);
+        const ownedCards = state.progression?.ownedCards || {};
+        const catalog = state.options?.cardCatalog || [];
+        const ownedMatch = catalog.find(card => card.type === 'SIEGLING'
+            && normalizeProfileElement(card.element) === normalized
+            && Number(ownedCards[card.id] || 0) > 0);
+        if (ownedMatch?.id) return ownedMatch.id;
+        const catalogMatch = catalog.find(card => card.type === 'SIEGLING'
+            && normalizeProfileElement(card.element) === normalized);
+        return catalogMatch?.id || '';
+    }
+
+    function unlockedPlayerTitles() {
+        const fromProgression = (state.progression?.playerTitles || []).filter(title => title.unlocked);
+        if (fromProgression.length) return fromProgression;
+        return (state.titleCatalog || []).filter(title => title.unlocked);
+    }
+
+    function ownedSieglingCards() {
+        return (state.options?.cardCatalog || [])
+            .filter(card => card.type === 'SIEGLING' && ownedCount(card.id) > 0)
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function resolveProfileTitleLabel(prefs) {
+        if (prefs?.playerTitle) return prefs.playerTitle;
+        const match = unlockedPlayerTitles().find(title => title.id === prefs?.playerTitleId);
+        return match?.label || elementThemes[prefs?.favoriteElement || 'Fire']?.mood || 'Ready for the next siege';
+    }
+
+    function renderProfileFavoriteSiegling(prefs) {
+        const cardData = prefs?.favoriteSieglingCard;
+        const cardId = prefs?.favoriteSieglingId || cardData?.id;
+        const card = cardId ? (findCard(cardId) || cardData) : null;
+        if (!card?.id) {
+            return '<div class="profile-favorite-card-empty"><span>No favorite Siegeling selected</span></div>';
+        }
+        return `<div class="profile-favorite-card-wrap">
+            <span class="profile-favorite-kicker">Favorite Siegeling</span>
+            <div class="profile-favorite-card binder-card" style="--el:${elementColor(card.element)}">
+                ${renderBinderCardShell(card, { ownedOverride: ownedCount(card.id) || Number(card.owned) || 1 })}
+            </div>
+        </div>`;
+    }
+
+    function profileTitleSelect(selectedId, prefs) {
+        const titles = unlockedPlayerTitles();
+        const current = selectedId || prefs?.playerTitleId || '';
+        if (!titles.length) {
+            return profileInput('Player title', 'playerTitleId', resolveProfileTitleLabel(prefs));
+        }
+        return `<label><span>Player title</span><select class="search-input" data-profile-field="playerTitleId">
+            ${titles.map(title => `<option value="${escapeAttr(title.id)}"${title.id === current ? ' selected' : ''}>${escapeHtml(title.label)}</option>`).join('')}
+        </select></label>`;
+    }
+
+    function favoriteSieglingSelect(selectedId) {
+        const cards = ownedSieglingCards();
+        const current = selectedId || '';
+        if (!cards.length) {
+            return '<label><span>Favorite Siegeling</span><select class="search-input" disabled><option>Own a Siegeling first</option></select></label>';
+        }
+        return `<label><span>Favorite Siegeling</span><select class="search-input" data-profile-field="favoriteSieglingId">
+            ${cards.map(card => `<option value="${escapeAttr(card.id)}"${card.id === current ? ' selected' : ''}>${escapeHtml(card.name)} · ${format(card.rarity)}</option>`).join('')}
+        </select></label>`;
     }
 
     function applyStarterProfileDefaults() {
@@ -2638,14 +2754,14 @@
                     </div>
                     <h2>${escapeHtml(prefs.displayName)}</h2>
                     <p class="profile-email">${escapeHtml(user.email || 'username pending')}</p>
-                    <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
+                    <p class="profile-title">${escapeHtml(resolveProfileTitleLabel(prefs))}</p>
                     <p class="profile-bio">${escapeHtml(prefs.bio)}</p>
                 </div>
             </div>
             <div class="profile-hero-side">
                 <span class="profile-motif">${escapeHtml(theme.motif)}</span>
                 <span>${escapeHtml(prefs.preferredCardBack)} card back</span>
-                <span>Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling)}</span>
+                ${renderProfileFavoriteSiegling(prefs)}
                 <button class="primary-btn profile-theme-btn" type="button" data-profile-edit>Edit Profile</button>
             </div>
         </section>`;
@@ -3030,6 +3146,15 @@
             : `<div class="achievement-modal-progress achievement-modal-progress-binary">
                     <small>${unlocked ? 'You have met this requirement.' : 'Complete the requirement above to unlock this badge.'}</small>
                 </div>`;
+        const rewardTitle = (state.titleCatalog || state.progression?.playerTitles || [])
+            .find(title => title.achievementId === achievement.id);
+        const rewardBlock = rewardTitle
+            ? `<div class="achievement-modal-reward">
+                    <span class="eyebrow">Player title reward</span>
+                    <p><strong>${escapeHtml(rewardTitle.label)}</strong></p>
+                    <small>${escapeHtml(rewardTitle.description || 'Unlock this achievement to earn the title for your profile.')}</small>
+                </div>`
+            : '';
         return `<div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="achievementDetailTitle">
             <div class="profile-edit-panel profile-panel achievement-modal-panel" style="${profileThemeStyle(view?.theme || elementThemes.Neutral)}">
                 <div class="profile-panel-head">
@@ -3048,6 +3173,7 @@
                     <p>${escapeHtml(achievement.description)}</p>
                 </div>
                 ${progressBlock}
+                ${rewardBlock}
             </div>
         </div>`;
     }
@@ -3074,10 +3200,10 @@
                     ${profileInput('Avatar initials', 'avatar', prefs.avatar)}
                     ${profileInput('Avatar image URL', 'avatarUrl', prefs.avatarUrl)}
                     <label><span>Favorite element</span><select class="search-input" data-profile-field="favoriteElement">${PROFILE_ELEMENTS.map(element => `<option value="${element}"${element === prefs.favoriteElement ? ' selected' : ''}>${element}</option>`).join('')}</select></label>
-                    ${profileInput('Player title', 'playerTitle', prefs.playerTitle)}
+                    ${profileTitleSelect(prefs.playerTitleId, prefs)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
                     ${profileInput('Preferred card back', 'preferredCardBack', prefs.preferredCardBack)}
-                    ${profileInput('Favorite Siegeling', 'favoriteSiegling', prefs.favoriteSiegling)}
+                    ${favoriteSieglingSelect(prefs.favoriteSieglingId || prefs.favoriteSieglingCard?.id)}
                 </div>
                 <div class="profile-edit-actions">
                     <button class="ghost-btn" type="button" data-profile-close>Cancel</button>
@@ -3185,7 +3311,14 @@
         next.favoriteElement = normalizeProfileElement(next.favoriteElement);
         next.avatarMode = next.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL';
         next.avatar = (next.avatar || initials(next.displayName)).slice(0, 4).toUpperCase();
-        if (!next.playerTitle) next.playerTitle = elementThemes[next.favoriteElement].mood;
+        if (!next.playerTitleId && next.playerTitle) {
+            const legacy = unlockedPlayerTitles().find(title => title.label === next.playerTitle || title.id === next.playerTitle);
+            next.playerTitleId = legacy?.id || defaultStarterTitleId(next.favoriteElement);
+        }
+        if (!next.favoriteSieglingId && next.favoriteSiegling) {
+            const legacyCard = ownedSieglingCards().find(card => card.id === next.favoriteSiegling || card.name === next.favoriteSiegling);
+            next.favoriteSieglingId = legacyCard?.id || '';
+        }
         const data = await fetchJson('/api/profile/settings', { method: 'POST', body: JSON.stringify(next) });
         if (!data) return alert('Could not save profile. Is the server running the latest code with /api/profile/settings?');
         if (data.error) return alert(data.error);
@@ -3406,6 +3539,7 @@
         state.progression = data.progression;
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
+        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
         await loadDailyMissions();
         const latest = state.progression?.packHistory?.[0];
         state.packOpeningDismissedKey = '';
@@ -3442,6 +3576,7 @@
         state.progression = data.progression;
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
+        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
         render();
     }
 
@@ -4926,9 +5061,12 @@
             avatar: settings.avatar || '',
             avatarUrl: settings.avatarUrl || '',
             playerTitle: settings.playerTitle || '',
+            playerTitleId: settings.playerTitleId || settings.playerTitle || '',
             bio: settings.bio || '',
             preferredCardBack: settings.preferredCardBack || '',
-            favoriteSiegling: settings.favoriteSiegling || ''
+            favoriteSiegling: settings.favoriteSiegling || '',
+            favoriteSieglingId: settings.favoriteSieglingId || '',
+            favoriteSieglingCard: settings.favoriteSieglingCard || null
         };
         const elementSource = settings.favoriteElementLabel || settings.favoriteElement;
         if (elementSource != null && String(elementSource).trim()) {
@@ -4959,9 +5097,11 @@
                 avatarUrl: prefs.avatarUrl,
                 favoriteElement: prefs.favoriteElement,
                 playerTitle: prefs.playerTitle,
+                playerTitleId: prefs.playerTitleId,
                 bio: prefs.bio,
                 preferredCardBack: prefs.preferredCardBack,
-                favoriteSiegling: prefs.favoriteSiegling
+                favoriteSiegling: prefs.favoriteSiegling,
+                favoriteSieglingId: prefs.favoriteSieglingId
             }));
         } catch (_error) {
             // ignore quota errors
@@ -5873,9 +6013,9 @@
                         <span class="profile-soft-pill">${escapeHtml(statusLabel)}</span>
                     </div>
                     <h2>${escapeHtml(prefs.displayName || data.userId || 'Player')}</h2>
-                    <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
+                    <p class="profile-title">${escapeHtml(resolveProfileTitleLabel(prefs))}</p>
                     <p class="profile-bio">${escapeHtml(prefs.bio || '')}</p>
-                    <p class="profile-muted">Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling || '—')}</p>
+                    ${renderProfileFavoriteSiegling(prefs)}
                     <p class="profile-muted">${escapeHtml(prefs.preferredCardBack || '')} card back</p>
                 </div>
             </div>
@@ -6269,6 +6409,8 @@
         if (packButton) choosePack(packButton.dataset.packId);
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
+        const titleButton = event.target.closest('[data-purchase-title-id]');
+        if (titleButton) purchasePlayerTitle(titleButton.dataset.purchaseTitleId);
         if (event.target.closest('[data-close-preview]') || event.target.matches('[data-preview-backdrop]')) {
             closePackPreview();
             return;
