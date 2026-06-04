@@ -1104,6 +1104,148 @@ img { display: block; }
     cursor: pointer;
 }
 
+/* ── Login button "pop" attention cue ────────────────────────────────────── */
+.cta-pop {
+    animation: cta-login-pop 2.6s ease-in-out infinite;
+}
+.cta-pop:hover,
+.cta-pop:focus-visible {
+    animation-play-state: paused;
+}
+@keyframes cta-login-pop {
+    0%, 72%, 100% { transform: scale(1); }
+    80%           { transform: scale(1.06); }
+    88%           { transform: scale(0.98); }
+    94%           { transform: scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .cta-pop { animation: none; }
+}
+
+/* ── Login modal (mirrors the in-game auth card) ─────────────────────────── */
+.login-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 210;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.login-modal.hidden { display: none; }
+.login-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 8, 18, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.login-modal-inner {
+    position: relative;
+    z-index: 1;
+    width: min(430px, 100%);
+    padding: 26px 24px 24px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #142048, #0d1733);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 28px 60px rgba(0, 0, 0, 0.55);
+    animation: login-modal-in 0.24s ease;
+}
+@keyframes login-modal-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.login-modal-head { margin: 0 36px 16px 2px; }
+.login-eyebrow {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--siegelings-gold);
+}
+.login-modal-title {
+    margin: 4px 0 0;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 1.35rem;
+    color: #fff;
+}
+.login-close {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.4);
+    color: #fff;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.login-card { display: grid; gap: 12px; }
+.login-card strong { font-size: 1.05rem; color: #fff; }
+.login-card span {
+    color: rgba(228, 232, 246, 0.74);
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.5;
+}
+.login-input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(7, 14, 33, 0.7);
+    color: #f4f6fb;
+    font-size: 0.95rem;
+    font-family: inherit;
+}
+.login-input::placeholder { color: rgba(228, 232, 246, 0.4); }
+.login-input:focus {
+    outline: none;
+    border-color: var(--siegelings-blue);
+    box-shadow: 0 0 0 2px rgba(30, 144, 255, 0.28);
+}
+.login-error {
+    margin: -2px 0 0;
+    color: #ff8a8a;
+    font-size: 0.82rem;
+    font-weight: 700;
+    min-height: 0;
+}
+.login-btn {
+    width: 100%;
+    padding: 13px 18px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: transform 0.16s ease, box-shadow 0.2s ease, background 0.2s ease;
+    font-family: inherit;
+}
+.login-btn:active { transform: translateY(1px); }
+.login-btn[disabled] { opacity: 0.6; cursor: progress; }
+.login-btn-primary {
+    color: #081021;
+    background: linear-gradient(135deg, #f8fbff, #76e6ff 48%, #ffd54a);
+    border-color: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 8px 22px rgba(118, 230, 255, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+.login-btn-primary:hover {
+    background: linear-gradient(135deg, #ffffff, #9df1ff 48%, #ffe680);
+}
+.login-btn-ghost {
+    color: #f4f6fb;
+    background: rgba(13, 27, 62, 0.42);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+.login-btn-ghost:hover {
+    background: rgba(30, 144, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.55);
+}
+
 /* ── Loading Gate (in-game splash) ───────────────────────────────────────── */
 .sgl-loading-gate {
     position: fixed;
