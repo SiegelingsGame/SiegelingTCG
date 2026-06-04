@@ -147,6 +147,145 @@
         });
     }
 
+    // ── Login modal (mirrors the in-game auth UI) ─────────────────────────
+    // Surfaces the same Sign in / Register flow the game uses, so players can
+    // authenticate before the home/cards hub ever loads. The token is stashed
+    // under the key home.js + game.js read, so the session carries straight in.
+    const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+    const POST_LOGIN_DESTINATION = '/home';
+
+    function bindLoginModal() {
+        const modal = document.getElementById('loginModal');
+        const trigger = document.getElementById('ctaLogin');
+        const body = document.getElementById('loginCardBody');
+        if (!modal || !trigger || !body) return;
+
+        let step = 'credentials';            // 'credentials' | 'display-name'
+        let draft = { email: '', password: '' };
+        let busy = false;
+
+        function open() {
+            step = 'credentials';
+            draft = { email: '', password: '' };
+            render();
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            window.setTimeout(() => body.querySelector('input')?.focus(), 30);
+        }
+        function close() {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        function render() {
+            body.innerHTML = step === 'display-name' ? displayNameMarkup() : credentialsMarkup();
+            bindCard();
+        }
+
+        function credentialsMarkup() {
+            return `
+                <strong>Sign in to save progression</strong>
+                <span>Starter packs, Siegecoins, Remnants, owned cards, and custom decks require an account. New players start with 100 Siegecoins.</span>
+                <input class="login-input" id="loginEmail" type="email" autocomplete="email" placeholder="Email" value="${escapeAttr(draft.email)}">
+                <input class="login-input" id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" value="${escapeAttr(draft.password)}">
+                <p class="login-error" id="loginError" role="alert"></p>
+                <button class="login-btn login-btn-primary" id="loginSubmitBtn" type="button">Log In</button>
+                <button class="login-btn login-btn-ghost" id="loginRegisterBtn" type="button">Register</button>`;
+        }
+
+        function displayNameMarkup() {
+            return `
+                <strong>Choose your display name</strong>
+                <span>Confirm how other duelists will see you (${escapeHtml(draft.email)}).</span>
+                <input class="login-input" id="loginName" maxlength="20" placeholder="Display name" autofocus>
+                <p class="login-error" id="loginError" role="alert"></p>
+                <button class="login-btn login-btn-primary" id="loginConfirmBtn" type="button">Confirm</button>
+                <button class="login-btn login-btn-ghost" id="loginBackBtn" type="button">Back</button>`;
+        }
+
+        function showError(message) {
+            const el = body.querySelector('#loginError');
+            if (el) el.textContent = message || '';
+        }
+
+        function readCredentials() {
+            return {
+                email: (body.querySelector('#loginEmail')?.value || '').trim(),
+                password: body.querySelector('#loginPassword')?.value || ''
+            };
+        }
+
+        function beginRegister() {
+            const { email, password } = readCredentials();
+            if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
+                return showError('Enter a valid email address.');
+            }
+            if (!password || password.length < 6) {
+                return showError('Passwords must be at least 6 characters.');
+            }
+            draft = { email, password };
+            step = 'display-name';
+            render();
+            window.setTimeout(() => body.querySelector('#loginName')?.focus(), 30);
+        }
+
+        async function submit(mode) {
+            if (busy) return;
+            const payload = mode === 'register'
+                ? { email: draft.email, password: draft.password, displayName: (body.querySelector('#loginName')?.value || '').trim() }
+                : readCredentials();
+            if (mode === 'login' && (!payload.email || !payload.password)) {
+                return showError('Enter your email and password.');
+            }
+            busy = true;
+            const submitBtn = body.querySelector('#loginSubmitBtn, #loginConfirmBtn');
+            const originalLabel = submitBtn ? submitBtn.textContent : '';
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Please wait…'; }
+            try {
+                const resp = await fetch(`/api/auth/${mode}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                let data = null;
+                try { data = await resp.json(); } catch (_ignored) { /* non-JSON */ }
+                if (!resp.ok || !data || data.error || !data.token) {
+                    showError((data && data.error) || 'Something went wrong. Please try again.');
+                    return;
+                }
+                localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+                window.location.assign(POST_LOGIN_DESTINATION);
+            } catch (_networkError) {
+                showError('Network error. Check your connection and try again.');
+            } finally {
+                busy = false;
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalLabel; }
+            }
+        }
+
+        function bindCard() {
+            body.querySelector('#loginSubmitBtn')?.addEventListener('click', () => submit('login'));
+            body.querySelector('#loginRegisterBtn')?.addEventListener('click', beginRegister);
+            body.querySelector('#loginConfirmBtn')?.addEventListener('click', () => submit('register'));
+            body.querySelector('#loginBackBtn')?.addEventListener('click', () => {
+                step = 'credentials';
+                render();
+            });
+            body.querySelector('#loginPassword')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submit('login');
+            });
+            body.querySelector('#loginName')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submit('register');
+            });
+        }
+
+        trigger.addEventListener('click', open);
+        modal.querySelectorAll('[data-close-login]').forEach((el) => el.addEventListener('click', close));
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
+        });
+    }
+
     // ── Footer year ───────────────────────────────────────────────────────
     function setFooterYear() {
         const el = document.getElementById('footerYear');
@@ -254,6 +393,7 @@
         renderCreatureGrid();
         bindParallax();
         bindTrailerModal();
+        bindLoginModal();
         setFooterYear();
         bindSiegelingsColorWave();
         window.addEventListener('resize', fitHeroTagline);
