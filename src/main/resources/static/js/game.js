@@ -5809,7 +5809,10 @@ async function syncAuthProfile(silent = false) {
         renderWelcomeAuth();
     }
 
-    const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET' });
+    // never serve auth state from the HTTP cache — Safari in particular will
+    // happily return a stale {authenticated:false} captured before the player
+    // signed in on another page (e.g. the hub), logging them back out here.
+    const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET', cache: 'no-store' });
     authState.loading = false;
     if (!data) {
         if (!silent) {
