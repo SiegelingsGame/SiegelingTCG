@@ -1984,10 +1984,20 @@
         document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
     }
 
+    // Heraldic banner + star — the shared "profile flair / player title" emblem.
+    function titleFlairIcon() {
+        return `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path d="M6 3h12a1 1 0 0 1 1 1v15.6a.6.6 0 0 1-.95.49L12 16.3l-6.05 3.79A.6.6 0 0 1 5 19.6V4a1 1 0 0 1 1-1Z" fill="currentColor" opacity="0.16"/>
+            <path d="M6 3h12a1 1 0 0 1 1 1v15.6a.6.6 0 0 1-.95.49L12 16.3l-6.05 3.79A.6.6 0 0 1 5 19.6V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="m12 6.4 1.32 2.67 2.95.43-2.14 2.08.51 2.94L12 15.66l-2.64 1.39.5-2.94-2.13-2.08 2.95-.43L12 6.4Z" fill="currentColor"/>
+        </svg>`;
+    }
+
     function renderShopTitleTile(title) {
         const unlocked = Boolean(title.unlocked);
         const price = Number(title.shopPrice) || 0;
         return `<article class="shop-title-tile">
+            <span class="shop-title-icon">${titleFlairIcon()}</span>
             <div class="shop-title-copy">
                 <span class="shop-title-kicker">${escapeHtml(title.source || 'SHOP')}</span>
                 <strong>${escapeHtml(title.label || 'Title')}</strong>

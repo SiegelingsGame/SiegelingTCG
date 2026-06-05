@@ -819,14 +819,16 @@ select.search-input { color-scheme: dark; }
 .shop-title-grid {
     display: grid;
     gap: 12px;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    /* Span the full width of the parent pack-grid (like .daily-offer-grid) so the
+       tiles lay out horizontally instead of being trapped in a single column cell. */
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     margin-bottom: 18px;
 }
 
 .shop-title-tile {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
     padding: 14px 16px;
     border-radius: 16px;
@@ -834,7 +836,30 @@ select.search-input { color-scheme: dark; }
     background: rgba(8, 12, 24, 0.72);
 }
 
+.shop-title-icon {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    color: #ffd54a;
+    background: radial-gradient(circle at 50% 32%, rgba(255, 213, 74, 0.22), rgba(255, 213, 74, 0.05));
+    border: 1px solid rgba(255, 213, 74, 0.28);
+}
+
+.shop-title-icon svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.shop-title-tile .primary-btn {
+    flex: 0 0 auto;
+}
+
 .shop-title-copy {
+    flex: 1 1 auto;
     display: grid;
     gap: 4px;
     min-width: 0;
