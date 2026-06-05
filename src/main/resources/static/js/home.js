@@ -583,6 +583,12 @@
             stopLobbyPolling();
         }
         renderHudTools();
+        // Keep the HUD auth indicators (Sign In/Log Out + coin pill) in sync on
+        // every route change; navigation goes through renderRoute() rather than
+        // the full render(), so without this the HUD can lag behind the actual
+        // auth state (e.g. body shows the signed-in profile while the HUD still
+        // reads "Sign In").
+        renderGold();
     }
 
     function safeRender(fn) {
@@ -3517,8 +3523,10 @@
     }
 
     function renderGold() {
-        document.getElementById('goldPill').innerHTML = renderCoinAmount(state.profile?.authenticated ? (state.progression?.gold || 0) : 100);
-        document.getElementById('ownedCountLabel').textContent = `${state.progression?.ownedTotal || 0} owned`;
+        const goldPill = document.getElementById('goldPill');
+        if (goldPill) goldPill.innerHTML = renderCoinAmount(state.profile?.authenticated ? (state.progression?.gold || 0) : 100);
+        const ownedCountLabel = document.getElementById('ownedCountLabel');
+        if (ownedCountLabel) ownedCountLabel.textContent = `${state.progression?.ownedTotal || 0} owned`;
         const authBtn = document.getElementById('authHudBtn');
         if (authBtn) {
             authBtn.textContent = state.profile?.authenticated ? 'Log Out' : 'Sign In';
