@@ -353,6 +353,13 @@ const STATUS_BADGE_SVG = {
     STRONG: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-st-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff4c0"/><stop offset="50%" stop-color="#e8a020"/><stop offset="100%" stop-color="#5a3a08"/></radialGradient><linearGradient id="sb-st-star" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#ffe080"/><stop offset="100%" stop-color="#e8a020"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ffd060" opacity=".3" class="sb-pulse"/><g class="sb-spin-rev" opacity=".55"><line x1="42" y1="6" x2="42" y2="14" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="42" y1="70" x2="42" y2="78" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="42" x2="14" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="70" y1="42" x2="78" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/></g><circle cx="42" cy="42" r="34" fill="url(#sb-st-bg)" stroke="#fff4c0" stroke-width="2"/><polygon points="42,20 47,35 63,35 50,44 55,60 42,51 29,60 34,44 21,35 37,35" fill="url(#sb-st-star)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-float"/><g transform="translate(60 60)"><circle r="9" fill="#3a2008" stroke="#ffe080" stroke-width="1.5"/><path d="M0 4 L0 -4 M-3 -1 L0 -4 L3 -1" stroke="#ffe080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`
 };
 
+// Compact heart / bolt glyphs that replace the "HP:" / "SPD:" text labels on
+// the cramped arena board cards, letting both stats sit on one line and freeing
+// vertical room for larger status badges. They inherit colour via currentColor
+// so the existing buffed/damaged/slowed text colours still apply.
+const STAT_ICON_HP = `<svg viewBox="0 0 24 24" class="card-stat-icon" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
+const STAT_ICON_SPD = `<svg viewBox="0 0 24 24" class="card-stat-icon" aria-hidden="true" focusable="false"><path fill="currentColor" d="M13.5 2L4 13.5h6.2L9 22l9.5-12.2H12L13.5 2z"/></svg>`;
+
 function getShieldInfo(cell, hpOverride, maxHpOverride) {
     const shieldHp = Number(cell?.shieldHp);
     const total = Number.isFinite(shieldHp) ? Math.max(0, shieldHp) : 0;
@@ -515,9 +522,20 @@ function renderCardStatPills(entity, options = {}) {
     }
     const hpClass = hpClasses.length ? ` ${hpClasses.join(' ')}` : '';
 
+    // Board cards are too small for "HP:" / "SPD:" text, so they use a heart /
+    // bolt icon plus the number. Hand and other contexts keep the labelled text.
+    const useIcons = mode === 'board';
+    const hpInner = useIcons
+        ? `${STAT_ICON_HP}<span class="card-stat-num">${hpVal}</span>`
+        : `HP: ${hpVal}`;
+    const spdInner = useIcons
+        ? `${STAT_ICON_SPD}<span class="card-stat-num">${spdVal}</span>`
+        : `SPD: ${spdVal}`;
+    const pillBaseClass = useIcons ? 'card-stat-pill card-stat-pill-icon' : 'card-stat-pill';
+
     return `<div class="card-stat-pills" role="group" aria-label="Combat stats">`
-        + `<span class="card-stat-pill card-stat-pill-hp${hpClass}">HP: ${hpVal}</span>`
-        + `<span class="card-stat-pill card-stat-pill-spd${spdClass}">SPD: ${spdVal}</span>`
+        + `<span class="${pillBaseClass} card-stat-pill-hp${hpClass}" title="HP ${hpVal}" aria-label="Health ${hpVal}">${hpInner}</span>`
+        + `<span class="${pillBaseClass} card-stat-pill-spd${spdClass}" title="Speed ${spdVal}" aria-label="Speed ${spdVal}">${spdInner}</span>`
         + `</div>`;
 }
 
@@ -610,8 +628,10 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     html += `</div>`;
     html += renderCardArt(cell, 'hand', fallbackArtLabel);
     html += `<div class="arena-board-combat">`;
-    html += renderCardStatPills(cell, { mode: 'board' });
+    // Badges sit above the HP/SPD line so they stay clear of the bottom-centre
+    // notch; the stat line below splits left/right, leaving the notch its gap.
     html += `<div class="arena-board-badges">${statusBadgesHtml}</div>`;
+    html += renderCardStatPills(cell, { mode: 'board' });
     html += `</div>`;
     html += `</div>`;
     html += `</div>`;
