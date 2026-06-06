@@ -2577,8 +2577,50 @@ body.battle-inline-dock .battle-queue-actions {
     line-height: 1.2;
     color: #f5f8ff;
     letter-spacing: 0.02em;
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
+}
+
+/* HP/Speed pills + buff/debuff badges for the acting Siegeling, shown in the
+   action panel header right beside the card name. The state chip is pushed to
+   the far right so these read as part of the card's identity in the queue. */
+.battle-queue-card-stats {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 1 auto;
+    min-width: 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.battle-queue-topbar .battle-queue-state {
+    margin-left: auto;
+}
+
+.battle-queue-card-stats .card-stat-pills {
+    width: auto;
+    flex: 0 0 auto;
+    gap: 5px;
+}
+
+.battle-queue-card-stats .card-stat-pill {
+    flex: 0 0 auto;
+    font-size: 0.72em;
+    padding: 3px 7px;
+    white-space: nowrap;
+}
+
+.battle-queue-card-stats .status-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin: 0;
+}
+
+.battle-queue-card-stats .sb-badge {
+    width: 20px;
+    height: 20px;
 }
 
 .battle-queue-expanded {
@@ -5791,7 +5833,7 @@ body.placement-active .board-cell.legal {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 2px;
+    gap: 3px;
     width: 100%;
     margin-top: auto;
 }
@@ -5801,6 +5843,7 @@ body.placement-active .board-cell.legal {
     display: flex;
     flex-direction: row;
     align-items: center;
+    /* Split HP left / SPD right so the bottom-centre notch sits in the gap. */
     justify-content: space-between;
     width: 100%;
     min-width: 0;
@@ -5808,11 +5851,17 @@ body.placement-active .board-cell.legal {
 }
 
 .board-card.arena-board-card .card-stat-pill {
-    flex: 1 1 0;
+    flex: 0 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
     text-align: center;
-    font-size: 0.4em;
-    padding: 1px 2px;
+    font-size: 0.5em;
+    line-height: 1;
+    padding: 1px 4px;
     border-radius: 4px;
+    white-space: nowrap;
 }
 
 .board-card.arena-board-card .hp-bar {
@@ -5828,7 +5877,7 @@ body.placement-active .board-cell.legal {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 12px;
+    min-height: 0;
 }
 
 .board-card.arena-board-card .arena-board-badges:empty {
@@ -5849,17 +5898,17 @@ body.placement-active .board-cell.legal {
 }
 
 .board-card.arena-board-card .sb-badge {
-    width: 11px;
-    height: 11px;
+    width: 17px;
+    height: 17px;
 }
 
 .board-card.arena-board-card .sb-num {
-    min-width: 7px;
-    height: 7px;
-    padding: 0;
-    font-size: 5px;
-    bottom: 0;
-    right: 0;
+    min-width: 10px;
+    height: 10px;
+    padding: 0 1px;
+    font-size: 7px;
+    bottom: -2px;
+    right: -2px;
     border-width: 1px;
 }
 
@@ -6925,6 +6974,27 @@ body.placement-active .board-cell.legal {
     color: #f0f4ff;
     letter-spacing: 0.02em;
     line-height: 1.2;
+}
+
+/* Icon-mode stat pills (board cards): heart/bolt glyph + number, no label. */
+.card-stat-pill-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.card-stat-icon {
+    width: 1.25em;
+    height: 1.25em;
+    flex: 0 0 auto;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.card-stat-num {
+    font-weight: 800;
+    line-height: 1;
 }
 
 .card-stat-pill-spd {
