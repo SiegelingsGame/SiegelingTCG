@@ -2582,15 +2582,20 @@ body.battle-inline-dock .battle-queue-actions {
 }
 
 /* HP/Speed pills + buff/debuff badges for the acting Siegeling, shown in the
-   action panel header between the card name and the ACTING NOW state chip. */
+   action panel header right beside the card name. The state chip is pushed to
+   the far right so these read as part of the card's identity in the queue. */
 .battle-queue-card-stats {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-wrap: wrap;
+}
+
+.battle-queue-topbar .battle-queue-state {
+    margin-left: auto;
 }
 
 .battle-queue-card-stats .card-stat-pills {
