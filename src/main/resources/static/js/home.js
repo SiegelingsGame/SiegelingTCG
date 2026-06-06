@@ -416,7 +416,9 @@
             stopPresenceHeartbeat();
             return null;
         }
-        const data = await fetchJson('/api/auth/me');
+        // Bypass the HTTP cache: a stale {authenticated:false} response (Safari
+        // is especially eager to cache GETs) would otherwise wipe a valid token.
+        const data = await fetchJson('/api/auth/me', { cache: 'no-store' });
         if (!data?.authenticated) {
             localStorage.removeItem(AUTH_TOKEN_KEY);
             state.token = '';
