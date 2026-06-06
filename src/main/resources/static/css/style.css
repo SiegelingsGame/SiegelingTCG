@@ -2577,8 +2577,45 @@ body.battle-inline-dock .battle-queue-actions {
     line-height: 1.2;
     color: #f5f8ff;
     letter-spacing: 0.02em;
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
+}
+
+/* HP/Speed pills + buff/debuff badges for the acting Siegeling, shown in the
+   action panel header between the card name and the ACTING NOW state chip. */
+.battle-queue-card-stats {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.battle-queue-card-stats .card-stat-pills {
+    width: auto;
+    flex: 0 0 auto;
+    gap: 5px;
+}
+
+.battle-queue-card-stats .card-stat-pill {
+    flex: 0 0 auto;
+    font-size: 0.72em;
+    padding: 3px 7px;
+    white-space: nowrap;
+}
+
+.battle-queue-card-stats .status-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin: 0;
+}
+
+.battle-queue-card-stats .sb-badge {
+    width: 20px;
+    height: 20px;
 }
 
 .battle-queue-expanded {

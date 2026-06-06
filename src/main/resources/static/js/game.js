@@ -440,6 +440,33 @@ function renderStatusBadgesForCell(cell) {
     return `<div class="status-icons">${items.join('')}</div>`;
 }
 
+// Locate the live board cell for a given Siegeling instance, scanning both
+// boards. Used by the battle action panel so the acting card's HP, Speed, and
+// status badges read from the same source as the on-board card.
+function findBoardCellByInstanceId(instanceId) {
+    if (instanceId == null || !gameState) return null;
+    for (const board of [gameState.playerBoard, gameState.enemyBoard]) {
+        if (!Array.isArray(board)) continue;
+        for (let r = 0; r < 3; r += 1) {
+            for (let c = 0; c < 3; c += 1) {
+                const cell = board?.[r]?.[c];
+                if (cell && cell.instanceId === instanceId) return cell;
+            }
+        }
+    }
+    return null;
+}
+
+// Compact HP/Speed pills plus any buff/debuff badges for the Siegeling that is
+// currently acting, rendered into the battle action panel header.
+function renderActingCardStatStrip(cell) {
+    if (!cell) return '';
+    const pills = renderCardStatPills(cell, { mode: 'board' });
+    const badges = renderStatusBadgesForCell(cell);
+    if (!pills && !badges) return '';
+    return `<div class="battle-queue-card-stats">${pills}${badges}</div>`;
+}
+
 function formatStatPillNumber(value) {
     const n = Number(value);
     return Number.isFinite(n) ? String(n) : '—';
@@ -463,7 +490,6 @@ function renderCardStatPills(entity, options = {}) {
         const printedHp = Number(entity.printedHealth);
         const currentHp = Number(entity.hp);
         const maxHp = Number(entity.maxHp);
-        const hpNow = Number(entity.hp);
         const printedSpd = Number(entity.printedSpeed);
         const spdNow = Number(entity.spd);
         const shieldInfo = getShieldInfo(entity);
@@ -475,10 +501,8 @@ function renderCardStatPills(entity, options = {}) {
         } else if (Number.isFinite(printedHp) && maxHp > printedHp) {
             hpClasses.push('is-buffed');
         }
-        // Turn the HP text red the moment the card drops below its max health.
-        if (Number.isFinite(hpNow) && Number.isFinite(maxHp) && hpNow < maxHp) {
-            hpClass += ' is-damaged';
-        }
+        // Note: the damaged-HP (red) class is already added above via the
+        // currentHp < maxHp check that pushes 'is-damaged' onto hpClasses.
         // Speed increased -> green text; a reduction (or a speed of 0) turns
         // the SPD text red so a slowed/disabled Siegeling reads at a glance.
         if (Number.isFinite(spdNow) && (spdNow === 0 || (Number.isFinite(printedSpd) && spdNow < printedSpd))) {
@@ -11464,9 +11488,11 @@ function renderBattlePanel() {
             compact ? 'battle-queue-compact' : '',
             expanded ? 'battle-queue-expanded' : ''
         ].filter(Boolean).join(' ');
+        const statStripHtml = options.statsCell ? renderActingCardStatStrip(options.statsCell) : '';
         const headerHtml = cardTitle
             ? `<div class="battle-queue-topbar">
                 <div class="battle-queue-card-title">${escapeHtml(cardTitle)}</div>
+                ${statStripHtml}
                 <div class="battle-queue-state ${stateClass}">${escapeHtml(stateLabel)}</div>
             </div>`
             : `<div class="battle-queue-header">
@@ -11533,11 +11559,12 @@ function renderBattlePanel() {
         ? buildBattleTargetingInstruction(targetContext.side, activeTargetAbility, getRowSelectSelectedRow()).trayStateLabel
         : 'Acting Now';
 
+    const actingCell = findBoardCellByInstanceId(pending.instanceId);
     setPanelHtml(buildQueueShell(
         targetingShellLabel,
         battleTargeting ? 'targeting' : 'live',
         bodyHtml,
-        { expanded: true, cardTitle: pending.name }
+        { expanded: true, cardTitle: pending.name, statsCell: actingCell }
     ));
 }
 
