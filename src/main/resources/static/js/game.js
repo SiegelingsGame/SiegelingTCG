@@ -50,6 +50,11 @@ let arenaSelection = null;
 let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
+// Resolver for the in-flight phase-transition banner promise. Tracked so the
+// promise is always settled when the banner is hidden, superseded, or torn
+// down — a never-resolved await here would wedge the battle action queue and
+// freeze the game (auto-advance is gated on the queue being idle).
+let phaseTransitionResolve = null;
 let coinFlipDismissedRoomId = null;
 let handTouchGesture = null;
 /** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
@@ -2858,6 +2863,15 @@ function getPhaseTransitionKicker(phase, activeSide) {
     return 'Phase Shift';
 }
 
+// Settle any pending phase-transition banner promise. Safe to call repeatedly.
+function resolvePhaseTransitionBanner() {
+    if (phaseTransitionResolve) {
+        const resolve = phaseTransitionResolve;
+        phaseTransitionResolve = null;
+        resolve();
+    }
+}
+
 function hidePhaseTransitionBanner() {
     const banner = document.getElementById('phaseTransitionBanner');
     if (!banner) return;
@@ -2865,6 +2879,7 @@ function hidePhaseTransitionBanner() {
         clearTimeout(phaseTransitionTimer);
         phaseTransitionTimer = null;
     }
+    resolvePhaseTransitionBanner();
     banner.classList.remove('visible');
     banner.classList.add('hidden');
 }
@@ -2881,6 +2896,9 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
         clearTimeout(phaseTransitionTimer);
         phaseTransitionTimer = null;
     }
+    // A new banner supersedes any pending one — settle the old promise so its
+    // awaiter (the action queue) is never left hanging.
+    resolvePhaseTransitionBanner();
 
     const holdMs = Math.max(1200, Number(durationMs) || 2000);
     banner.className = `phase-transition-banner ${String(phase).toLowerCase()}`;
@@ -2891,11 +2909,13 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     requestAnimationFrame(() => banner.classList.add('visible'));
 
     return new Promise((resolve) => {
+        phaseTransitionResolve = resolve;
         phaseTransitionTimer = setTimeout(() => {
             banner.classList.remove('visible');
             phaseTransitionTimer = setTimeout(() => {
                 banner.classList.add('hidden');
                 phaseTransitionTimer = null;
+                phaseTransitionResolve = null;
                 resolve();
             }, 360);
         }, holdMs);
@@ -6110,10 +6130,18 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
     if (endpoint !== 'new' && prevState) {
         maybeNotifyTurnChange(prevState, data);
-        if (window.SieglingsActionQueue) {
-            window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
-        } else {
-            window.SieglingsFx?.onBoardUpdate(prevState, data);
+        // The animation/diff layer must never block the state update below. If
+        // it throws, the new gameState would otherwise never render and the
+        // interaction state never resets, freezing the client on the previous
+        // screen (e.g. stuck on the battle target overlay after attacking).
+        try {
+            if (window.SieglingsActionQueue) {
+                window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
+            } else {
+                window.SieglingsFx?.onBoardUpdate(prevState, data);
+            }
+        } catch (e) {
+            console.error('Battle animation queue failed; continuing without it:', e);
         }
     }
     try {
@@ -6341,6 +6369,7 @@ function openLoadoutSelector() {
         clearTimeout(phaseTransitionTimer);
         phaseTransitionTimer = null;
     }
+    resolvePhaseTransitionBanner();
     document.getElementById('phaseTransitionBanner')?.classList.add('hidden');
     document.getElementById('phaseTransitionBanner')?.classList.remove('visible');
     welcomeDismissed = true;
@@ -7709,7 +7738,17 @@ async function useTrainer(targetRow, targetCol) {
 
 async function submitBattleAction(abilityIndex, targetRow = -1, targetCol = -1) {
     clearTargetingPreview();
-    const data = await api('battle/action', 'POST', { abilityIndex, targetRow, targetCol });
+    let data;
+    try {
+        data = await api('battle/action', 'POST', { abilityIndex, targetRow, targetCol });
+    } catch (e) {
+        // Never leave the player stranded on the target overlay if the action
+        // request (or its post-processing) throws — clear the in-progress
+        // targeting so the UI is usable again.
+        console.error('Battle action failed:', e);
+        try { resetInteractionState(); } catch (_) {}
+        return;
+    }
     if (!data) return;
     resetInteractionState();
 }
