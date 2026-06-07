@@ -420,8 +420,12 @@
         // is especially eager to cache GETs) would otherwise wipe a valid token.
         const data = await fetchJson('/api/auth/me', { cache: 'no-store' });
         if (!data?.authenticated) {
-            localStorage.removeItem(AUTH_TOKEN_KEY);
-            state.token = '';
+            // Do NOT delete the persisted token here. The token is shared with the
+            // Play page (play.html/game.js); a transient failure or stale response
+            // would otherwise sign the player out everywhere, and revisiting any
+            // page would stay logged out. Clear only the in-memory profile — the
+            // token is removed solely on an explicit Log Out. A genuinely expired
+            // token is simply replaced the next time the player signs in.
             state.profile = null;
             state.progression = null;
             state.profilePrefs = null;
