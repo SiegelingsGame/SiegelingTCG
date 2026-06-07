@@ -79,6 +79,11 @@ let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
+// Last authenticated profile, cached in localStorage and shared with the hub so
+// every page can render the signed-in UI instantly and then revalidate against
+// /api/auth/me in the background instead of blocking on it.
+const AUTH_PROFILE_STORAGE_KEY = 'sieglingsAuthProfile';
+const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const PENDING_HOME_LOADOUT_STORAGE_KEY = 'sieglingsPendingLoadout';
 
 (function redirectLegacyPlayRoomLinks() {
@@ -140,9 +145,12 @@ let authMode = 'login';
 let authRegisterStep = 'credentials';
 let authPopupOpen = false;
 let registerDraft = { email: '', password: '' };
+const initialAuthToken = loadSavedAuthToken();
 let authState = {
-    token: loadSavedAuthToken(),
-    profile: null,
+    token: initialAuthToken,
+    // Seed from the cached snapshot so the signed-in UI renders instantly; the
+    // background /api/auth/me on init revalidates and refreshes it.
+    profile: initialAuthToken ? loadCachedAuthProfile() : null,
     loading: false,
     error: ''
 };
@@ -5069,6 +5077,47 @@ function loadSavedAuthToken() {
     }
 }
 
+// Read the cached profile snapshot so the signed-in UI can paint immediately on
+// load. Returns null if it's missing, malformed, not authenticated, or stale.
+function loadCachedAuthProfile() {
+    try {
+        const raw = localStorage.getItem(AUTH_PROFILE_STORAGE_KEY);
+        if (!raw) {
+            return null;
+        }
+        const entry = JSON.parse(raw);
+        if (!entry?.profile?.authenticated) {
+            return null;
+        }
+        if (entry.savedAt && Date.now() - entry.savedAt > AUTH_PROFILE_CACHE_MAX_AGE_MS) {
+            return null;
+        }
+        return entry.profile;
+    } catch (e) {
+        return null;
+    }
+}
+
+function saveCachedAuthProfile(profile) {
+    try {
+        if (!profile?.authenticated) {
+            localStorage.removeItem(AUTH_PROFILE_STORAGE_KEY);
+            return;
+        }
+        localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+    } catch (e) {
+        // The profile cache is a render optimization only.
+    }
+}
+
+function clearCachedAuthProfile() {
+    try {
+        localStorage.removeItem(AUTH_PROFILE_STORAGE_KEY);
+    } catch (e) {
+        // ignore
+    }
+}
+
 function saveAuthToken(token) {
     authState.token = token || '';
     try {
@@ -5090,6 +5139,10 @@ function clearAuthProfile() {
     authState.profile = null;
     authState.error = '';
     selectedSavedDeckId = null;
+    // Drop the optimistic snapshot once we have positive evidence it's invalid,
+    // so we don't keep flashing a signed-in card. The token is kept by callers
+    // that want a later successful /api/auth/me to restore the session.
+    clearCachedAuthProfile();
     renderAuthDependentSurfaces();
 }
 
@@ -5124,6 +5177,7 @@ async function refreshAuthFromStorage(silent = true) {
         authState.profile = null;
         authState.error = '';
         selectedSavedDeckId = null;
+        clearCachedAuthProfile();
         renderAuthDependentSurfaces();
         return null;
     }
@@ -5841,6 +5895,7 @@ async function submitAuth(mode) {
 
     saveAuthToken(data.token || '');
     authState.profile = data;
+    saveCachedAuthProfile(data);
     authState.error = '';
     authRegisterStep = 'credentials';
     registerDraft = { email: '', password: '' };
@@ -5892,6 +5947,7 @@ async function syncAuthProfile(silent = false) {
 
     authState.profile = data;
     authState.error = '';
+    saveCachedAuthProfile(data);
     renderWelcomeAuth();
     renderSavedDecks();
     hydrateSavedPlayerName();
