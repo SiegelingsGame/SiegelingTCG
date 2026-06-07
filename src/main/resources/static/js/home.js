@@ -1,5 +1,10 @@
 (function () {
     const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+    // Last authenticated profile, cached in localStorage and shared with the Play
+    // page so the signed-in UI paints instantly and then revalidates against
+    // /api/auth/me in the background instead of blocking on it.
+    const AUTH_PROFILE_CACHE_KEY = 'sieglingsAuthProfile';
+    const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
@@ -136,11 +141,48 @@
         }
     };
 
+    function loadCachedAuthProfile() {
+        try {
+            const raw = localStorage.getItem(AUTH_PROFILE_CACHE_KEY);
+            if (!raw) return null;
+            const entry = JSON.parse(raw);
+            if (!entry?.profile?.authenticated) return null;
+            if (entry.savedAt && Date.now() - entry.savedAt > AUTH_PROFILE_CACHE_MAX_AGE_MS) return null;
+            return entry.profile;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function saveCachedAuthProfile(profile) {
+        try {
+            if (!profile?.authenticated) {
+                localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+                return;
+            }
+            localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+        } catch (error) {
+            // The profile cache is a render optimization only.
+        }
+    }
+
+    function clearCachedAuthProfile() {
+        try {
+            localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+        } catch (error) {
+            // ignore
+        }
+    }
+
+    const initialAuthToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    // Seed from the cached snapshot so the signed-in hub renders instantly; the
+    // background syncProfile() on init revalidates and refreshes it.
+    const cachedAuthProfile = initialAuthToken ? loadCachedAuthProfile() : null;
     const state = {
         route: 'home',
-        token: localStorage.getItem(AUTH_TOKEN_KEY) || '',
-        profile: null,
-        progression: null,
+        token: initialAuthToken,
+        profile: cachedAuthProfile,
+        progression: cachedAuthProfile?.progression || null,
         options: null,
         packs: [],
         dailyOffers: [],
@@ -420,6 +462,7 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            clearCachedAuthProfile();
             stopPresenceHeartbeat();
             return null;
         }
@@ -437,11 +480,13 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            clearCachedAuthProfile();
             stopPresenceHeartbeat();
             return null;
         }
         state.profile = data;
         state.progression = data.progression || null;
+        saveCachedAuthProfile(data);
         await loadDailyMissions();
         startPresenceHeartbeat();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
@@ -4709,6 +4754,7 @@
         state.token = data.token || '';
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
+        saveCachedAuthProfile(data);
         state.progression = data.progression;
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
@@ -4730,6 +4776,7 @@
         await fetchJson('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
+        clearCachedAuthProfile();
         state.token = '';
         state.profile = null;
         state.progression = null;
@@ -4754,6 +4801,7 @@
         stopPresenceHeartbeat();
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
+        clearCachedAuthProfile();
         state.token = '';
         state.profile = null;
         state.progression = null;

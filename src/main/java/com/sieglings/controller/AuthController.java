@@ -24,6 +24,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @RestController
 public class AuthController {
@@ -56,6 +60,18 @@ public class AuthController {
 
     @Autowired
     private PresenceService presenceService;
+
+    // Bounded pool for fanning out the independent Firestore reads that make up a
+    // profile response. Daemon threads so it never blocks JVM shutdown. Every task
+    // submitted here is a leaf — it never waits on another pooled task — so the
+    // pool cannot deadlock on itself; the only blocking join runs on the request
+    // thread.
+    private final ExecutorService authProfileExecutor =
+            Executors.newFixedThreadPool(16, runnable -> {
+                Thread thread = new Thread(runnable, "auth-profile-loader");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     @PostMapping("/api/auth/register")
     public Map<String, Object> register(@RequestBody Map<String, Object> req) {
@@ -224,6 +240,26 @@ public class AuthController {
     }
 
     private Map<String, Object> buildProfileResponse(AccountUser user, String token) {
+        // Kick off the independent profile lookups concurrently. Each is its own
+        // Firestore read (or set of reads) with no ordering dependency on the
+        // others, so fanning them out turns ~a dozen sequential round trips into
+        // roughly the cost of the slowest one. Every task swallows its own failure
+        // and falls back to an empty/absent value, so one slow or erroring lookup
+        // can't fail the whole response.
+        CompletableFuture<List<Map<String, Object>>> friendsF = loadFriendsAsync(user);
+        CompletableFuture<List<Map<String, Object>>> incomingF =
+                CompletableFuture.supplyAsync(() -> loadIncomingFriendRequests(user), authProfileExecutor);
+        CompletableFuture<List<Map<String, Object>>> outgoingF =
+                CompletableFuture.supplyAsync(() -> loadOutgoingFriendRequests(user), authProfileExecutor);
+        CompletableFuture<List<Map<String, Object>>> decksF =
+                CompletableFuture.supplyAsync(() -> loadSavedDecks(user), authProfileExecutor);
+        CompletableFuture<List<Map<String, Object>>> historyF =
+                CompletableFuture.supplyAsync(() -> loadMatchHistory(user), authProfileExecutor);
+        CompletableFuture<Object> progressionF =
+                CompletableFuture.supplyAsync(() -> loadProgression(user), authProfileExecutor);
+        CompletableFuture<Object> settingsF =
+                CompletableFuture.supplyAsync(() -> loadProfileSettings(user), authProfileExecutor);
+
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("authenticated", true);
         if (token != null) {
@@ -234,27 +270,44 @@ public class AuthController {
                 "email", user.getEmail(),
                 "displayName", user.getDisplayName()
         ));
-        response.put("friends", loadFriends(user));
-        response.put("incomingFriendRequests", loadIncomingFriendRequests(user));
-        response.put("outgoingFriendRequests", loadOutgoingFriendRequests(user));
-        response.put("savedDecks", loadSavedDecks(user));
-        response.put("matchHistory", loadMatchHistory(user));
-        if (playerProgressionService != null) {
-            try {
-                response.put("progression", playerProgressionService.serialize(playerProgressionService.getOrCreate(user), user));
-            } catch (RuntimeException ex) {
-                log.warn("Unable to load progression for authenticated user {}", user.getId(), ex);
-            }
+        response.put("friends", friendsF.join());
+        response.put("incomingFriendRequests", incomingF.join());
+        response.put("outgoingFriendRequests", outgoingF.join());
+        response.put("savedDecks", decksF.join());
+        response.put("matchHistory", historyF.join());
+        Object progression = progressionF.join();
+        if (progression != null) {
+            response.put("progression", progression);
         }
-        if (profileSettingsService != null) {
-            try {
-                profileSettingsService.findSerializedIfPresent(user)
-                        .ifPresent(settings -> response.put("profileSettings", settings));
-            } catch (RuntimeException ex) {
-                log.warn("Unable to load profile settings for authenticated user {}", user.getId(), ex);
-            }
+        Object profileSettings = settingsF.join();
+        if (profileSettings != null) {
+            response.put("profileSettings", profileSettings);
         }
         return response;
+    }
+
+    private Object loadProgression(AccountUser user) {
+        if (playerProgressionService == null) {
+            return null;
+        }
+        try {
+            return playerProgressionService.serialize(playerProgressionService.getOrCreate(user), user);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load progression for authenticated user {}", user.getId(), ex);
+            return null;
+        }
+    }
+
+    private Object loadProfileSettings(AccountUser user) {
+        if (profileSettingsService == null) {
+            return null;
+        }
+        try {
+            return profileSettingsService.findSerializedIfPresent(user).orElse(null);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load profile settings for authenticated user {}", user.getId(), ex);
+            return null;
+        }
     }
 
     private List<Map<String, Object>> loadIncomingFriendRequests(AccountUser user) {
@@ -281,33 +334,46 @@ public class AuthController {
         }
     }
 
-    private List<Map<String, Object>> loadFriends(AccountUser user) {
-        return (user.getFriendEmails() == null ? List.<String>of() : user.getFriendEmails()).stream()
-                .map(email -> {
-                    AccountUser friendUser = accountService.findByEmail(email);
-                    if (friendUser == null) {
-                        return null;
-                    }
-                    if (!FriendRequestService.areMutualFriends(user, friendUser)) {
-                        return null;
-                    }
-                    Map<String, Object> friend = new LinkedHashMap<>();
-                    friend.put("email", email);
-                    friend.put("userId", friendUser.getId());
-                    String displayName = friendUser.getDisplayName();
-                    if (profileSettingsService != null) {
-                        ProfileSettingsEntity settings = profileSettingsService.getOrCreate(friendUser);
-                        String settingsName = settings.getDisplayName();
-                        if (settingsName != null && !settingsName.isBlank()) {
-                            displayName = settingsName;
-                        }
-                    }
-                    friend.put("displayName", displayName);
-                    friend.put("mutual", true);
-                    return friend;
-                })
-                .filter(java.util.Objects::nonNull)
+    // Each friend requires its own Firestore reads (the friend's user record plus
+    // their profile settings), so resolve them as concurrent leaf tasks rather
+    // than looping sequentially. allOf + join completes without blocking a pool
+    // thread, so this composes safely with the other parallel profile lookups.
+    private CompletableFuture<List<Map<String, Object>>> loadFriendsAsync(AccountUser user) {
+        List<String> emails = user.getFriendEmails() == null ? List.of() : user.getFriendEmails();
+        List<CompletableFuture<Map<String, Object>>> futures = emails.stream()
+                .map(email -> CompletableFuture.supplyAsync(() -> loadFriendEntry(user, email), authProfileExecutor))
                 .toList();
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenApply(ignored -> futures.stream()
+                        .map(CompletableFuture::join)
+                        .filter(Objects::nonNull)
+                        .toList());
+    }
+
+    private Map<String, Object> loadFriendEntry(AccountUser user, String email) {
+        try {
+            AccountUser friendUser = accountService.findByEmail(email);
+            if (friendUser == null || !FriendRequestService.areMutualFriends(user, friendUser)) {
+                return null;
+            }
+            Map<String, Object> friend = new LinkedHashMap<>();
+            friend.put("email", email);
+            friend.put("userId", friendUser.getId());
+            String displayName = friendUser.getDisplayName();
+            if (profileSettingsService != null) {
+                ProfileSettingsEntity settings = profileSettingsService.getOrCreate(friendUser);
+                String settingsName = settings.getDisplayName();
+                if (settingsName != null && !settingsName.isBlank()) {
+                    displayName = settingsName;
+                }
+            }
+            friend.put("displayName", displayName);
+            friend.put("mutual", true);
+            return friend;
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load friend {} for user {}", email, user.getId(), ex);
+            return null;
+        }
     }
 
     private List<Map<String, Object>> loadSavedDecks(AccountUser user) {
