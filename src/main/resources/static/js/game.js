@@ -5161,12 +5161,19 @@ function renderPlayHubAuth() {
         const name = authState.profile.user?.displayName || 'Profile';
         pill.textContent = name;
         pill.href = '/profile';
+        pill.onclick = null;
         pill.classList.add('is-authenticated');
         pill.setAttribute('aria-label', `Signed in as ${name}. Open profile.`);
         return;
     }
     pill.textContent = 'Sign In';
+    // Open the sign-in popup in place rather than navigating to the hub profile,
+    // so "Sign In" is a popup on every page. The href stays as a no-JS fallback.
     pill.href = '/profile';
+    pill.onclick = (event) => {
+        event.preventDefault();
+        openAuthPopup('login');
+    };
     pill.classList.remove('is-authenticated');
     pill.removeAttribute('aria-label');
 }
