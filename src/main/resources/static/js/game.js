@@ -5082,12 +5082,22 @@ function saveAuthToken(token) {
     }
 }
 
-function clearAuthState() {
-    saveAuthToken('');
+// Clears only the in-memory auth profile, leaving the persisted token intact.
+// Used when an /api/auth/me check comes back unauthenticated so a transient or
+// stale response can't sign the player out across every page (the token is
+// shared with the hub via localStorage).
+function clearAuthProfile() {
     authState.profile = null;
     authState.error = '';
     selectedSavedDeckId = null;
     renderAuthDependentSurfaces();
+}
+
+// Full sign-out: removes the shared token too. Reserve this for explicit Log Out
+// and the deliberate guest flow — never a background auth refresh.
+function clearAuthState() {
+    saveAuthToken('');
+    clearAuthProfile();
 }
 
 function renderAuthDependentSurfaces() {
@@ -5151,12 +5161,19 @@ function renderPlayHubAuth() {
         const name = authState.profile.user?.displayName || 'Profile';
         pill.textContent = name;
         pill.href = '/profile';
+        pill.onclick = null;
         pill.classList.add('is-authenticated');
         pill.setAttribute('aria-label', `Signed in as ${name}. Open profile.`);
         return;
     }
     pill.textContent = 'Sign In';
+    // Open the sign-in popup in place rather than navigating to the hub profile,
+    // so "Sign In" is a popup on every page. The href stays as a no-JS fallback.
     pill.href = '/profile';
+    pill.onclick = (event) => {
+        event.preventDefault();
+        openAuthPopup('login');
+    };
     pill.classList.remove('is-authenticated');
     pill.removeAttribute('aria-label');
 }
@@ -5866,7 +5883,10 @@ async function syncAuthProfile(silent = false) {
         return false;
     }
     if (!data.authenticated) {
-        clearAuthState();
+        // Keep the shared token; only an explicit Log Out (or the deliberate guest
+        // flow) should remove it. Wiping it here would sign the player out on the
+        // hub and every other page too.
+        clearAuthProfile();
         return false;
     }
 
