@@ -81,6 +81,13 @@
         LEGENDARY: '#ffd54a'
     };
     const PROFILE_ELEMENTS = ['Fire', 'Ice', 'Wind', 'Earth', 'Neutral'];
+    // Premade card backs players can choose from in their profile.
+    const PROFILE_CARD_BACKS = [
+        { name: 'Molten Sigil', element: 'Fire' },
+        { name: 'Frost Sigil', element: 'Ice' },
+        { name: 'Gale Sigil', element: 'Wind' },
+        { name: 'Stone Sigil', element: 'Earth' }
+    ];
     const elementThemes = {
         Fire: {
             accent: '#ff6a2a',
@@ -2729,12 +2736,9 @@
     }
 
     function starterCardBackName(element) {
-        return {
-            Fire: 'Molten Sigil',
-            Earth: 'Stone Sigil',
-            Wind: 'Gale Sigil',
-            Ice: 'Frost Sigil'
-        }[normalizeProfileElement(element)] || 'Molten Sigil';
+        const normalized = normalizeProfileElement(element);
+        const match = PROFILE_CARD_BACKS.find(back => back.element === normalized);
+        return match ? match.name : PROFILE_CARD_BACKS[0].name;
     }
 
     function starterProfileBio(element) {
@@ -3221,7 +3225,7 @@
                     <label><span>Favorite element</span><select class="search-input" data-profile-field="favoriteElement">${PROFILE_ELEMENTS.map(element => `<option value="${element}"${element === prefs.favoriteElement ? ' selected' : ''}>${element}</option>`).join('')}</select></label>
                     ${profileTitleSelect(prefs.playerTitleId, prefs)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
-                    ${profileInput('Preferred card back', 'preferredCardBack', prefs.preferredCardBack)}
+                    ${profileCardBackSelect(prefs.preferredCardBack)}
                     ${favoriteSieglingSelect(prefs.favoriteSieglingId || prefs.favoriteSieglingCard?.id)}
                 </div>
                 <div class="profile-edit-actions">
@@ -3234,6 +3238,16 @@
 
     function profileInput(label, field, value) {
         return `<label><span>${escapeHtml(label)}</span><input class="search-input" data-profile-field="${escapeAttr(field)}" value="${escapeAttr(value)}"></label>`;
+    }
+
+    // Renders the preferred card back picker as a dropdown of premade backs.
+    // Preserves any existing saved value that isn't part of the premade set.
+    function profileCardBackSelect(selected) {
+        const current = String(selected || '').trim();
+        const names = PROFILE_CARD_BACKS.map(back => back.name);
+        if (current && !names.includes(current)) names.unshift(current);
+        const options = names.map(name => `<option value="${escapeAttr(name)}"${name === current ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('');
+        return `<label><span>Preferred card back</span><select class="search-input" data-profile-field="preferredCardBack">${options}</select></label>`;
     }
 
     function bindProfileDashboard() {
