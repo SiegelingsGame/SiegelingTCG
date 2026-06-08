@@ -881,10 +881,21 @@ public class GameController {
 
         String matchType = roomId != null || gs.isEnemyHumanControlled() ? "ONLINE" : "SOLO";
         screen.put("matchType", matchType);
-        screen.putAll(playerProgressionService.describeEarnedRewards(user, matchType, result));
 
-        if (user != null) {
-            screen.put("record", buildBattleRecord(user));
+        // Solo endpoints build the response without an explicit user, but the
+        // logged-in player's id is attached to their Player. Resolve it so the
+        // end screen reflects the rewards actually granted (awardMatchGold has
+        // already run). When still unresolved the viewer is a guest, and
+        // describeEarnedRewards returns a "could have earned" preview instead.
+        AccountUser rewardUser = user;
+        if (rewardUser == null && viewer != null
+                && viewer.getAccountUserId() != null && !viewer.getAccountUserId().isBlank()) {
+            rewardUser = accountService.findById(viewer.getAccountUserId());
+        }
+        screen.putAll(playerProgressionService.describeEarnedRewards(rewardUser, matchType, result));
+
+        if (rewardUser != null) {
+            screen.put("record", buildBattleRecord(rewardUser));
         }
         return screen;
     }

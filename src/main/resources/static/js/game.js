@@ -4472,13 +4472,22 @@ function renderGameOverOverlay() {
         const gold = Number(endScreen.goldEarned || 0);
         const remnants = Number(endScreen.remnantsEarned || 0);
         const streakBonus = Number(endScreen.streakBonus || 0);
+        // Guests (and any not-yet-signed-in viewer) see what they *could* have
+        // earned, framed as a preview that nudges them to sign in to claim it.
+        const guestPreview = Boolean(endScreen.guestPreview);
+        const heading = guestPreview ? 'Potential Rewards' : 'Rewards';
+        const earnLabel = guestPreview ? 'could earn' : 'earned';
+        const note = guestPreview
+            ? `<p class="game-over-rewards-note">Sign in to claim these rewards!</p>`
+            : '';
         rewardsEl.innerHTML = `
-            <h3>Rewards</h3>
+            <h3>${heading}</h3>
             <div class="game-over-stat-grid">
-                <span>Siegecoins earned</span><span>${gold}</span>
-                <span>Remnants earned</span><span>${remnants}</span>
+                <span>Siegecoins ${earnLabel}</span><span>${gold}</span>
+                <span>Remnants ${earnLabel}</span><span>${remnants}</span>
                 <span>Streak bonus</span><span>${streakBonus}</span>
-            </div>`;
+            </div>${note}`;
+        rewardsEl.classList.toggle('is-guest-preview', guestPreview);
     }
 
     const recordEl = document.getElementById('gameOverRecord');

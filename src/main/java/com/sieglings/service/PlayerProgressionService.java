@@ -162,22 +162,51 @@ public class PlayerProgressionService {
         store.save(progression);
     }
 
-    public Map<String, Integer> describeEarnedRewards(AccountUser user, String matchType, String result) {
-        Map<String, Integer> rewards = new LinkedHashMap<>();
-        rewards.put("goldEarned", 0);
-        rewards.put("remnantsEarned", 0);
-        rewards.put("streakBonus", 0);
-        if (user == null || result == null || !"WIN".equalsIgnoreCase(result)) {
+    /**
+     * Describes the rewards tied to a finished match for the end screen.
+     *
+     * <p>For a logged-in winner these are the rewards actually granted (the real
+     * win streak is already applied by {@link #awardMatchGold}). For a guest (no
+     * account) we still return what they <em>could</em> have earned so the end
+     * screen can nudge them to sign in, flagged via {@code guestPreview} /
+     * {@code rewardsClaimed} so the UI can frame it as potential rather than
+     * banked rewards.
+     */
+    public Map<String, Object> describeEarnedRewards(AccountUser user, String matchType, String result) {
+        Map<String, Object> rewards = new LinkedHashMap<>();
+        boolean win = "WIN".equalsIgnoreCase(result);
+        boolean online = "ONLINE".equalsIgnoreCase(matchType);
+        int base = online ? ONLINE_WIN_GOLD : SOLO_WIN_GOLD;
+        int remnants = online ? ONLINE_WIN_REMNANTS : SOLO_WIN_REMNANTS;
+
+        if (!win) {
+            rewards.put("goldEarned", 0);
+            rewards.put("remnantsEarned", 0);
+            rewards.put("streakBonus", 0);
+            rewards.put("rewardsClaimed", false);
+            rewards.put("guestPreview", false);
             return rewards;
         }
+
+        if (user == null) {
+            // Guest winner: show the baseline win reward (no streak history) as a
+            // preview of what signing in would have earned them.
+            rewards.put("goldEarned", base);
+            rewards.put("remnantsEarned", remnants);
+            rewards.put("streakBonus", 0);
+            rewards.put("rewardsClaimed", false);
+            rewards.put("guestPreview", true);
+            return rewards;
+        }
+
         PlayerProgressionEntity progression = getOrCreate(user);
-        boolean online = "ONLINE".equalsIgnoreCase(matchType);
         int streak = online ? progression.getOnlineWinStreak() : progression.getSoloWinStreak();
-        int base = online ? ONLINE_WIN_GOLD : SOLO_WIN_GOLD;
         int streakBonus = WIN_STREAK_GOLD * streak;
         rewards.put("goldEarned", base + streakBonus);
-        rewards.put("remnantsEarned", online ? ONLINE_WIN_REMNANTS : SOLO_WIN_REMNANTS);
+        rewards.put("remnantsEarned", remnants);
         rewards.put("streakBonus", streakBonus);
+        rewards.put("rewardsClaimed", true);
+        rewards.put("guestPreview", false);
         return rewards;
     }
 

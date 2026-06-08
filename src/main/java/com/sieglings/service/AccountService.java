@@ -157,6 +157,14 @@ public class AccountService {
         return userStore.findById(normalizeEmail(email)).orElse(null);
     }
 
+    /** Resolve a user directly by their account id (e.g. the id stored on a game's Player). */
+    public AccountUser findById(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        return userStore.findById(id).orElse(null);
+    }
+
     private SessionView createSession(AccountUser user) {
         AuthSession session = new AuthSession();
         session.setToken(UUID.randomUUID().toString().replace("-", ""));

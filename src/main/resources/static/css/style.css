@@ -6236,6 +6236,19 @@ body.placement-active .board-cell.legal {
     color: var(--text-muted, #9ab);
 }
 
+.game-over-rewards.is-guest-preview {
+    border-color: rgba(255, 209, 102, 0.4);
+    background: rgba(255, 209, 102, 0.08);
+}
+
+.game-over-rewards-note {
+    margin: 10px 0 0;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+
 .game-over-rematch-status {
     text-align: center;
     font-size: 0.88rem;
