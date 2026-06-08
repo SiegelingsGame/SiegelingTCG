@@ -283,7 +283,11 @@
         renderHudTools();
         renderGold();
         renderHomeDashboard();
+        // Paint the binder's loading placeholder up front so the Cards/Decks
+        // route shows a spinner instead of a blank panel while loadAll runs.
+        safeRender(renderCards);
         bindCatalogSync();
+        setHubLoading(true);
         try {
             await loadAll();
             await syncCatalogIfVersionChanged();
@@ -294,8 +298,14 @@
         } catch (err) {
             console.error('Init load failed', err);
         } finally {
+            setHubLoading(false);
             openSharedProfileFromUrl();
         }
+    }
+
+    function setHubLoading(active) {
+        const bar = document.getElementById('hubLoadingBar');
+        if (bar) bar.classList.toggle('hidden', !active);
     }
 
     function openSharedProfileFromUrl() {
@@ -729,16 +739,38 @@
         el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => onPick(btn.dataset.value)));
     }
 
+    function cardsRenderSignature(cards) {
+        return [
+            state.showUnowned,
+            state.elementFilter,
+            state.typeFilter,
+            state.rarityFilter,
+            state.energyCostFilter,
+            state.sort,
+            state.search,
+            state.selectedCardId,
+            cards.map(card => `${card.id}:${ownedCount(card.id)}`).join(',')
+        ].join('|');
+    }
+
     function renderCards() {
+        const grid = document.getElementById('allCardGrid');
+        if (!grid) return;
+        // Catalog not loaded yet — show the spinner instead of a blank panel.
+        if (!state.options) {
+            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your card binder…</strong></div>`;
+            state._cardsRenderSig = '';
+            return;
+        }
         const cards = filteredCards();
-        const grids = [
-            ['allCardGrid', cards]
-        ];
-        grids.forEach(([id, list]) => {
-            const grid = document.getElementById(id);
-            if (!grid) return;
-            grid.innerHTML = list.length
-                ? list.map(renderCardTile).join('')
+        // Skip the expensive innerHTML teardown/rebuild (hundreds of tiles + their
+        // images) when nothing that affects the grid changed. Navigating away and
+        // back leaves the section's DOM intact, so re-entry is then instant rather
+        // than flashing blank while every tile re-mounts and re-decodes its art.
+        const signature = cardsRenderSignature(cards);
+        if (signature !== state._cardsRenderSig || !grid.children.length) {
+            grid.innerHTML = cards.length
+                ? cards.map(renderCardTile).join('')
                 : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
@@ -746,7 +778,8 @@
                 renderCards();
                 renderDetail();
             }));
-        });
+            state._cardsRenderSig = signature;
+        }
         const allCount = document.getElementById('allCardCount');
         if (allCount) {
             const ownedVisible = cards.filter(card => ownedCount(card.id) > 0).length;
