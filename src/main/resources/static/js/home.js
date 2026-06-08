@@ -3365,8 +3365,8 @@
 
     // Opens a read-only review of a recorded match (stats + turn-by-turn log),
     // mirroring the match detail surface on the Play screen.
-    function openMatchReview(index) {
-        const entry = (state.profile?.matchHistory || [])[index];
+    function openMatchReview(index, source) {
+        const entry = (source || state.profile?.matchHistory || [])[index];
         const overlay = document.getElementById('matchReviewOverlay');
         const content = document.getElementById('matchReviewContent');
         if (!entry || !overlay || !content) return;
@@ -6222,7 +6222,7 @@
             ${renderPublicProfileStats(view)}
             ${view.battles.length ? renderBattleRecordPanel(view) : ''}
             ${view.battles.length
-                ? renderBattleHistoryList(view, false)
+                ? renderBattleHistoryList(view, true)
                 : `<section class="profile-panel"><p class="profile-muted">${view.data.isFriend ? 'No recorded battles yet.' : 'Recent battles are visible once you are friends.'}</p></section>`}
             ${renderPublicProfileActions(view)}
         </div>`;
@@ -6251,6 +6251,17 @@
         body.querySelector('[data-public-profile-deny]')?.addEventListener('click', async () => {
             await respondToFriendRequest(userId, 'deny');
             navigateHub('profile');
+        });
+        const matchSource = view.data.recentMatches || [];
+        body.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
+            const index = Number(row.dataset.matchIndex);
+            row.addEventListener('click', () => openMatchReview(index, matchSource));
+            row.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openMatchReview(index, matchSource);
+                }
+            });
         });
     }
 
