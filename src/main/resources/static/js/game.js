@@ -152,6 +152,10 @@ let authState = {
     // background /api/auth/me on init revalidates and refreshes it.
     profile: initialAuthToken ? loadCachedAuthProfile() : null,
     loading: false,
+    // Whether /api/auth/me has returned a definitive answer this page load. Until
+    // it has, a present token means "signing in", NOT "logged out" — so the
+    // welcome screen shows a loading state instead of flashing the Log In card.
+    profileResolved: false,
     error: ''
 };
 let selectedSavedDeckId = null;
@@ -5220,6 +5224,16 @@ function renderPlayHubAuth() {
         pill.setAttribute('aria-label', `Signed in as ${name}. Open profile.`);
         return;
     }
+    // Session still restoring (token present, /me pending): don't show "Sign In",
+    // which reads as logged out. Show a neutral loading label instead.
+    if (authState.token && !authState.profileResolved) {
+        pill.textContent = 'Loading…';
+        pill.href = '/profile';
+        pill.onclick = (event) => event.preventDefault();
+        pill.classList.remove('is-authenticated');
+        pill.setAttribute('aria-label', 'Restoring your session.');
+        return;
+    }
     pill.textContent = 'Sign In';
     // Open the sign-in popup in place rather than navigating to the hub profile,
     // so "Sign In" is a popup on every page. The href stays as a no-JS fallback.
@@ -5895,6 +5909,7 @@ async function submitAuth(mode) {
 
     saveAuthToken(data.token || '');
     authState.profile = data;
+    authState.profileResolved = true;
     saveCachedAuthProfile(data);
     authState.error = '';
     authRegisterStep = 'credentials';
@@ -5941,12 +5956,14 @@ async function syncAuthProfile(silent = false) {
         // Keep the shared token; only an explicit Log Out (or the deliberate guest
         // flow) should remove it. Wiping it here would sign the player out on the
         // hub and every other page too.
+        authState.profileResolved = true;
         clearAuthProfile();
         return false;
     }
 
     authState.profile = data;
     authState.error = '';
+    authState.profileResolved = true;
     saveCachedAuthProfile(data);
     renderWelcomeAuth();
     renderSavedDecks();
@@ -5992,6 +6009,10 @@ function renderWelcomeAuth() {
         historyCard.innerHTML = `
             <div class="welcome-card-kicker">Recent Battles</div>
             <h3>Match history follows this login</h3>
+            ${!authState.profileResolved
+                ? `<div class="welcome-loading-bar" aria-hidden="true"><span></span></div>
+                   <div class="identity-note">Refreshing your latest match history…</div>`
+                : ''}
             ${recent.length > 0
                 ? `<div class="welcome-history-list">${recent.slice(0, 6).map((entry, idx) => {
                     const resultClass = String(entry.result || '').toLowerCase();
@@ -6011,6 +6032,25 @@ function renderWelcomeAuth() {
                 `;
                 }).join('')}</div>`
                 : '<div class="identity-note">Your finished games will appear here after the first recorded match.</div>'}
+        `;
+        return;
+    }
+
+    // Token present but /api/auth/me hasn't returned yet: show a loading state
+    // rather than the logged-out Log In card, so navigating in while signed in
+    // never flashes "logged out" while the session is still being restored.
+    if (authState.token && !authState.profileResolved) {
+        authCard.innerHTML = `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>Restoring your account…</h3>
+            <div class="welcome-loading-bar" aria-hidden="true"><span></span></div>
+            <p class="welcome-auth-prompt">Loading your saved decks and match history. You can wait, or start a new match now — your account will catch up.</p>
+        `;
+        historyCard.innerHTML = `
+            <div class="welcome-card-kicker">Recent Battles</div>
+            <h3>Loading match history…</h3>
+            <div class="welcome-loading-bar" aria-hidden="true"><span></span></div>
+            <div class="identity-note">You can wait, or start a new match while this loads.</div>
         `;
         return;
     }
