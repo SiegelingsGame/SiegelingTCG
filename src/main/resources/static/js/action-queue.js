@@ -434,6 +434,80 @@
         return overlay;
     }
 
+    // Spawn a crumbling-shield overlay on a board cell: a cracked grey shield
+    // that shatters into fragments raining downward, for shields that expire at
+    // the end of the turn. Fixed-positioned (like spawnHealCross) so a board
+    // re-render can't destroy the animation mid-flight.
+    function spawnShieldCrumble(isPlayer, row, col, shieldCount, durationMs) {
+        const cellEl = findCellEl(isPlayer, row, col);
+        if (!cellEl) return null;
+        const rect = cellEl.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'sgl-shield-crumble';
+        overlay.style.position = 'fixed';
+        overlay.style.left = `${rect.left}px`;
+        overlay.style.top = `${rect.top}px`;
+        overlay.style.width = `${rect.width}px`;
+        overlay.style.height = `${rect.height}px`;
+
+        const shardCount = Math.max(7, Math.min(16, 4 + (Number(shieldCount) || 1) * 3));
+        const shards = [];
+        for (let i = 0; i < shardCount; i++) {
+            const dx = (Math.random() - 0.5) * rect.width * 0.7;
+            const dy = 24 + Math.random() * 42; // fragments fall downward
+            const size = 5 + Math.random() * 6;
+            const rot = (Math.random() - 0.5) * 240;
+            const delay = Math.random() * 200;
+            shards.push(
+                `<span class="sgl-shield-shard"
+                    style="left:50%;top:46%;width:${size}px;height:${size}px;
+                           --s-dx:${dx.toFixed(1)}px;--s-dy:${dy.toFixed(1)}px;
+                           --s-rot:${rot.toFixed(0)}deg;animation-delay:${delay}ms"></span>`
+            );
+        }
+
+        overlay.innerHTML = `
+            <div class="sgl-shield-crumble-glow" aria-hidden="true"></div>
+            <svg class="sgl-shield-crumble-icon" viewBox="0 0 100 100" aria-hidden="true">
+                <defs>
+                    <linearGradient id="sgl-shield-crumble-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#f3f6fa" />
+                        <stop offset="55%" stop-color="#a8b0ba" />
+                        <stop offset="100%" stop-color="#5a6470" />
+                    </linearGradient>
+                </defs>
+                <path d="M50 12 L82 24 L82 50 C 82 70 68 84 50 90 C 32 84 18 70 18 50 L18 24 Z"
+                      fill="url(#sgl-shield-crumble-grad)" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" />
+                <path class="sgl-shield-crack" d="M50 18 L44 44 L57 52 L46 72" fill="none"
+                      stroke="#2b3038" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            ${shards.join('')}
+        `;
+        document.body.appendChild(overlay);
+
+        const reposition = () => {
+            const r = cellEl.getBoundingClientRect();
+            if (!r) return;
+            overlay.style.left = `${r.left}px`;
+            overlay.style.top = `${r.top}px`;
+            overlay.style.width = `${r.width}px`;
+            overlay.style.height = `${r.height}px`;
+        };
+        window.addEventListener('resize', reposition);
+        const scrollHandler = () => reposition();
+        window.addEventListener('scroll', scrollHandler, true);
+
+        const total = Math.max(700, durationMs || 1100);
+        setTimeout(() => {
+            window.removeEventListener('resize', reposition);
+            window.removeEventListener('scroll', scrollHandler, true);
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }, total);
+        return overlay;
+    }
+
     // ── Diff helpers ──────────────────────────────────────────────────────────
     function normalizeElement(element) {
         const v = String(element || '').trim().toUpperCase();
@@ -1284,8 +1358,31 @@
             const newEnemyPlacements  = tagEvolutionPlacements(diffPlacements(prevEnemy,  nextEnemy,  false), prevEnemy);
 
             // Damage events (attacks / abilities that hit)
-            const damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true);
-            const damageOnEnemy  = diffDamage(prevEnemy,  nextEnemy,  false);
+            let damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true);
+            let damageOnEnemy  = diffDamage(prevEnemy,  nextEnemy,  false);
+
+            // Shields granted during the turn evaporate in the server's
+            // end-of-turn cleanup (clearTempEffects), surfacing in the diff as a
+            // shield-only drop to zero with no HP loss. The damage diff would
+            // otherwise read that as an attack that "broke" the shield and fire a
+            // phantom projectile at the card. When it lands together with the
+            // round/phase transition (the only time shields expire), treat it as
+            // natural expiry and play a crumble animation instead.
+            const shieldExpiryOnPlayer = [];
+            const shieldExpiryOnEnemy = [];
+            if (phaseChanged) {
+                const splitShieldExpiry = (damageList, expiryOut) => {
+                    for (let i = damageList.length - 1; i >= 0; i--) {
+                        const d = damageList[i];
+                        if (Number(d.hpLoss) === 0 && Number(d.shieldBroken) > 0 && Number(d.nextShield) === 0) {
+                            expiryOut.push(d);
+                            damageList.splice(i, 1);
+                        }
+                    }
+                };
+                splitShieldExpiry(damageOnPlayer, shieldExpiryOnPlayer);
+                splitShieldExpiry(damageOnEnemy, shieldExpiryOnEnemy);
+            }
 
             // Destruction events (cards that no longer exist). Paired with attacks
             // below so the killed card stays visible until the projectile lands.
@@ -1759,6 +1856,35 @@
             for (const h of shieldsOnPlayer) queueShield(h);
             for (const h of shieldsOnEnemy)  queueShield(h);
 
+            // Expiring shields crumble away together at the end of the turn —
+            // one action animating every dissipating shield simultaneously,
+            // queued just before the phase transition.
+            const expiryTargets = [];
+            const pushExpiry = (list, ownerKnight) => {
+                for (const d of list) {
+                    expiryTargets.push({
+                        isPlayer: d.isPlayer,
+                        row: d.row,
+                        col: d.col,
+                        element: normalizeElement(d.element) || ownerKnight,
+                        shieldBroken: Number(d.shieldBroken) || 1,
+                        name: d.name
+                    });
+                }
+            };
+            pushExpiry(shieldExpiryOnPlayer, playerKnight);
+            pushExpiry(shieldExpiryOnEnemy, enemyKnight);
+            if (expiryTargets.length) {
+                this.enqueueAction({
+                    kind: 'SHIELD_EXPIRE',
+                    side: 'PLAYER',
+                    knightElement: 'METAL',
+                    elementColor: 'METAL',
+                    targets: expiryTargets,
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            }
+
             // Phase change toast — appended AFTER the just-ended phase's
             // animations and BEFORE the new phase's placements, so the toast
             // marks the boundary between the two blocks the player sees.
@@ -1919,6 +2045,21 @@
                 }
                 const phaseGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(phaseGap);
+                return;
+            }
+
+            // Shields expiring at end of turn — chip away any plates still on
+            // screen and play a crumbling-shield burst on each affected cell, all
+            // at once. Handled before the pulse/toast preamble: there's no
+            // attacker and no toast, the shield simply dissipates.
+            if (action.kind === 'SHIELD_EXPIRE' && Array.isArray(action.targets) && action.targets.length) {
+                for (const tgt of action.targets) {
+                    breakShieldPlates(tgt.isPlayer, tgt.row, tgt.col, tgt.shieldBroken || 99);
+                    spawnShieldCrumble(tgt.isPlayer, tgt.row, tgt.col, tgt.shieldBroken || 1, 1000);
+                }
+                await sleep(Math.max(t.impactMs, 360));
+                const expiryGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(expiryGap);
                 return;
             }
 
