@@ -85,6 +85,32 @@ const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
 const AUTH_PROFILE_STORAGE_KEY = 'sieglingsAuthProfile';
 const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const PENDING_HOME_LOADOUT_STORAGE_KEY = 'sieglingsPendingLoadout';
+// Persistent cache for the Play page's loadout data (catalog/decks/trainers and
+// the card editor state). Stored in localStorage with a 24h TTL so the loadout
+// screen paints instantly on every visit, then revalidates in the background.
+const PLAY_CACHE_PREFIX = 'sieglingsPlayCache:';
+const PLAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function readPlayCache(key) {
+    try {
+        const raw = localStorage.getItem(PLAY_CACHE_PREFIX + key);
+        if (!raw) return null;
+        const entry = JSON.parse(raw);
+        if (!entry || Date.now() - entry.savedAt > PLAY_CACHE_TTL_MS) return null;
+        return entry.data;
+    } catch (e) {
+        return null;
+    }
+}
+
+function writePlayCache(key, data) {
+    try {
+        if (!data) return;
+        localStorage.setItem(PLAY_CACHE_PREFIX + key, JSON.stringify({ savedAt: Date.now(), data }));
+    } catch (e) {
+        // Persistent cache is an optimization only.
+    }
+}
 
 (function redirectLegacyPlayRoomLinks() {
     const params = new URLSearchParams(window.location.search);
@@ -5155,6 +5181,13 @@ function clearAuthProfile() {
 function clearAuthState() {
     saveAuthToken('');
     clearAuthProfile();
+    // The cached card-editor state is user-specific; drop it on explicit logout
+    // so the next account doesn't briefly paint from the previous one's cache.
+    try {
+        localStorage.removeItem(PLAY_CACHE_PREFIX + 'cardsEditor');
+    } catch (e) {
+        // ignore
+    }
 }
 
 function renderAuthDependentSurfaces() {
@@ -6974,16 +7007,33 @@ async function loadGameOptions() {
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();
+
+        // Warm paint: if a previous visit persisted the catalog, render the
+        // loadout from it immediately so the screen isn't blank while the
+        // network requests run. The fetch below revalidates and overwrites it.
+        if (!gameOptions) {
+            const cachedOptions = readPlayCache('gameOptions');
+            if (cachedOptions) {
+                paintGameOptionsFromCache(cachedOptions, readPlayCache('cardsEditor'));
+            }
+        }
+
         const [data, editorState] = await Promise.all([
             fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
             fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS),
             syncAuthProfile(true)
         ]);
         if (!data) {
-            showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
+            // If we already painted usable (if stale) options from cache, keep
+            // them rather than replacing the screen with a hard error.
+            if (!gameOptions) {
+                showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
+            }
             syncEntryOverlays();
             return;
         }
+        writePlayCache('gameOptions', data);
+        writePlayCache('cardsEditor', editorState);
         gameOptions = filterGameOptionsToDashboardCards(data, editorState);
         loadoutErrorMessage = '';
         selectedDeckId = data.defaultDeckId;
@@ -7010,6 +7060,23 @@ async function loadGameOptions() {
     }
 }
 
+// Render the loadout from persisted cache without running the one-time load
+// side effects (pending-loadout handoff, online-state URL parsing, multiplayer
+// resume) — those belong to the authoritative network load below.
+function paintGameOptionsFromCache(cachedOptions, cachedEditor) {
+    try {
+        gameOptions = filterGameOptionsToDashboardCards(cachedOptions, cachedEditor);
+        if (!selectedDeckId) selectedDeckId = cachedOptions.defaultDeckId;
+        if (!selectedTrainerId) selectedTrainerId = cachedOptions.defaultTrainerId;
+        ensureOwnedTrainerSelected();
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    } catch (e) {
+        console.warn('Unable to paint loadout from cache.', e);
+    }
+}
+
 async function refreshLiveGameOptions() {
     if (!gameOptions) {
         return loadGameOptions();
@@ -7025,6 +7092,8 @@ async function refreshLiveGameOptions() {
         if (!data) {
             return;
         }
+        writePlayCache('gameOptions', data);
+        writePlayCache('cardsEditor', editorState);
         gameOptions = filterGameOptionsToDashboardCards(data, editorState);
         loadoutErrorMessage = '';
         renderLoadoutOptions();
