@@ -1,9 +1,22 @@
 (function () {
     const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+    // Last authenticated profile, cached in localStorage and shared with the Play
+    // page so the signed-in UI paints instantly and then revalidates against
+    // /api/auth/me in the background instead of blocking on it.
+    const AUTH_PROFILE_CACHE_KEY = 'sieglingsAuthProfile';
+    const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
-    const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
+    // Static data (card catalog, packs, descriptions) rarely changes, so keep it
+    // cached for a full day. It lives in localStorage (see hubCacheStorage) so it
+    // persists across tabs and app relaunches — every hub visit renders instantly
+    // from cache, and the cheap /api/game/catalog-version check revalidates it in
+    // the background, re-downloading the full catalog only when it actually moved.
+    const STATIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+    // Leaderboards change as matches finish today, so cache them briefly rather
+    // than reusing the same snapshot for the full static TTL.
+    const LEADERBOARD_CACHE_TTL_MS = 60 * 1000;
     const ROOM_CACHE_TTL_MS = 20 * 1000;
     const HOST_LOBBY_KEY = 'sieglingsHostLobby';
     const LOBBY_SESSION_KEY = 'sieglingsLobbySession';
@@ -13,6 +26,14 @@
     const SOCIAL_POLL_MS = 6 * 1000;
     const PRESENCE_HEARTBEAT_MS = 45 * 1000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
+    const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
+    const PACK_CARD_BACK_VERSION = 2;
+
+    function versionedPackAsset(path) {
+        if (!path) return '';
+        const separator = path.includes('?') ? '&' : '?';
+        return `${path}${separator}v=${PACK_CARD_BACK_VERSION}`;
+    }
     const HERO_STAT_ICONS = {
         coins: COIN_ICON_PATH,
         remnants: '/img/ui/home-stats/remnants.png',
@@ -24,6 +45,7 @@
     const ELEMENT_COLORS = {
         FIRE: '#f05b2f', EARTH: '#a7773d', WIND: '#64c987', WATER: '#3c8ed8', ICE: '#7ad9e7',
         SHADOW: '#6d4a9e', ELECTRIC: '#f5cf3d', METAL: '#aeb5b8', UNDEAD: '#9f7c73', PSYCHIC: '#db73b4',
+        POISON: '#7ecb4d', LIGHT: '#ffe59a',
         NEUTRAL: '#95a5a6'
     };
     const ELEMENT_ICON_PATHS = {
@@ -37,6 +59,8 @@
         METAL: '/img/elements/element-metal.svg',
         UNDEAD: '/img/elements/element-undead.svg',
         PSYCHIC: '/img/elements/element-psychic.svg',
+        POISON: '/img/elements/element-poison.svg',
+        LIGHT: '/img/elements/element-light.svg',
         NEUTRAL: '/img/elements/element-neutral.svg'
     };
     const NOTCH_ICON_PATHS = {
@@ -67,6 +91,13 @@
         LEGENDARY: '#ffd54a'
     };
     const PROFILE_ELEMENTS = ['Fire', 'Ice', 'Wind', 'Earth', 'Neutral'];
+    // Premade card backs players can choose from in their profile.
+    const PROFILE_CARD_BACKS = [
+        { name: 'Molten Sigil', element: 'Fire' },
+        { name: 'Frost Sigil', element: 'Ice' },
+        { name: 'Gale Sigil', element: 'Wind' },
+        { name: 'Stone Sigil', element: 'Earth' }
+    ];
     const elementThemes = {
         Fire: {
             accent: '#ff6a2a',
@@ -115,14 +146,52 @@
         }
     };
 
+    function loadCachedAuthProfile() {
+        try {
+            const raw = localStorage.getItem(AUTH_PROFILE_CACHE_KEY);
+            if (!raw) return null;
+            const entry = JSON.parse(raw);
+            if (!entry?.profile?.authenticated) return null;
+            if (entry.savedAt && Date.now() - entry.savedAt > AUTH_PROFILE_CACHE_MAX_AGE_MS) return null;
+            return entry.profile;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function saveCachedAuthProfile(profile) {
+        try {
+            if (!profile?.authenticated) {
+                localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+                return;
+            }
+            localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+        } catch (error) {
+            // The profile cache is a render optimization only.
+        }
+    }
+
+    function clearCachedAuthProfile() {
+        try {
+            localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+        } catch (error) {
+            // ignore
+        }
+    }
+
+    const initialAuthToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    // Seed from the cached snapshot so the signed-in hub renders instantly; the
+    // background syncProfile() on init revalidates and refreshes it.
+    const cachedAuthProfile = initialAuthToken ? loadCachedAuthProfile() : null;
     const state = {
         route: 'home',
-        token: localStorage.getItem(AUTH_TOKEN_KEY) || '',
-        profile: null,
-        progression: null,
+        token: initialAuthToken,
+        profile: cachedAuthProfile,
+        progression: cachedAuthProfile?.progression || null,
         options: null,
         packs: [],
         dailyOffers: [],
+        titleCatalog: [],
         creatureDescriptions: {},
         rooms: [],
         selectedCardId: null,
@@ -155,6 +224,7 @@
         authRegisterStep: 'credentials',
         registerDraft: { email: '', password: '' },
         profileEditOpen: false,
+        activeAchievementId: '',
         profilePrefs: null,
         friendPresence: {},
         messageThreads: [],
@@ -178,8 +248,13 @@
         catalogVersion: 0,
         catalogSyncBound: false,
         profileUserId: '',
+        achievementCategory: '',
         leaderboardTab: 'wins',
-        leaderboardPeriod: 'daily'
+        leaderboardPeriod: 'daily',
+        dailyMissions: null,
+        dailyMissionsError: '',
+        showAllMissions: false,
+        missionResetTimer: null
     };
 
     const LEADERBOARD_PERIODS = [
@@ -206,6 +281,7 @@
     async function init() {
         bindEvents();
         hydrateProfilePrefsFromCache();
+        hydrateStaticCachesFromStorage();
         hydrateRoomInviteFromUrl();
         applyRouteFromLocation();
         setActiveRoute();
@@ -213,7 +289,14 @@
         renderHudTools();
         renderGold();
         renderHomeDashboard();
+        // Paint immediately from the persisted caches (catalog + profile) so the
+        // Cards/Decks/Profile routes render instantly on every visit instead of
+        // waiting on the network. loadAll() then revalidates in the background.
+        safeRender(render);
         bindCatalogSync();
+        // Only show the top loading bar when there's nothing cached to paint yet;
+        // otherwise the page is already populated and the refresh is silent.
+        setHubLoading(!state.options);
         try {
             await loadAll();
             await syncCatalogIfVersionChanged();
@@ -224,8 +307,14 @@
         } catch (err) {
             console.error('Init load failed', err);
         } finally {
+            setHubLoading(false);
             openSharedProfileFromUrl();
         }
+    }
+
+    function setHubLoading(active) {
+        const bar = document.getElementById('hubLoadingBar');
+        if (bar) bar.classList.toggle('hidden', !active);
     }
 
     function openSharedProfileFromUrl() {
@@ -264,7 +353,7 @@
         document.getElementById('joinByCodeBtn')?.addEventListener('click', () => navigateHub('social'));
         document.getElementById('joinRoomBtn')?.addEventListener('click', joinRoomFromHome);
         document.getElementById('refreshRoomsBtn')?.addEventListener('click', () => refreshRooms(true));
-        document.getElementById('socialCreateLobbyBtn')?.addEventListener('click', createLobbyFromHome);
+        document.getElementById('socialFilterBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('quickJoinBtn')?.addEventListener('click', quickJoinFirstRoom);
         document.getElementById('roomSearchInput')?.addEventListener('input', (event) => {
             state.roomSearch = event.target.value.trim().toLowerCase();
@@ -305,6 +394,7 @@
             handleOptionsClick(event);
         });
         document.getElementById('optionsModal')?.addEventListener('submit', handleOptionsSubmit);
+        document.getElementById('optionsModal')?.addEventListener('input', handleOptionsInput);
         document.getElementById('trayBackdrop')?.addEventListener('click', closeTrays);
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
@@ -312,8 +402,14 @@
         document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
             if (event.target === event.currentTarget) closeDeckPreview();
         });
+        document.getElementById('matchReviewOverlay')?.addEventListener('click', closeMatchReview);
+        document.querySelectorAll('[data-match-review-close]').forEach(btn => btn.addEventListener('click', closeMatchReview));
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') closeDeckPreview();
+            if (event.key === 'Escape') {
+                closeDeckPreview();
+                closeMatchReview();
+                closeAchievementDetail();
+            }
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
             btn.addEventListener('click', () => navigateHub(btn.dataset.homeFocus === 'matches' ? 'social' : btn.dataset.homeFocus === 'builder' ? 'deck-builder' : 'home'));
@@ -340,10 +436,11 @@
                 void refreshAuthFromStorage();
             }
         });
-        window.addEventListener('pageshow', (event) => {
-            if (event.persisted) {
-                void refreshAuthFromStorage();
-            }
+        window.addEventListener('pageshow', () => {
+            void refreshAuthFromStorage();
+        });
+        window.addEventListener('focus', () => {
+            void refreshAuthFromStorage();
         });
         window.addEventListener('storage', (event) => {
             if (event.key === AUTH_TOKEN_KEY || event.key === null) {
@@ -353,19 +450,25 @@
     }
 
     async function loadAll() {
-        const [options, packs, descriptions, profile, leaderboards] = await Promise.all([
+        const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
             fetchCachedJson('gameOptions', '/api/game/options', STATIC_CACHE_TTL_MS),
             fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
-            fetchCachedJson('leaderboards', '/api/leaderboards', STATIC_CACHE_TTL_MS)
+            fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS),
+            loadDailyMissions()
         ]);
         applyGameOptions(options);
         state.packs = packs?.packs || [];
         state.dailyOffers = packs?.dailyOffers || [];
+        state.titleCatalog = packs?.titleCatalog || state.titleCatalog || [];
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
         state.leaderboards = leaderboards || null;
         state.leaderboardsError = leaderboards?.error || '';
+        if (dailyMissions && !dailyMissions.error) {
+            state.dailyMissions = dailyMissions;
+            state.dailyMissionsError = '';
+        }
         if (!state.selectedCardId) {
             state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
         }
@@ -378,22 +481,32 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            clearCachedAuthProfile();
             stopPresenceHeartbeat();
             return null;
         }
-        const data = await fetchJson('/api/auth/me');
+        // Bypass the HTTP cache: a stale {authenticated:false} response (Safari
+        // is especially eager to cache GETs) would otherwise wipe a valid token.
+        const data = await fetchJson('/api/auth/me', { cache: 'no-store' });
         if (!data?.authenticated) {
-            localStorage.removeItem(AUTH_TOKEN_KEY);
-            state.token = '';
+            // Do NOT delete the persisted token here. The token is shared with the
+            // Play page (play.html/game.js); a transient failure or stale response
+            // would otherwise sign the player out everywhere, and revisiting any
+            // page would stay logged out. Clear only the in-memory profile — the
+            // token is removed solely on an explicit Log Out. A genuinely expired
+            // token is simply replaced the next time the player signs in.
             state.profile = null;
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            clearCachedAuthProfile();
             stopPresenceHeartbeat();
             return null;
         }
         state.profile = data;
         state.progression = data.progression || null;
+        saveCachedAuthProfile(data);
+        await loadDailyMissions();
         startPresenceHeartbeat();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
@@ -403,6 +516,62 @@
             state.profilePrefs = defaultProfilePrefs(data.user || {});
         }
         return data;
+    }
+
+    async function loadDailyMissions() {
+        if (!state.token) {
+            state.dailyMissions = null;
+            state.dailyMissionsError = '';
+            stopMissionResetTimer();
+            return null;
+        }
+        try {
+            const data = await fetchJson('/api/missions/daily');
+            if (data?.error) {
+                state.dailyMissionsError = data.error;
+                return null;
+            }
+            state.dailyMissions = data;
+            state.dailyMissionsError = '';
+            startMissionResetTimer();
+            return data;
+        } catch (error) {
+            state.dailyMissionsError = 'Could not load daily missions.';
+            return null;
+        }
+    }
+
+    function stopMissionResetTimer() {
+        if (state.missionResetTimer) {
+            clearInterval(state.missionResetTimer);
+            state.missionResetTimer = null;
+        }
+    }
+
+    function startMissionResetTimer() {
+        stopMissionResetTimer();
+        if (!state.dailyMissions?.resetAt) {
+            return;
+        }
+        state.missionResetTimer = setInterval(() => {
+            const pill = document.querySelector('.daily-missions-panel .reset-pill');
+            if (pill) {
+                pill.textContent = formatMissionResetCountdown(state.dailyMissions.resetAt);
+            }
+        }, 1000);
+    }
+
+    function formatMissionResetCountdown(resetAt) {
+        const target = new Date(resetAt).getTime();
+        if (!Number.isFinite(target)) {
+            return 'Resets soon';
+        }
+        const remainingMs = Math.max(0, target - Date.now());
+        const totalSeconds = Math.floor(remainingMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `Resets in ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
 
     async function refreshAuthFromStorage() {
@@ -420,14 +589,7 @@
         }
         state.token = stored;
         await syncProfile();
-        safeRender(renderProfileMini);
-        safeRender(renderGold);
-        safeRender(renderStarterGate);
-        safeRender(renderHomeDashboard);
-        safeRender(renderProfile);
-        safeRender(renderAuthModal);
-        safeRender(renderCards);
-        safeRender(renderDecks);
+        render();
         syncAuthRouteIntent();
         return state.profile;
     }
@@ -444,6 +606,7 @@
         const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS);
         state.packs = packs?.packs || [];
         state.dailyOffers = packs?.dailyOffers || [];
+        state.titleCatalog = packs?.titleCatalog || state.titleCatalog || [];
     }
 
     function render() {
@@ -457,6 +620,7 @@
         safeRender(renderHomeDashboard);
         safeRender(renderShop);
         safeRender(renderProfile);
+        safeRender(renderAchievements);
         safeRender(renderRooms);
         safeRender(renderFriends);
         safeRender(renderFriendRequests);
@@ -479,6 +643,8 @@
             syncShopPackView();
         } else if (state.route === 'profile') {
             renderProfile();
+        } else if (state.route === 'achievements') {
+            renderAchievements();
         } else if (state.route === 'social') {
             renderRooms();
             renderFriends();
@@ -494,6 +660,12 @@
             stopLobbyPolling();
         }
         renderHudTools();
+        // Keep the HUD auth indicators (Sign In/Log Out + coin pill) in sync on
+        // every route change; navigation goes through renderRoute() rather than
+        // the full render(), so without this the HUD can lag behind the actual
+        // auth state (e.g. body shows the signed-in profile while the HUD still
+        // reads "Sign In").
+        renderGold();
     }
 
     function safeRender(fn) {
@@ -508,6 +680,7 @@
         const gate = document.getElementById('starterGate');
         const hub = document.getElementById('hubGrid');
         const mustChoose = Boolean(state.profile?.authenticated && state.progression && !state.progression.starterChosen);
+        document.body.classList.toggle('starter-onboarding-active', mustChoose);
         gate.classList.toggle('hidden', !mustChoose);
         hub.classList.toggle('hidden', mustChoose);
         const grid = document.getElementById('starterPackGrid');
@@ -523,12 +696,13 @@
             ['deck-builder', 'deckBuilderSection'],
             ['social', 'socialSection'],
             ['profile', 'profileSection'],
+            ['achievements', 'achievementsSection'],
             ['shop', 'shopSection']
         ].forEach(([route, sectionId]) => {
             const active = state.route === route || (route === 'social' && state.route === 'lobby');
             document.getElementById(sectionId)?.classList.toggle('hidden', !active);
         });
-        if (!isBinderRoute()) {
+        if (!isBinderRoute() && !isSocialRoute()) {
             state.filterTrayOpen = false;
             state.cardTrayOpen = false;
         }
@@ -547,7 +721,7 @@
             renderFilters();
             renderCards();
         });
-        renderFilter('typeFilters', ['ALL', 'SIEGLING', 'SPELL', 'TRAP'], state.typeFilter, (value) => {
+        renderFilter('typeFilters', ['ALL', 'SIEGLING', 'SIEGEKNIGHT', 'SPELL', 'TRAP'], state.typeFilter, (value) => {
             state.typeFilter = value;
             renderFilters();
             renderCards();
@@ -574,16 +748,38 @@
         el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => onPick(btn.dataset.value)));
     }
 
+    function cardsRenderSignature(cards) {
+        return [
+            state.showUnowned,
+            state.elementFilter,
+            state.typeFilter,
+            state.rarityFilter,
+            state.energyCostFilter,
+            state.sort,
+            state.search,
+            state.selectedCardId,
+            cards.map(card => `${card.id}:${ownedCount(card.id)}`).join(',')
+        ].join('|');
+    }
+
     function renderCards() {
+        const grid = document.getElementById('allCardGrid');
+        if (!grid) return;
+        // Catalog not loaded yet — show the spinner instead of a blank panel.
+        if (!state.options) {
+            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your card binder…</strong></div>`;
+            state._cardsRenderSig = '';
+            return;
+        }
         const cards = filteredCards();
-        const grids = [
-            ['allCardGrid', cards]
-        ];
-        grids.forEach(([id, list]) => {
-            const grid = document.getElementById(id);
-            if (!grid) return;
-            grid.innerHTML = list.length
-                ? list.map(renderCardTile).join('')
+        // Skip the expensive innerHTML teardown/rebuild (hundreds of tiles + their
+        // images) when nothing that affects the grid changed. Navigating away and
+        // back leaves the section's DOM intact, so re-entry is then instant rather
+        // than flashing blank while every tile re-mounts and re-decodes its art.
+        const signature = cardsRenderSignature(cards);
+        if (signature !== state._cardsRenderSig || !grid.children.length) {
+            grid.innerHTML = cards.length
+                ? cards.map(renderCardTile).join('')
                 : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
@@ -591,7 +787,8 @@
                 renderCards();
                 renderDetail();
             }));
-        });
+            state._cardsRenderSig = signature;
+        }
         const allCount = document.getElementById('allCardCount');
         if (allCount) {
             const ownedVisible = cards.filter(card => ownedCount(card.id) > 0).length;
@@ -601,8 +798,78 @@
         renderUnlock();
     }
 
+    function trainerOwnedLevel(trainerId) {
+        if (!trainerId) return 0;
+        const key = String(trainerId).toLowerCase();
+        const ownedEntry = (state.progression?.ownedTrainers || []).find(entry => String(entry?.id || '').toLowerCase() === key);
+        if (ownedEntry) return Math.max(1, Number(ownedEntry.level) || 1);
+        const trainer = (state.options?.trainers || []).find(item => String(item?.id || '').toLowerCase() === key);
+        if (trainer?.owned) return Math.max(1, Number(trainer.level) || 1);
+        return 0;
+    }
+
+    function trainerOwnedEntry(trainerId) {
+        if (!trainerId) return null;
+        const key = String(trainerId).toLowerCase();
+        return (state.progression?.ownedTrainers || []).find(entry => String(entry?.id || '').toLowerCase() === key) || null;
+    }
+
+    function renderTrainerXpBar(trainerId, options = {}) {
+        const entry = trainerOwnedEntry(trainerId);
+        if (!entry) {
+            if (options.unownedPlaceholder) {
+                return '<div class="trainer-xp-bar trainer-xp-bar--unowned"><span>Not owned</span></div>';
+            }
+            return '';
+        }
+        const level = Math.max(1, Number(entry.level) || 1);
+        const maxLevel = Number(entry.maxLevel) || 5;
+        const points = Math.max(0, Number(entry.points) || 0);
+        const pointsForNext = Math.max(1, Number(entry.pointsForNext) || level);
+        if (level >= maxLevel) {
+            return `<div class="trainer-xp-bar trainer-xp-bar--max" aria-label="Max level">
+                <div class="trainer-xp-bar-track"><div class="trainer-xp-bar-fill" style="width:100%"></div></div>
+                <span class="trainer-xp-bar-label">MAX · Lv ${level}</span>
+            </div>`;
+        }
+        const pct = Math.min(100, Math.round((points / pointsForNext) * 100));
+        return `<div class="trainer-xp-bar" aria-label="Level ${level}, ${points} of ${pointsForNext} XP to level ${level + 1}">
+            <div class="trainer-xp-bar-track"><div class="trainer-xp-bar-fill" style="width:${pct}%"></div></div>
+            <span class="trainer-xp-bar-label">Lv ${level} · ${points}/${pointsForNext} XP</span>
+        </div>`;
+    }
+
+    function siegeknightBinderCards() {
+        return (state.options?.trainers || []).map(trainer => {
+            const level = Math.max(1, Number(trainer.level) || trainerOwnedLevel(trainer.id) || 1);
+            const owned = trainerOwnedLevel(trainer.id) > 0;
+            const abilities = [
+                trainer.passive ? { name: 'Passive', description: trainer.passive } : null,
+                trainer.active ? { name: 'Active', description: trainer.active } : null
+            ].filter(Boolean);
+            return {
+                id: trainer.id,
+                name: trainer.name,
+                type: 'SIEGEKNIGHT',
+                element: trainer.element,
+                rarity: trainer.rarity || 'RARE',
+                tier: trainer.tier || 'SiegeKnight',
+                level,
+                owned,
+                abilityBonus: trainer.abilityBonus,
+                oncePerGame: trainer.oncePerGame,
+                abilities,
+                description: abilities.map(ability => ability.description).filter(Boolean).join(' ')
+            };
+        });
+    }
+
+    function binderCatalog() {
+        return [...(state.options?.cardCatalog || []), ...siegeknightBinderCards()];
+    }
+
     function filteredCards() {
-        const cards = [...(state.options?.cardCatalog || [])].filter(card => {
+        const cards = binderCatalog().filter(card => {
             if (!state.showUnowned && ownedCount(card.id) <= 0) return false;
             if (state.elementFilter !== 'ALL' && card.element !== state.elementFilter) return false;
             if (state.typeFilter !== 'ALL' && card.type !== state.typeFilter) return false;
@@ -625,26 +892,39 @@
     }
 
     function renderBinderCardShell(card, options = {}) {
-        const owned = Number.isFinite(options.ownedOverride) ? options.ownedOverride : ownedCount(card.id);
+        const isSiegeknight = card.type === 'SIEGEKNIGHT';
+        const owned = Number.isFinite(options.ownedOverride)
+            ? options.ownedOverride
+            : (isSiegeknight ? (trainerOwnedLevel(card.id) > 0 ? 1 : 0) : ownedCount(card.id));
+        const knightLevel = isSiegeknight ? Math.max(1, trainerOwnedLevel(card.id) || card.level || 1) : 0;
         const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const isSiegling = card.type === 'SIEGLING';
+        const ownedLabel = isSiegeknight
+            ? (owned ? `Owned · Lv ${knightLevel}` : 'Unowned')
+            : (owned ? `Owned x${owned}` : 'Unowned');
+        const energyCost = isSiegeknight ? '' : renderBinderCardEnergyCost(cost, costElement);
+        const binderOverlay = isSiegeknight ? '' : (window.SieglingsCardBinderVisual?.renderBinderCardOverlay(card) || '');
         return `${isSiegling ? renderBinderNotches(card.notches) : ''}
-            ${window.SieglingsCardBinderVisual?.renderBinderCardOverlay(card) || ''}
+            ${binderOverlay}
             <div class="binder-card-shell">
                 <div class="binder-card-header">
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(typeLabel)}</span>
                 </div>
-                <div class="binder-card-art">
-                    ${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}
+                <div class="binder-card-art${isSiegeknight ? ' binder-card-art-knight' : ''}">
+                    ${(window.SieglingsCardBinderVisual?.renderBinderCardArt && !isSiegeknight
+                        ? window.SieglingsCardBinderVisual.renderBinderCardArt(card)
+                        : renderBinderCardArt(card))}
                 </div>
                 <div class="binder-card-body shop-card-body">
                     ${renderShopCardStats(card)}
-                    <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${owned ? `Owned x${owned}` : 'Unowned'}</div>
-                    ${renderBinderCardEnergyCost(cost, costElement)}
-                    ${renderShopCardAbilityLine(card)}
+                    <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${ownedLabel}</div>
+                    ${energyCost}
+                    ${isSiegeknight
+                        ? `<div class="binder-card-knight-xp">${renderTrainerXpBar(card.id, { unownedPlaceholder: true })}</div>`
+                        : renderShopCardAbilityLine(card)}
                     ${renderShopCardDescription(card)}
                 </div>
             </div>`;
@@ -652,8 +932,9 @@
 
     function renderCardTile(card) {
         const selected = card.id === state.selectedCardId ? ' selected' : '';
-        const modeClass = window.SieglingsCardBinderVisual?.resolveArtModeClass(card) || '';
-        return `<button class="card-tile binder-card${selected}${modeClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+        const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (window.SieglingsCardBinderVisual?.resolveArtModeClass(card) || '');
+        const knightClass = card.type === 'SIEGEKNIGHT' ? ' siegeknight-binder-card' : '';
+        return `<button class="card-tile binder-card${selected}${modeClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
             ${renderBinderCardShell(card)}
         </button>`;
     }
@@ -668,44 +949,86 @@
         }
         const abilities = card.abilities || (card.ability ? [card.ability] : []);
         const flavorText = creatureDescriptionFor(card);
+        const isSiegeknight = card.type === 'SIEGEKNIGHT';
         const craftCost = remnantCraftCost(card);
         const remnants = remnantBalance();
-        const canCraft = state.profile?.authenticated && state.progression?.starterChosen && remnants >= craftCost;
+        const canCraft = !isSiegeknight && state.profile?.authenticated && state.progression?.starterChosen && remnants >= craftCost;
         const craftLabel = state.profile?.authenticated
             ? `Craft for ${craftCost.toLocaleString()} Remnants`
             : 'Sign in to craft';
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        const knightLevel = isSiegeknight ? Math.max(1, trainerOwnedLevel(card.id) || card.level || 1) : 0;
+        const trainerEntry = isSiegeknight ? trainerOwnedEntry(card.id) : null;
+        const ownedKnight = isSiegeknight && trainerOwnedLevel(card.id) > 0;
+        const maxKnightLevel = Number(trainerEntry?.maxLevel) || 5;
+        const atMaxKnightLevel = ownedKnight && knightLevel >= maxKnightLevel;
+        const nextXpCost = ownedKnight && !atMaxKnightLevel
+            ? (Number(trainerEntry?.nextXpCoinCost) || 50 * knightLevel)
+            : 0;
+        const abilityBonus = trainerEntry != null
+            ? Math.max(0, Number(trainerEntry.abilityBonus) || knightLevel - 1)
+            : Math.max(0, knightLevel - 1);
+        const canBuyKnightXp = ownedKnight
+            && !atMaxKnightLevel
+            && state.profile?.authenticated
+            && state.progression?.starterChosen
+            && (state.progression?.gold || 0) >= nextXpCost;
+        const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview && !isSiegeknight)
+            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
+                ownedOverride: ownedCount(card.id),
+                previewClass: 'detail-card-preview'
+            })
+            : `<div class="binder-card detail-card-preview${isSiegeknight ? ' siegeknight-binder-card' : ''}" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
-            <div class="detail-art art" style="--el:${elementColor(card.element)}">${(window.SieglingsCardBinderVisual?.renderBinderCardArt(card)) || renderBinderCardArt(card)}</div>
-            <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
-            <h2>${escapeHtml(card.name)}</h2>
-            <div class="chip-wrap">
-                <span class="chip">Owned x${ownedCount(card.id)}</span>
-                <span class="chip">${format(card.rarity)}</span>
+            <div class="detail-card-preview-wrap">${cardPreview}</div>
+            ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
                 ${renderActiveNotchChips(card.notches)}
             </div>
-            ${flavorText ? `
+            <div class="detail-cost-block">
+                <span class="detail-cost-label">Energy cost</span>
+                ${renderBinderCardEnergyCost(cost, costElement)}
+            </div>`}
+            <div class="detail-grid">
+                ${isSiegeknight ? `<div><span>Level</span><strong>${knightLevel}</strong></div>
+                <div><span>Tier</span><strong>${escapeHtml(card.tier || 'SiegeKnight')}</strong></div>
+                <div><span>Element</span><strong>${format(card.element)}</strong></div>
+                <div><span>Ability bonus</span><strong>+${abilityBonus} effect</strong></div>` : ''}
+                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
+                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                ${!isSiegeknight && card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
+                ${!isSiegeknight ? `<div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>` : ''}
+            </div>
+            ${flavorText && !isSiegeknight ? `
                 <div class="detail-flavor" style="--el:${elementColor(card.element)}">
                     <span>Background</span>
                     <p>${escapeHtml(flavorText)}</p>
                 </div>
             ` : ''}
-            <div class="detail-grid">
-                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
-                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
-                <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
-                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
-                <div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>
-                <div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>
+            <h3 class="detail-section-title">${isSiegeknight ? 'SiegeKnight abilities' : 'Moves &amp; abilities'}</h3>
+            <div class="detail-abilities">
+            ${abilities.length ? abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('') : '<p class="detail-ability-empty">No printed ability.</p>'}
             </div>
-            <h3>Abilities</h3>
-            ${abilities.length ? abilities.map(a => `<p><strong>${escapeHtml(a.name || 'Ability')}</strong><br>${escapeHtml(a.description || '')}</p>`).join('') : '<p>No printed ability.</p>'}
-            <div class="craft-card-action">
+            ${isSiegeknight ? `<div class="detail-knight-xp-panel">
+                ${ownedKnight ? renderTrainerXpBar(card.id) : ''}
+                <div class="detail-knight-xp-action">
+                    ${!state.profile?.authenticated ? '<span class="detail-knight-hint">Sign in to track knight XP and buy levels.</span>'
+                        : !ownedKnight ? '<span class="detail-knight-hint">Pull this knight from packs to unlock leveling.</span>'
+                        : atMaxKnightLevel ? '<span class="detail-knight-hint">Max level reached — ability effects are fully powered.</span>'
+                        : `<button class="primary-btn" type="button" id="buyKnightXpBtn"${canBuyKnightXp ? '' : ' disabled'}>Buy 1 XP · ${renderCoinAmount(nextXpCost, '')}</button>
+                           <span>${(state.progression?.gold || 0).toLocaleString()} Siegecoins available</span>`}
+                </div>
+                <p class="detail-knight-hint">Pull duplicates from packs to combine, or buy XP with Siegecoins (${50} × current level per point).</p>
+            </div>` : `<div class="craft-card-action">
                 <button class="primary-btn" type="button" id="craftSelectedCard"${canCraft || !state.profile?.authenticated ? '' : ' disabled'}>${escapeHtml(craftLabel)}</button>
                 <span>${escapeHtml(remnants.toLocaleString())} Remnants available</span>
-            </div>
-            ${state.route === 'deck-builder' ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
+            </div>`}
+            ${state.route === 'deck-builder' && !isSiegeknight ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
         `;
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
+        document.getElementById('buyKnightXpBtn')?.addEventListener('click', () => buyKnightXp(card.id));
         document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
             if (state.route !== 'deck-builder') {
                 openDeckBuilder();
@@ -728,7 +1051,10 @@
         const featuredPacks = state.packs.slice(0, 4);
         const recentDecks = savedDecks.slice(0, 3);
         const missions = homeDailyMissions();
-        const missionLog = homeMissionLog();
+        const missionLog = homeMissionLog(missions);
+        const resetLabel = state.dailyMissions?.resetAt
+            ? formatMissionResetCountdown(state.dailyMissions.resetAt)
+            : 'Resets at midnight UTC';
         const displayName = (state.profile?.user?.displayName || 'Siegelord').toUpperCase();
         el.innerHTML = `
             <section class="command-hero">
@@ -780,12 +1106,12 @@
                 <article class="command-panel daily-missions-panel">
                     <div class="command-panel-head">
                         <div><span class="eyebrow">Daily Missions</span><h3>Today's objectives</h3></div>
-                        <span class="reset-pill">Resets in 06:45:12</span>
+                        <span class="reset-pill">${escapeHtml(resetLabel)}</span>
                     </div>
                     <div class="mission-list">
-                        ${missions.map(renderMissionRow).join('')}
+                        ${missions.length ? missions.map(renderMissionRow).join('') : '<div class="home-empty-emblem">Sign in to track daily missions.</div>'}
                     </div>
-                    <button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">View All Missions</button>
+                    <button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">${state.showAllMissions ? 'Show Featured Missions' : 'View All Missions'}</button>
                 </article>
 
                 <article class="command-panel open-lobbies-panel">
@@ -928,20 +1254,35 @@
     }
 
     function homeDailyMissions() {
-        const history = state.profile?.matchHistory || [];
-        const pvpWins = history.filter(row => String(row.matchType || '').toUpperCase().includes('PVP') && String(row.result || '').toUpperCase().includes('WIN')).length;
-        const openedPacks = state.progression?.packHistory?.length || 0;
-        const coins = state.progression?.gold || 0;
-        return [
-            { icon: 'X', title: 'Win 3 PVP Matches', current: Math.min(3, pvpWins), target: 3, reward: 150 },
-            { icon: 'P', title: 'Open 2 Packs', current: Math.min(2, openedPacks), target: 2, reward: 100 },
-            { icon: coinIconMarkup(), iconMarkup: true, title: 'Earn 300 Siegecoins', current: Math.min(300, coins), target: 300, reward: 150 }
-        ];
+        const snapshot = state.dailyMissions;
+        const list = state.showAllMissions
+            ? (snapshot?.missions || [])
+            : (snapshot?.featured || snapshot?.missions || []);
+        if (list.length) {
+            return list.map(mission => ({
+                ...mission,
+                iconMarkup: mission.coinIcon,
+                icon: mission.coinIcon ? coinIconMarkup() : mission.icon
+            }));
+        }
+        if (!state.profile?.authenticated) {
+            return (snapshot?.featured || []).map(mission => ({
+                ...mission,
+                iconMarkup: mission.coinIcon,
+                icon: mission.coinIcon ? coinIconMarkup() : mission.icon,
+                current: 0
+            }));
+        }
+        return [];
     }
 
     function renderMissionRow(mission) {
         const pct = mission.target ? Math.min(100, Math.round((mission.current / mission.target) * 100)) : 0;
-        return `<div class="mission-row">
+        const statusClass = mission.claimed ? ' is-claimed' : (mission.completed ? ' is-complete' : '');
+        const claimBtn = mission.claimable
+            ? `<button class="mission-claim-btn" type="button" data-mission-claim="${escapeAttr(mission.id)}">Claim</button>`
+            : (mission.claimed ? '<span class="mission-claimed-label">Claimed</span>' : '');
+        return `<div class="mission-row${statusClass}" data-mission-id="${escapeAttr(mission.id)}">
             <span class="mission-icon">${mission.iconMarkup ? mission.icon : escapeHtml(mission.icon)}</span>
             <div class="mission-copy">
                 <strong>${escapeHtml(mission.title)}</strong>
@@ -949,13 +1290,39 @@
             </div>
             <span class="mission-count">${escapeHtml(mission.current)} / ${escapeHtml(mission.target)}</span>
             <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
+            ${claimBtn}
         </div>`;
     }
 
-    function homeMissionLog() {
+    async function claimDailyMission(missionId) {
+        if (!state.token || !missionId) return;
+        const data = await fetchJson('/api/missions/claim', { method: 'POST', body: JSON.stringify({ missionId }) });
+        if (data?.error) {
+            window.alert(data.error);
+            return;
+        }
+        if (data?.dailyMissions) {
+            state.dailyMissions = data.dailyMissions;
+        } else {
+            await loadDailyMissions();
+        }
+        if (typeof data?.gold === 'number' && state.progression) {
+            state.progression.gold = data.gold;
+        }
+        safeRender(renderGold);
+        safeRender(renderHomeDashboard);
+    }
+
+    function homeMissionLog(missions = []) {
         const history = state.profile?.matchHistory || [];
         const packHistory = state.progression?.packHistory || [];
         const rows = [];
+        missions.filter(m => m.completed).slice(0, 2).forEach(mission => rows.push({
+            title: mission.claimed ? `${mission.title} claimed` : `${mission.title} complete`,
+            detail: mission.claimed
+                ? `${mission.reward} Siegecoins collected`
+                : `Ready to claim ${mission.reward} Siegecoins`
+        }));
         history.slice(0, 3).forEach(row => rows.push({
             title: `${format(row.result || 'Battle')} vs ${row.opponentName || 'Opponent'}`,
             detail: row.loadoutLabel || row.trainerName || 'Match completed'
@@ -1038,7 +1405,14 @@
                 if (directLink) return;
                 return navigateHub('shop');
             }
-            if (action === 'missions') return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (action === 'missions') {
+                state.showAllMissions = !state.showAllMissions;
+                renderHomeDashboard();
+                return root.querySelector('.daily-missions-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }));
+        root.querySelectorAll('[data-mission-claim]').forEach(btn => btn.addEventListener('click', () => {
+            void claimDailyMission(btn.dataset.missionClaim);
         }));
         root.querySelectorAll('[data-home-lb-period]').forEach(btn => btn.addEventListener('click', () => {
             state.leaderboardPeriod = btn.dataset.homeLbPeriod || 'daily';
@@ -1221,6 +1595,28 @@
         return (cardCounts || []).reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
     }
 
+    function deckPreviewTypeCounts(cardCounts) {
+        return (cardCounts || []).reduce((acc, entry) => {
+            const card = findCard(entry.id);
+            if (!card) return acc;
+            const qty = Number(entry.count) || 0;
+            const type = String(card.type || '').toUpperCase();
+            if (type === 'SIEGLING') acc.sieglings += qty;
+            else if (type === 'SPELL') acc.spells += qty;
+            else if (type === 'TRAP') acc.traps += qty;
+            return acc;
+        }, { sieglings: 0, spells: 0, traps: 0 });
+    }
+
+    function formatDeckPreviewTypeSummary(counts) {
+        const parts = [
+            `${counts.sieglings} Siegelings`,
+            `${counts.spells} Spells`,
+            `${counts.traps} Traps`
+        ];
+        return parts.join(' · ');
+    }
+
     function sortDeckPreviewEntries(cardCounts) {
         return [...(cardCounts || [])]
             .map(entry => ({ entry, card: findCard(entry.id) }))
@@ -1272,6 +1668,8 @@
         const grid = document.getElementById('deckPreviewGrid');
         const stack = document.getElementById('deckPreviewStack');
         const stackTotal = document.getElementById('deckPreviewStackTotal');
+        const typeCountsEl = document.getElementById('deckPreviewTypeCounts');
+        const compositionEl = document.getElementById('deckPreviewComposition');
         if (!modal || !grid) return;
         const titleEl = document.getElementById('deckPreviewTitle');
         const eyebrowEl = document.getElementById('deckPreviewEyebrow');
@@ -1281,6 +1679,10 @@
         if (subEl) subEl.textContent = sub || '';
         const sorted = sortDeckPreviewEntries(cardCounts);
         const total = deckTotalCards(cardCounts);
+        const typeCounts = deckPreviewTypeCounts(cardCounts);
+        const typeSummary = formatDeckPreviewTypeSummary(typeCounts);
+        if (compositionEl) compositionEl.textContent = typeSummary;
+        if (typeCountsEl) typeCountsEl.textContent = typeSummary;
         if (stackTotal) stackTotal.textContent = `${total} cards`;
         if (stack) {
             stack.innerHTML = sorted.length
@@ -1490,23 +1892,29 @@
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview)
+            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
+                ownedOverride: ownedCount(card.id),
+                ownedLabel: `In deck x${inDeck}`,
+                previewClass: 'detail-card-preview deck-builder-detail-preview'
+            })
+            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
-            <div class="detail-art art">${renderBinderCardArt(card)}</div>
-            <span class="eyebrow">${format(card.type)} / ${format(card.element)}</span>
-            <h3>${escapeHtml(card.name)}</h3>
-            <div class="chip-wrap">
-                <span class="chip">Owned x${ownedCount(card.id)}</span>
-                <span class="chip">In deck x${inDeck}</span>
-                <span class="chip">${format(card.rarity)}</span>
+            <div class="detail-card-preview-wrap">${cardPreview}</div>
+            <div class="detail-cost-block">
+                <span class="detail-cost-label">Energy cost</span>
+                ${renderBinderCardEnergyCost(cost, costElement)}
             </div>
             ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
             <div class="detail-grid">
                 ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
                 <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
                 <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
-                <div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>
+                ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
             </div>
-            ${abilities.length ? `<div class="deck-builder-preview-abilities">${abilities.map(a => `<p><strong>${escapeHtml(a.name || 'Ability')}</strong><br>${escapeHtml(a.description || '')}</p>`).join('')}</div>` : ''}
+            ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
                 <strong>${inDeck} / ${maxCopies}</strong>
@@ -1608,10 +2016,22 @@
         });
     }
 
+    function isTrainerOwned(trainerId) {
+        const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
+        return trainerOwnedLevel(trainerId) > 0 || (!!trainer && trainer.owned !== false);
+    }
+
+    function firstOwnedTrainerId() {
+        const owned = (state.options?.trainers || []).find(trainer => isTrainerOwned(trainer.id));
+        return owned ? owned.id : (state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '');
+    }
+
     function builderTrainerId() {
         const saved = localStorage.getItem('sieglingsBuilderTrainerId');
-        if (saved && (state.options?.trainers || []).some(trainer => trainer.id === saved)) return saved;
-        return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
+        if (saved && isTrainerOwned(saved)) return saved;
+        const preferred = state.options?.defaultTrainerId;
+        if (preferred && isTrainerOwned(preferred)) return preferred;
+        return firstOwnedTrainerId();
     }
 
     function builderDeckName() {
@@ -1619,7 +2039,13 @@
     }
 
     function builderTrainerOptions(selectedId) {
-        return (state.options?.trainers || []).map(trainer => `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}>${escapeHtml(trainer.name || trainer.id)}</option>`).join('');
+        return (state.options?.trainers || []).map(trainer => {
+            const owned = isTrainerOwned(trainer.id);
+            const level = Math.max(1, trainerOwnedLevel(trainer.id) || Number(trainer.level) || 1);
+            const levelLabel = owned && level > 1 ? ` (Lv ${level})` : '';
+            const lockLabel = owned ? '' : ' \u2014 Locked';
+            return `<option value="${escapeAttr(trainer.id)}"${trainer.id === selectedId ? ' selected' : ''}${owned ? '' : ' disabled'}>${escapeHtml((trainer.name || trainer.id) + levelLabel + lockLabel)}</option>`;
+        }).join('');
     }
 
     function builderCatalogCards() {
@@ -1640,6 +2066,13 @@
             });
     }
 
+    function shopTitleOffers() {
+        const unlocked = new Set((state.progression?.playerTitles || []).filter(title => title.unlocked).map(title => title.id));
+        return (state.titleCatalog || [])
+            .filter(title => title.source === 'SHOP')
+            .map(title => ({ ...title, unlocked: unlocked.has(title.id) || Boolean(title.unlocked) }));
+    }
+
     function renderShop() {
         const grid = document.getElementById('shopPackGrid');
         if (!grid) return;
@@ -1647,12 +2080,48 @@
         const starterPacks = state.packs.filter(pack => pack.starterEligible);
         const packs = starterMode ? starterPacks : state.packs;
         const dailyOffers = starterMode ? [] : state.dailyOffers;
+        const shopTitles = shopTitleOffers();
         grid.innerHTML = `
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
+            ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Unlock by playing or buy with Siegecoins</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
             ${packs.length ? packs.map(renderPackTile).join('') : '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>'}
         `;
         document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
+    }
+
+    // Heraldic banner + star — the shared "profile flair / player title" emblem.
+    function titleFlairIcon() {
+        return `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path d="M6 3h12a1 1 0 0 1 1 1v15.6a.6.6 0 0 1-.95.49L12 16.3l-6.05 3.79A.6.6 0 0 1 5 19.6V4a1 1 0 0 1 1-1Z" fill="currentColor" opacity="0.16"/>
+            <path d="M6 3h12a1 1 0 0 1 1 1v15.6a.6.6 0 0 1-.95.49L12 16.3l-6.05 3.79A.6.6 0 0 1 5 19.6V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="m12 6.4 1.32 2.67 2.95.43-2.14 2.08.51 2.94L12 15.66l-2.64 1.39.5-2.94-2.13-2.08 2.95-.43L12 6.4Z" fill="currentColor"/>
+        </svg>`;
+    }
+
+    function renderShopTitleTile(title) {
+        const unlocked = Boolean(title.unlocked);
+        const price = Number(title.shopPrice) || 0;
+        return `<article class="shop-title-tile">
+            <span class="shop-title-icon">${titleFlairIcon()}</span>
+            <div class="shop-title-copy">
+                <span class="shop-title-kicker">${escapeHtml(title.source || 'SHOP')}</span>
+                <strong>${escapeHtml(title.label || 'Title')}</strong>
+                <p>${escapeHtml(title.description || '')}</p>
+            </div>
+            <button class="primary-btn" type="button" data-purchase-title-id="${escapeAttr(title.id)}"${unlocked ? ' disabled' : ''}>${unlocked ? 'Owned' : renderCoinAmount(price, '')}</button>
+        </article>`;
+    }
+
+    async function purchasePlayerTitle(titleId) {
+        if (!state.profile?.authenticated) return openAuth();
+        const data = await fetchJson('/api/shop/purchase-title', { method: 'POST', body: JSON.stringify({ titleId }) });
+        if (data?.error) return alert(data.error);
+        state.progression = data.progression;
+        state.titleCatalog = data.titleCatalog || state.titleCatalog;
+        renderShop();
+        renderGold();
+        renderProfile();
     }
 
     function renderDailyOfferTile(offer) {
@@ -1733,6 +2202,11 @@
                 : 'Trap set';
             return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
         }
+        if (type === 'SIEGEKNIGHT') {
+            const level = Math.max(1, trainerOwnedLevel(card.id) || card.level || 1);
+            const tier = card.tier || 'SiegeKnight';
+            return `<div class="binder-card-stats shop-card-stats-alt"><span>Lv ${level}</span><span>${escapeHtml(tier)}</span></div>`;
+        }
         return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(card.type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span></div>`;
     }
 
@@ -1752,6 +2226,9 @@
     }
 
     function renderShopCardAbilityLine(card) {
+        if (card?.type === 'SIEGEKNIGHT') {
+            return renderTrainerXpBar(card.id, { unownedPlaceholder: true });
+        }
         const abilities = card?.abilities || (card?.ability ? [card.ability] : []);
         const primary = abilities[0];
         if (!primary?.name) return '';
@@ -1763,7 +2240,7 @@
         const label = starterMode && pack.starterEligible ? 'Choose Starter' : renderCoinAmount(pack.price, '');
         const primaryElement = pack.elements?.[0] || 'FIRE';
         const image = packImageFor(pack);
-        const imageStyle = image ? `background-image: url('${image}');` : '';
+        const imageStyle = image ? `--pack-art-image:url('${escapeAttr(image)}');` : '';
         const kicker = pack.starterEligible ? (starterMode ? 'Starter Pack' : 'Element Pack') : 'Pack Group';
         const displayName = pack.starterEligible && !starterMode
             ? `${format(primaryElement)} Element Pack`
@@ -1789,26 +2266,31 @@
             ICE: '/img/packs/starter-ice.jpg',
             pack_siegeling_random: '/img/packs/siegeling-back.png',
             pack_spell_random: '/img/packs/spell-card-back.png',
-            pack_trap_random: '/img/packs/trap-card-back.png'
+            pack_trap_random: '/img/packs/trap-card-back.png',
+            pack_siegeknight: SIEGEKNIGHT_CARD_BACK
         };
-        if (images[pack.id]) return images[pack.id];
-        return pack.starterEligible ? images[element] : '';
+        const path = images[pack.id] || (pack.starterEligible ? images[element] : '');
+        return versionedPackAsset(path);
     }
 
     function packBackForElement(element, packId = '') {
         const special = {
-            pack_siegeling_random: "url('/img/packs/siegeling-back.png')",
-            pack_spell_random: "url('/img/packs/spell-card-back.png')",
-            pack_trap_random: "url('/img/packs/trap-card-back.png')"
+            pack_siegeling_random: '/img/packs/siegeling-back.png',
+            pack_spell_random: '/img/packs/spell-card-back.png',
+            pack_trap_random: '/img/packs/trap-card-back.png',
+            pack_siegeknight: SIEGEKNIGHT_CARD_BACK
         };
-        if (special[packId]) return special[packId];
+        const specialPath = special[packId];
+        if (specialPath) return `url('${versionedPackAsset(specialPath)}')`;
         const images = {
-            FIRE: "url('/img/packs/starter-fire.jpg')",
-            EARTH: "url('/img/packs/starter-earth.jpg')",
-            WIND: "url('/img/packs/starter-wind.jpg')",
-            ICE: "url('/img/packs/starter-ice.jpg')"
+            FIRE: '/img/packs/starter-fire.jpg',
+            EARTH: '/img/packs/starter-earth.jpg',
+            WIND: '/img/packs/starter-wind.jpg',
+            ICE: '/img/packs/starter-ice.jpg'
         };
-        return images[String(element || '').toUpperCase()] || "linear-gradient(145deg, #1b2238, #070a12)";
+        const starterPath = images[String(element || '').toUpperCase()];
+        if (starterPath) return `url('${versionedPackAsset(starterPath)}')`;
+        return "linear-gradient(145deg, #1b2238, #070a12)";
     }
 
     function renderRooms() {
@@ -1816,10 +2298,13 @@
         if (!list) return;
         const rooms = filteredRooms();
         const totalOpen = state.rooms.filter(room => !isRoomFull(room)).length;
-        const roomCount = document.getElementById('roomCountLabel');
+        const roomOpen = document.getElementById('roomOpenLabel');
+        const lobbyFilterOpen = document.getElementById('lobbyFilterOpenLabel');
         const shownCount = document.getElementById('roomShownLabel');
         const quickJoinBtn = document.getElementById('quickJoinBtn');
-        if (roomCount) roomCount.textContent = `${totalOpen} open`;
+        const openLabel = `${totalOpen} open`;
+        if (roomOpen) roomOpen.textContent = openLabel;
+        if (lobbyFilterOpen) lobbyFilterOpen.textContent = openLabel;
         if (shownCount) shownCount.textContent = `${rooms.length} shown`;
         if (quickJoinBtn) quickJoinBtn.disabled = !rooms.some(room => !isRoomFull(room));
         renderSocialActiveLobby();
@@ -2203,17 +2688,153 @@
 
     function defaultProfilePrefs(user = {}) {
         const displayName = user.displayName || 'New Duelist';
+        const favoriteElement = starterProfileElement();
+        const theme = elementThemes[favoriteElement] || elementThemes.Fire;
         return {
             displayName,
             avatarMode: 'INITIAL',
             avatar: initials(displayName),
             avatarUrl: '',
-            favoriteElement: 'Fire',
-            playerTitle: elementThemes.Fire.mood,
-            bio: 'Ready to tune a deck, open a pack, and make the next match count.',
-            preferredCardBack: 'Molten Sigil',
-            favoriteSiegling: 'Sundile'
+            favoriteElement,
+            playerTitle: theme.mood,
+            playerTitleId: defaultStarterTitleId(favoriteElement),
+            bio: starterProfileBio(favoriteElement),
+            preferredCardBack: starterCardBackName(favoriteElement),
+            favoriteSiegling: '',
+            favoriteSieglingId: starterFavoriteSieglingId(favoriteElement)
         };
+    }
+
+    function defaultStarterTitleId(element) {
+        const normalized = normalizeProfileElement(element);
+        if (normalized === 'Earth') return 'title_starter_earth';
+        if (normalized === 'Wind') return 'title_starter_wind';
+        if (normalized === 'Ice' || normalized === 'Water') return 'title_starter_ice';
+        return 'title_starter_fire';
+    }
+
+    function starterFavoriteSieglingId(element) {
+        const normalized = normalizeProfileElement(element);
+        const ownedCards = state.progression?.ownedCards || {};
+        const catalog = state.options?.cardCatalog || [];
+        const ownedMatch = catalog.find(card => card.type === 'SIEGLING'
+            && normalizeProfileElement(card.element) === normalized
+            && Number(ownedCards[card.id] || 0) > 0);
+        if (ownedMatch?.id) return ownedMatch.id;
+        const catalogMatch = catalog.find(card => card.type === 'SIEGLING'
+            && normalizeProfileElement(card.element) === normalized);
+        return catalogMatch?.id || '';
+    }
+
+    function unlockedPlayerTitles() {
+        const fromProgression = (state.progression?.playerTitles || []).filter(title => title.unlocked);
+        if (fromProgression.length) return fromProgression;
+        return (state.titleCatalog || []).filter(title => title.unlocked);
+    }
+
+    function ownedSieglingCards() {
+        return (state.options?.cardCatalog || [])
+            .filter(card => card.type === 'SIEGLING' && ownedCount(card.id) > 0)
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function resolveProfileTitleLabel(prefs) {
+        if (prefs?.playerTitle) return prefs.playerTitle;
+        const match = unlockedPlayerTitles().find(title => title.id === prefs?.playerTitleId);
+        return match?.label || elementThemes[prefs?.favoriteElement || 'Fire']?.mood || 'Ready for the next siege';
+    }
+
+    function renderProfileFavoriteSiegling(prefs) {
+        const cardData = prefs?.favoriteSieglingCard;
+        const cardId = prefs?.favoriteSieglingId || cardData?.id;
+        const card = cardId ? (findCard(cardId) || cardData) : null;
+        if (!card?.id) {
+            return '<div class="profile-favorite-card-empty"><span>No favorite Siegeling selected</span></div>';
+        }
+        return `<div class="profile-favorite-card-wrap">
+            <span class="profile-favorite-kicker">Favorite Siegeling</span>
+            <div class="profile-favorite-card binder-card" style="--el:${elementColor(card.element)}">
+                ${renderBinderCardShell(card, { ownedOverride: ownedCount(card.id) || Number(card.owned) || 1 })}
+            </div>
+        </div>`;
+    }
+
+    function profileTitleSelect(selectedId, prefs) {
+        const titles = unlockedPlayerTitles();
+        const current = selectedId || prefs?.playerTitleId || '';
+        if (!titles.length) {
+            return profileInput('Player title', 'playerTitleId', resolveProfileTitleLabel(prefs));
+        }
+        return `<label><span>Player title</span><select class="search-input" data-profile-field="playerTitleId">
+            ${titles.map(title => `<option value="${escapeAttr(title.id)}"${title.id === current ? ' selected' : ''}>${escapeHtml(title.label)}</option>`).join('')}
+        </select></label>`;
+    }
+
+    function favoriteSieglingSelect(selectedId) {
+        const cards = ownedSieglingCards();
+        const current = selectedId || '';
+        if (!cards.length) {
+            return '<label><span>Favorite Siegeling</span><select class="search-input" disabled><option>Own a Siegeling first</option></select></label>';
+        }
+        return `<label><span>Favorite Siegeling</span><select class="search-input" data-profile-field="favoriteSieglingId">
+            ${cards.map(card => `<option value="${escapeAttr(card.id)}"${card.id === current ? ' selected' : ''}>${escapeHtml(card.name)} · ${format(card.rarity)}</option>`).join('')}
+        </select></label>`;
+    }
+
+    function applyStarterProfileDefaults() {
+        const current = state.profilePrefs || {};
+        const next = {
+            ...defaultProfilePrefs(state.profile?.user || {}),
+            displayName: current.displayName || state.profile?.user?.displayName || 'New Duelist',
+            avatarMode: current.avatarMode || 'INITIAL',
+            avatar: current.avatar || initials(current.displayName || state.profile?.user?.displayName || 'New Duelist'),
+            avatarUrl: current.avatarUrl || ''
+        };
+        state.profilePrefs = next;
+        cacheProfilePrefs(next);
+    }
+
+    function starterProfileElement() {
+        return normalizeProfileElement(starterElementFromPackId(state.progression?.starterPackId) || 'FIRE');
+    }
+
+    function starterElementFromPackId(packId) {
+        const match = String(packId || '').trim().match(/^pack_([a-z0-9_]+)/i);
+        return match ? match[1].split('_')[0] : '';
+    }
+
+    function starterFavoriteSiegling(element) {
+        const normalized = normalizeProfileElement(element);
+        const ownedCards = state.progression?.ownedCards || {};
+        const catalog = state.options?.cardCatalog || [];
+        const ownedMatch = catalog.find(card => card.type === 'SIEGLING'
+            && normalizeProfileElement(card.element) === normalized
+            && Number(ownedCards[card.id] || 0) > 0);
+        if (ownedMatch?.name) return ownedMatch.name;
+        const catalogMatch = catalog.find(card => card.type === 'SIEGLING'
+            && normalizeProfileElement(card.element) === normalized);
+        if (catalogMatch?.name) return catalogMatch.name;
+        return {
+            Fire: 'Sundile',
+            Earth: 'Applehead',
+            Wind: 'Cacty',
+            Ice: 'Pylme'
+        }[normalized] || `${normalized} Siegeling`;
+    }
+
+    function starterCardBackName(element) {
+        const normalized = normalizeProfileElement(element);
+        const match = PROFILE_CARD_BACKS.find(back => back.element === normalized);
+        return match ? match.name : PROFILE_CARD_BACKS[0].name;
+    }
+
+    function starterProfileBio(element) {
+        return {
+            Fire: 'Fire starter chosen. Build around pressure, direct attacks, and strong openings.',
+            Earth: 'Earth starter chosen. Build around durability, healing, and strong board lines.',
+            Wind: 'Wind starter chosen. Build around tempo, disruption, and fast Siegelings.',
+            Ice: 'Ice starter chosen. Build around freezes, control, and resilient board lines.'
+        }[normalizeProfileElement(element)] || 'Ready to tune a deck, open a pack, and make the next match count.';
     }
 
     function profileThemeStyle(theme) {
@@ -2243,14 +2864,14 @@
                     </div>
                     <h2>${escapeHtml(prefs.displayName)}</h2>
                     <p class="profile-email">${escapeHtml(user.email || 'username pending')}</p>
-                    <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
+                    <p class="profile-title">${escapeHtml(resolveProfileTitleLabel(prefs))}</p>
                     <p class="profile-bio">${escapeHtml(prefs.bio)}</p>
                 </div>
             </div>
             <div class="profile-hero-side">
                 <span class="profile-motif">${escapeHtml(theme.motif)}</span>
                 <span>${escapeHtml(prefs.preferredCardBack)} card back</span>
-                <span>Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling)}</span>
+                ${renderProfileFavoriteSiegling(prefs)}
                 <button class="primary-btn profile-theme-btn" type="button" data-profile-edit>Edit Profile</button>
             </div>
         </section>`;
@@ -2301,7 +2922,7 @@
         </section>`;
     }
 
-    function renderBattleHistoryList(view) {
+    function renderBattleHistoryList(view, reviewable = true) {
         return `<section class="profile-panel battle-history-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Recent Battles</span><h3>Last Match Scroll</h3></div>
@@ -2309,7 +2930,7 @@
             </div>
             <div class="battle-list">
                 ${view.battles.length
-                    ? view.battles.map(battle => `<article class="battle-row ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}">
+                    ? view.battles.map(battle => `<article class="battle-row ${reviewable ? 'battle-row-clickable' : ''} ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}"${reviewable ? ` data-match-index="${battle.index}" role="button" tabindex="0" aria-label="Review match vs ${escapeAttr(battle.opponentName)}"` : ''}>
                         <div class="battle-result">${escapeHtml(battle.result)}</div>
                         <div class="battle-main">
                             <strong>${escapeHtml(battle.opponentName)}</strong>
@@ -2384,31 +3005,292 @@
                 ${friends.length ? friends.slice(0, 4).map(friend => {
                     const playerId = friend.userId || friend.email;
                     const label = friend.displayName || friend.email;
-                    return `<div><a class="profile-friend-link" href="${escapeAttr(playerProfilePath(playerId))}" data-player-profile="${escapeAttr(playerId)}"><strong>${escapeHtml(label)}</strong></a><span>${escapeHtml(friend.email)}</span></div>`;
-                }).join('') : '<div><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
-                <div><strong>Open lobbies</strong><span>Use Social to join rooms or invite friends once room invites are connected.</span></div>
+                    return `<div class="friend-activity-row">
+                        <div class="friend-activity-main">
+                            <a class="profile-friend-link" href="${escapeAttr(playerProfilePath(playerId))}" data-player-profile="${escapeAttr(playerId)}"><strong>${escapeHtml(label)}</strong></a>
+                            <span>${escapeHtml(friend.email)}</span>
+                        </div>
+                        <div class="friend-activity-actions">
+                            <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(playerId)}">Profile</button>
+                            <button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>
+                        </div>
+                    </div>`;
+                }).join('') : '<div class="friend-activity-note"><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
+                <div class="friend-activity-note"><strong>Open lobbies</strong><span>Use Social to join rooms or invite friends once room invites are connected.</span></div>
             </div>
         </section>`;
     }
 
+    function achievementHelpers() {
+        return {
+            findCard,
+            normalizeBattle,
+            battleRecord
+        };
+    }
+
+    function evaluateAchievements(view) {
+        const api = window.SiegelingsAchievements;
+        if (!api) return { featured: [], all: [], unlockedCount: 0, total: 0, byCategory: {} };
+        return api.evaluateAll(state, view, achievementHelpers());
+    }
+
+    function renderAchievementBadgeTile(achievement, options = {}) {
+        const compact = options.compact;
+        const unlocked = achievement.unlocked;
+        return `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}${compact ? ' achievement-badge-compact' : ''}" data-achievement-id="${escapeAttr(achievement.id)}" role="button" tabindex="0" aria-label="${escapeAttr(achievement.title)} — ${unlocked ? 'unlocked' : 'locked'}. View requirements.">
+            <span aria-hidden="true">${unlocked ? escapeHtml(achievement.icon || '★') : '−'}</span>
+            <strong>${escapeHtml(achievement.title)}</strong>
+            <small>${unlocked ? 'Unlocked' : 'Locked'}</small>
+        </div>`;
+    }
+
     function renderAchievementBadges(view) {
-        const achievements = [
-            ['First Win', view.record.wins > 0],
-            ['Element Specialist', true],
-            ['Collector', view.collection.uniqueOwned >= 10],
-            ['Deck Builder', view.savedDecks.length > 0],
-            ['Win Streak', view.record.bestStreak >= 3]
-        ];
+        const snapshot = evaluateAchievements(view);
+        const featured = snapshot.featured.length ? snapshot.featured : snapshot.all.slice(0, 6);
         return `<section class="profile-panel achievement-panel">
-            <div class="profile-panel-head"><div><span class="eyebrow">Achievements</span><h3>Badge Case</h3></div></div>
-            <div class="achievement-row">
-                ${achievements.map(([label, unlocked]) => `<div class="achievement-badge ${unlocked ? 'unlocked' : 'locked'}">
-                    <span>${unlocked ? '*' : '-'}</span>
-                    <strong>${escapeHtml(label)}</strong>
-                    <small>${unlocked ? 'Unlocked' : 'Locked'}</small>
-                </div>`).join('')}
+            <div class="profile-panel-head">
+                <div><span class="eyebrow">Achievements</span><h3>Badge Case</h3></div>
+                <button class="ghost-btn compact-btn" type="button" data-achievement-route="">View all (${snapshot.unlockedCount}/${snapshot.total})</button>
             </div>
+            <div class="achievement-row achievement-row-featured">
+                ${featured.map(item => renderAchievementBadgeTile(item)).join('')}
+            </div>
+            <p class="profile-muted achievement-panel-note">Six featured badges on your profile. Open the full badge case for ${snapshot.total} goals across collection, remnants, decks, and arena play.</p>
         </section>`;
+    }
+
+    function achievementsPath(category = '') {
+        const normalized = String(category || '').trim().toLowerCase();
+        if (!normalized) return '/achievements';
+        return `/achievements/${encodeURIComponent(normalized)}`;
+    }
+
+    function navigateAchievementCategory(category = '', options = {}) {
+        const path = achievementsPath(category);
+        state.route = 'achievements';
+        state.achievementCategory = String(category || '').trim().toLowerCase();
+        state.activeAchievementId = '';
+        state.shopView = 'browse';
+        state.profileUserId = '';
+        state.profileEditOpen = false;
+        if (options.replace) {
+            history.replaceState(null, '', path);
+        } else {
+            history.pushState(null, '', path);
+        }
+        setActiveRoute();
+        renderSections();
+        renderRoute();
+    }
+
+    function renderAchievements() {
+        const body = document.getElementById('achievementsSectionBody');
+        if (!body) return;
+        if (!state.profile?.authenticated) {
+            body.innerHTML = `<div class="achievements-signed-out unlock-card">
+                <strong>Sign in to track achievements</strong>
+                <span>Your badge cases unlock from wins, collection, remnants, deck building, and arena matches.</span>
+                <button class="primary-btn" type="button" id="achievementsSignInBtn">Sign In</button>
+            </div>`;
+            document.getElementById('achievementsSignInBtn')?.addEventListener('click', openAuth);
+            return;
+        }
+        const view = profileViewModel();
+        const snapshot = evaluateAchievements(view);
+        const activeCategory = state.achievementCategory;
+        const categories = window.SiegelingsAchievements?.CATEGORIES || [];
+        const categoryUnlocked = (id) => (snapshot.byCategory[id] || []).filter(a => a.unlocked).length;
+        const categoryTotal = (id) => (snapshot.byCategory[id] || []).length;
+
+        if (activeCategory && snapshot.byCategory[activeCategory]) {
+            const meta = window.SiegelingsAchievements.categoryMeta(activeCategory);
+            const rows = snapshot.byCategory[activeCategory];
+            const unlockedInCase = rows.filter(a => a.unlocked).length;
+            body.innerHTML = `<div class="achievements-dashboard" style="${profileThemeStyle(view.theme)}">
+                <div class="achievements-case-head">
+                    <button class="ghost-btn compact-btn" type="button" data-achievement-route="">All badge cases</button>
+                    <div>
+                        <span class="eyebrow">${escapeHtml(meta.eyebrow)}</span>
+                        <h2>${escapeHtml(meta.label)}</h2>
+                        <p class="achievements-case-copy">${escapeHtml(meta.description)}</p>
+                    </div>
+                    <span class="profile-soft-pill">${unlockedInCase}/${rows.length} unlocked</span>
+                </div>
+                <div class="achievement-grid achievement-grid-extended">
+                    ${rows.map(item => renderAchievementBadgeTile(item, { extended: true })).join('')}
+                </div>
+                <div class="achievement-detail-list">
+                    ${rows.map(item => `<article class="achievement-detail-row ${item.unlocked ? 'is-unlocked' : 'is-locked'}" data-achievement-id="${escapeAttr(item.id)}" role="button" tabindex="0" aria-label="${escapeAttr(item.title)} — ${item.unlocked ? 'unlocked' : 'locked'}. View requirements.">
+                        <div class="achievement-detail-icon" aria-hidden="true">${escapeHtml(item.unlocked ? item.icon : '−')}</div>
+                        <div>
+                            <strong>${escapeHtml(item.title)}</strong>
+                            <p>${escapeHtml(item.description)}</p>
+                        </div>
+                        <span class="achievement-detail-status">${item.unlocked ? 'Unlocked' : 'Locked'}</span>
+                    </article>`).join('')}
+                </div>
+            </div>`;
+        } else {
+            body.innerHTML = `<div class="achievements-dashboard" style="${profileThemeStyle(view.theme)}">
+                <div class="achievements-overview-head">
+                    <div>
+                        <span class="eyebrow">Achievements</span>
+                        <h2>Badge Case Hall</h2>
+                        <p class="achievements-case-copy">General goals, elemental mastery, card collection, remnants, deck creation, and arena loadouts — each case holds its own badge set.</p>
+                    </div>
+                    <div class="achievements-overview-stats">
+                        <strong>${snapshot.unlockedCount}<span>/${snapshot.total}</span></strong>
+                        <small>badges unlocked</small>
+                    </div>
+                </div>
+                <div class="achievement-category-grid">
+                    ${categories.map(cat => {
+                        const rows = snapshot.byCategory[cat.id] || [];
+                        const preview = rows.slice(0, 4);
+                        const unlocked = categoryUnlocked(cat.id);
+                        return `<section class="achievement-category-card">
+                            <div class="achievement-category-head">
+                                <div>
+                                    <span class="eyebrow">${escapeHtml(cat.eyebrow)}</span>
+                                    <h3>${escapeHtml(cat.label)}</h3>
+                                    <p>${escapeHtml(cat.description)}</p>
+                                </div>
+                                <span class="profile-soft-pill">${unlocked}/${categoryTotal(cat.id)}</span>
+                            </div>
+                            <div class="achievement-row achievement-row-preview">
+                                ${preview.map(item => renderAchievementBadgeTile(item, { compact: true })).join('')}
+                            </div>
+                            <button class="ghost-btn compact-btn" type="button" data-achievement-route="${escapeAttr(cat.id)}">Open badge case</button>
+                        </section>`;
+                    }).join('')}
+                </div>
+                <section class="profile-panel achievement-panel achievement-panel-all">
+                    <div class="profile-panel-head">
+                        <div><span class="eyebrow">Full roster</span><h3>Every badge</h3></div>
+                    </div>
+                    <div class="achievement-grid achievement-grid-extended">
+                        ${snapshot.all.map(item => renderAchievementBadgeTile(item)).join('')}
+                    </div>
+                </section>
+            </div>`;
+        }
+        bindAchievementRoutes(body);
+    }
+
+    function bindAchievementRoutes(root = document) {
+        root.querySelectorAll('[data-achievement-route]').forEach(btn => {
+            btn.addEventListener('click', () => navigateAchievementCategory(btn.dataset.achievementRoute || ''));
+        });
+        bindAchievementBadges(root);
+    }
+
+    function bindAchievementBadges(root = document) {
+        root.querySelectorAll('[data-achievement-id]').forEach(el => {
+            el.addEventListener('click', () => openAchievementDetail(el.dataset.achievementId));
+            el.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openAchievementDetail(el.dataset.achievementId);
+                }
+            });
+        });
+    }
+
+    function openAchievementDetail(id) {
+        if (!id) return;
+        state.activeAchievementId = String(id);
+        renderAchievementDetailHost();
+    }
+
+    function closeAchievementDetail() {
+        if (!state.activeAchievementId) return;
+        state.activeAchievementId = '';
+        renderAchievementDetailHost();
+    }
+
+    function renderAchievementDetailHost() {
+        const host = document.getElementById('achievementDetailHost');
+        if (!host) return;
+        const id = state.activeAchievementId;
+        if (!id) {
+            host.innerHTML = '';
+            return;
+        }
+        const view = state.profile?.authenticated ? profileViewModel() : null;
+        const snapshot = evaluateAchievements(view);
+        const achievement = (snapshot.all || []).find(a => a.id === id);
+        if (!achievement) {
+            host.innerHTML = '';
+            return;
+        }
+        host.innerHTML = renderAchievementDetailModal(achievement, view);
+        const overlay = host.querySelector('.profile-modal');
+        overlay?.addEventListener('click', (event) => {
+            if (event.target === overlay) closeAchievementDetail();
+        });
+        host.querySelectorAll('[data-achievement-detail-close]').forEach(btn => {
+            btn.addEventListener('click', closeAchievementDetail);
+        });
+    }
+
+    function renderAchievementDetailModal(achievement, view) {
+        const api = window.SiegelingsAchievements;
+        const meta = api?.categoryMeta ? api.categoryMeta(achievement.category) : { eyebrow: 'Achievement', label: 'Achievement' };
+        const unlocked = achievement.unlocked;
+        const measurable = achievement.measurable;
+        const current = Number(achievement.progressCurrent) || 0;
+        const target = Number(achievement.progressTarget) || 0;
+        const pct = Math.max(0, Math.min(100, Number(achievement.progressPct) || 0));
+        const progressBlock = measurable
+            ? `<div class="achievement-modal-progress">
+                    <div class="achievement-modal-progress-head">
+                        <span>Progress</span>
+                        <strong>${escapeHtml(formatProgressCount(current))} / ${escapeHtml(formatProgressCount(target))}</strong>
+                    </div>
+                    <div class="achievement-modal-bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+                        <span style="width:${pct}%"></span>
+                    </div>
+                    <small>${unlocked ? 'Requirement met.' : `${escapeHtml(formatProgressCount(Math.max(0, target - current)))} to go.`}</small>
+                </div>`
+            : `<div class="achievement-modal-progress achievement-modal-progress-binary">
+                    <small>${unlocked ? 'You have met this requirement.' : 'Complete the requirement above to unlock this badge.'}</small>
+                </div>`;
+        const rewardTitle = (state.titleCatalog || state.progression?.playerTitles || [])
+            .find(title => title.achievementId === achievement.id);
+        const rewardBlock = rewardTitle
+            ? `<div class="achievement-modal-reward">
+                    <span class="eyebrow">Player title reward</span>
+                    <p><strong>${escapeHtml(rewardTitle.label)}</strong></p>
+                    <small>${escapeHtml(rewardTitle.description || 'Unlock this achievement to earn the title for your profile.')}</small>
+                </div>`
+            : '';
+        return `<div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="achievementDetailTitle">
+            <div class="profile-edit-panel profile-panel achievement-modal-panel" style="${profileThemeStyle(view?.theme || elementThemes.Neutral)}">
+                <div class="profile-panel-head">
+                    <div><span class="eyebrow">${escapeHtml(meta.eyebrow)} · ${escapeHtml(meta.label)}</span><h3 id="achievementDetailTitle">Badge Requirements</h3></div>
+                    <button class="ghost-btn compact-btn" type="button" data-achievement-detail-close>Close</button>
+                </div>
+                <div class="achievement-modal-body">
+                    <div class="achievement-modal-emblem ${unlocked ? 'is-unlocked' : 'is-locked'}" aria-hidden="true">${escapeHtml(unlocked ? (achievement.icon || '★') : '−')}</div>
+                    <div class="achievement-modal-headline">
+                        <strong>${escapeHtml(achievement.title)}</strong>
+                        <span class="achievement-modal-status ${unlocked ? 'is-unlocked' : 'is-locked'}">${unlocked ? 'Unlocked' : 'Locked'}</span>
+                    </div>
+                </div>
+                <div class="achievement-modal-requirement">
+                    <span class="eyebrow">Requirement</span>
+                    <p>${escapeHtml(achievement.description)}</p>
+                </div>
+                ${progressBlock}
+                ${rewardBlock}
+            </div>
+        </div>`;
+    }
+
+    function formatProgressCount(value) {
+        const num = Number(value) || 0;
+        return num >= 1000 ? num.toLocaleString() : String(num);
     }
 
     function renderEditProfileModal(view) {
@@ -2428,10 +3310,10 @@
                     ${profileInput('Avatar initials', 'avatar', prefs.avatar)}
                     ${profileInput('Avatar image URL', 'avatarUrl', prefs.avatarUrl)}
                     <label><span>Favorite element</span><select class="search-input" data-profile-field="favoriteElement">${PROFILE_ELEMENTS.map(element => `<option value="${element}"${element === prefs.favoriteElement ? ' selected' : ''}>${element}</option>`).join('')}</select></label>
-                    ${profileInput('Player title', 'playerTitle', prefs.playerTitle)}
+                    ${profileTitleSelect(prefs.playerTitleId, prefs)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
-                    ${profileInput('Preferred card back', 'preferredCardBack', prefs.preferredCardBack)}
-                    ${profileInput('Favorite Siegeling', 'favoriteSiegling', prefs.favoriteSiegling)}
+                    ${profileCardBackSelect(prefs.preferredCardBack)}
+                    ${favoriteSieglingSelect(prefs.favoriteSieglingId || prefs.favoriteSieglingCard?.id)}
                 </div>
                 <div class="profile-edit-actions">
                     <button class="ghost-btn" type="button" data-profile-close>Cancel</button>
@@ -2445,6 +3327,16 @@
         return `<label><span>${escapeHtml(label)}</span><input class="search-input" data-profile-field="${escapeAttr(field)}" value="${escapeAttr(value)}"></label>`;
     }
 
+    // Renders the preferred card back picker as a dropdown of premade backs.
+    // Preserves any existing saved value that isn't part of the premade set.
+    function profileCardBackSelect(selected) {
+        const current = String(selected || '').trim();
+        const names = PROFILE_CARD_BACKS.map(back => back.name);
+        if (current && !names.includes(current)) names.unshift(current);
+        const options = names.map(name => `<option value="${escapeAttr(name)}"${name === current ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('');
+        return `<label><span>Preferred card back</span><select class="search-input" data-profile-field="preferredCardBack">${options}</select></label>`;
+    }
+
     function bindProfileDashboard() {
         document.querySelectorAll('[data-profile-edit]').forEach(btn => btn.addEventListener('click', () => {
             state.profileEditOpen = true;
@@ -2456,6 +3348,78 @@
         }));
         document.querySelectorAll('[data-profile-save]').forEach(btn => btn.addEventListener('click', saveProfilePrefs));
         document.querySelectorAll('[data-profile-route]').forEach(btn => btn.addEventListener('click', () => navigateHub(btn.dataset.profileRoute)));
+        document.querySelectorAll('.friend-activity [data-view-profile]').forEach(btn => btn.addEventListener('click', () => navigateToPlayerProfile(btn.dataset.viewProfile)));
+        document.querySelectorAll('.friend-activity [data-message-friend]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.messageFriend)));
+        document.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
+            const index = Number(row.dataset.matchIndex);
+            row.addEventListener('click', () => openMatchReview(index));
+            row.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openMatchReview(index);
+                }
+            });
+        });
+        bindAchievementRoutes(document.getElementById('profileSectionBody') || document);
+    }
+
+    // Opens a read-only review of a recorded match (stats + turn-by-turn log),
+    // mirroring the match detail surface on the Play screen.
+    function openMatchReview(index) {
+        const entry = (state.profile?.matchHistory || [])[index];
+        const overlay = document.getElementById('matchReviewOverlay');
+        const content = document.getElementById('matchReviewContent');
+        if (!entry || !overlay || !content) return;
+
+        const resultLabel = entry.result || 'Result';
+        const resultClass = String(resultLabel).toUpperCase().includes('WIN') ? 'win' : 'loss';
+        const finishedAt = entry.finishedAt ? new Date(entry.finishedAt) : null;
+        const finishedLabel = finishedAt && !isNaN(finishedAt.getTime())
+            ? finishedAt.toLocaleString()
+            : '';
+        const ph = Number(entry.playerHealthRemaining);
+        const oh = Number(entry.opponentHealthRemaining);
+        const en = Number(entry.playerEnergyRemaining);
+
+        const statRow = (label, value) =>
+            `<div class="match-detail-stat"><span class="md-stat-label">${escapeHtml(label)}</span><span class="md-stat-value">${escapeHtml(String(value))}</span></div>`;
+
+        const logLines = Array.isArray(entry.gameLog) ? entry.gameLog : [];
+        const logHtml = logLines.length > 0
+            ? `<div class="match-detail-log">${logLines.map(line => `<div class="md-log-line">${escapeHtml(line)}</div>`).join('')}</div>`
+            : '<div class="match-review-empty">No turn-by-turn breakdown was recorded for this match.</div>';
+
+        content.innerHTML = `
+            <div class="match-detail-header result-${resultClass}">
+                <div class="match-detail-result history-result-${resultClass}">${escapeHtml(resultLabel)}</div>
+                <div class="match-detail-sub">${escapeHtml(entry.loadoutLabel || 'Loadout')} vs ${escapeHtml(entry.opponentName || 'Opponent')}</div>
+                ${finishedLabel ? `<div class="match-detail-date">${escapeHtml(finishedLabel)}</div>` : ''}
+            </div>
+            <div class="match-detail-stats">
+                ${statRow('Your Health', Number.isFinite(ph) ? ph : '—')}
+                ${statRow('Opponent Health', Number.isFinite(oh) ? oh : '—')}
+                ${statRow('Energy Left', Number.isFinite(en) ? en : '—')}
+                ${statRow('Turns', entry.turnNumber ?? '—')}
+                ${statRow('SiegeKnight', entry.trainerName || '—')}
+                ${statRow('Match Type', entry.matchType || '—')}
+                ${statRow('Spells Cast', entry.spellsCast ?? 0)}
+                ${statRow('Traps Sprung', entry.trapsSprung ?? 0)}
+                ${statRow('Siegelings Defeated', entry.siegelingsDefeated ?? 0)}
+            </div>
+            <div class="match-detail-log-title">Game Breakdown</div>
+            ${logHtml}
+        `;
+        overlay.classList.remove('hidden');
+    }
+
+    function closeMatchReview(event) {
+        if (event) {
+            const overlay = document.getElementById('matchReviewOverlay');
+            if (event.target !== overlay && !event.target.closest('[data-match-review-close]')) {
+                return;
+            }
+        }
+        document.getElementById('matchReviewOverlay')?.classList.add('hidden');
     }
 
     async function saveProfilePrefs() {
@@ -2467,7 +3431,14 @@
         next.favoriteElement = normalizeProfileElement(next.favoriteElement);
         next.avatarMode = next.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL';
         next.avatar = (next.avatar || initials(next.displayName)).slice(0, 4).toUpperCase();
-        if (!next.playerTitle) next.playerTitle = elementThemes[next.favoriteElement].mood;
+        if (!next.playerTitleId && next.playerTitle) {
+            const legacy = unlockedPlayerTitles().find(title => title.label === next.playerTitle || title.id === next.playerTitle);
+            next.playerTitleId = legacy?.id || defaultStarterTitleId(next.favoriteElement);
+        }
+        if (!next.favoriteSieglingId && next.favoriteSiegling) {
+            const legacyCard = ownedSieglingCards().find(card => card.id === next.favoriteSiegling || card.name === next.favoriteSiegling);
+            next.favoriteSieglingId = legacyCard?.id || '';
+        }
         const data = await fetchJson('/api/profile/settings', { method: 'POST', body: JSON.stringify(next) });
         if (!data) return alert('Could not save profile. Is the server running the latest code with /api/profile/settings?');
         if (data.error) return alert(data.error);
@@ -2586,13 +3557,15 @@
         const matchType = String(row.matchType || '').toUpperCase();
         return {
             result,
+            matchType,
             opponentName: row.opponentName || 'Opponent',
             opponentType: matchType.includes('PVP') || matchType.includes('PLAYER') ? 'Player' : 'AI',
             deckUsed: row.loadoutLabel || row.trainerName || 'Battle Loadout',
             element: inferElementFromText(row.loadoutLabel || row.trainerName || '', fallbackElement),
             date: formatProfileDate(row.finishedAt) || '',
             duration: row.turnNumber ? `${row.turnNumber} turns` : '',
-            reward: result === 'WIN' ? '+25' : '+5'
+            reward: result === 'WIN' ? '+25' : '+5',
+            index
         };
     }
 
@@ -2657,8 +3630,10 @@
     }
 
     function renderGold() {
-        document.getElementById('goldPill').innerHTML = renderCoinAmount(state.profile?.authenticated ? (state.progression?.gold || 0) : 100);
-        document.getElementById('ownedCountLabel').textContent = `${state.progression?.ownedTotal || 0} owned`;
+        const goldPill = document.getElementById('goldPill');
+        if (goldPill) goldPill.innerHTML = renderCoinAmount(state.profile?.authenticated ? (state.progression?.gold || 0) : 100);
+        const ownedCountLabel = document.getElementById('ownedCountLabel');
+        if (ownedCountLabel) ownedCountLabel.textContent = `${state.progression?.ownedTotal || 0} owned`;
         const authBtn = document.getElementById('authHudBtn');
         if (authBtn) {
             authBtn.textContent = state.profile?.authenticated ? 'Log Out' : 'Sign In';
@@ -2686,6 +3661,8 @@
         state.progression = data.progression;
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
+        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+        await loadDailyMissions();
         const latest = state.progression?.packHistory?.[0];
         state.packOpeningDismissedKey = '';
         state.packReveal = latest ? {
@@ -2697,6 +3674,15 @@
             previewId: '',
             sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
         } : null;
+        if (starterMode) {
+            const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
+            if (serverPrefs) {
+                state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
+                cacheProfilePrefs(state.profilePrefs);
+            } else {
+                applyStarterProfileDefaults();
+            }
+        }
         renderPackResult();
         navigateHub('shop', { shopView: 'cardpack' });
         render();
@@ -2712,6 +3698,7 @@
         state.progression = data.progression;
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
+        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
         render();
     }
 
@@ -2724,7 +3711,7 @@
         const latest = state.progression?.packHistory?.[0];
         if (!result || !latest) return;
         const reveal = ensurePackReveal(latest);
-        const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
+        const cards = packRevealCards(latest);
         const sessionKey = packSessionKey(latest);
         const opening = result.querySelector('.pack-opening');
         const sameSession = opening?.dataset.packKey === sessionKey;
@@ -2785,6 +3772,31 @@
         </section>`;
     }
 
+    function buildPackTrainerBanner(trainer) {
+        if (!trainer) return '';
+        const name = escapeHtml(trainer.name || 'SiegeKnight');
+        const level = Math.max(1, Number(trainer.level) || 1);
+        let tag;
+        let detail;
+        if (trainer.newlyOwned) {
+            tag = 'New SiegeKnight!';
+            detail = `${name} joins your roster.`;
+        } else if (trainer.leveledUp) {
+            tag = `Combined to Lv ${level}!`;
+            detail = `${name} grows stronger (+${Math.max(0, level - 1)} to ability effects).`;
+        } else {
+            const remaining = Math.max(0, (Number(trainer.pointsForNext) || 0) - (Number(trainer.points) || 0));
+            tag = 'SiegeKnight Combine Point';
+            detail = level >= 5
+                ? `${name} is already at max level.`
+                : `${name} gains a combine point${remaining ? ` (${remaining} more to Lv ${level + 1}).` : '.'}`;
+        }
+        return `<div class="pack-trainer-banner">
+            <span class="pack-trainer-tag">${escapeHtml(tag)}</span>
+            <span class="pack-trainer-detail">${escapeHtml(detail)}</span>
+        </div>`;
+    }
+
     function patchPackOpening({ result, latest, cards, reveal }) {
         const opening = result.querySelector('.pack-opening');
         if (!opening) return;
@@ -2808,6 +3820,7 @@
             if (!btn) return;
             const wasRevealed = btn.classList.contains('is-revealed');
             btn.classList.toggle('is-revealed', revealed);
+            if (revealed) hydrateRevealCardFront(btn, card);
             if (revealed && !wasRevealed && animateId === card.revealId) {
                 if (card.duplicateAtCap && card.remnantsAwarded > 0 && !reveal.dissolvedRemnants.has(card.revealId)) {
                     window.setTimeout(() => playRemnantDissolve(btn, card, () => renderPackResult()), 720);
@@ -2899,6 +3912,38 @@
         };
     }
 
+    function packRevealCards(latest) {
+        const cards = (latest?.cards || []).map((card, index) => enrichPackCard(card, index));
+        const trainerCard = trainerRevealCard(latest, cards.length);
+        return trainerCard ? [...cards, trainerCard] : cards;
+    }
+
+    function trainerRevealCard(latest, index) {
+        const trainer = latest?.trainer;
+        if (!trainer?.id) return null;
+        const option = (state.options?.trainers || []).find(item => String(item.id || '').toLowerCase() === String(trainer.id).toLowerCase());
+        const element = trainer.element || option?.element || starterElementFromPackId(latest.packId).toUpperCase() || latest.cards?.[0]?.element || 'FIRE';
+        const abilities = [
+            option?.passive ? { name: 'Passive', description: option.passive } : null,
+            option?.active ? { name: option.oncePerGame ? 'Ultimate' : 'Active', description: option.active } : null
+        ].filter(Boolean);
+        return {
+            id: trainer.id,
+            name: trainer.name || option?.name || 'SiegeKnight',
+            type: 'SIEGEKNIGHT',
+            element,
+            rarity: trainer.rarity || option?.rarity || 'COMMON',
+            tier: trainer.tier || option?.tier || 'SiegeKnight',
+            level: trainer.level || option?.level || 1,
+            owned: true,
+            abilities,
+            description: abilities.map(ability => ability.description).filter(Boolean).join(' '),
+            revealId: `${trainer.id || 'trainer'}-${index}`,
+            duplicateAtCap: false,
+            remnantsAwarded: 0
+        };
+    }
+
     function duplicateRemnantPreview(rarity) {
         return DUPLICATE_REMNANT_PREVIEW[String(rarity || 'COMMON').toUpperCase()] || DUPLICATE_REMNANT_PREVIEW.COMMON;
     }
@@ -2935,19 +3980,33 @@
                 ${renderRevealRemnantFace(card)}
             </button>`;
         }
-        return `<button class="reveal-card${revealed ? ' is-revealed' : ''}${remnantPull ? ' is-remnant-pull' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="${remnantPull ? 'true' : 'false'}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}">
+        return `<button class="reveal-card${revealed ? ' is-revealed' : ''}${remnantPull ? ' is-remnant-pull' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="${remnantPull ? 'true' : 'false'}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}" aria-label="${revealed ? escapeAttr(card.name || 'Revealed card') : 'Mystery card'}">
             <span class="rarity-burst" aria-hidden="true"></span>
             <span class="reveal-dust-burst" aria-hidden="true"></span>
-            <span class="reveal-face reveal-back">
-                <strong>Tap to reveal</strong>
-                <small>${remnantPull ? 'May become Remnants' : `${escapeHtml(format(rarity))} pulse`}</small>
-            </span>
-            <span class="reveal-face reveal-front">
-                <div class="card-tile binder-card gacha-card-front" style="--el:${elementColor(element)}">
-                    ${renderBinderCardShell(card, { ownedOverride: ownedPreview })}
-                </div>
+            <span class="reveal-face reveal-back" aria-hidden="${revealed ? 'true' : 'false'}"></span>
+            <span class="reveal-face reveal-front" aria-hidden="${revealed ? 'false' : 'true'}">
+                ${revealed ? renderRevealFrontContent(card, ownedPreview) : ''}
             </span>
         </button>`;
+    }
+
+    function renderRevealFrontContent(card, ownedPreview) {
+        return `<div class="card-tile binder-card gacha-card-front" style="--el:${elementColor(card.element || 'FIRE')}">
+            ${renderBinderCardShell(card, { ownedOverride: ownedPreview })}
+        </div>`;
+    }
+
+    function hydrateRevealCardFront(cardEl, card) {
+        if (!cardEl || !card) return;
+        const remnantPull = Boolean(card.duplicateAtCap && card.remnantsAwarded > 0);
+        const ownedPreview = Math.max(1, Math.min(3, ownedCount(card.id) || (!remnantPull ? 1 : 0)));
+        const front = cardEl.querySelector('.reveal-front');
+        if (front && !front.innerHTML.trim()) {
+            front.innerHTML = renderRevealFrontContent(card, ownedPreview);
+        }
+        front?.setAttribute('aria-hidden', 'false');
+        cardEl.querySelector('.reveal-back')?.setAttribute('aria-hidden', 'true');
+        cardEl.setAttribute('aria-label', card.name || 'Revealed card');
     }
 
     function spawnRemnantDust(cardEl) {
@@ -2995,8 +4054,7 @@
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
         if (reveal.dissolvedRemnants.has(revealId)) return;
-        const index = latest.cards.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId);
-        const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
+        const card = packRevealCards(latest).find(item => item.revealId === revealId);
         if (!card) return;
         if (reveal.revealed.has(revealId)) return;
         reveal.revealed.add(revealId);
@@ -3014,7 +4072,7 @@
         reveal.previewId = revealId;
         reveal.lastRevealedId = '';
         const result = document.getElementById('packResult');
-        const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
+        const cards = packRevealCards(latest);
         const opening = result?.querySelector('.pack-opening');
         if (opening && opening.dataset.packKey === packSessionKey(latest)) {
             patchPackPreview(opening, cards.find(card => card.revealId === revealId));
@@ -3052,11 +4110,11 @@
         };
         const entry = lore[String(element || '').toUpperCase()] || { title: 'Relics Uncovered', sub: 'Unknown powers wait beyond the seal.' };
         const words = ['no', 'a single', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
-        const pulses = words[count] || `${count}`;
+        const pulls = words[count] || `${count}`;
         return {
             eyebrow: 'Gacha reveal',
             title: entry.title,
-            sub: `${pulses.charAt(0).toUpperCase() + pulses.slice(1)} ancient pulses resonate within — tap each to reveal its fate. ${entry.sub}`
+            sub: `${pulls.charAt(0).toUpperCase() + pulls.slice(1)} sealed pulls wait inside — tap each to reveal its fate. ${entry.sub}`
         };
     }
 
@@ -3092,7 +4150,7 @@
         const latest = state.progression?.packHistory?.[0];
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
-        const cards = latest.cards.map((card, index) => enrichPackCard(card, index));
+        const cards = packRevealCards(latest);
         cards.forEach(card => reveal.revealed.add(card.revealId));
         reveal.lastRevealedId = '';
         reveal.sparkColor = elementColor(latest.cards?.[0]?.element || 'FIRE');
@@ -3195,10 +4253,27 @@
         if (!state.profile?.authenticated) return openAuth();
         const data = await fetchJson('/api/cards/craft', { method: 'POST', body: JSON.stringify({ cardId }) });
         if (data?.error) return alert(data.error);
+        if (window.SiegelingsAchievements?.incrementStat) {
+            window.SiegelingsAchievements.incrementStat('crafts', 1);
+        }
         state.progression = data.progression;
         renderCards();
         renderHomeDashboard();
         renderGold();
+        renderProfile();
+        renderAchievements();
+    }
+
+    async function buyKnightXp(trainerId) {
+        if (!state.profile?.authenticated) return openAuth();
+        const data = await fetchJson('/api/knights/buy-xp', { method: 'POST', body: JSON.stringify({ trainerId }) });
+        if (data?.error) return alert(data.error);
+        state.progression = data.progression;
+        renderCards();
+        renderDetail();
+        renderHomeDashboard();
+        renderGold();
+        renderProfile();
     }
 
     async function saveCustomDeck() {
@@ -3383,15 +4458,28 @@
     function navigateHub(route, options = {}) {
         const hash = options.focus === 'lobby' ? '#socialActiveLobby' : '';
         const nextShopView = route === 'shop' ? (options.shopView || state.shopView || 'browse') : 'browse';
-        const nextPath = `${hubPath(route, nextShopView)}${hash}`;
+        const achievementCategory = route === 'achievements' ? (options.achievementCategory ?? state.achievementCategory ?? '') : '';
+        const nextPath = route === 'achievements'
+            ? achievementsPath(achievementCategory)
+            : `${hubPath(route, nextShopView)}${hash}`;
         const samePlace = route === state.route
             && (route !== 'shop' || nextShopView === state.shopView)
-            && (route !== 'profile' || !state.profileUserId);
+            && (route !== 'profile' || !state.profileUserId)
+            && (route !== 'achievements' || achievementCategory === state.achievementCategory);
 
         state.route = route;
         state.shopView = nextShopView;
+        if (state.activeAchievementId) {
+            state.activeAchievementId = '';
+            renderAchievementDetailHost();
+        }
         if (route === 'profile') {
             state.profileUserId = '';
+        }
+        if (route === 'achievements') {
+            state.achievementCategory = achievementCategory;
+        } else {
+            state.achievementCategory = '';
         }
 
         if (options.replace) {
@@ -3433,8 +4521,17 @@
         return state.route === 'cards' || state.route === 'decks';
     }
 
+    function isSocialRoute() {
+        return state.route === 'social' || state.route === 'lobby';
+    }
+
+    function isFilterRoute() {
+        return isBinderRoute() || isSocialRoute();
+    }
+
     function toggleTray(type) {
-        if (!isBinderRoute()) return;
+        if (type === 'filter' && !isFilterRoute()) return;
+        if (type === 'card' && !isBinderRoute()) return;
         if (type === 'filter') {
             state.filterTrayOpen = !state.filterTrayOpen;
             if (state.filterTrayOpen) state.cardTrayOpen = false;
@@ -3461,22 +4558,35 @@
 
     function renderHudTools() {
         const binder = isBinderRoute();
+        const social = isSocialRoute();
+        const filterOpen = state.filterTrayOpen;
         const optionsBtn = document.getElementById('optionsBtn');
         optionsBtn?.classList.toggle('hidden', state.route !== 'home');
+        // Hide "Join With Code" on the Cards/Decks binder routes; it crowds the
+        // HUD there and the same action lives on the Social tab.
+        const joinBtn = document.getElementById('joinByCodeBtn');
+        joinBtn?.classList.toggle('hidden', binder);
         const filterBtn = document.getElementById('filterTrayBtn');
+        const socialFilterBtn = document.getElementById('socialFilterBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
         const filterTray = document.getElementById('filterTray');
+        const lobbyFilterTray = document.getElementById('lobbyFilterTray');
         const cardTray = document.getElementById('detailPanel');
         const backdrop = document.getElementById('trayBackdrop');
-        filterBtn?.classList.toggle('hidden', !binder);
+        const showFilterHud = binder || social;
+        filterBtn?.classList.toggle('hidden', !showFilterHud);
         cardBtn?.classList.toggle('hidden', !binder);
-        filterBtn?.classList.toggle('active', binder && state.filterTrayOpen);
+        filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
+        socialFilterBtn?.classList.toggle('active', social && filterOpen);
         cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
-        filterTray?.classList.toggle('is-closed', !binder || !state.filterTrayOpen);
+        filterTray?.classList.toggle('is-closed', !binder || !filterOpen);
+        lobbyFilterTray?.classList.toggle('is-closed', !social || !filterOpen);
         cardTray?.classList.toggle('is-closed', !binder || !state.cardTrayOpen);
-        filterTray?.setAttribute('aria-hidden', String(!binder || !state.filterTrayOpen));
+        filterTray?.setAttribute('aria-hidden', String(!binder || !filterOpen));
+        lobbyFilterTray?.setAttribute('aria-hidden', String(!social || !filterOpen));
         cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
-        backdrop?.classList.toggle('hidden', !binder || (!state.filterTrayOpen && !state.cardTrayOpen));
+        const trayOpen = (binder && filterOpen) || (social && filterOpen) || (binder && state.cardTrayOpen);
+        backdrop?.classList.toggle('hidden', !trayOpen);
     }
 
     async function fetchJson(path, options = {}) {
@@ -3517,6 +4627,29 @@
         const next = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
         state.options = next;
         state.catalogVersion = Number(next.catalogVersion) || 0;
+    }
+
+    // Synchronously seed state from the persisted static caches before any network
+    // call, so the first paint of a fresh page load is instant when we've loaded
+    // before. loadAll() then revalidates everything in the background.
+    function hydrateStaticCachesFromStorage() {
+        const options = readCache('gameOptions', STATIC_CACHE_TTL_MS);
+        if (options) {
+            applyGameOptions(options);
+        }
+        const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS);
+        if (packs) {
+            state.packs = packs.packs || [];
+            state.dailyOffers = packs.dailyOffers || [];
+            state.titleCatalog = packs.titleCatalog || state.titleCatalog || [];
+        }
+        const descriptions = readCache('creatureDescriptions', STATIC_CACHE_TTL_MS);
+        if (descriptions) {
+            state.creatureDescriptions = indexCreatureDescriptions(descriptions);
+        }
+        if (state.options && !state.selectedCardId) {
+            state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
+        }
     }
 
     function bindCatalogSync() {
@@ -3576,22 +4709,25 @@
         try {
             const entry = { savedAt: Date.now(), data };
             memoryCache[cacheKey] = entry;
-            const storage = browserSessionStorage();
+            const storage = hubCacheStorage();
             if (storage) storage.setItem(HUB_CACHE_PREFIX + cacheKey, JSON.stringify(entry));
         } catch (error) {
-            // Session cache is an optimization only.
+            // Persistent cache is an optimization only — if localStorage is full or
+            // unavailable we fall back to the in-memory copy and the network.
         }
     }
 
     function readCacheEntry(cacheKey) {
-        const storage = browserSessionStorage();
+        const storage = hubCacheStorage();
         const raw = storage?.getItem(HUB_CACHE_PREFIX + cacheKey);
         return raw ? JSON.parse(raw) : memoryCache[cacheKey];
     }
 
-    function browserSessionStorage() {
+    // Persist hub caches in localStorage so they survive tab close, app relaunch,
+    // and crossing between the hub and the Play page — not just a single tab.
+    function hubCacheStorage() {
         try {
-            return window.sessionStorage || null;
+            return window.localStorage || null;
         } catch (error) {
             return null;
         }
@@ -3686,6 +4822,7 @@
         state.token = data.token || '';
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
+        saveCachedAuthProfile(data);
         state.progression = data.progression;
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
@@ -3707,12 +4844,40 @@
         await fetchJson('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
+        clearCachedAuthProfile();
         state.token = '';
         state.profile = null;
         state.progression = null;
         state.profilePrefs = null;
         state.profileEditOpen = false;
         render();
+    }
+
+    async function deleteAccount(confirmationText) {
+        const btn = document.getElementById('deleteAccountBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+        const data = await fetchJson('/api/auth/delete-account', {
+            method: 'POST',
+            body: JSON.stringify({ confirmationText })
+        });
+        if (data?.error) {
+            const err = document.getElementById('deleteAccountError');
+            if (err) err.textContent = data.error;
+            if (btn) { btn.disabled = false; btn.textContent = 'Permanently delete my account'; }
+            return;
+        }
+        stopPresenceHeartbeat();
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
+        clearCachedAuthProfile();
+        state.token = '';
+        state.profile = null;
+        state.progression = null;
+        state.profilePrefs = null;
+        state.profileEditOpen = false;
+        closeOptions();
+        render();
+        alert('Your account and all associated data have been permanently deleted.');
     }
 
     function adjustBuilder(cardId, delta) {
@@ -3744,9 +4909,16 @@
         if (!state.profile?.authenticated || !state.progression?.ownedTotal) return 3;
         return 0;
     }
-    function selectedCard() { return findCard(state.selectedCardId) || state.options?.cardCatalog?.[0]; }
-    function findCard(id) { return (state.options?.cardCatalog || []).find(card => card.id === id); }
-    function ownedCount(id) { return state.progression?.ownedCards?.[id] || 0; }
+    function selectedCard() { return findCard(state.selectedCardId) || binderCatalog()[0]; }
+    function findCard(id) { return binderCatalog().find(card => card.id === id); }
+    function ownedCount(id) {
+        if (trainerOwnedLevel(id) > 0) return 1;
+        return state.progression?.ownedCards?.[id] || 0;
+    }
+
+    function renderSiegeknightBinderArt(card) {
+        return `<div class="siegeknight-binder-art has-knight-back" style="--knight-card-back:url('${escapeAttr(SIEGEKNIGHT_CARD_BACK)}')" role="img" aria-label="${escapeAttr(card?.name || 'SiegeKnight')} card back"></div>`;
+    }
     function selectedSavedDeck() {
         const selected = state.selectedDeckId;
         if (!selected) return null;
@@ -3861,24 +5033,28 @@
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
         const head = segments[0] || 'home';
-        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         if (head === 'social' && segments[1] === 'lobby' && segments[2]) {
-            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '' };
+            return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '', achievementCategory: '' };
         }
         if (head === 'shop') {
-            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '' };
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
         if (head === 'profile') {
             const profileUserId = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
-            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId };
+            return { route: 'profile', shopView: 'browse', lobbyRoomId: '', profileUserId, achievementCategory: '' };
+        }
+        if (head === 'achievements') {
+            const achievementCategory = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
+            return { route: 'achievements', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory };
         }
         if (head === 'deck-builder') {
-            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+            return { route: 'deck-builder', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
         if (['cards', 'decks', 'social'].includes(head)) {
-            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+            return { route: head, shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
-        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '' };
+        return { route: 'home', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
     }
 
     function normalizePlayerId(userId) {
@@ -3915,6 +5091,7 @@
         if (route === 'home') return '/home';
         if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
         if (route === 'deck-builder') return '/deck-builder';
+        if (route === 'achievements') return '/achievements';
         return `/${route}`;
     }
 
@@ -3924,6 +5101,7 @@
         state.shopView = parsed.shopView;
         state.lobbyRoomId = parsed.lobbyRoomId || '';
         state.profileUserId = parsed.profileUserId || '';
+        state.achievementCategory = parsed.achievementCategory || '';
         if (state.route === 'shop' && state.shopView === 'cardpack' && !shouldShowPackOpening()) {
             state.shopView = 'browse';
             if (location.pathname !== hubPath('shop', 'browse')) {
@@ -3960,6 +5138,9 @@
     }
 
     function renderBinderCardArt(card) {
+        if (String(card?.type || '').toUpperCase() === 'SIEGEKNIGHT') {
+            return renderSiegeknightBinderArt(card);
+        }
         const dashboardArtUrl = String(card?.cardArtUrl || '').trim();
         const dashboardMode = window.SieglingsCardBinderVisual?.normalizeArtMode(card?.cardArtMode) || '';
         if (dashboardArtUrl && dashboardMode && window.SieglingsCardBinderVisual) {
@@ -4003,6 +5184,7 @@
         const normalized = String(value || '');
         if (normalized === 'SIEGLING') return 'Siegeling';
         if (normalized === 'SIEGLINGS') return 'Siegelings';
+        if (normalized === 'SIEGEKNIGHT') return 'SiegeKnight';
         return normalized
             .toLowerCase()
             .replace(/_/g, ' ')
@@ -4030,9 +5212,12 @@
             avatar: settings.avatar || '',
             avatarUrl: settings.avatarUrl || '',
             playerTitle: settings.playerTitle || '',
+            playerTitleId: settings.playerTitleId || settings.playerTitle || '',
             bio: settings.bio || '',
             preferredCardBack: settings.preferredCardBack || '',
-            favoriteSiegling: settings.favoriteSiegling || ''
+            favoriteSiegling: settings.favoriteSiegling || '',
+            favoriteSieglingId: settings.favoriteSieglingId || '',
+            favoriteSieglingCard: settings.favoriteSieglingCard || null
         };
         const elementSource = settings.favoriteElementLabel || settings.favoriteElement;
         if (elementSource != null && String(elementSource).trim()) {
@@ -4063,9 +5248,11 @@
                 avatarUrl: prefs.avatarUrl,
                 favoriteElement: prefs.favoriteElement,
                 playerTitle: prefs.playerTitle,
+                playerTitleId: prefs.playerTitleId,
                 bio: prefs.bio,
                 preferredCardBack: prefs.preferredCardBack,
-                favoriteSiegling: prefs.favoriteSiegling
+                favoriteSiegling: prefs.favoriteSiegling,
+                favoriteSieglingId: prefs.favoriteSieglingId
             }));
         } catch (_error) {
             // ignore quota errors
@@ -4123,8 +5310,12 @@
 
     function selectedTrainerId() {
         const savedDeck = selectedSavedDeck();
-        if (savedDeck?.trainerId) return savedDeck.trainerId;
-        return state.options?.defaultTrainerId || state.options?.trainers?.[0]?.id || '';
+        if (savedDeck?.trainerId && isTrainerOwned(savedDeck.trainerId)) {
+            return savedDeck.trainerId;
+        }
+        const preferred = state.options?.defaultTrainerId;
+        if (preferred && isTrainerOwned(preferred)) return preferred;
+        return firstOwnedTrainerId();
     }
 
     function socialBattleName() {
@@ -4159,7 +5350,29 @@
         const normalized = String(roomId).trim().toUpperCase();
         const hostLobby = readHostLobby();
         if (hostLobby?.roomId && hostLobby.roomId.toUpperCase() === normalized) return true;
+        const listed = state.rooms.find(entry => String(entry.roomId || '').toUpperCase() === normalized);
+        if (listed && listed.hostUserId && listed.hostUserId === state.profile?.user?.id) return true;
         return false;
+    }
+
+    async function reconnectHostLobbySession(roomId) {
+        if (!state.token || !roomId) return null;
+        const data = await fetchJson('/api/match/reconnect-host', {
+            method: 'POST',
+            body: JSON.stringify({ roomId })
+        });
+        if (data?.error) {
+            alert(data.error);
+            return null;
+        }
+        if (!data?.roomId || !data?.playerToken) return null;
+        writeHostLobby({
+            roomId: data.roomId,
+            playerToken: data.playerToken,
+            expiresAt: data.expiresAt || null,
+            shareUrl: data.shareUrl || buildSocialRoomShareUrl(data.roomId)
+        });
+        return { roomId: data.roomId, playerToken: data.playerToken, role: 'host' };
     }
 
     function openLobbyWaitingRoom(roomId, options = {}) {
@@ -4216,8 +5429,8 @@
             }
         }
         if (isOwnLobbyRoomId(roomId)) {
-            alert('Reconnect from the device that created this lobby, or create a new table.');
-            navigateHub('social', { focus: 'lobby' });
+            const reconnected = await reconnectHostLobbySession(roomId);
+            if (reconnected) return reconnected;
             return null;
         }
         if (!state.options?.decks?.length) {
@@ -4315,7 +5528,13 @@
         const selectedDeck = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.deckId || selectedDeckId();
         const selectedTrainer = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.trainerId || selectedTrainerId();
         const deckOptions = decks.map(deck => `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`).join('');
-        const trainerOptions = trainers.map(trainer => `<option value="${escapeAttr(trainer.id)}" ${trainer.id === selectedTrainer ? 'selected' : ''}>${escapeHtml(trainer.name)}</option>`).join('');
+        const trainerOptions = trainers.map(trainer => {
+            const owned = isTrainerOwned(trainer.id);
+            const level = Math.max(1, trainerOwnedLevel(trainer.id) || Number(trainer.level) || 1);
+            const levelLabel = owned && level > 1 ? ` (Lv ${level})` : '';
+            const lockLabel = owned ? '' : ' \u2014 Locked';
+            return `<option value="${escapeAttr(trainer.id)}" ${trainer.id === selectedTrainer ? 'selected' : ''}${owned ? '' : ' disabled'}>${escapeHtml(trainer.name + levelLabel + lockLabel)}</option>`;
+        }).join('');
         const players = status?.players || [];
         const hostPlayer = players.find(player => player.role === 'host') || { name: status?.hostName || 'Host', ready: false };
         const guestPlayer = players.find(player => player.role === 'guest');
@@ -4344,7 +5563,7 @@
 
     function bindLobbyWaitingRoomControls() {
         document.getElementById('lobbyReadyBtn')?.addEventListener('click', () => void confirmLobbyReady());
-        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => leaveLobbyWaitingRoom());
+        document.getElementById('lobbyLeaveBtn')?.addEventListener('click', () => void leaveLobbyWaitingRoom());
         document.getElementById('lobbyCloseBtn')?.addEventListener('click', () => {
             const hostLobby = readHostLobby();
             if (hostLobby) void closeHostLobby(hostLobby);
@@ -4538,7 +5757,7 @@
         stopLobbyPolling();
         if (session?.role === 'guest' && session.roomId && session.playerToken && !state.lobbyStatus?.started) {
             try {
-                await fetchJson('/api/match/leave', {
+                const data = await fetchJson('/api/match/leave', {
                     method: 'POST',
                     headers: {
                         'X-Room-Id': session.roomId,
@@ -4546,8 +5765,16 @@
                     },
                     body: JSON.stringify({ roomId: session.roomId })
                 });
+                if (data?.error) {
+                    alert(data.error);
+                }
             } catch (error) {
                 console.warn('Unable to leave lobby', error);
+            }
+            try {
+                localStorage.removeItem(MULTIPLAYER_SESSION_KEY);
+            } catch (_error) {
+                // ignore storage failures
             }
         }
         clearLobbySession();
@@ -4573,10 +5800,10 @@
         const session = currentLobbySession();
         if (!session) return;
         const status = await fetchMatchStatus(session);
-        if (!status || status.error) {
-            if (status?.error) {
-                alert(status.error);
-                leaveLobbyWaitingRoom();
+        if (!status || status.error || status.closed) {
+            if (status?.error || status?.closed) {
+                alert(status?.error || 'This lobby has been closed.');
+                await leaveLobbyWaitingRoom();
             }
             return;
         }
@@ -4937,9 +6164,9 @@
                         <span class="profile-soft-pill">${escapeHtml(statusLabel)}</span>
                     </div>
                     <h2>${escapeHtml(prefs.displayName || data.userId || 'Player')}</h2>
-                    <p class="profile-title">${escapeHtml(prefs.playerTitle || theme.mood)}</p>
+                    <p class="profile-title">${escapeHtml(resolveProfileTitleLabel(prefs))}</p>
                     <p class="profile-bio">${escapeHtml(prefs.bio || '')}</p>
-                    <p class="profile-muted">Favorite Siegeling: ${escapeHtml(prefs.favoriteSiegling || '—')}</p>
+                    ${renderProfileFavoriteSiegling(prefs)}
                     <p class="profile-muted">${escapeHtml(prefs.preferredCardBack || '')} card back</p>
                 </div>
             </div>
@@ -4995,7 +6222,7 @@
             ${renderPublicProfileStats(view)}
             ${view.battles.length ? renderBattleRecordPanel(view) : ''}
             ${view.battles.length
-                ? renderBattleHistoryList(view)
+                ? renderBattleHistoryList(view, false)
                 : `<section class="profile-panel"><p class="profile-muted">${view.data.isFriend ? 'No recorded battles yet.' : 'Recent battles are visible once you are friends.'}</p></section>`}
             ${renderPublicProfileActions(view)}
         </div>`;
@@ -5180,6 +6407,10 @@
                         <span class="options-menu-icon">&#128279;</span>
                         <span><strong>Share Profile</strong><small>Show a QR code so others can view and friend you</small></span>
                     </button>
+                    <button class="options-menu-item" type="button" data-options-view="account">
+                        <span class="options-menu-icon">&#128100;</span>
+                        <span><strong>Account</strong><small>Manage or permanently delete your account</small></span>
+                    </button>
                     <button class="options-menu-item" type="button" data-options-view="admin">
                         <span class="options-menu-icon">&#9881;</span>
                         <span><strong>Admin</strong><small>Password-protected dashboard access</small></span>
@@ -5230,6 +6461,26 @@
                         <button class="primary-btn" type="button" id="copyShareLinkBtn">Copy link</button>
                     </div>` : ''}
                 </div>`;
+        } else if (view === 'account') {
+            const authed = Boolean(state.profile?.authenticated);
+            const email = state.profile?.user?.email || '';
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Account</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                ${authed ? `<div class="account-panel">
+                    <p class="guide-note">Signed in as <strong>${escapeHtml(email)}</strong>.</p>
+                    <div class="account-danger">
+                        <h3>Delete account</h3>
+                        <p class="guide-note">This permanently removes your account and all associated data &mdash; saved decks, match history, collection progress, friends, and messages. This cannot be undone.</p>
+                        <form class="account-danger-form" id="deleteAccountForm">
+                            <label class="account-danger-label" for="deleteAccountConfirm">Type <strong>DELETE</strong> to confirm</label>
+                            <input class="search-input" id="deleteAccountConfirm" type="text" autocomplete="off" placeholder="DELETE">
+                            <p class="admin-error" id="deleteAccountError"></p>
+                            <button class="danger-btn" id="deleteAccountBtn" type="submit" disabled>Permanently delete my account</button>
+                        </form>
+                    </div>
+                </div>` : `<p class="guide-note">Sign in to manage your account.</p>`}`;
         } else if (view === 'admin') {
             body.innerHTML = `<div class="view-profile-modal-head">
                     <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Admin</h2></div>
@@ -5262,6 +6513,18 @@
     }
 
     function handleOptionsSubmit(event) {
+        if (event.target.closest('#deleteAccountForm')) {
+            event.preventDefault();
+            const value = (document.getElementById('deleteAccountConfirm')?.value || '').trim();
+            const err = document.getElementById('deleteAccountError');
+            if (value !== 'DELETE') {
+                if (err) err.textContent = 'Type DELETE exactly to confirm.';
+                return;
+            }
+            if (err) err.textContent = '';
+            deleteAccount(value);
+            return;
+        }
         const form = event.target.closest('#optionsAdminForm');
         if (!form) return;
         event.preventDefault();
@@ -5271,6 +6534,13 @@
         } else {
             const err = document.getElementById('optionsAdminError');
             if (err) err.textContent = 'Incorrect password.';
+        }
+    }
+
+    function handleOptionsInput(event) {
+        if (event.target.id === 'deleteAccountConfirm') {
+            const btn = document.getElementById('deleteAccountBtn');
+            if (btn) btn.disabled = event.target.value.trim() !== 'DELETE';
         }
     }
 
@@ -5290,6 +6560,8 @@
         if (packButton) choosePack(packButton.dataset.packId);
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
+        const titleButton = event.target.closest('[data-purchase-title-id]');
+        if (titleButton) purchasePlayerTitle(titleButton.dataset.purchaseTitleId);
         if (event.target.closest('[data-close-preview]') || event.target.matches('[data-preview-backdrop]')) {
             closePackPreview();
             return;
@@ -5302,8 +6574,7 @@
             const alreadyRevealed = Boolean(state.packReveal?.revealed?.has?.(revealId));
             if (alreadyRevealed) {
                 const latest = state.progression?.packHistory?.[0];
-                const index = latest?.cards?.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId) ?? -1;
-                const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
+                const card = latest ? packRevealCards(latest).find(item => item.revealId === revealId) : null;
                 if (card?.duplicateAtCap && card?.remnantsAwarded > 0) return;
                 openPackPreview(revealId);
             } else {

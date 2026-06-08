@@ -4,6 +4,7 @@ import com.sieglings.model.Ability;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
+import com.sieglings.model.TrainerCard;
 import com.sieglings.model.TrapCard;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Rarity;
@@ -328,6 +329,188 @@ class PlayerProgressionServiceTest {
             return List.of(
                     new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
                     new SieglingCard("dracoil", "Dracoil", Element.FIRE, Rarity.RARE, 8, 3, List.of(), Row.FRONT)
+            );
+        }
+
+        @Override
+        public TrainerCard getTrainer(Element element) {
+            return fireKnight();
+        }
+    }
+
+    private static TrainerCard fireKnight() {
+        return new TrainerCard(
+                "trainer01",
+                "Flame Tactician",
+                Element.FIRE,
+                Rarity.RARE,
+                Ability.passive("Battle Focus", "All Fire allies gain +1 attack damage", "damage_boost", 1),
+                Ability.damage("Kindle Shot", "Deal 2 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 2),
+                false
+        );
+    }
+
+    private static TrainerCard waterKnight() {
+        return new TrainerCard(
+                "trainer02",
+                "Tide Strategist",
+                Element.WATER,
+                Rarity.RARE,
+                Ability.passive("Flow Guard", "All Water allies gain +1 HP", "hp_boost", 1),
+                Ability.damage("Splash Lance", "Deal 2 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 2),
+                false
+        );
+    }
+
+    @Test
+    void starterPackGrantsMatchingSiegeKnightAtLevelOne() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        PlayerProgressionEntity progression = service.chooseStarterPack(user(), "pack_fire");
+
+        assertEquals(1, progression.getTrainerLevels().get("trainer01"));
+        assertTrue(service.ownsTrainer(user(), "trainer01"));
+        assertEquals(1, service.getTrainerLevel(user(), "trainer01"));
+    }
+
+    @Test
+    void getOrCreateRetroactivelyGrantsStarterKnightForExistingPlayers() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity existing = new PlayerProgressionEntity();
+        existing.setUserId("player@example.com");
+        existing.setStarterPackId("pack_fire");
+        store.saved = existing;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        PlayerProgressionEntity progression = service.getOrCreate(user());
+
+        assertEquals(1, progression.getTrainerLevels().get("trainer01"));
+    }
+
+    @Test
+    void siegeKnightPackDropAddsKnightToOwnership() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(5000);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new TrainerDropPackCatalogService(), new FakeCardDefinitionService());
+
+        service.openPack(user(), "pack_siegeknight");
+
+        assertEquals(1, store.saved.getTrainerLevels().get("trainer01"));
+        assertEquals(1, store.saved.getTrainerLevels().get("trainer02"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> trainerEntry = (Map<String, Object>) store.saved.getPackHistory().get(0).get("trainer");
+        assertEquals(true, trainerEntry.get("newlyOwned"));
+        assertEquals("trainer02", trainerEntry.get("id"));
+    }
+
+    @Test
+    void duplicateSiegeKnightPullsCombineIntoHigherLevels() {
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        PlayerProgressionService service = new PlayerProgressionService();
+        TrainerCard knight = fireKnight();
+
+        PlayerProgressionService.TrainerGrantOutcome first = service.grantTrainer(progression, knight);
+        assertEquals(1, first.level());
+        assertTrue(first.newlyOwned());
+
+        // Level 1 -> 2 needs 1 point.
+        PlayerProgressionService.TrainerGrantOutcome second = service.grantTrainer(progression, knight);
+        assertEquals(2, second.level());
+        assertTrue(second.leveledUp());
+
+        // Level 2 -> 3 needs 2 points (two more duplicates).
+        service.grantTrainer(progression, knight);
+        PlayerProgressionService.TrainerGrantOutcome fourth = service.grantTrainer(progression, knight);
+        assertEquals(3, fourth.level());
+    }
+
+    @Test
+    void trainerAbilityBonusScalesWithLevel() {
+        assertEquals(0, PlayerProgressionService.trainerAbilityBonus(1));
+        assertEquals(3, PlayerProgressionService.trainerAbilityBonus(4));
+    }
+
+    @Test
+    void buyTrainerXpSpendsLevelScaledCoinsAndGrantsProgress() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        LinkedHashMap<String, Integer> levels = new LinkedHashMap<>();
+        levels.put("trainer01", 2);
+        progression.setTrainerLevels(levels);
+        LinkedHashMap<String, Integer> points = new LinkedHashMap<>();
+        points.put("trainer01", 0);
+        progression.setTrainerPoints(points);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.buyTrainerXp(user(), "trainer01");
+
+        assertEquals(400, store.saved.getGold());
+        assertEquals(1, store.saved.getTrainerPoints().get("trainer01"));
+        assertEquals(2, store.saved.getTrainerLevels().get("trainer01"));
+    }
+
+    @Test
+    void buyTrainerXpLevelsUpWhenThresholdReached() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        LinkedHashMap<String, Integer> levels = new LinkedHashMap<>();
+        levels.put("trainer01", 1);
+        progression.setTrainerLevels(levels);
+        LinkedHashMap<String, Integer> points = new LinkedHashMap<>();
+        points.put("trainer01", 0);
+        progression.setTrainerPoints(points);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.buyTrainerXp(user(), "trainer01");
+
+        assertEquals(450, store.saved.getGold());
+        assertEquals(2, store.saved.getTrainerLevels().get("trainer01"));
+        assertEquals(0, store.saved.getTrainerPoints().get("trainer01"));
+    }
+
+    @Test
+    void buyTrainerXpRejectsUnownedKnight() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        LinkedHashMap<String, Integer> levels = new LinkedHashMap<>();
+        levels.put("trainer01", 1);
+        progression.setTrainerLevels(levels);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        assertThrows(IllegalArgumentException.class, () -> service.buyTrainerXp(user(), "trainer02"));
+    }
+
+    private static class TrainerDropPackCatalogService extends PackCatalogService {
+        @Override
+        public PackOpenResult openPack(String packId, boolean starterOnly) {
+            return new PackOpenResult(
+                    new PackDefinition("pack_siegeknight", "SiegeKnight Cache", "", true, 1200, List.of(Element.FIRE), false),
+                    List.of(
+                            new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
+                            new SieglingCard("dracoil", "Dracoil", Element.FIRE, Rarity.RARE, 8, 3, List.of(), Row.FRONT),
+                            new SieglingCard("pylook", "Pylook", Element.FIRE, Rarity.COMMON, 5, 4, List.of(), Row.FRONT),
+                            new SpellCard("spark", "Spark", Element.FIRE, Rarity.COMMON, 1, Ability.damage("Spark", "", TargetType.SINGLE_ENEMY, null, 1, 1)),
+                            new TrapCard("flaretrap", "Flare Trap", Element.FIRE, Rarity.COMMON, Element.FIRE, 2, Ability.damage("Flare", "", TargetType.SINGLE_ENEMY, null, 1, 1))
+                    ),
+                    waterKnight()
             );
         }
     }

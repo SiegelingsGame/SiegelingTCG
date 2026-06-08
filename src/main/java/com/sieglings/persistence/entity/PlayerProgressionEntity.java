@@ -11,6 +11,8 @@ public class PlayerProgressionEntity {
     private int gold;
     private int remnants;
     private Map<String, Integer> ownedCards = new LinkedHashMap<>();
+    private Map<String, Integer> trainerLevels = new LinkedHashMap<>();
+    private Map<String, Integer> trainerPoints = new LinkedHashMap<>();
     private String starterPackId;
     private List<String> rewardedMatchIds = new ArrayList<>();
     private List<String> purchasedDeckIds = new ArrayList<>();
@@ -18,6 +20,8 @@ public class PlayerProgressionEntity {
     private List<Map<String, Object>> packHistory = new ArrayList<>();
     private int soloWinStreak;
     private int onlineWinStreak;
+    private List<String> purchasedTitleIds = new ArrayList<>();
+    private int craftCount;
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -29,6 +33,14 @@ public class PlayerProgressionEntity {
     public Map<String, Integer> getOwnedCards() { return ownedCards; }
     public void setOwnedCards(Map<String, Integer> ownedCards) {
         this.ownedCards = ownedCards == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ownedCards);
+    }
+    public Map<String, Integer> getTrainerLevels() { return trainerLevels; }
+    public void setTrainerLevels(Map<String, Integer> trainerLevels) {
+        this.trainerLevels = trainerLevels == null ? new LinkedHashMap<>() : new LinkedHashMap<>(trainerLevels);
+    }
+    public Map<String, Integer> getTrainerPoints() { return trainerPoints; }
+    public void setTrainerPoints(Map<String, Integer> trainerPoints) {
+        this.trainerPoints = trainerPoints == null ? new LinkedHashMap<>() : new LinkedHashMap<>(trainerPoints);
     }
     public String getStarterPackId() { return starterPackId; }
     public void setStarterPackId(String starterPackId) { this.starterPackId = starterPackId; }
@@ -52,6 +64,12 @@ public class PlayerProgressionEntity {
     public void setSoloWinStreak(int soloWinStreak) { this.soloWinStreak = Math.max(0, soloWinStreak); }
     public int getOnlineWinStreak() { return onlineWinStreak; }
     public void setOnlineWinStreak(int onlineWinStreak) { this.onlineWinStreak = Math.max(0, onlineWinStreak); }
+    public List<String> getPurchasedTitleIds() { return purchasedTitleIds; }
+    public void setPurchasedTitleIds(List<String> purchasedTitleIds) {
+        this.purchasedTitleIds = purchasedTitleIds == null ? new ArrayList<>() : new ArrayList<>(purchasedTitleIds);
+    }
+    public int getCraftCount() { return craftCount; }
+    public void setCraftCount(int craftCount) { this.craftCount = Math.max(0, craftCount); }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

@@ -35,7 +35,16 @@ import java.util.stream.IntStream;
 @Service
 public class GameService {
 
-    public record StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards, String loadoutLabel) {}
+    public record StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards,
+                               String loadoutLabel, int playerTrainerLevel) {
+        public StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards, String loadoutLabel) {
+            this(playerDeckId, playerTrainerId, customDeckCards, loadoutLabel, 1);
+        }
+
+        public StartOptions withTrainerLevel(int level) {
+            return new StartOptions(playerDeckId, playerTrainerId, customDeckCards, loadoutLabel, Math.max(1, level));
+        }
+    }
 
     private record ResolvedLoadout(
             List<Card> deck,
@@ -601,7 +610,8 @@ public class GameService {
             List<Card> deck = cardDefs.buildCustomDeck(safeOptions.customDeckCards());
             return new ResolvedLoadout(
                     deck,
-                    resolveTrainerSelection(trainerId, fallbackTrainerId, inferElements(deck)),
+                    applyTrainerLevel(resolveTrainerSelection(trainerId, fallbackTrainerId, inferElements(deck)),
+                            safeOptions.playerTrainerLevel()),
                     inferElements(deck),
                     preferredLabel == null ? "Custom Loadout" : preferredLabel,
                     null,
@@ -615,7 +625,8 @@ public class GameService {
                         .orElseThrow(() -> new IllegalStateException("No active preset decks are available.")));
         return new ResolvedLoadout(
                 cardDefs.buildDeckById(deckOption.id()),
-                resolveTrainerSelection(trainerId, deckOption.recommendedTrainerId(), deckOption.elements()),
+                applyTrainerLevel(resolveTrainerSelection(trainerId, deckOption.recommendedTrainerId(), deckOption.elements()),
+                        safeOptions.playerTrainerLevel()),
                 deckOption.elements(),
                 preferredLabel == null ? deckOption.name() : preferredLabel,
                 deckOption.id(),
@@ -958,6 +969,29 @@ public class GameService {
             return resolveTrainerSelection(enemyDeck.recommendedTrainerId(), enemyDeck.recommendedTrainerId(), enemyDeck.elements());
         }
         return candidates.get(random.nextInt(candidates.size())).copy();
+    }
+
+    /**
+     * Applies the player's SiegeKnight level bonus to its passive and active ability effect values.
+     * The trainer is always a fresh copy here, so mutating it is safe.
+     */
+    private TrainerCard applyTrainerLevel(TrainerCard trainer, int level) {
+        if (trainer == null) {
+            return null;
+        }
+        int bonus = PlayerProgressionService.trainerAbilityBonus(level);
+        if (bonus <= 0) {
+            return trainer;
+        }
+        Ability passive = trainer.getAbility();
+        if (passive != null) {
+            passive.setEffectValue(passive.getEffectValue() + bonus);
+        }
+        Ability active = trainer.getActiveAbility();
+        if (active != null) {
+            active.setEffectValue(active.getEffectValue() + bonus);
+        }
+        return trainer;
     }
 
     private TrainerCard resolveTrainerSelection(String requestedTrainerId, String fallbackTrainerId, List<Element> deckElements) {

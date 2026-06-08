@@ -1,6 +1,8 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Card;
+import com.sieglings.model.TrainerCard;
+import com.sieglings.model.enums.Element;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
@@ -25,7 +27,16 @@ public class PlayerProgressionService {
     public static final int SOLO_WIN_REMNANTS = 20;
     public static final int ONLINE_WIN_REMNANTS = 30;
 
+    // SiegeKnight leveling / combining (tunable balance knobs).
+    public static final int TRAINER_MAX_LEVEL = 5;
+    public static final int TRAINER_DUP_POINTS = 1;
+    /** Siegecoins per XP point; scales with current knight level (cost = level × this value). */
+    public static final int TRAINER_XP_COIN_COST_PER_LEVEL = 50;
+
     public record CardGrantOutcome(Card card, boolean grantedCopy, int remnantsAwarded, int ownedAfter) {}
+
+    public record TrainerGrantOutcome(String trainerId, String trainerName, String element, String rarity, String tier,
+                                      boolean newlyOwned, boolean leveledUp, int level, int points, int pointsForNext) {}
 
     @Autowired
     private PlayerProgressionStore store;
@@ -36,13 +47,62 @@ public class PlayerProgressionService {
     @Autowired
     private CardDefinitionService cardDefinitionService;
 
+    @Autowired(required = false)
+    private DailyMissionService dailyMissionService;
+
+    @Autowired(required = false)
+    private PlayerTitleService playerTitleService;
+
     public PlayerProgressionEntity getOrCreate(AccountUser user) {
-        return store.findByUserId(user.getId()).orElseGet(() -> {
+        PlayerProgressionEntity progression = store.findByUserId(user.getId()).orElseGet(() -> {
             PlayerProgressionEntity created = new PlayerProgressionEntity();
             created.setUserId(user.getId());
             created.setGold(STARTING_GOLD);
             return store.save(created);
         });
+        if (ensureStarterTrainer(progression)) {
+            progression.setUpdatedAt(Instant.now());
+            store.save(progression);
+        }
+        return progression;
+    }
+
+    /**
+     * Existing players who chose a starter before SiegeKnights were earnable should still
+     * own the knight matching their starting element. Returns true if a grant was applied.
+     */
+    private boolean ensureStarterTrainer(PlayerProgressionEntity progression) {
+        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+            return false;
+        }
+        if (!progression.getTrainerLevels().isEmpty()) {
+            return false;
+        }
+        TrainerCard starterTrainer = starterTrainerForPack(progression.getStarterPackId());
+        if (starterTrainer == null) {
+            return false;
+        }
+        grantTrainer(progression, starterTrainer);
+        return true;
+    }
+
+    private TrainerCard starterTrainerForPack(String packId) {
+        Element element = starterElementForPack(packId);
+        return element == null ? null : cardDefinitionService.getTrainer(element);
+    }
+
+    /** Starter packs are named {@code pack_<element>}; derive the element directly from the id. */
+    private Element starterElementForPack(String packId) {
+        String prefix = "pack_";
+        if (packId == null || !packId.startsWith(prefix)) {
+            return null;
+        }
+        String name = packId.substring(prefix.length()).trim().toUpperCase(java.util.Locale.ROOT);
+        try {
+            return Element.valueOf(name);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     public PlayerProgressionEntity chooseStarterPack(AccountUser user, String packId) {
@@ -54,7 +114,15 @@ public class PlayerProgressionService {
         List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
         grantRemnants(progression, PACK_OPEN_REMNANTS);
         progression.setStarterPackId(result.pack().id());
-        addPackHistory(progression, result, outcomes, 0, "STARTER");
+        // Grant the SiegeKnight matching the player's starting element for free.
+        TrainerGrantOutcome trainerOutcome = null;
+        TrainerCard starterTrainer = starterTrainerForPack(result.pack().id());
+        if (starterTrainer != null) {
+            progression.setTrainerLevels(new LinkedHashMap<>());
+            progression.setTrainerPoints(new LinkedHashMap<>());
+            trainerOutcome = grantTrainer(progression, starterTrainer);
+        }
+        addPackHistory(progression, result, outcomes, trainerOutcome, 0, "STARTER");
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -71,7 +139,10 @@ public class PlayerProgressionService {
         progression.setGold(progression.getGold() - result.pack().price());
         List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
         grantRemnants(progression, PACK_OPEN_REMNANTS);
-        addPackHistory(progression, result, outcomes, result.pack().price(), "SHOP");
+        TrainerGrantOutcome trainerOutcome = result.bonusTrainer() == null
+                ? null
+                : grantTrainer(progression, result.bonusTrainer());
+        addPackHistory(progression, result, outcomes, trainerOutcome, result.pack().price(), "SHOP");
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -133,6 +204,7 @@ public class PlayerProgressionService {
         }
         progression.setRemnants(progression.getRemnants() - cost);
         grantCardsWithCap(progression, List.of(card));
+        progression.setCraftCount(progression.getCraftCount() + 1);
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -160,6 +232,9 @@ public class PlayerProgressionService {
         progression.setRewardedMatchIds(rewarded);
         progression.setUpdatedAt(Instant.now());
         store.save(progression);
+        if (dailyMissionService != null) {
+            dailyMissionService.recordMatch(history, reward);
+        }
     }
 
     /**
@@ -255,11 +330,16 @@ public class PlayerProgressionService {
     }
 
     public Map<String, Object> serialize(PlayerProgressionEntity progression) {
+        return serialize(progression, null);
+    }
+
+    public Map<String, Object> serialize(PlayerProgressionEntity progression, AccountUser user) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("gold", progression.getGold());
         out.put("remnants", progression.getRemnants());
         out.put("ownedCards", progression.getOwnedCards());
         out.put("ownedTotal", ownedTotal(progression));
+        out.put("ownedTrainers", serializeOwnedTrainers(progression));
         out.put("customDeckUnlocked", ownedTotal(progression) >= CUSTOM_DECK_UNLOCK_COPIES);
         out.put("customDeckUnlockCopies", CUSTOM_DECK_UNLOCK_COPIES);
         out.put("starterPackId", progression.getStarterPackId());
@@ -269,11 +349,53 @@ public class PlayerProgressionService {
         out.put("packHistory", progression.getPackHistory().stream().limit(12).toList());
         out.put("soloWinStreak", progression.getSoloWinStreak());
         out.put("onlineWinStreak", progression.getOnlineWinStreak());
+        out.put("craftCount", progression.getCraftCount());
+        if (playerTitleService != null) {
+            out.put("playerTitles", playerTitleService.serializeTitlesForUser(user, progression));
+        } else {
+            out.put("playerTitles", List.of());
+        }
+        out.put("purchasedTitleIds", progression.getPurchasedTitleIds());
         return out;
+    }
+
+    public PlayerProgressionEntity purchaseTitle(AccountUser user, String titleId) {
+        if (playerTitleService == null) {
+            throw new IllegalStateException("Title purchases are unavailable.");
+        }
+        PlayerProgressionEntity progression = getOrCreate(user);
+        progression = playerTitleService.applyTitlePurchase(user, progression, titleId);
+        progression.setUpdatedAt(Instant.now());
+        return store.save(progression);
     }
 
     private int ownedTotal(PlayerProgressionEntity progression) {
         return progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    private List<Map<String, Object>> serializeOwnedTrainers(PlayerProgressionEntity progression) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        Map<String, Integer> levels = progression.getTrainerLevels();
+        Map<String, Integer> points = progression.getTrainerPoints();
+        for (Map.Entry<String, Integer> entry : levels.entrySet()) {
+            int level = Math.max(1, entry.getValue());
+            int progress = Math.max(0, points.getOrDefault(entry.getKey(), 0));
+            Map<String, Object> trainer = new LinkedHashMap<>();
+            trainer.put("id", entry.getKey());
+            trainer.put("level", level);
+            trainer.put("maxLevel", TRAINER_MAX_LEVEL);
+            trainer.put("points", progress);
+            trainer.put("pointsForNext", pointsForNextLevel(level));
+            trainer.put("nextXpCoinCost", trainerXpCoinCost(level));
+            trainer.put("abilityBonus", trainerAbilityBonus(level));
+            out.add(trainer);
+        }
+        return out;
+    }
+
+    /** Bonus added to a knight's passive and active ability effect values at the given level. */
+    public static int trainerAbilityBonus(int level) {
+        return Math.max(0, level - 1);
     }
 
     public List<CardGrantOutcome> grantCardsWithCap(PlayerProgressionEntity progression, List<Card> cards) {
@@ -301,6 +423,122 @@ public class PlayerProgressionService {
 
     public int duplicateRemnantValue(Card card) {
         return Math.max(25, craftCost(card) / 5);
+    }
+
+    /**
+     * Unlocks a SiegeKnight (level 1) on first acquisition, or feeds combine points toward the
+     * next level on a duplicate. Leveling up grants a bonus to the knight's ability effects.
+     */
+    public TrainerGrantOutcome grantTrainer(PlayerProgressionEntity progression, TrainerCard trainer) {
+        String trainerId = normalizeTrainerId(trainer.getId());
+        Map<String, Integer> levels = new LinkedHashMap<>(progression.getTrainerLevels());
+        Map<String, Integer> points = new LinkedHashMap<>(progression.getTrainerPoints());
+
+        boolean newlyOwned = !levels.containsKey(trainerId);
+        boolean leveledUp = false;
+        int level = Math.max(1, levels.getOrDefault(trainerId, 0));
+        int progress = Math.max(0, points.getOrDefault(trainerId, 0));
+
+        if (newlyOwned) {
+            level = 1;
+            progress = 0;
+        } else {
+            progress += TRAINER_DUP_POINTS;
+            while (level < TRAINER_MAX_LEVEL && progress >= pointsForNextLevel(level)) {
+                progress -= pointsForNextLevel(level);
+                level++;
+                leveledUp = true;
+            }
+            if (level >= TRAINER_MAX_LEVEL) {
+                progress = 0;
+            }
+        }
+
+        levels.put(trainerId, level);
+        points.put(trainerId, progress);
+        progression.setTrainerLevels(levels);
+        progression.setTrainerPoints(points);
+
+        return new TrainerGrantOutcome(trainerId, trainer.getName(), trainer.getElement().name(), trainer.getRarity().name(), trainer.getTier(), newlyOwned, leveledUp,
+                level, progress, pointsForNextLevel(level));
+    }
+
+    /** Duplicate copies required to advance from {@code level} to the next level. */
+    public int pointsForNextLevel(int level) {
+        if (level >= TRAINER_MAX_LEVEL) {
+            return 0;
+        }
+        return Math.max(1, level);
+    }
+
+    /** Siegecoin cost to buy one XP point at the given knight level. */
+    public static int trainerXpCoinCost(int level) {
+        if (level >= TRAINER_MAX_LEVEL) {
+            return 0;
+        }
+        return TRAINER_XP_COIN_COST_PER_LEVEL * Math.max(1, level);
+    }
+
+    public PlayerProgressionEntity buyTrainerXp(AccountUser user, String trainerId) {
+        PlayerProgressionEntity progression = getOrCreate(user);
+        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+            throw new IllegalArgumentException("Choose a starter pack before buying knight XP.");
+        }
+        String id = normalizeTrainerId(trainerId);
+        if (id == null || !progression.getTrainerLevels().containsKey(id)) {
+            throw new IllegalArgumentException("You don't own that SiegeKnight.");
+        }
+        int level = Math.max(1, progression.getTrainerLevels().get(id));
+        if (level >= TRAINER_MAX_LEVEL) {
+            throw new IllegalArgumentException("This SiegeKnight is already at max level.");
+        }
+        int cost = trainerXpCoinCost(level);
+        if (progression.getGold() < cost) {
+            throw new IllegalArgumentException("Not enough Siegecoins for knight XP.");
+        }
+        progression.setGold(progression.getGold() - cost);
+
+        Map<String, Integer> levels = new LinkedHashMap<>(progression.getTrainerLevels());
+        Map<String, Integer> points = new LinkedHashMap<>(progression.getTrainerPoints());
+        int progress = Math.max(0, points.getOrDefault(id, 0)) + TRAINER_DUP_POINTS;
+        while (level < TRAINER_MAX_LEVEL && progress >= pointsForNextLevel(level)) {
+            progress -= pointsForNextLevel(level);
+            level++;
+        }
+        if (level >= TRAINER_MAX_LEVEL) {
+            progress = 0;
+        }
+        levels.put(id, level);
+        points.put(id, progress);
+        progression.setTrainerLevels(levels);
+        progression.setTrainerPoints(points);
+        progression.setUpdatedAt(Instant.now());
+        return store.save(progression);
+    }
+
+    public boolean ownsTrainer(AccountUser user, String trainerId) {
+        if (user == null || trainerId == null || trainerId.isBlank()) {
+            return false;
+        }
+        return getOrCreate(user).getTrainerLevels().containsKey(normalizeTrainerId(trainerId));
+    }
+
+    public int getTrainerLevel(AccountUser user, String trainerId) {
+        if (user == null || trainerId == null || trainerId.isBlank()) {
+            return 1;
+        }
+        return getTrainerLevel(getOrCreate(user), trainerId);
+    }
+
+    public int getTrainerLevel(PlayerProgressionEntity progression, String trainerId) {
+        if (progression == null || trainerId == null) {
+            return 1;
+        }
+        return Math.max(1, progression.getTrainerLevels().getOrDefault(normalizeTrainerId(trainerId), 1));
+    }
+
+    private String normalizeTrainerId(String trainerId) {
+        return trainerId == null ? null : trainerId.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     private void grantRemnants(PlayerProgressionEntity progression, int amount) {
@@ -334,6 +572,7 @@ public class PlayerProgressionService {
     private void addPackHistory(PlayerProgressionEntity progression,
                                 PackCatalogService.PackOpenResult result,
                                 List<CardGrantOutcome> outcomes,
+                                TrainerGrantOutcome trainerOutcome,
                                 int price,
                                 String source) {
         Map<String, Object> entry = new LinkedHashMap<>();
@@ -344,6 +583,20 @@ public class PlayerProgressionService {
         entry.put("openedAt", Instant.now().toString());
         int remnantsFromDuplicates = outcomes.stream().mapToInt(CardGrantOutcome::remnantsAwarded).sum();
         entry.put("remnantsFromDuplicates", remnantsFromDuplicates);
+        if (trainerOutcome != null) {
+            Map<String, Object> trainerEntry = new LinkedHashMap<>();
+            trainerEntry.put("id", trainerOutcome.trainerId());
+            trainerEntry.put("name", trainerOutcome.trainerName());
+            trainerEntry.put("element", trainerOutcome.element());
+            trainerEntry.put("rarity", trainerOutcome.rarity());
+            trainerEntry.put("tier", trainerOutcome.tier());
+            trainerEntry.put("newlyOwned", trainerOutcome.newlyOwned());
+            trainerEntry.put("leveledUp", trainerOutcome.leveledUp());
+            trainerEntry.put("level", trainerOutcome.level());
+            trainerEntry.put("points", trainerOutcome.points());
+            trainerEntry.put("pointsForNext", trainerOutcome.pointsForNext());
+            entry.put("trainer", trainerEntry);
+        }
         entry.put("cards", outcomes.stream().map(outcome -> {
             Card card = outcome.card();
             Map<String, Object> cardEntry = new LinkedHashMap<>();
@@ -362,5 +615,8 @@ public class PlayerProgressionService {
         history.add(entry);
         history.addAll(progression.getPackHistory());
         progression.setPackHistory(history.stream().limit(20).toList());
+        if (dailyMissionService != null) {
+            dailyMissionService.recordPackOpened(progression.getUserId());
+        }
     }
 }

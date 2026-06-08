@@ -4,6 +4,14 @@ import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.AuthSession;
 import com.sieglings.persistence.firestore.AccountUserStore;
 import com.sieglings.persistence.firestore.AuthSessionStore;
+import com.sieglings.persistence.firestore.DailyMissionProgressStore;
+import com.sieglings.persistence.firestore.DirectMessageStore;
+import com.sieglings.persistence.firestore.FriendRequestStore;
+import com.sieglings.persistence.firestore.MatchHistoryStore;
+import com.sieglings.persistence.firestore.PlayerProgressionStore;
+import com.sieglings.persistence.firestore.ProfileSettingsStore;
+import com.sieglings.persistence.firestore.SavedDeckStore;
+import com.sieglings.persistence.firestore.UserPresenceStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -13,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -31,6 +40,30 @@ public class AccountService {
 
     @Autowired
     private FriendRequestService friendRequestService;
+
+    @Autowired
+    private SavedDeckStore savedDeckStore;
+
+    @Autowired
+    private MatchHistoryStore matchHistoryStore;
+
+    @Autowired
+    private PlayerProgressionStore playerProgressionStore;
+
+    @Autowired
+    private ProfileSettingsStore profileSettingsStore;
+
+    @Autowired
+    private UserPresenceStore userPresenceStore;
+
+    @Autowired
+    private DailyMissionProgressStore dailyMissionProgressStore;
+
+    @Autowired
+    private FriendRequestStore friendRequestStore;
+
+    @Autowired
+    private DirectMessageStore directMessageStore;
 
     @Value("${app.auth.password-reset-code:}")
     private String passwordResetCode;
@@ -117,6 +150,47 @@ public class AccountService {
             return;
         }
         sessionStore.deleteById(token);
+    }
+
+    /**
+     * Permanently removes the account and every record tied to it. Requires the caller to type
+     * {@code DELETE} exactly, so an accidental click can never wipe a player's data.
+     */
+    public void deleteAccount(AccountUser user, String confirmationText) {
+        if (user == null) {
+            throw new IllegalArgumentException("Sign in to delete your account.");
+        }
+        if (!"DELETE".equals(confirmationText == null ? "" : confirmationText.trim())) {
+            throw new IllegalArgumentException("Type DELETE to confirm account deletion.");
+        }
+
+        String userId = user.getId();
+
+        // Detach from each friend so we don't leave dangling references in their friend lists.
+        List<String> friendEmails = user.getFriendEmails() == null ? List.of() : user.getFriendEmails();
+        for (String friendEmail : new LinkedHashSet<>(friendEmails)) {
+            AccountUser peer = userStore.findById(friendEmail).orElse(null);
+            if (peer == null) {
+                continue;
+            }
+            LinkedHashSet<String> peerFriends = new LinkedHashSet<>(peer.getFriendEmails());
+            if (peerFriends.remove(userId)) {
+                peer.setFriendEmails(peerFriends.stream().toList());
+                userStore.save(peer);
+            }
+        }
+
+        // Remove all associated records, then the account document itself.
+        friendRequestStore.deleteByUserId(userId);
+        directMessageStore.deleteByUserId(userId);
+        savedDeckStore.deleteByUserId(userId);
+        matchHistoryStore.deleteByUserId(userId);
+        playerProgressionStore.deleteByUserId(userId);
+        profileSettingsStore.deleteByUserId(userId);
+        dailyMissionProgressStore.deleteByUserId(userId);
+        userPresenceStore.deleteByUserId(userId);
+        sessionStore.deleteByUserId(userId);
+        userStore.deleteById(userId);
     }
 
     public AccountUser sendFriendRequest(AccountUser user, String email) {

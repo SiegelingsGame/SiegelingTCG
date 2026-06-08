@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="68%">
+      <stop offset="0" stop-color="#d4ff95"/>
+      <stop offset="0.5" stop-color="#5ca92f"/>
+      <stop offset="1" stop-color="#071f09"/>
+    </radialGradient>
+    <linearGradient id="venom" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.56" stop-color="#d9ffb8"/>
+      <stop offset="1" stop-color="#82e45b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="34" fill="url(#bg)"/>
+  <path d="M256 66c75 96 120 169 120 240 0 78-52 132-120 132s-120-54-120-132c0-71 45-144 120-240z" fill="none" stroke="url(#venom)" stroke-width="38" stroke-linejoin="round"/>
+  <path d="M197 306c12 28 33 46 59 46s47-18 59-46" fill="none" stroke="#f4ffe8" stroke-width="20" stroke-linecap="round" opacity=".7"/>
+  <circle cx="218" cy="286" r="24" fill="#f5ffea" opacity=".88"/>
+  <circle cx="294" cy="286" r="24" fill="#f5ffea" opacity=".88"/>
+  <path d="M256 316l-20 38h40zM151 177c-27 8-47 27-55 53M360 163c28 4 51 20 65 45M390 352c27 8 45 28 52 55M119 356c-24 12-39 33-44 62" fill="none" stroke="#dfffbd" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity=".62"/>
+  <rect x="20" y="20" width="472" height="472" rx="28" fill="none" stroke="#e2ffc8" stroke-width="18" opacity=".82"/>
+</svg>

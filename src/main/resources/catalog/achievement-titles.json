@@ -1,0 +1,920 @@
+[
+  {
+    "achievementId": "first_win",
+    "titleId": "title_ach_first_win",
+    "label": "First Victor of the Arena",
+    "description": "Earned by unlocking the \"First Win\" achievement."
+  },
+  {
+    "achievementId": "duelist",
+    "titleId": "title_ach_duelist",
+    "label": "Ten-Match Challenger",
+    "description": "Earned by unlocking the \"Duelist\" achievement."
+  },
+  {
+    "achievementId": "brawler",
+    "titleId": "title_ach_brawler",
+    "label": "Seasoned Brawler",
+    "description": "Earned by unlocking the \"Brawler\" achievement."
+  },
+  {
+    "achievementId": "veteran",
+    "titleId": "title_ach_veteran",
+    "label": "Arena Veteran Captain",
+    "description": "Earned by unlocking the \"Arena Veteran\" achievement."
+  },
+  {
+    "achievementId": "war_journal",
+    "titleId": "title_ach_war_journal",
+    "label": "War Journal Chronicler",
+    "description": "Earned by unlocking the \"War Journal\" achievement."
+  },
+  {
+    "achievementId": "eternal_duelist",
+    "titleId": "title_ach_eternal_duelist",
+    "label": "Eternal Arena Wanderer",
+    "description": "Earned by unlocking the \"Eternal Duelist\" achievement."
+  },
+  {
+    "achievementId": "champion",
+    "titleId": "title_ach_champion",
+    "label": "Siege Court Champion",
+    "description": "Earned by unlocking the \"Champion\" achievement."
+  },
+  {
+    "achievementId": "warlord",
+    "titleId": "title_ach_warlord",
+    "label": "Banner Warlord",
+    "description": "Earned by unlocking the \"Warlord\" achievement."
+  },
+  {
+    "achievementId": "siege_legend",
+    "titleId": "title_ach_siege_legend",
+    "label": "Legend of the Siege",
+    "description": "Earned by unlocking the \"Siege Legend\" achievement."
+  },
+  {
+    "achievementId": "win_streak_3",
+    "titleId": "title_ach_win_streak_3",
+    "label": "Threefold Streak Knight",
+    "description": "Earned by unlocking the \"Win Streak\" achievement."
+  },
+  {
+    "achievementId": "win_streak_5",
+    "titleId": "title_ach_win_streak_5",
+    "label": "Fivefold Flame Runner",
+    "description": "Earned by unlocking the \"Hot Streak\" achievement."
+  },
+  {
+    "achievementId": "win_streak_7",
+    "titleId": "title_ach_win_streak_7",
+    "label": "Sevenfold Momentum Lord",
+    "description": "Earned by unlocking the \"Blazing Run\" achievement."
+  },
+  {
+    "achievementId": "win_streak_10",
+    "titleId": "title_ach_win_streak_10",
+    "label": "Unstoppable Siege Lord",
+    "description": "Earned by unlocking the \"Unstoppable\" achievement."
+  },
+  {
+    "achievementId": "online_streak_3",
+    "titleId": "title_ach_online_streak_3",
+    "label": "Online Heater Prime",
+    "description": "Earned by unlocking the \"Online Heater\" achievement."
+  },
+  {
+    "achievementId": "solo_streak_3",
+    "titleId": "title_ach_solo_streak_3",
+    "label": "Solo Campaign Heater",
+    "description": "Earned by unlocking the \"Solo Heater\" achievement."
+  },
+  {
+    "achievementId": "profile_ready",
+    "titleId": "title_ach_profile_ready",
+    "label": "Profile Forged Duelist",
+    "description": "Earned by unlocking the \"Profile Ready\" achievement."
+  },
+  {
+    "achievementId": "siegecoin_hoarder",
+    "titleId": "title_ach_siegecoin_hoarder",
+    "label": "Siegecoin Hoarder",
+    "description": "Earned by unlocking the \"Siegecoin Hoarder\" achievement."
+  },
+  {
+    "achievementId": "siegecoin_tycoon",
+    "titleId": "title_ach_siegecoin_tycoon",
+    "label": "Siegecoin Tycoon",
+    "description": "Earned by unlocking the \"Siegecoin Tycoon\" achievement."
+  },
+  {
+    "achievementId": "siegecoin_magnate",
+    "titleId": "title_ach_siegecoin_magnate",
+    "label": "Siegecoin Magnate",
+    "description": "Earned by unlocking the \"Siegecoin Magnate\" achievement."
+  },
+  {
+    "achievementId": "mission_claim",
+    "titleId": "title_ach_mission_claim",
+    "label": "Daily Striker",
+    "description": "Earned by unlocking the \"Daily Striker\" achievement."
+  },
+  {
+    "achievementId": "mission_habit",
+    "titleId": "title_ach_mission_habit",
+    "label": "Mission Habit Keeper",
+    "description": "Earned by unlocking the \"Mission Habit\" achievement."
+  },
+  {
+    "achievementId": "mission_master",
+    "titleId": "title_ach_mission_master",
+    "label": "Mission Master of the Day",
+    "description": "Earned by unlocking the \"Mission Master\" achievement."
+  },
+  {
+    "achievementId": "signed_in",
+    "titleId": "title_ach_signed_in",
+    "label": "Account-Bound Duelist",
+    "description": "Earned by unlocking the \"Account Linked\" achievement."
+  },
+  {
+    "achievementId": "friend_link",
+    "titleId": "title_ach_friend_link",
+    "label": "First Ally Herald",
+    "description": "Earned by unlocking the \"First Ally\" achievement."
+  },
+  {
+    "achievementId": "friend_circle",
+    "titleId": "title_ach_friend_circle",
+    "label": "War Council Speaker",
+    "description": "Earned by unlocking the \"War Council\" achievement."
+  },
+  {
+    "achievementId": "element_avatar",
+    "titleId": "title_ach_element_avatar",
+    "label": "Element Avatar",
+    "description": "Earned by unlocking the \"Element Avatar\" achievement."
+  },
+  {
+    "achievementId": "portrait_upload",
+    "titleId": "title_ach_portrait_upload",
+    "label": "Portrait Bearer",
+    "description": "Earned by unlocking the \"Portrait Uploaded\" achievement."
+  },
+  {
+    "achievementId": "favorite_siegling",
+    "titleId": "title_ach_favorite_siegling",
+    "label": "Siegeling Devotee",
+    "description": "Earned by unlocking the \"Siegeling Fan\" achievement."
+  },
+  {
+    "achievementId": "shop_regular",
+    "titleId": "title_ach_shop_regular",
+    "label": "Shop Regular Patron",
+    "description": "Earned by unlocking the \"Shop Regular\" achievement."
+  },
+  {
+    "achievementId": "element_specialist",
+    "titleId": "title_ach_element_specialist",
+    "label": "Element Specialist",
+    "description": "Earned by unlocking the \"Element Specialist\" achievement."
+  },
+  {
+    "achievementId": "element_hoarder",
+    "titleId": "title_ach_element_hoarder",
+    "label": "Element Hoarder",
+    "description": "Earned by unlocking the \"Element Hoarder\" achievement."
+  },
+  {
+    "achievementId": "rainbow_binder",
+    "titleId": "title_ach_rainbow_binder",
+    "label": "Rainbow Binder",
+    "description": "Earned by unlocking the \"Rainbow Binder\" achievement."
+  },
+  {
+    "achievementId": "rainbow_six",
+    "titleId": "title_ach_rainbow_six",
+    "label": "Sixfold Prism Keeper",
+    "description": "Earned by unlocking the \"Sixfold Prism\" achievement."
+  },
+  {
+    "achievementId": "rainbow_eight",
+    "titleId": "title_ach_rainbow_eight",
+    "label": "Eightfold Prism Keeper",
+    "description": "Earned by unlocking the \"Eightfold Prism\" achievement."
+  },
+  {
+    "achievementId": "rainbow_master",
+    "titleId": "title_ach_rainbow_master",
+    "label": "Prism Master Sovereign",
+    "description": "Earned by unlocking the \"Prism Master\" achievement."
+  },
+  {
+    "achievementId": "favorite_element_win",
+    "titleId": "title_ach_favorite_element_win",
+    "label": "True Allegiance",
+    "description": "Earned by unlocking the \"True Allegiance\" achievement."
+  },
+  {
+    "achievementId": "favorite_element_legend",
+    "titleId": "title_ach_favorite_element_legend",
+    "label": "Element Loyalist Exalted",
+    "description": "Earned by unlocking the \"Element Loyalist\" achievement."
+  },
+  {
+    "achievementId": "collector_10",
+    "titleId": "title_ach_collector_10",
+    "label": "Novice Collector",
+    "description": "Earned by unlocking the \"Collector\" achievement."
+  },
+  {
+    "achievementId": "collector_25",
+    "titleId": "title_ach_collector_25",
+    "label": "Serious Collector Lord",
+    "description": "Earned by unlocking the \"Serious Collector\" achievement."
+  },
+  {
+    "achievementId": "collector_50",
+    "titleId": "title_ach_collector_50",
+    "label": "Binder Curator Supreme",
+    "description": "Earned by unlocking the \"Binder Curator\" achievement."
+  },
+  {
+    "achievementId": "collector_75",
+    "titleId": "title_ach_collector_75",
+    "label": "Archive Keeper Regent",
+    "description": "Earned by unlocking the \"Archive Keeper\" achievement."
+  },
+  {
+    "achievementId": "collector_100",
+    "titleId": "title_ach_collector_100",
+    "label": "Grand Archivist Prime",
+    "description": "Earned by unlocking the \"Grand Archivist\" achievement."
+  },
+  {
+    "achievementId": "copy_hoarder",
+    "titleId": "title_ach_copy_hoarder",
+    "label": "Copy Hoarder Baron",
+    "description": "Earned by unlocking the \"Copy Hoarder\" achievement."
+  },
+  {
+    "achievementId": "copy_master",
+    "titleId": "title_ach_copy_master",
+    "label": "Copy Master Magnate",
+    "description": "Earned by unlocking the \"Copy Master\" achievement."
+  },
+  {
+    "achievementId": "copy_barron",
+    "titleId": "title_ach_copy_barron",
+    "label": "Copy Baron Sovereign",
+    "description": "Earned by unlocking the \"Copy Baron\" achievement."
+  },
+  {
+    "achievementId": "copy_titan",
+    "titleId": "title_ach_copy_titan",
+    "label": "Copy Titan Warden",
+    "description": "Earned by unlocking the \"Copy Titan\" achievement."
+  },
+  {
+    "achievementId": "copy_colossus",
+    "titleId": "title_ach_copy_colossus",
+    "label": "Copy Colossus Paragon",
+    "description": "Earned by unlocking the \"Copy Colossus\" achievement."
+  },
+  {
+    "achievementId": "rare_find",
+    "titleId": "title_ach_rare_find",
+    "label": "Rare Find Scout",
+    "description": "Earned by unlocking the \"Rare Find\" achievement."
+  },
+  {
+    "achievementId": "epic_hunter",
+    "titleId": "title_ach_epic_hunter",
+    "label": "Epic Hunter Pursuer",
+    "description": "Earned by unlocking the \"Epic Hunter\" achievement."
+  },
+  {
+    "achievementId": "legendary_pull",
+    "titleId": "title_ach_legendary_pull",
+    "label": "Legendary Pull Seeker",
+    "description": "Earned by unlocking the \"Legendary Pull\" achievement."
+  },
+  {
+    "achievementId": "uncommon_stack",
+    "titleId": "title_ach_uncommon_stack",
+    "label": "Uncommon Stack Curator",
+    "description": "Earned by unlocking the \"Uncommon Stack\" achievement."
+  },
+  {
+    "achievementId": "rare_stack",
+    "titleId": "title_ach_rare_stack",
+    "label": "Rare Stack Curator",
+    "description": "Earned by unlocking the \"Rare Stack\" achievement."
+  },
+  {
+    "achievementId": "epic_stack",
+    "titleId": "title_ach_epic_stack",
+    "label": "Epic Stack Curator",
+    "description": "Earned by unlocking the \"Epic Stack\" achievement."
+  },
+  {
+    "achievementId": "legendary_stack",
+    "titleId": "title_ach_legendary_stack",
+    "label": "Legendary Stack Curator",
+    "description": "Earned by unlocking the \"Legendary Stack\" achievement."
+  },
+  {
+    "achievementId": "set_quarter",
+    "titleId": "title_ach_set_quarter",
+    "label": "Quarter Catalog Scholar",
+    "description": "Earned by unlocking the \"Quarter Catalog\" achievement."
+  },
+  {
+    "achievementId": "set_half",
+    "titleId": "title_ach_set_half",
+    "label": "Half Catalog Scholar",
+    "description": "Earned by unlocking the \"Half Catalog\" achievement."
+  },
+  {
+    "achievementId": "set_three_quarter",
+    "titleId": "title_ach_set_three_quarter",
+    "label": "Three-Quarter Catalog Scholar",
+    "description": "Earned by unlocking the \"Three-Quarter Catalog\" achievement."
+  },
+  {
+    "achievementId": "set_complete",
+    "titleId": "title_ach_set_complete",
+    "label": "Catalog Complete Paragon",
+    "description": "Earned by unlocking the \"Catalog Complete\" achievement."
+  },
+  {
+    "achievementId": "triple_threat",
+    "titleId": "title_ach_triple_threat",
+    "label": "Triple Threat Duelist",
+    "description": "Earned by unlocking the \"Triple Threat\" achievement."
+  },
+  {
+    "achievementId": "triple_trio",
+    "titleId": "title_ach_triple_trio",
+    "label": "Triple Trio Commander",
+    "description": "Earned by unlocking the \"Triple Trio\" achievement."
+  },
+  {
+    "achievementId": "triple_legion",
+    "titleId": "title_ach_triple_legion",
+    "label": "Triple Legion Marshal",
+    "description": "Earned by unlocking the \"Triple Legion\" achievement."
+  },
+  {
+    "achievementId": "siegling_squad",
+    "titleId": "title_ach_siegling_squad",
+    "label": "Siegeling Squad Captain",
+    "description": "Earned by unlocking the \"Siegeling Squad\" achievement."
+  },
+  {
+    "achievementId": "spell_archive",
+    "titleId": "title_ach_spell_archive",
+    "label": "Spell Archive Keeper",
+    "description": "Earned by unlocking the \"Spell Archive\" achievement."
+  },
+  {
+    "achievementId": "trap_network",
+    "titleId": "title_ach_trap_network",
+    "label": "Trap Network Architect",
+    "description": "Earned by unlocking the \"Trap Network\" achievement."
+  },
+  {
+    "achievementId": "trainer_belt",
+    "titleId": "title_ach_trainer_belt",
+    "label": "Trainer Belt Champion",
+    "description": "Earned by unlocking the \"Trainer Belt\" achievement."
+  },
+  {
+    "achievementId": "first_pack",
+    "titleId": "title_ach_first_pack",
+    "label": "First Pack Ripper",
+    "description": "Earned by unlocking the \"Pack Opener\" achievement."
+  },
+  {
+    "achievementId": "pack_regular",
+    "titleId": "title_ach_pack_regular",
+    "label": "Pack Regular Enthusiast",
+    "description": "Earned by unlocking the \"Pack Regular\" achievement."
+  },
+  {
+    "achievementId": "pack_veteran",
+    "titleId": "title_ach_pack_veteran",
+    "label": "Pack Veteran Opener",
+    "description": "Earned by unlocking the \"Pack Veteran\" achievement."
+  },
+  {
+    "achievementId": "pack_habit",
+    "titleId": "title_ach_pack_habit",
+    "label": "Pack Habit Devotee",
+    "description": "Earned by unlocking the \"Pack Habit\" achievement."
+  },
+  {
+    "achievementId": "pack_addict",
+    "titleId": "title_ach_pack_addict",
+    "label": "Pack Addict Extraordinaire",
+    "description": "Earned by unlocking the \"Pack Addict\" achievement."
+  },
+  {
+    "achievementId": "pack_legend",
+    "titleId": "title_ach_pack_legend",
+    "label": "Pack Legend Unleashed",
+    "description": "Earned by unlocking the \"Pack Legend\" achievement."
+  },
+  {
+    "achievementId": "remnant_pouch",
+    "titleId": "title_ach_remnant_pouch",
+    "label": "Remnant Pouch Bearer",
+    "description": "Earned by unlocking the \"Remnant Pouch\" achievement."
+  },
+  {
+    "achievementId": "remnant_stash",
+    "titleId": "title_ach_remnant_stash",
+    "label": "Remnant Stash Keeper",
+    "description": "Earned by unlocking the \"Remnant Stash\" achievement."
+  },
+  {
+    "achievementId": "remnant_vault",
+    "titleId": "title_ach_remnant_vault",
+    "label": "Remnant Vault Warden",
+    "description": "Earned by unlocking the \"Remnant Vault\" achievement."
+  },
+  {
+    "achievementId": "remnant_tycoon",
+    "titleId": "title_ach_remnant_tycoon",
+    "label": "Remnant Tycoon Magnate",
+    "description": "Earned by unlocking the \"Remnant Tycoon\" achievement."
+  },
+  {
+    "achievementId": "remnant_dynast",
+    "titleId": "title_ach_remnant_dynast",
+    "label": "Remnant Dynast Sovereign",
+    "description": "Earned by unlocking the \"Remnant Dynast\" achievement."
+  },
+  {
+    "achievementId": "first_craft",
+    "titleId": "title_ach_first_craft",
+    "label": "Remnant Smith Initiate",
+    "description": "Earned by unlocking the \"Remnant Smith\" achievement."
+  },
+  {
+    "achievementId": "master_crafter",
+    "titleId": "title_ach_master_crafter",
+    "label": "Master Crafter Artificer",
+    "description": "Earned by unlocking the \"Master Crafter\" achievement."
+  },
+  {
+    "achievementId": "forge_master",
+    "titleId": "title_ach_forge_master",
+    "label": "Forge Master Artisan",
+    "description": "Earned by unlocking the \"Forge Master\" achievement."
+  },
+  {
+    "achievementId": "grand_forge",
+    "titleId": "title_ach_grand_forge",
+    "label": "Grand Forge Legend",
+    "description": "Earned by unlocking the \"Grand Forge\" achievement."
+  },
+  {
+    "achievementId": "deck_builder",
+    "titleId": "title_ach_deck_builder",
+    "label": "Deck Builder Pioneer",
+    "description": "Earned by unlocking the \"Deck Builder\" achievement."
+  },
+  {
+    "achievementId": "deck_architect",
+    "titleId": "title_ach_deck_architect",
+    "label": "Deck Architect Savant",
+    "description": "Earned by unlocking the \"Deck Architect\" achievement."
+  },
+  {
+    "achievementId": "deck_curator",
+    "titleId": "title_ach_deck_curator",
+    "label": "Deck Curator Maestro",
+    "description": "Earned by unlocking the \"Deck Curator\" achievement."
+  },
+  {
+    "achievementId": "deck_library",
+    "titleId": "title_ach_deck_library",
+    "label": "Deck Library Custodian",
+    "description": "Earned by unlocking the \"Deck Library\" achievement."
+  },
+  {
+    "achievementId": "deck_archive",
+    "titleId": "title_ach_deck_archive",
+    "label": "Deck Archive Curator",
+    "description": "Earned by unlocking the \"Deck Archive\" achievement."
+  },
+  {
+    "achievementId": "planner_unlock",
+    "titleId": "title_ach_planner_unlock",
+    "label": "Planner Unlocked Strategist",
+    "description": "Earned by unlocking the \"Planner Unlocked\" achievement."
+  },
+  {
+    "achievementId": "premade_owner",
+    "titleId": "title_ach_premade_owner",
+    "label": "Premade Owner Patron",
+    "description": "Earned by unlocking the \"Premade Owner\" achievement."
+  },
+  {
+    "achievementId": "premade_collector",
+    "titleId": "title_ach_premade_collector",
+    "label": "Premade Collector Lord",
+    "description": "Earned by unlocking the \"Premade Collector\" achievement."
+  },
+  {
+    "achievementId": "premade_curator",
+    "titleId": "title_ach_premade_curator",
+    "label": "Premade Curator Exalted",
+    "description": "Earned by unlocking the \"Premade Curator\" achievement."
+  },
+  {
+    "achievementId": "premade_arsenal",
+    "titleId": "title_ach_premade_arsenal",
+    "label": "Premade Arsenal Commander",
+    "description": "Earned by unlocking the \"Premade Arsenal\" achievement."
+  },
+  {
+    "achievementId": "loadout_shelf",
+    "titleId": "title_ach_loadout_shelf",
+    "label": "Loadout Shelf Keeper",
+    "description": "Earned by unlocking the \"Loadout Shelf\" achievement."
+  },
+  {
+    "achievementId": "loadout_rack",
+    "titleId": "title_ach_loadout_rack",
+    "label": "Loadout Rack Marshal",
+    "description": "Earned by unlocking the \"Loadout Rack\" achievement."
+  },
+  {
+    "achievementId": "trainer_ready",
+    "titleId": "title_ach_trainer_ready",
+    "label": "Trainer Ready Commander",
+    "description": "Earned by unlocking the \"Trainer Ready\" achievement."
+  },
+  {
+    "achievementId": "trainer_corps",
+    "titleId": "title_ach_trainer_corps",
+    "label": "Trainer Corps General",
+    "description": "Earned by unlocking the \"Trainer Corps\" achievement."
+  },
+  {
+    "achievementId": "arena_regular",
+    "titleId": "title_ach_arena_regular",
+    "label": "Arena Regular Gladiator",
+    "description": "Earned by unlocking the \"Arena Regular\" achievement."
+  },
+  {
+    "achievementId": "pvp_duelist",
+    "titleId": "title_ach_pvp_duelist",
+    "label": "PVP Duelist Captain",
+    "description": "Earned by unlocking the \"PVP Duelist\" achievement."
+  },
+  {
+    "achievementId": "pvp_veteran",
+    "titleId": "title_ach_pvp_veteran",
+    "label": "PVP Veteran Warlord",
+    "description": "Earned by unlocking the \"PVP Veteran\" achievement."
+  },
+  {
+    "achievementId": "pvp_champion",
+    "titleId": "title_ach_pvp_champion",
+    "label": "PVP Champion Exalted",
+    "description": "Earned by unlocking the \"PVP Champion\" achievement."
+  },
+  {
+    "achievementId": "pvp_warlord",
+    "titleId": "title_ach_pvp_warlord",
+    "label": "PVP Warlord Sovereign",
+    "description": "Earned by unlocking the \"PVP Warlord\" achievement."
+  },
+  {
+    "achievementId": "lobby_runner",
+    "titleId": "title_ach_lobby_runner",
+    "label": "Lobby Runner Scout",
+    "description": "Earned by unlocking the \"Lobby Runner\" achievement."
+  },
+  {
+    "achievementId": "solo_striker",
+    "titleId": "title_ach_solo_striker",
+    "label": "Solo Striker Captain",
+    "description": "Earned by unlocking the \"Solo Striker\" achievement."
+  },
+  {
+    "achievementId": "solo_veteran",
+    "titleId": "title_ach_solo_veteran",
+    "label": "Solo Veteran Commander",
+    "description": "Earned by unlocking the \"Solo Veteran\" achievement."
+  },
+  {
+    "achievementId": "solo_master",
+    "titleId": "title_ach_solo_master",
+    "label": "Solo Master Paragon",
+    "description": "Earned by unlocking the \"Solo Master\" achievement."
+  },
+  {
+    "achievementId": "premade_victory",
+    "titleId": "title_ach_premade_victory",
+    "label": "Premade Victory Herald",
+    "description": "Earned by unlocking the \"Premade Victory\" achievement."
+  },
+  {
+    "achievementId": "premade_master",
+    "titleId": "title_ach_premade_master",
+    "label": "Premade Master Strategist",
+    "description": "Earned by unlocking the \"Premade Master\" achievement."
+  },
+  {
+    "achievementId": "premade_legend",
+    "titleId": "title_ach_premade_legend",
+    "label": "Premade Legend Exalted",
+    "description": "Earned by unlocking the \"Premade Legend\" achievement."
+  },
+  {
+    "achievementId": "custom_victory",
+    "titleId": "title_ach_custom_victory",
+    "label": "Custom Victory Innovator",
+    "description": "Earned by unlocking the \"Custom Victory\" achievement."
+  },
+  {
+    "achievementId": "custom_master",
+    "titleId": "title_ach_custom_master",
+    "label": "Custom Master Architect",
+    "description": "Earned by unlocking the \"Custom Master\" achievement."
+  },
+  {
+    "achievementId": "custom_legend",
+    "titleId": "title_ach_custom_legend",
+    "label": "Custom Legend Forgemaster",
+    "description": "Earned by unlocking the \"Custom Legend\" achievement."
+  },
+  {
+    "achievementId": "arena_grinder",
+    "titleId": "title_ach_arena_grinder",
+    "label": "Arena Grinder Veteran",
+    "description": "Earned by unlocking the \"Arena Grinder\" achievement."
+  },
+  {
+    "achievementId": "arena_commander",
+    "titleId": "title_ach_arena_commander",
+    "label": "Arena Commander Supreme",
+    "description": "Earned by unlocking the \"Arena Commander\" achievement."
+  },
+  {
+    "achievementId": "arena_sovereign",
+    "titleId": "title_ach_arena_sovereign",
+    "label": "Arena Sovereign Eternal",
+    "description": "Earned by unlocking the \"Arena Sovereign\" achievement."
+  },
+  {
+    "achievementId": "tactician",
+    "titleId": "title_ach_tactician",
+    "label": "Half-Rate Strategist",
+    "description": "Earned by unlocking the \"Tactician\" achievement."
+  },
+  {
+    "achievementId": "fire_spark",
+    "titleId": "title_ach_fire_spark",
+    "label": "Fire Spark Initiate",
+    "description": "Earned by unlocking the \"Fire Spark\" achievement."
+  },
+  {
+    "achievementId": "fire_adept",
+    "titleId": "title_ach_fire_adept",
+    "label": "Fire Adept",
+    "description": "Earned by unlocking the \"Fire Adept\" achievement."
+  },
+  {
+    "achievementId": "fire_master",
+    "titleId": "title_ach_fire_master",
+    "label": "Fire Archon",
+    "description": "Earned by unlocking the \"Fire Master\" achievement."
+  },
+  {
+    "achievementId": "fire_victor",
+    "titleId": "title_ach_fire_victor",
+    "label": "Fire Victor",
+    "description": "Earned by unlocking the \"Fire Victor\" achievement."
+  },
+  {
+    "achievementId": "earth_spark",
+    "titleId": "title_ach_earth_spark",
+    "label": "Earth Spark Initiate",
+    "description": "Earned by unlocking the \"Earth Spark\" achievement."
+  },
+  {
+    "achievementId": "earth_adept",
+    "titleId": "title_ach_earth_adept",
+    "label": "Earth Adept",
+    "description": "Earned by unlocking the \"Earth Adept\" achievement."
+  },
+  {
+    "achievementId": "earth_master",
+    "titleId": "title_ach_earth_master",
+    "label": "Earth Archon",
+    "description": "Earned by unlocking the \"Earth Master\" achievement."
+  },
+  {
+    "achievementId": "earth_victor",
+    "titleId": "title_ach_earth_victor",
+    "label": "Earth Victor",
+    "description": "Earned by unlocking the \"Earth Victor\" achievement."
+  },
+  {
+    "achievementId": "wind_spark",
+    "titleId": "title_ach_wind_spark",
+    "label": "Wind Spark Initiate",
+    "description": "Earned by unlocking the \"Wind Spark\" achievement."
+  },
+  {
+    "achievementId": "wind_adept",
+    "titleId": "title_ach_wind_adept",
+    "label": "Wind Adept",
+    "description": "Earned by unlocking the \"Wind Adept\" achievement."
+  },
+  {
+    "achievementId": "wind_master",
+    "titleId": "title_ach_wind_master",
+    "label": "Wind Archon",
+    "description": "Earned by unlocking the \"Wind Master\" achievement."
+  },
+  {
+    "achievementId": "wind_victor",
+    "titleId": "title_ach_wind_victor",
+    "label": "Wind Victor",
+    "description": "Earned by unlocking the \"Wind Victor\" achievement."
+  },
+  {
+    "achievementId": "water_spark",
+    "titleId": "title_ach_water_spark",
+    "label": "Water Spark Initiate",
+    "description": "Earned by unlocking the \"Water Spark\" achievement."
+  },
+  {
+    "achievementId": "water_adept",
+    "titleId": "title_ach_water_adept",
+    "label": "Water Adept",
+    "description": "Earned by unlocking the \"Water Adept\" achievement."
+  },
+  {
+    "achievementId": "water_master",
+    "titleId": "title_ach_water_master",
+    "label": "Water Archon",
+    "description": "Earned by unlocking the \"Water Master\" achievement."
+  },
+  {
+    "achievementId": "water_victor",
+    "titleId": "title_ach_water_victor",
+    "label": "Water Victor",
+    "description": "Earned by unlocking the \"Water Victor\" achievement."
+  },
+  {
+    "achievementId": "ice_spark",
+    "titleId": "title_ach_ice_spark",
+    "label": "Ice Spark Initiate",
+    "description": "Earned by unlocking the \"Ice Spark\" achievement."
+  },
+  {
+    "achievementId": "ice_adept",
+    "titleId": "title_ach_ice_adept",
+    "label": "Ice Adept",
+    "description": "Earned by unlocking the \"Ice Adept\" achievement."
+  },
+  {
+    "achievementId": "ice_master",
+    "titleId": "title_ach_ice_master",
+    "label": "Ice Archon",
+    "description": "Earned by unlocking the \"Ice Master\" achievement."
+  },
+  {
+    "achievementId": "ice_victor",
+    "titleId": "title_ach_ice_victor",
+    "label": "Ice Victor",
+    "description": "Earned by unlocking the \"Ice Victor\" achievement."
+  },
+  {
+    "achievementId": "shadow_spark",
+    "titleId": "title_ach_shadow_spark",
+    "label": "Shadow Spark Initiate",
+    "description": "Earned by unlocking the \"Shadow Spark\" achievement."
+  },
+  {
+    "achievementId": "shadow_adept",
+    "titleId": "title_ach_shadow_adept",
+    "label": "Shadow Adept",
+    "description": "Earned by unlocking the \"Shadow Adept\" achievement."
+  },
+  {
+    "achievementId": "shadow_master",
+    "titleId": "title_ach_shadow_master",
+    "label": "Shadow Archon",
+    "description": "Earned by unlocking the \"Shadow Master\" achievement."
+  },
+  {
+    "achievementId": "shadow_victor",
+    "titleId": "title_ach_shadow_victor",
+    "label": "Shadow Victor",
+    "description": "Earned by unlocking the \"Shadow Victor\" achievement."
+  },
+  {
+    "achievementId": "electric_spark",
+    "titleId": "title_ach_electric_spark",
+    "label": "Electric Spark Initiate",
+    "description": "Earned by unlocking the \"Electric Spark\" achievement."
+  },
+  {
+    "achievementId": "electric_adept",
+    "titleId": "title_ach_electric_adept",
+    "label": "Electric Adept",
+    "description": "Earned by unlocking the \"Electric Adept\" achievement."
+  },
+  {
+    "achievementId": "electric_master",
+    "titleId": "title_ach_electric_master",
+    "label": "Electric Archon",
+    "description": "Earned by unlocking the \"Electric Master\" achievement."
+  },
+  {
+    "achievementId": "electric_victor",
+    "titleId": "title_ach_electric_victor",
+    "label": "Electric Victor",
+    "description": "Earned by unlocking the \"Electric Victor\" achievement."
+  },
+  {
+    "achievementId": "metal_spark",
+    "titleId": "title_ach_metal_spark",
+    "label": "Metal Spark Initiate",
+    "description": "Earned by unlocking the \"Metal Spark\" achievement."
+  },
+  {
+    "achievementId": "metal_adept",
+    "titleId": "title_ach_metal_adept",
+    "label": "Metal Adept",
+    "description": "Earned by unlocking the \"Metal Adept\" achievement."
+  },
+  {
+    "achievementId": "metal_master",
+    "titleId": "title_ach_metal_master",
+    "label": "Metal Archon",
+    "description": "Earned by unlocking the \"Metal Master\" achievement."
+  },
+  {
+    "achievementId": "metal_victor",
+    "titleId": "title_ach_metal_victor",
+    "label": "Metal Victor",
+    "description": "Earned by unlocking the \"Metal Victor\" achievement."
+  },
+  {
+    "achievementId": "undead_spark",
+    "titleId": "title_ach_undead_spark",
+    "label": "Undead Spark Initiate",
+    "description": "Earned by unlocking the \"Undead Spark\" achievement."
+  },
+  {
+    "achievementId": "undead_adept",
+    "titleId": "title_ach_undead_adept",
+    "label": "Undead Adept",
+    "description": "Earned by unlocking the \"Undead Adept\" achievement."
+  },
+  {
+    "achievementId": "undead_master",
+    "titleId": "title_ach_undead_master",
+    "label": "Undead Archon",
+    "description": "Earned by unlocking the \"Undead Master\" achievement."
+  },
+  {
+    "achievementId": "undead_victor",
+    "titleId": "title_ach_undead_victor",
+    "label": "Undead Victor",
+    "description": "Earned by unlocking the \"Undead Victor\" achievement."
+  },
+  {
+    "achievementId": "psychic_spark",
+    "titleId": "title_ach_psychic_spark",
+    "label": "Psychic Spark Initiate",
+    "description": "Earned by unlocking the \"Psychic Spark\" achievement."
+  },
+  {
+    "achievementId": "psychic_adept",
+    "titleId": "title_ach_psychic_adept",
+    "label": "Psychic Adept",
+    "description": "Earned by unlocking the \"Psychic Adept\" achievement."
+  },
+  {
+    "achievementId": "psychic_master",
+    "titleId": "title_ach_psychic_master",
+    "label": "Psychic Archon",
+    "description": "Earned by unlocking the \"Psychic Master\" achievement."
+  },
+  {
+    "achievementId": "psychic_victor",
+    "titleId": "title_ach_psychic_victor",
+    "label": "Psychic Victor",
+    "description": "Earned by unlocking the \"Psychic Victor\" achievement."
+  }
+]
