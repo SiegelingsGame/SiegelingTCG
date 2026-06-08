@@ -8,7 +8,12 @@
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
-    const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
+    // Static data (card catalog, packs, descriptions) rarely changes, so keep it
+    // cached for a full day. It lives in localStorage (see hubCacheStorage) so it
+    // persists across tabs and app relaunches — every hub visit renders instantly
+    // from cache, and the cheap /api/game/catalog-version check revalidates it in
+    // the background, re-downloading the full catalog only when it actually moved.
+    const STATIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
     // Leaderboards change as matches finish today, so cache them briefly rather
     // than reusing the same snapshot for the full static TTL.
     const LEADERBOARD_CACHE_TTL_MS = 60 * 1000;
@@ -276,6 +281,7 @@
     async function init() {
         bindEvents();
         hydrateProfilePrefsFromCache();
+        hydrateStaticCachesFromStorage();
         hydrateRoomInviteFromUrl();
         applyRouteFromLocation();
         setActiveRoute();
@@ -283,11 +289,14 @@
         renderHudTools();
         renderGold();
         renderHomeDashboard();
-        // Paint the binder's loading placeholder up front so the Cards/Decks
-        // route shows a spinner instead of a blank panel while loadAll runs.
-        safeRender(renderCards);
+        // Paint immediately from the persisted caches (catalog + profile) so the
+        // Cards/Decks/Profile routes render instantly on every visit instead of
+        // waiting on the network. loadAll() then revalidates in the background.
+        safeRender(render);
         bindCatalogSync();
-        setHubLoading(true);
+        // Only show the top loading bar when there's nothing cached to paint yet;
+        // otherwise the page is already populated and the refresh is silent.
+        setHubLoading(!state.options);
         try {
             await loadAll();
             await syncCatalogIfVersionChanged();
@@ -4620,6 +4629,29 @@
         state.catalogVersion = Number(next.catalogVersion) || 0;
     }
 
+    // Synchronously seed state from the persisted static caches before any network
+    // call, so the first paint of a fresh page load is instant when we've loaded
+    // before. loadAll() then revalidates everything in the background.
+    function hydrateStaticCachesFromStorage() {
+        const options = readCache('gameOptions', STATIC_CACHE_TTL_MS);
+        if (options) {
+            applyGameOptions(options);
+        }
+        const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS);
+        if (packs) {
+            state.packs = packs.packs || [];
+            state.dailyOffers = packs.dailyOffers || [];
+            state.titleCatalog = packs.titleCatalog || state.titleCatalog || [];
+        }
+        const descriptions = readCache('creatureDescriptions', STATIC_CACHE_TTL_MS);
+        if (descriptions) {
+            state.creatureDescriptions = indexCreatureDescriptions(descriptions);
+        }
+        if (state.options && !state.selectedCardId) {
+            state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
+        }
+    }
+
     function bindCatalogSync() {
         if (state.catalogSyncBound || typeof SieglingsCatalogSync === 'undefined') return;
         state.catalogSyncBound = true;
@@ -4677,22 +4709,25 @@
         try {
             const entry = { savedAt: Date.now(), data };
             memoryCache[cacheKey] = entry;
-            const storage = browserSessionStorage();
+            const storage = hubCacheStorage();
             if (storage) storage.setItem(HUB_CACHE_PREFIX + cacheKey, JSON.stringify(entry));
         } catch (error) {
-            // Session cache is an optimization only.
+            // Persistent cache is an optimization only — if localStorage is full or
+            // unavailable we fall back to the in-memory copy and the network.
         }
     }
 
     function readCacheEntry(cacheKey) {
-        const storage = browserSessionStorage();
+        const storage = hubCacheStorage();
         const raw = storage?.getItem(HUB_CACHE_PREFIX + cacheKey);
         return raw ? JSON.parse(raw) : memoryCache[cacheKey];
     }
 
-    function browserSessionStorage() {
+    // Persist hub caches in localStorage so they survive tab close, app relaunch,
+    // and crossing between the hub and the Play page — not just a single tab.
+    function hubCacheStorage() {
         try {
-            return window.sessionStorage || null;
+            return window.localStorage || null;
         } catch (error) {
             return null;
         }
