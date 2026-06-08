@@ -18,6 +18,9 @@ let selectedCard = null;
 let selectedHandIndex = null;
 let targetMode = false;
 let targetContext = null;
+/** Mobile: a spell/trap is selected and showing its preview, waiting for an
+ *  explicit confirm before it casts or enters target selection. */
+let mobileSpellPreviewPending = false;
 let gameOptions = null;
 let selectedDeckId = null;
 let selectedTrainerId = null;
@@ -6768,6 +6771,7 @@ function rebindSelectedHandSlotFromState() {
 function resetInteractionState(shouldRender = true) {
     selectedCard = null;
     selectedHandIndex = null;
+    mobileSpellPreviewPending = false;
     hoveredBoardCard = null;
     clearArenaSelection();
     closeClaimPopup();
@@ -12062,6 +12066,8 @@ function selectCard(handIndexOrCardId) {
         return;
     }
 
+    mobileSpellPreviewPending = false;
+
     if (selectedHandIndex === handIndex) {
         selectedCard = null;
         selectedHandIndex = null;
@@ -12082,45 +12088,118 @@ function selectCard(handIndexOrCardId) {
 
     if (lockReason) {
         updateSelectedInfo(card, lockReason);
+        // Mobile has no hover tooltip, so surface the card (and the reason it
+        // can't be played) in the preview drawer instead of failing silently.
+        if (isMobileLayout() && isActionCard(card)) {
+            openDrawer('selected');
+        }
         render();
         return;
     }
 
     if (isActionCard(card)) {
-        const targetSide = getAbilityTargetSide(card.ability);
-        const needsExplicitTarget = Boolean(targetSide);
-        if (needsExplicitTarget) {
-            if (needsForcedEnemyMoveFlow(card)) {
-                targetMode = true;
-                targetContext = {
-                    mode: 'spell-move-enemy',
-                    side: 'enemy',
-                    step: 'pickEnemy',
-                    cardId: card.id,
-                    message: `Select an enemy Siegeling to move, then an empty enemy cell.`
-                };
-                updateSelectedInfo(card, targetContext.message);
-                render();
-                return;
-            }
-            targetMode = true;
-            targetContext = {
-                mode: 'spell',
-                side: targetSide,
-                message: `Select a target for ${card.name}.`,
-                callback: (row, col) => castSpell(card.id, row, col)
-            };
-            updateSelectedInfo(card, targetContext.message);
+        // On mobile there is no hover preview, so a single tap used to fire the
+        // spell (or jump straight into targeting) before the player could read
+        // what it does. Show the card preview in the drawer with an explicit
+        // confirm step; the spell only activates once the player confirms.
+        if (isMobileLayout()) {
+            mobileSpellPreviewPending = true;
+            updateSelectedInfo(card);
+            openDrawer('selected');
             render();
             return;
-        } else {
-            castSpell(card.id, -1, -1);
-            return;
         }
+        activateActionCard(card);
+        return;
     }
 
     updateSelectedInfo(card);
     render();
+}
+
+/**
+ * Begin using a selected SPELL/TRAP: enter target selection if it needs one
+ * (board highlights the valid targets), otherwise cast it immediately. Shared
+ * by the desktop single-tap path and the mobile confirm button.
+ */
+function activateActionCard(card) {
+    if (!card) {
+        return;
+    }
+    const targetSide = getAbilityTargetSide(card.ability);
+    if (targetSide) {
+        if (needsForcedEnemyMoveFlow(card)) {
+            targetMode = true;
+            targetContext = {
+                mode: 'spell-move-enemy',
+                side: 'enemy',
+                step: 'pickEnemy',
+                cardId: card.id,
+                message: `Select an enemy Siegeling to move, then an empty enemy cell.`
+            };
+            updateSelectedInfo(card, targetContext.message);
+            render();
+            return;
+        }
+        targetMode = true;
+        targetContext = {
+            mode: 'spell',
+            side: targetSide,
+            message: `Select a target for ${card.name}.`,
+            callback: (row, col) => castSpell(card.id, row, col)
+        };
+        updateSelectedInfo(card, targetContext.message);
+        render();
+        return;
+    }
+    castSpell(card.id, -1, -1);
+}
+
+/** Mobile: confirm the previewed spell — cast it, or start target selection. */
+function confirmMobileSpellPreview() {
+    if (!mobileSpellPreviewPending) {
+        return;
+    }
+    mobileSpellPreviewPending = false;
+    const card = selectedCard;
+    if (!card) {
+        return;
+    }
+    // Drop the modal preview so the board (and its target highlights) are
+    // visible and tappable for spells that still need a target.
+    if (activeDrawer === 'selected') {
+        closeDrawer(true);
+    }
+    activateActionCard(card);
+}
+
+/** Mobile: dismiss the spell preview without casting. */
+function cancelMobileSpellPreview() {
+    mobileSpellPreviewPending = false;
+    selectedCard = null;
+    selectedHandIndex = null;
+    clearTargetMode();
+    if (activeDrawer === 'selected') {
+        closeDrawer(true);
+    }
+    updateSelectedInfo(null);
+    render();
+}
+
+/** Human-readable hint describing who a spell targets, for the mobile preview. */
+function describeSpellTargetSide(targetSide) {
+    switch (targetSide) {
+        case 'enemy':
+            return 'Targets an enemy Siegeling — pick it after you confirm.';
+        case 'ally':
+            return 'Targets one of your Siegelings — pick it after you confirm.';
+        case 'row-enemy':
+            return 'Targets an enemy row — pick it after you confirm.';
+        case 'row-ally':
+            return 'Targets one of your rows — pick it after you confirm.';
+        default:
+            return 'No target needed — plays as soon as you confirm.';
+    }
 }
 
 function isTargetCell(isPlayer, cell, row = -1) {
@@ -12378,6 +12457,18 @@ function updateSelectedInfo(card, msg) {
                 html += `<div class="selected-copy-detail">${escapeHtml(entry.text)}</div>`;
             }
         });
+        if (mobileSpellPreviewPending && isActionCard(card) && !lockReason) {
+            const targetSide = getAbilityTargetSide(card.ability);
+            const playVerb = card.type === 'TRAP' ? 'Set' : 'Cast';
+            const confirmLabel = targetSide ? 'Choose Target' : playVerb;
+            html += `<div class="selected-spell-confirm">`;
+            html += `<div class="selected-spell-target-hint">${escapeHtml(describeSpellTargetSide(targetSide))}</div>`;
+            html += `<div class="selected-spell-confirm-actions">`;
+            html += `<button type="button" class="spell-confirm-btn" onclick="confirmMobileSpellPreview()">${escapeHtml(confirmLabel)}</button>`;
+            html += `<button type="button" class="spell-cancel-btn" onclick="cancelMobileSpellPreview()">Cancel</button>`;
+            html += `</div>`;
+            html += `</div>`;
+        }
         html += `</div>`;
         html += `</div>`;
     }
