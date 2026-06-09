@@ -4176,6 +4176,30 @@ body.gacha-active {
 .reveal-front .gacha-card-front .binder-card-shell {
     height: 100%;
     min-height: 0;
+    gap: 6px;
+}
+
+/* Scale the embedded binder card to the 5/7 reveal box the same way the daily
+   reward card does, so the art and text keep their natural proportions instead
+   of the art's fixed pixel height squashing everything else. */
+.reveal-front .gacha-card-front .binder-card-header {
+    min-height: 0;
+}
+
+.reveal-front .gacha-card-front .binder-card-art,
+.reveal-front .gacha-card-front .element-icon-art,
+.reveal-front .gacha-card-front .binder-card-fallback-element {
+    height: auto;
+    min-height: 0;
+}
+
+.reveal-front .gacha-card-front .binder-card-art {
+    flex: 0 1 auto;
+    aspect-ratio: 4 / 3;
+}
+
+.reveal-front .gacha-card-front .binder-card-body {
+    min-height: 0;
 }
 
 .reveal-spark {
