@@ -2441,8 +2441,12 @@ body.battle-inline-dock .battle-queue-actions {
         min-height: 0;
     }
 
+    /* Size the hand area to the cards instead of letting it grow to fill the
+       bottom dock — growing left a large oversized empty band above the
+       Knight/Draw buttons on taller devices. The freed height goes to the
+       battlefield (flex: 1) so the board gets larger and the hand stays snug. */
     .desktop-menu-hand {
-        flex: 1 1 auto;
+        flex: 0 0 auto;
         min-height: 0;
         display: flex;
         flex-direction: column;
