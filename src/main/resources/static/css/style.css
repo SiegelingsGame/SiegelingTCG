@@ -13999,6 +13999,53 @@ body.sgl-opponent-turn .battle-cta-row {
     align-items: center;
 }
 
+.play-mode-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    text-align: left;
+    line-height: 1.2;
+}
+
+.play-mode-btn-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 1.02em;
+}
+
+.play-mode-btn-sub {
+    font-size: 0.74em;
+    font-weight: 600;
+    opacity: 0.78;
+}
+
+.play-mode-btn-soon {
+    cursor: not-allowed;
+    color: #aab8d0;
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.play-mode-btn-soon:hover {
+    color: #c7d4ea;
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.play-mode-soon-tag {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(226, 183, 20, 0.42);
+    background: rgba(226, 183, 20, 0.12);
+    color: var(--accent);
+    font-size: 0.62em;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
 .play-entry-grid {
     display: grid;
     grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.18fr);

@@ -526,11 +526,18 @@
         <section class="play-entry-hero">
             <div>
                 <div class="welcome-eyebrow">PLAY</div>
-                <h2>Solo battles and live PvP matches start here.</h2>
-                <p class="welcome-hero-copy">Run PVE on this table anytime. For 1v1 lobbies, create or join a table on Social — when both players are in, the battle opens here automatically.</p>
+                <h2>Choose your mode: Battle now, Siege soon.</h2>
+                <p class="welcome-hero-copy">Battle runs solo PVE and live 1v1 PvP on this table — every SiegeKnight fights at base power, so it is all about your deck and your reads. Siege is a roguelike where your SiegeKnight levels carry into every fight. It is coming soon.</p>
             </div>
             <div class="play-entry-actions">
-                <button class="btn btn-primary" type="button" onclick="startPlaySolo()">Solo Battle</button>
+                <button class="btn btn-primary play-mode-btn" type="button" onclick="startPlaySolo()">
+                    <span class="play-mode-btn-label">Battle</span>
+                    <span class="play-mode-btn-sub">Solo &amp; live PvP — levels off</span>
+                </button>
+                <button class="btn play-mode-btn play-mode-btn-soon" type="button" onclick="announceSiegeComingSoon()" aria-disabled="true">
+                    <span class="play-mode-btn-label">Siege <span class="play-mode-soon-tag">Coming Soon</span></span>
+                    <span class="play-mode-btn-sub">Roguelike — your levels matter</span>
+                </button>
                 <a class="btn welcome-dashboard-btn" href="/social">Browse Social Lobbies</a>
             </div>
         </section>
@@ -718,7 +725,7 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=168"></script>
+    <script src="/js/game.js?v=169"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
     <script src="/js/action-queue.js?v=33"></script>
