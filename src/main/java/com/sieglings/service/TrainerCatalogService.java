@@ -109,7 +109,7 @@ public class TrainerCatalogService {
                         new Ability("Mend Wall", "Grant +1 max Health to 1 ally", TargetType.SINGLE_ALLY, null, 1, "health_boost", 1, false),
                         false),
                 definition("trainer05", "Stone Warden", Element.EARTH, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Roots of Resolve", "All Earth allies gain +1 max Health", "health_boost", 1),
+                        Ability.passiveConnectedAlliesHealthBoost("Linked Bulwark", "Connected allies gain +1 max Health", 1),
                         Ability.heal("Earthen Shelter", "Heal 1 ally for 4", TargetType.SINGLE_ALLY, null, 1, 4),
                         false),
                 definition("trainer13", "Mountain Regent", Element.EARTH, Rarity.LEGENDARY, "SiegeLord",
