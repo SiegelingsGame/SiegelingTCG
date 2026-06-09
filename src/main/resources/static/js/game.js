@@ -18,6 +18,9 @@ let selectedCard = null;
 let selectedHandIndex = null;
 let targetMode = false;
 let targetContext = null;
+/** Mobile: a spell/trap is selected and showing its preview, waiting for an
+ *  explicit confirm before it casts or enters target selection. */
+let mobileSpellPreviewPending = false;
 let gameOptions = null;
 let selectedDeckId = null;
 let selectedTrainerId = null;
@@ -50,6 +53,11 @@ let arenaSelection = null;
 let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
+// Resolver for the in-flight phase-transition banner promise. Tracked so the
+// promise is always settled when the banner is hidden, superseded, or torn
+// down — a never-resolved await here would wedge the battle action queue and
+// freeze the game (auto-advance is gated on the queue being idle).
+let phaseTransitionResolve = null;
 let coinFlipDismissedRoomId = null;
 let handTouchGesture = null;
 /** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
@@ -3274,6 +3282,15 @@ function getPhaseTransitionKicker(phase, activeSide) {
     return 'Phase Shift';
 }
 
+// Settle any pending phase-transition banner promise. Safe to call repeatedly.
+function resolvePhaseTransitionBanner() {
+    if (phaseTransitionResolve) {
+        const resolve = phaseTransitionResolve;
+        phaseTransitionResolve = null;
+        resolve();
+    }
+}
+
 function hidePhaseTransitionBanner() {
     const banner = document.getElementById('phaseTransitionBanner');
     if (!banner) return;
@@ -3281,6 +3298,7 @@ function hidePhaseTransitionBanner() {
         clearTimeout(phaseTransitionTimer);
         phaseTransitionTimer = null;
     }
+    resolvePhaseTransitionBanner();
     banner.classList.remove('visible');
     banner.classList.add('hidden');
 }
@@ -3297,6 +3315,9 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
         clearTimeout(phaseTransitionTimer);
         phaseTransitionTimer = null;
     }
+    // A new banner supersedes any pending one — settle the old promise so its
+    // awaiter (the action queue) is never left hanging.
+    resolvePhaseTransitionBanner();
 
     const holdMs = Math.max(1200, Number(durationMs) || 2000);
     banner.className = `phase-transition-banner ${String(phase).toLowerCase()}`;
@@ -3307,11 +3328,13 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     requestAnimationFrame(() => banner.classList.add('visible'));
 
     return new Promise((resolve) => {
+        phaseTransitionResolve = resolve;
         phaseTransitionTimer = setTimeout(() => {
             banner.classList.remove('visible');
             phaseTransitionTimer = setTimeout(() => {
                 banner.classList.add('hidden');
                 phaseTransitionTimer = null;
+                phaseTransitionResolve = null;
                 resolve();
             }, 360);
         }, holdMs);
@@ -4982,13 +5005,22 @@ function renderGameOverOverlay() {
         const gold = Number(endScreen.goldEarned || 0);
         const remnants = Number(endScreen.remnantsEarned || 0);
         const streakBonus = Number(endScreen.streakBonus || 0);
+        // Guests (and any not-yet-signed-in viewer) see what they *could* have
+        // earned, framed as a preview that nudges them to sign in to claim it.
+        const guestPreview = Boolean(endScreen.guestPreview);
+        const heading = guestPreview ? 'Potential Rewards' : 'Rewards';
+        const earnLabel = guestPreview ? 'could earn' : 'earned';
+        const note = guestPreview
+            ? `<p class="game-over-rewards-note">Sign in to claim these rewards!</p>`
+            : '';
         rewardsEl.innerHTML = `
-            <h3>Rewards</h3>
+            <h3>${heading}</h3>
             <div class="game-over-stat-grid">
-                <span>Siegecoins earned</span><span>${gold}</span>
-                <span>Remnants earned</span><span>${remnants}</span>
+                <span>Siegecoins ${earnLabel}</span><span>${gold}</span>
+                <span>Remnants ${earnLabel}</span><span>${remnants}</span>
                 <span>Streak bonus</span><span>${streakBonus}</span>
-            </div>`;
+            </div>${note}`;
+        rewardsEl.classList.toggle('is-guest-preview', guestPreview);
     }
 
     const recordEl = document.getElementById('gameOverRecord');
@@ -6778,6 +6810,7 @@ function rebindSelectedHandSlotFromState() {
 function resetInteractionState(shouldRender = true) {
     selectedCard = null;
     selectedHandIndex = null;
+    mobileSpellPreviewPending = false;
     hoveredBoardCard = null;
     clearArenaSelection();
     closeClaimPopup();
@@ -6954,10 +6987,18 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
     if (endpoint !== 'new' && prevState) {
         maybeNotifyTurnChange(prevState, data);
-        if (window.SieglingsActionQueue) {
-            window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
-        } else {
-            window.SieglingsFx?.onBoardUpdate(prevState, data);
+        // The animation/diff layer must never block the state update below. If
+        // it throws, the new gameState would otherwise never render and the
+        // interaction state never resets, freezing the client on the previous
+        // screen (e.g. stuck on the battle target overlay after attacking).
+        try {
+            if (window.SieglingsActionQueue) {
+                window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
+            } else {
+                window.SieglingsFx?.onBoardUpdate(prevState, data);
+            }
+        } catch (e) {
+            console.error('Battle animation queue failed; continuing without it:', e);
         }
     }
     try {
@@ -7223,6 +7264,7 @@ function openLoadoutSelector() {
         clearTimeout(phaseTransitionTimer);
         phaseTransitionTimer = null;
     }
+    resolvePhaseTransitionBanner();
     document.getElementById('phaseTransitionBanner')?.classList.add('hidden');
     document.getElementById('phaseTransitionBanner')?.classList.remove('visible');
     welcomeDismissed = true;
@@ -8656,7 +8698,17 @@ async function useTrainer(targetRow, targetCol) {
 
 async function submitBattleAction(abilityIndex, targetRow = -1, targetCol = -1) {
     clearTargetingPreview();
-    const data = await api('battle/action', 'POST', { abilityIndex, targetRow, targetCol });
+    let data;
+    try {
+        data = await api('battle/action', 'POST', { abilityIndex, targetRow, targetCol });
+    } catch (e) {
+        // Never leave the player stranded on the target overlay if the action
+        // request (or its post-processing) throws — clear the in-progress
+        // targeting so the UI is usable again.
+        console.error('Battle action failed:', e);
+        try { resetInteractionState(); } catch (_) {}
+        return;
+    }
     if (!data) return;
     resetInteractionState();
 }
@@ -12088,6 +12140,8 @@ function selectCard(handIndexOrCardId) {
         return;
     }
 
+    mobileSpellPreviewPending = false;
+
     if (selectedHandIndex === handIndex) {
         selectedCard = null;
         selectedHandIndex = null;
@@ -12108,45 +12162,118 @@ function selectCard(handIndexOrCardId) {
 
     if (lockReason) {
         updateSelectedInfo(card, lockReason);
+        // Mobile has no hover tooltip, so surface the card (and the reason it
+        // can't be played) in the preview drawer instead of failing silently.
+        if (isMobileLayout() && isActionCard(card)) {
+            openDrawer('selected');
+        }
         render();
         return;
     }
 
     if (isActionCard(card)) {
-        const targetSide = getAbilityTargetSide(card.ability);
-        const needsExplicitTarget = Boolean(targetSide);
-        if (needsExplicitTarget) {
-            if (needsForcedEnemyMoveFlow(card)) {
-                targetMode = true;
-                targetContext = {
-                    mode: 'spell-move-enemy',
-                    side: 'enemy',
-                    step: 'pickEnemy',
-                    cardId: card.id,
-                    message: `Select an enemy Siegeling to move, then an empty enemy cell.`
-                };
-                updateSelectedInfo(card, targetContext.message);
-                render();
-                return;
-            }
-            targetMode = true;
-            targetContext = {
-                mode: 'spell',
-                side: targetSide,
-                message: `Select a target for ${card.name}.`,
-                callback: (row, col) => castSpell(card.id, row, col)
-            };
-            updateSelectedInfo(card, targetContext.message);
+        // On mobile there is no hover preview, so a single tap used to fire the
+        // spell (or jump straight into targeting) before the player could read
+        // what it does. Show the card preview in the drawer with an explicit
+        // confirm step; the spell only activates once the player confirms.
+        if (isMobileLayout()) {
+            mobileSpellPreviewPending = true;
+            updateSelectedInfo(card);
+            openDrawer('selected');
             render();
             return;
-        } else {
-            castSpell(card.id, -1, -1);
-            return;
         }
+        activateActionCard(card);
+        return;
     }
 
     updateSelectedInfo(card);
     render();
+}
+
+/**
+ * Begin using a selected SPELL/TRAP: enter target selection if it needs one
+ * (board highlights the valid targets), otherwise cast it immediately. Shared
+ * by the desktop single-tap path and the mobile confirm button.
+ */
+function activateActionCard(card) {
+    if (!card) {
+        return;
+    }
+    const targetSide = getAbilityTargetSide(card.ability);
+    if (targetSide) {
+        if (needsForcedEnemyMoveFlow(card)) {
+            targetMode = true;
+            targetContext = {
+                mode: 'spell-move-enemy',
+                side: 'enemy',
+                step: 'pickEnemy',
+                cardId: card.id,
+                message: `Select an enemy Siegeling to move, then an empty enemy cell.`
+            };
+            updateSelectedInfo(card, targetContext.message);
+            render();
+            return;
+        }
+        targetMode = true;
+        targetContext = {
+            mode: 'spell',
+            side: targetSide,
+            message: `Select a target for ${card.name}.`,
+            callback: (row, col) => castSpell(card.id, row, col)
+        };
+        updateSelectedInfo(card, targetContext.message);
+        render();
+        return;
+    }
+    castSpell(card.id, -1, -1);
+}
+
+/** Mobile: confirm the previewed spell — cast it, or start target selection. */
+function confirmMobileSpellPreview() {
+    if (!mobileSpellPreviewPending) {
+        return;
+    }
+    mobileSpellPreviewPending = false;
+    const card = selectedCard;
+    if (!card) {
+        return;
+    }
+    // Drop the modal preview so the board (and its target highlights) are
+    // visible and tappable for spells that still need a target.
+    if (activeDrawer === 'selected') {
+        closeDrawer(true);
+    }
+    activateActionCard(card);
+}
+
+/** Mobile: dismiss the spell preview without casting. */
+function cancelMobileSpellPreview() {
+    mobileSpellPreviewPending = false;
+    selectedCard = null;
+    selectedHandIndex = null;
+    clearTargetMode();
+    if (activeDrawer === 'selected') {
+        closeDrawer(true);
+    }
+    updateSelectedInfo(null);
+    render();
+}
+
+/** Human-readable hint describing who a spell targets, for the mobile preview. */
+function describeSpellTargetSide(targetSide) {
+    switch (targetSide) {
+        case 'enemy':
+            return 'Targets an enemy Siegeling — pick it after you confirm.';
+        case 'ally':
+            return 'Targets one of your Siegelings — pick it after you confirm.';
+        case 'row-enemy':
+            return 'Targets an enemy row — pick it after you confirm.';
+        case 'row-ally':
+            return 'Targets one of your rows — pick it after you confirm.';
+        default:
+            return 'No target needed — plays as soon as you confirm.';
+    }
 }
 
 function isTargetCell(isPlayer, cell, row = -1) {
@@ -12404,6 +12531,18 @@ function updateSelectedInfo(card, msg) {
                 html += `<div class="selected-copy-detail">${escapeHtml(entry.text)}</div>`;
             }
         });
+        if (mobileSpellPreviewPending && isActionCard(card) && !lockReason) {
+            const targetSide = getAbilityTargetSide(card.ability);
+            const playVerb = card.type === 'TRAP' ? 'Set' : 'Cast';
+            const confirmLabel = targetSide ? 'Choose Target' : playVerb;
+            html += `<div class="selected-spell-confirm">`;
+            html += `<div class="selected-spell-target-hint">${escapeHtml(describeSpellTargetSide(targetSide))}</div>`;
+            html += `<div class="selected-spell-confirm-actions">`;
+            html += `<button type="button" class="spell-confirm-btn" onclick="confirmMobileSpellPreview()">${escapeHtml(confirmLabel)}</button>`;
+            html += `<button type="button" class="spell-cancel-btn" onclick="cancelMobileSpellPreview()">Cancel</button>`;
+            html += `</div>`;
+            html += `</div>`;
+        }
         html += `</div>`;
         html += `</div>`;
     }

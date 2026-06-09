@@ -2001,6 +2001,53 @@ body.card-drag-active #playerGrid {
     color: var(--text-dim);
 }
 
+.selected-spell-confirm {
+    margin-top: 10px;
+    display: grid;
+    gap: 8px;
+}
+.selected-spell-target-hint {
+    font-size: 0.85em;
+    line-height: 1.35;
+    color: var(--accent);
+    font-weight: 600;
+}
+.selected-spell-confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+.spell-confirm-btn,
+.spell-cancel-btn {
+    flex: 1 1 auto;
+    min-width: 96px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.92em;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: filter 0.15s ease, background 0.15s ease;
+}
+.spell-confirm-btn {
+    color: #07111f;
+    background: var(--accent);
+    border-color: var(--accent);
+}
+.spell-confirm-btn:hover {
+    filter: brightness(1.08);
+}
+.spell-cancel-btn {
+    color: var(--text-dim);
+    background: rgba(8, 13, 28, 0.6);
+    border-color: color-mix(in srgb, var(--text-dim) 45%, transparent);
+}
+.spell-cancel-btn:hover {
+    color: #ffffff;
+    border-color: color-mix(in srgb, var(--text-dim) 70%, transparent);
+}
+
 .selected-copy-buffs {
     display: flex;
     flex-wrap: wrap;
@@ -7636,6 +7683,19 @@ body.placement-active .board-cell.legal {
     color: var(--text-muted, #9ab);
 }
 
+.game-over-rewards.is-guest-preview {
+    border-color: rgba(255, 209, 102, 0.4);
+    background: rgba(255, 209, 102, 0.08);
+}
+
+.game-over-rewards-note {
+    margin: 10px 0 0;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+
 .game-over-rematch-status {
     text-align: center;
     font-size: 0.88rem;
@@ -10871,6 +10931,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         height: calc(100% - 26px);
         overflow: hidden;
     }
+    /* Spell preview/confirm needs room for the action buttons, so let the
+       drawer grow and the description scroll instead of clipping the controls. */
+    #drawerSelected:has(.selected-spell-confirm) {
+        height: auto;
+        max-height: 72vh;
+    }
+    #drawerSelected:has(.selected-spell-confirm) .drawer-content {
+        height: auto;
+        max-height: calc(72vh - 40px);
+        overflow-y: auto;
+    }
+    #drawerSelected:has(.selected-spell-confirm) .selected-card-panel {
+        height: auto;
+    }
+    #drawerSelected:has(.selected-spell-confirm) .selected-preview-copy {
+        text-align: left;
+    }
     /* Panel: card thumbnail on the left, description text on the right.
        The card shell keeps its natural column layout (header → art → body)
        so proportions are never distorted — it is simply constrained to a
@@ -12854,6 +12931,83 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .sgl-heal-cross .sgl-heal-icon,
     .sgl-heal-cross .sgl-heal-glow,
     .sgl-heal-cross .sgl-heal-particle { animation-duration: 0.3s !important; }
+}
+
+/* Shield crumble — a grey shield that cracks and shatters into falling
+   fragments when a temporary shield expires at the end of the turn. */
+.sgl-shield-crumble {
+    pointer-events: none;
+    z-index: 540;
+    color: #a8b0ba;
+    overflow: visible;
+}
+.sgl-shield-crumble-glow {
+    position: absolute;
+    inset: -20%;
+    background:
+        radial-gradient(circle at 50% 45%, rgba(200, 208, 218, 0.5), transparent 60%),
+        radial-gradient(circle at 50% 45%, rgba(120, 130, 145, 0.4), transparent 75%);
+    filter: blur(2px);
+    animation: sgl-shield-crumble-glow 1s ease-out forwards;
+}
+.sgl-shield-crumble-icon {
+    position: absolute;
+    left: 20%;
+    top: 16%;
+    width: 60%;
+    height: 60%;
+    transform-origin: 50% 45%;
+    filter:
+        drop-shadow(0 0 8px rgba(200, 208, 218, 0.8))
+        drop-shadow(0 0 18px rgba(120, 130, 145, 0.6));
+    animation: sgl-shield-crumble-icon 1s cubic-bezier(0.3, 0.7, 0.4, 1) forwards;
+}
+.sgl-shield-crumble-icon .sgl-shield-crack {
+    stroke-dasharray: 90;
+    stroke-dashoffset: 90;
+    animation: sgl-shield-crack 0.55s ease-out forwards;
+}
+.sgl-shield-shard {
+    position: absolute;
+    border-radius: 2px;
+    background: linear-gradient(150deg, #f3f6fa 0%, #a8b0ba 55%, #5a6470 100%);
+    box-shadow: 0 0 4px rgba(180, 190, 200, 0.7);
+    transform: translate(-50%, -50%) rotate(0deg);
+    opacity: 0;
+    animation: sgl-shield-shard 0.95s cubic-bezier(0.3, 0.5, 0.4, 1) forwards;
+}
+@keyframes sgl-shield-crumble-glow {
+    0%   { opacity: 0; transform: scale(0.7); }
+    30%  { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 0; transform: scale(1.15); }
+}
+@keyframes sgl-shield-crumble-icon {
+    0%   { transform: scale(0.85) rotate(0deg); opacity: 0; }
+    18%  { transform: scale(1.05) rotate(-2deg); opacity: 1; }
+    42%  { transform: scale(1) rotate(2deg); opacity: 1; }
+    100% { transform: scale(0.82) translateY(14px) rotate(-4deg); opacity: 0; }
+}
+@keyframes sgl-shield-crack {
+    0%   { stroke-dashoffset: 90; opacity: 0; }
+    40%  { opacity: 1; }
+    100% { stroke-dashoffset: 0; opacity: 1; }
+}
+@keyframes sgl-shield-shard {
+    0%   { transform: translate(-50%, -50%) rotate(0deg); opacity: 0; }
+    20%  { opacity: 1; }
+    100% {
+        transform: translate(
+            calc(-50% + var(--s-dx, 0px)),
+            calc(-50% + var(--s-dy, 40px))
+        ) rotate(var(--s-rot, 120deg));
+        opacity: 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .sgl-shield-crumble .sgl-shield-crumble-icon,
+    .sgl-shield-crumble .sgl-shield-crumble-glow,
+    .sgl-shield-crumble .sgl-shield-shard,
+    .sgl-shield-crumble .sgl-shield-crack { animation-duration: 0.3s !important; }
 }
 
 /* Notch movement shift */
