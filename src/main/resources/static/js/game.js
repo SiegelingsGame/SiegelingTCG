@@ -11030,6 +11030,9 @@ function syncDesktopHandSelectorCardScale() {
         48,
         (contentWidth - (columnGap * (visibleCards - 1))) / visibleCards
     );
+    // Size each card to the available height, but never wider than the share
+    // that keeps all of them across the row, so the hand stays at a comfortable
+    // size and the section sits snug above the action buttons.
     const measuredWidth = Math.max(56, Math.floor(contentHeight)) * (5 / 7);
     const nextWidth = Math.round(clampNumber(
         Math.min(measuredWidth, maxFiveCardWidth),
@@ -13140,6 +13143,15 @@ syncDesktopInspectTabUi();
         const ro = new ResizeObserver(() => scheduleBoardLinkConnectorRefresh());
         ro.observe(playerGrid);
         ro.observe(enemyGrid);
+
+        // Re-fit the hand cards whenever the dock that holds them changes height
+        // (board/history layout settling, safe-area changes, orientation). Without
+        // this the cards keep a stale size and leave a gap above the action bar.
+        const handSection = document.getElementById('desktopHandSection');
+        if (handSection) {
+            const handRo = new ResizeObserver(() => scheduleDesktopHandSelectorCardScale());
+            handRo.observe(handSection);
+        }
     };
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', connect);
