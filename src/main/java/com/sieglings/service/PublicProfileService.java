@@ -91,10 +91,21 @@ public class PublicProfileService {
 
     private Map<String, Object> serializeMatch(MatchHistoryEntity history) {
         Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", history.getId());
         row.put("result", history.getResult());
         row.put("matchType", history.getMatchType());
         row.put("opponentName", history.getOpponentName());
         row.put("finishedAt", history.getFinishedAt() == null ? null : history.getFinishedAt().toString());
+        row.put("loadoutLabel", history.getLoadoutLabel());
+        row.put("trainerName", history.getTrainerName());
+        row.put("turnNumber", history.getTurnNumber());
+        row.put("spellsCast", history.getSpellsCast());
+        row.put("trapsSprung", history.getTrapsSprung());
+        row.put("siegelingsDefeated", history.getSiegelingsDefeated());
+        row.put("playerHealthRemaining", history.getPlayerHealthRemaining());
+        row.put("opponentHealthRemaining", history.getOpponentHealthRemaining());
+        row.put("playerEnergyRemaining", history.getPlayerEnergyRemaining());
+        row.put("gameLog", history.getGameLog() == null ? List.of() : history.getGameLog());
         return row;
     }
 

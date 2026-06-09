@@ -756,17 +756,29 @@ public class GameService {
         Player player = getSidePlayer(state, isPlayer);
         TrainerCard trainer = player.getActiveTrainer();
         Ability passive = trainer == null ? null : trainer.getAbility();
+        boolean activePassive = passive != null && passive.isPassive();
+        // A "connected allies" health passive grants its bonus to every allied
+        // Siegling notch-linked to at least one other ally, recomputed here so the
+        // bonus follows the board's connection network as placements change.
+        boolean connectedHealthPassive = activePassive
+                && AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST.equals(passive.getEffectType());
         List<CardInstance> sieglings = state.getBoardSieglings(isPlayer);
         for (CardInstance ci : sieglings) {
             int healthBuff = 0;
             int damageBuff = 0;
             int speedBuff = 0;
-            if (passive != null && passive.isPassive() && passiveAppliesToCard(passive, trainer, ci)) {
+            if (activePassive) {
                 int value = Math.max(1, passive.getEffectValue());
-                switch (passive.getEffectType()) {
-                    case AbilityEffectKeys.DAMAGE_BOOST -> damageBuff += value;
-                    case AbilityEffectKeys.HEALTH_BOOST -> healthBuff += value;
-                    case AbilityEffectKeys.SPEED_BOOST -> speedBuff += value;
+                if (connectedHealthPassive) {
+                    if (!placementService.getDirectlyConnectedAllies(state, ci).isEmpty()) {
+                        healthBuff += value;
+                    }
+                } else if (passiveAppliesToCard(passive, trainer, ci)) {
+                    switch (passive.getEffectType()) {
+                        case AbilityEffectKeys.DAMAGE_BOOST -> damageBuff += value;
+                        case AbilityEffectKeys.HEALTH_BOOST -> healthBuff += value;
+                        case AbilityEffectKeys.SPEED_BOOST -> speedBuff += value;
+                    }
                 }
             }
             ci.setTrainerPassiveHealthBuff(healthBuff);

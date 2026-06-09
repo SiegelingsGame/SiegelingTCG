@@ -1,9 +1,19 @@
 (function () {
     const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+    // Last authenticated profile, cached in localStorage and shared with the Play
+    // page so the signed-in UI paints instantly and then revalidates against
+    // /api/auth/me in the background instead of blocking on it.
+    const AUTH_PROFILE_CACHE_KEY = 'sieglingsAuthProfile';
+    const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
-    const STATIC_CACHE_TTL_MS = 10 * 60 * 1000;
+    // Static data (card catalog, packs, descriptions) rarely changes, so keep it
+    // cached for a full day. It lives in localStorage (see hubCacheStorage) so it
+    // persists across tabs and app relaunches — every hub visit renders instantly
+    // from cache, and the cheap /api/game/catalog-version check revalidates it in
+    // the background, re-downloading the full catalog only when it actually moved.
+    const STATIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
     // Leaderboards change as matches finish today, so cache them briefly rather
     // than reusing the same snapshot for the full static TTL.
     const LEADERBOARD_CACHE_TTL_MS = 60 * 1000;
@@ -81,6 +91,13 @@
         LEGENDARY: '#ffd54a'
     };
     const PROFILE_ELEMENTS = ['Fire', 'Ice', 'Wind', 'Earth', 'Neutral'];
+    // Premade card backs players can choose from in their profile.
+    const PROFILE_CARD_BACKS = [
+        { name: 'Molten Sigil', element: 'Fire' },
+        { name: 'Frost Sigil', element: 'Ice' },
+        { name: 'Gale Sigil', element: 'Wind' },
+        { name: 'Stone Sigil', element: 'Earth' }
+    ];
     const elementThemes = {
         Fire: {
             accent: '#ff6a2a',
@@ -129,11 +146,48 @@
         }
     };
 
+    function loadCachedAuthProfile() {
+        try {
+            const raw = localStorage.getItem(AUTH_PROFILE_CACHE_KEY);
+            if (!raw) return null;
+            const entry = JSON.parse(raw);
+            if (!entry?.profile?.authenticated) return null;
+            if (entry.savedAt && Date.now() - entry.savedAt > AUTH_PROFILE_CACHE_MAX_AGE_MS) return null;
+            return entry.profile;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function saveCachedAuthProfile(profile) {
+        try {
+            if (!profile?.authenticated) {
+                localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+                return;
+            }
+            localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+        } catch (error) {
+            // The profile cache is a render optimization only.
+        }
+    }
+
+    function clearCachedAuthProfile() {
+        try {
+            localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+        } catch (error) {
+            // ignore
+        }
+    }
+
+    const initialAuthToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    // Seed from the cached snapshot so the signed-in hub renders instantly; the
+    // background syncProfile() on init revalidates and refreshes it.
+    const cachedAuthProfile = initialAuthToken ? loadCachedAuthProfile() : null;
     const state = {
         route: 'home',
-        token: localStorage.getItem(AUTH_TOKEN_KEY) || '',
-        profile: null,
-        progression: null,
+        token: initialAuthToken,
+        profile: cachedAuthProfile,
+        progression: cachedAuthProfile?.progression || null,
         options: null,
         packs: [],
         dailyOffers: [],
@@ -227,6 +281,7 @@
     async function init() {
         bindEvents();
         hydrateProfilePrefsFromCache();
+        hydrateStaticCachesFromStorage();
         hydrateRoomInviteFromUrl();
         applyRouteFromLocation();
         setActiveRoute();
@@ -234,7 +289,14 @@
         renderHudTools();
         renderGold();
         renderHomeDashboard();
+        // Paint immediately from the persisted caches (catalog + profile) so the
+        // Cards/Decks/Profile routes render instantly on every visit instead of
+        // waiting on the network. loadAll() then revalidates in the background.
+        safeRender(render);
         bindCatalogSync();
+        // Only show the top loading bar when there's nothing cached to paint yet;
+        // otherwise the page is already populated and the refresh is silent.
+        setHubLoading(!state.options);
         try {
             await loadAll();
             await syncCatalogIfVersionChanged();
@@ -245,8 +307,14 @@
         } catch (err) {
             console.error('Init load failed', err);
         } finally {
+            setHubLoading(false);
             openSharedProfileFromUrl();
         }
+    }
+
+    function setHubLoading(active) {
+        const bar = document.getElementById('hubLoadingBar');
+        if (bar) bar.classList.toggle('hidden', !active);
     }
 
     function openSharedProfileFromUrl() {
@@ -413,22 +481,31 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            clearCachedAuthProfile();
             stopPresenceHeartbeat();
             return null;
         }
-        const data = await fetchJson('/api/auth/me');
+        // Bypass the HTTP cache: a stale {authenticated:false} response (Safari
+        // is especially eager to cache GETs) would otherwise wipe a valid token.
+        const data = await fetchJson('/api/auth/me', { cache: 'no-store' });
         if (!data?.authenticated) {
-            localStorage.removeItem(AUTH_TOKEN_KEY);
-            state.token = '';
+            // Do NOT delete the persisted token here. The token is shared with the
+            // Play page (play.html/game.js); a transient failure or stale response
+            // would otherwise sign the player out everywhere, and revisiting any
+            // page would stay logged out. Clear only the in-memory profile — the
+            // token is removed solely on an explicit Log Out. A genuinely expired
+            // token is simply replaced the next time the player signs in.
             state.profile = null;
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            clearCachedAuthProfile();
             stopPresenceHeartbeat();
             return null;
         }
         state.profile = data;
         state.progression = data.progression || null;
+        saveCachedAuthProfile(data);
         await loadDailyMissions();
         startPresenceHeartbeat();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
@@ -671,16 +748,38 @@
         el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => onPick(btn.dataset.value)));
     }
 
+    function cardsRenderSignature(cards) {
+        return [
+            state.showUnowned,
+            state.elementFilter,
+            state.typeFilter,
+            state.rarityFilter,
+            state.energyCostFilter,
+            state.sort,
+            state.search,
+            state.selectedCardId,
+            cards.map(card => `${card.id}:${ownedCount(card.id)}`).join(',')
+        ].join('|');
+    }
+
     function renderCards() {
+        const grid = document.getElementById('allCardGrid');
+        if (!grid) return;
+        // Catalog not loaded yet — show the spinner instead of a blank panel.
+        if (!state.options) {
+            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your card binder…</strong></div>`;
+            state._cardsRenderSig = '';
+            return;
+        }
         const cards = filteredCards();
-        const grids = [
-            ['allCardGrid', cards]
-        ];
-        grids.forEach(([id, list]) => {
-            const grid = document.getElementById(id);
-            if (!grid) return;
-            grid.innerHTML = list.length
-                ? list.map(renderCardTile).join('')
+        // Skip the expensive innerHTML teardown/rebuild (hundreds of tiles + their
+        // images) when nothing that affects the grid changed. Navigating away and
+        // back leaves the section's DOM intact, so re-entry is then instant rather
+        // than flashing blank while every tile re-mounts and re-decodes its art.
+        const signature = cardsRenderSignature(cards);
+        if (signature !== state._cardsRenderSig || !grid.children.length) {
+            grid.innerHTML = cards.length
+                ? cards.map(renderCardTile).join('')
                 : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
@@ -688,7 +787,8 @@
                 renderCards();
                 renderDetail();
             }));
-        });
+            state._cardsRenderSig = signature;
+        }
         const allCount = document.getElementById('allCardCount');
         if (allCount) {
             const ownedVisible = cards.filter(card => ownedCount(card.id) > 0).length;
@@ -2723,12 +2823,9 @@
     }
 
     function starterCardBackName(element) {
-        return {
-            Fire: 'Molten Sigil',
-            Earth: 'Stone Sigil',
-            Wind: 'Gale Sigil',
-            Ice: 'Frost Sigil'
-        }[normalizeProfileElement(element)] || 'Molten Sigil';
+        const normalized = normalizeProfileElement(element);
+        const match = PROFILE_CARD_BACKS.find(back => back.element === normalized);
+        return match ? match.name : PROFILE_CARD_BACKS[0].name;
     }
 
     function starterProfileBio(element) {
@@ -3215,7 +3312,7 @@
                     <label><span>Favorite element</span><select class="search-input" data-profile-field="favoriteElement">${PROFILE_ELEMENTS.map(element => `<option value="${element}"${element === prefs.favoriteElement ? ' selected' : ''}>${element}</option>`).join('')}</select></label>
                     ${profileTitleSelect(prefs.playerTitleId, prefs)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
-                    ${profileInput('Preferred card back', 'preferredCardBack', prefs.preferredCardBack)}
+                    ${profileCardBackSelect(prefs.preferredCardBack)}
                     ${favoriteSieglingSelect(prefs.favoriteSieglingId || prefs.favoriteSieglingCard?.id)}
                 </div>
                 <div class="profile-edit-actions">
@@ -3228,6 +3325,16 @@
 
     function profileInput(label, field, value) {
         return `<label><span>${escapeHtml(label)}</span><input class="search-input" data-profile-field="${escapeAttr(field)}" value="${escapeAttr(value)}"></label>`;
+    }
+
+    // Renders the preferred card back picker as a dropdown of premade backs.
+    // Preserves any existing saved value that isn't part of the premade set.
+    function profileCardBackSelect(selected) {
+        const current = String(selected || '').trim();
+        const names = PROFILE_CARD_BACKS.map(back => back.name);
+        if (current && !names.includes(current)) names.unshift(current);
+        const options = names.map(name => `<option value="${escapeAttr(name)}"${name === current ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('');
+        return `<label><span>Preferred card back</span><select class="search-input" data-profile-field="preferredCardBack">${options}</select></label>`;
     }
 
     function bindProfileDashboard() {
@@ -3258,8 +3365,8 @@
 
     // Opens a read-only review of a recorded match (stats + turn-by-turn log),
     // mirroring the match detail surface on the Play screen.
-    function openMatchReview(index) {
-        const entry = (state.profile?.matchHistory || [])[index];
+    function openMatchReview(index, source) {
+        const entry = (source || state.profile?.matchHistory || [])[index];
         const overlay = document.getElementById('matchReviewOverlay');
         const content = document.getElementById('matchReviewContent');
         if (!entry || !overlay || !content) return;
@@ -4522,6 +4629,29 @@
         state.catalogVersion = Number(next.catalogVersion) || 0;
     }
 
+    // Synchronously seed state from the persisted static caches before any network
+    // call, so the first paint of a fresh page load is instant when we've loaded
+    // before. loadAll() then revalidates everything in the background.
+    function hydrateStaticCachesFromStorage() {
+        const options = readCache('gameOptions', STATIC_CACHE_TTL_MS);
+        if (options) {
+            applyGameOptions(options);
+        }
+        const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS);
+        if (packs) {
+            state.packs = packs.packs || [];
+            state.dailyOffers = packs.dailyOffers || [];
+            state.titleCatalog = packs.titleCatalog || state.titleCatalog || [];
+        }
+        const descriptions = readCache('creatureDescriptions', STATIC_CACHE_TTL_MS);
+        if (descriptions) {
+            state.creatureDescriptions = indexCreatureDescriptions(descriptions);
+        }
+        if (state.options && !state.selectedCardId) {
+            state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
+        }
+    }
+
     function bindCatalogSync() {
         if (state.catalogSyncBound || typeof SieglingsCatalogSync === 'undefined') return;
         state.catalogSyncBound = true;
@@ -4579,22 +4709,25 @@
         try {
             const entry = { savedAt: Date.now(), data };
             memoryCache[cacheKey] = entry;
-            const storage = browserSessionStorage();
+            const storage = hubCacheStorage();
             if (storage) storage.setItem(HUB_CACHE_PREFIX + cacheKey, JSON.stringify(entry));
         } catch (error) {
-            // Session cache is an optimization only.
+            // Persistent cache is an optimization only — if localStorage is full or
+            // unavailable we fall back to the in-memory copy and the network.
         }
     }
 
     function readCacheEntry(cacheKey) {
-        const storage = browserSessionStorage();
+        const storage = hubCacheStorage();
         const raw = storage?.getItem(HUB_CACHE_PREFIX + cacheKey);
         return raw ? JSON.parse(raw) : memoryCache[cacheKey];
     }
 
-    function browserSessionStorage() {
+    // Persist hub caches in localStorage so they survive tab close, app relaunch,
+    // and crossing between the hub and the Play page — not just a single tab.
+    function hubCacheStorage() {
         try {
-            return window.sessionStorage || null;
+            return window.localStorage || null;
         } catch (error) {
             return null;
         }
@@ -4689,6 +4822,7 @@
         state.token = data.token || '';
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
+        saveCachedAuthProfile(data);
         state.progression = data.progression;
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
@@ -4710,6 +4844,7 @@
         await fetchJson('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
+        clearCachedAuthProfile();
         state.token = '';
         state.profile = null;
         state.progression = null;
@@ -4734,6 +4869,7 @@
         stopPresenceHeartbeat();
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
+        clearCachedAuthProfile();
         state.token = '';
         state.profile = null;
         state.progression = null;
@@ -6086,7 +6222,7 @@
             ${renderPublicProfileStats(view)}
             ${view.battles.length ? renderBattleRecordPanel(view) : ''}
             ${view.battles.length
-                ? renderBattleHistoryList(view, false)
+                ? renderBattleHistoryList(view, true)
                 : `<section class="profile-panel"><p class="profile-muted">${view.data.isFriend ? 'No recorded battles yet.' : 'Recent battles are visible once you are friends.'}</p></section>`}
             ${renderPublicProfileActions(view)}
         </div>`;
@@ -6115,6 +6251,17 @@
         body.querySelector('[data-public-profile-deny]')?.addEventListener('click', async () => {
             await respondToFriendRequest(userId, 'deny');
             navigateHub('profile');
+        });
+        const matchSource = view.data.recentMatches || [];
+        body.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
+            const index = Number(row.dataset.matchIndex);
+            row.addEventListener('click', () => openMatchReview(index, matchSource));
+            row.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openMatchReview(index, matchSource);
+                }
+            });
         });
     }
 

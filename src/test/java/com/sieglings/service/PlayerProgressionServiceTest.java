@@ -176,6 +176,57 @@ class PlayerProgressionServiceTest {
         assertTrue(service.serialize(progression).containsKey("customDeckUnlocked"));
     }
 
+    @Test
+    void guestWinnerSeesPotentialRewardPreview() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        Map<String, Object> rewards = service.describeEarnedRewards(null, "SOLO", "WIN");
+
+        assertEquals(PlayerProgressionService.SOLO_WIN_GOLD, rewards.get("goldEarned"));
+        assertEquals(PlayerProgressionService.SOLO_WIN_REMNANTS, rewards.get("remnantsEarned"));
+        assertEquals(0, rewards.get("streakBonus"));
+        assertEquals(Boolean.TRUE, rewards.get("guestPreview"));
+        assertEquals(Boolean.FALSE, rewards.get("rewardsClaimed"));
+        // Nothing should be persisted for a guest.
+        assertEquals(0, store.saveCount);
+    }
+
+    @Test
+    void lossEarnsNothingAndIsNotAPreview() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        Map<String, Object> rewards = service.describeEarnedRewards(user(), "SOLO", "LOSS");
+
+        assertEquals(0, rewards.get("goldEarned"));
+        assertEquals(0, rewards.get("remnantsEarned"));
+        assertEquals(0, rewards.get("streakBonus"));
+        assertEquals(Boolean.FALSE, rewards.get("guestPreview"));
+        assertEquals(Boolean.FALSE, rewards.get("rewardsClaimed"));
+    }
+
+    @Test
+    void loggedInWinnerSeesClaimedRewardsReflectingTheirStreak() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        // awardMatchGold has already run for this match in production, leaving the
+        // streak at 2; the end-screen description should reflect that streak.
+        progression.setSoloWinStreak(2);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        Map<String, Object> rewards = service.describeEarnedRewards(user(), "SOLO", "WIN");
+
+        int expectedBonus = PlayerProgressionService.WIN_STREAK_GOLD * 2;
+        assertEquals(PlayerProgressionService.SOLO_WIN_GOLD + expectedBonus, rewards.get("goldEarned"));
+        assertEquals(PlayerProgressionService.SOLO_WIN_REMNANTS, rewards.get("remnantsEarned"));
+        assertEquals(expectedBonus, rewards.get("streakBonus"));
+        assertEquals(Boolean.TRUE, rewards.get("rewardsClaimed"));
+        assertEquals(Boolean.FALSE, rewards.get("guestPreview"));
+    }
+
     private PlayerProgressionService createService(PlayerProgressionStore store,
                                                    PackCatalogService packCatalogService,
                                                    CardDefinitionService cardDefinitionService) throws Exception {

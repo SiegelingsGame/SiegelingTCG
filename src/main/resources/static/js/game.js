@@ -18,6 +18,9 @@ let selectedCard = null;
 let selectedHandIndex = null;
 let targetMode = false;
 let targetContext = null;
+/** Mobile: a spell/trap is selected and showing its preview, waiting for an
+ *  explicit confirm before it casts or enters target selection. */
+let mobileSpellPreviewPending = false;
 let gameOptions = null;
 let selectedDeckId = null;
 let selectedTrainerId = null;
@@ -50,6 +53,11 @@ let arenaSelection = null;
 let pendingClaimTarget = null;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
+// Resolver for the in-flight phase-transition banner promise. Tracked so the
+// promise is always settled when the banner is hidden, superseded, or torn
+// down — a never-resolved await here would wedge the battle action queue and
+// freeze the game (auto-advance is gated on the queue being idle).
+let phaseTransitionResolve = null;
 let coinFlipDismissedRoomId = null;
 let handTouchGesture = null;
 /** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
@@ -79,7 +87,38 @@ let handTouchSuppressUntil = 0;
 let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
+// Last authenticated profile, cached in localStorage and shared with the hub so
+// every page can render the signed-in UI instantly and then revalidate against
+// /api/auth/me in the background instead of blocking on it.
+const AUTH_PROFILE_STORAGE_KEY = 'sieglingsAuthProfile';
+const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const PENDING_HOME_LOADOUT_STORAGE_KEY = 'sieglingsPendingLoadout';
+// Persistent cache for the Play page's loadout data (catalog/decks/trainers and
+// the card editor state). Stored in localStorage with a 24h TTL so the loadout
+// screen paints instantly on every visit, then revalidates in the background.
+const PLAY_CACHE_PREFIX = 'sieglingsPlayCache:';
+const PLAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function readPlayCache(key) {
+    try {
+        const raw = localStorage.getItem(PLAY_CACHE_PREFIX + key);
+        if (!raw) return null;
+        const entry = JSON.parse(raw);
+        if (!entry || Date.now() - entry.savedAt > PLAY_CACHE_TTL_MS) return null;
+        return entry.data;
+    } catch (e) {
+        return null;
+    }
+}
+
+function writePlayCache(key, data) {
+    try {
+        if (!data) return;
+        localStorage.setItem(PLAY_CACHE_PREFIX + key, JSON.stringify({ savedAt: Date.now(), data }));
+    } catch (e) {
+        // Persistent cache is an optimization only.
+    }
+}
 
 (function redirectLegacyPlayRoomLinks() {
     const params = new URLSearchParams(window.location.search);
@@ -140,10 +179,17 @@ let authMode = 'login';
 let authRegisterStep = 'credentials';
 let authPopupOpen = false;
 let registerDraft = { email: '', password: '' };
+const initialAuthToken = loadSavedAuthToken();
 let authState = {
-    token: loadSavedAuthToken(),
-    profile: null,
+    token: initialAuthToken,
+    // Seed from the cached snapshot so the signed-in UI renders instantly; the
+    // background /api/auth/me on init revalidates and refreshes it.
+    profile: initialAuthToken ? loadCachedAuthProfile() : null,
     loading: false,
+    // Whether /api/auth/me has returned a definitive answer this page load. Until
+    // it has, a present token means "signing in", NOT "logged out" — so the
+    // welcome screen shows a loading state instead of flashing the Log In card.
+    profileResolved: false,
     error: ''
 };
 let selectedSavedDeckId = null;
@@ -327,6 +373,7 @@ const STATUS_BADGE_PALETTE = {
     FREEZE:       '#7adfff',
     SPEED_ZERO:   '#a0b0c0',
     HEALTH_BOOST: '#a8b0ba',
+    MAX_HEALTH:   '#46e07a',
     DAMAGE_BOOST: '#ff5544',
     SPEED_BOOST:  '#7adfff',
     WEAK:         '#ff6080',
@@ -337,6 +384,7 @@ const STATUS_BADGE_LABEL = {
     FREEZE: 'Frozen — cannot act',
     SPEED_ZERO: 'Speed Zero — acts last',
     HEALTH_BOOST: 'Shield',
+    MAX_HEALTH: 'Max Health Increased',
     DAMAGE_BOOST: 'Damage Boost',
     SPEED_BOOST: 'Speed Boost',
     WEAK: 'Weak to Attack',
@@ -347,6 +395,7 @@ const STATUS_BADGE_SVG = {
     FREEZE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-fz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff6ff"/><stop offset="50%" stop-color="#5fb8e8"/><stop offset="100%" stop-color="#1a4a7a"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#5fb8e8" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-fz-bg)" stroke="#dff6ff" stroke-width="2"/><g stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none" class="sb-spin"><line x1="42" y1="20" x2="42" y2="64"/><line x1="22" y1="42" x2="62" y2="42"/><line x1="27" y1="27" x2="57" y2="57"/><line x1="57" y1="27" x2="27" y2="57"/><path d="M42 20 L37 26 M42 20 L47 26 M42 64 L37 58 M42 64 L47 58 M22 42 L28 37 M22 42 L28 47 M62 42 L56 37 M62 42 L56 47"/></g><circle cx="42" cy="42" r="3" fill="#fff"/></svg>`,
     SPEED_ZERO: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#a0b0c0"/><stop offset="50%" stop-color="#4a5a78"/><stop offset="100%" stop-color="#1a2030"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#4a5a78" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sz-bg)" stroke="#a0b0c0" stroke-width="2"/><g stroke="#5a6a80" stroke-width="2" stroke-linejoin="round" fill="#7a8aa0" opacity=".7"><path d="M48 18 L34 40 L42 40 L36 50"/><path d="M40 50 L48 38 L42 38 L48 28"/></g><circle cx="42" cy="46" r="14" fill="none" stroke="#fff" stroke-width="3.5"/><line x1="32" y1="36" x2="52" y2="56" stroke="#ff5544" stroke-width="3.5" stroke-linecap="round"/></svg>`,
     HEALTH_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sh-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f3f6fa"/><stop offset="55%" stop-color="#a8b0ba"/><stop offset="100%" stop-color="#4a5360"/></radialGradient><linearGradient id="sb-sh-face" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#b8c0ca"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a8b0ba" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sh-bg)" stroke="#f3f6fa" stroke-width="2"/><path d="M42 18 L62 26 L62 42 C 62 54 54 64 42 70 C 30 64 22 54 22 42 L22 26 Z" fill="url(#sb-sh-face)" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" class="sb-float"/><path d="M42 23 L42 64" stroke="#77808c" stroke-width="2" opacity=".55"/></svg>`,
+    MAX_HEALTH: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-mh-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d8ffe6"/><stop offset="50%" stop-color="#3ad87a"/><stop offset="100%" stop-color="#0a5a2a"/></radialGradient><linearGradient id="sb-mh-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#8effb0"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad87a" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-mh-bg)" stroke="#d8ffe6" stroke-width="2"/><path d="M42 62 C 24 50 18 40 18 31 C 18 24 23 20 29 20 C 34 20 39 23 42 28 C 45 23 50 20 55 20 C 61 20 66 24 66 31 C 66 40 60 50 42 62 Z" fill="url(#sb-mh-heart)" stroke="#fff" stroke-width="2" stroke-linejoin="round" class="sb-float"/><g stroke="#0a5a2a" stroke-width="3.5" stroke-linecap="round"><line x1="42" y1="33" x2="42" y2="45"/><line x1="36" y1="39" x2="48" y2="39"/></g></svg>`,
     DAMAGE_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dmg-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffe0c0"/><stop offset="50%" stop-color="#ff6633"/><stop offset="100%" stop-color="#5a1a0a"/></radialGradient><linearGradient id="sb-dmg-sword" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#ffd8a0"/><stop offset="100%" stop-color="#c87040"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ff5533" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dmg-bg)" stroke="#ffe0c0" stroke-width="2"/><g stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><g transform="rotate(45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g><g transform="rotate(-45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g></g><circle cx="42" cy="42" r="4" fill="#fff8c0" class="sb-flicker"/></svg>`,
     SPEED_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff8ff"/><stop offset="50%" stop-color="#3ad8ff"/><stop offset="100%" stop-color="#1a5a7a"/></radialGradient><linearGradient id="sb-sp-bolt" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#fff8c0"/><stop offset="100%" stop-color="#7adfff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad8ff" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sp-bg)" stroke="#dff8ff" stroke-width="2"/><g stroke="#dff8ff" stroke-width="1.5" stroke-linecap="round" opacity=".5"><line x1="22" y1="32" x2="30" y2="32"/><line x1="20" y1="42" x2="32" y2="42"/><line x1="22" y1="52" x2="30" y2="52"/></g><path d="M48 18 L32 44 L42 44 L36 64 L56 36 L46 36 Z" fill="url(#sb-sp-bolt)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
     WEAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffd0d8"/><stop offset="50%" stop-color="#a02038"/><stop offset="100%" stop-color="#3a0a18"/></radialGradient><linearGradient id="sb-wk-shield" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ff6080"/><stop offset="100%" stop-color="#5a0a18"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a02038" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wk-bg)" stroke="#ffd0d8" stroke-width="2"/><g class="sb-floatdn"><path d="M42 22 L58 28 L58 44 C 58 54 50 60 42 64 C 34 60 26 54 26 44 L26 28 Z" fill="url(#sb-wk-shield)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M42 24 L38 34 L44 38 L36 48 L46 52 L40 62" stroke="#fff8c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g transform="translate(60 60)"><circle r="9" fill="#1a0a18" stroke="#ff6080" stroke-width="1.5"/><path d="M0 -4 L0 4 M-3 1 L0 4 L3 1" stroke="#ff6080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
@@ -434,6 +483,13 @@ function renderStatusBadgesForCell(cell) {
 
     if (!seen.has('HEALTH_BOOST') && shieldInfo.active && shieldInfo.intact > 0) {
         push('HEALTH_BOOST', shieldInfo.total, { shieldState: shieldInfo.state });
+    }
+    // Max-health buff (e.g. a SiegeKnight passive granting +max HP): the card's
+    // effective max HP exceeds its printed value. Distinct from the shield above.
+    const printedHpForMax = Number(cell.printedHealth);
+    const maxHpForBadge = Number(cell.maxHp);
+    if (Number.isFinite(printedHpForMax) && Number.isFinite(maxHpForBadge) && maxHpForBadge > printedHpForMax) {
+        push('MAX_HEALTH', maxHpForBadge - printedHpForMax);
     }
     // Inferred SPEED_BOOST when speed is buffed but no explicit status flag (backend may not yet emit it)
     if (!seen.has('SPEED_BOOST') && !seen.has('SPEED_ZERO') && Number.isFinite(spd) && Number.isFinite(printedSpd) && spd > printedSpd) {
@@ -2650,10 +2706,10 @@ function renderShowcaseCard(card, options = {}) {
     html += renderCardArt(card, options.artVariant || 'preview', fallbackArtLabel);
     if (bodyMode !== 'hidden') {
         html += `<div class="hand-card-body">`;
-        // Surface the shield badge (and any other active status badges)
-        // when this preview reflects a board card. Hand cards have no
-        // statuses array so this renders nothing for those.
-        if (Array.isArray(card.statuses) && card.statuses.length > 0) {
+        // Surface status badges (shield, buffs, and the max-health badge) when
+        // this preview reflects a board card. Board cards carry a numeric maxHp;
+        // hand cards don't, so this renders nothing for those.
+        if ((Array.isArray(card.statuses) && card.statuses.length > 0) || Number.isFinite(Number(card.maxHp))) {
             html += renderStatusBadgesForCell(card);
         }
         if (card.type === 'SIEGLING') {
@@ -3226,6 +3282,15 @@ function getPhaseTransitionKicker(phase, activeSide) {
     return 'Phase Shift';
 }
 
+// Settle any pending phase-transition banner promise. Safe to call repeatedly.
+function resolvePhaseTransitionBanner() {
+    if (phaseTransitionResolve) {
+        const resolve = phaseTransitionResolve;
+        phaseTransitionResolve = null;
+        resolve();
+    }
+}
+
 function hidePhaseTransitionBanner() {
     const banner = document.getElementById('phaseTransitionBanner');
     if (!banner) return;
@@ -3233,6 +3298,7 @@ function hidePhaseTransitionBanner() {
         clearTimeout(phaseTransitionTimer);
         phaseTransitionTimer = null;
     }
+    resolvePhaseTransitionBanner();
     banner.classList.remove('visible');
     banner.classList.add('hidden');
 }
@@ -3249,6 +3315,9 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
         clearTimeout(phaseTransitionTimer);
         phaseTransitionTimer = null;
     }
+    // A new banner supersedes any pending one — settle the old promise so its
+    // awaiter (the action queue) is never left hanging.
+    resolvePhaseTransitionBanner();
 
     const holdMs = Math.max(1200, Number(durationMs) || 2000);
     banner.className = `phase-transition-banner ${String(phase).toLowerCase()}`;
@@ -3259,11 +3328,13 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     requestAnimationFrame(() => banner.classList.add('visible'));
 
     return new Promise((resolve) => {
+        phaseTransitionResolve = resolve;
         phaseTransitionTimer = setTimeout(() => {
             banner.classList.remove('visible');
             phaseTransitionTimer = setTimeout(() => {
                 banner.classList.add('hidden');
                 phaseTransitionTimer = null;
+                phaseTransitionResolve = null;
                 resolve();
             }, 360);
         }, holdMs);
@@ -4934,13 +5005,22 @@ function renderGameOverOverlay() {
         const gold = Number(endScreen.goldEarned || 0);
         const remnants = Number(endScreen.remnantsEarned || 0);
         const streakBonus = Number(endScreen.streakBonus || 0);
+        // Guests (and any not-yet-signed-in viewer) see what they *could* have
+        // earned, framed as a preview that nudges them to sign in to claim it.
+        const guestPreview = Boolean(endScreen.guestPreview);
+        const heading = guestPreview ? 'Potential Rewards' : 'Rewards';
+        const earnLabel = guestPreview ? 'could earn' : 'earned';
+        const note = guestPreview
+            ? `<p class="game-over-rewards-note">Sign in to claim these rewards!</p>`
+            : '';
         rewardsEl.innerHTML = `
-            <h3>Rewards</h3>
+            <h3>${heading}</h3>
             <div class="game-over-stat-grid">
-                <span>Siegecoins earned</span><span>${gold}</span>
-                <span>Remnants earned</span><span>${remnants}</span>
+                <span>Siegecoins ${earnLabel}</span><span>${gold}</span>
+                <span>Remnants ${earnLabel}</span><span>${remnants}</span>
                 <span>Streak bonus</span><span>${streakBonus}</span>
-            </div>`;
+            </div>${note}`;
+        rewardsEl.classList.toggle('is-guest-preview', guestPreview);
     }
 
     const recordEl = document.getElementById('gameOverRecord');
@@ -5069,6 +5149,47 @@ function loadSavedAuthToken() {
     }
 }
 
+// Read the cached profile snapshot so the signed-in UI can paint immediately on
+// load. Returns null if it's missing, malformed, not authenticated, or stale.
+function loadCachedAuthProfile() {
+    try {
+        const raw = localStorage.getItem(AUTH_PROFILE_STORAGE_KEY);
+        if (!raw) {
+            return null;
+        }
+        const entry = JSON.parse(raw);
+        if (!entry?.profile?.authenticated) {
+            return null;
+        }
+        if (entry.savedAt && Date.now() - entry.savedAt > AUTH_PROFILE_CACHE_MAX_AGE_MS) {
+            return null;
+        }
+        return entry.profile;
+    } catch (e) {
+        return null;
+    }
+}
+
+function saveCachedAuthProfile(profile) {
+    try {
+        if (!profile?.authenticated) {
+            localStorage.removeItem(AUTH_PROFILE_STORAGE_KEY);
+            return;
+        }
+        localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+    } catch (e) {
+        // The profile cache is a render optimization only.
+    }
+}
+
+function clearCachedAuthProfile() {
+    try {
+        localStorage.removeItem(AUTH_PROFILE_STORAGE_KEY);
+    } catch (e) {
+        // ignore
+    }
+}
+
 function saveAuthToken(token) {
     authState.token = token || '';
     try {
@@ -5082,12 +5203,33 @@ function saveAuthToken(token) {
     }
 }
 
-function clearAuthState() {
-    saveAuthToken('');
+// Clears only the in-memory auth profile, leaving the persisted token intact.
+// Used when an /api/auth/me check comes back unauthenticated so a transient or
+// stale response can't sign the player out across every page (the token is
+// shared with the hub via localStorage).
+function clearAuthProfile() {
     authState.profile = null;
     authState.error = '';
     selectedSavedDeckId = null;
+    // Drop the optimistic snapshot once we have positive evidence it's invalid,
+    // so we don't keep flashing a signed-in card. The token is kept by callers
+    // that want a later successful /api/auth/me to restore the session.
+    clearCachedAuthProfile();
     renderAuthDependentSurfaces();
+}
+
+// Full sign-out: removes the shared token too. Reserve this for explicit Log Out
+// and the deliberate guest flow — never a background auth refresh.
+function clearAuthState() {
+    saveAuthToken('');
+    clearAuthProfile();
+    // The cached card-editor state is user-specific; drop it on explicit logout
+    // so the next account doesn't briefly paint from the previous one's cache.
+    try {
+        localStorage.removeItem(PLAY_CACHE_PREFIX + 'cardsEditor');
+    } catch (e) {
+        // ignore
+    }
 }
 
 function renderAuthDependentSurfaces() {
@@ -5114,6 +5256,7 @@ async function refreshAuthFromStorage(silent = true) {
         authState.profile = null;
         authState.error = '';
         selectedSavedDeckId = null;
+        clearCachedAuthProfile();
         renderAuthDependentSurfaces();
         return null;
     }
@@ -5151,12 +5294,29 @@ function renderPlayHubAuth() {
         const name = authState.profile.user?.displayName || 'Profile';
         pill.textContent = name;
         pill.href = '/profile';
+        pill.onclick = null;
         pill.classList.add('is-authenticated');
         pill.setAttribute('aria-label', `Signed in as ${name}. Open profile.`);
         return;
     }
+    // Session still restoring (token present, /me pending): don't show "Sign In",
+    // which reads as logged out. Show a neutral loading label instead.
+    if (authState.token && !authState.profileResolved) {
+        pill.textContent = 'Loading…';
+        pill.href = '/profile';
+        pill.onclick = (event) => event.preventDefault();
+        pill.classList.remove('is-authenticated');
+        pill.setAttribute('aria-label', 'Restoring your session.');
+        return;
+    }
     pill.textContent = 'Sign In';
+    // Open the sign-in popup in place rather than navigating to the hub profile,
+    // so "Sign In" is a popup on every page. The href stays as a no-JS fallback.
     pill.href = '/profile';
+    pill.onclick = (event) => {
+        event.preventDefault();
+        openAuthPopup('login');
+    };
     pill.classList.remove('is-authenticated');
     pill.removeAttribute('aria-label');
 }
@@ -5824,6 +5984,8 @@ async function submitAuth(mode) {
 
     saveAuthToken(data.token || '');
     authState.profile = data;
+    authState.profileResolved = true;
+    saveCachedAuthProfile(data);
     authState.error = '';
     authRegisterStep = 'credentials';
     registerDraft = { email: '', password: '' };
@@ -5853,7 +6015,10 @@ async function syncAuthProfile(silent = false) {
         renderWelcomeAuth();
     }
 
-    const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET' });
+    // never serve auth state from the HTTP cache — Safari in particular will
+    // happily return a stale {authenticated:false} captured before the player
+    // signed in on another page (e.g. the hub), logging them back out here.
+    const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET', cache: 'no-store' });
     authState.loading = false;
     if (!data) {
         if (!silent) {
@@ -5863,12 +6028,18 @@ async function syncAuthProfile(silent = false) {
         return false;
     }
     if (!data.authenticated) {
-        clearAuthState();
+        // Keep the shared token; only an explicit Log Out (or the deliberate guest
+        // flow) should remove it. Wiping it here would sign the player out on the
+        // hub and every other page too.
+        authState.profileResolved = true;
+        clearAuthProfile();
         return false;
     }
 
     authState.profile = data;
     authState.error = '';
+    authState.profileResolved = true;
+    saveCachedAuthProfile(data);
     renderWelcomeAuth();
     renderSavedDecks();
     hydrateSavedPlayerName();
@@ -5913,6 +6084,10 @@ function renderWelcomeAuth() {
         historyCard.innerHTML = `
             <div class="welcome-card-kicker">Recent Battles</div>
             <h3>Match history follows this login</h3>
+            ${!authState.profileResolved
+                ? `<div class="welcome-loading-bar" aria-hidden="true"><span></span></div>
+                   <div class="identity-note">Refreshing your latest match history…</div>`
+                : ''}
             ${recent.length > 0
                 ? `<div class="welcome-history-list">${recent.slice(0, 6).map((entry, idx) => {
                     const resultClass = String(entry.result || '').toLowerCase();
@@ -5932,6 +6107,25 @@ function renderWelcomeAuth() {
                 `;
                 }).join('')}</div>`
                 : '<div class="identity-note">Your finished games will appear here after the first recorded match.</div>'}
+        `;
+        return;
+    }
+
+    // Token present but /api/auth/me hasn't returned yet: show a loading state
+    // rather than the logged-out Log In card, so navigating in while signed in
+    // never flashes "logged out" while the session is still being restored.
+    if (authState.token && !authState.profileResolved) {
+        authCard.innerHTML = `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>Restoring your account…</h3>
+            <div class="welcome-loading-bar" aria-hidden="true"><span></span></div>
+            <p class="welcome-auth-prompt">Loading your saved decks and match history. You can wait, or start a new match now — your account will catch up.</p>
+        `;
+        historyCard.innerHTML = `
+            <div class="welcome-card-kicker">Recent Battles</div>
+            <h3>Loading match history…</h3>
+            <div class="welcome-loading-bar" aria-hidden="true"><span></span></div>
+            <div class="identity-note">You can wait, or start a new match while this loads.</div>
         `;
         return;
     }
@@ -6616,6 +6810,7 @@ function rebindSelectedHandSlotFromState() {
 function resetInteractionState(shouldRender = true) {
     selectedCard = null;
     selectedHandIndex = null;
+    mobileSpellPreviewPending = false;
     hoveredBoardCard = null;
     clearArenaSelection();
     closeClaimPopup();
@@ -6792,10 +6987,18 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
     if (endpoint !== 'new' && prevState) {
         maybeNotifyTurnChange(prevState, data);
-        if (window.SieglingsActionQueue) {
-            window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
-        } else {
-            window.SieglingsFx?.onBoardUpdate(prevState, data);
+        // The animation/diff layer must never block the state update below. If
+        // it throws, the new gameState would otherwise never render and the
+        // interaction state never resets, freezing the client on the previous
+        // screen (e.g. stuck on the battle target overlay after attacking).
+        try {
+            if (window.SieglingsActionQueue) {
+                window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
+            } else {
+                window.SieglingsFx?.onBoardUpdate(prevState, data);
+            }
+        } catch (e) {
+            console.error('Battle animation queue failed; continuing without it:', e);
         }
     }
     try {
@@ -6855,16 +7058,33 @@ async function loadGameOptions() {
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();
+
+        // Warm paint: if a previous visit persisted the catalog, render the
+        // loadout from it immediately so the screen isn't blank while the
+        // network requests run. The fetch below revalidates and overwrites it.
+        if (!gameOptions) {
+            const cachedOptions = readPlayCache('gameOptions');
+            if (cachedOptions) {
+                paintGameOptionsFromCache(cachedOptions, readPlayCache('cardsEditor'));
+            }
+        }
+
         const [data, editorState] = await Promise.all([
             fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
             fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS),
             syncAuthProfile(true)
         ]);
         if (!data) {
-            showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
+            // If we already painted usable (if stale) options from cache, keep
+            // them rather than replacing the screen with a hard error.
+            if (!gameOptions) {
+                showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
+            }
             syncEntryOverlays();
             return;
         }
+        writePlayCache('gameOptions', data);
+        writePlayCache('cardsEditor', editorState);
         gameOptions = filterGameOptionsToDashboardCards(data, editorState);
         loadoutErrorMessage = '';
         selectedDeckId = data.defaultDeckId;
@@ -6891,6 +7111,23 @@ async function loadGameOptions() {
     }
 }
 
+// Render the loadout from persisted cache without running the one-time load
+// side effects (pending-loadout handoff, online-state URL parsing, multiplayer
+// resume) — those belong to the authoritative network load below.
+function paintGameOptionsFromCache(cachedOptions, cachedEditor) {
+    try {
+        gameOptions = filterGameOptionsToDashboardCards(cachedOptions, cachedEditor);
+        if (!selectedDeckId) selectedDeckId = cachedOptions.defaultDeckId;
+        if (!selectedTrainerId) selectedTrainerId = cachedOptions.defaultTrainerId;
+        ensureOwnedTrainerSelected();
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    } catch (e) {
+        console.warn('Unable to paint loadout from cache.', e);
+    }
+}
+
 async function refreshLiveGameOptions() {
     if (!gameOptions) {
         return loadGameOptions();
@@ -6906,6 +7143,8 @@ async function refreshLiveGameOptions() {
         if (!data) {
             return;
         }
+        writePlayCache('gameOptions', data);
+        writePlayCache('cardsEditor', editorState);
         gameOptions = filterGameOptionsToDashboardCards(data, editorState);
         loadoutErrorMessage = '';
         renderLoadoutOptions();
@@ -7025,6 +7264,7 @@ function openLoadoutSelector() {
         clearTimeout(phaseTransitionTimer);
         phaseTransitionTimer = null;
     }
+    resolvePhaseTransitionBanner();
     document.getElementById('phaseTransitionBanner')?.classList.add('hidden');
     document.getElementById('phaseTransitionBanner')?.classList.remove('visible');
     welcomeDismissed = true;
@@ -8458,7 +8698,17 @@ async function useTrainer(targetRow, targetCol) {
 
 async function submitBattleAction(abilityIndex, targetRow = -1, targetCol = -1) {
     clearTargetingPreview();
-    const data = await api('battle/action', 'POST', { abilityIndex, targetRow, targetCol });
+    let data;
+    try {
+        data = await api('battle/action', 'POST', { abilityIndex, targetRow, targetCol });
+    } catch (e) {
+        // Never leave the player stranded on the target overlay if the action
+        // request (or its post-processing) throws — clear the in-progress
+        // targeting so the UI is usable again.
+        console.error('Battle action failed:', e);
+        try { resetInteractionState(); } catch (_) {}
+        return;
+    }
     if (!data) return;
     resetInteractionState();
 }
@@ -8776,6 +9026,25 @@ const SAFE_AREA_ENERGY_REF = 10;
 // At or below this HP %, the side pulses to warn of low health.
 const SAFE_AREA_HP_DANGER_PCT = 30;
 
+// HUD health bars are tinted by the side's SiegeKnight element so each player's
+// bar reads as their element — except a critically low side always falls back to
+// the red danger tier so the warning stays clear regardless of element.
+function getHudHpTierColor(pct) {
+    if (pct > 60) return '#34c759';
+    if (pct > 35) return '#ffcc00';
+    if (pct > 15) return '#ff9500';
+    return '#ff3b30';
+}
+
+function hudHpBarGradient(pct, element) {
+    if (pct > SAFE_AREA_HP_DANGER_PCT && element) {
+        const hex = getElementHex(element);
+        if (hex) return `linear-gradient(90deg, ${hexToRgba(hex, 0.55)}, ${hex})`;
+    }
+    const tier = getHudHpTierColor(pct);
+    return `linear-gradient(90deg, ${hexToRgba(tier, 0.55)}, ${tier})`;
+}
+
 function applySafeAreaHpSide(side, data) {
     const cap = side === 'enemy' ? 'Enemy' : 'Player';
     const health = getDisplayedSideHealth(side !== 'enemy', data?.health ?? 0);
@@ -8785,10 +9054,8 @@ function applySafeAreaHpSide(side, data) {
     const fill = document.getElementById(`safeHpFill${cap}`);
     if (fill) {
         fill.style.width = `${pct}%`;
-        // Colour purely by remaining HP (green -> red), matching the rail,
-        // mobile and board-card HP bars. The low-HP side still pulses via the
-        // .danger class below.
-        fill.style.background = hudHpTierColor(pct);
+        // Tint by the side's SiegeKnight element (red fallback when critical).
+        fill.style.background = hudHpBarGradient(pct, element);
     }
 
     const half = fill?.closest('.safe-hp-half');
@@ -8837,15 +9104,15 @@ function updateHudRails(state) {
 
     const pBar = document.getElementById('railPlayerHpBar');
     const eBar = document.getElementById('railEnemyHpBar');
-    // Colour the rail health bars by remaining HP (green -> red), matching the
-    // board-card HP bars, so the bar recolours as the player/enemy takes damage.
+    // Tint the rail health bars by each side's SiegeKnight element (red fallback
+    // when critically low) so the bar reads as the player's/enemy's element.
     if (pBar) {
         pBar.style.width = `${pPct}%`;
-        pBar.style.background = hudHpTierColor(pPct);
+        pBar.style.background = hudHpBarGradient(pPct, p.trainer?.element || null);
     }
     if (eBar) {
         eBar.style.width = `${ePct}%`;
-        eBar.style.background = hudHpTierColor(ePct);
+        eBar.style.background = hudHpBarGradient(ePct, e.trainer?.element || null);
     }
 
     setTextIfExists('railPlayerHandSize', p.handSize ?? (Array.isArray(p.hand) ? p.hand.length : 0));
@@ -8994,9 +9261,8 @@ function updateMobileHudSide(label, playerData, ids) {
     });
     if (hpBar) {
         hpBar.style.width = `${pct}%`;
-        // Colour by remaining HP (green -> red) like the board-card HP bars so
-        // the bar recolours as the player/enemy takes damage.
-        hpBar.style.background = hudHpTierColor(pct);
+        // Tint by the side's SiegeKnight element (red fallback when critical).
+        hpBar.style.background = hudHpBarGradient(pct, trainer?.element || null);
     }
 
     const icon = document.getElementById(ids.knightIconId);
@@ -11874,6 +12140,8 @@ function selectCard(handIndexOrCardId) {
         return;
     }
 
+    mobileSpellPreviewPending = false;
+
     if (selectedHandIndex === handIndex) {
         selectedCard = null;
         selectedHandIndex = null;
@@ -11894,45 +12162,118 @@ function selectCard(handIndexOrCardId) {
 
     if (lockReason) {
         updateSelectedInfo(card, lockReason);
+        // Mobile has no hover tooltip, so surface the card (and the reason it
+        // can't be played) in the preview drawer instead of failing silently.
+        if (isMobileLayout() && isActionCard(card)) {
+            openDrawer('selected');
+        }
         render();
         return;
     }
 
     if (isActionCard(card)) {
-        const targetSide = getAbilityTargetSide(card.ability);
-        const needsExplicitTarget = Boolean(targetSide);
-        if (needsExplicitTarget) {
-            if (needsForcedEnemyMoveFlow(card)) {
-                targetMode = true;
-                targetContext = {
-                    mode: 'spell-move-enemy',
-                    side: 'enemy',
-                    step: 'pickEnemy',
-                    cardId: card.id,
-                    message: `Select an enemy Siegeling to move, then an empty enemy cell.`
-                };
-                updateSelectedInfo(card, targetContext.message);
-                render();
-                return;
-            }
-            targetMode = true;
-            targetContext = {
-                mode: 'spell',
-                side: targetSide,
-                message: `Select a target for ${card.name}.`,
-                callback: (row, col) => castSpell(card.id, row, col)
-            };
-            updateSelectedInfo(card, targetContext.message);
+        // On mobile there is no hover preview, so a single tap used to fire the
+        // spell (or jump straight into targeting) before the player could read
+        // what it does. Show the card preview in the drawer with an explicit
+        // confirm step; the spell only activates once the player confirms.
+        if (isMobileLayout()) {
+            mobileSpellPreviewPending = true;
+            updateSelectedInfo(card);
+            openDrawer('selected');
             render();
             return;
-        } else {
-            castSpell(card.id, -1, -1);
-            return;
         }
+        activateActionCard(card);
+        return;
     }
 
     updateSelectedInfo(card);
     render();
+}
+
+/**
+ * Begin using a selected SPELL/TRAP: enter target selection if it needs one
+ * (board highlights the valid targets), otherwise cast it immediately. Shared
+ * by the desktop single-tap path and the mobile confirm button.
+ */
+function activateActionCard(card) {
+    if (!card) {
+        return;
+    }
+    const targetSide = getAbilityTargetSide(card.ability);
+    if (targetSide) {
+        if (needsForcedEnemyMoveFlow(card)) {
+            targetMode = true;
+            targetContext = {
+                mode: 'spell-move-enemy',
+                side: 'enemy',
+                step: 'pickEnemy',
+                cardId: card.id,
+                message: `Select an enemy Siegeling to move, then an empty enemy cell.`
+            };
+            updateSelectedInfo(card, targetContext.message);
+            render();
+            return;
+        }
+        targetMode = true;
+        targetContext = {
+            mode: 'spell',
+            side: targetSide,
+            message: `Select a target for ${card.name}.`,
+            callback: (row, col) => castSpell(card.id, row, col)
+        };
+        updateSelectedInfo(card, targetContext.message);
+        render();
+        return;
+    }
+    castSpell(card.id, -1, -1);
+}
+
+/** Mobile: confirm the previewed spell — cast it, or start target selection. */
+function confirmMobileSpellPreview() {
+    if (!mobileSpellPreviewPending) {
+        return;
+    }
+    mobileSpellPreviewPending = false;
+    const card = selectedCard;
+    if (!card) {
+        return;
+    }
+    // Drop the modal preview so the board (and its target highlights) are
+    // visible and tappable for spells that still need a target.
+    if (activeDrawer === 'selected') {
+        closeDrawer(true);
+    }
+    activateActionCard(card);
+}
+
+/** Mobile: dismiss the spell preview without casting. */
+function cancelMobileSpellPreview() {
+    mobileSpellPreviewPending = false;
+    selectedCard = null;
+    selectedHandIndex = null;
+    clearTargetMode();
+    if (activeDrawer === 'selected') {
+        closeDrawer(true);
+    }
+    updateSelectedInfo(null);
+    render();
+}
+
+/** Human-readable hint describing who a spell targets, for the mobile preview. */
+function describeSpellTargetSide(targetSide) {
+    switch (targetSide) {
+        case 'enemy':
+            return 'Targets an enemy Siegeling — pick it after you confirm.';
+        case 'ally':
+            return 'Targets one of your Siegelings — pick it after you confirm.';
+        case 'row-enemy':
+            return 'Targets an enemy row — pick it after you confirm.';
+        case 'row-ally':
+            return 'Targets one of your rows — pick it after you confirm.';
+        default:
+            return 'No target needed — plays as soon as you confirm.';
+    }
 }
 
 function isTargetCell(isPlayer, cell, row = -1) {
@@ -12190,6 +12531,18 @@ function updateSelectedInfo(card, msg) {
                 html += `<div class="selected-copy-detail">${escapeHtml(entry.text)}</div>`;
             }
         });
+        if (mobileSpellPreviewPending && isActionCard(card) && !lockReason) {
+            const targetSide = getAbilityTargetSide(card.ability);
+            const playVerb = card.type === 'TRAP' ? 'Set' : 'Cast';
+            const confirmLabel = targetSide ? 'Choose Target' : playVerb;
+            html += `<div class="selected-spell-confirm">`;
+            html += `<div class="selected-spell-target-hint">${escapeHtml(describeSpellTargetSide(targetSide))}</div>`;
+            html += `<div class="selected-spell-confirm-actions">`;
+            html += `<button type="button" class="spell-confirm-btn" onclick="confirmMobileSpellPreview()">${escapeHtml(confirmLabel)}</button>`;
+            html += `<button type="button" class="spell-cancel-btn" onclick="cancelMobileSpellPreview()">Cancel</button>`;
+            html += `</div>`;
+            html += `</div>`;
+        }
         html += `</div>`;
         html += `</div>`;
     }
