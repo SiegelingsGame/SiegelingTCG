@@ -5615,6 +5615,61 @@ function startPlaySolo() {
     dismissWelcome();
 }
 
+// Siege is the upcoming roguelike mode where SiegeKnight levels carry into
+// every fight. The progression logic already exists (see PlayerProgressionService
+// / GameService.applyTrainerLevel) but the mode is not yet playable, so the entry
+// button just lets players know it is on the way.
+function announceSiegeComingSoon() {
+    showComingSoonToast('Siege is the upcoming roguelike mode — your SiegeKnight levels will matter there. Coming soon!');
+}
+
+// Neutral, info-styled cousin of showErrorToast for non-error announcements.
+function showComingSoonToast(message, holdMs = 4200) {
+    const text = String(message == null ? '' : message).trim();
+    if (!text || typeof document === 'undefined' || !document.body) return;
+
+    let stack = document.getElementById('sglErrorToastStack');
+    if (!stack) {
+        stack = document.createElement('div');
+        stack.id = 'sglErrorToastStack';
+        stack.style.cssText = [
+            'position:fixed',
+            'top:max(16px, env(safe-area-inset-top, 0px))',
+            'left:50%',
+            'transform:translateX(-50%)',
+            'z-index:2147483000',
+            'display:flex',
+            'flex-direction:column',
+            'align-items:center',
+            'gap:8px',
+            'width:min(560px, 92vw)',
+            'pointer-events:none'
+        ].join(';');
+        document.body.appendChild(stack);
+    }
+
+    const node = document.createElement('div');
+    node.setAttribute('role', 'status');
+    node.style.cssText = [
+        'pointer-events:auto',
+        'display:flex',
+        'align-items:center',
+        'gap:10px',
+        'width:100%',
+        'box-sizing:border-box',
+        'padding:12px 16px',
+        'border-radius:12px',
+        'background:linear-gradient(180deg, rgba(12,20,40,0.97), rgba(8,14,28,0.97))',
+        'border:1px solid rgba(226,183,20,0.55)',
+        'box-shadow:0 10px 30px rgba(0,0,0,0.45)',
+        'color:#f0f4ff',
+        'font:600 14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'
+    ].join(';');
+    node.textContent = text;
+    stack.appendChild(node);
+    window.setTimeout(() => node.remove(), Math.max(1200, holdMs));
+}
+
 function resetPlayLobbyState(shouldRender = true) {
     if (playLobbyCountdownTimer) {
         clearInterval(playLobbyCountdownTimer);
@@ -7652,8 +7707,6 @@ function renderLoadoutOptions() {
         selectedTrainerId = visibleTrainers[0].id;
     }
     trainerEl.innerHTML = visibleTrainers.map(trainer => {
-        const level = Math.max(1, Number(trainer.level) || 1);
-        const abilityBonus = Math.max(0, Number(trainer.abilityBonus) || 0);
         const selected = trainer.id === selectedTrainerId ? ' selected' : '';
         const elHex = getElementHex(trainer.element);
         const sigil = getTrainerSigil(trainer);
@@ -7661,9 +7714,10 @@ function renderLoadoutOptions() {
         const tier = formatTrainerTier(trainer.tier);
         const activeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
         const recommended = recommendedTrainerIds.has(trainer.id) ? ' recommended' : '';
-        const levelBadge = level > 1
-            ? `<span class="knight-level-badge">Lv ${level}${abilityBonus > 0 ? ` <em>+${abilityBonus}</em>` : ''}</span>`
-            : '';
+        // SiegeKnight levels do not apply in Battle, so the loadout no longer shows a
+        // level badge. The level data still arrives from the backend and the progression
+        // logic stays intact for the upcoming Siege roguelike mode.
+        const levelBadge = '';
         let topRibbon = '';
         if (trainer.id === selectedTrainerId) {
             topRibbon = '<span class="knight-selected-ribbon">Selected</span>';

@@ -1018,7 +1018,8 @@
                         : !ownedKnight ? '<span class="detail-knight-hint">Pull this knight from packs to unlock leveling.</span>'
                         : atMaxKnightLevel ? '<span class="detail-knight-hint">Max level reached — ability effects are fully powered.</span>'
                         : `<button class="primary-btn" type="button" id="buyKnightXpBtn"${canBuyKnightXp ? '' : ' disabled'}>Buy 1 XP · ${renderCoinAmount(nextXpCost, '')}</button>
-                           <span>${(state.progression?.gold || 0).toLocaleString()} Siegecoins available</span>`}
+                           <span>${(state.progression?.gold || 0).toLocaleString()} Siegecoins available</span>
+                           <span class="detail-knight-hint detail-knight-hint--siege">Levels are for Siege mode (roguelike, coming soon) — they don't affect Battle.</span>`}
                 </div>
                 <p class="detail-knight-hint">Pull duplicates from packs to combine, or buy XP with Siegecoins (${50} × current level per point).</p>
             </div>` : `<div class="craft-card-action">
@@ -6346,6 +6347,16 @@
                 <p class="guide-note">Earn <strong>Remnants</strong> from opening packs and winning matches, then craft specific cards from the Cards menu.</p>`
         },
         {
+            id: 'modes',
+            label: 'Game Modes',
+            title: 'Battle now, Siege coming soon',
+            html: `<ul class="guide-list">
+                    <li><strong>Battle</strong> — the live mode on the Play table: solo PVE against the AI and live 1v1 PvP once a Social lobby fills. Battle is <em>flat power</em> — every SiegeKnight fights at its base ability values, so matches come down to your deck, your links, and your reads, not your account progress.</li>
+                    <li><strong>Siege</strong> (coming soon) — a roguelike run where your SiegeKnight levels matter. The XP you bank on the Cards screen powers up a knight's passive and active abilities, and those bonuses carry into every fight of the run.</li>
+                </ul>
+                <p class="guide-note">SiegeKnight leveling only affects Siege — it has no effect in Battle, so a fresh account and a maxed one stand on equal footing there. Level your knights now so they are ready when Siege opens.</p>`
+        },
+        {
             id: 'elements',
             label: 'Elemental Affinity',
             title: 'Elements and how they connect',
@@ -6412,7 +6423,7 @@
                 <div class="options-menu">
                     <button class="options-menu-item" type="button" data-options-view="guide">
                         <span class="options-menu-icon">&#128214;</span>
-                        <span><strong>Guide</strong><small>Arena, app, elements, energy, spells &amp; traps</small></span>
+                        <span><strong>Guide</strong><small>Arena, app, modes, elements, energy, spells &amp; traps</small></span>
                     </button>
                     <button class="options-menu-item" type="button" data-options-view="share">
                         <span class="options-menu-icon">&#128279;</span>
