@@ -772,6 +772,13 @@ select.search-input { color-scheme: dark; }
     line-height: 1.45;
 }
 
+.detail-knight-xp-action .detail-knight-hint--siege {
+    flex-basis: 100%;
+    margin-top: -2px;
+    font-size: 0.78rem;
+    color: color-mix(in srgb, var(--accent, #e2b714) 70%, #9aa3b2);
+}
+
 .detail-knight-xp-panel {
     display: grid;
     gap: 10px;
