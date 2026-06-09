@@ -67,6 +67,13 @@ public class Ability {
         return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, value, false);
     }
 
+    // Trainer (SiegeKnight) passive form: continuously grants connected allied
+    // Sieglings extra max health. Marked passive so the per-turn trainer-passive
+    // recalculation in GameService picks it up.
+    public static Ability passiveConnectedAlliesHealthBoost(String name, String desc, int value) {
+        return new Ability(name, desc, TargetType.PASSIVE, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, value, true);
+    }
+
     public static Ability connectedAlliesShield(String name, String desc, int value) {
         return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_SHIELD, value, false);
     }
