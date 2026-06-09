@@ -155,7 +155,9 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
-            options = withPlayerTrainerLevel(user, options);
+            // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
+            // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
+            // roguelike mode, where levels will carry into every fight.
             MultiplayerService.RoomSession session = multiplayerService.createRoom(playerName, options, user == null ? null : user.getId());
             return buildRoomMeta(multiplayerService.requireRoom(session.roomId()), session, request);
         } catch (IllegalArgumentException ex) {
@@ -174,7 +176,9 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_water_wind", "trainer06");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
-            options = withPlayerTrainerLevel(user, options);
+            // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
+            // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
+            // roguelike mode, where levels will carry into every fight.
             MultiplayerService.RoomSession session = multiplayerService.joinRoom(
                     roomId, playerName, options, user == null ? null : user.getId());
             MultiplayerRoom room = multiplayerService.requireRoom(session.roomId());
@@ -210,7 +214,9 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, fallbackDeck, fallbackTrainer);
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
-            options = withPlayerTrainerLevel(user, options);
+            // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
+            // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
+            // roguelike mode, where levels will carry into every fight.
             MultiplayerService.RoomSession session = multiplayerService.setPlayerReady(
                     roomId,
                     playerToken,
@@ -306,7 +312,9 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
-            options = withPlayerTrainerLevel(user, options);
+            // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
+            // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
+            // roguelike mode, where levels will carry into every fight.
             GameService.SoloHandle handle = gameService.newSoloGame(options);
             attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
             Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));
@@ -1534,7 +1542,12 @@ public class GameController {
         playerProgressionService.validateCustomDeckOwnership(user, options.customDeckCards());
     }
 
-    /** Bakes the player's owned SiegeKnight level into the start options so it boosts that knight in-match. */
+    /**
+     * Bakes the player's owned SiegeKnight level into the start options so it boosts that knight in-match.
+     * Reserved for the upcoming Siege roguelike mode — Battle deliberately does not call this so every
+     * SiegeKnight fights at base power. Kept wired so Siege can reuse it without re-deriving the logic.
+     */
+    @SuppressWarnings("unused")
     private GameService.StartOptions withPlayerTrainerLevel(AccountUser user, GameService.StartOptions options) {
         if (user == null) {
             return options;
