@@ -69,6 +69,8 @@ let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
 let handSelectorScaleFrame = null;
 let previewCardScaleFrame = null;
+let framedSummaryFitFrame = null;
+let siegeKnightCardFitFrame = null;
 const DECK_ART_ASSET_KEYS = ['FIRE', 'EARTH', 'WIND', 'WATER', 'ICE'];
 const DECK_ART_ASSETS = {
     FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
@@ -78,9 +80,10 @@ const DECK_ART_ASSETS = {
     ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
 };
 const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
+const SIEGEKNIGHT_CARD_TEMPLATE = '/img/knights/siegeknight-card-template.png';
 
 function siegeknightCardBackStyle() {
-    return `--knight-card-back:url('${SIEGEKNIGHT_CARD_BACK}')`;
+    return `--knight-card-back:url('${SIEGEKNIGHT_CARD_BACK}');--knight-card-template:url('${SIEGEKNIGHT_CARD_TEMPLATE}')`;
 }
 let handTouchSuppressHandIndex = null;
 let handTouchSuppressUntil = 0;
@@ -634,6 +637,50 @@ function renderArenaBoardHpBar(cell) {
 
 const ARENA_BOARD_NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
 
+// Elements with a hand-drawn frame template (img/frames/frame-*.png).
+// Listed elements render the painted frame on battle-board cards instead
+// of the CSS-drawn chrome; geometry lives in style.css under .element-frame.
+const ELEMENT_FRAME_CLASS = {
+    FIRE: 'frame-fire',
+    EARTH: 'frame-earth',
+    ICE: 'frame-ice',
+    WIND: 'frame-wind'
+};
+
+const SPELL_TRAP_FRAME_CLASS = {
+    FIRE: 'frame-spell-fire',
+    EARTH: 'frame-spell-earth',
+    ICE: 'frame-spell-ice',
+    WIND: 'frame-spell-wind'
+};
+
+function hasElementFrame(element) {
+    return Boolean(ELEMENT_FRAME_CLASS[String(element || '').toUpperCase()]);
+}
+
+function elementFrameClass(element) {
+    const frameClass = ELEMENT_FRAME_CLASS[String(element || '').toUpperCase()];
+    return frameClass ? ` element-frame ${frameClass}` : '';
+}
+
+function isSpellTrapCard(card) {
+    return card && (card.type === 'SPELL' || card.type === 'TRAP');
+}
+
+function cardFrameClass(card) {
+    if (isSpellTrapCard(card)) {
+        const frameClass = SPELL_TRAP_FRAME_CLASS[String(card.element || '').toUpperCase()];
+        if (frameClass) {
+            return ` element-frame spell-trap-frame ${frameClass}`;
+        }
+    }
+    return elementFrameClass(card?.element);
+}
+
+function cardTypeClass(card) {
+    return card?.type ? `card-type-${String(card.type).toLowerCase()}` : '';
+}
+
 function renderArenaBoardFrameNotches(notches, options) {
     const notchMap = {};
     for (const n of (notches || [])) {
@@ -667,7 +714,7 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     const statusBadgesHtml = renderStatusBadgesForCell(cell);
 
     const heldClass = context.heldCard ? ' sgl-held-card' : '';
-    let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}">`;
+    let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}${elementFrameClass(cell.element)}">`;
     if (context.isActing) {
         html += `<div class="acting-badge">Acting</div>`;
     }
@@ -2621,6 +2668,389 @@ function getCardSummaryStatLine(card) {
     return parts.join(' ');
 }
 
+function formatCardReferenceName(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+        return '';
+    }
+    return raw
+        .split(/[-_\s]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+}
+
+function getCardEvolutionSourceName(card) {
+    return String(card?.evolvesFromName || '').trim()
+        || formatCardReferenceName(card?.evolvesFromId);
+}
+
+function getCompactAbilityName(card, ability) {
+    const name = String(ability?.name || '').trim();
+    if (!name) {
+        return 'Move';
+    }
+    const cardName = String(card?.name || '').trim();
+    if (cardName && name.toLowerCase().startsWith(cardName.toLowerCase())) {
+        const suffix = name.slice(cardName.length).replace(/^[-:]+/, '').trim();
+        if (/[a-z0-9]/i.test(suffix)) {
+            return suffix;
+        }
+    }
+    return name;
+}
+
+function getCompactAbilityKind(ability) {
+    const effectType = String(ability?.effectType || '').trim().toLowerCase();
+    const description = String(ability?.description || '').trim().toLowerCase();
+    const combined = `${effectType} ${description}`;
+    if (/damage|destroy/.test(combined)) {
+        return 'damage';
+    }
+    if (/heal|restore/.test(combined)) {
+        return 'heal';
+    }
+    if (/shield/.test(combined)) {
+        return 'shield';
+    }
+    if (/draw/.test(combined)) {
+        return 'draw';
+    }
+    if (/freeze|slow|speed_zero/.test(combined)) {
+        return 'control';
+    }
+    if (/speed/.test(combined)) {
+        return 'speed';
+    }
+    if (/health|hp/.test(combined)) {
+        return 'health';
+    }
+    if (/move/.test(combined)) {
+        return 'move';
+    }
+    return 'effect';
+}
+
+function getCompactAbilityValue(ability) {
+    const direct = Number(ability?.effectValue);
+    if (Number.isFinite(direct) && direct > 0) {
+        return direct;
+    }
+    const text = String(ability?.description || formatAbilitySummaryText(ability) || '');
+    const preferred = text.match(/\b(?:deal|deals|damage|heal|heals|restore|restores|draw|draws|grant|grants|gain|gains|increase|increases)\D*(\d+)/i);
+    const fallback = preferred || text.match(/\b(\d+)\b/);
+    if (!fallback) {
+        return 0;
+    }
+    const parsed = Number(fallback[1]);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getCompactAbilityTargetLabel(ability) {
+    const targetType = String(ability?.targetType || '').trim().toUpperCase();
+    switch (targetType) {
+        case 'SINGLE_ENEMY':
+            return 'enemy';
+        case 'ALL_ENEMIES':
+            return 'all';
+        case 'ROW_ENEMIES':
+        case 'ROW_SELECT_ENEMIES':
+            return ability?.targetRow ? formatElementLabel(ability.targetRow) : 'row';
+        case 'SINGLE_ALLY':
+            return 'ally';
+        case 'ALL_ALLIES':
+            return 'allies';
+        case 'ROW_ALLIES':
+        case 'ROW_SELECT_ALLIES':
+            return ability?.targetRow ? formatElementLabel(ability.targetRow) : 'ally row';
+        case 'ENEMY_PLAYER':
+            return 'player';
+        case 'SELF':
+            return 'self';
+        default:
+            return '';
+    }
+}
+
+function getCompactEffectLabel(kind) {
+    switch (kind) {
+        case 'damage':
+            return 'DMG';
+        case 'heal':
+            return 'Heal';
+        case 'shield':
+            return 'Shield';
+        case 'draw':
+            return 'Draw';
+        case 'control':
+            return 'Ctrl';
+        case 'speed':
+            return 'SPD';
+        case 'health':
+            return 'HP';
+        case 'move':
+            return 'Move';
+        default:
+            return 'Effect';
+    }
+}
+
+function getCompactSummaryInkPalette(element) {
+    const normalized = String(element || 'NEUTRAL').toUpperCase();
+    switch (normalized) {
+        case 'FIRE':
+            return { ink: '#a8f4ff', strong: '#fff7b0', muted: '#dafbff', shadow: 'rgba(5, 18, 28, 0.94)' };
+        case 'EARTH':
+            return { ink: '#c8d7ff', strong: '#fff0ac', muted: '#e6ecff', shadow: 'rgba(13, 14, 27, 0.92)' };
+        case 'WIND':
+            return { ink: '#ffc1eb', strong: '#f8ffb5', muted: '#ffe0f6', shadow: 'rgba(22, 6, 24, 0.92)' };
+        case 'WATER':
+            return { ink: '#ffd59f', strong: '#f8fff5', muted: '#ffe8c9', shadow: 'rgba(25, 12, 4, 0.92)' };
+        case 'ICE':
+            return { ink: '#ffbd91', strong: '#fff8d8', muted: '#ffe2cf', shadow: 'rgba(28, 9, 3, 0.9)' };
+        case 'SHADOW':
+            return { ink: '#ffe889', strong: '#f8fff4', muted: '#fff4be', shadow: 'rgba(15, 9, 0, 0.94)' };
+        case 'ELECTRIC':
+            return { ink: '#cab8ff', strong: '#fff8b8', muted: '#e7ddff', shadow: 'rgba(16, 8, 35, 0.92)' };
+        case 'METAL':
+            return { ink: '#ffd1a5', strong: '#f9fdff', muted: '#ffe8d5', shadow: 'rgba(24, 13, 5, 0.9)' };
+        case 'UNDEAD':
+            return { ink: '#ddffae', strong: '#fff1c6', muted: '#f0ffd8', shadow: 'rgba(11, 22, 4, 0.92)' };
+        case 'PSYCHIC':
+            return { ink: '#c9ffba', strong: '#fff7c4', muted: '#e5ffde', shadow: 'rgba(6, 24, 5, 0.92)' };
+        case 'POISON':
+            return { ink: '#ffb8df', strong: '#fff4b7', muted: '#ffe0ef', shadow: 'rgba(25, 4, 15, 0.9)' };
+        case 'LIGHT':
+            return { ink: '#83efff', strong: '#fff8b8', muted: '#d8fbff', shadow: 'rgba(2, 19, 28, 0.92)' };
+        default:
+            return { ink: '#e8f1ff', strong: '#fff0a8', muted: '#cfdcff', shadow: 'rgba(2, 8, 18, 0.92)' };
+    }
+}
+
+function getCompactSummaryInkStyle(element) {
+    const palette = getCompactSummaryInkPalette(element);
+    return [
+        `--summary-ink:${palette.ink}`,
+        `--summary-strong:${palette.strong}`,
+        `--summary-muted:${palette.muted}`,
+        `--summary-shadow:${palette.shadow}`
+    ].join(';');
+}
+
+function renderCompactSummaryIcon(kind) {
+    return `<span class="card-summary-icon card-summary-icon-${escapeHtmlAttribute(kind)}" aria-hidden="true"></span>`;
+}
+
+function renderCompactEnergyIcons(element, amount, options = {}) {
+    const count = Number(amount);
+    if (!Number.isFinite(count) || count <= 0) {
+        return '';
+    }
+    const normalized = String(element || 'NEUTRAL').toUpperCase();
+    const visibleCount = Math.min(count, options.maxVisible || 5);
+    const countClass = ` energy-count-${Math.min(count, 10)}${count >= 10 ? ' energy-count-many' : ''}`;
+    const label = `${count} ${formatElementLabel(normalized)} energy`;
+    let html = `<span class="card-summary-energy-icons${countClass}" aria-label="${escapeHtmlAttribute(label)}">`;
+    for (let i = 0; i < visibleCount; i += 1) {
+        html += `<span class="card-summary-energy-icon" style="${notchIconStyle(normalized)}"></span>`;
+    }
+    if (count > visibleCount) {
+        html += `<span class="card-summary-energy-more">x${count}</span>`;
+    }
+    html += '</span>';
+    return html;
+}
+
+function getCompactAbilityTargetPhrase(ability) {
+    const targetType = String(ability?.targetType || '').trim().toUpperCase();
+    const rowName = ability?.targetRow ? `${formatElementLabel(ability.targetRow).toLowerCase()} row` : '';
+    switch (targetType) {
+        case 'SINGLE_ENEMY':
+            return 'an enemy';
+        case 'ALL_ENEMIES':
+            return 'all enemies';
+        case 'ROW_ENEMIES':
+        case 'ROW_SELECT_ENEMIES':
+            return rowName || 'an enemy row';
+        case 'SINGLE_ALLY':
+            return 'an ally';
+        case 'ALL_ALLIES':
+            return 'all allies';
+        case 'ROW_ALLIES':
+        case 'ROW_SELECT_ALLIES':
+            return rowName ? `ally ${rowName}` : 'an ally row';
+        case 'ENEMY_PLAYER':
+            return 'enemy player';
+        case 'SELF':
+            return 'itself';
+        default:
+            return '';
+    }
+}
+
+function truncateToWords(text, maxWords) {
+    const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+        return '';
+    }
+    return words.slice(0, maxWords).join(' ');
+}
+
+// Short, readable effect line for painted-frame previews — 3-5 plain words
+// ("Deal 4 to an enemy", "All allies +1 damage", "Move to another row")
+// instead of the compressed icon-and-label rows.
+function getCompactAbilityClause(ability) {
+    const kind = getCompactAbilityKind(ability);
+    const value = getCompactAbilityValue(ability);
+    const description = String(ability?.description || '').toLowerCase();
+    const target = getCompactAbilityTargetPhrase(ability);
+    const isBuff = /grant|gain|\+\d/.test(description);
+    let clause = '';
+    switch (kind) {
+        case 'damage':
+            if (isBuff) {
+                clause = `${target || 'an ally'} +${value || 1} damage`;
+            } else if (value > 0) {
+                clause = `Deal ${value} to ${target || 'an enemy'}`;
+            } else {
+                clause = `Damage ${target || 'an enemy'}`;
+            }
+            break;
+        case 'heal':
+            clause = value > 0 ? `Heal ${target || 'an ally'} ${value} HP` : `Heal ${target || 'an ally'}`;
+            break;
+        case 'shield':
+            clause = value > 0 ? `+${value} shield to ${target || 'an ally'}` : `Shield ${target || 'an ally'}`;
+            break;
+        case 'draw':
+            clause = value > 0 ? `Draw ${value} card${value === 1 ? '' : 's'}` : 'Draw a card';
+            break;
+        case 'control':
+            clause = `Freeze ${target || 'an enemy'}`;
+            break;
+        case 'speed':
+            if (/zero|reduce|-\d/.test(description)) {
+                clause = `Slow ${target || 'an enemy'}`;
+            } else {
+                clause = `${target || 'an ally'} +${value || 1} speed`;
+            }
+            break;
+        case 'health':
+            clause = `${target || 'an ally'} +${value || 1} HP`;
+            break;
+        case 'move':
+            clause = target === 'itself' || !target ? 'Move to another row' : `Move ${target}`;
+            break;
+        default:
+            clause = truncateToWords(ability?.description || formatAbilitySummaryText(ability), 5);
+            break;
+    }
+    clause = clause.trim();
+    return clause ? clause.charAt(0).toUpperCase() + clause.slice(1) : '';
+}
+
+function renderCompactAbilitySummary(card, ability) {
+    if (!ability || ability.passive) {
+        return '';
+    }
+    const kind = getCompactAbilityKind(ability);
+    const name = getCompactAbilityName(card, ability);
+    const clause = getCompactAbilityClause(ability);
+    const title = formatAbilitySummaryText(ability) || `${name}: ${clause}`;
+    const clauseHtml = escapeHtml(clause).replace(/([+-]?\d+)/g, '<span class="card-summary-value">$1</span>');
+    // A move named exactly after its card (common on spells) adds nothing —
+    // show just the effect clause.
+    const skipName = name.toLowerCase() === String(card?.name || '').trim().toLowerCase();
+    const nameHtml = skipName
+        ? ''
+        : `<span class="card-summary-name">${escapeHtml(name)}</span><span class="card-summary-separator">:</span>`;
+    return `<div class="card-summary-row card-summary-ability card-summary-kind-${escapeHtmlAttribute(kind)}" title="${escapeHtmlAttribute(title)}">`
+        + nameHtml
+        + `<span class="card-summary-clause">${clauseHtml}</span>`
+        + '</div>';
+}
+
+function renderCompactCardSummary(card, options = {}) {
+    const rows = [];
+    const abilityLimit = options.abilityLimit ?? 3;
+    const abilities = getCardAbilities(card).filter((ability) => !ability?.passive);
+    abilities.slice(0, abilityLimit).forEach((ability) => {
+        const row = renderCompactAbilitySummary(card, ability);
+        if (row) {
+            rows.push(row);
+        }
+    });
+    if (abilities.length > abilityLimit) {
+        rows.push(`<div class="card-summary-row card-summary-more">+${abilities.length - abilityLimit} move${abilities.length - abilityLimit === 1 ? '' : 's'}</div>`);
+    }
+
+    // Cost and evolution move to the top-corner chips on painted-frame
+    // previews (renderCardCornerChips); keep the rows for other callers.
+    if (!options.omitCostEvolution) {
+        if (card.type === 'TRAP' && card.trapBucketElement && card.trapBucketAmount > 0) {
+            rows.push('<div class="card-summary-row card-summary-cost-row">'
+                + '<span class="card-summary-name">Trigger</span>'
+                + '<span class="card-summary-separator">:</span>'
+                + renderCompactEnergyIcons(card.trapBucketElement, Number(card.trapBucketAmount), { maxVisible: 3 })
+                + '<span class="card-summary-target">opp</span>'
+                + '</div>');
+        } else if (card.costElement && card.costAmount > 0) {
+            rows.push('<div class="card-summary-row card-summary-cost-row">'
+                + '<span class="card-summary-name">Cost</span>'
+                + '<span class="card-summary-separator">:</span>'
+                + renderCompactEnergyIcons(card.costElement, Number(card.costAmount), { maxVisible: 5 })
+                + '</div>');
+        }
+    }
+
+    if (card.requiredComboSize) {
+        const comboLabel = card.requiredComboSignature
+            ? card.requiredComboSignature.replaceAll('+', '/')
+            : `${card.requiredComboSize} combo`;
+        rows.push(`<div class="card-summary-row card-summary-meta-row"><span class="card-summary-name">Combo</span><span class="card-summary-separator">:</span><span class="card-summary-meta">${escapeHtml(comboLabel)}</span></div>`);
+    }
+    if (card.requiredReaction) {
+        rows.push(`<div class="card-summary-row card-summary-meta-row"><span class="card-summary-name">Req</span><span class="card-summary-separator">:</span><span class="card-summary-meta">${escapeHtml(card.requiredReaction)}</span></div>`);
+    }
+    if (!options.omitCostEvolution) {
+        const evolutionSource = getCardEvolutionSourceName(card);
+        if (evolutionSource) {
+            rows.push(`<div class="card-summary-row card-summary-evolution-row"><span class="card-summary-name">Evo</span><span class="card-summary-separator">:</span><span class="card-summary-meta">${escapeHtml(evolutionSource)}</span></div>`);
+        }
+    }
+
+    if (rows.length === 0) {
+        return '';
+    }
+    return `<div class="card-summary-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element))}">${rows.join('')}</div>`;
+}
+
+// Top-corner chips for painted-frame previews: play cost (or trap trigger)
+// sits in the top-left, evolution source in the top-right, both on the
+// frame's top band between the notch sockets.
+function renderCardCornerChips(card) {
+    const chips = [];
+    if (card.type === 'TRAP' && card.trapBucketElement && card.trapBucketAmount > 0) {
+        const label = `Trigger: opponent holds ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} energy`;
+        chips.push(`<div class="card-corner-chip card-corner-cost" title="${escapeHtmlAttribute(label)}">`
+            + renderCompactEnergyIcons(card.trapBucketElement, Number(card.trapBucketAmount), { maxVisible: isSpellTrapCard(card) ? 10 : 4 })
+            + '</div>');
+    } else if (card.costElement && card.costAmount > 0) {
+        const label = `Play cost: ${card.costAmount} ${formatElementLabel(card.costElement)}`;
+        chips.push(`<div class="card-corner-chip card-corner-cost" title="${escapeHtmlAttribute(label)}">`
+            + renderCompactEnergyIcons(card.costElement, Number(card.costAmount), { maxVisible: isSpellTrapCard(card) ? 10 : 4 })
+            + '</div>');
+    }
+    const evolutionSource = getCardEvolutionSourceName(card);
+    if (evolutionSource) {
+        chips.push(`<div class="card-corner-chip card-corner-evo" title="${escapeHtmlAttribute(`Evolves from ${evolutionSource}`)}">`
+            + '<span class="card-corner-evo-tag">Evo</span>'
+            + `<span class="card-corner-evo-name">${escapeHtml(evolutionSource)}</span>`
+            + '</div>');
+    }
+    return chips.join('');
+}
+
 function getCardPreviewEntries(card) {
     const entries = [];
     getCardAbilities(card)
@@ -2683,9 +3113,11 @@ function renderShowcaseCard(card, options = {}) {
     // the buffer is spent.
     const showcaseShield = getShieldInfo(card);
     const showcaseHasShield = showcaseShield.active && showcaseShield.intact > 0;
-    const classes = ['hand-card', elemClass, options.cardClass,
+    const frameClass = cardFrameClass(card).trim();
+    const useCompactSummary = hasElementFrame(card.element) || options.compactSummary;
+    const classes = ['hand-card', elemClass, cardTypeClass(card), options.cardClass, frameClass,
         showcaseHasShield ? 'has-shield' : ''].filter(Boolean).join(' ');
-    const detailEntries = getCardPreviewEntries(card);
+    const detailEntries = useCompactSummary ? [] : getCardPreviewEntries(card);
     const statLine = getCardSummaryStatLine(card);
     const bodyMode = options.bodyMode || 'full';
     const visibleDetailEntries = bodyMode === 'summary'
@@ -2699,6 +3131,9 @@ function renderShowcaseCard(card, options = {}) {
         html += renderHandNotches(card.notches);
     }
     html += `<div class="hand-card-shell">`;
+    if (useCompactSummary) {
+        html += renderCardCornerChips(card);
+    }
     html += `<div class="hand-card-header">`;
     html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
     html += `<div class="card-label">${escapeHtml(labelText)}</div>`;
@@ -2717,15 +3152,19 @@ function renderShowcaseCard(card, options = {}) {
         } else if (statLine) {
             html += `<div class="card-detail card-stats-line${showcaseHasShield ? ' is-shielded' : ''}">${escapeHtml(statLine)}</div>`;
         }
-        visibleDetailEntries.forEach((entry) => {
-            if (entry.html) {
-                html += `<div class="${entry.className}">${entry.html}</div>`;
-            } else {
-                html += `<div class="${entry.className}">${escapeHtml(entry.text)}</div>`;
+        if (useCompactSummary) {
+            html += renderCompactCardSummary(card, { abilityLimit: options.compactAbilityLimit ?? 3, omitCostEvolution: true });
+        } else {
+            visibleDetailEntries.forEach((entry) => {
+                if (entry.html) {
+                    html += `<div class="${entry.className}">${entry.html}</div>`;
+                } else {
+                    html += `<div class="${entry.className}">${escapeHtml(entry.text)}</div>`;
+                }
+            });
+            if (bodyMode === 'summary' && detailEntries.length > visibleDetailEntries.length) {
+                html += `<div class="card-detail card-detail-more">+${detailEntries.length - visibleDetailEntries.length} more</div>`;
             }
-        });
-        if (bodyMode === 'summary' && detailEntries.length > visibleDetailEntries.length) {
-            html += `<div class="card-detail card-detail-more">+${detailEntries.length - visibleDetailEntries.length} more</div>`;
         }
         html += `</div>`;
     }
@@ -3092,7 +3531,7 @@ function syncMobileInfoTab() {
 }
 
 /* ============================================================
-   DRAWER SYSTEM â€” slide-up modals for log, key, battle, card info
+   DRAWER SYSTEM - slide-up modals for log, key, battle, card info
    ============================================================ */
 let activeDrawer = null;
 let _drawerCloseTimers = [];
@@ -3460,7 +3899,7 @@ function showCoinFlipOverlay(state) {
 }
 
 /* ============================================================
-   CARD INSPECTOR â€” full-detail overlay when tapping hand card
+   CARD INSPECTOR - full-detail overlay when tapping hand card
    ============================================================ */
 function openCardInspector(card) {
     const overlay = document.getElementById('cardInspector');
@@ -3862,7 +4301,7 @@ async function confirmClaimFromPopup() {
 }
 
 /* ============================================================
-   CARD PREVIEW FLOAT â€” shows selected card over enemy grid
+   CARD PREVIEW FLOAT - shows selected card over enemy grid
    ============================================================ */
 function getFocusedPreviewCard() {
     const arenaCell = resolveArenaSelectionCell();
@@ -4425,6 +4864,7 @@ function scheduleDesktopPreviewCardScale() {
         previewCardScaleFrame = window.requestAnimationFrame(() => {
             previewCardScaleFrame = null;
             syncDesktopPreviewCardScale();
+            scheduleFramedSummaryFit();
         });
     });
 }
@@ -4491,6 +4931,153 @@ function syncDesktopPreviewCardScale() {
 
     root.style.setProperty('--desktop-preview-card-width', `${nextWidth}px`);
     root.style.setProperty('--desktop-preview-card-max-height', `${nextHeight}px`);
+}
+
+function scheduleFramedSummaryFit() {
+    if (framedSummaryFitFrame != null) {
+        window.cancelAnimationFrame(framedSummaryFitFrame);
+    }
+    framedSummaryFitFrame = window.requestAnimationFrame(() => {
+        framedSummaryFitFrame = window.requestAnimationFrame(() => {
+            framedSummaryFitFrame = null;
+            fitFramedSummaryText();
+        });
+    });
+}
+
+function fitFramedSummaryText(root = document) {
+    const lists = root.querySelectorAll('.element-frame .card-summary-list');
+    lists.forEach(fitFramedSummaryList);
+    root.querySelectorAll('.spell-trap-frame .card-title').forEach(fitSpellTrapFrameTitle);
+}
+
+function fitSpellTrapFrameTitle(title) {
+    const header = title.closest('.hand-card-header');
+    if (!header || !header.clientWidth) {
+        return;
+    }
+
+    title.style.fontSize = '';
+    const maxPx = title.closest('.desktop-preview-card') ? 15 : 13;
+    const minPx = title.closest('.mulligan-showcase') || title.closest('#playerHand') ? 7 : 8;
+    const fits = () => title.scrollWidth <= header.clientWidth + 0.5;
+
+    if (!fits()) {
+        title.style.fontSize = `${minPx}px`;
+    }
+
+    let lo = minPx;
+    let hi = maxPx;
+    let best = minPx;
+    for (let i = 0; i < 9; i += 1) {
+        const mid = (lo + hi) / 2;
+        title.style.fontSize = `${mid}px`;
+        if (fits()) {
+            best = mid;
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    title.style.fontSize = `${best.toFixed(2)}px`;
+}
+
+function fitFramedSummaryList(list) {
+    const body = list.closest('.hand-card-body');
+    const card = list.closest('.hand-card');
+    if (!body || !card || !body.clientHeight || !list.clientWidth) {
+        return;
+    }
+
+    list.classList.remove('is-fitted');
+    list.style.fontSize = '';
+    list.style.removeProperty('--summary-row-gap');
+
+    const isDesktopPreview = card.classList.contains('desktop-preview-card');
+    const isMulligan = card.classList.contains('mulligan-showcase');
+    const isHandTray = Boolean(card.closest('#playerHand'));
+    const minPx = isMulligan ? 7 : isHandTray ? 6 : 8;
+    const maxPx = isDesktopPreview ? 15 : isMulligan ? 11.5 : isHandTray ? 8 : 12;
+    // The list is a flex child with overflow:hidden, so it can shrink and
+    // clip internally without ever growing body.scrollHeight — check the
+    // list's own overflow too.
+    const fits = () => body.scrollHeight <= body.clientHeight + 0.5
+        && list.scrollHeight <= list.clientHeight + 0.5;
+
+    if (!fits()) {
+        list.style.fontSize = `${minPx}px`;
+    }
+
+    let lo = minPx;
+    let hi = maxPx;
+    let best = minPx;
+    for (let i = 0; i < 9; i += 1) {
+        const mid = (lo + hi) / 2;
+        list.style.fontSize = `${mid}px`;
+        if (fits()) {
+            best = mid;
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+
+    list.style.fontSize = `${best.toFixed(2)}px`;
+    if (fits()) {
+        list.classList.add('is-fitted');
+    }
+}
+
+function scheduleSiegeKnightCardFit() {
+    if (siegeKnightCardFitFrame != null) {
+        window.cancelAnimationFrame(siegeKnightCardFitFrame);
+    }
+    siegeKnightCardFitFrame = window.requestAnimationFrame(() => {
+        siegeKnightCardFitFrame = window.requestAnimationFrame(() => {
+            siegeKnightCardFitFrame = null;
+            fitSiegeKnightCardText();
+        });
+    });
+}
+
+function fitSiegeKnightCardText(root = document) {
+    root.querySelectorAll('.knight-card.has-knight-back .knight-card-body').forEach((body) => {
+        const card = body.closest('.knight-card');
+        if (!card || !body.clientHeight || !body.clientWidth) {
+            return;
+        }
+
+        body.classList.remove('is-fitted');
+        body.style.fontSize = '';
+
+        const fits = () => body.scrollHeight <= body.clientHeight + 0.5
+            && body.scrollWidth <= body.clientWidth + 0.5;
+
+        const MIN_PX = 5.8;
+        const MAX_PX = 10.5;
+        if (!fits()) {
+            body.style.fontSize = `${MIN_PX}px`;
+        }
+
+        let lo = MIN_PX;
+        let hi = MAX_PX;
+        let best = MIN_PX;
+        for (let i = 0; i < 9; i += 1) {
+            const mid = (lo + hi) / 2;
+            body.style.fontSize = `${mid}px`;
+            if (fits()) {
+                best = mid;
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+
+        body.style.fontSize = `${best.toFixed(2)}px`;
+        if (fits()) {
+            body.classList.add('is-fitted');
+        }
+    });
 }
 
 function summarizeDeckCards(cards) {
@@ -4650,7 +5237,7 @@ function renderDesktopDeckPreview() {
 }
 
 /* ============================================================
-   COMPACT ENERGY RENDERING â€” for top-bar tokens
+   COMPACT ENERGY RENDERING - for top-bar tokens
    ============================================================ */
 function renderEnergyTopBar(containerId, playerData) {
     const el = document.getElementById(containerId);
@@ -7681,7 +8268,7 @@ function renderLoadoutOptions() {
         const traits = (deckTheme.traits || []).slice(0, 3);
         const deckArt = deckArtAssetForElements(deck.elements);
 
-        /* Build spine bands â€“ each element gets its own colored band with a sigil inside */
+        /* Build spine bands - each element gets its own colored band with a sigil inside */
         const spineBands = deck.elements.map(el => {
             const c = getElementHex(el);
             return `<div class="spine-band" style="background:${c}"></div>`;
@@ -7717,6 +8304,8 @@ function renderLoadoutOptions() {
         // SiegeKnight levels do not apply in Battle, so the loadout no longer shows a
         // level badge. The level data still arrives from the backend and the progression
         // logic stays intact for the upcoming Siege roguelike mode.
+        const elementIconPath = ELEMENT_KEY_ICON_PATHS[String(trainer.element || '').toUpperCase()] || '';
+        const elementIconStyle = elementIconPath ? `--knight-element-icon:url('${elementIconPath}');` : '';
         const levelBadge = '';
         let topRibbon = '';
         if (trainer.id === selectedTrainerId) {
@@ -7724,13 +8313,13 @@ function renderLoadoutOptions() {
         } else if (recommended) {
             topRibbon = '<span class="knight-recommend-ribbon">Recommended</span>';
         }
-        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
             ${topRibbon}
             ${levelBadge}
             <div class="knight-card-sigil">${sigil}</div>
-            <div class="knight-card-portrait has-knight-back">
-                <div class="knight-card-icon">${getElementSigil(trainer.element)}</div>
-            </div>
+            <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
+            <div class="knight-card-template" aria-hidden="true"></div>
+            <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
             <div class="knight-card-body">
                 <span class="knight-card-name">${escapeHtml(trainer.name)}</span>
                 <span class="knight-card-meta"><span class="knight-element">${escapeHtml(formatElementLabel(trainer.element))}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${rarityClass}">${escapeHtml(trainer.rarity)}</span></span>
@@ -7739,6 +8328,7 @@ function renderLoadoutOptions() {
             </div>
         </button>`;
     }).join('');
+    scheduleSiegeKnightCardFit();
 
     const hideOnlineLoadout = !shouldShowOnlineLoadoutOnPlay();
     overlay?.classList.toggle('invite-flow', inviteFlow);
@@ -10872,11 +11462,15 @@ function renderHand() {
         const fallbackArtLabel = card.type === 'SIEGLING'
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        html += `<div class="hand-card ${elemClass}${interactionClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
+        const handFrameClass = cardFrameClass(card);
+        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
         html += `<div class="hand-card-shell">`;
+        if (isSpellTrapCard(card) && handFrameClass) {
+            html += renderCardCornerChips(card);
+        }
         html += `<div class="hand-card-header">`;
         html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
         const handLabel = card.type === 'SIEGLING'
@@ -10889,19 +11483,23 @@ function renderHand() {
             html += renderCardStatPills(card, { mode: 'hand' });
         }
         html += `<div class="hand-card-body">`;
-        html += renderCardAbilitiesFlavorSection(card);
-        if (card.type === 'TRAP' && card.trapBucketElement) {
-            html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
-        } else if (card.costElement) {
-            html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
-        } else if (card.requiredComboSize) {
-            html += `<div class="card-cost">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
-        }
-        if (card.requiredReaction) {
-            html += `<div class="card-cost">Requires: ${escapeHtml(card.requiredReaction)}</div>`;
-        }
-        if (card.evolvesFromName) {
-            html += `<div class="card-cost">Evolution: ${escapeHtml(card.evolvesFromName)}</div>`;
+        if (isSpellTrapCard(card) && handFrameClass) {
+            html += renderCompactCardSummary(card, { abilityLimit: 3, omitCostEvolution: true });
+        } else {
+            html += renderCardAbilitiesFlavorSection(card);
+            if (card.type === 'TRAP' && card.trapBucketElement) {
+                html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
+            } else if (card.costElement) {
+                html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
+            } else if (card.requiredComboSize) {
+                html += `<div class="card-cost">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
+            }
+            if (card.requiredReaction) {
+                html += `<div class="card-cost">Requires: ${escapeHtml(card.requiredReaction)}</div>`;
+            }
+            if (card.evolvesFromName) {
+                html += `<div class="card-cost">Evolution: ${escapeHtml(card.evolvesFromName)}</div>`;
+            }
         }
         if (lockReason) {
             html += `<div class="card-cost interaction-lock-copy">${escapeHtml(lockReason)}</div>`;
@@ -10913,6 +11511,7 @@ function renderHand() {
 
     container.innerHTML = html;
     scheduleDesktopHandSelectorCardScale();
+    scheduleFramedSummaryFit();
 }
 
 function scheduleDesktopHandSelectorCardScale() {
@@ -11398,7 +11997,9 @@ function renderMulliganOverlay() {
         ].filter(Boolean).join(' ');
         const role = interactive ? ' role="button" tabindex="0" aria-pressed="' + (isSelected ? 'true' : 'false') + '"' : '';
         const click = interactive ? ` onclick="toggleMulliganCard(${index})"` : '';
-        const showcase = renderShowcaseCard(card, { artVariant: 'preview', cardClass: 'mulligan-showcase' });
+        // Two ability rows max — mulligan cards are too small for three
+        // wrapped prose lines; the "+N moves" row signals the rest.
+        const showcase = renderShowcaseCard(card, { artVariant: 'preview', cardClass: 'mulligan-showcase', compactAbilityLimit: 2 });
         const badge = isSelected
             ? `<div class="mulligan-redraw-badge" aria-hidden="true">Redraw</div>`
             : '';
@@ -11429,6 +12030,7 @@ function scheduleMulliganTextFit() {
         mulliganFitFrame = requestAnimationFrame(() => {
             mulliganFitFrame = 0;
             fitMulliganCardText();
+            scheduleFramedSummaryFit();
         });
     });
     if (!mulliganFitResizeBound) {
@@ -11445,6 +12047,9 @@ function scheduleMulliganTextFit() {
 function fitMulliganCardText() {
     const cards = document.querySelectorAll('#mulliganHandPreview .hand-card.mulligan-showcase');
     cards.forEach((card) => {
+        if (card.classList.contains('element-frame')) {
+            return;
+        }
         const body = card.querySelector('.hand-card-body');
         if (!body || !body.clientHeight) {
             return;
@@ -11458,6 +12063,9 @@ function fitMulliganCardText() {
             art.style.maxHeight = '';
             art.style.aspectRatio = '';
             art.style.minHeight = '';
+        }
+        if (body.querySelector('.card-summary-list')) {
+            return;
         }
 
         // scrollHeight reflects the full wrapped content even though the body
@@ -12605,6 +13213,7 @@ function updateSelectedInfo(card, msg) {
     }
 
     el.innerHTML = html;
+    scheduleFramedSummaryFit();
 }
 
 function handleBoardCardPointerEnter(isPlayer, row, col) {
@@ -13266,4 +13875,3 @@ if (typeof SieglingsCatalogSync !== 'undefined') {
     });
 }
 loadGameOptions();
-

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Element Frame Fixture</title>
+    <link rel="stylesheet" href="/css/style.css?v=142">
+    <style>
+        body {
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            padding: 40px;
+            background: #14192a;
+        }
+        .fixture { width: min(920px, calc(100vw - 48px)); }
+        .board-grid.four-up {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-bottom: 28px;
+        }
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 6px;
+            position: relative;
+            width: 100%;
+        }
+        .fixture-note {
+            margin-top: 18px;
+            color: var(--text-dim);
+            font-size: 14px;
+            text-align: center;
+        }
+        .fixture-big { width: 300px; margin: 26px auto 0; }
+    </style>
+</head>
+<body>
+    <main class="fixture">
+        <div class="board-grid four-up" aria-label="Painted frames — Fire, Earth, Ice, Wind">
+            <div class="board-cell has-card"><div class="board-card hand-card arena-board-card fire element-frame frame-fire"><div class="hand-card-shell arena-board-shell"><div class="arena-board-health"><div class="hp-bar"><div class="hp-fill hp-fill-high" style="width:100%"></div></div></div><div class="hand-card-header arena-board-header"><div class="card-title">Fire</div></div><div class="card-art card-art-hand card-art-fallback"><span>Fire</span></div><div class="arena-board-combat"><div class="card-stat-pills"><span class="card-stat-pill card-stat-pill-hp">HP: 16</span><span class="card-stat-pill card-stat-pill-spd">SPD: 9</span></div><div class="arena-board-badges"></div></div></div></div></div>
+            <div class="board-cell has-card"><div class="board-card hand-card arena-board-card earth element-frame frame-earth"><div class="hand-card-shell arena-board-shell"><div class="arena-board-health"><div class="hp-bar"><div class="hp-fill hp-fill-high" style="width:100%"></div></div></div><div class="hand-card-header arena-board-header"><div class="card-title">Earth</div></div><div class="card-art card-art-hand card-art-fallback"><span>Earth</span></div><div class="arena-board-combat"><div class="card-stat-pills"><span class="card-stat-pill card-stat-pill-hp">HP: 10</span><span class="card-stat-pill card-stat-pill-spd">SPD: 4</span></div><div class="arena-board-badges"></div></div></div></div></div>
+            <div class="board-cell has-card"><div class="board-card hand-card arena-board-card ice element-frame frame-ice"><div class="hand-card-shell arena-board-shell"><div class="arena-board-health"><div class="hp-bar"><div class="hp-fill hp-fill-high" style="width:100%"></div></div></div><div class="hand-card-header arena-board-header"><div class="card-title">Ice</div></div><div class="card-art card-art-hand card-art-fallback"><span>Ice</span></div><div class="arena-board-combat"><div class="card-stat-pills"><span class="card-stat-pill card-stat-pill-hp">HP: 12</span><span class="card-stat-pill card-stat-pill-spd">SPD: 6</span></div><div class="arena-board-badges"></div></div></div></div></div>
+            <div class="board-cell has-card"><div class="board-card hand-card arena-board-card wind element-frame frame-wind"><div class="hand-card-shell arena-board-shell"><div class="arena-board-health"><div class="hp-bar"><div class="hp-fill hp-fill-high" style="width:100%"></div></div></div><div class="hand-card-header arena-board-header"><div class="card-title">Wind</div></div><div class="card-art card-art-hand card-art-fallback"><span>Wind</span></div><div class="arena-board-combat"><div class="card-stat-pills"><span class="card-stat-pill card-stat-pill-hp">HP: 11</span><span class="card-stat-pill card-stat-pill-spd">SPD: 8</span></div><div class="arena-board-badges"></div></div></div></div></div>
+        </div>
+        <!-- Markup below mirrors buildArenaBoardCardMarkup() in js/game.js -->
+        <div class="board-grid" id="playerGrid">
+            <div class="board-cell has-card" data-row="0" data-col="0">
+                <div class="board-card hand-card arena-board-card fire element-frame frame-fire">
+                    <div class="hand-notches arena-board-notches"><div class="notch-center"></div>
+                        <div class="notch-dot notch-TOP_LEFT"></div>
+                        <div class="notch-dot fire notch-TOP" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot notch-TOP_RIGHT"></div>
+                        <div class="notch-dot fire notch-LEFT" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot fire notch-RIGHT linked" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot notch-BOTTOM_LEFT"></div>
+                        <div class="notch-dot fire notch-BOTTOM" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot notch-BOTTOM_RIGHT"></div>
+                    </div>
+                    <div class="hand-card-shell arena-board-shell">
+                        <div class="arena-board-health"><div class="hp-bar"><div class="hp-fill hp-fill-high" style="width:100%"></div></div></div>
+                        <div class="hand-card-header arena-board-header"><div class="card-title">Dracoil</div></div>
+                        <div class="card-art card-art-hand card-art-fallback"><span>Fire</span></div>
+                        <div class="arena-board-combat">
+                            <div class="card-stat-pills" role="group" aria-label="Combat stats"><span class="card-stat-pill card-stat-pill-hp">HP: 16</span><span class="card-stat-pill card-stat-pill-spd">SPD: 9</span></div>
+                            <div class="arena-board-badges"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="board-cell has-card" data-row="0" data-col="1">
+                <div class="board-card hand-card arena-board-card fire element-frame frame-fire">
+                    <div class="hand-notches arena-board-notches"><div class="notch-center"></div>
+                        <div class="notch-dot notch-TOP_LEFT"></div>
+                        <div class="notch-dot fire notch-TOP" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot notch-TOP_RIGHT"></div>
+                        <div class="notch-dot fire notch-LEFT" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot fire notch-RIGHT" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot notch-BOTTOM_LEFT"></div>
+                        <div class="notch-dot fire notch-BOTTOM" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot notch-BOTTOM_RIGHT"></div>
+                    </div>
+                    <div class="hand-card-shell arena-board-shell">
+                        <div class="arena-board-health"><div class="hp-bar"><div class="hp-fill hp-fill-low" style="width:44%"></div></div></div>
+                        <div class="hand-card-header arena-board-header"><div class="card-title">Dracoil</div></div>
+                        <div class="card-art card-art-hand card-art-fallback"><span>Fire</span></div>
+                        <div class="arena-board-combat">
+                            <div class="card-stat-pills" role="group" aria-label="Combat stats"><span class="card-stat-pill card-stat-pill-hp is-damaged">HP: 7</span><span class="card-stat-pill card-stat-pill-spd is-spd-down">SPD: 0</span></div>
+                            <div class="arena-board-badges"><div class="status-icons"><span class="sb-badge" style="--sb-color:#7adfff" title="Frozen — cannot act" data-status="FREEZE"><svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-fz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff6ff"/><stop offset="50%" stop-color="#5fb8e8"/><stop offset="100%" stop-color="#1a4a7a"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#5fb8e8" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-fz-bg)" stroke="#dff6ff" stroke-width="2"/><g stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none" class="sb-spin"><line x1="42" y1="20" x2="42" y2="64"/><line x1="22" y1="42" x2="62" y2="42"/><line x1="27" y1="27" x2="57" y2="57"/><line x1="57" y1="27" x2="27" y2="57"/><path d="M42 20 L37 26 M42 20 L47 26 M42 64 L37 58 M42 64 L47 58 M22 42 L28 37 M22 42 L28 47 M62 42 L56 37 M62 42 L56 47"/></g><circle cx="42" cy="42" r="3" fill="#fff"/></svg></span></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="board-cell has-card" data-row="0" data-col="2">
+                <div class="board-card hand-card arena-board-card earth">
+                    <div class="hand-notches arena-board-notches"><div class="notch-center"></div>
+                        <div class="notch-dot notch-TOP_LEFT"></div>
+                        <div class="notch-dot notch-TOP"></div>
+                        <div class="notch-dot notch-TOP_RIGHT"></div>
+                        <div class="notch-dot earth notch-LEFT" style="--notch:#b48c50;--notch-icon:url('/img/notches/notch-earth.png');"></div>
+                        <div class="notch-dot earth notch-RIGHT" style="--notch:#b48c50;--notch-icon:url('/img/notches/notch-earth.png');"></div>
+                        <div class="notch-dot notch-BOTTOM_LEFT"></div>
+                        <div class="notch-dot earth notch-BOTTOM" style="--notch:#b48c50;--notch-icon:url('/img/notches/notch-earth.png');"></div>
+                        <div class="notch-dot notch-BOTTOM_RIGHT"></div>
+                    </div>
+                    <div class="hand-card-shell arena-board-shell">
+                        <div class="arena-board-health"><div class="hp-bar"><div class="hp-fill hp-fill-high" style="width:100%"></div></div></div>
+                        <div class="hand-card-header arena-board-header"><div class="card-title">Rootlet</div></div>
+                        <div class="card-art card-art-hand card-art-fallback"><span>Earth</span></div>
+                        <div class="arena-board-combat">
+                            <div class="card-stat-pills" role="group" aria-label="Combat stats"><span class="card-stat-pill card-stat-pill-hp">HP: 10</span><span class="card-stat-pill card-stat-pill-spd">SPD: 4</span></div>
+                            <div class="arena-board-badges"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Large single card to inspect alignment closely -->
+        <div class="fixture-big">
+            <div class="board-cell has-card" style="aspect-ratio: 638 / 919; padding: 0; border: none; background: none; box-shadow: none;">
+                <div class="board-card hand-card arena-board-card fire element-frame frame-fire">
+                    <div class="hand-notches arena-board-notches"><div class="notch-center"></div>
+                        <div class="notch-dot notch-TOP_LEFT"></div>
+                        <div class="notch-dot fire notch-TOP" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot notch-TOP_RIGHT"></div>
+                        <div class="notch-dot fire notch-LEFT" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot fire notch-RIGHT" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot notch-BOTTOM_LEFT"></div>
+                        <div class="notch-dot fire notch-BOTTOM" style="--notch:#ff501e;--notch-icon:url('/img/notches/notch-fire.png');"></div>
+                        <div class="notch-dot notch-BOTTOM_RIGHT"></div>
+                    </div>
+                    <div class="hand-card-shell arena-board-shell">
+                        <div class="arena-board-health"><div class="hp-bar"><div class="hp-fill hp-fill-high" style="width:100%"></div></div></div>
+                        <div class="hand-card-header arena-board-header"><div class="card-title">Dracoil</div></div>
+                        <div class="card-art card-art-hand card-art-fallback"><span>Fire</span></div>
+                        <div class="arena-board-combat">
+                            <div class="card-stat-pills" role="group" aria-label="Combat stats"><span class="card-stat-pill card-stat-pill-hp">HP: 16</span><span class="card-stat-pill card-stat-pill-spd">SPD: 9</span></div>
+                            <div class="arena-board-badges"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="fixture-note">
+            Top row: Fire, Earth, Ice, Wind painted frames. Below: fire board states vs default earth chrome.
+            Bottom: native-aspect close-up for notch alignment.
+        </div>
+    </main>
+</body>
+</html>
