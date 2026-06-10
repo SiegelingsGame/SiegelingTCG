@@ -7,6 +7,8 @@ import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -15,9 +17,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class PlayerProgressionService {
+    private static final Logger logger = LoggerFactory.getLogger(PlayerProgressionService.class);
+
     public static final int STARTING_GOLD = 100;
     public static final int CUSTOM_DECK_UNLOCK_COPIES = 30;
     public static final int SOLO_WIN_GOLD = 10;
@@ -124,7 +129,9 @@ public class PlayerProgressionService {
         }
         addPackHistory(progression, result, outcomes, trainerOutcome, 0, "STARTER");
         progression.setUpdatedAt(Instant.now());
-        return store.save(progression);
+        PlayerProgressionEntity saved = store.save(progression);
+        recordPackOpenedAsync(saved.getUserId());
+        return saved;
     }
 
     public PlayerProgressionEntity openPack(AccountUser user, String packId) {
@@ -144,7 +151,9 @@ public class PlayerProgressionService {
                 : grantTrainer(progression, result.bonusTrainer());
         addPackHistory(progression, result, outcomes, trainerOutcome, result.pack().price(), "SHOP");
         progression.setUpdatedAt(Instant.now());
-        return store.save(progression);
+        PlayerProgressionEntity saved = store.save(progression);
+        recordPackOpenedAsync(saved.getUserId());
+        return saved;
     }
 
     public PlayerProgressionEntity purchaseDeck(AccountUser user, String deckId) {
@@ -615,8 +624,18 @@ public class PlayerProgressionService {
         history.add(entry);
         history.addAll(progression.getPackHistory());
         progression.setPackHistory(history.stream().limit(20).toList());
-        if (dailyMissionService != null) {
-            dailyMissionService.recordPackOpened(progression.getUserId());
+    }
+
+    private void recordPackOpenedAsync(String userId) {
+        if (dailyMissionService == null || userId == null || userId.isBlank()) {
+            return;
         }
+        CompletableFuture.runAsync(() -> {
+            try {
+                dailyMissionService.recordPackOpened(userId);
+            } catch (Exception ex) {
+                logger.warn("Could not record pack-open daily mission progress for user {}.", userId, ex);
+            }
+        });
     }
 }
