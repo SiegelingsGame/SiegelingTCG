@@ -2985,10 +2985,10 @@
                     <strong>${escapeHtml(entry.card?.name || entry.cardId)}</strong>
                     <div class="card-meta">${escapeHtml(entry.card ? formatCardMeta(entry.card) : "Missing from the current card catalog")}</div>
                 </div>
-                <div class="deck-card-actions">
-                    <button class="btn btn-secondary" type="button" data-remove-deck-card-id="${escapeHtml(entry.cardId)}">-</button>
+                <div class="dashboard-deck-card-actions">
+                    <button class="btn btn-danger btn-sm deck-card-action-btn" type="button" data-remove-deck-card-id="${escapeHtml(entry.cardId)}">Remove</button>
                     <span class="deck-card-count">${entry.count}</span>
-                    <button class="btn btn-secondary" type="button" data-add-deck-card-id="${escapeHtml(entry.cardId)}">+</button>
+                    <button class="btn btn-secondary btn-sm deck-card-action-btn" type="button" data-add-deck-card-id="${escapeHtml(entry.cardId)}">Add</button>
                 </div>
             </div>
         `).join("");
