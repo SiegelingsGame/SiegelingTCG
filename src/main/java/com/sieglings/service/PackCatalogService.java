@@ -80,11 +80,11 @@ public class PackCatalogService {
         packs.add(new PackDefinition("pack_siegeling_random", "Siegeling Pack",
                 "Five random Siegeling cards from a changing elemental mix.", true, 160,
                 activeElements, false));
-        packs.add(new PackDefinition("pack_spell_random", "Spell Pack",
-                "Five random Spell cards from a changing elemental mix.", true, 120,
+        packs.add(new PackDefinition("pack_spell_random", "Strategy Pack",
+                "Five random Strategy cards from a changing elemental mix.", true, 120,
                 activeElements, false));
-        packs.add(new PackDefinition("pack_trap_random", "Trap Pack",
-                "Five random Trap cards from a changing elemental mix.", true, 120,
+        packs.add(new PackDefinition("pack_trap_random", "Deception Pack",
+                "Five random Deception cards from a changing elemental mix.", true, 120,
                 activeElements, false));
         packs.add(new PackDefinition(SIEGEKNIGHT_PACK_ID, "SiegeKnight Cache",
                 "A premium cache that always contains a rare SiegeKnight plus five cards. Duplicates level up your knight.",

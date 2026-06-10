@@ -1235,8 +1235,8 @@
         const tabs = [
             ['wins', 'Wins'],
             ['matchesPlayed', 'Matches'],
-            ['spellsCast', 'Spells'],
-            ['trapsSprung', 'Traps'],
+            ['spellsCast', 'Strategies'],
+            ['trapsSprung', 'Deceptions'],
             ['siegelingsDefeated', 'Siegelings'],
             ['pvpWinRate', 'PVP W/L']
         ];
@@ -1663,8 +1663,8 @@
     function formatDeckPreviewTypeSummary(counts) {
         const parts = [
             `${counts.sieglings} Siegelings`,
-            `${counts.spells} Spells`,
-            `${counts.traps} Traps`
+            `${counts.spells} Strategies`,
+            `${counts.traps} Deceptions`
         ];
         return parts.join(' · ');
     }
@@ -2252,7 +2252,7 @@
             const reaction = format(card.requiredReaction || 'Trigger');
             const bucket = card.trapBucketAmount
                 ? `${card.trapBucketAmount} ${format(card.trapBucketElement || card.element)}`
-                : 'Trap set';
+                : 'Deception set';
             return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
         }
         if (type === 'SIEGEKNIGHT') {
@@ -3465,8 +3465,8 @@
                 ${statRow('Turns', entry.turnNumber ?? '—')}
                 ${statRow('SiegeKnight', entry.trainerName || '—')}
                 ${statRow('Match Type', entry.matchType || '—')}
-                ${statRow('Spells Cast', entry.spellsCast ?? 0)}
-                ${statRow('Traps Sprung', entry.trapsSprung ?? 0)}
+                ${statRow('Strategies Used', entry.spellsCast ?? 0)}
+                ${statRow('Deceptions Sprung', entry.trapsSprung ?? 0)}
                 ${statRow('Siegelings Defeated', entry.siegelingsDefeated ?? 0)}
             </div>
             <div class="match-detail-log-title">Game Breakdown</div>
@@ -5248,6 +5248,10 @@
         if (normalized === 'SIEGLING') return 'Siegeling';
         if (normalized === 'SIEGLINGS') return 'Siegelings';
         if (normalized === 'SIEGEKNIGHT') return 'SiegeKnight';
+        if (normalized === 'SPELL') return 'Strategy';
+        if (normalized === 'SPELLS') return 'Strategies';
+        if (normalized === 'TRAP') return 'Deception';
+        if (normalized === 'TRAPS') return 'Deceptions';
         return normalized
             .toLowerCase()
             .replace(/_/g, ' ')
@@ -5257,6 +5261,10 @@
     }
     function formatGameText(value) {
         return String(value || '')
+            .replace(/\bSpells\b/g, 'Strategies')
+            .replace(/\bSpell\b/g, 'Strategy')
+            .replace(/\bTraps\b/g, 'Deceptions')
+            .replace(/\bTrap\b/g, 'Deception')
             .replace(/\bSiegling\b/g, 'Siegeling')
             .replace(/\bSieglings\b/g, 'Siegelings')
             .replace(/\bsiegling\b/g, 'siegeling')
@@ -6452,11 +6460,11 @@
         },
         {
             id: 'spells-traps',
-            label: 'Spells & Traps',
+            label: 'Strategies & Deceptions',
             title: 'One-shot effects and reactive defense',
             html: `<ul class="guide-list">
-                    <li><strong>Spells</strong> are cast from your hand for an immediate effect — damage, buffs, energy swings, or board control. They cost energy from your pool and resolve right away.</li>
-                    <li><strong>Traps</strong> are set ahead of time and spring when their condition is met (such as an opponent attacking or playing into them). Set them early, then let your opponent walk into the trigger.</li>
+                    <li><strong>Strategies</strong> are played from your hand for an immediate effect — damage, buffs, energy swings, or board control. They cost energy from your pool and resolve right away.</li>
+                    <li><strong>Deceptions</strong> are concealed ahead of time and spring when their condition is met (such as an opponent attacking or playing into them). Set them early, then let your opponent walk into the trigger.</li>
                     <li><strong>Reactions</strong> — some cards require a specific reaction or combo to fire. Check a card's detail panel for its cost element, required reaction, and ability text.</li>
                 </ul>
                 <p class="guide-note">Hold a trap when you read an incoming play, and chain spells off a strong energy turn for a momentum swing.</p>`

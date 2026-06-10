@@ -371,7 +371,7 @@ public class GameService {
             energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount());
             state.recordSieglingSetupActionConsumed(isPlayerSide);
         } else {
-            state.log("Spell or trap not found in hand!");
+            state.log("Strategy or deception not found in hand!");
             return state;
         }
 

@@ -145,8 +145,8 @@ const LEADERBOARD_STORAGE_KEY = 'sieglings_leaderboards_v1';
 const LEADERBOARD_TABS = [
     { id: 'wins', label: 'Wins' },
     { id: 'matchesPlayed', label: 'Matches' },
-    { id: 'spellsCast', label: 'Spells' },
-    { id: 'trapsSprung', label: 'Traps' },
+    { id: 'spellsCast', label: 'Strategies' },
+    { id: 'trapsSprung', label: 'Deceptions' },
     { id: 'siegelingsDefeated', label: 'Siegelings' },
     { id: 'pvpWinRate', label: 'PVP W/L' }
 ];
@@ -4029,8 +4029,8 @@ function openMatchDetail(index) {
             ${statRow('Turns', entry.turnNumber ?? '—')}
             ${statRow('SiegeKnight', entry.trainerName || '—')}
             ${statRow('Match Type', entry.matchType || '—')}
-            ${statRow('Spells Cast', entry.spellsCast ?? 0)}
-            ${statRow('Traps Sprung', entry.trapsSprung ?? 0)}
+            ${statRow('Strategies Used', entry.spellsCast ?? 0)}
+            ${statRow('Deceptions Sprung', entry.trapsSprung ?? 0)}
             ${statRow('Siegelings Defeated', entry.siegelingsDefeated ?? 0)}
         </div>
         <div class="match-detail-log-title">Game Breakdown</div>
@@ -4368,7 +4368,7 @@ function getInteractionHintState() {
                     hints.push('Drag onto a highlighted cell to place, or tap the eye button for the full card preview.');
                 }
             } else if (focusedCard.type === 'TRAP') {
-                hints.push('Traps stay hidden until their trigger condition is met.');
+                hints.push('Deceptions stay hidden until their trigger condition is met.');
             } else if (focusedCard.costElement && focusedCard.costAmount > 0) {
                 hints.push(`This costs ${focusedCard.costAmount} ${formatElementLabel(focusedCard.costElement)} to play.`);
             }
@@ -4704,7 +4704,7 @@ function getDesktopPreviewNote(card, lockReason) {
         return 'Siegeling battle actions resolve automatically in speed order during battle.';
     }
     if (card.type === 'TRAP') {
-        return 'Traps stay hidden until their trigger condition is met.';
+        return 'Deceptions stay hidden until their trigger condition is met.';
     }
     if (card.requiredComboSize) {
         const comboLabel = card.requiredComboSignature
@@ -4754,7 +4754,7 @@ function getFocusedCardSummary(card, lockReason) {
             : `Needs a ${card.requiredComboSize}-element combo.`;
     }
     if (card.type === 'TRAP') {
-        return 'Trap timing depends on the opponent meeting its trigger.';
+        return 'Deception timing depends on the opponent meeting its trigger.';
     }
     if (card.type === 'SIEGLING') {
         if (card.evolvesFromName) {
@@ -5153,9 +5153,9 @@ function getDeckTypeRank(type) {
 function formatDeckSectionLabel(type) {
     switch (String(type || '').toUpperCase()) {
         case 'SPELL':
-            return 'Spells';
+            return 'Strategies';
         case 'TRAP':
-            return 'Traps';
+            return 'Deceptions';
         case 'SIEGLING':
             return 'Siegelings';
         default:
@@ -5164,7 +5164,16 @@ function formatDeckSectionLabel(type) {
 }
 
 function formatBuilderTypeFilterLabel(type) {
-    return String(type || '').toUpperCase() === 'SIEGLING' ? 'SIEGELING' : (type || 'CARD');
+    switch (String(type || '').toUpperCase()) {
+        case 'SIEGLING':
+            return 'SIEGELING';
+        case 'SPELL':
+            return 'STRATEGY';
+        case 'TRAP':
+            return 'DECEPTION';
+        default:
+            return type || 'CARD';
+    }
 }
 
 function getDeckCardMonogram(name) {
@@ -5604,8 +5613,8 @@ function renderGameOverOverlay() {
             <h3>Match Totals</h3>
             <div class="game-over-stat-grid">
                 <span>Turns</span><span>${endScreen.turns ?? gameState.turnNumber ?? 0}</span>
-                <span>Spells cast</span><span>${stats.spellsCast ?? 0}</span>
-                <span>Traps sprung</span><span>${stats.trapsSprung ?? 0}</span>
+                <span>Strategies used</span><span>${stats.spellsCast ?? 0}</span>
+                <span>Deceptions sprung</span><span>${stats.trapsSprung ?? 0}</span>
                 <span>Siegelings defeated</span><span>${stats.siegelingsDefeated ?? 0}</span>
                 <span>Your health</span><span>${stats.yourHealth ?? 0}</span>
                 <span>Opponent health</span><span>${stats.opponentHealth ?? 0}</span>
@@ -9090,7 +9099,7 @@ function getBuilderCardCostText(card) {
         return `Combo ${card.requiredComboSize}${card.requiredComboSignature ? `: ${card.requiredComboSignature.replaceAll('+', ' / ')}` : ''}`;
     }
     if (card.type === 'TRAP' && card.trapBucketElement) {
-        return `Trap ${formatElementLabel(card.trapBucketElement)} ${card.trapBucketAmount}`;
+        return `Deception ${formatElementLabel(card.trapBucketElement)} ${card.trapBucketAmount}`;
     }
     if (card.costElement) {
         return `${formatElementLabel(card.costElement)} ${card.costAmount}`;
