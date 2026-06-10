@@ -29,9 +29,20 @@
 
 * { box-sizing: border-box; }
 
+html,
+body {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
 body {
     margin: 0;
+    display: block;
+    height: auto;
     min-height: 100vh;
+    flex-direction: initial;
     color: var(--text);
     background:
         radial-gradient(circle at 13% 16%, rgba(50, 150, 255, 0.22), transparent 26%),
@@ -42,6 +53,7 @@ body {
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    -webkit-overflow-scrolling: touch;
 }
 
 body::before {
@@ -1057,6 +1069,88 @@ select.search-input { color-scheme: dark; }
         0 0 26px rgba(255, 215, 0, 0.16);
 }
 
+.card-tile.framed-binder-tile {
+    padding: 0;
+    min-height: 0;
+    display: block;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+}
+
+.card-tile.framed-binder-tile:hover {
+    transform: none;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.card-tile.framed-binder-tile.selected {
+    border-radius: 14px;
+    box-shadow:
+        0 0 0 2px var(--accent),
+        0 0 26px rgba(255, 215, 0, 0.16);
+}
+
+.card-tile.framed-binder-tile .binder-framed-slot {
+    max-width: none;
+    width: 100%;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    pointer-events: none;
+}
+
+.home-collection-card.framed-binder-tile {
+    min-height: 0;
+}
+
+/* SiegeKnight binder tiles reuse the loadout template card; the wrapper
+   button handles clicks and selection chrome. */
+.card-tile.knight-binder-tile .knight-card.has-knight-back {
+    width: 100%;
+    pointer-events: none;
+}
+
+.knight-detail-preview {
+    width: 100%;
+    max-width: 240px;
+    margin: 0 auto;
+}
+
+.knight-detail-preview .knight-card.has-knight-back {
+    width: 100%;
+    pointer-events: none;
+}
+
+.knight-card .knight-binder-owned {
+    color: #ffd96a;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.knight-card .knight-binder-xp {
+    flex-shrink: 0;
+}
+
+.knight-card .knight-binder-xp .trainer-xp-bar {
+    margin: 0;
+    font-size: 0.78em;
+}
+
+.knight-card .knight-binder-xp .trainer-xp-bar-track {
+    height: 4px;
+}
+
+.profile-favorite-card-wrap .hand-card.profile-favorite-showcase {
+    width: 100%;
+    max-width: 168px;
+    margin: 0;
+    aspect-ratio: var(--card-aspect-ratio);
+}
+
 .binder-card {
     position: relative;
     min-height: 318px;
@@ -1453,7 +1547,10 @@ select.search-input { color-scheme: dark; }
     font-size: 13px;
 }
 
-.card-tile span,
+/* Knight template cards bring their own typography (style.css
+   .knight-card.has-knight-back rules) — keep this tile-text default off
+   their subtree. */
+.card-tile span:not(.knight-card span),
 .deck-tile span,
 .pack-tile span,
 .room-tile span,

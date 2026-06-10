@@ -788,6 +788,8 @@
                 renderDetail();
             }));
             state._cardsRenderSig = signature;
+            window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
         }
         const allCount = document.getElementById('allCardCount');
         if (allCount) {
@@ -930,10 +932,54 @@
             </div>`;
     }
 
+    // SiegeKnight tile/preview using the loadout card template
+    // (knight-card has-knight-back styles in style.css) while keeping the
+    // binder data: tier, rarity, owned level, XP bar, passive/active text.
+    function renderKnightBinderCard(card, options = {}) {
+        const elHex = elementColor(card.element);
+        const elClass = String(card.element || 'NEUTRAL').toLowerCase();
+        const rarityClass = String(card.rarity || 'common').toLowerCase();
+        const tier = String(card.tier || 'SiegeKnight');
+        const level = Math.max(1, Number(card.level) || trainerOwnedLevel(card.id) || 1);
+        const owned = trainerOwnedLevel(card.id) > 0;
+        const backStyle = typeof siegeknightCardBackStyle === 'function'
+            ? siegeknightCardBackStyle()
+            : "--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')";
+        const iconPath = (typeof ELEMENT_KEY_ICON_PATHS !== 'undefined'
+            && ELEMENT_KEY_ICON_PATHS[String(card.element || '').toUpperCase()]) || '';
+        const elementIconStyle = iconPath ? `--knight-element-icon:url('${iconPath}');` : '';
+        // Grid tiles are too small for the ability rows — the gray panel
+        // holds name/tier/owned/XP there; the detail preview shows it all.
+        const abilities = options.compact ? [] : (card.abilities || []).slice(0, 2);
+        return `<div class="knight-card has-knight-back knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
+            <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
+            <div class="knight-card-template" aria-hidden="true"></div>
+            <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
+            <div class="knight-card-body">
+                <span class="knight-card-name">${escapeHtml(card.name)}</span>
+                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(format(card.element))}</span> <span class="knight-tier tier-${escapeAttr(tier.toLowerCase())}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${escapeAttr(rarityClass)}">${escapeHtml(format(card.rarity))}</span></span>
+                <span class="knight-card-meta knight-binder-owned">${owned ? `Owned · Lv ${level}` : 'Unowned'}</span>
+                <div class="knight-binder-xp">${renderTrainerXpBar(card.id, { unownedPlaceholder: true })}</div>
+                ${abilities.map(a => `<span class="knight-card-ability"><span>${escapeHtml(a.name)}</span>${escapeHtml(a.description)}</span>`).join('')}
+            </div>
+        </div>`;
+    }
+
     function renderCardTile(card) {
         const selected = card.id === state.selectedCardId ? ' selected' : '';
-        const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (window.SieglingsCardBinderVisual?.resolveArtModeClass(card) || '');
         const knightClass = card.type === 'SIEGEKNIGHT' ? ' siegeknight-binder-card' : '';
+        const binderVisual = window.SieglingsCardBinderVisual;
+        if (card.type === 'SIEGEKNIGHT') {
+            return `<button class="card-tile binder-card framed-binder-tile knight-binder-tile${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${renderKnightBinderCard(card, { compact: true })}
+            </button>`;
+        }
+        if (binderVisual?.usesFramedCardTemplate?.(card)) {
+            return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${binderVisual.renderBinderCardTile(card, { descriptionText: shopCardDescriptionFor(card) })}
+            </button>`;
+        }
+        const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (binderVisual?.resolveArtModeClass(card) || '');
         return `<button class="card-tile binder-card${selected}${modeClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
             ${renderBinderCardShell(card)}
         </button>`;
@@ -974,12 +1020,15 @@
             && state.profile?.authenticated
             && state.progression?.starterChosen
             && (state.progression?.gold || 0) >= nextXpCost;
-        const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview && !isSiegeknight)
+        const cardPreview = isSiegeknight
+            ? `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`
+            : window.SieglingsCardBinderVisual?.renderBinderCardPreview
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id),
-                previewClass: 'detail-card-preview'
+                previewClass: 'detail-card-preview',
+                descriptionText: shopCardDescriptionFor(card)
             })
-            : `<div class="binder-card detail-card-preview${isSiegeknight ? ' siegeknight-binder-card' : ''}" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
             <div class="detail-card-preview-wrap">${cardPreview}</div>
             ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
@@ -1036,6 +1085,8 @@
             }
             adjustBuilder(card.id, 1);
         });
+        window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 
     function renderHomeDashboard() {
@@ -1184,8 +1235,8 @@
         const tabs = [
             ['wins', 'Wins'],
             ['matchesPlayed', 'Matches'],
-            ['spellsCast', 'Spells'],
-            ['trapsSprung', 'Traps'],
+            ['spellsCast', 'Strategies'],
+            ['trapsSprung', 'Deceptions'],
             ['siegelingsDefeated', 'Siegelings'],
             ['pvpWinRate', 'PVP W/L']
         ];
@@ -1612,8 +1663,8 @@
     function formatDeckPreviewTypeSummary(counts) {
         const parts = [
             `${counts.sieglings} Siegelings`,
-            `${counts.spells} Spells`,
-            `${counts.traps} Traps`
+            `${counts.spells} Strategies`,
+            `${counts.traps} Deceptions`
         ];
         return parts.join(' · ');
     }
@@ -1899,7 +1950,8 @@
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id),
                 ownedLabel: `In deck x${inDeck}`,
-                previewClass: 'detail-card-preview deck-builder-detail-preview'
+                previewClass: 'detail-card-preview deck-builder-detail-preview',
+                descriptionText: shopCardDescriptionFor(card)
             })
             : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
@@ -2200,7 +2252,7 @@
             const reaction = format(card.requiredReaction || 'Trigger');
             const bucket = card.trapBucketAmount
                 ? `${card.trapBucketAmount} ${format(card.trapBucketElement || card.element)}`
-                : 'Trap set';
+                : 'Deception set';
             return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
         }
         if (type === 'SIEGEKNIGHT') {
@@ -2652,6 +2704,8 @@
         renderEditProfileModalHost(view);
         bindProfileDashboard();
         bindPlayerProfileLinks(body);
+        window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 
     function renderEditProfileModalHost(view) {
@@ -2752,11 +2806,19 @@
         if (!card?.id) {
             return '<div class="profile-favorite-card-empty"><span>No favorite Siegeling selected</span></div>';
         }
+        const binderVisual = window.SieglingsCardBinderVisual;
+        const favoritePreview = binderVisual?.usesFramedCardTemplate?.(card)
+            ? binderVisual.renderBinderCardPreview(card, {
+                ownedOverride: ownedCount(card.id) || Number(card.owned) || 1,
+                previewClass: 'detail-card-preview profile-favorite-showcase',
+                descriptionText: shopCardDescriptionFor(card)
+            })
+            : `<div class="profile-favorite-card binder-card" style="--el:${elementColor(card.element)}">
+                ${renderBinderCardShell(card, { ownedOverride: ownedCount(card.id) || Number(card.owned) || 1 })}
+            </div>`;
         return `<div class="profile-favorite-card-wrap">
             <span class="profile-favorite-kicker">Favorite Siegeling</span>
-            <div class="profile-favorite-card binder-card" style="--el:${elementColor(card.element)}">
-                ${renderBinderCardShell(card, { ownedOverride: ownedCount(card.id) || Number(card.owned) || 1 })}
-            </div>
+            ${favoritePreview}
         </div>`;
     }
 
@@ -3403,8 +3465,8 @@
                 ${statRow('Turns', entry.turnNumber ?? '—')}
                 ${statRow('SiegeKnight', entry.trainerName || '—')}
                 ${statRow('Match Type', entry.matchType || '—')}
-                ${statRow('Spells Cast', entry.spellsCast ?? 0)}
-                ${statRow('Traps Sprung', entry.trapsSprung ?? 0)}
+                ${statRow('Strategies Used', entry.spellsCast ?? 0)}
+                ${statRow('Deceptions Sprung', entry.trapsSprung ?? 0)}
                 ${statRow('Siegelings Defeated', entry.siegelingsDefeated ?? 0)}
             </div>
             <div class="match-detail-log-title">Game Breakdown</div>
@@ -5186,6 +5248,10 @@
         if (normalized === 'SIEGLING') return 'Siegeling';
         if (normalized === 'SIEGLINGS') return 'Siegelings';
         if (normalized === 'SIEGEKNIGHT') return 'SiegeKnight';
+        if (normalized === 'SPELL') return 'Strategy';
+        if (normalized === 'SPELLS') return 'Strategies';
+        if (normalized === 'TRAP') return 'Deception';
+        if (normalized === 'TRAPS') return 'Deceptions';
         return normalized
             .toLowerCase()
             .replace(/_/g, ' ')
@@ -5195,6 +5261,10 @@
     }
     function formatGameText(value) {
         return String(value || '')
+            .replace(/\bSpells\b/g, 'Strategies')
+            .replace(/\bSpell\b/g, 'Strategy')
+            .replace(/\bTraps\b/g, 'Deceptions')
+            .replace(/\bTrap\b/g, 'Deception')
             .replace(/\bSiegling\b/g, 'Siegeling')
             .replace(/\bSieglings\b/g, 'Siegelings')
             .replace(/\bsiegling\b/g, 'siegeling')
@@ -6390,11 +6460,11 @@
         },
         {
             id: 'spells-traps',
-            label: 'Spells & Traps',
+            label: 'Strategies & Deceptions',
             title: 'One-shot effects and reactive defense',
             html: `<ul class="guide-list">
-                    <li><strong>Spells</strong> are cast from your hand for an immediate effect — damage, buffs, energy swings, or board control. They cost energy from your pool and resolve right away.</li>
-                    <li><strong>Traps</strong> are set ahead of time and spring when their condition is met (such as an opponent attacking or playing into them). Set them early, then let your opponent walk into the trigger.</li>
+                    <li><strong>Strategies</strong> are played from your hand for an immediate effect — damage, buffs, energy swings, or board control. They cost energy from your pool and resolve right away.</li>
+                    <li><strong>Deceptions</strong> are concealed ahead of time and spring when their condition is met (such as an opponent attacking or playing into them). Set them early, then let your opponent walk into the trigger.</li>
                     <li><strong>Reactions</strong> — some cards require a specific reaction or combo to fire. Check a card's detail panel for its cost element, required reaction, and ability text.</li>
                 </ul>
                 <p class="guide-note">Hold a trap when you read an incoming play, and chain spells off a strong energy turn for a momentum swing.</p>`

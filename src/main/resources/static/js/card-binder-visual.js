@@ -211,7 +211,7 @@
             const reaction = format(card.requiredReaction || 'Trigger');
             const bucket = card.trapBucketAmount
                 ? `${card.trapBucketAmount} ${format(card.trapBucketElement || card.element)}`
-                : 'Trap set';
+                : 'Deception set';
             return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
         }
         return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span></div>`;
@@ -259,21 +259,82 @@
             </div>`;
     }
 
+    function usesFramedCardTemplate(card) {
+        const type = normalizeCardType(card);
+        if (type === 'SIEGEKNIGHT') {
+            return false;
+        }
+        const showcase = window.SieglingsCardShowcase;
+        if (!showcase?.renderShowcaseCard) {
+            return false;
+        }
+        if (typeof showcase.cardFrameClass === 'function') {
+            return Boolean(showcase.cardFrameClass(card).trim());
+        }
+        if (typeof showcase.hasElementFrame === 'function') {
+            return showcase.hasElementFrame(card?.element);
+        }
+        return ['FIRE', 'EARTH', 'ICE', 'WIND'].includes(String(card?.element || '').toUpperCase());
+    }
+
+    function renderFramedShowcaseCard(card, options = {}) {
+        const showcase = window.SieglingsCardShowcase;
+        if (!usesFramedCardTemplate(card) || !showcase?.renderShowcaseCard) {
+            return '';
+        }
+        // Binder surfaces show the card description in the painted info
+        // panel instead of the move list (cost/evo live in the corner chips).
+        return showcase.renderShowcaseCard(card, {
+            artVariant: options.artVariant || 'preview',
+            cardClass: options.cardClass || 'mulligan-showcase binder-grid-showcase',
+            compactAbilityLimit: options.compactAbilityLimit ?? 2,
+            summaryMode: options.summaryMode || 'description',
+            descriptionText: options.descriptionText || ''
+        });
+    }
+
+    function renderBinderCardTile(card, options = {}) {
+        const framed = renderFramedShowcaseCard(card, {
+            cardClass: options.cardClass || 'mulligan-showcase binder-grid-showcase',
+            compactAbilityLimit: options.compactAbilityLimit ?? 2,
+            summaryMode: options.summaryMode,
+            descriptionText: options.descriptionText
+        });
+        if (framed) {
+            return `<div class="mulligan-card-slot binder-framed-slot" aria-hidden="true">${framed}</div>`;
+        }
+        return renderBinderCardShell(card, options);
+    }
+
     function renderBinderCardPreview(card, options = {}) {
         const element = card?.element || 'FIRE';
-        const shell = renderBinderCardShell(card, options);
         const extraClass = options.previewClass ? ` ${options.previewClass}` : '';
+        const previewClass = String(options.previewClass || '').includes('detail')
+            ? `selected-preview-card detail-card-preview${extraClass}`
+            : `mulligan-showcase binder-showcase-card${extraClass}`;
+        const framed = renderFramedShowcaseCard(card, {
+            cardClass: previewClass.trim(),
+            compactAbilityLimit: options.compactAbilityLimit ?? 3,
+            summaryMode: options.summaryMode,
+            descriptionText: options.descriptionText
+        });
+        if (framed) {
+            return framed;
+        }
+        const shell = renderBinderCardShell(card, options);
         const modeClass = resolveArtModeClass(card);
         return `<div class="binder-card card-visual-preview${extraClass}${modeClass}" style="--el:${elementColor(element)}">${shell}</div>`;
     }
 
     window.SieglingsCardBinderVisual = {
         renderBinderCardPreview,
+        renderBinderCardTile,
         renderBinderCardShell,
         renderBinderCardArt,
         renderBinderCardOverlay,
         renderElementIcon,
         elementColor,
+        usesFramedCardTemplate,
         normalizeArtMode,
         normalizeArtTransform,
         buildArtTransformStyle,
