@@ -7793,14 +7793,40 @@ body.placement-active .board-cell.legal {
     left: 65%;
 }
 
-.hand-card.spell-trap-frame .card-corner-cost .energy-count-3,
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 {
+    position: relative;
+    display: block;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon {
+    position: absolute;
+    width: 27%;
+    height: auto;
+    transform: translate(-50%, -50%);
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon:nth-child(1) {
+    left: 50%;
+    top: 30%;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon:nth-child(2) {
+    left: 36%;
+    top: 65%;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon:nth-child(3) {
+    left: 64%;
+    top: 65%;
+}
+
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-4 {
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(2, 1fr);
 }
 
-.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon:nth-child(1) {
-    grid-column: 1 / 3;
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-4 .card-summary-energy-icon {
+    width: 56%;
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-5,
