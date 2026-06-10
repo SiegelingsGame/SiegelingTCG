@@ -7418,6 +7418,24 @@ body.placement-active .board-cell.legal {
     white-space: nowrap;
 }
 
+/* Binder/collection panels: flavor description instead of the move list.
+   fitFramedSummaryList() shrinks the font until the panel fits. */
+.card-summary-description-list {
+    display: block;
+}
+
+.card-summary-description {
+    display: block;
+    white-space: normal;
+    color: var(--summary-ink, #e8f1ff);
+    font-size: 1em;
+    font-weight: 600;
+    line-height: 1.3;
+    text-shadow:
+        0 1px 1px var(--summary-shadow, rgba(2, 8, 18, 0.92)),
+        0 0 4px var(--summary-shadow, rgba(2, 8, 18, 0.92));
+}
+
 /* Top-corner chips on painted-frame previews: cost top-left, evolution
    top-right, on the frame band between the corner and center notches.
    The band spans 0-9.5% of card height with notch centers at 5.6%, so the
@@ -7439,7 +7457,37 @@ body.placement-active .board-cell.legal {
     font-size: 0.52em;
 }
 
-.hand-card.element-frame .card-corner-cost { left: 13.5%; }
+.hand-card.element-frame .card-corner-cost {
+    left: 13.5%;
+    width: auto;
+    max-width: 32%;
+    min-width: 0;
+    height: auto;
+    min-height: 6%;
+    padding: 0.14em 0.2em;
+    gap: 0;
+    background: rgba(8, 10, 18, 0.58);
+    border-color: rgba(255, 244, 214, 0.24);
+    z-index: 12;
+}
+
+.hand-card.element-frame .card-corner-cost .card-summary-energy-icons {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 0.08em;
+    width: auto;
+    min-width: 0;
+}
+
+.hand-card.element-frame .card-corner-cost .card-summary-energy-icon {
+    flex: 0 0 1.18em;
+    width: 1.18em;
+    height: 1.18em;
+}
+
 .hand-card.element-frame .card-corner-evo { right: 13.5%; }
 
 .hand-card.element-frame .card-corner-evo-tag {
@@ -7494,6 +7542,10 @@ body.placement-active .board-cell.legal {
     background-size: 100% 100%;
     background-repeat: no-repeat;
     background-position: center;
+}
+
+.hand-card.spell-trap-frame .hand-card-shell {
+    z-index: auto;
 }
 
 .hand-card.spell-trap-frame .hand-card-header {
@@ -7580,20 +7632,24 @@ body.placement-active .board-cell.legal {
 }
 
 .hand-card.spell-trap-frame .card-corner-chip.card-corner-cost {
-    left: 38.9%;
-    top: 10.35%;
-    width: 22.2%;
-    max-width: 22.2%;
-    height: 7.7%;
+    left: 42.1%;
+    top: 8.16%;
+    width: 18.62%;
+    max-width: 18.62%;
+    min-width: 18.62%;
+    height: 10.34%;
+    min-height: 10.34%;
     justify-content: center;
+    align-items: center;
     padding: 0;
     gap: 1px;
     border: 0;
     background: transparent;
     box-shadow: none;
     transform: none;
-    z-index: 12 !important;
-    font-size: 0.72em;
+    z-index: 30 !important;
+    isolation: isolate;
+    font-size: 0.66em;
 }
 
 .hand-card.spell-trap-frame .card-corner-chip.card-corner-cost,
@@ -7604,25 +7660,54 @@ body.placement-active .board-cell.legal {
 .hand-card.spell-trap-frame .card-corner-cost .card-summary-energy-icons {
     position: relative;
     display: grid;
-    width: 92%;
-    height: 92%;
+    width: 100%;
+    height: 100%;
     gap: 0;
     place-items: center;
+    z-index: 31;
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .card-summary-energy-icon {
-    width: 1.18em;
-    height: 1.18em;
+    position: relative;
+    width: 70%;
+    height: auto;
+    aspect-ratio: 1 / 1;
     margin: 0;
+    z-index: 31;
+    filter:
+        drop-shadow(0 0 2px rgba(255, 255, 255, 0.78))
+        drop-shadow(0 1px 1px rgba(0, 0, 0, 0.72));
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-1 .card-summary-energy-icon {
-    width: 2.35em;
-    height: 2.35em;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 62%;
+    height: auto;
+    transform: translate(-50%, -50%);
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-2 {
-    grid-template-rows: repeat(2, 1fr);
+    position: relative;
+    display: block;
+    padding: 0;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-2 .card-summary-energy-icon {
+    position: absolute;
+    top: 50%;
+    width: 30%;
+    height: auto;
+    transform: translate(-50%, -50%);
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-2 .card-summary-energy-icon:nth-child(1) {
+    left: 35%;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-2 .card-summary-energy-icon:nth-child(2) {
+    left: 65%;
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-3,
@@ -7671,13 +7756,13 @@ body.placement-active .board-cell.legal {
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-8 .card-summary-energy-icon {
-    width: 0.82em;
-    height: 0.82em;
+    width: 58%;
+    height: auto;
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-9 .card-summary-energy-icon {
-    width: 0.82em;
-    height: 0.82em;
+    width: 58%;
+    height: auto;
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-many .card-summary-energy-icon {
@@ -7686,8 +7771,12 @@ body.placement-active .board-cell.legal {
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-many .card-summary-energy-icon:first-child {
     display: block;
-    width: 2.45em;
-    height: 2.45em;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 64%;
+    height: auto;
+    transform: translate(-50%, -50%);
     border-color: rgba(255, 255, 255, 0.85);
     background:
         var(--notch-icon) center / 100% 100% no-repeat,
@@ -9943,6 +10032,14 @@ body.placement-active .board-cell.legal {
     padding: 12px 12px 14px;
     gap: 6px;
     background: linear-gradient(to top, rgba(2, 6, 18, 0.96) 0%, rgba(6, 10, 24, 0.9) 78%, transparent 100%);
+}
+
+/* Rows keep their natural height — if they could flex-shrink, wrapped
+   ability text would spill over the next row AND body.scrollHeight would
+   never grow, so fitSiegeKnightCardText() couldn't detect the overflow
+   and shrink the font. */
+.knight-card-body > * {
+    flex-shrink: 0;
 }
 
 .knight-card-name {

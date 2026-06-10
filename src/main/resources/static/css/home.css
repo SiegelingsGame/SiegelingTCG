@@ -29,9 +29,20 @@
 
 * { box-sizing: border-box; }
 
+html,
+body {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
 body {
     margin: 0;
+    display: block;
+    height: auto;
     min-height: 100vh;
+    flex-direction: initial;
     color: var(--text);
     background:
         radial-gradient(circle at 13% 16%, rgba(50, 150, 255, 0.22), transparent 26%),
@@ -42,6 +53,7 @@ body {
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    -webkit-overflow-scrolling: touch;
 }
 
 body::before {
@@ -1055,6 +1067,50 @@ select.search-input { color-scheme: dark; }
     box-shadow:
         0 0 0 2px rgba(255, 215, 0, 0.12),
         0 0 26px rgba(255, 215, 0, 0.16);
+}
+
+.card-tile.framed-binder-tile {
+    padding: 0;
+    min-height: 0;
+    display: block;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+}
+
+.card-tile.framed-binder-tile:hover {
+    transform: none;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.card-tile.framed-binder-tile.selected {
+    border-radius: 14px;
+    box-shadow:
+        0 0 0 2px var(--accent),
+        0 0 26px rgba(255, 215, 0, 0.16);
+}
+
+.card-tile.framed-binder-tile .binder-framed-slot {
+    max-width: none;
+    width: 100%;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    pointer-events: none;
+}
+
+.home-collection-card.framed-binder-tile {
+    min-height: 0;
+}
+
+.profile-favorite-card-wrap .hand-card.profile-favorite-showcase {
+    width: 100%;
+    max-width: 168px;
+    margin: 0;
+    aspect-ratio: var(--card-aspect-ratio);
 }
 
 .binder-card {

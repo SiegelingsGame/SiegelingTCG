@@ -788,6 +788,7 @@
                 renderDetail();
             }));
             state._cardsRenderSig = signature;
+            window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
         }
         const allCount = document.getElementById('allCardCount');
         if (allCount) {
@@ -932,8 +933,14 @@
 
     function renderCardTile(card) {
         const selected = card.id === state.selectedCardId ? ' selected' : '';
-        const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (window.SieglingsCardBinderVisual?.resolveArtModeClass(card) || '');
         const knightClass = card.type === 'SIEGEKNIGHT' ? ' siegeknight-binder-card' : '';
+        const binderVisual = window.SieglingsCardBinderVisual;
+        if (binderVisual?.usesFramedCardTemplate?.(card)) {
+            return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${binderVisual.renderBinderCardTile(card, { descriptionText: shopCardDescriptionFor(card) })}
+            </button>`;
+        }
+        const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (binderVisual?.resolveArtModeClass(card) || '');
         return `<button class="card-tile binder-card${selected}${modeClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
             ${renderBinderCardShell(card)}
         </button>`;
@@ -977,7 +984,8 @@
         const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview && !isSiegeknight)
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id),
-                previewClass: 'detail-card-preview'
+                previewClass: 'detail-card-preview',
+                descriptionText: shopCardDescriptionFor(card)
             })
             : `<div class="binder-card detail-card-preview${isSiegeknight ? ' siegeknight-binder-card' : ''}" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
@@ -1036,6 +1044,7 @@
             }
             adjustBuilder(card.id, 1);
         });
+        window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
     }
 
     function renderHomeDashboard() {
@@ -1899,7 +1908,8 @@
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id),
                 ownedLabel: `In deck x${inDeck}`,
-                previewClass: 'detail-card-preview deck-builder-detail-preview'
+                previewClass: 'detail-card-preview deck-builder-detail-preview',
+                descriptionText: shopCardDescriptionFor(card)
             })
             : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
@@ -2652,6 +2662,7 @@
         renderEditProfileModalHost(view);
         bindProfileDashboard();
         bindPlayerProfileLinks(body);
+        window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
     }
 
     function renderEditProfileModalHost(view) {
@@ -2752,11 +2763,19 @@
         if (!card?.id) {
             return '<div class="profile-favorite-card-empty"><span>No favorite Siegeling selected</span></div>';
         }
+        const binderVisual = window.SieglingsCardBinderVisual;
+        const favoritePreview = binderVisual?.usesFramedCardTemplate?.(card)
+            ? binderVisual.renderBinderCardPreview(card, {
+                ownedOverride: ownedCount(card.id) || Number(card.owned) || 1,
+                previewClass: 'detail-card-preview profile-favorite-showcase',
+                descriptionText: shopCardDescriptionFor(card)
+            })
+            : `<div class="profile-favorite-card binder-card" style="--el:${elementColor(card.element)}">
+                ${renderBinderCardShell(card, { ownedOverride: ownedCount(card.id) || Number(card.owned) || 1 })}
+            </div>`;
         return `<div class="profile-favorite-card-wrap">
             <span class="profile-favorite-kicker">Favorite Siegeling</span>
-            <div class="profile-favorite-card binder-card" style="--el:${elementColor(card.element)}">
-                ${renderBinderCardShell(card, { ownedOverride: ownedCount(card.id) || Number(card.owned) || 1 })}
-            </div>
+            ${favoritePreview}
         </div>`;
     }
 

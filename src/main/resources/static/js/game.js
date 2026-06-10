@@ -3025,6 +3025,17 @@ function renderCompactCardSummary(card, options = {}) {
     return `<div class="card-summary-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element))}">${rows.join('')}</div>`;
 }
 
+// Binder/collection variant of the painted-frame info panel: the card's
+// description replaces the move list (cost/evolution stay in the corner
+// chips). Rendered inside .card-summary-list so fitFramedSummaryList sizes
+// the text to the panel.
+function renderCompactDescriptionSummary(card, descriptionText) {
+    const description = String(descriptionText || card?.description || '').trim() || 'Description coming soon.';
+    return `<div class="card-summary-list card-summary-description-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element))}" title="${escapeHtmlAttribute(description)}">`
+        + `<div class="card-summary-description">${escapeHtml(description)}</div>`
+        + '</div>';
+}
+
 // Top-corner chips for painted-frame previews: play cost (or trap trigger)
 // sits in the top-left, evolution source in the top-right, both on the
 // frame's top band between the notch sockets.
@@ -3153,7 +3164,9 @@ function renderShowcaseCard(card, options = {}) {
             html += `<div class="card-detail card-stats-line${showcaseHasShield ? ' is-shielded' : ''}">${escapeHtml(statLine)}</div>`;
         }
         if (useCompactSummary) {
-            html += renderCompactCardSummary(card, { abilityLimit: options.compactAbilityLimit ?? 3, omitCostEvolution: true });
+            html += options.summaryMode === 'description'
+                ? renderCompactDescriptionSummary(card, options.descriptionText)
+                : renderCompactCardSummary(card, { abilityLimit: options.compactAbilityLimit ?? 3, omitCostEvolution: true });
         } else {
             visibleDetailEntries.forEach((entry) => {
                 if (entry.html) {
@@ -13862,16 +13875,26 @@ syncDesktopInspectTabUi();
     document.addEventListener('pointercancel', finish);
 })();
 
-renderDesktopMenuMeta();
-renderDesktopActionHistory();
-renderWelcomeTutorial();
-bindAuthStorageSync();
-renderWelcomeAuth();
-void syncAuthProfile(true);
-syncEntryOverlays();
-if (typeof SieglingsCatalogSync !== 'undefined') {
-    SieglingsCatalogSync.onCatalogPublished(() => {
-        refreshLiveGameOptions();
-    });
+window.SieglingsCardShowcase = {
+    renderShowcaseCard,
+    scheduleFramedSummaryFit,
+    fitFramedSummaryText,
+    cardFrameClass,
+    hasElementFrame
+};
+
+if (document.getElementById('loadoutOverlay')) {
+    renderDesktopMenuMeta();
+    renderDesktopActionHistory();
+    renderWelcomeTutorial();
+    bindAuthStorageSync();
+    renderWelcomeAuth();
+    void syncAuthProfile(true);
+    syncEntryOverlays();
+    if (typeof SieglingsCatalogSync !== 'undefined') {
+        SieglingsCatalogSync.onCatalogPublished(() => {
+            refreshLiveGameOptions();
+        });
+    }
+    loadGameOptions();
 }
-loadGameOptions();
