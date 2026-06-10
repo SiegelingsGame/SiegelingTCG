@@ -641,11 +641,18 @@ const ARENA_BOARD_NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'R
 // Listed elements render the painted frame on battle-board cards instead
 // of the CSS-drawn chrome; geometry lives in style.css under .element-frame.
 const ELEMENT_FRAME_CLASS = {
-    FIRE: 'frame-fire',
-    EARTH: 'frame-earth',
-    ICE: 'frame-ice',
-    WIND: 'frame-wind'
+    FIRE: 'frame-fire-metal',
+    METAL: 'frame-fire-metal',
+    EARTH: 'frame-earth-psychic',
+    PSYCHIC: 'frame-earth-psychic',
+    ICE: 'frame-ice-water',
+    WATER: 'frame-ice-water',
+    WIND: 'frame-air-electric',
+    AIR: 'frame-air-electric',
+    ELECTRIC: 'frame-air-electric'
 };
+
+const ELEMENT_FRAME_RARITIES = new Set(['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY']);
 
 const SPELL_TRAP_FRAME_CLASS = {
     FIRE: 'frame-spell-fire',
@@ -658,9 +665,16 @@ function hasElementFrame(element) {
     return Boolean(ELEMENT_FRAME_CLASS[String(element || '').toUpperCase()]);
 }
 
-function elementFrameClass(element) {
+function elementFrameClass(element, rarity) {
     const frameClass = ELEMENT_FRAME_CLASS[String(element || '').toUpperCase()];
-    return frameClass ? ` element-frame ${frameClass}` : '';
+    if (!frameClass) {
+        return '';
+    }
+    const rarityKey = String(rarity || 'COMMON').toUpperCase();
+    const rarityClass = ELEMENT_FRAME_RARITIES.has(rarityKey)
+        ? `frame-rarity-${rarityKey.toLowerCase()}`
+        : 'frame-rarity-common';
+    return ` element-frame ${frameClass} ${rarityClass}`;
 }
 
 function isSpellTrapCard(card) {
@@ -674,7 +688,7 @@ function cardFrameClass(card) {
             return ` element-frame spell-trap-frame ${frameClass}`;
         }
     }
-    return elementFrameClass(card?.element);
+    return elementFrameClass(card?.element, card?.rarity);
 }
 
 function cardTypeClass(card) {
@@ -714,7 +728,7 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     const statusBadgesHtml = renderStatusBadgesForCell(cell);
 
     const heldClass = context.heldCard ? ' sgl-held-card' : '';
-    let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}${elementFrameClass(cell.element)}">`;
+    let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}${elementFrameClass(cell.element, cell.rarity)}">`;
     if (context.isActing) {
         html += `<div class="acting-badge">Acting</div>`;
     }
