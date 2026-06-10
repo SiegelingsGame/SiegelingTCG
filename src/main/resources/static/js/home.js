@@ -789,6 +789,7 @@
             }));
             state._cardsRenderSig = signature;
             window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
         }
         const allCount = document.getElementById('allCardCount');
         if (allCount) {
@@ -931,10 +932,48 @@
             </div>`;
     }
 
+    // SiegeKnight tile/preview using the loadout card template
+    // (knight-card has-knight-back styles in style.css) while keeping the
+    // binder data: tier, rarity, owned level, XP bar, passive/active text.
+    function renderKnightBinderCard(card, options = {}) {
+        const elHex = elementColor(card.element);
+        const elClass = String(card.element || 'NEUTRAL').toLowerCase();
+        const rarityClass = String(card.rarity || 'common').toLowerCase();
+        const tier = String(card.tier || 'SiegeKnight');
+        const level = Math.max(1, Number(card.level) || trainerOwnedLevel(card.id) || 1);
+        const owned = trainerOwnedLevel(card.id) > 0;
+        const backStyle = typeof siegeknightCardBackStyle === 'function'
+            ? siegeknightCardBackStyle()
+            : "--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')";
+        const iconPath = (typeof ELEMENT_KEY_ICON_PATHS !== 'undefined'
+            && ELEMENT_KEY_ICON_PATHS[String(card.element || '').toUpperCase()]) || '';
+        const elementIconStyle = iconPath ? `--knight-element-icon:url('${iconPath}');` : '';
+        // Grid tiles are too small for the ability rows — the gray panel
+        // holds name/tier/owned/XP there; the detail preview shows it all.
+        const abilities = options.compact ? [] : (card.abilities || []).slice(0, 2);
+        return `<div class="knight-card has-knight-back knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
+            <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
+            <div class="knight-card-template" aria-hidden="true"></div>
+            <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
+            <div class="knight-card-body">
+                <span class="knight-card-name">${escapeHtml(card.name)}</span>
+                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(format(card.element))}</span> <span class="knight-tier tier-${escapeAttr(tier.toLowerCase())}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${escapeAttr(rarityClass)}">${escapeHtml(format(card.rarity))}</span></span>
+                <span class="knight-card-meta knight-binder-owned">${owned ? `Owned · Lv ${level}` : 'Unowned'}</span>
+                <div class="knight-binder-xp">${renderTrainerXpBar(card.id, { unownedPlaceholder: true })}</div>
+                ${abilities.map(a => `<span class="knight-card-ability"><span>${escapeHtml(a.name)}</span>${escapeHtml(a.description)}</span>`).join('')}
+            </div>
+        </div>`;
+    }
+
     function renderCardTile(card) {
         const selected = card.id === state.selectedCardId ? ' selected' : '';
         const knightClass = card.type === 'SIEGEKNIGHT' ? ' siegeknight-binder-card' : '';
         const binderVisual = window.SieglingsCardBinderVisual;
+        if (card.type === 'SIEGEKNIGHT') {
+            return `<button class="card-tile binder-card framed-binder-tile knight-binder-tile${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${renderKnightBinderCard(card, { compact: true })}
+            </button>`;
+        }
         if (binderVisual?.usesFramedCardTemplate?.(card)) {
             return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
                 ${binderVisual.renderBinderCardTile(card, { descriptionText: shopCardDescriptionFor(card) })}
@@ -981,13 +1020,15 @@
             && state.profile?.authenticated
             && state.progression?.starterChosen
             && (state.progression?.gold || 0) >= nextXpCost;
-        const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview && !isSiegeknight)
+        const cardPreview = isSiegeknight
+            ? `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`
+            : window.SieglingsCardBinderVisual?.renderBinderCardPreview
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id),
                 previewClass: 'detail-card-preview',
                 descriptionText: shopCardDescriptionFor(card)
             })
-            : `<div class="binder-card detail-card-preview${isSiegeknight ? ' siegeknight-binder-card' : ''}" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
             <div class="detail-card-preview-wrap">${cardPreview}</div>
             ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
@@ -1045,6 +1086,7 @@
             adjustBuilder(card.id, 1);
         });
         window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 
     function renderHomeDashboard() {
@@ -2663,6 +2705,7 @@
         bindProfileDashboard();
         bindPlayerProfileLinks(body);
         window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 
     function renderEditProfileModalHost(view) {

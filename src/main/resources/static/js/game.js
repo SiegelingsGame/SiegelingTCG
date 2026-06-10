@@ -13893,6 +13893,8 @@ window.SieglingsCardShowcase = {
     renderShowcaseCard,
     scheduleFramedSummaryFit,
     fitFramedSummaryText,
+    scheduleSiegeKnightCardFit,
+    fitSiegeKnightCardText,
     cardFrameClass,
     hasElementFrame
 };
