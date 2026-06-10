@@ -676,17 +676,18 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     }
     html += renderArenaBoardFrameNotches(cell.notches, { board, row, col, isPlayer, legalPlacements });
     html += `<div class="hand-card-shell arena-board-shell">`;
-    html += `<div class="arena-board-health">`;
-    html += renderArenaBoardHpBar(cell);
-    html += `</div>`;
     html += `<div class="hand-card-header arena-board-header">`;
     html += `<div class="card-title">${escapeHtml(cell.name || '')}</div>`;
     html += `</div>`;
     html += renderCardArt(cell, 'hand', fallbackArtLabel);
     html += `<div class="arena-board-combat">`;
-    // Badges sit above the HP/SPD line so they stay clear of the bottom-centre
-    // notch; the stat line below splits left/right, leaving the notch its gap.
+    // Order: badges, then the health bar, then the HP/SPD line. Keeping the
+    // badges directly above the health bar stops them from crowding the HP/SPD
+    // pills off the bottom edge of the card when tokens/statuses are present.
     html += `<div class="arena-board-badges">${statusBadgesHtml}</div>`;
+    html += `<div class="arena-board-health">`;
+    html += renderArenaBoardHpBar(cell);
+    html += `</div>`;
     html += renderCardStatPills(cell, { mode: 'board' });
     html += `</div>`;
     html += `</div>`;
