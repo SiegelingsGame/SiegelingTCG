@@ -6019,6 +6019,143 @@ body.placement-active .board-cell.legal {
     border-color: rgba(255, 90, 90, 0.4);
 }
 
+/* ── Hand-drawn element frames ──────────────────────────────────────────
+   Painted template PNGs (img/frames/frame-*.png) replace the CSS-drawn
+   chrome on battle-board cards for elements listed in game.js
+   ELEMENT_FRAME_CLASS. The overlay geometry (notch centers, info-panel
+   rect, art window) is measured from the template pixels with
+   tools/measure_fire_template.py and expressed as % of the card box, so
+   it holds at any rendered size. */
+.board-card.arena-board-card.element-frame {
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+}
+
+.board-card.arena-board-card.element-frame::before {
+    display: none;
+}
+
+.board-card.arena-board-card.element-frame.frame-fire {
+    background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
+}
+
+.board-card.arena-board-card.element-frame.frame-earth {
+    background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
+}
+
+.board-card.arena-board-card.element-frame.frame-ice {
+    background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
+}
+
+.board-card.arena-board-card.element-frame.frame-wind {
+    background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
+}
+
+.board-card.arena-board-card.element-frame .hand-card-shell.arena-board-shell {
+    position: absolute;
+    inset: 0;
+    display: block;
+    padding: 0;
+}
+
+/* Name sits just under the top frame band, clear of the TOP notch socket. */
+.board-card.arena-board-card.element-frame .hand-card-header.arena-board-header {
+    position: absolute;
+    left: 13%;
+    right: 13%;
+    top: 10.6%;
+    width: auto;
+    z-index: 2;
+    padding: 0;
+}
+
+.board-card.arena-board-card.element-frame .arena-board-header .card-title {
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.95),
+        0 0 6px rgba(0, 0, 0, 0.75);
+}
+
+/* Art window: the painted template artwork is the fallback art; a card's
+   own art (when set) fills the window above it. */
+.board-card.arena-board-card.element-frame .card-art-hand {
+    position: absolute;
+    left: 9.8%;
+    top: 10%;
+    width: 80.4%;
+    height: 58.7%;
+    min-height: 0;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    background: none;
+    box-shadow: none;
+}
+
+.board-card.arena-board-card.element-frame .card-art-hand.card-art-fallback::before {
+    display: none;
+}
+
+/* HP bar pinned to the top of the painted info panel. */
+.board-card.arena-board-card.element-frame .arena-board-health {
+    position: absolute;
+    left: 11.5%;
+    right: 11.5%;
+    top: 70.6%;
+    width: auto;
+    z-index: 2;
+}
+
+/* Stat pills + status badges fill the rest of the panel, stopping above
+   the bottom notch sockets. */
+.board-card.arena-board-card.element-frame .arena-board-combat {
+    position: absolute;
+    left: 11.5%;
+    right: 11.5%;
+    top: 75%;
+    bottom: 9.5%;
+    width: auto;
+    margin: 0;
+    z-index: 2;
+    justify-content: flex-start;
+}
+
+.board-card.arena-board-card.element-frame .card-stat-pill {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+/* Notch dots snap to the hand-drawn sockets painted on the frame. */
+.board-card.arena-board-card.element-frame .arena-board-notches {
+    inset: 0;
+}
+
+.board-card.arena-board-card.element-frame .notch-dot {
+    width: 10.4%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-width: 1px;
+}
+
+/* Empty sockets stay as painted on the template — no dark dot. */
+.board-card.arena-board-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.board-card.arena-board-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
+.board-card.arena-board-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
+.board-card.arena-board-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
+.board-card.arena-board-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
+.board-card.arena-board-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
+.board-card.arena-board-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
+.board-card.arena-board-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
+.board-card.arena-board-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+
 .card-art {
     position: relative;
     overflow: hidden;
@@ -6727,6 +6864,903 @@ body.placement-active .board-cell.legal {
 .hand-card .notch-center {
     display: none;
 }
+
+/* Hand tray cards use the same painted element templates as board cards,
+   but keep their compact tray layout and hover behavior. */
+#playerHand .hand-card.element-frame {
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+}
+
+#playerHand .hand-card.element-frame::before {
+    display: none;
+}
+
+#playerHand .hand-card.element-frame.frame-fire {
+    background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
+}
+
+#playerHand .hand-card.element-frame.frame-earth {
+    background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
+}
+
+#playerHand .hand-card.element-frame.frame-ice {
+    background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
+}
+
+#playerHand .hand-card.element-frame.frame-wind {
+    background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
+}
+
+#playerHand .hand-card.element-frame .hand-card-shell {
+    position: absolute;
+    inset: 0;
+    display: block;
+    min-height: 0;
+    width: 100%;
+    padding: 0;
+}
+
+#playerHand .hand-card.element-frame .hand-card-header {
+    position: absolute;
+    left: 13%;
+    right: 13%;
+    top: 10.6%;
+    width: auto;
+    z-index: 2;
+    padding: 0;
+    gap: 0;
+}
+
+#playerHand .hand-card.element-frame .card-title {
+    color: #ffffff;
+    font-size: 0.72em;
+    font-weight: 900;
+    line-height: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow:
+        -1px -1px 0 rgba(8, 5, 2, 0.9),
+        1px -1px 0 rgba(8, 5, 2, 0.9),
+        -1px 1px 0 rgba(8, 5, 2, 0.9),
+        1px 1px 0 rgba(8, 5, 2, 0.9),
+        0 1px 4px rgba(0, 0, 0, 0.85);
+}
+
+/* Tray cards are too small for corner chips — hide them there. */
+#playerHand .hand-card.element-frame .card-corner-chip {
+    display: none;
+}
+
+#playerHand .hand-card.element-frame .card-label {
+    display: none;
+}
+
+#playerHand .hand-card.element-frame .card-art-hand {
+    position: absolute;
+    left: 9.8%;
+    top: 10%;
+    width: 80.4%;
+    height: 58.7%;
+    min-height: 0;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    background: none;
+    box-shadow: none;
+}
+
+#playerHand .hand-card.element-frame .card-art-hand.card-art-fallback::before,
+#playerHand .hand-card.element-frame .card-art-hand.card-art-fallback span {
+    display: none;
+}
+
+#playerHand .hand-card.element-frame .card-stat-pills {
+    position: absolute;
+    left: 11.5%;
+    right: 11.5%;
+    top: 75%;
+    z-index: 2;
+    width: auto;
+    margin: 0;
+    gap: 0.18em;
+}
+
+#playerHand .hand-card.element-frame .card-stat-pill {
+    min-width: 0;
+    padding: 1px 2px;
+    background: rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.22);
+    font-size: 0.5em;
+    line-height: 1.1;
+}
+
+#playerHand .hand-card.element-frame .hand-notches {
+    inset: 0;
+}
+
+#playerHand .hand-card.element-frame .notch-dot {
+    width: 10.4%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-width: 1px;
+}
+
+#playerHand .hand-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+#playerHand .hand-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
+#playerHand .hand-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
+#playerHand .hand-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
+#playerHand .hand-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
+#playerHand .hand-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
+#playerHand .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
+#playerHand .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
+#playerHand .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+
+/* Showcase previews share the painted frame, with copy constrained to the
+   template's bottom info panel. */
+.card-preview-card.element-frame,
+.selected-preview-card.element-frame,
+.mulligan-showcase.element-frame,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame {
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.34));
+}
+
+.card-preview-card.element-frame::before,
+.selected-preview-card.element-frame::before,
+.mulligan-showcase.element-frame::before,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame::before {
+    display: none;
+}
+
+.card-preview-card.element-frame.frame-fire,
+.selected-preview-card.element-frame.frame-fire,
+.mulligan-showcase.element-frame.frame-fire,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame.frame-fire {
+    background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
+}
+
+.card-preview-card.element-frame.frame-earth,
+.selected-preview-card.element-frame.frame-earth,
+.mulligan-showcase.element-frame.frame-earth,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame.frame-earth {
+    background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
+}
+
+.card-preview-card.element-frame.frame-ice,
+.selected-preview-card.element-frame.frame-ice,
+.mulligan-showcase.element-frame.frame-ice,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame.frame-ice {
+    background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
+}
+
+.card-preview-card.element-frame.frame-wind,
+.selected-preview-card.element-frame.frame-wind,
+.mulligan-showcase.element-frame.frame-wind,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame.frame-wind {
+    background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
+}
+
+.card-preview-card.element-frame .hand-card-shell,
+.selected-preview-card.element-frame .hand-card-shell,
+.mulligan-showcase.element-frame .hand-card-shell {
+    position: absolute;
+    inset: 0;
+    display: block;
+    min-height: 0;
+    width: 100%;
+    padding: 0;
+    overflow: hidden;
+}
+
+.card-preview-card.element-frame .hand-card-header,
+.selected-preview-card.element-frame .hand-card-header,
+.mulligan-showcase.element-frame .hand-card-header {
+    position: absolute;
+    left: 13%;
+    right: 13%;
+    top: 10.6%;
+    width: auto;
+    z-index: 2;
+    padding: 0;
+    gap: 0;
+}
+
+/* .hand-card prefix outranks the per-element title tints
+   (.hand-card.fire .card-title etc.) that appear later in the file. */
+.hand-card.card-preview-card.element-frame .card-title,
+.hand-card.selected-preview-card.element-frame .card-title,
+.hand-card.mulligan-showcase.element-frame .card-title {
+    color: #ffffff;
+    font-size: 1em;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    line-height: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Four-way dark outline keeps the name readable over any art. */
+    text-shadow:
+        -1px -1px 0 rgba(8, 5, 2, 0.9),
+        1px -1px 0 rgba(8, 5, 2, 0.9),
+        -1px 1px 0 rgba(8, 5, 2, 0.9),
+        1px 1px 0 rgba(8, 5, 2, 0.9),
+        0 2px 6px rgba(0, 0, 0, 0.85),
+        0 0 10px rgba(0, 0, 0, 0.6);
+}
+
+.card-preview-card.element-frame .card-label,
+.selected-preview-card.element-frame .card-label,
+.mulligan-showcase.element-frame .card-label {
+    display: none;
+}
+
+.card-preview-card.element-frame .card-art-preview,
+.card-preview-card.element-frame .card-art-selected,
+.selected-preview-card.element-frame .card-art-preview,
+.selected-preview-card.element-frame .card-art-selected,
+.mulligan-showcase.element-frame .card-art-preview,
+.mulligan-showcase.element-frame .card-art-selected {
+    position: absolute;
+    left: 9.8%;
+    top: 10%;
+    width: 80.4%;
+    height: 58.7%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    background: none;
+    box-shadow: none;
+}
+
+.card-preview-card.element-frame .card-art-preview.card-art-fallback::before,
+.card-preview-card.element-frame .card-art-selected.card-art-fallback::before,
+.selected-preview-card.element-frame .card-art-preview.card-art-fallback::before,
+.selected-preview-card.element-frame .card-art-selected.card-art-fallback::before,
+.mulligan-showcase.element-frame .card-art-preview.card-art-fallback::before,
+.mulligan-showcase.element-frame .card-art-selected.card-art-fallback::before {
+    display: none;
+}
+
+/* The painted template artwork IS the fallback — drop the "FIRE" label text. */
+.card-preview-card.element-frame .card-art-preview.card-art-fallback span,
+.card-preview-card.element-frame .card-art-selected.card-art-fallback span,
+.selected-preview-card.element-frame .card-art-preview.card-art-fallback span,
+.selected-preview-card.element-frame .card-art-selected.card-art-fallback span,
+.mulligan-showcase.element-frame .card-art-preview.card-art-fallback span,
+.mulligan-showcase.element-frame .card-art-selected.card-art-fallback span {
+    display: none;
+}
+
+.card-preview-card.element-frame .card-art-preview img,
+.card-preview-card.element-frame .card-art-selected img,
+.selected-preview-card.element-frame .card-art-preview img,
+.selected-preview-card.element-frame .card-art-selected img,
+.mulligan-showcase.element-frame .card-art-preview img,
+.mulligan-showcase.element-frame .card-art-selected img {
+    width: auto;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.card-preview-card.element-frame .hand-card-body,
+.selected-preview-card.element-frame .hand-card-body,
+.mulligan-showcase.element-frame .hand-card-body {
+    position: absolute;
+    left: 11.5%;
+    right: 11.5%;
+    top: 69.8%;
+    bottom: 7.6%;
+    width: auto;
+    min-height: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 0;
+    overflow: hidden;
+}
+
+.card-preview-card.element-frame .card-stat-pills,
+.selected-preview-card.element-frame .card-stat-pills,
+.mulligan-showcase.element-frame .card-stat-pills {
+    width: 100%;
+    margin: 0;
+    gap: 0.22em;
+}
+
+.card-preview-card.element-frame .card-stat-pill,
+.selected-preview-card.element-frame .card-stat-pill,
+.mulligan-showcase.element-frame .card-stat-pill {
+    min-width: 0;
+    padding: 1px 3px;
+    background: rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.22);
+    font-size: 0.58em;
+    line-height: 1;
+}
+
+.card-preview-card.element-frame .card-detail,
+.card-preview-card.element-frame .card-cost,
+.selected-preview-card.element-frame .card-detail,
+.selected-preview-card.element-frame .card-cost,
+.mulligan-showcase.element-frame .card-detail,
+.mulligan-showcase.element-frame .card-cost {
+    margin: 0;
+    color: #ff6a35;
+    font-size: 0.5em;
+    line-height: 1.08;
+    text-align: center;
+}
+
+.card-summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    font-size: 9px;
+}
+
+.card-summary-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    gap: 2px;
+    color: #ff6a35;
+    font-size: 1em;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.88);
+}
+
+.card-summary-list.is-fitted .card-summary-row {
+    color: var(--summary-ink, #e8f1ff);
+    text-shadow:
+        0 1px 1px var(--summary-shadow, rgba(2, 8, 18, 0.92)),
+        0 0 4px var(--summary-shadow, rgba(2, 8, 18, 0.92));
+}
+
+.selected-preview-card.desktop-preview-card.element-frame .card-summary-list {
+    font-size: 10px;
+}
+
+.mulligan-showcase.element-frame .card-summary-list {
+    font-size: 9px;
+}
+
+.card-summary-name,
+.card-summary-meta,
+.card-summary-target {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Ability rows read as prose — "Embers: Deal 3 to an enemy" — wrapping to
+   a second line rather than ellipsizing; fitFramedSummaryList() shrinks the
+   font until the panel fits vertically. */
+.card-summary-row.card-summary-ability {
+    display: block;
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.18;
+}
+
+.card-summary-ability .card-summary-name,
+.card-summary-ability .card-summary-separator,
+.card-summary-ability .card-summary-clause {
+    display: inline;
+    max-width: none;
+    overflow: visible;
+    white-space: normal;
+}
+
+.card-summary-ability .card-summary-separator {
+    margin-right: 0.3em;
+}
+
+.card-summary-cost-row .card-summary-name,
+.card-summary-meta-row .card-summary-name,
+.card-summary-evolution-row .card-summary-name {
+    flex: 0 0 auto;
+}
+
+.card-summary-separator {
+    flex: 0 0 auto;
+    color: var(--summary-muted, #ffd2bd);
+    opacity: 0.9;
+}
+
+.card-summary-value,
+.card-summary-effect-label {
+    flex: 0 0 auto;
+    color: var(--summary-strong, #ffe15a);
+    font-weight: 900;
+}
+
+.card-summary-target,
+.card-summary-meta {
+    color: var(--summary-muted, #ffd8c8);
+    font-size: 0.8em;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.card-summary-more {
+    justify-content: center;
+    color: var(--summary-muted, #ffd8c8);
+    opacity: 0.82;
+}
+
+.card-summary-icon {
+    position: relative;
+    display: inline-block;
+    flex: 0 0 1em;
+    width: 1em;
+    height: 1em;
+}
+
+.card-summary-icon-damage {
+    background:
+        radial-gradient(circle at 45% 42%, #fff49a 0 18%, #ffb129 19% 38%, #ff3a18 39% 72%, #7b160c 73% 100%);
+    clip-path: polygon(50% 0, 62% 26%, 92% 14%, 76% 45%, 100% 64%, 66% 66%, 55% 100%, 39% 70%, 8% 84%, 25% 53%, 0 31%, 35% 32%);
+    filter: drop-shadow(0 0 3px rgba(255, 72, 24, 0.75));
+}
+
+.card-summary-icon-heal {
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e8fff4 0 18%, #61f0a6 19% 62%, #128b55 63% 100%);
+    box-shadow: 0 0 5px rgba(75, 240, 154, 0.55);
+}
+
+.card-summary-icon-heal::before,
+.card-summary-icon-heal::after {
+    content: '';
+    position: absolute;
+    left: 22%;
+    top: 42%;
+    width: 56%;
+    height: 16%;
+    border-radius: 999px;
+    background: #062d1d;
+}
+
+.card-summary-icon-heal::after {
+    left: 42%;
+    top: 22%;
+    width: 16%;
+    height: 56%;
+}
+
+.card-summary-icon-shield {
+    border: 1px solid rgba(230, 238, 255, 0.85);
+    border-radius: 45% 45% 55% 55%;
+    background: linear-gradient(180deg, #eff5ff, #7086a4);
+    clip-path: polygon(50% 0, 90% 18%, 82% 70%, 50% 100%, 18% 70%, 10% 18%);
+}
+
+.card-summary-icon-draw,
+.card-summary-icon-effect {
+    border-radius: 2px;
+    background: linear-gradient(135deg, #f9fbff 0 18%, #7aa7ff 19% 100%);
+    box-shadow: inset 0 0 0 1px rgba(3, 8, 20, 0.55);
+}
+
+.card-summary-icon-control,
+.card-summary-icon-speed,
+.card-summary-icon-health,
+.card-summary-icon-move {
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 30%, #ffffff, #8fc9ff 45%, #2452a8 100%);
+    box-shadow: 0 0 5px rgba(122, 186, 255, 0.45);
+}
+
+.card-summary-icon-health {
+    background: radial-gradient(circle at 38% 30%, #fff9e5, #ffd464 45%, #a56b12 100%);
+}
+
+.card-summary-energy-icons {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 2px;
+    min-width: 0;
+}
+
+.card-summary-energy-icon {
+    flex: 0 0 1.05em;
+    width: 1.05em;
+    height: 1.05em;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 245, 220, 0.5);
+    background:
+        var(--notch-icon) center / 100% 100% no-repeat,
+        radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.7), var(--notch) 60%, rgba(30, 10, 6, 0.95));
+    box-shadow:
+        0 0 5px color-mix(in srgb, var(--notch) 64%, transparent),
+        inset 0 1px 1px rgba(255, 255, 255, 0.28);
+}
+
+.card-summary-energy-more {
+    flex: 0 0 auto;
+    color: var(--summary-strong, #ffe15a);
+    font-size: 0.78em;
+    font-weight: 900;
+    margin-left: 1px;
+}
+
+.card-summary-clause {
+    min-width: 0;
+    color: var(--summary-muted, #ffd8c8);
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Top-corner chips on painted-frame previews: cost top-left, evolution
+   top-right, on the frame band between the corner and center notches.
+   The band spans 0-9.5% of card height with notch centers at 5.6%, so the
+   chips centre on that line and stay inside x 13.5%-44% / 56%-86.5%. */
+.hand-card.element-frame .card-corner-chip {
+    position: absolute;
+    top: 2.6%;
+    height: 6%;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 30%;
+    padding: 0 0.45em;
+    background: rgba(8, 10, 18, 0.82);
+    border: 1px solid rgba(255, 244, 214, 0.42);
+    border-radius: 999px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    z-index: 3;
+    font-size: 0.52em;
+}
+
+.hand-card.element-frame .card-corner-cost { left: 13.5%; }
+.hand-card.element-frame .card-corner-evo { right: 13.5%; }
+
+.hand-card.element-frame .card-corner-evo-tag {
+    flex: 0 0 auto;
+    color: #ffe15a;
+    font-weight: 900;
+    font-size: 0.74em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.hand-card.element-frame .card-corner-evo-name {
+    min-width: 0;
+    color: #f4f8ff;
+    font-weight: 700;
+    font-size: 0.8em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Spell / trap painted templates use the element-colored spell frames while
+   preserving Claude's Siegeling frame geometry above. */
+.hand-card.spell-trap-frame {
+    aspect-ratio: 639 / 919;
+    background: #10141d !important;
+}
+
+.hand-card.spell-trap-frame.frame-spell-fire {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-fire.png');
+}
+
+.hand-card.spell-trap-frame.frame-spell-earth {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-earth.png');
+}
+
+.hand-card.spell-trap-frame.frame-spell-ice {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-ice.png');
+}
+
+.hand-card.spell-trap-frame.frame-spell-wind {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-wind.png');
+}
+
+.hand-card.spell-trap-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background-image: var(--spell-trap-frame-url);
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.hand-card.spell-trap-frame .hand-card-header {
+    left: 12% !important;
+    right: 12% !important;
+    top: 19.6% !important;
+    text-align: center;
+    z-index: 4;
+}
+
+.hand-card.spell-trap-frame .card-title {
+    color: #ffffff;
+    font-size: 0.72em;
+    line-height: 1;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-shadow:
+        -1px -1px 0 rgba(0, 0, 0, 0.85),
+        1px -1px 0 rgba(0, 0, 0, 0.85),
+        -1px 1px 0 rgba(0, 0, 0, 0.85),
+        1px 1px 0 rgba(0, 0, 0, 0.85),
+        0 2px 6px rgba(0, 0, 0, 0.78);
+}
+
+.hand-card.spell-trap-frame .card-label {
+    display: none;
+}
+
+.hand-card.spell-trap-frame .card-art-hand,
+.hand-card.spell-trap-frame .card-art-preview,
+.hand-card.spell-trap-frame .card-art-selected {
+    left: 8.6% !important;
+    top: 5.7% !important;
+    width: 82.8% !important;
+    height: 62.8% !important;
+    z-index: 1;
+    background-size: auto 140% !important;
+    background-position: center center !important;
+    background-repeat: no-repeat;
+}
+
+.hand-card.spell-trap-frame.card-type-spell .card-art-hand,
+.hand-card.spell-trap-frame.card-type-spell .card-art-preview,
+.hand-card.spell-trap-frame.card-type-spell .card-art-selected {
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(5, 8, 18, 0.16)),
+        url('/img/packs/spell-card-back.png') !important;
+}
+
+.hand-card.spell-trap-frame.card-type-trap .card-art-hand,
+.hand-card.spell-trap-frame.card-type-trap .card-art-preview,
+.hand-card.spell-trap-frame.card-type-trap .card-art-selected {
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(5, 8, 18, 0.16)),
+        url('/img/packs/trap-card-back.png') !important;
+}
+
+.hand-card.spell-trap-frame .card-art-fallback span {
+    display: none;
+}
+
+.hand-card.spell-trap-frame .hand-card-body {
+    left: 10.1% !important;
+    right: 10.1% !important;
+    top: 71.1% !important;
+    bottom: 7.9% !important;
+    gap: 1px;
+    padding: 0;
+    z-index: 4;
+}
+
+.hand-card.spell-trap-frame .card-summary-list {
+    height: 100%;
+    justify-content: center;
+    font-size: 9px;
+}
+
+.hand-card.spell-trap-frame .card-summary-row {
+    color: #f7fbff;
+    text-shadow:
+        0 1px 1px rgba(0, 0, 0, 0.88),
+        0 0 4px rgba(0, 0, 0, 0.72);
+}
+
+.hand-card.spell-trap-frame .card-corner-chip.card-corner-cost {
+    left: 38.9%;
+    top: 10.35%;
+    width: 22.2%;
+    max-width: 22.2%;
+    height: 7.7%;
+    justify-content: center;
+    padding: 0;
+    gap: 1px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+    z-index: 12 !important;
+    font-size: 0.72em;
+}
+
+.hand-card.spell-trap-frame .card-corner-chip.card-corner-cost,
+.hand-card.spell-trap-frame .card-corner-chip.card-corner-cost * {
+    visibility: visible;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .card-summary-energy-icons {
+    position: relative;
+    display: grid;
+    width: 92%;
+    height: 92%;
+    gap: 0;
+    place-items: center;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .card-summary-energy-icon {
+    width: 1.18em;
+    height: 1.18em;
+    margin: 0;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-1 .card-summary-energy-icon {
+    width: 2.35em;
+    height: 2.35em;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-2 {
+    grid-template-rows: repeat(2, 1fr);
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3,
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-4 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon:nth-child(1) {
+    grid-column: 1 / 3;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-5,
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-6,
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-7,
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-8,
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-9 {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-5 .card-summary-energy-icon:nth-child(1) { grid-area: 1 / 1; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-5 .card-summary-energy-icon:nth-child(2) { grid-area: 1 / 3; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-5 .card-summary-energy-icon:nth-child(3) { grid-area: 2 / 2; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-5 .card-summary-energy-icon:nth-child(4) { grid-area: 3 / 1; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-5 .card-summary-energy-icon:nth-child(5) { grid-area: 3 / 3; }
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-6 .card-summary-energy-icon:nth-child(1) { grid-area: 1 / 1; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-6 .card-summary-energy-icon:nth-child(2) { grid-area: 1 / 3; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-6 .card-summary-energy-icon:nth-child(3) { grid-area: 2 / 1; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-6 .card-summary-energy-icon:nth-child(4) { grid-area: 2 / 3; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-6 .card-summary-energy-icon:nth-child(5) { grid-area: 3 / 1; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-6 .card-summary-energy-icon:nth-child(6) { grid-area: 3 / 3; }
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-7 .card-summary-energy-icon:nth-child(1) { grid-area: 1 / 1; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-7 .card-summary-energy-icon:nth-child(2) { grid-area: 1 / 2; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-7 .card-summary-energy-icon:nth-child(3) { grid-area: 1 / 3; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-7 .card-summary-energy-icon:nth-child(4) { grid-area: 2 / 2; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-7 .card-summary-energy-icon:nth-child(5) { grid-area: 3 / 1; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-7 .card-summary-energy-icon:nth-child(6) { grid-area: 3 / 2; }
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-7 .card-summary-energy-icon:nth-child(7) { grid-area: 3 / 3; }
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-8 {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-8 .card-summary-energy-icon {
+    width: 0.82em;
+    height: 0.82em;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-9 .card-summary-energy-icon {
+    width: 0.82em;
+    height: 0.82em;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-many .card-summary-energy-icon {
+    display: none;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-many .card-summary-energy-icon:first-child {
+    display: block;
+    width: 2.45em;
+    height: 2.45em;
+    border-color: rgba(255, 255, 255, 0.85);
+    background:
+        var(--notch-icon) center / 100% 100% no-repeat,
+        conic-gradient(from 20deg, #fff7a5, #79f5ff, #e8a5ff, #fff7a5);
+    box-shadow:
+        0 0 8px rgba(255, 255, 255, 0.82),
+        0 0 14px color-mix(in srgb, var(--notch) 72%, transparent),
+        inset 0 1px 2px rgba(255, 255, 255, 0.55);
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-many .card-summary-energy-more {
+    position: absolute;
+    right: -0.2em;
+    bottom: -0.2em;
+    color: #ffffff;
+    font-size: 0.8em;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.card-preview-card.element-frame .hand-notches,
+.selected-preview-card.element-frame .hand-notches,
+.mulligan-showcase.element-frame .hand-notches {
+    inset: 0;
+}
+
+.card-preview-card.element-frame .notch-dot,
+.selected-preview-card.element-frame .notch-dot,
+.mulligan-showcase.element-frame .notch-dot {
+    width: 10.4%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-width: 1px;
+}
+
+.card-preview-card.element-frame .notch-dot:not([style*="--notch-icon"]),
+.selected-preview-card.element-frame .notch-dot:not([style*="--notch-icon"]),
+.mulligan-showcase.element-frame .notch-dot:not([style*="--notch-icon"]) {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.card-preview-card.element-frame .notch-dot.notch-TOP_LEFT,
+.selected-preview-card.element-frame .notch-dot.notch-TOP_LEFT,
+.mulligan-showcase.element-frame .notch-dot.notch-TOP_LEFT { left: 7.8%; top: 5.7%; }
+
+.card-preview-card.element-frame .notch-dot.notch-TOP,
+.selected-preview-card.element-frame .notch-dot.notch-TOP,
+.mulligan-showcase.element-frame .notch-dot.notch-TOP { left: 50%; top: 5.6%; }
+
+.card-preview-card.element-frame .notch-dot.notch-TOP_RIGHT,
+.selected-preview-card.element-frame .notch-dot.notch-TOP_RIGHT,
+.mulligan-showcase.element-frame .notch-dot.notch-TOP_RIGHT { left: 91.8%; top: 5.7%; }
+
+.card-preview-card.element-frame .notch-dot.notch-LEFT,
+.selected-preview-card.element-frame .notch-dot.notch-LEFT,
+.mulligan-showcase.element-frame .notch-dot.notch-LEFT { left: 7.7%; top: 50%; }
+
+.card-preview-card.element-frame .notch-dot.notch-RIGHT,
+.selected-preview-card.element-frame .notch-dot.notch-RIGHT,
+.mulligan-showcase.element-frame .notch-dot.notch-RIGHT { left: 91.9%; top: 50%; }
+
+.card-preview-card.element-frame .notch-dot.notch-BOTTOM_LEFT,
+.selected-preview-card.element-frame .notch-dot.notch-BOTTOM_LEFT,
+.mulligan-showcase.element-frame .notch-dot.notch-BOTTOM_LEFT { left: 7.6%; top: 94.1%; }
+
+.card-preview-card.element-frame .notch-dot.notch-BOTTOM,
+.selected-preview-card.element-frame .notch-dot.notch-BOTTOM,
+.mulligan-showcase.element-frame .notch-dot.notch-BOTTOM { left: 49.5%; top: 94.3%; }
+
+.card-preview-card.element-frame .notch-dot.notch-BOTTOM_RIGHT,
+.selected-preview-card.element-frame .notch-dot.notch-BOTTOM_RIGHT,
+.mulligan-showcase.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
 
 .hand-card-shell {
     position: relative;
@@ -8980,6 +10014,166 @@ body.placement-active .board-cell.legal {
     border: 1px solid color-mix(in srgb, var(--knight-color) 55%, rgba(255, 255, 255, 0.16));
 }
 
+.knight-card.has-knight-back {
+    aspect-ratio: 639 / 919;
+    border: 0;
+    border-radius: 8%;
+    background: #15171d;
+    box-shadow:
+        0 16px 34px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.knight-card.has-knight-back::before,
+.knight-card.has-knight-back::after {
+    display: none;
+}
+
+.knight-card.has-knight-back .knight-card-portrait {
+    position: absolute;
+    z-index: 1;
+    left: 8.8%;
+    right: 8.6%;
+    top: 5.7%;
+    bottom: 31.3%;
+    border-radius: 0;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(3, 5, 14, 0.16)),
+        var(--knight-card-back, url('/img/knights/card-back-siegeknight.png'));
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+    overflow: hidden;
+}
+
+.knight-card-template {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background-image: var(--knight-card-template, url('/img/knights/siegeknight-card-template.png'));
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}
+
+.knight-shield-element {
+    position: absolute;
+    z-index: 5;
+    left: 43.2%;
+    top: 12.1%;
+    width: 11.2%;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 10%;
+    color: var(--knight-color);
+    background:
+        radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.18), transparent 58%),
+        var(--knight-element-icon);
+    background-size: 100% 100%, 82% 82%;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
+}
+
+.knight-shield-element .deck-sigil {
+    width: 86%;
+    height: 86%;
+}
+
+.knight-shield-element[style*="element-icon"] .deck-sigil,
+.knight-card.has-knight-back .knight-shield-element .deck-sigil {
+    opacity: 0;
+}
+
+.knight-card.has-knight-back .knight-card-body {
+    position: absolute;
+    z-index: 4;
+    left: 9.8%;
+    right: 10%;
+    top: 70.9%;
+    bottom: 7.3%;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 4.6% 3.6% 3%;
+    border-radius: 0;
+    background: transparent;
+    font-size: 9px;
+}
+
+.knight-card.has-knight-back .knight-card-name {
+    color: #fff6d8;
+    font-size: 1.28em;
+    line-height: 1;
+    text-align: center;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.knight-card.has-knight-back .knight-card-meta {
+    justify-content: center;
+    gap: 3px;
+    font-size: 0.72em;
+    line-height: 1;
+    margin-bottom: 1px;
+}
+
+.knight-card.has-knight-back .knight-card-meta span {
+    min-width: 0;
+}
+
+.knight-card.has-knight-back .knight-rarity,
+.knight-card.has-knight-back .knight-tier {
+    padding: 1px 3px;
+    border-radius: 4px;
+}
+
+.knight-card.has-knight-back .knight-card-ability {
+    display: block;
+    overflow: hidden;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #f4f7ff;
+    font-size: 0.74em;
+    line-height: 1.08;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.95),
+        0 0 5px rgba(0, 0, 0, 0.65);
+    overflow-wrap: anywhere;
+}
+
+.knight-card.has-knight-back .knight-card-ability > span {
+    display: inline;
+    margin-right: 3px;
+    color: #ffea5c;
+    font-size: inherit;
+    letter-spacing: 0;
+}
+
+.knight-card.has-knight-back .knight-card-body.is-fitted .knight-card-ability {
+    overflow: visible;
+}
+
+.knight-card.has-knight-back .knight-selected-ribbon,
+.knight-card.has-knight-back .knight-recommend-ribbon,
+.knight-card.has-knight-back .knight-level-badge {
+    z-index: 6;
+    top: 5.5%;
+    right: 7%;
+    max-width: 48%;
+    padding: 4px 8px;
+    font-size: clamp(0.48rem, 0.54vw, 0.64rem);
+    line-height: 1;
+}
+
 .loadout-option {
     width: 100%;
     text-align: left;
@@ -10656,6 +11850,79 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-label {
     font-size: 0.78em;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .hand-card-shell {
+    position: absolute;
+    inset: 0;
+    display: block;
+    gap: 0;
+    min-height: 0;
+    width: 100%;
+    padding: 0;
+    overflow: hidden;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .hand-card-header {
+    position: absolute;
+    left: 13%;
+    right: 13%;
+    top: 10.6%;
+    width: auto;
+    z-index: 2;
+    padding: 0;
+    gap: 0;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-label {
+    display: none;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview {
+    position: absolute;
+    left: 9.8%;
+    top: 10%;
+    width: 80.4%;
+    height: 58.7%;
+    min-height: 0;
+    margin: 0;
+    flex: none;
+    aspect-ratio: auto;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    background: none;
+    box-shadow: none;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview.card-art-fallback::before {
+    display: none;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .hand-card-body {
+    position: absolute;
+    left: 11.5%;
+    right: 11.5%;
+    top: 69.8%;
+    bottom: 7.6%;
+    width: auto;
+    min-height: 0;
+    flex: none;
+    padding: 0;
+    gap: 1px;
+    font-size: 1em;
+    line-height: 1;
+    overflow: hidden;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-stat-pill {
+    font-size: 9px;
+}
+
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-summary-list {
+    font-size: 9px;
 }
 
 .mulligan-redraw-badge {
