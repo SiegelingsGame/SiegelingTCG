@@ -211,7 +211,7 @@
             const reaction = format(card.requiredReaction || 'Trigger');
             const bucket = card.trapBucketAmount
                 ? `${card.trapBucketAmount} ${format(card.trapBucketElement || card.element)}`
-                : 'Trap set';
+                : 'Deception set';
             return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
         }
         return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span></div>`;

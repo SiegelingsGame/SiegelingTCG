@@ -52,7 +52,7 @@ public final class DailyMissionCatalog {
             new DailyMissionDefinition(
                     "spells-10",
                     DailyMissionType.SPELLS_CAST,
-                    "Cast 10 Spells",
+                    "Use 10 Strategies",
                     "M",
                     false,
                     10,
@@ -72,7 +72,7 @@ public final class DailyMissionCatalog {
             new DailyMissionDefinition(
                     "traps-5",
                     DailyMissionType.TRAPS_SPRUNG,
-                    "Spring 5 Traps",
+                    "Spring 5 Deceptions",
                     "T",
                     false,
                     5,

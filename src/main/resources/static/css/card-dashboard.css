@@ -761,10 +761,10 @@ textarea {
 }
 
 .deck-card-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    display: flex;
     gap: 12px;
     align-items: center;
+    justify-content: space-between;
     padding: 12px 14px;
     border-radius: var(--radius-md);
     background: rgba(255, 255, 255, 0.04);
@@ -773,20 +773,30 @@ textarea {
 
 .deck-card-main {
     min-width: 0;
+    flex: 1 1 auto;
     display: grid;
     gap: 4px;
 }
 
-.deck-card-actions {
+.dashboard-deck-card-actions {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 8px;
+    justify-content: flex-end;
+    min-width: 190px;
 }
 
 .deck-card-count {
-    min-width: 2ch;
+    min-width: 3ch;
     text-align: center;
     font-weight: 700;
+    color: var(--text-main);
+}
+
+.deck-card-action-btn {
+    min-width: 72px;
+    justify-content: center;
 }
 
 .deck-catalog-row-footer {
@@ -1068,10 +1078,11 @@ textarea {
     }
 
     .deck-card-row {
-        grid-template-columns: 1fr;
+        align-items: flex-start;
+        flex-direction: column;
     }
 
-    .deck-card-actions,
+    .dashboard-deck-card-actions,
     .deck-catalog-row-footer {
         justify-content: flex-start;
         flex-wrap: wrap;
