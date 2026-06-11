@@ -215,6 +215,7 @@
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
+        builderRarityFilter: 'ALL',
         builderSort: 'owned-desc',
         builderVisibleLimit: 0,
         builderRenderTimer: null,
@@ -271,6 +272,12 @@
 
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
+
+    function setHudMinimized(minimized) {
+        document.body.classList.toggle('hud-minimized', minimized);
+        document.getElementById('hudFab')?.classList.toggle('hidden', !minimized);
+        localStorage.setItem('sieglingsHudMinimized', minimized ? '1' : '0');
+    }
 
     function isMobileDeckBuilderViewport() {
         return Boolean(window.matchMedia?.('(max-width: 900px)').matches);
@@ -407,6 +414,9 @@
         document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
+        document.getElementById('hudMinimizeBtn')?.addEventListener('click', () => setHudMinimized(true));
+        document.getElementById('hudFab')?.addEventListener('click', () => setHudMinimized(false));
+        if (localStorage.getItem('sieglingsHudMinimized') === '1') setHudMinimized(true);
         document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
         document.getElementById('supportBtn')?.addEventListener('click', () => {
             window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
@@ -1845,6 +1855,9 @@
                     <select class="search-input" id="builderTypeSelect">
                         ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
                     </select>
+                    <select class="search-input" id="builderRaritySelect">
+                        ${['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderRarityFilter ? ' selected' : ''}>${value === 'ALL' ? 'All rarities' : format(value)}</option>`).join('')}
+                    </select>
                     <select class="search-input" id="builderSortSelect">
                         <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
                         <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
@@ -2004,6 +2017,7 @@
                 <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
                 ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
             </div>
+            ${renderBuilderMoves(card)}
             ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
@@ -2019,6 +2033,25 @@
         if (maxCopies > 0 && inDeck >= maxCopies) return 'Max added';
         if (builderTotal() >= 30) return 'Deck full';
         return 'Add to deck';
+    }
+
+    function renderBuilderMoves(card) {
+        const moves = Array.isArray(card?.moves) ? card.moves.filter(Boolean) : [];
+        if (!moves.length) return '';
+        return `<div class="deck-builder-preview-moves">
+            <span class="builder-moves-label">Attacks</span>
+            ${moves.map(move => {
+                const cost = Number(move.energyCost) || 0;
+                const costLabel = move.isPassive ? 'Passive' : cost > 0 ? `${cost} Energy` : 'Free';
+                return `<div class="builder-move-row">
+                    <div class="builder-move-head">
+                        <strong>${escapeHtml(move.name || 'Attack')}</strong>
+                        <span class="builder-move-cost${move.isPassive ? ' is-passive' : ''}">${costLabel}</span>
+                    </div>
+                    ${move.description ? `<p>${escapeHtml(move.description)}</p>` : ''}
+                </div>`;
+            }).join('')}
+        </div>`;
     }
 
     function renderBuilderMobilePreviewPanel(card) {
@@ -2052,6 +2085,7 @@
                 <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
                 ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
             </div>
+            ${renderBuilderMoves(card)}
             ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.slice(0, 2).map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
@@ -2144,6 +2178,11 @@
             resetBuilderVisibleLimit();
             renderDeckBuilderPage();
         });
+        root.querySelector('#builderRaritySelect')?.addEventListener('change', (event) => {
+            state.builderRarityFilter = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
         root.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
             state.builderSort = event.target.value;
             resetBuilderVisibleLimit();
@@ -2214,6 +2253,7 @@
             .filter(card => builderCardLimit(card.id) > 0)
             .filter(card => state.builderElementFilter === 'ALL' || card.element === state.builderElementFilter)
             .filter(card => state.builderTypeFilter === 'ALL' || card.type === state.builderTypeFilter)
+            .filter(card => state.builderRarityFilter === 'ALL' || card.rarity === state.builderRarityFilter)
             .filter(card => {
                 if (!state.builderSearch) return true;
                 const text = `${card.name} ${card.type} ${card.element} ${card.rarity} ${creatureDescriptionFor(card)} ${JSON.stringify(card.abilities || [])}`.toLowerCase();
