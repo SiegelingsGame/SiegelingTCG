@@ -3780,6 +3780,11 @@
         const sameSession = opening?.dataset.packKey === sessionKey;
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
+        // Teleport the reveal to <body> so no ancestor's layout/stacking/transform
+        // can confine the fixed full-screen overlay (which clipped the card grid).
+        if (result.parentElement !== document.body) {
+            document.body.appendChild(result);
+        }
 
         if (!sameSession || options.rebuild) {
             const revealedCount = reveal.revealed.size;
