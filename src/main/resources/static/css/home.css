@@ -3632,10 +3632,6 @@ body.starter-onboarding-active .starter-gate h1 {
     align-items: start;
 }
 
-.deck-builder-layout.card-view-collapsed {
-    grid-template-columns: minmax(0, 1.25fr) minmax(170px, 0.36fr) minmax(280px, 0.95fr);
-}
-
 .deck-builder-binder-list,
 .deck-builder-deck-list {
     display: grid;
@@ -3770,11 +3766,6 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .deck-builder-preview-panel {
     margin-bottom: 12px;
-}
-
-.deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
-.deck-builder-inspector.is-collapsed .deck-builder-recommendations {
-    display: none;
 }
 
 .deck-builder-preview-card .detail-card-preview-wrap {
@@ -6636,11 +6627,6 @@ body.gacha-active {
         min-height: 32px;
         padding: 6px 9px;
     }
-    /* Card View is collapsed by default in portrait; the toggle expands it. */
-    .deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
-    .deck-builder-inspector.is-collapsed .deck-builder-recommendations {
-        display: none;
-    }
     .deck-builder-preview-panel .binder-card,
     .deck-builder-preview-panel .card-tile {
         width: min(100%, 190px);
@@ -6808,9 +6794,6 @@ body.gacha-active {
     .deck-builder-workbench,
     .deck-builder-catalog {
         padding: 10px;
-    }
-    .deck-builder-layout.card-view-collapsed {
-        grid-template-columns: 1fr;
     }
     .deck-builder-preview-card-compact {
         display: grid;
@@ -7293,14 +7276,6 @@ body.gacha-active {
         overflow: visible;
         padding: 0;
     }
-}
-
-/* ── Deck builder: Card View toggle ───────────────────────────────────── */
-.builder-card-view-toggle {
-    display: inline-flex;
-    flex: 0 0 auto;
-    padding: 6px 12px;
-    font-size: 12px;
 }
 
 /* ── Gacha reveal: keep the card asset inside its 5/7 slot ────────────── */

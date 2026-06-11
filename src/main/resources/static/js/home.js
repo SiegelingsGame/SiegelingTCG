@@ -218,7 +218,6 @@
         builderSort: 'owned-desc',
         builderVisibleLimit: 0,
         builderRenderTimer: null,
-        builderCardViewOpen: false,
         friendMessage: '',
         friendMessageType: '',
         selectedDeckId: '',
@@ -408,10 +407,6 @@
         document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
-        document.getElementById('builderCardViewToggle')?.addEventListener('click', () => {
-            state.builderCardViewOpen = !state.builderCardViewOpen;
-            renderDeckBuilderPage();
-        });
         document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
         document.getElementById('supportBtn')?.addEventListener('click', () => {
             window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
@@ -1802,7 +1797,6 @@
         const page = document.getElementById('deckBuilderPage');
         const title = document.getElementById('deckBuilderPageTitle');
         const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
-        const cardViewBtn = document.getElementById('builderCardViewToggle');
         if (!page) return;
         const unlocked = Boolean(state.progression?.customDeckUnlocked);
         const builderAvailable = Boolean(state.options?.cardCatalog?.length);
@@ -1828,12 +1822,6 @@
             saveBtn.disabled = total < 30;
             saveBtn.textContent = state.editingSavedDeckId ? 'Update Deck' : 'Save Deck';
         }
-        if (cardViewBtn) {
-            cardViewBtn.disabled = !builderAvailable;
-            cardViewBtn.textContent = state.builderCardViewOpen ? 'Hide Card View' : 'Show Card View';
-            cardViewBtn.setAttribute('aria-expanded', state.builderCardViewOpen ? 'true' : 'false');
-            cardViewBtn.classList.toggle('active', state.builderCardViewOpen);
-        }
         if (lock) {
             lock.innerHTML = unlocked
                 ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Select cards from your binder, preview them, and add up to 3 copies each.</span></div>'
@@ -1843,7 +1831,7 @@
             page.innerHTML = '<div class="unlock-card"><strong>Catalog loading</strong><span>Your binder will appear here once card data is ready.</span></div>';
             return;
         }
-        page.innerHTML = `<div class="deck-builder-layout${state.builderCardViewOpen ? '' : ' card-view-collapsed'}" style="--builder-accent:${elementColor(primaryElement)}">
+        page.innerHTML = `<div class="deck-builder-layout" style="--builder-accent:${elementColor(primaryElement)}">
             <section class="deck-builder-binder deck-builder-workbench">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
@@ -1869,7 +1857,7 @@
                     ${hasMoreCatalogCards ? `<button class="ghost-btn deck-builder-load-more" type="button" data-builder-load-more>Load more cards (${catalogCards.length - visibleCatalogCards.length})</button>` : ''}
                 </div>
             </section>
-            <section class="deck-builder-inspector deck-builder-workbench${state.builderCardViewOpen ? '' : ' is-collapsed'}">
+            <section class="deck-builder-inspector deck-builder-workbench">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
                 </div>
@@ -4932,7 +4920,6 @@
         const filterBtn = document.getElementById('filterTrayBtn');
         const socialFilterBtn = document.getElementById('socialFilterBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
-        const builderCardViewBtn = document.getElementById('builderCardViewToggle');
         const filterTray = document.getElementById('filterTray');
         const lobbyFilterTray = document.getElementById('lobbyFilterTray');
         const cardTray = document.getElementById('detailPanel');
@@ -4940,17 +4927,9 @@
         const showFilterHud = binder || social;
         filterBtn?.classList.toggle('hidden', !showFilterHud);
         cardBtn?.classList.toggle('hidden', !binder);
-        builderCardViewBtn?.classList.toggle('hidden', state.route !== 'deck-builder');
-        if (builderCardViewBtn) {
-            const builderAvailable = Boolean(state.options?.cardCatalog?.length);
-            builderCardViewBtn.disabled = state.route === 'deck-builder' && !builderAvailable;
-            builderCardViewBtn.textContent = state.builderCardViewOpen ? 'Hide Card View' : 'Show Card View';
-            builderCardViewBtn.setAttribute('aria-expanded', state.builderCardViewOpen ? 'true' : 'false');
-        }
         filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
         socialFilterBtn?.classList.toggle('active', social && filterOpen);
         cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
-        builderCardViewBtn?.classList.toggle('active', state.route === 'deck-builder' && state.builderCardViewOpen);
         filterTray?.classList.toggle('is-closed', !binder || !filterOpen);
         lobbyFilterTray?.classList.toggle('is-closed', !social || !filterOpen);
         cardTray?.classList.toggle('is-closed', !binder || !state.cardTrayOpen);
