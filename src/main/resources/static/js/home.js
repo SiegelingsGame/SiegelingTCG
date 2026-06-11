@@ -1832,6 +1832,7 @@
             cardViewBtn.disabled = !builderAvailable;
             cardViewBtn.textContent = state.builderCardViewOpen ? 'Hide Card View' : 'Show Card View';
             cardViewBtn.setAttribute('aria-expanded', state.builderCardViewOpen ? 'true' : 'false');
+            cardViewBtn.classList.toggle('active', state.builderCardViewOpen);
         }
         if (lock) {
             lock.innerHTML = unlocked
@@ -1890,6 +1891,7 @@
                         <p>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</p>
                     </div>
                 </div>
+                <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
                 <div class="builder-form-grid deck-builder-deck-form">
                     <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
                     <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
@@ -1898,7 +1900,6 @@
                     <button class="ghost-btn" type="button" id="playCustomBtn"${total < 30 ? ' disabled' : ''}>Play Custom</button>
                     <button class="ghost-btn" type="button" id="clearBuilderBtn"${total ? '' : ' disabled'}>Clear</button>
                 </div>
-                <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
             </aside>
         </div>`;
         bindDeckBuilderPageEvents(page);
@@ -4932,6 +4933,7 @@
         filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
         socialFilterBtn?.classList.toggle('active', social && filterOpen);
         cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
+        builderCardViewBtn?.classList.toggle('active', state.route === 'deck-builder' && state.builderCardViewOpen);
         filterTray?.classList.toggle('is-closed', !binder || !filterOpen);
         lobbyFilterTray?.classList.toggle('is-closed', !social || !filterOpen);
         cardTray?.classList.toggle('is-closed', !binder || !state.cardTrayOpen);
