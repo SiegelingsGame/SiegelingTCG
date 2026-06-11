@@ -3513,6 +3513,8 @@ body.starter-onboarding-active .starter-gate h1 {
 .builder-catalog-art {
     width: 42px;
     height: 42px;
+    max-width: 42px;
+    max-height: 42px;
     display: grid;
     place-items: center;
     overflow: hidden;
@@ -3525,7 +3527,10 @@ body.starter-onboarding-active .starter-gate h1 {
 .builder-catalog-art .element-icon-art {
     width: 100%;
     height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: cover;
+    pointer-events: none;
 }
 
 .builder-deck-card strong,
@@ -3590,6 +3595,16 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .deck-builder-page-head {
     align-items: flex-start;
+    position: relative;
+    z-index: 2;
+}
+
+.deck-builder-page-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .deck-builder-back-btn {
@@ -3599,6 +3614,8 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .deck-builder-page {
     margin-top: 12px;
+    position: relative;
+    z-index: 1;
 }
 
 .deck-builder-layout {
@@ -3606,6 +3623,10 @@ body.starter-onboarding-active .starter-gate h1 {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(280px, 0.85fr);
     gap: 12px;
     align-items: start;
+}
+
+.deck-builder-layout.card-view-collapsed {
+    grid-template-columns: minmax(0, 1.25fr) minmax(170px, 0.36fr) minmax(280px, 0.95fr);
 }
 
 .deck-builder-binder-list,
@@ -3660,6 +3681,11 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .deck-builder-preview-panel {
     margin-bottom: 12px;
+}
+
+.deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
+.deck-builder-inspector.is-collapsed .deck-builder-recommendations {
+    display: none;
 }
 
 .deck-builder-preview-card .detail-card-preview-wrap {
@@ -6606,6 +6632,9 @@ body.gacha-active {
     .deck-builder-catalog {
         padding: 10px;
     }
+    .deck-builder-layout.card-view-collapsed {
+        grid-template-columns: 1fr;
+    }
     .deck-builder-preview-card-compact {
         display: grid;
         gap: 8px;
@@ -7089,24 +7118,12 @@ body.gacha-active {
     }
 }
 
-/* ── Deck builder: Card View toggle (mobile only) ─────────────────────── */
+/* ── Deck builder: Card View toggle ───────────────────────────────────── */
 .builder-card-view-toggle {
-    display: none;
+    display: inline-flex;
     flex: 0 0 auto;
     padding: 6px 12px;
     font-size: 12px;
-}
-
-@media (max-width: 900px) {
-    .builder-card-view-toggle { display: inline-flex; }
-}
-
-/* Desktop/landscape always shows the panel regardless of collapse state. */
-@media (min-width: 901px) {
-    .deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
-    .deck-builder-inspector.is-collapsed .deck-builder-recommendations {
-        display: block;
-    }
 }
 
 /* ── Gacha reveal: keep the card asset inside its 5/7 slot ────────────── */

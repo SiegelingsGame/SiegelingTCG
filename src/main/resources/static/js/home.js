@@ -274,7 +274,7 @@
     let gachaParticleField = null;
 
     function isMobileDeckBuilderViewport() {
-        return Boolean(window.matchMedia?.('(max-width: 700px)').matches);
+        return Boolean(window.matchMedia?.('(max-width: 900px)').matches);
     }
 
     function resetBuilderVisibleLimit() {
@@ -1798,6 +1798,7 @@
         const page = document.getElementById('deckBuilderPage');
         const title = document.getElementById('deckBuilderPageTitle');
         const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
+        const cardViewBtn = document.getElementById('builderCardViewToggle');
         if (!page) return;
         const unlocked = Boolean(state.progression?.customDeckUnlocked);
         const builderAvailable = Boolean(state.options?.cardCatalog?.length);
@@ -1823,6 +1824,11 @@
             saveBtn.disabled = total < 30;
             saveBtn.textContent = state.editingSavedDeckId ? 'Update Deck' : 'Save Deck';
         }
+        if (cardViewBtn) {
+            cardViewBtn.disabled = !builderAvailable;
+            cardViewBtn.textContent = state.builderCardViewOpen ? 'Hide Card View' : 'Show Card View';
+            cardViewBtn.setAttribute('aria-expanded', state.builderCardViewOpen ? 'true' : 'false');
+        }
         if (lock) {
             lock.innerHTML = unlocked
                 ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Select cards from your binder, preview them, and add up to 3 copies each.</span></div>'
@@ -1832,7 +1838,7 @@
             page.innerHTML = '<div class="unlock-card"><strong>Catalog loading</strong><span>Your binder will appear here once card data is ready.</span></div>';
             return;
         }
-        page.innerHTML = `<div class="deck-builder-layout" style="--builder-accent:${elementColor(primaryElement)}">
+        page.innerHTML = `<div class="deck-builder-layout${state.builderCardViewOpen ? '' : ' card-view-collapsed'}" style="--builder-accent:${elementColor(primaryElement)}">
             <section class="deck-builder-binder deck-builder-workbench">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
@@ -1861,7 +1867,6 @@
             <section class="deck-builder-inspector deck-builder-workbench${state.builderCardViewOpen ? '' : ' is-collapsed'}">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
-                    <button class="ghost-btn builder-card-view-toggle" type="button" id="builderCardViewToggle" aria-expanded="${state.builderCardViewOpen ? 'true' : 'false'}">${state.builderCardViewOpen ? 'Hide' : 'Show'}</button>
                 </div>
                 <div class="deck-builder-preview-panel">${mobileBuilder ? renderBuilderMobilePreviewPanel(previewCard) : renderBuilderPreviewPanel(previewCard)}</div>
                 <div class="deck-builder-recommendations">
@@ -2149,12 +2154,14 @@
             state.builderPreviewCardId = null;
             renderDeckBuilderPage();
         });
-        // Card View toggle: on portrait/mobile the preview panel is collapsed by
-        // default to keep the builder compact; this button expands it on demand.
-        root.querySelector('#builderCardViewToggle')?.addEventListener('click', () => {
-            state.builderCardViewOpen = !state.builderCardViewOpen;
-            renderDeckBuilderPage();
-        });
+        // Card View is collapsed by default so builder controls are reachable.
+        const cardViewToggle = document.getElementById('builderCardViewToggle');
+        if (cardViewToggle) {
+            cardViewToggle.onclick = () => {
+                state.builderCardViewOpen = !state.builderCardViewOpen;
+                renderDeckBuilderPage();
+            };
+        }
     }
 
     // Re-render the builder after a rotation/viewport change so the layout
