@@ -1886,9 +1886,10 @@
                     <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
                         <strong>${total}</strong><span>/30</span>
                     </div>
-                    <div>
+                    <div class="deck-builder-deck-head-copy">
                         <span class="eyebrow">Current Deck</span>
                         <p>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</p>
+                        <div class="builder-progress-track"><span class="builder-progress-fill" style="width:${Math.min(100, Math.round((total / 30) * 100))}%"></span></div>
                     </div>
                 </div>
                 <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
@@ -1970,9 +1971,11 @@
                     const canAdd = inDeck < maxCopies && builderTotal() < 30;
                     return `<article class="builder-recommendation-card" style="--el:${elementColor(card.element)}">
                         <button type="button" class="builder-recommendation-main" data-select-builder-card="${escapeAttr(card.id)}">
-                            <strong>${escapeHtml(card.name)}</strong>
-                            <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
-                            <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
+                            <div class="builder-row-copy">
+                                <strong>${escapeHtml(card.name)}</strong>
+                                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
+                                <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
+                            </div>
                         </button>
                         <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
                     </article>`;
@@ -1989,6 +1992,7 @@
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        const addLabel = builderAddLabel(card.id);
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview)
@@ -2016,9 +2020,17 @@
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
                 <strong>${inDeck} / ${maxCopies}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
             </div>
         </div>`;
+    }
+
+    function builderAddLabel(cardId) {
+        const inDeck = state.builderCounts[cardId] || 0;
+        const maxCopies = builderCardLimit(cardId);
+        if (maxCopies > 0 && inDeck >= maxCopies) return 'Max added';
+        if (builderTotal() >= 30) return 'Deck full';
+        return 'Add to deck';
     }
 
     function renderBuilderMobilePreviewPanel(card) {
@@ -2030,6 +2042,7 @@
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        const addLabel = builderAddLabel(card.id);
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         return `<div class="deck-builder-preview-card deck-builder-preview-card-compact" style="--el:${elementColor(card.element)}">
@@ -2055,7 +2068,7 @@
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
                 <strong>${inDeck} / ${maxCopies}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
             </div>
         </div>`;
     }
@@ -2070,12 +2083,12 @@
         return `<article class="deck-builder-binder-row${activeClass}" style="--el:${elementColor(card.element)}">
             <button type="button" class="deck-builder-binder-main" data-select-builder-card="${escapeAttr(card.id)}">
                 <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
-                <div>
+                <div class="builder-row-copy">
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / Owned x${owned}</span>
                     <small>${escapeHtml(format(card.rarity))}${card.evolvesFromId ? ` / Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : ''}</small>
                 </div>
-                <span class="deck-builder-binder-count">x${count}</span>
+                ${count > 0 ? `<span class="deck-builder-binder-count${count >= maxCopies ? ' is-max' : ''}">In deck x${count}</span>` : ''}
             </button>
             <div class="builder-stepper">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
@@ -2096,7 +2109,11 @@
             return `<div class="deck-builder-deck-row${activeClass}" style="--el:${elementColor(card?.element)}">
                 <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
                     <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
-                    <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
+                    <div class="builder-row-copy">
+                        <strong>${escapeHtml(card?.name || cardId)}</strong>
+                        <span>${card ? `${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}` : 'Card'}</span>
+                    </div>
+                    <span class="deck-builder-copy-badge${count >= maxCopies ? ' is-max' : ''}"><strong>${count}</strong>/${maxCopies}</span>
                 </button>
                 <div class="builder-stepper">
                     <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
@@ -5261,7 +5278,7 @@
         const next = Math.max(0, Math.min(copyLimit, current + delta));
         if (next) state.builderCounts[cardId] = next;
         else delete state.builderCounts[cardId];
-        if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        if (delta > 0 || !state.builderPreviewCardId) state.builderPreviewCardId = cardId;
         if (state.route === 'deck-builder') {
             renderDeckBuilderPage();
         }
