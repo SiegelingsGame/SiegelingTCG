@@ -408,6 +408,10 @@
         document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
+        document.getElementById('builderCardViewToggle')?.addEventListener('click', () => {
+            state.builderCardViewOpen = !state.builderCardViewOpen;
+            renderDeckBuilderPage();
+        });
         document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
         document.getElementById('supportBtn')?.addEventListener('click', () => {
             window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
@@ -1868,7 +1872,7 @@
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
                 </div>
-                <div class="deck-builder-preview-panel">${mobileBuilder ? renderBuilderMobilePreviewPanel(previewCard) : renderBuilderPreviewPanel(previewCard)}</div>
+                <div class="deck-builder-preview-panel">${renderBuilderPreviewPanel(previewCard)}</div>
                 <div class="deck-builder-recommendations">
                     <div class="section-head decks-row-head">
                         <div><span class="eyebrow">Recommended</span><h3>Evolution tree picks</h3></div>
@@ -2154,14 +2158,6 @@
             state.builderPreviewCardId = null;
             renderDeckBuilderPage();
         });
-        // Card View is collapsed by default so builder controls are reachable.
-        const cardViewToggle = document.getElementById('builderCardViewToggle');
-        if (cardViewToggle) {
-            cardViewToggle.onclick = () => {
-                state.builderCardViewOpen = !state.builderCardViewOpen;
-                renderDeckBuilderPage();
-            };
-        }
     }
 
     // Re-render the builder after a rotation/viewport change so the layout
@@ -4918,6 +4914,7 @@
         const filterBtn = document.getElementById('filterTrayBtn');
         const socialFilterBtn = document.getElementById('socialFilterBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
+        const builderCardViewBtn = document.getElementById('builderCardViewToggle');
         const filterTray = document.getElementById('filterTray');
         const lobbyFilterTray = document.getElementById('lobbyFilterTray');
         const cardTray = document.getElementById('detailPanel');
@@ -4925,6 +4922,13 @@
         const showFilterHud = binder || social;
         filterBtn?.classList.toggle('hidden', !showFilterHud);
         cardBtn?.classList.toggle('hidden', !binder);
+        builderCardViewBtn?.classList.toggle('hidden', state.route !== 'deck-builder');
+        if (builderCardViewBtn) {
+            const builderAvailable = Boolean(state.options?.cardCatalog?.length);
+            builderCardViewBtn.disabled = state.route === 'deck-builder' && !builderAvailable;
+            builderCardViewBtn.textContent = state.builderCardViewOpen ? 'Hide Card View' : 'Show Card View';
+            builderCardViewBtn.setAttribute('aria-expanded', state.builderCardViewOpen ? 'true' : 'false');
+        }
         filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
         socialFilterBtn?.classList.toggle('active', social && filterOpen);
         cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
