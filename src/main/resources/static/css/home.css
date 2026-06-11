@@ -3666,6 +3666,33 @@ body.starter-onboarding-active .starter-gate h1 {
     margin-bottom: 10px;
 }
 
+.deck-builder-compact-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.deck-builder-compact-head strong,
+.deck-builder-compact-head span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deck-builder-compact-head strong {
+    color: #fff7d9;
+    font-size: 16px;
+}
+
+.deck-builder-compact-head span {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 850;
+}
+
 .deck-builder-preview-flavor,
 .deck-builder-evolution-line {
     color: var(--text-dim);
@@ -3701,6 +3728,10 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .deck-builder-deck-pane .builder-actions-row {
     margin-bottom: 10px;
+}
+
+.deck-builder-load-more {
+    width: 100%;
 }
 
 .join-row {
@@ -6411,9 +6442,11 @@ body.gacha-active {
        could crash under the paint load). */
     .deck-builder-binder-list {
         max-height: min(46vh, 480px);
+        -webkit-overflow-scrolling: touch;
     }
     .deck-builder-deck-list {
         max-height: min(34vh, 360px);
+        -webkit-overflow-scrolling: touch;
     }
     /* Card View is collapsed by default in portrait; the toggle expands it. */
     .deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
@@ -6566,6 +6599,19 @@ body.gacha-active {
     .deck-builder-workbench,
     .deck-builder-catalog {
         padding: 10px;
+    }
+    .deck-builder-preview-card-compact {
+        display: grid;
+        gap: 8px;
+    }
+    .deck-builder-preview-card-compact .detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .deck-builder-preview-card-compact .detail-abilities {
+        gap: 6px;
+    }
+    .deck-builder-preview-card-compact .detail-ability-row {
+        padding: 8px;
     }
     .builder-list,
     .builder-catalog-grid {

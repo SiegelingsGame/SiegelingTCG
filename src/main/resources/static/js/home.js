@@ -216,6 +216,9 @@
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
         builderSort: 'owned-desc',
+        builderVisibleLimit: 0,
+        builderRenderTimer: null,
+        builderCardViewOpen: false,
         friendMessage: '',
         friendMessageType: '',
         selectedDeckId: '',
@@ -269,6 +272,24 @@
 
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
+
+    function isMobileDeckBuilderViewport() {
+        return Boolean(window.matchMedia?.('(max-width: 700px)').matches);
+    }
+
+    function resetBuilderVisibleLimit() {
+        state.builderVisibleLimit = isMobileDeckBuilderViewport() ? 24 : 0;
+    }
+
+    function scheduleDeckBuilderPageRender() {
+        if (state.builderRenderTimer) {
+            window.clearTimeout(state.builderRenderTimer);
+        }
+        state.builderRenderTimer = window.setTimeout(() => {
+            state.builderRenderTimer = null;
+            renderDeckBuilderPage();
+        }, isMobileDeckBuilderViewport() ? 120 : 0);
+    }
 
     function initGachaParticles() {
         return null;
@@ -1619,6 +1640,7 @@
             state.builderCounts = {};
             state.builderPreviewCardId = null;
             state.editingSavedDeckId = '';
+            resetBuilderVisibleLimit();
             localStorage.setItem('sieglingsBuilderDeckName', 'Custom Binder Deck');
         }
         if (options.savedDeckId) {
@@ -1629,6 +1651,7 @@
                 if (deck.name) localStorage.setItem('sieglingsBuilderDeckName', deck.name);
                 if (deck.trainerId) localStorage.setItem('sieglingsBuilderTrainerId', deck.trainerId);
                 state.builderPreviewCardId = (deck.customDeckCards || [])[0] || null;
+                resetBuilderVisibleLimit();
             }
         }
         navigateHub('deck-builder');
@@ -1783,6 +1806,14 @@
         const deckElements = builderDeckElements();
         const primaryElement = deckElements[0] || 'NEUTRAL';
         const catalogCards = builderCatalogCards();
+        const mobileBuilder = isMobileDeckBuilderViewport();
+        if (mobileBuilder && (!state.builderVisibleLimit || state.builderVisibleLimit < 1)) {
+            state.builderVisibleLimit = 24;
+        }
+        const visibleCatalogCards = mobileBuilder
+            ? catalogCards.slice(0, Math.min(state.builderVisibleLimit, catalogCards.length))
+            : catalogCards;
+        const hasMoreCatalogCards = mobileBuilder && visibleCatalogCards.length < catalogCards.length;
         const previewCard = resolveBuilderPreviewCard(catalogCards);
         if (previewCard) state.builderPreviewCardId = previewCard.id;
         if (title) {
@@ -1805,7 +1836,7 @@
             <section class="deck-builder-binder deck-builder-workbench">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
-                    <span>${catalogCards.length} cards</span>
+                    <span>${mobileBuilder && catalogCards.length ? `${visibleCatalogCards.length} / ${catalogCards.length}` : `${catalogCards.length} cards`}</span>
                 </div>
                 <div class="builder-catalog-tools">
                     <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search binder cards...">
@@ -1823,7 +1854,8 @@
                     </select>
                 </div>
                 <div class="deck-builder-binder-list">
-                    ${catalogCards.length ? catalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
+                    ${catalogCards.length ? visibleCatalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
+                    ${hasMoreCatalogCards ? `<button class="ghost-btn deck-builder-load-more" type="button" data-builder-load-more>Load more cards (${catalogCards.length - visibleCatalogCards.length})</button>` : ''}
                 </div>
             </section>
             <section class="deck-builder-inspector deck-builder-workbench${state.builderCardViewOpen ? '' : ' is-collapsed'}">
@@ -1831,7 +1863,7 @@
                     <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
                     <button class="ghost-btn builder-card-view-toggle" type="button" id="builderCardViewToggle" aria-expanded="${state.builderCardViewOpen ? 'true' : 'false'}">${state.builderCardViewOpen ? 'Hide' : 'Show'}</button>
                 </div>
-                <div class="deck-builder-preview-panel">${renderBuilderPreviewPanel(previewCard)}</div>
+                <div class="deck-builder-preview-panel">${mobileBuilder ? renderBuilderMobilePreviewPanel(previewCard) : renderBuilderPreviewPanel(previewCard)}</div>
                 <div class="deck-builder-recommendations">
                     <div class="section-head decks-row-head">
                         <div><span class="eyebrow">Recommended</span><h3>Evolution tree picks</h3></div>
@@ -1979,6 +2011,45 @@
         </div>`;
     }
 
+    function renderBuilderMobilePreviewPanel(card) {
+        if (!card) {
+            return '<div class="unlock-card builder-empty">Tap a binder card to inspect it and add copies to your deck.</div>';
+        }
+        const abilities = card.abilities || (card.ability ? [card.ability] : []);
+        const flavorText = creatureDescriptionFor(card);
+        const inDeck = state.builderCounts[card.id] || 0;
+        const maxCopies = builderCardLimit(card.id);
+        const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        return `<div class="deck-builder-preview-card deck-builder-preview-card-compact" style="--el:${elementColor(card.element)}">
+            <div class="deck-builder-compact-head">
+                <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
+                <div>
+                    <strong>${escapeHtml(card.name)}</strong>
+                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / ${escapeHtml(format(card.rarity))}</span>
+                </div>
+            </div>
+            <div class="detail-cost-block">
+                <span class="detail-cost-label">Energy cost</span>
+                ${renderBinderCardEnergyCost(cost, costElement)}
+            </div>
+            ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
+            <div class="detail-grid">
+                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
+            </div>
+            ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.slice(0, 2).map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
+            <div class="builder-stepper deck-builder-preview-actions">
+                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
+                <strong>${inDeck} / ${maxCopies}</strong>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+            </div>
+        </div>`;
+    }
+
     function renderBuilderBinderRow(card) {
         const owned = ownedCount(card.id);
         const count = state.builderCounts[card.id] || 0;
@@ -2039,20 +2110,28 @@
             event.stopPropagation();
             adjustBuilder(btn.dataset.removeCard, -1);
         }));
+        root.querySelector('[data-builder-load-more]')?.addEventListener('click', () => {
+            state.builderVisibleLimit = Math.max(state.builderVisibleLimit || 24, 24) + 24;
+            renderDeckBuilderPage();
+        });
         root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
             state.builderSearch = event.target.value.trim().toLowerCase();
-            renderDeckBuilderPage();
+            resetBuilderVisibleLimit();
+            scheduleDeckBuilderPageRender();
         });
         root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
             state.builderElementFilter = event.target.value;
+            resetBuilderVisibleLimit();
             renderDeckBuilderPage();
         });
         root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
             state.builderTypeFilter = event.target.value;
+            resetBuilderVisibleLimit();
             renderDeckBuilderPage();
         });
         root.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
             state.builderSort = event.target.value;
+            resetBuilderVisibleLimit();
             renderDeckBuilderPage();
         });
         root.querySelector('#builderTrainerSelect')?.addEventListener('change', (event) => {
