@@ -154,6 +154,245 @@ body.starter-onboarding-active .hud-fab {
     display: none !important;
 }
 
+/* ── Notification center ──────────────────────────────────────────────── */
+/* Auto margins keep the tabs centered while the bell hugs the brand on the
+   left; mobile stretches the tabs full-width so the margins are inert there. */
+.home-nav .nav-tabs {
+    margin-inline: auto;
+}
+
+.hud-notif-btn {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffe9a0;
+    cursor: pointer;
+}
+
+.hud-notif-btn:hover,
+.hud-notif-btn.active {
+    border-color: rgba(255, 215, 0, 0.62);
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.notif-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 17px;
+    height: 17px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff7b4f, #d6332b);
+    box-shadow: 0 0 0 2px rgba(10, 16, 32, 0.9);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 950;
+    line-height: 1;
+}
+
+.notif-badge.hidden {
+    display: none;
+}
+
+.hud-fab .notif-badge {
+    top: -3px;
+    right: -3px;
+}
+
+.notif-panel {
+    position: fixed;
+    top: 72px;
+    left: 18px;
+    z-index: 1100;
+    width: min(360px, calc(100vw - 28px));
+    max-height: min(60vh, 480px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(255, 215, 0, 0.34);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
+        #0b1124;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.notif-panel.hidden {
+    display: none;
+}
+
+.notif-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.notif-panel-head strong {
+    color: #fff7d9;
+    font-size: 14px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.notif-list {
+    display: grid;
+    gap: 8px;
+    padding: 12px 14px;
+    overflow-y: auto;
+}
+
+.notif-row {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    padding: 9px 11px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.notif-row.is-unread {
+    border-color: rgba(255, 215, 0, 0.4);
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.notif-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 3px;
+}
+
+.notif-type {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(255, 215, 0, 0.12);
+    color: #ffe9a0;
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.notif-row-head time {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.notif-row strong {
+    display: block;
+    color: #fff;
+    font-size: 13px;
+}
+
+.notif-row p {
+    margin: 3px 0 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.4;
+}
+
+.notif-empty {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.5;
+}
+
+/* ── Friends & chat modal ─────────────────────────────────────────────── */
+.friends-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(3, 6, 14, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.friends-modal.hidden {
+    display: none;
+}
+
+.friends-panel {
+    width: min(940px, 100%);
+    max-height: min(86dvh, 700px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.friends-panel-head {
+    margin-bottom: 12px;
+}
+
+.friends-layout {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+    gap: 14px;
+}
+
+.friends-side,
+.friends-chat {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.friends-side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.friends-side .friend-list,
+.friends-chat .message-thread-list {
+    display: grid;
+    gap: 8px;
+}
+
+.friends-chat .message-compose {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 220px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.friends-chat .message-compose.hidden {
+    display: none;
+}
+
+.friends-chat .message-log {
+    flex: 1;
+    min-height: 140px;
+    overflow-y: auto;
+}
+
 .brand {
     min-width: 230px;
     display: flex;
@@ -2864,7 +3103,7 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .social-grid {
     display: grid;
-    grid-template-columns: 280px minmax(420px, 1fr) 320px;
+    grid-template-columns: 280px minmax(420px, 1fr);
     gap: 16px;
     align-items: start;
 }
@@ -2997,21 +3236,26 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .social-search-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
-}
-
-.social-filter-btn.active {
-    border-color: rgba(255, 215, 0, 0.62);
-    color: #ffe9a0;
-    background: rgba(255, 215, 0, 0.12);
 }
 
 .social-lobby-meta {
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
     gap: 6px;
     justify-content: flex-end;
+}
+
+.social-refresh-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    border-radius: 999px;
 }
 
 .lobby-filter-tray .search-input {
@@ -3527,6 +3771,12 @@ body.starter-onboarding-active .starter-gate h1 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
     margin-bottom: 12px;
+}
+
+/* Builder filters live in the HUD tray: stack them in a single column. */
+.builder-filter-tray .builder-tray-tools {
+    grid-template-columns: 1fr;
+    margin: 12px 0 0;
 }
 
 .builder-form-grid label {
@@ -6559,9 +6809,6 @@ body.gacha-active {
     .social-side-stack {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .social-friends-stack {
-        grid-template-columns: 1fr;
-    }
     .command-hero-stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -6666,6 +6913,37 @@ body.gacha-active {
     .hud-minimize-btn svg {
         transform: none;
     }
+    /* The brand row is centered in the bottom dock, so the bell tucks into
+       the free top-left corner. */
+    .hud-notif-btn {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+    }
+    .notif-panel {
+        top: auto;
+        right: 10px;
+        bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+        left: 10px;
+        width: auto;
+        max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));
+    }
+    .friends-layout {
+        grid-template-columns: 1fr;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .friends-side,
+    .friends-chat {
+        overflow: visible;
+        padding-right: 0;
+    }
+    .friends-panel {
+        max-height: 92dvh;
+    }
+    .friends-chat .message-log {
+        max-height: 38vh;
+    }
     body.hud-minimized .home-main {
         padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
         scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
@@ -6716,13 +6994,15 @@ body.gacha-active {
     .deck-builder-layout {
         grid-template-columns: 1fr;
     }
-    .deck-builder-deck-pane {
-        order: 2;
-    }
-    .deck-builder-binder {
+    /* Card View leads the stack so adding cards never shifts it; the deck
+       pane sits last so its list growing doesn't push the binder around. */
+    .deck-builder-inspector {
         order: 1;
     }
-    .deck-builder-inspector {
+    .deck-builder-binder {
+        order: 2;
+    }
+    .deck-builder-deck-pane {
         order: 3;
     }
     /* Keep the lists bounded + scrollable on mobile. Unbounded height made the
