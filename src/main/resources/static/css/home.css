@@ -3511,6 +3511,7 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .builder-card-mark,
 .builder-catalog-art {
+    position: relative;
     width: 42px;
     height: 42px;
     max-width: 42px;
@@ -3521,6 +3522,7 @@ body.starter-onboarding-active .starter-gate h1 {
     border-radius: 9px;
     background: rgba(0, 0, 0, 0.28);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 16px color-mix(in srgb, var(--el, var(--accent)) 18%, transparent);
+    isolation: isolate;
 }
 
 .builder-card-mark .element-icon-art,
@@ -6469,15 +6471,25 @@ body.gacha-active {
     .deck-builder-layout {
         grid-template-columns: 1fr;
     }
+    .deck-builder-deck-pane {
+        order: 2;
+    }
+    .deck-builder-binder {
+        order: 1;
+    }
+    .deck-builder-inspector {
+        order: 3;
+    }
     /* Keep the lists bounded + scrollable on mobile. Unbounded height made the
        page enormous in portrait (layout broke after rotation and iOS Safari
        could crash under the paint load). */
     .deck-builder-binder-list {
-        max-height: min(46vh, 480px);
+        max-height: min(22vh, 200px);
         -webkit-overflow-scrolling: touch;
     }
     .deck-builder-deck-list {
-        max-height: min(34vh, 360px);
+        max-height: min(30vh, 300px);
+        margin-bottom: 10px;
         -webkit-overflow-scrolling: touch;
     }
     /* Card View is collapsed by default in portrait; the toggle expands it. */
@@ -6487,15 +6499,18 @@ body.gacha-active {
     }
     .deck-builder-preview-panel .binder-card,
     .deck-builder-preview-panel .card-tile {
-        width: min(100%, 240px);
+        width: min(100%, 190px);
         min-height: 0;
         margin: 0 auto;
     }
     .deck-builder-preview-card .detail-card-preview {
-        width: min(100%, 240px);
+        width: min(100%, 190px);
+        transform: scale(0.76);
+        transform-origin: top center;
+        margin-bottom: -52px;
     }
     .deck-builder-preview-card .detail-card-preview .binder-card-art {
-        height: clamp(96px, 28vw, 124px);
+        height: clamp(72px, 22vw, 96px);
     }
     .deck-builder-preview-card .detail-card-preview .binder-card-description {
         -webkit-line-clamp: 2;
