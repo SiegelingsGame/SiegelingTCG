@@ -6437,10 +6437,27 @@ body.gacha-active {
     .deck-builder-layout {
         grid-template-columns: 1fr;
     }
-    .deck-builder-binder-list,
-    .deck-builder-deck-list {
-        max-height: min(52vh, 460px);
+    /* Keep the lists bounded + scrollable on mobile. Unbounded height made the
+       page enormous in portrait (layout broke after rotation and iOS Safari
+       could crash under the paint load). */
+    .deck-builder-binder-list {
+        max-height: min(46vh, 480px);
         -webkit-overflow-scrolling: touch;
+    }
+    .deck-builder-deck-list {
+        max-height: min(34vh, 360px);
+        -webkit-overflow-scrolling: touch;
+    }
+    /* Card View is collapsed by default in portrait; the toggle expands it. */
+    .deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
+    .deck-builder-inspector.is-collapsed .deck-builder-recommendations {
+        display: none;
+    }
+    .deck-builder-preview-panel .binder-card,
+    .deck-builder-preview-panel .card-tile {
+        width: min(100%, 300px);
+        min-height: 0;
+        margin: 0 auto;
     }
     .room-emblem {
         width: 56px;
@@ -7064,4 +7081,100 @@ body.gacha-active {
         overflow: visible;
         padding: 0;
     }
+}
+
+/* ── Deck builder: Card View toggle (mobile only) ─────────────────────── */
+.builder-card-view-toggle {
+    display: none;
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+@media (max-width: 900px) {
+    .builder-card-view-toggle { display: inline-flex; }
+}
+
+/* Desktop/landscape always shows the panel regardless of collapse state. */
+@media (min-width: 901px) {
+    .deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
+    .deck-builder-inspector.is-collapsed .deck-builder-recommendations {
+        display: block;
+    }
+}
+
+/* ── Gacha reveal: keep the card asset inside its 5/7 slot ────────────── */
+/* The binder card embedded in the reveal slot carries a 318px min-height from
+   the binder grid; in a small reveal slot that overflowed and clipped the
+   right/bottom edges and staggered the grid rows. */
+.reveal-front {
+    overflow: hidden;
+}
+
+.reveal-front .gacha-card-front,
+.reveal-front .gacha-card-front.card-tile,
+.reveal-front .gacha-card-front .binder-card,
+.reveal-front .gacha-card-front.binder-card {
+    min-height: 0;
+    max-width: 100%;
+    height: 100%;
+}
+
+@media (max-width: 560px) {
+    .gacha-stage {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+}
+
+/* ── Gacha loading: light-spear fly-off (WuWa-style) ──────────────────── */
+/* Lives inside the pending .pack-opening overlay; spear colour comes from
+   --spear-color (pack element while loading, top rarity on the final volley). */
+.gacha-spear-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* One spear: a thin light streak born at centre, hurled off-screen along its
+   own angle. Colour comes from --spear-color (element while loading, rarity
+   on the resolve volley). */
+.gacha-spear {
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    width: var(--len, 34vmin);
+    height: 3px;
+    margin-top: -1.5px;
+    border-radius: 999px;
+    transform-origin: left center;
+    transform: rotate(var(--ang, 0deg)) translateX(0) scaleX(0.2);
+    background: linear-gradient(90deg,
+        transparent,
+        color-mix(in srgb, var(--spear-color, #76e6ff) 80%, #fff 20%) 38%,
+        #fff 96%);
+    box-shadow:
+        0 0 8px var(--spear-color, #76e6ff),
+        0 0 22px color-mix(in srgb, var(--spear-color, #76e6ff) 60%, transparent);
+    opacity: 0;
+    animation: gachaSpearFly var(--dur, 1.1s) cubic-bezier(0.16, 0.7, 0.3, 1) var(--delay, 0s) both;
+}
+
+.gacha-spear.is-burst {
+    height: 4px;
+    box-shadow:
+        0 0 12px var(--spear-color, #76e6ff),
+        0 0 34px color-mix(in srgb, var(--spear-color, #76e6ff) 78%, #fff 12%);
+}
+
+@keyframes gachaSpearFly {
+    0%   { opacity: 0; transform: rotate(var(--ang, 0deg)) translateX(0) scaleX(0.15); }
+    12%  { opacity: 1; }
+    100% { opacity: 0; transform: rotate(var(--ang, 0deg)) translateX(120vmax) scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gacha-spear { animation-duration: 0.01s; opacity: 0; }
 }

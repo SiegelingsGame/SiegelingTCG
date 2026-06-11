@@ -218,6 +218,7 @@
         builderSort: 'owned-desc',
         builderVisibleLimit: 0,
         builderRenderTimer: null,
+        builderCardViewOpen: false,
         friendMessage: '',
         friendMessageType: '',
         selectedDeckId: '',
@@ -1857,9 +1858,10 @@
                     ${hasMoreCatalogCards ? `<button class="ghost-btn deck-builder-load-more" type="button" data-builder-load-more>Load more cards (${catalogCards.length - visibleCatalogCards.length})</button>` : ''}
                 </div>
             </section>
-            <section class="deck-builder-inspector deck-builder-workbench">
+            <section class="deck-builder-inspector deck-builder-workbench${state.builderCardViewOpen ? '' : ' is-collapsed'}">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
+                    <button class="ghost-btn builder-card-view-toggle" type="button" id="builderCardViewToggle" aria-expanded="${state.builderCardViewOpen ? 'true' : 'false'}">${state.builderCardViewOpen ? 'Hide' : 'Show'}</button>
                 </div>
                 <div class="deck-builder-preview-panel">${mobileBuilder ? renderBuilderMobilePreviewPanel(previewCard) : renderBuilderPreviewPanel(previewCard)}</div>
                 <div class="deck-builder-recommendations">
@@ -2147,7 +2149,24 @@
             state.builderPreviewCardId = null;
             renderDeckBuilderPage();
         });
+        // Card View toggle: on portrait/mobile the preview panel is collapsed by
+        // default to keep the builder compact; this button expands it on demand.
+        root.querySelector('#builderCardViewToggle')?.addEventListener('click', () => {
+            state.builderCardViewOpen = !state.builderCardViewOpen;
+            renderDeckBuilderPage();
+        });
     }
+
+    // Re-render the builder after a rotation/viewport change so the layout
+    // re-resolves cleanly instead of keeping stale landscape sizing in portrait.
+    let builderViewportTimer = 0;
+    function handleBuilderViewportChange() {
+        if (state.route !== 'deck-builder') return;
+        window.clearTimeout(builderViewportTimer);
+        builderViewportTimer = window.setTimeout(() => renderDeckBuilderPage(), 200);
+    }
+    window.addEventListener('resize', handleBuilderViewportChange);
+    window.addEventListener('orientationchange', handleBuilderViewportChange);
 
     function isTrainerOwned(trainerId) {
         const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
@@ -3798,6 +3817,67 @@
             : `<strong>Deck builder locked</strong><span>${state.progression?.ownedTotal || 0}/30 owned copies.</span>`;
     }
 
+    /* ── Gacha loading: "spears of light" fly-off animation ──────────────
+       Shown while the pull request is in flight. Spears start tinted by the
+       pack's element; once the result lands they re-volley in the colour of
+       the highest rarity pulled, then the overlay resolves into the reveal. */
+    const GACHA_RARITY_RANK = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
+
+    function topPullRarity(cards) {
+        return (cards || []).reduce((best, card) => {
+            const rank = GACHA_RARITY_RANK.indexOf(String(card.rarity || 'COMMON').toUpperCase());
+            return rank > GACHA_RARITY_RANK.indexOf(best) ? GACHA_RARITY_RANK[rank] : best;
+        }, 'COMMON');
+    }
+
+    function spawnLightSpears(layer, color, count, burst) {
+        if (!layer) return;
+        for (let i = 0; i < count; i += 1) {
+            const spear = document.createElement('span');
+            spear.className = `gacha-spear${burst ? ' is-burst' : ''}`;
+            spear.style.setProperty('--ang', `${Math.round(Math.random() * 360)}deg`);
+            spear.style.setProperty('--delay', `${(Math.random() * (burst ? 0.25 : 0.9)).toFixed(2)}s`);
+            spear.style.setProperty('--dur', `${(burst ? 0.55 : 0.9) + Math.random() * 0.5}s`);
+            spear.style.setProperty('--len', `${26 + Math.round(Math.random() * 30)}vmin`);
+            spear.style.setProperty('--spear-color', color);
+            spear.addEventListener('animationend', () => spear.remove());
+            layer.appendChild(spear);
+        }
+    }
+
+    let pendingSpearTimer = 0;
+
+    function startPendingSpears(element) {
+        stopPendingSpears();
+        const layer = document.querySelector('.pack-opening-pending .gacha-spear-layer');
+        if (!layer) return;
+        const color = elementColor(element || 'FIRE');
+        spawnLightSpears(layer, color, 10);
+        pendingSpearTimer = window.setInterval(() => spawnLightSpears(layer, color, 6), 700);
+    }
+
+    function stopPendingSpears() {
+        if (pendingSpearTimer) {
+            window.clearInterval(pendingSpearTimer);
+            pendingSpearTimer = 0;
+        }
+    }
+
+    // Rarity-coloured spear volley on the pending overlay just before the
+    // reveal grid replaces it (denser/faster for epic and legendary pulls).
+    function finishPendingSpears(cards) {
+        stopPendingSpears();
+        const overlay = document.querySelector('.pack-opening-pending');
+        const layer = overlay?.querySelector('.gacha-spear-layer');
+        if (!overlay || !layer) return Promise.resolve();
+        const rarity = topPullRarity(cards);
+        const color = rarityColor(rarity);
+        overlay.style.setProperty('--spear-color', color);
+        overlay.classList.add(`is-${rarity.toLowerCase()}`);
+        spawnLightSpears(layer, color, rarity === 'LEGENDARY' ? 26 : rarity === 'EPIC' ? 20 : 14, true);
+        return new Promise(resolve => window.setTimeout(resolve, 760));
+    }
+
     async function choosePack(packId) {
         if (!state.profile?.authenticated) {
             openAuth();
@@ -3848,6 +3928,7 @@
                     applyStarterProfileDefaults();
                 }
             }
+            await finishPendingSpears(latest?.cards || []);
             state.packOpeningPending = null;
             renderPackResult();
             render();
@@ -3956,11 +4037,13 @@
                     <p>The seal is breaking. Your cards will appear as soon as the pull resolves.</p>
                 </div>
             </div>
+            <div class="gacha-spear-layer" aria-hidden="true"></div>
             <div class="gacha-stage gacha-stage-pending">
                 <div class="pack-opening-spinner" aria-hidden="true"></div>
                 <strong>Drawing cards...</strong>
             </div>
         </section>`;
+        startPendingSpears(element);
     }
 
     function scheduleGachaCardFit() {
@@ -4422,6 +4505,7 @@
     }
 
     function hidePackResultDom() {
+        stopPendingSpears();
         destroyGachaParticles();
         document.body.classList.remove('gacha-active');
         const result = document.getElementById('packResult');
