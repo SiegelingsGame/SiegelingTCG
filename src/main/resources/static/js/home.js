@@ -25,6 +25,7 @@
     const PLAYER_NAME_KEY = 'sieglingsPlayerName';
     const SOCIAL_POLL_MS = 6 * 1000;
     const PRESENCE_HEARTBEAT_MS = 45 * 1000;
+    const PACK_OPEN_TIMEOUT_MS = 15000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
     const PACK_CARD_BACK_VERSION = 2;
@@ -243,6 +244,7 @@
         lobbyPollTimer: null,
         lobbyBusy: false,
         packReveal: null,
+        packOpeningPending: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
         catalogVersion: 0,
@@ -2308,7 +2310,13 @@
 
     function renderPackTile(pack) {
         const starterMode = state.profile?.authenticated && state.progression && !state.progression.starterChosen;
-        const label = starterMode && pack.starterEligible ? 'Choose Starter' : renderCoinAmount(pack.price, '');
+        const openingThisPack = state.packOpeningPending?.packId === pack.id;
+        const openingAnyPack = Boolean(state.packOpeningPending);
+        const label = openingThisPack
+            ? 'Opening...'
+            : starterMode && pack.starterEligible
+            ? 'Choose Starter'
+            : renderCoinAmount(pack.price, '');
         const primaryElement = pack.elements?.[0] || 'FIRE';
         const image = packImageFor(pack);
         const imageStyle = image ? `--pack-art-image:url('${escapeAttr(image)}');` : '';
@@ -2323,7 +2331,7 @@
                 <strong>${escapeHtml(displayName)}</strong>
                 <span>${pack.elements.map(format).join(' / ')}</span>
                 <span>${escapeHtml(formatGameText(pack.description || ''))}</span>
-                <button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}">${label}</button>
+                <button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}"${openingAnyPack ? ' disabled' : ''}>${label}</button>
             </div>
         </article>`;
     }
@@ -3758,38 +3766,37 @@
         }
     }
 
-    function showGachaLoading(packElement) {
-        document.querySelector('.gacha-loading')?.remove();
-        const color = elementColor(packElement || 'FIRE');
-        const overlay = document.createElement('div');
-        overlay.className = 'gacha-loading';
-        overlay.style.setProperty('--spear-color', color);
-        overlay.innerHTML = `
-            <div class="gacha-loading-core" aria-hidden="true"></div>
-            <div class="gacha-spear-layer" aria-hidden="true"></div>
-            <div class="gacha-loading-label">Drawing cards...</div>`;
-        document.body.appendChild(overlay);
-        const layer = overlay.querySelector('.gacha-spear-layer');
+    let pendingSpearTimer = 0;
+
+    function startPendingSpears(element) {
+        stopPendingSpears();
+        const layer = document.querySelector('.pack-opening-pending .gacha-spear-layer');
+        if (!layer) return;
+        const color = elementColor(element || 'FIRE');
         spawnLightSpears(layer, color, 10);
-        const interval = window.setInterval(() => spawnLightSpears(layer, color, 6), 700);
-        return { overlay, layer, interval };
+        pendingSpearTimer = window.setInterval(() => spawnLightSpears(layer, color, 6), 700);
     }
 
-    function finishGachaLoading(loading, cards) {
-        if (!loading?.overlay) return Promise.resolve();
-        window.clearInterval(loading.interval);
+    function stopPendingSpears() {
+        if (pendingSpearTimer) {
+            window.clearInterval(pendingSpearTimer);
+            pendingSpearTimer = 0;
+        }
+    }
+
+    // Rarity-coloured spear volley on the pending overlay just before the
+    // reveal grid replaces it (denser/faster for epic and legendary pulls).
+    function finishPendingSpears(cards) {
+        stopPendingSpears();
+        const overlay = document.querySelector('.pack-opening-pending');
+        const layer = overlay?.querySelector('.gacha-spear-layer');
+        if (!overlay || !layer) return Promise.resolve();
         const rarity = topPullRarity(cards);
         const color = rarityColor(rarity);
-        loading.overlay.style.setProperty('--spear-color', color);
-        loading.overlay.classList.add(`is-${rarity.toLowerCase()}`);
-        // Rarity-coloured burst volley, then fade the overlay out into the reveal.
-        spawnLightSpears(loading.layer, color, rarity === 'LEGENDARY' ? 26 : rarity === 'EPIC' ? 20 : 14, true);
-        return new Promise(resolve => {
-            window.setTimeout(() => {
-                loading.overlay.classList.add('is-leaving');
-                window.setTimeout(() => { loading.overlay.remove(); resolve(); }, 380);
-            }, 760);
-        });
+        overlay.style.setProperty('--spear-color', color);
+        overlay.classList.add(`is-${rarity.toLowerCase()}`);
+        spawnLightSpears(layer, color, rarity === 'LEGENDARY' ? 26 : rarity === 'EPIC' ? 20 : 14, true);
+        return new Promise(resolve => window.setTimeout(resolve, 760));
     }
 
     async function choosePack(packId) {
@@ -3797,53 +3804,72 @@
             openAuth();
             return;
         }
+        if (state.packOpeningPending) {
+            return;
+        }
         const starterMode = state.progression && !state.progression.starterChosen;
         const endpoint = starterMode ? '/api/player/starter-pack' : '/api/shop/open-pack';
-        const packElement = (state.packs || []).find(pack => pack.id === packId)?.element
-            || (state.packs || []).find(pack => pack.id === packId)?.cards?.[0]?.element;
-        const loading = showGachaLoading(packElement);
-        let data;
-        try {
-            data = await fetchJson(endpoint, { method: 'POST', body: JSON.stringify({ packId }) });
-        } catch (err) {
-            window.clearInterval(loading.interval);
-            loading.overlay.remove();
-            throw err;
-        }
-        if (data?.error) {
-            window.clearInterval(loading.interval);
-            loading.overlay.remove();
-            return alert(data.error);
-        }
-        state.progression = data.progression;
-        state.packs = data.packs || state.packs;
-        state.dailyOffers = data.dailyOffers || state.dailyOffers;
-        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
-        await loadDailyMissions();
-        const latest = state.progression?.packHistory?.[0];
+        const pack = state.packs.find(item => item.id === packId) || null;
+        state.packOpeningPending = { packId, startedAt: Date.now(), element: pack?.elements?.[0] || 'FIRE', name: pack?.name || 'Pack' };
         state.packOpeningDismissedKey = '';
-        state.packReveal = latest ? {
-            packId: latest.packId,
-            openedAt: latest.openedAt,
-            revealed: new Set(),
-            dissolvedRemnants: new Set(),
-            lastRevealedId: '',
-            previewId: '',
-            sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
-        } : null;
-        if (starterMode) {
-            const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
-            if (serverPrefs) {
-                state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
-                cacheProfilePrefs(state.profilePrefs);
+        navigateHub('shop', { shopView: 'cardpack' });
+        renderPackOpeningPending();
+        renderShop();
+        try {
+            const data = await fetchJson(endpoint, {
+                method: 'POST',
+                body: JSON.stringify({ packId }),
+                timeoutMs: PACK_OPEN_TIMEOUT_MS
+            });
+            if (data?.error) {
+                alert(data.error);
+                return;
+            }
+            state.progression = data.progression;
+            state.packs = data.packs || state.packs;
+            state.dailyOffers = data.dailyOffers || state.dailyOffers;
+            state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+            const latest = state.progression?.packHistory?.[0];
+            state.packOpeningDismissedKey = '';
+            state.packReveal = latest ? {
+                packId: latest.packId,
+                openedAt: latest.openedAt,
+                revealed: new Set(),
+                dissolvedRemnants: new Set(),
+                lastRevealedId: '',
+                previewId: '',
+                sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
+            } : null;
+            if (starterMode) {
+                const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
+                if (serverPrefs) {
+                    state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
+                    cacheProfilePrefs(state.profilePrefs);
+                } else {
+                    applyStarterProfileDefaults();
+                }
+            }
+            await finishPendingSpears(latest?.cards || []);
+            state.packOpeningPending = null;
+            renderPackResult();
+            render();
+            void loadDailyMissions().then(() => {
+                renderHomeDashboard();
+                renderAchievements();
+                renderProfile();
+            });
+        } catch (error) {
+            alert(error?.message || 'Could not open that pack. Please try again.');
+        } finally {
+            if (state.packOpeningPending?.packId === packId) {
+                state.packOpeningPending = null;
+                hidePackResultDom();
+                renderShop();
+                syncShopPackView();
             } else {
-                applyStarterProfileDefaults();
+                renderShop();
             }
         }
-        await finishGachaLoading(loading, latest?.cards || []);
-        renderPackResult();
-        navigateHub('shop', { shopView: 'cardpack' });
-        render();
     }
 
     async function purchaseDailyOffer(offerId) {
@@ -3864,6 +3890,15 @@
         return `${latest.packId || 'pack'}:${latest.openedAt || ''}`;
     }
 
+    function ensurePackResultOverlayRoot(result) {
+        if (!result) return;
+        // Teleport the reveal to <body> so no ancestor's layout/stacking/transform
+        // can confine the fixed full-screen overlay (which clipped the card grid).
+        if (result.parentElement !== document.body) {
+            document.body.appendChild(result);
+        }
+    }
+
     function renderPackResult(options = {}) {
         const result = document.getElementById('packResult');
         const latest = state.progression?.packHistory?.[0];
@@ -3875,11 +3910,7 @@
         const sameSession = opening?.dataset.packKey === sessionKey;
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
-        // Teleport the reveal to <body> so no ancestor's layout/stacking/transform
-        // can confine the fixed full-screen overlay (which clipped the card grid).
-        if (result.parentElement !== document.body) {
-            document.body.appendChild(result);
-        }
+        ensurePackResultOverlayRoot(result);
 
         if (!sameSession || options.rebuild) {
             const revealedCount = reveal.revealed.size;
@@ -3902,10 +3933,43 @@
             if (typeof initGachaParticles === 'function') {
                 initGachaParticles(result.querySelector('.pack-opening'), elementColor(cards[0]?.element || 'FIRE'));
             }
+            scheduleGachaCardFit();
             return;
         }
 
         patchPackOpening({ result, latest, cards, reveal });
+        scheduleGachaCardFit();
+    }
+
+    function renderPackOpeningPending() {
+        const result = document.getElementById('packResult');
+        if (!result || !state.packOpeningPending) return;
+        const element = state.packOpeningPending.element || 'FIRE';
+        const packName = state.packOpeningPending.name || 'Pack';
+        document.body.classList.add('gacha-active');
+        result.classList.remove('hidden');
+        ensurePackResultOverlayRoot(result);
+        result.innerHTML = `<section class="pack-opening pack-opening-pending" role="status" aria-live="polite" aria-label="Opening ${escapeAttr(packName)}" style="--pack-glow:${elementColor(element)};--spark-glow:${elementColor(element)}">
+            <div class="gacha-particles" aria-hidden="true"></div>
+            <div class="pack-opening-head">
+                <div>
+                    <span class="eyebrow">Gacha reveal</span>
+                    <h2>Opening ${escapeHtml(packName)}</h2>
+                    <p>The seal is breaking. Your cards will appear as soon as the pull resolves.</p>
+                </div>
+            </div>
+            <div class="gacha-spear-layer" aria-hidden="true"></div>
+            <div class="gacha-stage gacha-stage-pending">
+                <div class="pack-opening-spinner" aria-hidden="true"></div>
+                <strong>Drawing cards...</strong>
+            </div>
+        </section>`;
+        startPendingSpears(element);
+    }
+
+    function scheduleGachaCardFit() {
+        window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 
     function buildPackOpeningMarkup({ latest, cards, reveal, heading, revealedCount, previewCard, sessionKey }) {
@@ -3999,6 +4063,7 @@
 
         const previewCard = reveal.previewId ? cards.find(card => card.revealId === reveal.previewId) : null;
         patchPackPreview(opening, previewCard);
+        scheduleGachaCardFit();
     }
 
     function patchPackPreview(opening, previewCard) {
@@ -4154,6 +4219,16 @@
     }
 
     function renderRevealFrontContent(card, ownedPreview) {
+        const binderVisual = window.SieglingsCardBinderVisual;
+        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview && binderVisual?.usesFramedCardTemplate?.(card)) {
+            return binderVisual.renderBinderCardPreview(card, {
+                ownedOverride: ownedPreview,
+                previewClass: 'gacha-card-front',
+                compactAbilityLimit: 2,
+                summaryMode: 'description',
+                descriptionText: shopCardDescriptionFor(card)
+            });
+        }
         return `<div class="card-tile binder-card gacha-card-front" style="--el:${elementColor(card.element || 'FIRE')}">
             ${renderBinderCardShell(card, { ownedOverride: ownedPreview })}
         </div>`;
@@ -4166,6 +4241,7 @@
         const front = cardEl.querySelector('.reveal-front');
         if (front && !front.innerHTML.trim()) {
             front.innerHTML = renderRevealFrontContent(card, ownedPreview);
+            scheduleGachaCardFit();
         }
         front?.setAttribute('aria-hidden', 'false');
         cardEl.querySelector('.reveal-back')?.setAttribute('aria-hidden', 'true');
@@ -4284,6 +4360,25 @@
     function renderRevealPreview(card) {
         const element = card.element || 'FIRE';
         const rarity = card.rarity || 'COMMON';
+        const binderVisual = window.SieglingsCardBinderVisual;
+        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview && binderVisual?.usesFramedCardTemplate?.(card)) {
+            const ownedPreview = Math.max(1, Math.min(3, ownedCount(card.id) || 1));
+            return `<div class="reveal-preview" data-preview-backdrop style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)}">
+                <div class="reveal-preview-card reveal-preview-card-template" role="dialog" aria-modal="true" aria-label="${escapeAttr(card.name || 'Card')} preview">
+                    <button class="reveal-preview-close" type="button" data-close-preview aria-label="Back to pack">&times;</button>
+                    <div class="reveal-preview-template">
+                        ${binderVisual.renderBinderCardPreview(card, {
+                            ownedOverride: ownedPreview,
+                            previewClass: 'detail-card-preview gacha-preview-card',
+                            compactAbilityLimit: 3,
+                            summaryMode: 'description',
+                            descriptionText: shopCardDescriptionFor(card)
+                        })}
+                    </div>
+                    <button class="ghost-btn reveal-preview-back" type="button" data-close-preview>Back to pack</button>
+                </div>
+            </div>`;
+        }
         const isSiegling = card.type === 'SIEGLING';
         const abilities = card.abilities || (card.ability ? [card.ability] : []);
         const flavor = creatureDescriptionFor(card);
@@ -4331,6 +4426,7 @@
     }
 
     function hidePackResultDom() {
+        stopPendingSpears();
         destroyGachaParticles();
         document.body.classList.remove('gacha-active');
         const result = document.getElementById('packResult');
@@ -4354,6 +4450,10 @@
                 document.getElementById('packResult')?.classList.add('hidden');
                 document.body.classList.remove('gacha-active');
             }
+            return;
+        }
+        if (state.shopView === 'cardpack' && state.packOpeningPending) {
+            renderPackOpeningPending();
             return;
         }
         if (state.shopView === 'cardpack' && shouldShowPackOpening()) {
@@ -4755,8 +4855,18 @@
     async function fetchJson(path, options = {}) {
         const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
         if (state.token) headers.Authorization = `Bearer ${state.token}`;
+        const timeoutMs = Number(options.timeoutMs) || 0;
+        const controller = timeoutMs && window.AbortController ? new AbortController() : null;
+        const timeout = controller
+            ? window.setTimeout(() => controller.abort(), timeoutMs)
+            : null;
+        const fetchOptions = { ...options, headers };
+        delete fetchOptions.timeoutMs;
+        if (controller) {
+            fetchOptions.signal = controller.signal;
+        }
         try {
-            const resp = await fetch(path, { ...options, headers });
+            const resp = await fetch(path, fetchOptions);
             const raw = await resp.text();
             let data = null;
             if (raw) {
@@ -4774,7 +4884,14 @@
             return data;
         } catch (error) {
             console.error(error);
+            if (error?.name === 'AbortError') {
+                return { error: 'Pack opening is taking too long. Please try again.' };
+            }
             return { error: 'Network error. Check your connection and try again.' };
+        } finally {
+            if (timeout) {
+                window.clearTimeout(timeout);
+            }
         }
     }
 
