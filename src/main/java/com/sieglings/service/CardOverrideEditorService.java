@@ -68,10 +68,7 @@ public class CardOverrideEditorService {
     }
 
     public Map<String, Object> saveEditorState(JsonNode data, String editorToken) {
-        String updatedByEmail = null;
-        if (storageService.isFirestoreReady()) {
-            updatedByEmail = authService.requireEditor(editorToken).email();
-        }
+        String updatedByEmail = authService.requireEditor(editorToken).email();
         CardOverrideStorageService.LoadSnapshot currentCardSnapshot = storageService.loadSnapshot();
         PresetDeckCatalogService.LoadSnapshot currentDeckSnapshot = presetDeckCatalogService.loadSnapshot();
         TrainerCatalogService.LoadSnapshot currentTrainerSnapshot = trainerCatalogService.loadSnapshot();
@@ -116,9 +113,7 @@ public class CardOverrideEditorService {
     }
 
     public Map<String, Object> uploadCardArt(String cardId, MultipartFile file, String editorToken) throws IOException {
-        if (storageService.isFirestoreReady()) {
-            authService.requireEditor(editorToken);
-        }
+        authService.requireEditor(editorToken);
         String url = cardArtStorageService.saveCardArt(cardId, file);
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("ok", true);
