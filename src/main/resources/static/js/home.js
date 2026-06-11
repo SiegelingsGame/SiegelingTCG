@@ -1824,9 +1824,10 @@
                     ${catalogCards.length ? catalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
                 </div>
             </section>
-            <section class="deck-builder-inspector deck-builder-workbench">
+            <section class="deck-builder-inspector deck-builder-workbench${state.builderCardViewOpen ? '' : ' is-collapsed'}">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
+                    <button class="ghost-btn builder-card-view-toggle" type="button" id="builderCardViewToggle" aria-expanded="${state.builderCardViewOpen ? 'true' : 'false'}">${state.builderCardViewOpen ? 'Hide' : 'Show'}</button>
                 </div>
                 <div class="deck-builder-preview-panel">${renderBuilderPreviewPanel(previewCard)}</div>
                 <div class="deck-builder-recommendations">
@@ -2067,7 +2068,24 @@
             state.builderPreviewCardId = null;
             renderDeckBuilderPage();
         });
+        // Card View toggle: on portrait/mobile the preview panel is collapsed by
+        // default to keep the builder compact; this button expands it on demand.
+        root.querySelector('#builderCardViewToggle')?.addEventListener('click', () => {
+            state.builderCardViewOpen = !state.builderCardViewOpen;
+            renderDeckBuilderPage();
+        });
     }
+
+    // Re-render the builder after a rotation/viewport change so the layout
+    // re-resolves cleanly instead of keeping stale landscape sizing in portrait.
+    let builderViewportTimer = 0;
+    function handleBuilderViewportChange() {
+        if (state.route !== 'deck-builder') return;
+        window.clearTimeout(builderViewportTimer);
+        builderViewportTimer = window.setTimeout(() => renderDeckBuilderPage(), 200);
+    }
+    window.addEventListener('resize', handleBuilderViewportChange);
+    window.addEventListener('orientationchange', handleBuilderViewportChange);
 
     function isTrainerOwned(trainerId) {
         const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
@@ -3712,6 +3730,68 @@
             : `<strong>Deck builder locked</strong><span>${state.progression?.ownedTotal || 0}/30 owned copies.</span>`;
     }
 
+    /* ── Gacha loading: "spears of light" fly-off animation ──────────────
+       Shown while the pull request is in flight. Spears start tinted by the
+       pack's element; once the result lands they re-volley in the colour of
+       the highest rarity pulled, then the overlay resolves into the reveal. */
+    const GACHA_RARITY_RANK = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
+
+    function topPullRarity(cards) {
+        return (cards || []).reduce((best, card) => {
+            const rank = GACHA_RARITY_RANK.indexOf(String(card.rarity || 'COMMON').toUpperCase());
+            return rank > GACHA_RARITY_RANK.indexOf(best) ? GACHA_RARITY_RANK[rank] : best;
+        }, 'COMMON');
+    }
+
+    function spawnLightSpears(layer, color, count, burst) {
+        if (!layer) return;
+        for (let i = 0; i < count; i += 1) {
+            const spear = document.createElement('span');
+            spear.className = `gacha-spear${burst ? ' is-burst' : ''}`;
+            spear.style.setProperty('--ang', `${Math.round(Math.random() * 360)}deg`);
+            spear.style.setProperty('--delay', `${(Math.random() * (burst ? 0.25 : 0.9)).toFixed(2)}s`);
+            spear.style.setProperty('--dur', `${(burst ? 0.55 : 0.9) + Math.random() * 0.5}s`);
+            spear.style.setProperty('--len', `${26 + Math.round(Math.random() * 30)}vmin`);
+            spear.style.setProperty('--spear-color', color);
+            spear.addEventListener('animationend', () => spear.remove());
+            layer.appendChild(spear);
+        }
+    }
+
+    function showGachaLoading(packElement) {
+        document.querySelector('.gacha-loading')?.remove();
+        const color = elementColor(packElement || 'FIRE');
+        const overlay = document.createElement('div');
+        overlay.className = 'gacha-loading';
+        overlay.style.setProperty('--spear-color', color);
+        overlay.innerHTML = `
+            <div class="gacha-loading-core" aria-hidden="true"></div>
+            <div class="gacha-spear-layer" aria-hidden="true"></div>
+            <div class="gacha-loading-label">Drawing cards...</div>`;
+        document.body.appendChild(overlay);
+        const layer = overlay.querySelector('.gacha-spear-layer');
+        spawnLightSpears(layer, color, 10);
+        const interval = window.setInterval(() => spawnLightSpears(layer, color, 6), 700);
+        return { overlay, layer, interval };
+    }
+
+    function finishGachaLoading(loading, cards) {
+        if (!loading?.overlay) return Promise.resolve();
+        window.clearInterval(loading.interval);
+        const rarity = topPullRarity(cards);
+        const color = rarityColor(rarity);
+        loading.overlay.style.setProperty('--spear-color', color);
+        loading.overlay.classList.add(`is-${rarity.toLowerCase()}`);
+        // Rarity-coloured burst volley, then fade the overlay out into the reveal.
+        spawnLightSpears(loading.layer, color, rarity === 'LEGENDARY' ? 26 : rarity === 'EPIC' ? 20 : 14, true);
+        return new Promise(resolve => {
+            window.setTimeout(() => {
+                loading.overlay.classList.add('is-leaving');
+                window.setTimeout(() => { loading.overlay.remove(); resolve(); }, 380);
+            }, 760);
+        });
+    }
+
     async function choosePack(packId) {
         if (!state.profile?.authenticated) {
             openAuth();
@@ -3719,8 +3799,22 @@
         }
         const starterMode = state.progression && !state.progression.starterChosen;
         const endpoint = starterMode ? '/api/player/starter-pack' : '/api/shop/open-pack';
-        const data = await fetchJson(endpoint, { method: 'POST', body: JSON.stringify({ packId }) });
-        if (data?.error) return alert(data.error);
+        const packElement = (state.packs || []).find(pack => pack.id === packId)?.element
+            || (state.packs || []).find(pack => pack.id === packId)?.cards?.[0]?.element;
+        const loading = showGachaLoading(packElement);
+        let data;
+        try {
+            data = await fetchJson(endpoint, { method: 'POST', body: JSON.stringify({ packId }) });
+        } catch (err) {
+            window.clearInterval(loading.interval);
+            loading.overlay.remove();
+            throw err;
+        }
+        if (data?.error) {
+            window.clearInterval(loading.interval);
+            loading.overlay.remove();
+            return alert(data.error);
+        }
         state.progression = data.progression;
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
@@ -3746,6 +3840,7 @@
                 applyStarterProfileDefaults();
             }
         }
+        await finishGachaLoading(loading, latest?.cards || []);
         renderPackResult();
         navigateHub('shop', { shopView: 'cardpack' });
         render();
