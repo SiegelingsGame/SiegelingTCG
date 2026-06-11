@@ -330,8 +330,8 @@ body.starter-onboarding-active .hud-fab {
 }
 
 .friends-panel {
-    width: min(940px, 100%);
-    max-height: min(86dvh, 700px);
+    width: min(560px, 100%);
+    height: min(86dvh, 700px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -341,22 +341,63 @@ body.starter-onboarding-active .hud-fab {
     margin-bottom: 12px;
 }
 
-.friends-layout {
-    flex: 1;
-    min-height: 0;
-    display: grid;
-    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-    gap: 14px;
+.friends-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.friends-side,
-.friends-chat {
+.friends-icon-btn {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    flex: 0 0 auto;
+    padding: 0;
+    border-radius: 999px;
+}
+
+.friends-icon-btn.active {
+    border-color: rgba(255, 215, 0, 0.62);
+    color: #ffe9a0;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.friend-add-pop {
+    margin-bottom: 12px;
+    border: 1px solid rgba(255, 215, 0, 0.32);
+    border-radius: 12px;
+    padding: 12px;
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.friend-add-pop .friend-message:empty {
+    display: none;
+}
+
+.friends-body {
+    flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 10px;
     overflow-y: auto;
     padding-right: 4px;
+}
+
+.friends-body.hidden {
+    display: none;
+}
+
+.friend-requests-block {
+    display: grid;
+    gap: 8px;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 12px;
+    padding: 10px;
+    background: rgba(255, 215, 0, 0.04);
 }
 
 .friends-side-head {
@@ -366,31 +407,68 @@ body.starter-onboarding-active .hud-fab {
     gap: 8px;
 }
 
-.friends-side .friend-list,
-.friends-chat .message-thread-list {
+.friends-body .friend-list {
     display: grid;
     gap: 8px;
 }
 
-.friends-chat .message-compose {
+/* Tapping Message takes over the whole panel as a full-screen chat. */
+.friends-chat-view {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    flex: 1;
-    min-height: 220px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.025);
 }
 
-.friends-chat .message-compose.hidden {
+.friends-chat-view.hidden {
     display: none;
 }
 
-.friends-chat .message-log {
+.friends-chat-view .message-compose {
     flex: 1;
-    min-height: 140px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border: 0;
+    padding: 0;
+    background: transparent;
+}
+
+.friends-chat-view .message-log {
+    flex: 1;
+    min-height: 160px;
     overflow-y: auto;
+}
+
+.friend-message-btn {
+    position: relative;
+}
+
+.friend-message-btn.has-unread {
+    border-color: rgba(255, 215, 0, 0.7);
+    color: #ffe9a0;
+    animation: friendMsgBlink 1.5s ease-in-out infinite;
+}
+
+.friend-msg-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff7b4f, #d6332b);
+    box-shadow: 0 0 0 2px rgba(10, 16, 32, 0.9);
+}
+
+@keyframes friendMsgBlink {
+    0%, 100% { background: rgba(255, 215, 0, 0.08); }
+    50% { background: rgba(255, 215, 0, 0.38); }
+}
+
+.friend-remove-btn {
+    min-width: 32px;
+    padding-inline: 8px;
 }
 
 .brand {
@@ -6928,21 +7006,22 @@ body.gacha-active {
         width: auto;
         max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));
     }
-    .friends-layout {
-        grid-template-columns: 1fr;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-    .friends-side,
-    .friends-chat {
-        overflow: visible;
-        padding-right: 0;
+    /* Full-screen takeover on phones: the modal owns the viewport so the
+       chat reads like a native messaging screen. */
+    .friends-modal {
+        padding: 0;
     }
     .friends-panel {
-        max-height: 92dvh;
+        width: 100%;
+        height: 100dvh;
+        max-height: none;
+        border-radius: 0;
     }
-    .friends-chat .message-log {
-        max-height: 38vh;
+    .friends-body {
+        -webkit-overflow-scrolling: touch;
+    }
+    .friends-chat-view .message-log {
+        -webkit-overflow-scrolling: touch;
     }
     body.hud-minimized .home-main {
         padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));

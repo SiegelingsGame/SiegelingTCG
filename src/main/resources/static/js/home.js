@@ -220,6 +220,7 @@
         builderVisibleLimit: 0,
         builderRenderTimer: null,
         notifications: [],
+        friendRequestsOpen: false,
         friendMessage: '',
         friendMessageType: '',
         selectedDeckId: '',
@@ -282,14 +283,72 @@
 
     function openFriendsModal() {
         document.getElementById('friendsModal')?.classList.remove('hidden');
+        state.activeChatPeer = null;
+        // Requests stay tucked behind the bell unless something is pending.
+        state.friendRequestsOpen = (state.profile?.incomingFriendRequests || []).length > 0;
+        document.getElementById('friendAddPop')?.classList.add('hidden');
+        showFriendsChatView(false);
         renderFriends();
         renderFriendRequests();
-        renderMessageThreads();
-        if (state.profile?.authenticated) void refreshSocialData(false);
+        // Poll while the modal is open so presence and unread blinks stay
+        // live even away from the Social route.
+        if (state.profile?.authenticated) startSocialPolling();
     }
 
     function closeFriendsModal() {
         document.getElementById('friendsModal')?.classList.add('hidden');
+        state.activeChatPeer = null;
+        showFriendsChatView(false);
+        if (!isSocialRoute()) stopSocialPolling();
+    }
+
+    // Swap the modal between the friends list and the full-screen chat. The
+    // chat is only reachable through a friend's Message button.
+    function showFriendsChatView(open) {
+        document.getElementById('friendsListView')?.classList.toggle('hidden', open);
+        document.getElementById('friendsChatView')?.classList.toggle('hidden', !open);
+        if (open) document.getElementById('friendAddPop')?.classList.add('hidden');
+        const title = document.getElementById('friendsPanelTitle');
+        if (title) title.textContent = open ? 'Chat' : 'Friends';
+    }
+
+    function toggleFriendAddPop(force) {
+        const pop = document.getElementById('friendAddPop');
+        if (!pop) return;
+        const open = typeof force === 'boolean' ? force : pop.classList.contains('hidden');
+        pop.classList.toggle('hidden', !open);
+        if (open) document.getElementById('friendEmailInput')?.focus();
+    }
+
+    // ── Per-friend unread chat tracking ─────────────────────────────────
+    // The threads API flags a thread unread when its latest message came
+    // from the peer; a locally stored "seen" timestamp clears the flag once
+    // the chat has been opened.
+    function chatSeenKey() {
+        return `sieglingsChatSeen:${state.profile?.user?.email || 'anon'}`;
+    }
+
+    function readChatSeen() {
+        try {
+            return JSON.parse(localStorage.getItem(chatSeenKey()) || '{}') || {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function markChatSeen(peerId) {
+        if (!peerId) return;
+        const seen = readChatSeen();
+        seen[peerId] = new Date().toISOString();
+        localStorage.setItem(chatSeenKey(), JSON.stringify(seen));
+    }
+
+    function friendHasUnread(email) {
+        const thread = (state.messageThreads || []).find(t => t.peerId === email);
+        if (!thread || !thread.unread || !thread.lastMessageAt) return false;
+        const seenAt = readChatSeen()[email];
+        // ISO-8601 timestamps compare correctly as strings.
+        return !seenAt || String(thread.lastMessageAt) > String(seenAt);
     }
 
     // ── Notification center ─────────────────────────────────────────────
@@ -570,6 +629,11 @@
         document.getElementById('friendsModal')?.addEventListener('click', (event) => {
             if (event.target.id === 'friendsModal') closeFriendsModal();
         });
+        document.getElementById('addFriendBtn')?.addEventListener('click', () => toggleFriendAddPop());
+        document.getElementById('friendRequestsBtn')?.addEventListener('click', () => {
+            state.friendRequestsOpen = !state.friendRequestsOpen;
+            renderFriendRequests();
+        });
         document.getElementById('hudNotifBtn')?.addEventListener('click', () => toggleNotifPanel());
         document.getElementById('clearNotifsBtn')?.addEventListener('click', clearNotifications);
         document.addEventListener('click', (event) => {
@@ -845,7 +909,6 @@
             renderRooms();
             renderFriends();
             renderFriendRequests();
-            renderMessageThreads();
             startSocialPolling();
             stopLobbyPolling();
         } else if (state.route === 'lobby') {
@@ -2889,13 +2952,13 @@
                     <span>${escapeHtml(subtitle)}</span>
                 </div>
                 <div class="friend-actions">
+                    <button class="ghost-btn compact-btn friend-message-btn${friendHasUnread(friend.email) ? ' has-unread' : ''}" type="button" data-message-friend="${escapeAttr(friend.email)}">Message${friendHasUnread(friend.email) ? '<span class="friend-msg-dot" aria-label="New messages"></span>' : ''}</button>
                     <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
-                    <button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>
-                    <button class="ghost-btn compact-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}">Remove</button>
+                    <button class="ghost-btn compact-btn friend-remove-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}" aria-label="Remove friend" title="Remove friend">&times;</button>
                 </div>
             </article>`;
             }).join('')
-            : '<div class="social-empty-state"><strong>No friends found</strong><span>Add a registered player by email to start your list.</span></div>';
+            : '<div class="social-empty-state"><strong>No friends found</strong><span>Tap the + button above to add a registered player by email.</span></div>';
 
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
         list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => navigateToPlayerProfile(btn.dataset.viewProfile)));
@@ -2914,7 +2977,15 @@
         const pendingCount = incoming.length;
 
         if (count) count.textContent = `${pendingCount} pending`;
-        if (panel) panel.classList.toggle('hidden', !state.profile?.authenticated);
+        const badge = document.getElementById('friendRequestsBadge');
+        if (badge) {
+            badge.textContent = pendingCount > 9 ? '9+' : String(pendingCount);
+            badge.classList.toggle('hidden', !pendingCount);
+        }
+        document.getElementById('friendRequestsBtn')?.classList.toggle('active', Boolean(state.friendRequestsOpen));
+        // The requests block stays hidden unless the player opens it from the
+        // bell (it opens automatically when an invite is waiting).
+        if (panel) panel.classList.toggle('hidden', !state.profile?.authenticated || !state.friendRequestsOpen);
 
         if (!state.profile?.authenticated) {
             list.innerHTML = '<div class="social-empty-state"><strong>Sign in to manage requests</strong></div>';
@@ -6597,7 +6668,6 @@
             state.friendPresence = {};
             state.messageThreads = [];
             renderFriends();
-            renderMessageThreads();
             return;
         }
         await syncProfile();
@@ -6612,7 +6682,6 @@
         }
         renderFriends();
         renderFriendRequests();
-        renderMessageThreads();
         renderSocialActiveLobby();
     }
 
@@ -6645,34 +6714,8 @@
         state.messageThreads = data.threads || [];
     }
 
-    function renderMessageThreads() {
-        const list = document.getElementById('messageThreadList');
-        const count = document.getElementById('messageThreadCount');
-        const compose = document.getElementById('messageCompose');
-        if (!list) return;
-        if (count) count.textContent = `${state.messageThreads.length} thread${state.messageThreads.length === 1 ? '' : 's'}`;
-        if (!state.profile?.authenticated) {
-            list.innerHTML = '<div class="social-empty-state"><strong>Sign in to message friends</strong></div>';
-            compose?.classList.add('hidden');
-            return;
-        }
-        if (!state.messageThreads.length) {
-            list.innerHTML = '<div class="social-empty-state"><strong>No messages yet</strong><span>Open a friend profile and tap Message to start chatting.</span></div>';
-            return;
-        }
-        list.innerHTML = state.messageThreads.map(thread => {
-            const friend = (state.profile?.friends || []).find(row => row.email === thread.peerId);
-            const label = friend?.displayName || thread.peerId;
-            return `<button class="message-thread-btn" type="button" data-open-thread="${escapeAttr(thread.peerId)}">
-                <strong>${escapeHtml(label)}</strong>
-                <span>${escapeHtml(thread.lastMessage || 'No messages yet')}</span>
-            </button>`;
-        }).join('');
-        list.querySelectorAll('[data-open-thread]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.openThread)));
-        if (state.activeChatPeer) {
-            openMessageComposer(state.activeChatPeer, false);
-        }
-    }
+    // The standalone thread list is gone — unread chats surface as a blinking
+    // badge on each friend's Message button (see friendHasUnread).
 
     function chatMessageSenderLabel(message, peerId) {
         if (message?.mine) return 'You';
@@ -6701,11 +6744,15 @@
     async function openMessageComposer(peerId, focusInput = true) {
         if (!state.profile?.authenticated) return openAuth();
         state.activeChatPeer = peerId;
+        // The chat lives inside the friends modal as a full-screen takeover;
+        // opening it from anywhere (friend card, profile page) raises both.
+        document.getElementById('friendsModal')?.classList.remove('hidden');
+        showFriendsChatView(true);
         const compose = document.getElementById('messageCompose');
         const title = document.getElementById('messageComposeTitle');
         const log = document.getElementById('messageLog');
         const friend = (state.profile?.friends || []).find(row => row.email === peerId);
-        if (title) title.textContent = `Chat with ${friend?.displayName || peerId}`;
+        if (title) title.textContent = resolveFriendDisplayName(friend || { email: peerId });
         compose?.classList.remove('hidden');
         const data = await fetchJson(`/api/social/messages/with/${encodeURIComponent(peerId)}`);
         if (!data || data?.error) {
@@ -6719,7 +6766,7 @@
                 : '<div class="social-empty-state"><span>Say hello to start the conversation.</span></div>';
             log.scrollTop = log.scrollHeight;
         }
-        renderMessageThreads();
+        markChatSeen(peerId);
         if (focusInput) document.getElementById('messageInput')?.focus();
     }
 
@@ -7038,6 +7085,10 @@
                         <span class="options-menu-icon">&#128100;</span>
                         <span><strong>Account</strong><small>Manage or permanently delete your account</small></span>
                     </button>
+                    <button class="options-menu-item" type="button" data-options-support>
+                        <span class="options-menu-icon">&#127911;</span>
+                        <span><strong>Support</strong><small>Join the Discord for help, bug reports, and feedback</small></span>
+                    </button>
                     <button class="options-menu-item" type="button" data-options-view="admin">
                         <span class="options-menu-icon">&#9881;</span>
                         <span><strong>Admin</strong><small>Password-protected dashboard access</small></span>
@@ -7124,6 +7175,10 @@
 
     function handleOptionsClick(event) {
         if (event.target.closest('[data-options-close]')) { closeOptions(); return; }
+        if (event.target.closest('[data-options-support]')) {
+            window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
+            return;
+        }
         const viewBtn = event.target.closest('[data-options-view]');
         if (viewBtn) { state.optionsView = viewBtn.dataset.optionsView; renderOptions(); return; }
         const tabBtn = event.target.closest('[data-guide-tab]');
@@ -7173,8 +7228,10 @@
 
     document.getElementById('closeMessageComposeBtn')?.addEventListener('click', () => {
         state.activeChatPeer = null;
-        document.getElementById('messageCompose')?.classList.add('hidden');
-        renderMessageThreads();
+        showFriendsChatView(false);
+        // Re-render so the Message button's unread badge clears for the chat
+        // that was just read.
+        renderFriends();
     });
     document.getElementById('messageSendForm')?.addEventListener('submit', sendChatMessage);
 
