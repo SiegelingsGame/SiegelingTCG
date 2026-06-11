@@ -215,6 +215,7 @@
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
+        builderRarityFilter: 'ALL',
         builderSort: 'owned-desc',
         builderVisibleLimit: 0,
         builderRenderTimer: null,
@@ -1845,6 +1846,9 @@
                     <select class="search-input" id="builderTypeSelect">
                         ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
                     </select>
+                    <select class="search-input" id="builderRaritySelect">
+                        ${['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderRarityFilter ? ' selected' : ''}>${value === 'ALL' ? 'All rarities' : format(value)}</option>`).join('')}
+                    </select>
                     <select class="search-input" id="builderSortSelect">
                         <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
                         <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
@@ -2144,6 +2148,11 @@
             resetBuilderVisibleLimit();
             renderDeckBuilderPage();
         });
+        root.querySelector('#builderRaritySelect')?.addEventListener('change', (event) => {
+            state.builderRarityFilter = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
         root.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
             state.builderSort = event.target.value;
             resetBuilderVisibleLimit();
@@ -2214,6 +2223,7 @@
             .filter(card => builderCardLimit(card.id) > 0)
             .filter(card => state.builderElementFilter === 'ALL' || card.element === state.builderElementFilter)
             .filter(card => state.builderTypeFilter === 'ALL' || card.type === state.builderTypeFilter)
+            .filter(card => state.builderRarityFilter === 'ALL' || card.rarity === state.builderRarityFilter)
             .filter(card => {
                 if (!state.builderSearch) return true;
                 const text = `${card.name} ${card.type} ${card.element} ${card.rarity} ${creatureDescriptionFor(card)} ${JSON.stringify(card.abilities || [])}`.toLowerCase();
