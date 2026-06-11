@@ -3560,6 +3560,11 @@ body.starter-onboarding-active .starter-gate h1 {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    width: auto;
+    height: auto;
+    border: 0;
+    background: transparent;
+    cursor: default;
 }
 
 .builder-stepper button {
@@ -6491,6 +6496,34 @@ body.gacha-active {
         max-height: min(30vh, 300px);
         margin-bottom: 10px;
         -webkit-overflow-scrolling: touch;
+    }
+    .deck-builder-binder-row,
+    .deck-builder-deck-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 7px;
+    }
+    .deck-builder-binder-main,
+    .deck-builder-deck-row-main {
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        gap: 8px;
+        min-width: 0;
+    }
+    .deck-builder-binder-row .builder-card-mark,
+    .deck-builder-deck-row .builder-card-mark {
+        width: 36px;
+        height: 36px;
+    }
+    .deck-builder-binder-row .builder-stepper,
+    .deck-builder-deck-row .builder-stepper {
+        width: 100%;
+        justify-content: flex-end;
+        gap: 5px;
+    }
+    .deck-builder-binder-row .builder-stepper button,
+    .deck-builder-deck-row .builder-stepper button {
+        min-width: 32px;
+        min-height: 32px;
+        padding: 6px 9px;
     }
     /* Card View is collapsed by default in portrait; the toggle expands it. */
     .deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
