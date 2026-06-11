@@ -5881,6 +5881,7 @@ body.placement-active .board-cell.legal {
 
 .board-card.arena-board-card .arena-board-combat {
     flex: 0 0 auto;
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -5922,13 +5923,22 @@ body.placement-active .board-cell.legal {
     overflow: hidden;
 }
 
+/* Badges overlay the bottom of the art, sitting right above the health bar /
+   info panel instead of taking flow space — so they never push the HP/SPD
+   pills off the bottom of the card. */
 .board-card.arena-board-card .arena-board-badges {
-    flex: 0 0 auto;
-    width: 100%;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    margin-bottom: 1px;
+    width: auto;
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 0;
+    z-index: 3;
+    pointer-events: none;
 }
 
 .board-card.arena-board-card .arena-board-badges:empty {
@@ -6099,14 +6109,22 @@ body.placement-active .board-cell.legal {
     display: none;
 }
 
-/* HP bar pinned to the top of the painted info panel. */
+/* HP bar pinned to the top of the painted info panel. It now lives inside the
+   absolutely-positioned combat panel, so anchor it just above that panel's top
+   edge (card-relative top% would land it on the stat pills). */
 .board-card.arena-board-card.element-frame .arena-board-health {
     position: absolute;
-    left: 11.5%;
-    right: 11.5%;
-    top: 70.6%;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: calc(100% + 2px);
     width: auto;
     z-index: 2;
+}
+
+/* Badges sit above the health bar, overlapping the bottom of the art. */
+.board-card.arena-board-card.element-frame .arena-board-badges {
+    bottom: calc(100% + 10px);
 }
 
 /* Stat pills + status badges fill the rest of the panel, stopping above
