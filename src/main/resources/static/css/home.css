@@ -92,6 +92,68 @@ button { color: inherit; }
     -webkit-backdrop-filter: blur(14px);
 }
 
+/* Minimize handle hangs off the HUD edge; clicking collapses the whole nav
+   into the floating brand FAB so the page content gets the full viewport. */
+.hud-minimize-btn {
+    position: absolute;
+    right: 14px;
+    bottom: -15px;
+    z-index: 21;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid rgba(255, 215, 0, 0.55);
+    border-radius: 999px;
+    background: rgba(10, 16, 32, 0.96);
+    color: #ffd75e;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* Desktop HUD sits at the top, so the chevron points up (collapse upward). */
+.hud-minimize-btn svg {
+    transform: rotate(180deg);
+}
+
+.hud-fab {
+    position: fixed;
+    right: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    padding: 0;
+    border: 2px solid rgba(255, 215, 0, 0.72);
+    border-radius: 999px;
+    background: rgba(10, 16, 32, 0.94);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 22px rgba(255, 215, 0, 0.25);
+    cursor: pointer;
+}
+
+.hud-fab img {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+}
+
+.hud-fab.hidden {
+    display: none;
+}
+
+body.hud-minimized .home-nav {
+    display: none;
+}
+
+body.gacha-active .hud-fab,
+body.starter-onboarding-active .hud-fab {
+    display: none !important;
+}
+
 .brand {
     min-width: 230px;
     display: flex;
@@ -3811,6 +3873,68 @@ body.starter-onboarding-active .starter-gate h1 {
     margin-top: 12px;
 }
 
+.deck-builder-preview-moves {
+    display: grid;
+    gap: 7px;
+    margin-top: 10px;
+}
+
+.builder-moves-label {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.builder-move-row {
+    border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 30%, rgba(255, 255, 255, 0.1));
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--el, var(--accent)) 8%, transparent), rgba(255, 255, 255, 0.025));
+}
+
+.builder-move-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.builder-move-head strong {
+    overflow: hidden;
+    color: #fff7d9;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.builder-move-cost {
+    flex: 0 0 auto;
+    padding: 3px 9px;
+    border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 50%, rgba(255, 255, 255, 0.14));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--el, var(--accent)) 20%, rgba(0, 0, 0, 0.38));
+    color: #fff7d9;
+    font-size: 10px;
+    font-weight: 950;
+    white-space: nowrap;
+}
+
+.builder-move-cost.is-passive {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-dim);
+}
+
+.builder-move-row p {
+    margin: 4px 0 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.45;
+}
+
 .deck-builder-recommendation-grid {
     display: grid;
     gap: 8px;
@@ -6531,6 +6655,20 @@ body.gacha-active {
         box-sizing: border-box;
         padding: 10px 10px calc(224px + env(safe-area-inset-bottom, 0px));
         scroll-padding-bottom: calc(224px + env(safe-area-inset-bottom, 0px));
+    }
+    /* Mobile HUD docks at the bottom: handle moves to its top edge and the
+       chevron points down (collapse downward). With the HUD minimized only
+       the FAB remains, so give the freed space back to the page. */
+    .hud-minimize-btn {
+        top: -15px;
+        bottom: auto;
+    }
+    .hud-minimize-btn svg {
+        transform: none;
+    }
+    body.hud-minimized .home-main {
+        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+        scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
     }
     .filter-panel,
     .detail-panel {
