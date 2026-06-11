@@ -3810,6 +3810,15 @@
         return `${latest.packId || 'pack'}:${latest.openedAt || ''}`;
     }
 
+    function ensurePackResultOverlayRoot(result) {
+        if (!result) return;
+        // Teleport the reveal to <body> so no ancestor's layout/stacking/transform
+        // can confine the fixed full-screen overlay (which clipped the card grid).
+        if (result.parentElement !== document.body) {
+            document.body.appendChild(result);
+        }
+    }
+
     function renderPackResult(options = {}) {
         const result = document.getElementById('packResult');
         const latest = state.progression?.packHistory?.[0];
@@ -3821,6 +3830,7 @@
         const sameSession = opening?.dataset.packKey === sessionKey;
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
+        ensurePackResultOverlayRoot(result);
 
         if (!sameSession || options.rebuild) {
             const revealedCount = reveal.revealed.size;
@@ -3858,6 +3868,7 @@
         const packName = state.packOpeningPending.name || 'Pack';
         document.body.classList.add('gacha-active');
         result.classList.remove('hidden');
+        ensurePackResultOverlayRoot(result);
         result.innerHTML = `<section class="pack-opening pack-opening-pending" role="status" aria-live="polite" aria-label="Opening ${escapeAttr(packName)}" style="--pack-glow:${elementColor(element)};--spark-glow:${elementColor(element)}">
             <div class="gacha-particles" aria-hidden="true"></div>
             <div class="pack-opening-head">
