@@ -5618,6 +5618,9 @@ function renderGameOverOverlay() {
         overlay.dataset.soundPlayed = '1';
         window.SieglingsSounds?.play(result === 'WIN' ? 'win' : 'lose');
     }
+    if (tutorialMatchActive && result === 'WIN' && authState?.token) {
+        void claimTutorialReward();
+    }
 
     document.getElementById('gameOverTitle').textContent = title;
     const msgEl = document.getElementById('gameOverMsg');
@@ -7929,6 +7932,9 @@ async function newGame() {
         });
     }
     const body = getSelectedLoadoutBody();
+    if (tutorialMatchActive) {
+        body.tutorial = true;
+    }
     let started = null;
     try {
         started = await api('new', 'POST', body, LOADOUT_ACTION_TIMEOUT_MS);
@@ -7958,6 +7964,9 @@ async function newGame() {
     }
     if (!started) {
         return;
+    }
+    if (tutorialMatchActive) {
+        showTutorialGoalsPanel();
     }
 }
 
@@ -8109,6 +8118,54 @@ function hydrateOnlineStateFromUrl() {
     }
 }
 
+// ── Tutorial match (new player onboarding) ──────────────────────────────
+// Activated by the home hub's pending loadout carrying tutorial:true. The
+// server starts the AI at 10 HP; winning claims the one-time reward.
+let tutorialMatchActive = false;
+let tutorialRewardRequested = false;
+
+const TUTORIAL_GOALS = [
+    'Place a Siegeling on your board',
+    'Play a Strategy card',
+    'Play a Deception card',
+    'Destroy an enemy Siegeling',
+    'Use your SiegeKnight ability',
+    'Win the match'
+];
+
+function showTutorialGoalsPanel() {
+    if (document.getElementById('tutorialGoalsPanel')) return;
+    const panel = document.createElement('aside');
+    panel.id = 'tutorialGoalsPanel';
+    panel.className = 'tutorial-goals-panel';
+    panel.innerHTML = `<button class="tutorial-goals-head" type="button">Tutorial Goals<span aria-hidden="true">&#9662;</span></button>
+        <ul>${TUTORIAL_GOALS.map(goal => `<li>${goal}</li>`).join('')}</ul>`;
+    document.body.appendChild(panel);
+    panel.querySelector('.tutorial-goals-head')?.addEventListener('click', () => panel.classList.toggle('is-collapsed'));
+}
+
+async function claimTutorialReward() {
+    if (tutorialRewardRequested) return;
+    tutorialRewardRequested = true;
+    try {
+        const resp = await fetch('/api/player/tutorial-complete', {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (data?.error) {
+            showMatchNoticeToast(String(data.error).toLowerCase().includes('already')
+                ? 'Tutorial already completed.'
+                : data.error);
+            return;
+        }
+        showMatchNoticeToast('Tutorial complete! A second starter pack and 250 Siegecoins were added to your account.');
+    } catch (error) {
+        tutorialRewardRequested = false;
+        showMatchNoticeToast('Could not claim tutorial rewards - they stay claimable on your next tutorial win.');
+    }
+}
+
 function applyPendingHomeLoadout() {
     let pending = null;
     try {
@@ -8122,6 +8179,7 @@ function applyPendingHomeLoadout() {
     if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
         return;
     }
+    tutorialMatchActive = Boolean(pending.tutorial);
     // Arrived from the Home hub with a chosen loadout — skip the welcome and go straight to the loadout.
     welcomeDismissed = true;
     if (pending.trainerId && gameOptions?.trainers?.some(trainer => trainer.id === pending.trainerId)) {
