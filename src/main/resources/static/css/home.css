@@ -92,6 +92,385 @@ button { color: inherit; }
     -webkit-backdrop-filter: blur(14px);
 }
 
+/* Minimize handle hangs off the HUD edge; clicking collapses the whole nav
+   into the floating brand FAB so the page content gets the full viewport. */
+.hud-minimize-btn {
+    position: absolute;
+    right: 14px;
+    bottom: -15px;
+    z-index: 21;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid rgba(255, 215, 0, 0.55);
+    border-radius: 999px;
+    background: rgba(10, 16, 32, 0.96);
+    color: #ffd75e;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* Desktop HUD sits at the top, so the chevron points up (collapse upward). */
+.hud-minimize-btn svg {
+    transform: rotate(180deg);
+}
+
+.hud-fab {
+    position: fixed;
+    right: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    padding: 0;
+    border: 2px solid rgba(255, 215, 0, 0.72);
+    border-radius: 999px;
+    background: rgba(10, 16, 32, 0.94);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 22px rgba(255, 215, 0, 0.25);
+    cursor: pointer;
+}
+
+.hud-fab img {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+}
+
+.hud-fab.hidden {
+    display: none;
+}
+
+body.hud-minimized .home-nav {
+    display: none;
+}
+
+body.gacha-active .hud-fab,
+body.starter-onboarding-active .hud-fab {
+    display: none !important;
+}
+
+/* ── Notification center ──────────────────────────────────────────────── */
+/* Auto margins keep the tabs centered while the bell hugs the brand on the
+   left; mobile stretches the tabs full-width so the margins are inert there. */
+.home-nav .nav-tabs {
+    margin-inline: auto;
+}
+
+.hud-notif-btn {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffe9a0;
+    cursor: pointer;
+}
+
+.hud-notif-btn:hover,
+.hud-notif-btn.active {
+    border-color: rgba(255, 215, 0, 0.62);
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.notif-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 17px;
+    height: 17px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff7b4f, #d6332b);
+    box-shadow: 0 0 0 2px rgba(10, 16, 32, 0.9);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 950;
+    line-height: 1;
+}
+
+.notif-badge.hidden {
+    display: none;
+}
+
+.hud-fab .notif-badge {
+    top: -3px;
+    right: -3px;
+}
+
+.notif-panel {
+    position: fixed;
+    top: 72px;
+    left: 18px;
+    z-index: 1100;
+    width: min(360px, calc(100vw - 28px));
+    max-height: min(60vh, 480px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(255, 215, 0, 0.34);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
+        #0b1124;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.notif-panel.hidden {
+    display: none;
+}
+
+.notif-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.notif-panel-head strong {
+    color: #fff7d9;
+    font-size: 14px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.notif-list {
+    display: grid;
+    gap: 8px;
+    padding: 12px 14px;
+    overflow-y: auto;
+}
+
+.notif-row {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    padding: 9px 11px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.notif-row.is-unread {
+    border-color: rgba(255, 215, 0, 0.4);
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.notif-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 3px;
+}
+
+.notif-type {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(255, 215, 0, 0.12);
+    color: #ffe9a0;
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.notif-row-head time {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.notif-row strong {
+    display: block;
+    color: #fff;
+    font-size: 13px;
+}
+
+.notif-row p {
+    margin: 3px 0 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.4;
+}
+
+.notif-empty {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.5;
+}
+
+/* ── Friends & chat modal ─────────────────────────────────────────────── */
+.friends-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(3, 6, 14, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.friends-modal.hidden {
+    display: none;
+}
+
+.friends-panel {
+    width: min(560px, 100%);
+    height: min(86dvh, 700px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.friends-panel-head {
+    margin-bottom: 12px;
+}
+
+.friends-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.friends-icon-btn {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    flex: 0 0 auto;
+    padding: 0;
+    border-radius: 999px;
+}
+
+.friends-icon-btn.active {
+    border-color: rgba(255, 215, 0, 0.62);
+    color: #ffe9a0;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.friend-add-pop {
+    margin-bottom: 12px;
+    border: 1px solid rgba(255, 215, 0, 0.32);
+    border-radius: 12px;
+    padding: 12px;
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.friend-add-pop .friend-message:empty {
+    display: none;
+}
+
+.friends-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.friends-body.hidden {
+    display: none;
+}
+
+.friend-requests-block {
+    display: grid;
+    gap: 8px;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 12px;
+    padding: 10px;
+    background: rgba(255, 215, 0, 0.04);
+}
+
+.friends-side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.friends-body .friend-list {
+    display: grid;
+    gap: 8px;
+}
+
+/* Tapping Message takes over the whole panel as a full-screen chat. */
+.friends-chat-view {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.friends-chat-view.hidden {
+    display: none;
+}
+
+.friends-chat-view .message-compose {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border: 0;
+    padding: 0;
+    background: transparent;
+}
+
+.friends-chat-view .message-log {
+    flex: 1;
+    min-height: 160px;
+    overflow-y: auto;
+}
+
+.friend-message-btn {
+    position: relative;
+}
+
+.friend-message-btn.has-unread {
+    border-color: rgba(255, 215, 0, 0.7);
+    color: #ffe9a0;
+    animation: friendMsgBlink 1.5s ease-in-out infinite;
+}
+
+.friend-msg-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff7b4f, #d6332b);
+    box-shadow: 0 0 0 2px rgba(10, 16, 32, 0.9);
+}
+
+@keyframes friendMsgBlink {
+    0%, 100% { background: rgba(255, 215, 0, 0.08); }
+    50% { background: rgba(255, 215, 0, 0.38); }
+}
+
+.friend-remove-btn {
+    min-width: 32px;
+    padding-inline: 8px;
+}
+
 .brand {
     min-width: 230px;
     display: flex;
@@ -2915,7 +3294,7 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .social-grid {
     display: grid;
-    grid-template-columns: 280px minmax(420px, 1fr) 320px;
+    grid-template-columns: 280px minmax(420px, 1fr);
     gap: 16px;
     align-items: start;
 }
@@ -3048,21 +3427,26 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .social-search-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
-}
-
-.social-filter-btn.active {
-    border-color: rgba(255, 215, 0, 0.62);
-    color: #ffe9a0;
-    background: rgba(255, 215, 0, 0.12);
 }
 
 .social-lobby-meta {
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
     gap: 6px;
     justify-content: flex-end;
+}
+
+.social-refresh-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    border-radius: 999px;
 }
 
 .lobby-filter-tray .search-input {
@@ -3580,6 +3964,12 @@ body.starter-onboarding-active .starter-gate h1 {
     margin-bottom: 12px;
 }
 
+/* Builder filters live in the HUD tray: stack them in a single column. */
+.builder-filter-tray .builder-tray-tools {
+    grid-template-columns: 1fr;
+    margin: 12px 0 0;
+}
+
 .builder-form-grid label {
     display: grid;
     gap: 6px;
@@ -3745,10 +4135,6 @@ body.starter-onboarding-active .starter-gate h1 {
     align-items: start;
 }
 
-.deck-builder-layout.card-view-collapsed {
-    grid-template-columns: minmax(0, 1.25fr) minmax(170px, 0.36fr) minmax(280px, 0.95fr);
-}
-
 .deck-builder-binder-list,
 .deck-builder-deck-list {
     display: grid;
@@ -3769,12 +4155,20 @@ body.starter-onboarding-active .starter-gate h1 {
     border-radius: 10px;
     padding: 8px;
     background: linear-gradient(135deg, color-mix(in srgb, var(--el, var(--accent)) 10%, transparent), rgba(255, 255, 255, 0.03));
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.deck-builder-binder-row:hover,
+.deck-builder-deck-row:hover,
+.builder-recommendation-card:hover {
+    border-color: color-mix(in srgb, var(--el, var(--accent)) 58%, rgba(255, 255, 255, 0.18));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--el, var(--accent)) 16%, transparent), rgba(255, 255, 255, 0.05));
 }
 
 .deck-builder-binder-row.is-active,
 .deck-builder-deck-row.is-active {
     border-color: color-mix(in srgb, var(--builder-accent, var(--accent)) 68%, #fff);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--builder-accent, var(--accent)) 40%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--builder-accent, var(--accent)) 40%, transparent), 0 0 18px color-mix(in srgb, var(--builder-accent, var(--accent)) 18%, transparent);
 }
 
 .deck-builder-binder-main,
@@ -3793,19 +4187,88 @@ body.starter-onboarding-active .starter-gate h1 {
     cursor: pointer;
 }
 
+.builder-recommendation-main {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.builder-row-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.builder-row-copy strong,
+.builder-row-copy span,
+.builder-row-copy small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.builder-row-copy strong {
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.25;
+}
+
+.builder-row-copy span {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.builder-row-copy small {
+    color: color-mix(in srgb, var(--text-dim) 78%, transparent);
+    font-size: 10px;
+    font-weight: 800;
+}
+
 .deck-builder-binder-count {
+    padding: 3px 8px;
+    border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 52%, rgba(255, 255, 255, 0.14));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--el, var(--accent)) 22%, rgba(0, 0, 0, 0.4));
     color: #fff7d9;
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 950;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.deck-builder-binder-count.is-max,
+.deck-builder-copy-badge.is-max {
+    border-color: color-mix(in srgb, var(--el, var(--accent)) 70%, #fff);
+    background: linear-gradient(135deg, #fff8c9, color-mix(in srgb, var(--el, var(--accent)) 55%, #ffffff));
+    color: #081021;
+}
+
+.deck-builder-copy-badge {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1px;
+    padding: 4px 10px;
+    border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 46%, rgba(255, 255, 255, 0.12));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--el, var(--accent)) 16%, rgba(0, 0, 0, 0.36));
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.deck-builder-copy-badge strong {
+    color: #fff7d9;
+    font-size: 13px;
+    line-height: 1;
+}
+
+.deck-builder-copy-badge.is-max strong {
+    color: inherit;
 }
 
 .deck-builder-preview-panel {
     margin-bottom: 12px;
-}
-
-.deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
-.deck-builder-inspector.is-collapsed .deck-builder-recommendations {
-    display: none;
 }
 
 .deck-builder-preview-card .detail-card-preview-wrap {
@@ -3851,6 +4314,68 @@ body.starter-onboarding-active .starter-gate h1 {
     margin-top: 12px;
 }
 
+.deck-builder-preview-moves {
+    display: grid;
+    gap: 7px;
+    margin-top: 10px;
+}
+
+.builder-moves-label {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.builder-move-row {
+    border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 30%, rgba(255, 255, 255, 0.1));
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--el, var(--accent)) 8%, transparent), rgba(255, 255, 255, 0.025));
+}
+
+.builder-move-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.builder-move-head strong {
+    overflow: hidden;
+    color: #fff7d9;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.builder-move-cost {
+    flex: 0 0 auto;
+    padding: 3px 9px;
+    border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 50%, rgba(255, 255, 255, 0.14));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--el, var(--accent)) 20%, rgba(0, 0, 0, 0.38));
+    color: #fff7d9;
+    font-size: 10px;
+    font-weight: 950;
+    white-space: nowrap;
+}
+
+.builder-move-cost.is-passive {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-dim);
+}
+
+.builder-move-row p {
+    margin: 4px 0 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.45;
+}
+
 .deck-builder-recommendation-grid {
     display: grid;
     gap: 8px;
@@ -3865,6 +4390,35 @@ body.starter-onboarding-active .starter-gate h1 {
     align-items: center;
     gap: 12px;
     margin-bottom: 12px;
+}
+
+.deck-builder-deck-head-copy {
+    flex: 1;
+    min-width: 0;
+}
+
+.deck-builder-deck-head-copy p {
+    margin: 2px 0 8px;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.builder-progress-track {
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.builder-progress-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--builder-accent, var(--accent)) 70%, #fff8c9), var(--builder-accent, var(--accent)));
+    box-shadow: 0 0 12px color-mix(in srgb, var(--builder-accent, var(--accent)) 55%, transparent);
+    transition: width 0.35s ease;
 }
 
 .deck-builder-deck-form {
@@ -6446,9 +7000,6 @@ body.gacha-active {
     .social-side-stack {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .social-friends-stack {
-        grid-template-columns: 1fr;
-    }
     .command-hero-stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -6543,6 +7094,52 @@ body.gacha-active {
         padding: 10px 10px calc(224px + env(safe-area-inset-bottom, 0px));
         scroll-padding-bottom: calc(224px + env(safe-area-inset-bottom, 0px));
     }
+    /* Mobile HUD docks at the bottom: handle moves to its top edge and the
+       chevron points down (collapse downward). With the HUD minimized only
+       the FAB remains, so give the freed space back to the page. */
+    .hud-minimize-btn {
+        top: -15px;
+        bottom: auto;
+    }
+    .hud-minimize-btn svg {
+        transform: none;
+    }
+    /* The brand row is centered in the bottom dock, so the bell tucks into
+       the free top-left corner. */
+    .hud-notif-btn {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+    }
+    .notif-panel {
+        top: auto;
+        right: 10px;
+        bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+        left: 10px;
+        width: auto;
+        max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));
+    }
+    /* Full-screen takeover on phones: the modal owns the viewport so the
+       chat reads like a native messaging screen. */
+    .friends-modal {
+        padding: 0;
+    }
+    .friends-panel {
+        width: 100%;
+        height: 100dvh;
+        max-height: none;
+        border-radius: 0;
+    }
+    .friends-body {
+        -webkit-overflow-scrolling: touch;
+    }
+    .friends-chat-view .message-log {
+        -webkit-overflow-scrolling: touch;
+    }
+    body.hud-minimized .home-main {
+        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+        scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    }
     .filter-panel,
     .detail-panel {
         top: auto;
@@ -6589,13 +7186,15 @@ body.gacha-active {
     .deck-builder-layout {
         grid-template-columns: 1fr;
     }
-    .deck-builder-deck-pane {
-        order: 2;
-    }
-    .deck-builder-binder {
+    /* Card View leads the stack so adding cards never shifts it; the deck
+       pane sits last so its list growing doesn't push the binder around. */
+    .deck-builder-inspector {
         order: 1;
     }
-    .deck-builder-inspector {
+    .deck-builder-binder {
+        order: 2;
+    }
+    .deck-builder-deck-pane {
         order: 3;
     }
     /* Keep the lists bounded + scrollable on mobile. Unbounded height made the
@@ -6637,11 +7236,6 @@ body.gacha-active {
         min-width: 32px;
         min-height: 32px;
         padding: 6px 9px;
-    }
-    /* Card View is collapsed by default in portrait; the toggle expands it. */
-    .deck-builder-inspector.is-collapsed .deck-builder-preview-panel,
-    .deck-builder-inspector.is-collapsed .deck-builder-recommendations {
-        display: none;
     }
     .deck-builder-preview-panel .binder-card,
     .deck-builder-preview-panel .card-tile {
@@ -6840,9 +7434,6 @@ body.gacha-active {
     .deck-builder-workbench,
     .deck-builder-catalog {
         padding: 10px;
-    }
-    .deck-builder-layout.card-view-collapsed {
-        grid-template-columns: 1fr;
     }
     .deck-builder-preview-card-compact {
         display: grid;
@@ -7325,14 +7916,6 @@ body.gacha-active {
         overflow: visible;
         padding: 0;
     }
-}
-
-/* ── Deck builder: Card View toggle ───────────────────────────────────── */
-.builder-card-view-toggle {
-    display: inline-flex;
-    flex: 0 0 auto;
-    padding: 6px 12px;
-    font-size: 12px;
 }
 
 /* ── Gacha reveal: keep the card asset inside its 5/7 slot ────────────── */

@@ -215,10 +215,12 @@
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
+        builderRarityFilter: 'ALL',
         builderSort: 'owned-desc',
         builderVisibleLimit: 0,
         builderRenderTimer: null,
-        builderCardViewOpen: false,
+        notifications: [],
+        friendRequestsOpen: false,
         friendMessage: '',
         friendMessageType: '',
         selectedDeckId: '',
@@ -274,6 +276,217 @@
 
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
+
+    function setHudMinimized(minimized) {
+        document.body.classList.toggle('hud-minimized', minimized);
+        document.getElementById('hudFab')?.classList.toggle('hidden', !minimized);
+        localStorage.setItem('sieglingsHudMinimized', minimized ? '1' : '0');
+    }
+
+    function openFriendsModal() {
+        document.getElementById('friendsModal')?.classList.remove('hidden');
+        state.activeChatPeer = null;
+        // Requests stay tucked behind the bell unless something is pending.
+        state.friendRequestsOpen = (state.profile?.incomingFriendRequests || []).length > 0;
+        document.getElementById('friendAddPop')?.classList.add('hidden');
+        showFriendsChatView(false);
+        renderFriends();
+        renderFriendRequests();
+        // Poll while the modal is open so presence and unread blinks stay
+        // live even away from the Social route.
+        if (state.profile?.authenticated) startSocialPolling();
+    }
+
+    function closeFriendsModal() {
+        document.getElementById('friendsModal')?.classList.add('hidden');
+        state.activeChatPeer = null;
+        showFriendsChatView(false);
+        if (!isSocialRoute()) stopSocialPolling();
+    }
+
+    // Swap the modal between the friends list and the full-screen chat. The
+    // chat is only reachable through a friend's Message button.
+    function showFriendsChatView(open) {
+        document.getElementById('friendsListView')?.classList.toggle('hidden', open);
+        document.getElementById('friendsChatView')?.classList.toggle('hidden', !open);
+        if (open) document.getElementById('friendAddPop')?.classList.add('hidden');
+        const title = document.getElementById('friendsPanelTitle');
+        if (title) title.textContent = open ? 'Chat' : 'Friends';
+    }
+
+    function toggleFriendAddPop(force) {
+        const pop = document.getElementById('friendAddPop');
+        if (!pop) return;
+        const open = typeof force === 'boolean' ? force : pop.classList.contains('hidden');
+        pop.classList.toggle('hidden', !open);
+        if (open) document.getElementById('friendEmailInput')?.focus();
+    }
+
+    // ── Per-friend unread chat tracking ─────────────────────────────────
+    // The threads API flags a thread unread when its latest message came
+    // from the peer; a locally stored "seen" timestamp clears the flag once
+    // the chat has been opened.
+    function chatSeenKey() {
+        return `sieglingsChatSeen:${state.profile?.user?.email || 'anon'}`;
+    }
+
+    function readChatSeen() {
+        try {
+            return JSON.parse(localStorage.getItem(chatSeenKey()) || '{}') || {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function markChatSeen(peerId) {
+        if (!peerId) return;
+        const seen = readChatSeen();
+        seen[peerId] = new Date().toISOString();
+        localStorage.setItem(chatSeenKey(), JSON.stringify(seen));
+    }
+
+    function friendHasUnread(email) {
+        const thread = (state.messageThreads || []).find(t => t.peerId === email);
+        if (!thread || !thread.unread || !thread.lastMessageAt) return false;
+        const seenAt = readChatSeen()[email];
+        // ISO-8601 timestamps compare correctly as strings.
+        return !seenAt || String(thread.lastMessageAt) > String(seenAt);
+    }
+
+    // ── Notification center ─────────────────────────────────────────────
+    // A client-side feed persisted per account. Entries are pushed directly
+    // at event sites (pack opened, mission claimed) and derived by diffing
+    // profile/progression snapshots on refresh (gold, titles, requests,
+    // missions, match results, level).
+    const NOTIF_LIMIT = 60;
+    const NOTIF_TYPE_LABELS = {
+        match: 'Match', mission: 'Missions', friend: 'Friends', gold: 'Rewards',
+        pack: 'Packs', title: 'Titles', badge: 'Badges', rank: 'Rank', server: 'Server'
+    };
+    let notifSnapshot = null;
+    let notifLoadedKey = '';
+
+    function notifStorageKey() {
+        return `sieglingsNotifs:${state.profile?.user?.email || 'anon'}`;
+    }
+
+    function loadNotifications() {
+        notifLoadedKey = notifStorageKey();
+        try {
+            state.notifications = JSON.parse(localStorage.getItem(notifStorageKey()) || '[]');
+        } catch (error) {
+            state.notifications = [];
+        }
+        if (!Array.isArray(state.notifications)) state.notifications = [];
+        renderNotifications();
+    }
+
+    function saveNotifications() {
+        localStorage.setItem(notifStorageKey(), JSON.stringify(state.notifications.slice(0, NOTIF_LIMIT)));
+    }
+
+    function pushNotification(type, title, body = '') {
+        state.notifications.unshift({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            type, title, body, time: Date.now(), read: false
+        });
+        state.notifications = state.notifications.slice(0, NOTIF_LIMIT);
+        saveNotifications();
+        renderNotifications();
+    }
+
+    function clearNotifications() {
+        state.notifications = [];
+        saveNotifications();
+        renderNotifications();
+    }
+
+    function renderNotifications() {
+        const unread = (state.notifications || []).filter(n => !n.read).length;
+        [document.getElementById('hudNotifBadge'), document.getElementById('hudFabBadge')].forEach(badge => {
+            if (!badge) return;
+            badge.textContent = unread > 9 ? '9+' : String(unread);
+            badge.classList.toggle('hidden', !unread);
+        });
+        const list = document.getElementById('notifList');
+        if (!list) return;
+        list.innerHTML = (state.notifications || []).length
+            ? state.notifications.map(n => `<div class="notif-row${n.read ? '' : ' is-unread'}">
+                <div class="notif-row-head">
+                    <span class="notif-type">${escapeHtml(NOTIF_TYPE_LABELS[n.type] || 'Update')}</span>
+                    <time>${escapeHtml(formatDateTime(n.time))}</time>
+                </div>
+                <strong>${escapeHtml(n.title)}</strong>
+                ${n.body ? `<p>${escapeHtml(n.body)}</p>` : ''}
+            </div>`).join('')
+            : '<div class="notif-empty">No notifications yet. Match results, rewards, invites, and unlocks will show up here.</div>';
+    }
+
+    function toggleNotifPanel(force) {
+        const panel = document.getElementById('notifPanel');
+        if (!panel) return;
+        const open = typeof force === 'boolean' ? force : panel.classList.contains('hidden');
+        panel.classList.toggle('hidden', !open);
+        document.getElementById('hudNotifBtn')?.classList.toggle('active', open);
+        if (!open) return;
+        renderNotifications();
+        // Opening the panel marks everything read; rows keep their unread
+        // styling until the next open so the player can still spot what's new.
+        if ((state.notifications || []).some(n => !n.read)) {
+            state.notifications.forEach(n => { n.read = true; });
+            saveNotifications();
+            [document.getElementById('hudNotifBadge'), document.getElementById('hudFabBadge')].forEach(badge => badge?.classList.add('hidden'));
+        }
+    }
+
+    function notifSnapshotFromState() {
+        const prog = state.progression || {};
+        const missions = state.dailyMissions?.missions || state.dailyMissions?.featured || [];
+        return {
+            gold: Number(prog.gold) || 0,
+            titles: (prog.playerTitles || []).filter(t => t.unlocked).map(t => t.id),
+            battleCount: (state.profile?.matchHistory || []).length,
+            latestBattleAt: state.profile?.matchHistory?.[0]?.finishedAt || '',
+            requests: (state.profile?.incomingFriendRequests || []).map(r => r.fromUserId || r.peerEmail),
+            missionsDone: missions.filter(m => m.completed).map(m => m.id),
+            level: Number(prog.level) || 0
+        };
+    }
+
+    function detectNotifications() {
+        if (!state.profile?.authenticated) {
+            notifSnapshot = null;
+            return;
+        }
+        const next = notifSnapshotFromState();
+        const prev = notifSnapshot;
+        notifSnapshot = next;
+        if (!prev) return;
+        if (next.gold > prev.gold) {
+            pushNotification('gold', `+${next.gold - prev.gold} Siegecoins earned`, `Wallet: ${next.gold} Siegecoins`);
+        }
+        next.titles.filter(id => !prev.titles.includes(id)).forEach(id => {
+            const title = (state.titleCatalog || []).find(t => t.id === id);
+            pushNotification('title', `Title earned: ${title?.name || id}`);
+        });
+        next.requests.filter(id => !prev.requests.includes(id)).forEach(id => {
+            const req = (state.profile?.incomingFriendRequests || []).find(r => (r.fromUserId || r.peerEmail) === id);
+            pushNotification('friend', `Friend request from ${req?.displayName || req?.peerEmail || 'a player'}`, 'Open Friends to accept or decline.');
+        });
+        const missions = state.dailyMissions?.missions || state.dailyMissions?.featured || [];
+        next.missionsDone.filter(id => !prev.missionsDone.includes(id)).forEach(id => {
+            const mission = missions.find(m => m.id === id);
+            pushNotification('mission', `Mission complete: ${mission?.title || 'Daily mission'}`, mission?.reward ? `Claim ${mission.reward} Siegecoins from the Home tab.` : '');
+        });
+        if (next.battleCount > prev.battleCount || (next.latestBattleAt && prev.latestBattleAt && next.latestBattleAt !== prev.latestBattleAt)) {
+            const row = (state.profile?.matchHistory || [])[0] || {};
+            const won = String(row.result || '').toUpperCase().includes('WIN');
+            pushNotification('match', `Match ${won ? 'won' : 'finished'}${row.opponentName ? ` vs ${row.opponentName}` : ''}`, 'See the full breakdown on your Profile.');
+        }
+        if (next.level > prev.level) {
+            pushNotification('rank', `Level up! You reached level ${next.level}`);
+        }
+    }
 
     function isMobileDeckBuilderViewport() {
         return Boolean(window.matchMedia?.('(max-width: 900px)').matches);
@@ -378,7 +591,6 @@
         document.getElementById('joinByCodeBtn')?.addEventListener('click', () => navigateHub('social'));
         document.getElementById('joinRoomBtn')?.addEventListener('click', joinRoomFromHome);
         document.getElementById('refreshRoomsBtn')?.addEventListener('click', () => refreshRooms(true));
-        document.getElementById('socialFilterBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('quickJoinBtn')?.addEventListener('click', quickJoinFirstRoom);
         document.getElementById('roomSearchInput')?.addEventListener('input', (event) => {
             state.roomSearch = event.target.value.trim().toLowerCase();
@@ -416,14 +628,29 @@
             }
             toggleTray('card');
         });
-        document.getElementById('builderCardViewToggle')?.addEventListener('click', () => {
-            state.builderCardViewOpen = !state.builderCardViewOpen;
-            renderDeckBuilderPage();
-        });
+        document.getElementById('hudMinimizeBtn')?.addEventListener('click', () => setHudMinimized(true));
+        document.getElementById('hudFab')?.addEventListener('click', () => setHudMinimized(false));
+        if (localStorage.getItem('sieglingsHudMinimized') === '1') setHudMinimized(true);
         document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
-        document.getElementById('supportBtn')?.addEventListener('click', () => {
-            window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
+        document.getElementById('friendsBtn')?.addEventListener('click', openFriendsModal);
+        document.getElementById('closeFriendsBtn')?.addEventListener('click', closeFriendsModal);
+        document.getElementById('friendsModal')?.addEventListener('click', (event) => {
+            if (event.target.id === 'friendsModal') closeFriendsModal();
         });
+        document.getElementById('addFriendBtn')?.addEventListener('click', () => toggleFriendAddPop());
+        document.getElementById('friendRequestsBtn')?.addEventListener('click', () => {
+            state.friendRequestsOpen = !state.friendRequestsOpen;
+            renderFriendRequests();
+        });
+        document.getElementById('hudNotifBtn')?.addEventListener('click', () => toggleNotifPanel());
+        document.getElementById('clearNotifsBtn')?.addEventListener('click', clearNotifications);
+        document.addEventListener('click', (event) => {
+            const panel = document.getElementById('notifPanel');
+            if (!panel || panel.classList.contains('hidden')) return;
+            if (panel.contains(event.target) || document.getElementById('hudNotifBtn')?.contains(event.target)) return;
+            toggleNotifPanel(false);
+        });
+        loadNotifications();
         document.getElementById('optionsModal')?.addEventListener('click', (event) => {
             if (event.target.id === 'optionsModal') { closeOptions(); return; }
             handleOptionsClick(event);
@@ -518,6 +745,7 @@
             state.profileEditOpen = false;
             clearCachedAuthProfile();
             stopPresenceHeartbeat();
+            notifSnapshot = null;
             return null;
         }
         // Bypass the HTTP cache: a stale {authenticated:false} response (Safari
@@ -536,6 +764,7 @@
             state.profileEditOpen = false;
             clearCachedAuthProfile();
             stopPresenceHeartbeat();
+            notifSnapshot = null;
             return null;
         }
         state.profile = data;
@@ -543,6 +772,10 @@
         saveCachedAuthProfile(data);
         await loadDailyMissions();
         startPresenceHeartbeat();
+        // The feed is keyed per account, so reload it once we know who is
+        // signed in, then diff the fresh snapshot for new notifications.
+        if (notifStorageKey() !== notifLoadedKey) loadNotifications();
+        detectNotifications();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
             state.profilePrefs = { ...defaultProfilePrefs(data.user || {}), ...serverPrefs };
@@ -684,7 +917,6 @@
             renderRooms();
             renderFriends();
             renderFriendRequests();
-            renderMessageThreads();
             startSocialPolling();
             stopLobbyPolling();
         } else if (state.route === 'lobby') {
@@ -1400,6 +1632,12 @@
         if (typeof data?.gold === 'number' && state.progression) {
             state.progression.gold = data.gold;
         }
+        const missions = state.dailyMissions?.missions || state.dailyMissions?.featured || [];
+        const claimed = missions.find(m => m.id === missionId);
+        pushNotification('mission', `Mission claimed: ${claimed?.title || 'Daily mission'}`, claimed?.reward ? `+${claimed.reward} Siegecoins added to your wallet.` : '');
+        // Keep the diff snapshot current so the next sync doesn't re-report
+        // this reward as separately earned gold.
+        if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
         safeRender(renderGold);
         safeRender(renderHomeDashboard);
     }
@@ -1814,7 +2052,6 @@
         const page = document.getElementById('deckBuilderPage');
         const title = document.getElementById('deckBuilderPageTitle');
         const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
-        const cardViewBtn = document.getElementById('builderCardViewToggle');
         if (!page) return;
         const unlocked = Boolean(state.progression?.customDeckUnlocked);
         const builderAvailable = Boolean(state.options?.cardCatalog?.length);
@@ -1840,12 +2077,6 @@
             saveBtn.disabled = total < 30;
             saveBtn.textContent = state.editingSavedDeckId ? 'Update Deck' : 'Save Deck';
         }
-        if (cardViewBtn) {
-            cardViewBtn.disabled = !builderAvailable;
-            cardViewBtn.textContent = state.builderCardViewOpen ? 'Hide Card View' : 'Show Card View';
-            cardViewBtn.setAttribute('aria-expanded', state.builderCardViewOpen ? 'true' : 'false');
-            cardViewBtn.classList.toggle('active', state.builderCardViewOpen);
-        }
         if (lock) {
             lock.innerHTML = unlocked
                 ? '<div class="unlock-card"><strong>Custom deckbuilding unlocked</strong><span>Select cards from your binder, preview them, and add up to 3 copies each.</span></div>'
@@ -1855,33 +2086,18 @@
             page.innerHTML = '<div class="unlock-card"><strong>Catalog loading</strong><span>Your binder will appear here once card data is ready.</span></div>';
             return;
         }
-        page.innerHTML = `<div class="deck-builder-layout${state.builderCardViewOpen ? '' : ' card-view-collapsed'}" style="--builder-accent:${elementColor(primaryElement)}">
+        page.innerHTML = `<div class="deck-builder-layout" style="--builder-accent:${elementColor(primaryElement)}">
             <section class="deck-builder-binder deck-builder-workbench">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
                     <span>${mobileBuilder && catalogCards.length ? `${visibleCatalogCards.length} / ${catalogCards.length}` : `${catalogCards.length} cards`}</span>
-                </div>
-                <div class="builder-catalog-tools">
-                    <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search binder cards...">
-                    <select class="search-input" id="builderElementSelect">
-                        ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
-                    </select>
-                    <select class="search-input" id="builderTypeSelect">
-                        ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
-                    </select>
-                    <select class="search-input" id="builderSortSelect">
-                        <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
-                        <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
-                        <option value="cost-asc"${state.builderSort === 'cost-asc' ? ' selected' : ''}>Cost low</option>
-                        <option value="rarity-desc"${state.builderSort === 'rarity-desc' ? ' selected' : ''}>Rarity high</option>
-                    </select>
                 </div>
                 <div class="deck-builder-binder-list">
                     ${catalogCards.length ? visibleCatalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
                     ${hasMoreCatalogCards ? `<button class="ghost-btn deck-builder-load-more" type="button" data-builder-load-more>Load more cards (${catalogCards.length - visibleCatalogCards.length})</button>` : ''}
                 </div>
             </section>
-            <section class="deck-builder-inspector deck-builder-workbench${state.builderCardViewOpen ? '' : ' is-collapsed'}">
+            <section class="deck-builder-inspector deck-builder-workbench">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
                 </div>
@@ -1898,9 +2114,10 @@
                     <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
                         <strong>${total}</strong><span>/30</span>
                     </div>
-                    <div>
+                    <div class="deck-builder-deck-head-copy">
                         <span class="eyebrow">Current Deck</span>
                         <p>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</p>
+                        <div class="builder-progress-track"><span class="builder-progress-fill" style="width:${Math.min(100, Math.round((total / 30) * 100))}%"></span></div>
                     </div>
                 </div>
                 <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
@@ -1914,7 +2131,64 @@
                 </div>
             </aside>
         </div>`;
+        renderBuilderFilterTray(catalogCards);
         bindDeckBuilderPageEvents(page);
+    }
+
+    // Builder binder filters live in the HUD Filters tray (like the Cards
+    // page) to keep the builder page compact. The controls are rendered once
+    // and kept in the DOM so typing in the search box never loses focus; only
+    // the count label updates on re-render.
+    function renderBuilderFilterTray(catalogCards) {
+        const body = document.getElementById('builderFilterBody');
+        if (!body) return;
+        const countLabel = document.getElementById('builderFilterCount');
+        if (countLabel) countLabel.textContent = `${(catalogCards || builderCatalogCards()).length} cards`;
+        if (body.dataset.ready === '1') return;
+        body.dataset.ready = '1';
+        body.innerHTML = `<div class="builder-catalog-tools builder-tray-tools">
+            <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search binder cards...">
+            <select class="search-input" id="builderElementSelect">
+                ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
+            </select>
+            <select class="search-input" id="builderTypeSelect">
+                ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
+            </select>
+            <select class="search-input" id="builderRaritySelect">
+                ${['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderRarityFilter ? ' selected' : ''}>${value === 'ALL' ? 'All rarities' : format(value)}</option>`).join('')}
+            </select>
+            <select class="search-input" id="builderSortSelect">
+                <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
+                <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
+                <option value="cost-asc"${state.builderSort === 'cost-asc' ? ' selected' : ''}>Cost low</option>
+                <option value="rarity-desc"${state.builderSort === 'rarity-desc' ? ' selected' : ''}>Rarity high</option>
+            </select>
+        </div>`;
+        body.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
+            state.builderSearch = event.target.value.trim().toLowerCase();
+            resetBuilderVisibleLimit();
+            scheduleDeckBuilderPageRender();
+        });
+        body.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
+            state.builderElementFilter = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
+        body.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
+            state.builderTypeFilter = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
+        body.querySelector('#builderRaritySelect')?.addEventListener('change', (event) => {
+            state.builderRarityFilter = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
+        body.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
+            state.builderSort = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
     }
 
     function resolveBuilderPreviewCard(catalogCards) {
@@ -1982,9 +2256,11 @@
                     const canAdd = inDeck < maxCopies && builderTotal() < 30;
                     return `<article class="builder-recommendation-card" style="--el:${elementColor(card.element)}">
                         <button type="button" class="builder-recommendation-main" data-select-builder-card="${escapeAttr(card.id)}">
-                            <strong>${escapeHtml(card.name)}</strong>
-                            <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
-                            <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
+                            <div class="builder-row-copy">
+                                <strong>${escapeHtml(card.name)}</strong>
+                                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
+                                <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
+                            </div>
                         </button>
                         <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
                     </article>`;
@@ -2001,6 +2277,7 @@
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        const addLabel = builderAddLabel(card.id);
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview)
@@ -2024,12 +2301,40 @@
                 <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
                 ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
             </div>
+            ${renderBuilderMoves(card)}
             ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
                 <strong>${inDeck} / ${maxCopies}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
             </div>
+        </div>`;
+    }
+
+    function builderAddLabel(cardId) {
+        const inDeck = state.builderCounts[cardId] || 0;
+        const maxCopies = builderCardLimit(cardId);
+        if (maxCopies > 0 && inDeck >= maxCopies) return 'Max added';
+        if (builderTotal() >= 30) return 'Deck full';
+        return 'Add to deck';
+    }
+
+    function renderBuilderMoves(card) {
+        const moves = Array.isArray(card?.moves) ? card.moves.filter(Boolean) : [];
+        if (!moves.length) return '';
+        return `<div class="deck-builder-preview-moves">
+            <span class="builder-moves-label">Attacks</span>
+            ${moves.map(move => {
+                const cost = Number(move.energyCost) || 0;
+                const costLabel = move.isPassive ? 'Passive' : cost > 0 ? `${cost} Energy` : 'Free';
+                return `<div class="builder-move-row">
+                    <div class="builder-move-head">
+                        <strong>${escapeHtml(move.name || 'Attack')}</strong>
+                        <span class="builder-move-cost${move.isPassive ? ' is-passive' : ''}">${costLabel}</span>
+                    </div>
+                    ${move.description ? `<p>${escapeHtml(move.description)}</p>` : ''}
+                </div>`;
+            }).join('')}
         </div>`;
     }
 
@@ -2042,6 +2347,7 @@
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        const addLabel = builderAddLabel(card.id);
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         return `<div class="deck-builder-preview-card deck-builder-preview-card-compact" style="--el:${elementColor(card.element)}">
@@ -2063,11 +2369,12 @@
                 <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
                 ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
             </div>
+            ${renderBuilderMoves(card)}
             ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.slice(0, 2).map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
                 <strong>${inDeck} / ${maxCopies}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
             </div>
         </div>`;
     }
@@ -2082,12 +2389,12 @@
         return `<article class="deck-builder-binder-row${activeClass}" style="--el:${elementColor(card.element)}">
             <button type="button" class="deck-builder-binder-main" data-select-builder-card="${escapeAttr(card.id)}">
                 <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
-                <div>
+                <div class="builder-row-copy">
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / Owned x${owned}</span>
                     <small>${escapeHtml(format(card.rarity))}${card.evolvesFromId ? ` / Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : ''}</small>
                 </div>
-                <span class="deck-builder-binder-count">x${count}</span>
+                ${count > 0 ? `<span class="deck-builder-binder-count${count >= maxCopies ? ' is-max' : ''}">In deck x${count}</span>` : ''}
             </button>
             <div class="builder-stepper">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
@@ -2108,7 +2415,11 @@
             return `<div class="deck-builder-deck-row${activeClass}" style="--el:${elementColor(card?.element)}">
                 <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
                     <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
-                    <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
+                    <div class="builder-row-copy">
+                        <strong>${escapeHtml(card?.name || cardId)}</strong>
+                        <span>${card ? `${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}` : 'Card'}</span>
+                    </div>
+                    <span class="deck-builder-copy-badge${count >= maxCopies ? ' is-max' : ''}"><strong>${count}</strong>/${maxCopies}</span>
                 </button>
                 <div class="builder-stepper">
                     <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
@@ -2134,26 +2445,6 @@
         }));
         root.querySelector('[data-builder-load-more]')?.addEventListener('click', () => {
             state.builderVisibleLimit = Math.max(state.builderVisibleLimit || 24, 24) + 24;
-            renderDeckBuilderPage();
-        });
-        root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
-            state.builderSearch = event.target.value.trim().toLowerCase();
-            resetBuilderVisibleLimit();
-            scheduleDeckBuilderPageRender();
-        });
-        root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
-            state.builderElementFilter = event.target.value;
-            resetBuilderVisibleLimit();
-            renderDeckBuilderPage();
-        });
-        root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
-            state.builderTypeFilter = event.target.value;
-            resetBuilderVisibleLimit();
-            renderDeckBuilderPage();
-        });
-        root.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
-            state.builderSort = event.target.value;
-            resetBuilderVisibleLimit();
             renderDeckBuilderPage();
         });
         root.querySelector('#builderTrainerSelect')?.addEventListener('change', (event) => {
@@ -2221,6 +2512,7 @@
             .filter(card => builderCardLimit(card.id) > 0)
             .filter(card => state.builderElementFilter === 'ALL' || card.element === state.builderElementFilter)
             .filter(card => state.builderTypeFilter === 'ALL' || card.type === state.builderTypeFilter)
+            .filter(card => state.builderRarityFilter === 'ALL' || card.rarity === state.builderRarityFilter)
             .filter(card => {
                 if (!state.builderSearch) return true;
                 const text = `${card.name} ${card.type} ${card.element} ${card.rarity} ${creatureDescriptionFor(card)} ${JSON.stringify(card.abilities || [])}`.toLowerCase();
@@ -2774,13 +3066,13 @@
                     <span>${escapeHtml(subtitle)}</span>
                 </div>
                 <div class="friend-actions">
+                    <button class="ghost-btn compact-btn friend-message-btn${friendHasUnread(friend.email) ? ' has-unread' : ''}" type="button" data-message-friend="${escapeAttr(friend.email)}">Message${friendHasUnread(friend.email) ? '<span class="friend-msg-dot" aria-label="New messages"></span>' : ''}</button>
                     <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
-                    <button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>
-                    <button class="ghost-btn compact-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}">Remove</button>
+                    <button class="ghost-btn compact-btn friend-remove-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}" aria-label="Remove friend" title="Remove friend">&times;</button>
                 </div>
             </article>`;
             }).join('')
-            : '<div class="social-empty-state"><strong>No friends found</strong><span>Add a registered player by email to start your list.</span></div>';
+            : '<div class="social-empty-state"><strong>No friends found</strong><span>Tap the + button above to add a registered player by email.</span></div>';
 
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
         list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => navigateToPlayerProfile(btn.dataset.viewProfile)));
@@ -2799,7 +3091,15 @@
         const pendingCount = incoming.length;
 
         if (count) count.textContent = `${pendingCount} pending`;
-        if (panel) panel.classList.toggle('hidden', !state.profile?.authenticated);
+        const badge = document.getElementById('friendRequestsBadge');
+        if (badge) {
+            badge.textContent = pendingCount > 9 ? '9+' : String(pendingCount);
+            badge.classList.toggle('hidden', !pendingCount);
+        }
+        document.getElementById('friendRequestsBtn')?.classList.toggle('active', Boolean(state.friendRequestsOpen));
+        // The requests block stays hidden unless the player opens it from the
+        // bell (it opens automatically when an invite is waiting).
+        if (panel) panel.classList.toggle('hidden', !state.profile?.authenticated || !state.friendRequestsOpen);
 
         if (!state.profile?.authenticated) {
             list.innerHTML = '<div class="social-empty-state"><strong>Sign in to manage requests</strong></div>';
@@ -4027,6 +4327,10 @@
             state.dailyOffers = data.dailyOffers || state.dailyOffers;
             state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
             const latest = state.progression?.packHistory?.[0];
+            if (latest) {
+                pushNotification('pack', `Pack opened: ${pack?.name || latest.packId || 'Card pack'}`, `${(latest.cards || []).length} cards added to your binder.`);
+            }
+            if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
             state.packOpeningDismissedKey = '';
             state.packReveal = latest ? {
                 packId: latest.packId,
@@ -4986,7 +5290,7 @@
     }
 
     function isFilterRoute() {
-        return isBinderRoute() || isSocialRoute();
+        return isBinderRoute() || isSocialRoute() || state.route === 'deck-builder';
     }
 
     function toggleTray(type) {
@@ -5027,39 +5331,32 @@
         // HUD there and the same action lives on the Social tab.
         const joinBtn = document.getElementById('joinByCodeBtn');
         joinBtn?.classList.toggle('hidden', binder);
+        const builderRoute = state.route === 'deck-builder';
         const filterBtn = document.getElementById('filterTrayBtn');
-        const socialFilterBtn = document.getElementById('socialFilterBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
-        const builderCardViewBtn = document.getElementById('builderCardViewToggle');
         const filterTray = document.getElementById('filterTray');
         const lobbyFilterTray = document.getElementById('lobbyFilterTray');
+        const builderFilterTray = document.getElementById('builderFilterTray');
         const cardTray = document.getElementById('detailPanel');
         const backdrop = document.getElementById('trayBackdrop');
-        const showFilterHud = binder || social;
+        const showFilterHud = binder || social || builderRoute;
         filterBtn?.classList.toggle('hidden', !showFilterHud);
         cardBtn?.classList.toggle('hidden', !(binder || shop));
         if (cardBtn) {
-            cardBtn.textContent = shop ? 'Card View' : 'Card View';
+            cardBtn.textContent = 'Card View';
             cardBtn.disabled = shop && !(state.dailyOffers || []).length;
         }
-        builderCardViewBtn?.classList.toggle('hidden', state.route !== 'deck-builder');
-        if (builderCardViewBtn) {
-            const builderAvailable = Boolean(state.options?.cardCatalog?.length);
-            builderCardViewBtn.disabled = state.route === 'deck-builder' && !builderAvailable;
-            builderCardViewBtn.textContent = state.builderCardViewOpen ? 'Hide Card View' : 'Show Card View';
-            builderCardViewBtn.setAttribute('aria-expanded', state.builderCardViewOpen ? 'true' : 'false');
-        }
         filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
-        socialFilterBtn?.classList.toggle('active', social && filterOpen);
         cardBtn?.classList.toggle('active', (binder && state.cardTrayOpen) || (shop && state.shopCardPreviewOpen));
-        builderCardViewBtn?.classList.toggle('active', state.route === 'deck-builder' && state.builderCardViewOpen);
         filterTray?.classList.toggle('is-closed', !binder || !filterOpen);
         lobbyFilterTray?.classList.toggle('is-closed', !social || !filterOpen);
+        builderFilterTray?.classList.toggle('is-closed', !builderRoute || !filterOpen);
         cardTray?.classList.toggle('is-closed', !binder || !state.cardTrayOpen);
         filterTray?.setAttribute('aria-hidden', String(!binder || !filterOpen));
         lobbyFilterTray?.setAttribute('aria-hidden', String(!social || !filterOpen));
+        builderFilterTray?.setAttribute('aria-hidden', String(!builderRoute || !filterOpen));
         cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
-        const trayOpen = (binder && filterOpen) || (social && filterOpen) || (binder && state.cardTrayOpen);
+        const trayOpen = (showFilterHud && filterOpen) || (binder && state.cardTrayOpen);
         backdrop?.classList.toggle('hidden', !trayOpen);
     }
 
@@ -5380,7 +5677,7 @@
         const next = Math.max(0, Math.min(copyLimit, current + delta));
         if (next) state.builderCounts[cardId] = next;
         else delete state.builderCounts[cardId];
-        if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        if (delta > 0 || !state.builderPreviewCardId) state.builderPreviewCardId = cardId;
         if (state.route === 'deck-builder') {
             renderDeckBuilderPage();
         }
@@ -6490,7 +6787,6 @@
             state.friendPresence = {};
             state.messageThreads = [];
             renderFriends();
-            renderMessageThreads();
             return;
         }
         await syncProfile();
@@ -6505,7 +6801,6 @@
         }
         renderFriends();
         renderFriendRequests();
-        renderMessageThreads();
         renderSocialActiveLobby();
     }
 
@@ -6538,34 +6833,8 @@
         state.messageThreads = data.threads || [];
     }
 
-    function renderMessageThreads() {
-        const list = document.getElementById('messageThreadList');
-        const count = document.getElementById('messageThreadCount');
-        const compose = document.getElementById('messageCompose');
-        if (!list) return;
-        if (count) count.textContent = `${state.messageThreads.length} thread${state.messageThreads.length === 1 ? '' : 's'}`;
-        if (!state.profile?.authenticated) {
-            list.innerHTML = '<div class="social-empty-state"><strong>Sign in to message friends</strong></div>';
-            compose?.classList.add('hidden');
-            return;
-        }
-        if (!state.messageThreads.length) {
-            list.innerHTML = '<div class="social-empty-state"><strong>No messages yet</strong><span>Open a friend profile and tap Message to start chatting.</span></div>';
-            return;
-        }
-        list.innerHTML = state.messageThreads.map(thread => {
-            const friend = (state.profile?.friends || []).find(row => row.email === thread.peerId);
-            const label = friend?.displayName || thread.peerId;
-            return `<button class="message-thread-btn" type="button" data-open-thread="${escapeAttr(thread.peerId)}">
-                <strong>${escapeHtml(label)}</strong>
-                <span>${escapeHtml(thread.lastMessage || 'No messages yet')}</span>
-            </button>`;
-        }).join('');
-        list.querySelectorAll('[data-open-thread]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.openThread)));
-        if (state.activeChatPeer) {
-            openMessageComposer(state.activeChatPeer, false);
-        }
-    }
+    // The standalone thread list is gone — unread chats surface as a blinking
+    // badge on each friend's Message button (see friendHasUnread).
 
     function chatMessageSenderLabel(message, peerId) {
         if (message?.mine) return 'You';
@@ -6594,11 +6863,15 @@
     async function openMessageComposer(peerId, focusInput = true) {
         if (!state.profile?.authenticated) return openAuth();
         state.activeChatPeer = peerId;
+        // The chat lives inside the friends modal as a full-screen takeover;
+        // opening it from anywhere (friend card, profile page) raises both.
+        document.getElementById('friendsModal')?.classList.remove('hidden');
+        showFriendsChatView(true);
         const compose = document.getElementById('messageCompose');
         const title = document.getElementById('messageComposeTitle');
         const log = document.getElementById('messageLog');
         const friend = (state.profile?.friends || []).find(row => row.email === peerId);
-        if (title) title.textContent = `Chat with ${friend?.displayName || peerId}`;
+        if (title) title.textContent = resolveFriendDisplayName(friend || { email: peerId });
         compose?.classList.remove('hidden');
         const data = await fetchJson(`/api/social/messages/with/${encodeURIComponent(peerId)}`);
         if (!data || data?.error) {
@@ -6612,7 +6885,7 @@
                 : '<div class="social-empty-state"><span>Say hello to start the conversation.</span></div>';
             log.scrollTop = log.scrollHeight;
         }
-        renderMessageThreads();
+        markChatSeen(peerId);
         if (focusInput) document.getElementById('messageInput')?.focus();
     }
 
@@ -6931,6 +7204,10 @@
                         <span class="options-menu-icon">&#128100;</span>
                         <span><strong>Account</strong><small>Manage or permanently delete your account</small></span>
                     </button>
+                    <button class="options-menu-item" type="button" data-options-support>
+                        <span class="options-menu-icon">&#127911;</span>
+                        <span><strong>Support</strong><small>Join the Discord for help, bug reports, and feedback</small></span>
+                    </button>
                     <button class="options-menu-item" type="button" data-options-view="admin">
                         <span class="options-menu-icon">&#9881;</span>
                         <span><strong>Admin</strong><small>Password-protected dashboard access</small></span>
@@ -7017,6 +7294,10 @@
 
     function handleOptionsClick(event) {
         if (event.target.closest('[data-options-close]')) { closeOptions(); return; }
+        if (event.target.closest('[data-options-support]')) {
+            window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
+            return;
+        }
         const viewBtn = event.target.closest('[data-options-view]');
         if (viewBtn) { state.optionsView = viewBtn.dataset.optionsView; renderOptions(); return; }
         const tabBtn = event.target.closest('[data-guide-tab]');
@@ -7066,8 +7347,10 @@
 
     document.getElementById('closeMessageComposeBtn')?.addEventListener('click', () => {
         state.activeChatPeer = null;
-        document.getElementById('messageCompose')?.classList.add('hidden');
-        renderMessageThreads();
+        showFriendsChatView(false);
+        // Re-render so the Message button's unread badge clears for the chat
+        // that was just read.
+        renderFriends();
     });
     document.getElementById('messageSendForm')?.addEventListener('submit', sendChatMessage);
 
