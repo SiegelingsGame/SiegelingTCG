@@ -5939,8 +5939,8 @@ body.gacha-active {
 .profile-hero.has-art .profile-hero-side {
     display: flex;
     flex-direction: column;
-    width: min(270px, 100%);
-    margin-inline: auto;
+    width: min(240px, 100%);
+    margin-right: auto;
     background: rgba(0, 0, 0, 0.34);
 }
 
