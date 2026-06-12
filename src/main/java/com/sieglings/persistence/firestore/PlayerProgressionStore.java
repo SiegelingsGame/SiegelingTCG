@@ -48,6 +48,7 @@ public class PlayerProgressionStore {
         payload.put("trainerLevels", progression.getTrainerLevels());
         payload.put("trainerPoints", progression.getTrainerPoints());
         payload.put("starterPackId", progression.getStarterPackId());
+        payload.put("tutorialCompleted", progression.isTutorialCompleted());
         payload.put("rewardedMatchIds", progression.getRewardedMatchIds());
         payload.put("purchasedDeckIds", progression.getPurchasedDeckIds());
         payload.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
@@ -93,6 +94,7 @@ public class PlayerProgressionStore {
         progression.setTrainerLevels(readIntMap(snapshot.get("trainerLevels")));
         progression.setTrainerPoints(readIntMap(snapshot.get("trainerPoints")));
         progression.setStarterPackId(snapshot.getString("starterPackId"));
+        progression.setTutorialCompleted(Boolean.TRUE.equals(snapshot.getBoolean("tutorialCompleted")));
         progression.setRewardedMatchIds(readStringList(snapshot.get("rewardedMatchIds")));
         progression.setPurchasedDeckIds(readStringList(snapshot.get("purchasedDeckIds")));
         progression.setPurchasedDailyOfferIds(readStringList(snapshot.get("purchasedDailyOfferIds")));

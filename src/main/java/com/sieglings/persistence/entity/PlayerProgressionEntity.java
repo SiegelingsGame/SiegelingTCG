@@ -14,6 +14,7 @@ public class PlayerProgressionEntity {
     private Map<String, Integer> trainerLevels = new LinkedHashMap<>();
     private Map<String, Integer> trainerPoints = new LinkedHashMap<>();
     private String starterPackId;
+    private boolean tutorialCompleted;
     private List<String> rewardedMatchIds = new ArrayList<>();
     private List<String> purchasedDeckIds = new ArrayList<>();
     private List<String> purchasedDailyOfferIds = new ArrayList<>();
@@ -46,6 +47,9 @@ public class PlayerProgressionEntity {
     }
     public String getStarterPackId() { return starterPackId; }
     public void setStarterPackId(String starterPackId) { this.starterPackId = starterPackId; }
+
+    public boolean isTutorialCompleted() { return tutorialCompleted; }
+    public void setTutorialCompleted(boolean tutorialCompleted) { this.tutorialCompleted = tutorialCompleted; }
     public List<String> getRewardedMatchIds() { return rewardedMatchIds; }
     public void setRewardedMatchIds(List<String> rewardedMatchIds) {
         this.rewardedMatchIds = rewardedMatchIds == null ? new ArrayList<>() : new ArrayList<>(rewardedMatchIds);

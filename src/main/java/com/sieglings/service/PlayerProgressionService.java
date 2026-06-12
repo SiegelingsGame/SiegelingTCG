@@ -29,6 +29,7 @@ public class PlayerProgressionService {
     public static final int ONLINE_WIN_GOLD = 5;
     public static final int WIN_STREAK_GOLD = 2;
     public static final int PACK_OPEN_REMNANTS = 40;
+    public static final int TUTORIAL_GOLD_REWARD = 250;
     public static final int SOLO_WIN_REMNANTS = 20;
     public static final int ONLINE_WIN_REMNANTS = 30;
 
@@ -128,6 +129,32 @@ public class PlayerProgressionService {
             trainerOutcome = grantTrainer(progression, starterTrainer);
         }
         addPackHistory(progression, result, outcomes, trainerOutcome, 0, "STARTER");
+        progression.setUpdatedAt(Instant.now());
+        PlayerProgressionEntity saved = store.save(progression);
+        recordPackOpenedAsync(saved.getUserId());
+        return saved;
+    }
+
+    /**
+     * Grants the one-time tutorial rewards: a free re-open of the player's
+     * starter pack plus bonus Siegecoins. Guarded by the tutorialCompleted
+     * flag so it can only ever be claimed once per account.
+     */
+    public PlayerProgressionEntity completeTutorial(AccountUser user) {
+        PlayerProgressionEntity progression = getOrCreate(user);
+        if (progression.isTutorialCompleted()) {
+            throw new IllegalArgumentException("Tutorial rewards have already been claimed.");
+        }
+        String packId = progression.getStarterPackId();
+        if (packId == null || packId.isBlank()) {
+            throw new IllegalArgumentException("Choose a starter pack before claiming the tutorial reward.");
+        }
+        PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
+        List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
+        grantRemnants(progression, PACK_OPEN_REMNANTS);
+        progression.setGold(progression.getGold() + TUTORIAL_GOLD_REWARD);
+        progression.setTutorialCompleted(true);
+        addPackHistory(progression, result, outcomes, null, 0, "TUTORIAL");
         progression.setUpdatedAt(Instant.now());
         PlayerProgressionEntity saved = store.save(progression);
         recordPackOpenedAsync(saved.getUserId());
@@ -378,6 +405,7 @@ public class PlayerProgressionService {
         out.put("ownedCards", progression.getOwnedCards());
         out.put("ownedTotal", ownedTotal(progression));
         out.put("ownedTrainers", serializeOwnedTrainers(progression));
+        out.put("tutorialCompleted", progression.isTutorialCompleted());
         out.put("customDeckUnlocked", ownedTotal(progression) >= CUSTOM_DECK_UNLOCK_COPIES);
         out.put("customDeckUnlockCopies", CUSTOM_DECK_UNLOCK_COPIES);
         out.put("starterPackId", progression.getStarterPackId());
