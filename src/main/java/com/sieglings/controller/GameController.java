@@ -1390,6 +1390,9 @@ public class GameController {
                 m.put("battlePhasesSeen", ci.getBattlePhasesSeen());
                 m.put("statuses", ci.getStatusEffects().stream().map(Enum::name).toList());
                 m.put("notches", serializeNotches(ci.getNotches()));
+                if (ci.getCard().isHolographic()) {
+                    m.put("holographic", true);
+                }
                 List<Ability> visibleBoardAbilities = visibleSieglingAbilities(ci.getCard());
                 if (!visibleBoardAbilities.isEmpty()) {
                     m.put("abilities", visibleBoardAbilities.stream()
