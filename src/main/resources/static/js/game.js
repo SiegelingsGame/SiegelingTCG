@@ -8350,6 +8350,15 @@ function renderLoadoutOptions() {
         } else if (recommended) {
             topRibbon = '<span class="knight-recommend-ribbon">Recommended</span>';
         }
+        const fullCardArtUrl = String(trainer.cardArtUrl || '').trim();
+        const fullCardMode = String(trainer.cardArtMode || '').trim().toUpperCase() === 'FULL_CARD';
+        if (fullCardArtUrl && fullCardMode) {
+            return `<button type="button" class="knight-card knight-full-card-art${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+                ${topRibbon}
+                ${levelBadge}
+                <img src="${escapeHtmlAttribute(fullCardArtUrl)}" alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy">
+            </button>`;
+        }
         return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
             ${topRibbon}
             ${levelBadge}

@@ -1611,7 +1611,13 @@ select.search-input { color-scheme: dark; }
     margin: 0 auto;
 }
 
-.knight-detail-preview .knight-card.has-knight-back {
+.knight-detail-preview .knight-card.has-knight-back,
+.knight-detail-preview .knight-card.knight-full-card-art {
+    width: 100%;
+    pointer-events: none;
+}
+
+.card-tile.knight-binder-tile .knight-card.knight-full-card-art {
     width: 100%;
     pointer-events: none;
 }
@@ -1653,6 +1659,29 @@ select.search-input { color-scheme: dark; }
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.28)),
         color-mix(in srgb, var(--el, var(--fire)) 18%, rgba(6, 10, 24, 0.94));
+}
+
+.binder-full-card-art,
+.knight-full-card-art {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 639 / 919;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 8%;
+    background: #10131b;
+    box-shadow:
+        0 14px 28px rgba(0, 0, 0, 0.38),
+        0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.binder-full-card-art img,
+.knight-full-card-art img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
 }
 
 .binder-card-shell {

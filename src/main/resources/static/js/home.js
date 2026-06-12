@@ -1090,6 +1090,12 @@
     function renderTrainerXpBar(trainerId, options = {}) {
         const entry = trainerOwnedEntry(trainerId);
         if (!entry) {
+            const fallbackLevel = trainerOwnedLevel(trainerId);
+            if (fallbackLevel > 0) {
+                return `<div class="trainer-xp-bar" aria-label="Level ${fallbackLevel}">
+                    <span class="trainer-xp-bar-label">Lv ${fallbackLevel}</span>
+                </div>`;
+            }
             if (options.unownedPlaceholder) {
                 return '<div class="trainer-xp-bar trainer-xp-bar--unowned"><span>Not owned</span></div>';
             }
@@ -1131,6 +1137,12 @@
                 owned,
                 abilityBonus: trainer.abilityBonus,
                 oncePerGame: trainer.oncePerGame,
+                cardArtUrl: trainer.cardArtUrl || '',
+                cardArtMode: trainer.cardArtMode || '',
+                cardArtOffsetX: trainer.cardArtOffsetX,
+                cardArtOffsetY: trainer.cardArtOffsetY,
+                cardArtScale: trainer.cardArtScale,
+                cardArtRotation: trainer.cardArtRotation,
                 abilities,
                 description: abilities.map(ability => ability.description).filter(Boolean).join(' ')
             };
@@ -1196,11 +1208,26 @@
                     <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${ownedLabel}</div>
                     ${energyCost}
                     ${isSiegeknight
-                        ? `<div class="binder-card-knight-xp">${renderTrainerXpBar(card.id, { unownedPlaceholder: true })}</div>`
+                        ? (owned ? `<div class="binder-card-knight-xp">${renderTrainerXpBar(card.id)}</div>` : '')
                         : renderShopCardAbilityLine(card)}
                     ${renderShopCardDescription(card)}
                 </div>
             </div>`;
+    }
+
+    function renderKnightBinderCardBody(card, options = {}) {
+        const tier = String(card.tier || 'SiegeKnight');
+        const level = Math.max(1, Number(card.level) || trainerOwnedLevel(card.id) || 1);
+        const owned = trainerOwnedLevel(card.id) > 0;
+        const rarityClass = String(card.rarity || 'common').toLowerCase();
+        const abilities = options.compact ? [] : (card.abilities || []).slice(0, 2);
+        return `
+            <span class="knight-card-name">${escapeHtml(card.name)}</span>
+            <span class="knight-card-meta"><span class="knight-element">${escapeHtml(format(card.element))}</span> <span class="knight-tier tier-${escapeAttr(tier.toLowerCase())}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${escapeAttr(rarityClass)}">${escapeHtml(format(card.rarity))}</span></span>
+            <span class="knight-card-meta knight-binder-owned">${owned ? `Owned · Lv ${level}` : 'Unowned'}</span>
+            ${owned ? `<div class="knight-binder-xp">${renderTrainerXpBar(card.id)}</div>` : ''}
+            ${abilities.map(a => `<span class="knight-card-ability"><span>${escapeHtml(a.name)}</span>${escapeHtml(a.description)}</span>`).join('')}
+        `;
     }
 
     // SiegeKnight tile/preview using the loadout card template
@@ -1210,29 +1237,26 @@
         const elHex = elementColor(card.element);
         const elClass = String(card.element || 'NEUTRAL').toLowerCase();
         const rarityClass = String(card.rarity || 'common').toLowerCase();
-        const tier = String(card.tier || 'SiegeKnight');
-        const level = Math.max(1, Number(card.level) || trainerOwnedLevel(card.id) || 1);
-        const owned = trainerOwnedLevel(card.id) > 0;
+        const fullCardArtUrl = window.SieglingsCardBinderVisual?.usesFullCardArt?.(card)
+            ? String(card.cardArtUrl || '').trim()
+            : '';
+        if (fullCardArtUrl) {
+            return `<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
+                <img src="${escapeAttr(fullCardArtUrl)}" alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy">
+                <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
+            </div>`;
+        }
         const backStyle = typeof siegeknightCardBackStyle === 'function'
             ? siegeknightCardBackStyle()
             : "--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')";
         const iconPath = (typeof ELEMENT_KEY_ICON_PATHS !== 'undefined'
             && ELEMENT_KEY_ICON_PATHS[String(card.element || '').toUpperCase()]) || '';
         const elementIconStyle = iconPath ? `--knight-element-icon:url('${iconPath}');` : '';
-        // Grid tiles are too small for the ability rows — the gray panel
-        // holds name/tier/owned/XP there; the detail preview shows it all.
-        const abilities = options.compact ? [] : (card.abilities || []).slice(0, 2);
         return `<div class="knight-card has-knight-back knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
             <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
-            <div class="knight-card-body">
-                <span class="knight-card-name">${escapeHtml(card.name)}</span>
-                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(format(card.element))}</span> <span class="knight-tier tier-${escapeAttr(tier.toLowerCase())}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${escapeAttr(rarityClass)}">${escapeHtml(format(card.rarity))}</span></span>
-                <span class="knight-card-meta knight-binder-owned">${owned ? `Owned · Lv ${level}` : 'Unowned'}</span>
-                <div class="knight-binder-xp">${renderTrainerXpBar(card.id, { unownedPlaceholder: true })}</div>
-                ${abilities.map(a => `<span class="knight-card-ability"><span>${escapeHtml(a.name)}</span>${escapeHtml(a.description)}</span>`).join('')}
-            </div>
+            <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
         </div>`;
     }
 
@@ -1243,6 +1267,11 @@
         if (card.type === 'SIEGEKNIGHT') {
             return `<button class="card-tile binder-card framed-binder-tile knight-binder-tile${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
                 ${renderKnightBinderCard(card, { compact: true })}
+            </button>`;
+        }
+        if (binderVisual?.usesFullCardArt?.(card)) {
+            return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${binderVisual.renderBinderCardTile(card, { descriptionText: shopCardDescriptionFor(card) })}
             </button>`;
         }
         if (binderVisual?.usesFramedCardTemplate?.(card)) {
@@ -2627,6 +2656,14 @@
                 ${renderKnightBinderCard(card, { compact: true })}
             </button>`;
         }
+        if (binderVisual?.usesFullCardArt?.(card)) {
+            return `<button class="daily-card-preview card-tile binder-card framed-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
+                ${binderVisual.renderBinderCardTile(card, {
+                    ownedOverride: owned,
+                    descriptionText: shopCardDescriptionFor(card)
+                })}
+            </button>`;
+        }
         if (binderVisual?.usesFramedCardTemplate?.(card)) {
             return `<button class="daily-card-preview card-tile binder-card framed-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
                 ${binderVisual.renderBinderCardTile(card, {
@@ -2789,7 +2826,7 @@
 
     function renderShopCardAbilityLine(card) {
         if (card?.type === 'SIEGEKNIGHT') {
-            return renderTrainerXpBar(card.id, { unownedPlaceholder: true });
+            return trainerOwnedLevel(card.id) > 0 ? renderTrainerXpBar(card.id) : '';
         }
         const abilities = card?.abilities || (card?.ability ? [card.ability] : []);
         const primary = abilities[0];
@@ -3330,7 +3367,7 @@
             return '<div class="profile-favorite-card-empty"><span>No favorite Siegeling selected</span></div>';
         }
         const binderVisual = window.SieglingsCardBinderVisual;
-        const favoritePreview = binderVisual?.usesFramedCardTemplate?.(card)
+        const favoritePreview = (binderVisual?.usesFullCardArt?.(card) || binderVisual?.usesFramedCardTemplate?.(card))
             ? binderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id) || Number(card.owned) || 1,
                 previewClass: 'detail-card-preview profile-favorite-showcase',
@@ -4721,7 +4758,8 @@
 
     function renderRevealFrontContent(card, ownedPreview) {
         const binderVisual = window.SieglingsCardBinderVisual;
-        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview && binderVisual?.usesFramedCardTemplate?.(card)) {
+        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview
+            && (binderVisual?.usesFullCardArt?.(card) || binderVisual?.usesFramedCardTemplate?.(card))) {
             return binderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedPreview,
                 previewClass: 'gacha-card-front',
@@ -4862,7 +4900,8 @@
         const element = card.element || 'FIRE';
         const rarity = card.rarity || 'COMMON';
         const binderVisual = window.SieglingsCardBinderVisual;
-        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview && binderVisual?.usesFramedCardTemplate?.(card)) {
+        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview
+            && (binderVisual?.usesFullCardArt?.(card) || binderVisual?.usesFramedCardTemplate?.(card))) {
             const ownedPreview = Math.max(1, Math.min(3, ownedCount(card.id) || 1));
             return `<div class="reveal-preview" data-preview-backdrop style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)}">
                 <div class="reveal-preview-card reveal-preview-card-template" role="dialog" aria-modal="true" aria-label="${escapeAttr(card.name || 'Card')} preview">

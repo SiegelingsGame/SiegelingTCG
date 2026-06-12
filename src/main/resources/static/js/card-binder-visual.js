@@ -87,7 +87,7 @@
 
     function normalizeArtMode(value) {
         const mode = String(value || '').trim().toUpperCase();
-        return mode === 'REPLACE' || mode === 'OVERLAY' ? mode : '';
+        return mode === 'REPLACE' || mode === 'OVERLAY' || mode === 'FULL_CARD' ? mode : '';
     }
 
     function clampNumber(value, min, max) {
@@ -118,6 +118,24 @@
     function renderCustomArtImage(className, artUrl, card) {
         const style = buildArtTransformStyle(card);
         return `<img class="${className}" src="${escapeAttr(artUrl)}" alt=""${style ? ` style="${style}"` : ''}>`;
+    }
+
+    function fullCardArtUrl(card) {
+        const artUrl = String(card?.cardArtUrl || '').trim();
+        return artUrl && normalizeArtMode(card?.cardArtMode) === 'FULL_CARD' ? artUrl : '';
+    }
+
+    function usesFullCardArt(card) {
+        return Boolean(fullCardArtUrl(card));
+    }
+
+    function renderFullCardArt(card, options = {}) {
+        const artUrl = fullCardArtUrl(card);
+        if (!artUrl) return '';
+        const extraClass = options.previewClass ? ` ${options.previewClass}` : '';
+        return `<div class="binder-full-card-art${extraClass}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
+            <img src="${escapeAttr(artUrl)}" alt="${escapeAttr(card?.name || 'Full art card')}" loading="lazy">
+        </div>`;
     }
 
     function renderElementIcon(element) {
@@ -294,6 +312,9 @@
     }
 
     function renderBinderCardTile(card, options = {}) {
+        if (usesFullCardArt(card)) {
+            return renderFullCardArt(card, options);
+        }
         const framed = renderFramedShowcaseCard(card, {
             cardClass: options.cardClass || 'mulligan-showcase binder-grid-showcase',
             compactAbilityLimit: options.compactAbilityLimit ?? 2,
@@ -307,6 +328,9 @@
     }
 
     function renderBinderCardPreview(card, options = {}) {
+        if (usesFullCardArt(card)) {
+            return renderFullCardArt(card, options);
+        }
         const element = card?.element || 'FIRE';
         const extraClass = options.previewClass ? ` ${options.previewClass}` : '';
         const previewClass = String(options.previewClass || '').includes('detail')
@@ -335,6 +359,7 @@
         renderElementIcon,
         elementColor,
         usesFramedCardTemplate,
+        usesFullCardArt,
         normalizeArtMode,
         normalizeArtTransform,
         buildArtTransformStyle,

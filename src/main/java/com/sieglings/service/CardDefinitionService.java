@@ -847,11 +847,26 @@ public class CardDefinitionService {
             return TrainerCatalogService.defaultDefinitions();
         }
         List<TrainerCatalogService.TrainerDefinition> definitions = trainerCatalogService.loadDefinitionsForGame();
-        return definitions.isEmpty() ? TrainerCatalogService.defaultDefinitions() : definitions;
+        if (definitions.isEmpty()) {
+            return TrainerCatalogService.defaultDefinitions();
+        }
+        if (definitions.stream().anyMatch(definition -> "squire-bob".equals(definition.id()))) {
+            return definitions;
+        }
+        TrainerCatalogService.TrainerDefinition squireBob = TrainerCatalogService.defaultDefinitions().stream()
+                .filter(definition -> "squire-bob".equals(definition.id()))
+                .findFirst()
+                .orElse(null);
+        if (squireBob == null) {
+            return definitions;
+        }
+        List<TrainerCatalogService.TrainerDefinition> withSquireBob = new ArrayList<>(definitions);
+        withSquireBob.add(squireBob);
+        return withSquireBob;
     }
 
     private TrainerCard toTrainerCard(TrainerCatalogService.TrainerDefinition definition) {
-        return new TrainerCard(
+        TrainerCard card = new TrainerCard(
                 definition.id(),
                 definition.name(),
                 definition.element(),
@@ -861,6 +876,13 @@ public class CardDefinitionService {
                 toAbility(definition.activeAbility()),
                 definition.oncePerGame() != null && definition.oncePerGame()
         );
+        card.setCardArtUrl(definition.cardArtUrl());
+        card.setCardArtMode(definition.cardArtMode());
+        card.setCardArtOffsetX(definition.cardArtOffsetX());
+        card.setCardArtOffsetY(definition.cardArtOffsetY());
+        card.setCardArtScale(definition.cardArtScale());
+        card.setCardArtRotation(definition.cardArtRotation());
+        return card;
     }
 
     private Ability toAbility(ManualSieglingCatalog.ManualAbilityDefinition definition) {

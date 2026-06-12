@@ -490,7 +490,7 @@
                 clearEphemeralCardArtPreview();
                 mutateSelectedCard((selected) => {
                     selected.cardArtUrl = hostedUrl;
-                    selected.cardArtMode = "REPLACE";
+                    selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "REPLACE";
                 }, { render: false });
                 setStatus(
                     state.liveEditingEnabled
@@ -1551,7 +1551,7 @@
 
     function normalizeCardArtMode(value) {
         const mode = String(value || "").trim().toUpperCase();
-        return mode === "REPLACE" || mode === "OVERLAY" ? mode : "";
+        return mode === "REPLACE" || mode === "OVERLAY" || mode === "FULL_CARD" ? mode : "";
     }
 
     function defaultCardArtPath(cardId) {
@@ -1616,6 +1616,11 @@
     function hasCustomCardArt(card) {
         const { cardArtUrl, cardArtMode } = normalizeCardArtFields(card);
         return Boolean(cardArtUrl && cardArtMode);
+    }
+
+    function hasTransformableCardArt(card) {
+        const { cardArtUrl, cardArtMode } = normalizeCardArtFields(card);
+        return Boolean(cardArtUrl && (cardArtMode === "REPLACE" || cardArtMode === "OVERLAY"));
     }
 
     function formatCardArtScaleValue(scale) {
@@ -1734,7 +1739,7 @@
     }
 
     function syncCardArtTransformControls(card) {
-        const showTransform = hasCustomCardArt(card);
+        const showTransform = hasTransformableCardArt(card);
         refs.cardArtTransformControls?.classList.toggle("hidden", !showTransform);
         if (!showTransform) {
             return;
@@ -1891,7 +1896,8 @@
             active: trainer?.active !== false,
             oncePerGame: Boolean(trainer?.oncePerGame),
             passiveAbility,
-            activeAbility
+            activeAbility,
+            ...normalizeCardArtFields(trainer)
         };
     }
 
@@ -2782,7 +2788,7 @@
         if (getEphemeralCardArtPreviewUrl(card.id)) {
             return;
         }
-        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card");
+        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card, .binder-full-card-art img");
         if (!artImg) {
             return;
         }
@@ -3852,7 +3858,7 @@
             });
         });
         state.trainers.forEach((trainer) => {
-            if (!trainer.active || !trainer.element) {
+            if (!trainer.active || !trainer.element || trainer.element === "NEUTRAL") {
                 return;
             }
             if (!liveNames.has(trainer.element)) {
@@ -3961,7 +3967,7 @@
     }
 
     function buildExportTrainer(trainer) {
-        return {
+        const exported = {
             id: trainer.id.trim(),
             name: trainer.name.trim(),
             element: trainer.element,
@@ -3972,6 +3978,7 @@
             passiveAbility: { ...buildExportAbility(trainer.passiveAbility || createBlankTrainerPassiveAbility(trainer.element)), passive: true },
             activeAbility: { ...buildExportAbility(trainer.activeAbility || createBlankTrainerActiveAbility(trainer.element)), passive: false }
         };
+        return appendCardArtExport(exported, trainer);
     }
 
     function buildExportAbility(ability) {

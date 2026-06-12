@@ -1274,6 +1274,7 @@ public class GameController {
         m.put("tier", trainer.getTier());
         m.put("rarity", trainer.getRarity().name());
         m.put("oncePerGame", trainer.isOncePerGame());
+        appendCardArt(m, trainer);
 
         if (trainer.getAbility() != null) {
             m.put("passive", Map.of(
@@ -1310,6 +1311,7 @@ public class GameController {
         m.put("tier", trainer.getTier());
         m.put("rarity", trainer.getRarity().name());
         m.put("oncePerGame", trainer.isOncePerGame());
+        appendCardArt(m, trainer);
         String key = trainer.getId() == null ? "" : trainer.getId().toLowerCase(java.util.Locale.ROOT);
         int level = ownedLevels.getOrDefault(key, 0);
         boolean owned = !gated || level > 0;
@@ -1323,6 +1325,28 @@ public class GameController {
             m.put("active", trainer.getActiveAbility().getDescription());
         }
         return m;
+    }
+
+    private void appendCardArt(Map<String, Object> m, Card card) {
+        if (card.getCardArtUrl() == null || card.getCardArtUrl().isBlank()) {
+            return;
+        }
+        m.put("cardArtUrl", card.getCardArtUrl());
+        if (card.getCardArtMode() != null && !card.getCardArtMode().isBlank()) {
+            m.put("cardArtMode", card.getCardArtMode());
+        }
+        if (card.getCardArtOffsetX() != null) {
+            m.put("cardArtOffsetX", card.getCardArtOffsetX());
+        }
+        if (card.getCardArtOffsetY() != null) {
+            m.put("cardArtOffsetY", card.getCardArtOffsetY());
+        }
+        if (card.getCardArtScale() != null) {
+            m.put("cardArtScale", card.getCardArtScale());
+        }
+        if (card.getCardArtRotation() != null) {
+            m.put("cardArtRotation", card.getCardArtRotation());
+        }
     }
 
     private Object[][] serializeBoard(GameState gs, boolean canonicalPlayerSide) {
