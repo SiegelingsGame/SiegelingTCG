@@ -6082,15 +6082,82 @@ body.gacha-active {
     font-weight: 950;
 }
 
-/* With custom art behind the hero, the favorite-Siegling/Edit Profile rail
-   shrinks to a compact centered card so the artwork stays visible around it
-   (overrides the full-width mobile grid rules by specificity). */
+/* With custom art behind the hero, collapse the two-column layout into a
+   single right-bound stack of glass panels so the artwork fills the left and
+   the identity + favorite-Siegling rail read as one aligned column. */
+.profile-hero.has-art {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: end;
+    align-content: center;
+    gap: 12px;
+}
+
+.profile-hero.has-art .profile-hero-content,
+.profile-hero.has-art .profile-hero-side {
+    width: min(430px, 100%);
+    margin: 0;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    background: rgba(4, 8, 18, 0.5);
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+
 .profile-hero.has-art .profile-hero-side {
     display: flex;
     flex-direction: column;
-    width: min(240px, 100%);
-    margin-right: auto;
-    background: rgba(0, 0, 0, 0.34);
+    gap: 9px;
+}
+
+/* ── Interactive profile polish ───────────────────────────────────────── */
+.profile-avatar-wrap,
+.profile-avatar,
+.profile-avatar-img {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-hero-content:hover .profile-avatar,
+.profile-hero-content:hover .profile-avatar-img {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow:
+        0 22px 46px rgba(0, 0, 0, 0.4),
+        0 0 38px var(--profile-glow, rgba(255, 106, 42, 0.4));
+}
+
+.element-badge,
+.profile-rank,
+.profile-soft-pill,
+.profile-coin-chip {
+    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.profile-hero-topline .element-badge:hover,
+.profile-hero-topline .profile-rank:hover,
+.profile-hero-topline .profile-coin-chip:hover {
+    transform: translateY(-1px);
+}
+
+.profile-stat-card {
+    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.profile-stat-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--profile-accent, #ff6a2a) 60%, rgba(255, 255, 255, 0.2));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 22px 46px rgba(0, 0, 0, 0.3);
+}
+
+.profile-theme-btn {
+    transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+
+.profile-theme-btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.06);
 }
 
 .element-badge,
