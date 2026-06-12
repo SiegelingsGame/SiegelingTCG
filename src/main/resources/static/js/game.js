@@ -3138,7 +3138,7 @@ function cardShowsPlayerHolographic(card) {
     if (card.holographic === true) {
         return true;
     }
-    const cardId = String(card.id || '').trim().toLowerCase();
+    const cardId = String(card.id || card.cardId || card.definitionId || '').trim().toLowerCase();
     return cardId && playerHolographicCardIds().has(cardId);
 }
 
