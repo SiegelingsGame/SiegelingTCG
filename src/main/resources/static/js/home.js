@@ -600,6 +600,108 @@
         document.getElementById('artLightbox')?.classList.add('hidden');
     }
 
+    // ── New player onboarding tour ───────────────────────────────────────
+    // A spotlight walkthrough of the HUD shown once per account after the
+    // starter pack is chosen, ending with the tutorial match offer.
+    const TOUR_STEPS = [
+        { target: '.nav-tabs', title: 'Navigate your hub', text: 'Home, Play, Cards, Decks, Social, Profile, and Shop all live here. Tap a tab to switch pages.' },
+        { target: '#playNowBtn', title: 'Play', text: 'Jump straight into a battle with your active loadout.' },
+        { target: '#goldPill', title: 'Siegecoins', text: 'Earn coins from matches and daily missions, then spend them on card packs in the Shop.' },
+        { target: '#friendsBtn', title: 'Friends & Chat', text: 'Add friends by email, accept invites, and message them from any page.' },
+        { target: '#hudNotifBtn', title: 'Notifications', text: 'Match results, rewards, mission completions, and unlocks collect here.' },
+        { target: '#optionsBtn', title: 'Settings', text: 'Game guides, the Art Gallery, profile sharing, and support live in Settings.' },
+        { target: null, title: 'Ready for your first siege?', text: 'Play the tutorial match: place a Siegeling, use a Strategy and a Deception, destroy an enemy Siegeling, and fire your Knight ability. Win and you earn a second starter pack plus bonus Siegecoins.' }
+    ];
+    let tourStepIndex = -1;
+
+    function tourStorageKey() {
+        return `sieglingsTourDone:${state.profile?.user?.email || 'anon'}`;
+    }
+
+    function maybeStartOnboardingTour() {
+        if (!state.profile?.authenticated || !state.progression?.starterChosen) return;
+        if (localStorage.getItem(tourStorageKey()) === '1') return;
+        if (document.getElementById('tourOverlay')) return;
+        startOnboardingTour();
+    }
+
+    function startOnboardingTour() {
+        endOnboardingTour(false);
+        const overlay = document.createElement('div');
+        overlay.id = 'tourOverlay';
+        overlay.className = 'tour-overlay';
+        overlay.innerHTML = `
+            <div class="tour-spotlight" id="tourSpotlight"></div>
+            <div class="tour-bubble" id="tourBubble">
+                <strong id="tourTitle"></strong>
+                <p id="tourText"></p>
+                <div class="tour-actions">
+                    <button class="ghost-btn compact-btn" type="button" id="tourSkipBtn">Skip</button>
+                    <span class="tour-count" id="tourCount"></span>
+                    <button class="primary-btn compact-btn" type="button" id="tourNextBtn">Next</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        document.getElementById('tourSkipBtn')?.addEventListener('click', () => endOnboardingTour(true));
+        tourStepIndex = -1;
+        advanceOnboardingTour();
+    }
+
+    function advanceOnboardingTour() {
+        tourStepIndex += 1;
+        const step = TOUR_STEPS[tourStepIndex];
+        if (!step) return endOnboardingTour(true);
+        const overlay = document.getElementById('tourOverlay');
+        const spotlight = document.getElementById('tourSpotlight');
+        const bubble = document.getElementById('tourBubble');
+        if (!overlay || !spotlight || !bubble) return;
+        const titleEl = document.getElementById('tourTitle');
+        const textEl = document.getElementById('tourText');
+        if (titleEl) titleEl.textContent = step.title;
+        if (textEl) textEl.textContent = step.text;
+        const countEl = document.getElementById('tourCount');
+        if (countEl) countEl.textContent = `${tourStepIndex + 1} / ${TOUR_STEPS.length}`;
+        const nextBtn = document.getElementById('tourNextBtn');
+        const finalStep = tourStepIndex === TOUR_STEPS.length - 1;
+        const target = step.target ? document.querySelector(step.target) : null;
+        const visibleTarget = target && !target.classList.contains('hidden') && target.getBoundingClientRect().width > 0 ? target : null;
+        if (finalStep) {
+            if (nextBtn) nextBtn.textContent = state.progression?.tutorialCompleted ? 'Finish' : 'Play Tutorial Match';
+        } else if (nextBtn) {
+            nextBtn.textContent = 'Next';
+        }
+        if (visibleTarget) {
+            const rect = visibleTarget.getBoundingClientRect();
+            const pad = 8;
+            spotlight.style.display = 'block';
+            spotlight.style.top = `${Math.max(0, rect.top - pad)}px`;
+            spotlight.style.left = `${Math.max(0, rect.left - pad)}px`;
+            spotlight.style.width = `${rect.width + pad * 2}px`;
+            spotlight.style.height = `${rect.height + pad * 2}px`;
+            // Place the bubble on whichever half of the screen has room.
+            bubble.classList.toggle('is-top', rect.top > window.innerHeight / 2);
+            bubble.classList.remove('is-centered');
+        } else {
+            spotlight.style.display = 'none';
+            bubble.classList.add('is-centered');
+        }
+        if (!nextBtn) return;
+        if (finalStep && !state.progression?.tutorialCompleted) {
+            nextBtn.onclick = () => {
+                endOnboardingTour(true);
+                goPlay({ mode: 'solo', tutorial: true, loadoutLabel: 'Tutorial Match' });
+            };
+        } else {
+            nextBtn.onclick = advanceOnboardingTour;
+        }
+    }
+
+    function endOnboardingTour(markDone) {
+        document.getElementById('tourOverlay')?.remove();
+        tourStepIndex = -1;
+        if (markDone) localStorage.setItem(tourStorageKey(), '1');
+    }
+
     function isMobileDeckBuilderViewport() {
         return Boolean(window.matchMedia?.('(max-width: 900px)').matches);
     }
@@ -673,6 +775,7 @@
             setHubLoading(false);
             hideLoadingArtScreen(loadingArtShownAt);
             openSharedProfileFromUrl();
+            maybeStartOnboardingTour();
         }
     }
 
@@ -5524,6 +5627,7 @@
             onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
             battleLaunch: Boolean(payload.battleLaunch),
+            tutorial: Boolean(payload.tutorial),
             customDeckCards,
             loadoutLabel
         }));
@@ -5644,7 +5748,7 @@
         const shop = state.route === 'shop';
         const filterOpen = state.filterTrayOpen;
         const optionsBtn = document.getElementById('optionsBtn');
-        optionsBtn?.classList.toggle('hidden', state.route !== 'home');
+        optionsBtn?.classList.toggle('hidden', state.route !== 'home' && state.route !== 'profile');
         // Hide "Join With Code" on the Cards/Decks binder routes; it crowds the
         // HUD there and the same action lives on the Social tab.
         const joinBtn = document.getElementById('joinByCodeBtn');
@@ -7522,6 +7626,10 @@
                         <span class="options-menu-icon">&#128100;</span>
                         <span><strong>Account</strong><small>Manage or permanently delete your account</small></span>
                     </button>
+                    <button class="options-menu-item" type="button" data-options-tour>
+                        <span class="options-menu-icon">&#129517;</span>
+                        <span><strong>New Player Guide</strong><small>Replay the HUD walkthrough and tutorial match offer</small></span>
+                    </button>
                     <button class="options-menu-item" type="button" data-options-view="gallery">
                         <span class="options-menu-icon">&#127912;</span>
                         <span><strong>Art Gallery</strong><small>Browse loading screen art, set page and profile backgrounds</small></span>
@@ -7644,6 +7752,11 @@
 
     function handleOptionsClick(event) {
         if (event.target.closest('[data-options-close]')) { closeOptions(); return; }
+        if (event.target.closest('[data-options-tour]')) {
+            closeOptions();
+            startOnboardingTour();
+            return;
+        }
         if (event.target.closest('[data-options-support]')) {
             window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
             return;
