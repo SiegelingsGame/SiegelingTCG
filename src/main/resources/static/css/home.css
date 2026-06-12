@@ -1,3 +1,5 @@
+@import url("/css/holographic.css?v=2");
+
 :root {
     --bg: #1a1c2c;
     --surface: #16213e;
@@ -1842,7 +1844,13 @@ select.search-input { color-scheme: dark; }
     margin: 0 auto;
 }
 
-.knight-detail-preview .knight-card.has-knight-back {
+.knight-detail-preview .knight-card.has-knight-back,
+.knight-detail-preview .knight-card.knight-full-card-art {
+    width: 100%;
+    pointer-events: none;
+}
+
+.card-tile.knight-binder-tile .knight-card.knight-full-card-art {
     width: 100%;
     pointer-events: none;
 }
@@ -1884,6 +1892,29 @@ select.search-input { color-scheme: dark; }
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.28)),
         color-mix(in srgb, var(--el, var(--fire)) 18%, rgba(6, 10, 24, 0.94));
+}
+
+.binder-full-card-art,
+.knight-full-card-art {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 639 / 919;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 8%;
+    background: #10131b;
+    box-shadow:
+        0 14px 28px rgba(0, 0, 0, 0.38),
+        0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.binder-full-card-art img,
+.knight-full-card-art img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
 }
 
 .binder-card-shell {
@@ -2609,6 +2640,22 @@ select.search-input { color-scheme: dark; }
     font-weight: 750;
     line-height: 1.35;
     text-shadow: 0 0 10px color-mix(in srgb, var(--el, var(--fire)) 30%, transparent);
+}
+
+.detail-card-preview-wrap {
+    position: relative;
+}
+
+.detail-holographic-panel {
+    display: grid;
+    gap: 7px;
+    margin: 12px 0 4px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.detail-holographic-panel .primary-btn {
+    width: 100%;
 }
 
 .craft-card-action {

@@ -21,13 +21,15 @@ public abstract class Card {
 
     /** Optional custom art for the cards menu binder preview (URL or data URI). */
     private String cardArtUrl;
-    /** REPLACE replaces the element icon; OVERLAY draws art on top of the default frame. */
+    /** REPLACE replaces the element icon; OVERLAY draws art on top of the default frame; FULL_CARD renders the image as the complete card. */
     private String cardArtMode;
     /** Custom art transform within the binder art frame (pixels / scale / degrees). */
     private Double cardArtOffsetX;
     private Double cardArtOffsetY;
     private Double cardArtScale;
     private Double cardArtRotation;
+    /** When true, the card renders with a rainbow foil shimmer in binder and loadout views. */
+    private boolean holographic;
 
     protected Card() {}
 
@@ -67,4 +69,6 @@ public abstract class Card {
     public void setCardArtScale(Double cardArtScale) { this.cardArtScale = cardArtScale; }
     public Double getCardArtRotation() { return cardArtRotation; }
     public void setCardArtRotation(Double cardArtRotation) { this.cardArtRotation = cardArtRotation; }
+    public boolean isHolographic() { return holographic; }
+    public void setHolographic(boolean holographic) { this.holographic = holographic; }
 }

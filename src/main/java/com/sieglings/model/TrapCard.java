@@ -26,6 +26,7 @@ public class TrapCard extends Card {
                 getCostElement(), getCostAmount(), getAbility());
         copy.setCardArtUrl(getCardArtUrl());
         copy.setCardArtMode(getCardArtMode());
+        copy.setHolographic(isHolographic());
         return copy;
     }
 }

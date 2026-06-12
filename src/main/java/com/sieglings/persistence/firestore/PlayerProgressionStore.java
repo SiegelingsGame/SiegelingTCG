@@ -53,6 +53,7 @@ public class PlayerProgressionStore {
         payload.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
         payload.put("purchasedTitleIds", progression.getPurchasedTitleIds());
         payload.put("craftCount", progression.getCraftCount());
+        payload.put("holographicCardIds", progression.getHolographicCardIds());
         payload.put("packHistory", progression.getPackHistory());
         payload.put("soloWinStreak", progression.getSoloWinStreak());
         payload.put("onlineWinStreak", progression.getOnlineWinStreak());
@@ -98,6 +99,7 @@ public class PlayerProgressionStore {
         progression.setPurchasedTitleIds(readStringList(snapshot.get("purchasedTitleIds")));
         Long craftCount = snapshot.getLong("craftCount");
         progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());
+        progression.setHolographicCardIds(readStringList(snapshot.get("holographicCardIds")));
         Long soloWinStreak = snapshot.getLong("soloWinStreak");
         Long onlineWinStreak = snapshot.getLong("onlineWinStreak");
         progression.setSoloWinStreak(soloWinStreak == null ? 0 : soloWinStreak.intValue());

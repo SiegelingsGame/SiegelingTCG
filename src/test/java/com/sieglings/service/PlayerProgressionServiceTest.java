@@ -99,6 +99,36 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void playerCanSpendRemnantsForHolographicFinishOnOwnedCard() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setRemnants(2500);
+        progression.getOwnedCards().put("draco", 1);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.purchaseHolographicFinish(user(), "draco");
+
+        assertEquals(500, store.saved.getRemnants());
+        assertTrue(store.saved.getHolographicCardIds().contains("draco"));
+    }
+
+    @Test
+    void holographicFinishRequiresOwnership() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setRemnants(1000);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        assertThrows(IllegalArgumentException.class, () -> service.purchaseHolographicFinish(user(), "draco"));
+    }
+
+    @Test
     void remnantsCraftSpecificCardsAtHighRarityCost() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
@@ -335,6 +365,14 @@ class PlayerProgressionServiceTest {
         @Override
         public TrainerCard getTrainer(Element element) {
             return fireKnight();
+        }
+
+        @Override
+        public Optional<TrainerCard> getActiveTrainerById(String trainerId) {
+            if ("trainer01".equalsIgnoreCase(trainerId)) {
+                return Optional.of(fireKnight());
+            }
+            return Optional.empty();
         }
     }
 

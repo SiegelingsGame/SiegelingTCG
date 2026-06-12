@@ -801,7 +801,7 @@
     }
     function parseEvolutionFromLog(line) {
         const text = stripLogPrefix(line);
-        // Server logs "<base> evolved into <evolved>!" (older builds: "evolved to").
+        // Server logs "<base> evolved to <evolved>!" (older builds: "evolved into").
         const m = text.match(/^(.+?)\s+evolved\s+(?:in)?to\s+(.+?)[.!]?$/i);
         if (!m) return null;
         return { from: m[1].trim(), to: m[2].trim() };
@@ -2088,7 +2088,7 @@
                     kind: 'PLAY',
                     side,
                     actorName: isEvolution ? p.evolutionFrom.name : actorName,
-                    label: isEvolution ? 'evolved into' : undefined,
+                    label: isEvolution ? 'evolved to' : undefined,
                     targetName: p.cell.name || 'Card',
                     knightElement: knight,
                     elementColor: normalizeElement(p.cell.element) || knight,

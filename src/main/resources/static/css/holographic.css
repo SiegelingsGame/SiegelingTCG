@@ -1,0 +1,172 @@
+.is-holographic {
+    position: relative;
+    overflow: hidden;
+}
+
+.card-holographic-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    pointer-events: none;
+    border-radius: inherit;
+    overflow: hidden;
+}
+
+.card-holographic-overlay::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(125deg,
+            rgba(255, 64, 160, 0.16) 0%,
+            rgba(64, 196, 255, 0.18) 22%,
+            rgba(255, 230, 64, 0.14) 44%,
+            rgba(96, 255, 176, 0.16) 66%,
+            rgba(176, 96, 255, 0.18) 88%);
+    mix-blend-mode: screen;
+    opacity: 0.72;
+}
+
+.card-holographic-overlay::after {
+    content: "";
+    position: absolute;
+    inset: -45%;
+    background: linear-gradient(110deg,
+        transparent 34%,
+        rgba(255, 255, 255, 0.05) 42%,
+        rgba(120, 220, 255, 0.34) 48%,
+        rgba(255, 180, 255, 0.28) 54%,
+        rgba(255, 255, 160, 0.22) 60%,
+        transparent 68%);
+    mix-blend-mode: color-dodge;
+    animation: card-holographic-sheen 3.8s ease-in-out infinite;
+}
+
+.is-holographic .knight-card-body {
+    z-index: 8;
+}
+
+@keyframes card-holographic-sheen {
+    0%, 100% {
+        transform: translateX(-14%) rotate(10deg);
+        opacity: 0.45;
+    }
+    50% {
+        transform: translateX(14%) rotate(10deg);
+        opacity: 0.95;
+    }
+}
+
+.detail-card-preview-wrap.holographic-unlock-play {
+    z-index: 3;
+}
+
+.detail-card-preview-wrap.holographic-unlock-play::before {
+    content: "";
+    position: absolute;
+    inset: -12%;
+    z-index: 20;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.42), transparent 42%),
+        conic-gradient(from 0deg,
+            rgba(255, 96, 196, 0.55),
+            rgba(96, 196, 255, 0.55),
+            rgba(255, 230, 96, 0.5),
+            rgba(96, 255, 176, 0.55),
+            rgba(196, 96, 255, 0.55),
+            rgba(255, 96, 196, 0.55));
+    mix-blend-mode: screen;
+    animation: holographicUnlockBurst 1.35s ease-out both;
+}
+
+.detail-card-preview-wrap.holographic-unlock-play::after {
+    content: "Holographic!";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 22;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.72);
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    background: rgba(8, 12, 24, 0.72);
+    color: #f4fbff;
+    font-size: 0.82rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-shadow: 0 0 18px rgba(120, 220, 255, 0.65);
+    animation: holographicUnlockLabel 1.8s ease-out both;
+}
+
+.detail-card-preview-wrap.holographic-unlock-play .is-holographic,
+.detail-card-preview-wrap.holographic-unlock-play .binder-card,
+.detail-card-preview-wrap.holographic-unlock-play .knight-card {
+    animation: holographicUnlockCard 1.15s cubic-bezier(.2, .85, .25, 1) both;
+}
+
+@keyframes holographicUnlockBurst {
+    0% {
+        opacity: 0;
+        transform: scale(0.72) rotate(-18deg);
+    }
+    35% {
+        opacity: 0.95;
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.35) rotate(18deg);
+    }
+}
+
+@keyframes holographicUnlockLabel {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -40%) scale(0.6);
+    }
+    18% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.04);
+    }
+    72% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -58%) scale(0.96);
+    }
+}
+
+@keyframes holographicUnlockCard {
+    0% {
+        transform: scale(0.94);
+        filter: brightness(1);
+    }
+    28% {
+        transform: scale(1.06);
+        filter: brightness(1.35) saturate(1.2);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card-holographic-overlay::after {
+        animation: none;
+        opacity: 0.55;
+    }
+
+    .detail-card-preview-wrap.holographic-unlock-play::before,
+    .detail-card-preview-wrap.holographic-unlock-play::after,
+    .detail-card-preview-wrap.holographic-unlock-play .is-holographic,
+    .detail-card-preview-wrap.holographic-unlock-play .binder-card,
+    .detail-card-preview-wrap.holographic-unlock-play .knight-card {
+        animation: none;
+    }
+}

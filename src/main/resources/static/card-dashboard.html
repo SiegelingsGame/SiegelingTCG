@@ -16,7 +16,8 @@
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
     <link rel="stylesheet" href="/css/home.css?v=45">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=16">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=17">
+    <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
 <div class="dashboard-shell">
@@ -421,7 +422,7 @@
                         <h2>Cards Menu View</h2>
                     </div>
                 </div>
-                <p class="section-help card-visual-help">Replace art stays inside the icon frame; overlay art can extend across the full card. Use Upload Image on the live dashboard so art is stored in cloud storage (a https:// URL). Drag the art in the preview to reposition it; use the scale and rotation controls below. Publish from the header to apply globally in the game. Choose Default icon to revert. Sign in under Live Publishing before uploading or publishing. Notches always render above custom art.</p>
+                <p class="section-help card-visual-help">Replace art stays inside the icon frame; overlay art can extend across the full card; full card art is already complete and skips the template. Use Upload Image on the live dashboard so art is stored in cloud storage (a https:// URL). Drag replace or overlay art in the preview to reposition it; use the scale and rotation controls below. Publish from the header to apply globally in the game. Choose Default icon to revert. Sign in under Live Publishing before uploading or publishing. Notches always render above custom art.</p>
                 <div class="card-visual-stage" id="cardVisualStage">
                     <div class="validation-empty">Select a card to preview.</div>
                 </div>
@@ -439,7 +440,15 @@
                             <input type="radio" name="cardArtMode" value="OVERLAY">
                             <span>Overlay art</span>
                         </label>
+                        <label class="art-mode-option">
+                            <input type="radio" name="cardArtMode" value="FULL_CARD">
+                            <span>Full card</span>
+                        </label>
                     </div>
+                    <label class="toggle-field card-holographic-toggle">
+                        <input id="cardHolographicCheckbox" type="checkbox">
+                        <span>Holographic foil effect</span>
+                    </label>
                     <div class="inline-actions card-art-actions">
                         <label class="btn btn-secondary file-btn" for="cardArtFileInput">Upload Image</label>
                         <input id="cardArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
@@ -702,6 +711,10 @@
                     <label class="toggle-field">
                         <input id="trainerOncePerGameCheckbox" type="checkbox">
                         <span>Mark the active ability as once per game</span>
+                    </label>
+                    <label class="toggle-field">
+                        <input id="trainerHolographicCheckbox" type="checkbox">
+                        <span>Holographic foil effect</span>
                     </label>
                 </section>
 
