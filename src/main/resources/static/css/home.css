@@ -5933,6 +5933,17 @@ body.gacha-active {
     font-weight: 950;
 }
 
+/* With custom art behind the hero, the favorite-Siegling/Edit Profile rail
+   shrinks to a compact centered card so the artwork stays visible around it
+   (overrides the full-width mobile grid rules by specificity). */
+.profile-hero.has-art .profile-hero-side {
+    display: flex;
+    flex-direction: column;
+    width: min(270px, 100%);
+    margin-inline: auto;
+    background: rgba(0, 0, 0, 0.34);
+}
+
 .element-badge,
 .profile-rank,
 .profile-soft-pill {
