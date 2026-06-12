@@ -650,6 +650,11 @@
         document.getElementById('optionsModal')?.addEventListener('submit', handleOptionsSubmit);
         document.getElementById('optionsModal')?.addEventListener('input', handleOptionsInput);
         document.getElementById('trayBackdrop')?.addEventListener('click', closeTrays);
+        // The Card View tray re-renders per card, so the x buttons are bound
+        // by delegation rather than per render.
+        document.addEventListener('click', (event) => {
+            if (event.target.closest('[data-tray-close]')) closeTrays();
+        });
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
         document.getElementById('closeDeckPreviewBtn')?.addEventListener('click', closeDeckPreview);
@@ -1289,6 +1294,7 @@
             })
             : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
+            <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
             <div class="detail-card-preview-wrap">${cardPreview}</div>
             ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
                 ${renderActiveNotchChips(card.notches)}
