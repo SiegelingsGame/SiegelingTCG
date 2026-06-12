@@ -683,6 +683,64 @@ body.starter-onboarding-active .hud-fab {
     background: rgba(255, 215, 0, 0.1);
 }
 
+/* While a tray is open, its HUD button pulses so the player knows it's the
+   way back out of the menu. */
+.hud-tool.active {
+    animation: hudToolPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes hudToolPulse {
+    0%, 100% {
+        border-color: rgba(255, 215, 0, 0.42);
+        background: rgba(255, 215, 0, 0.1);
+        box-shadow: 0 0 0 rgba(255, 215, 0, 0);
+    }
+    50% {
+        border-color: #ffd700;
+        background: rgba(255, 215, 0, 0.46);
+        box-shadow: 0 0 16px rgba(255, 215, 0, 0.5);
+    }
+}
+
+.tray-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(10, 16, 32, 0.88);
+    color: #fff7d9;
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.tray-close-btn:hover {
+    border-color: rgba(255, 215, 0, 0.62);
+    color: #ffe9a0;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+/* Keep tray headers clear of the corner close button. */
+.filter-panel > .section-head,
+.builder-filter-tray > .section-head {
+    padding-right: 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hud-tool.active,
+    .friend-message-btn.has-unread {
+        animation: none;
+    }
+}
+
 .home-main { padding: 18px 22px 30px; }
 
 .hub-grid {
