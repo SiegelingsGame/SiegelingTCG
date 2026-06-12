@@ -250,6 +250,8 @@
         packOpeningPending: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
+        shopPreviewCardId: '',
+        shopCardPreviewOpen: false,
         catalogVersion: 0,
         catalogSyncBound: false,
         profileUserId: '',
@@ -407,7 +409,13 @@
         document.getElementById('deckBuilderBackBtn')?.addEventListener('click', () => navigateHub('decks'));
         document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
-        document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
+        document.getElementById('cardTrayBtn')?.addEventListener('click', () => {
+            if (state.route === 'shop') {
+                openShopCardPreview();
+                return;
+            }
+            toggleTray('card');
+        });
         document.getElementById('builderCardViewToggle')?.addEventListener('click', () => {
             state.builderCardViewOpen = !state.builderCardViewOpen;
             renderDeckBuilderPage();
@@ -732,6 +740,10 @@
         if (!isBinderRoute() && !isSocialRoute()) {
             state.filterTrayOpen = false;
             state.cardTrayOpen = false;
+        }
+        if (state.route !== 'shop') {
+            state.shopCardPreviewOpen = false;
+            renderShopCardPreviewModal();
         }
         renderHudTools();
     }
@@ -2237,6 +2249,9 @@
         const packs = starterMode ? starterPacks : state.packs;
         const dailyOffers = starterMode ? [] : state.dailyOffers;
         const shopTitles = shopTitleOffers();
+        if (dailyOffers.length && !dailyOffers.some(offer => offer.cardId === state.shopPreviewCardId)) {
+            state.shopPreviewCardId = dailyOffers[0].cardId;
+        }
         grid.innerHTML = `
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
             ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Unlock by playing or buy with Siegecoins</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
@@ -2244,6 +2259,8 @@
             ${packs.length ? packs.map(renderPackTile).join('') : '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>'}
         `;
         document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
+        renderShopCardPreviewModal();
+        renderHudTools();
     }
 
     // Heraldic banner + star — the shared "profile flair / player title" emblem.
@@ -2280,9 +2297,9 @@
         renderProfile();
     }
 
-    function renderDailyOfferTile(offer) {
+    function dailyOfferCard(offer) {
         const catalogCard = findCard(offer.cardId) || {};
-        const card = {
+        return {
             ...catalogCard,
             id: offer.cardId,
             name: offer.cardName || catalogCard.name,
@@ -2292,30 +2309,127 @@
             notches: catalogCard.notches || [],
             abilities: catalogCard.abilities || (catalogCard.ability ? [catalogCard.ability] : [])
         };
+    }
+
+    function selectedShopPreviewCard() {
+        const offers = state.dailyOffers || [];
+        const offer = offers.find(item => item.cardId === state.shopPreviewCardId) || offers[0];
+        return offer ? dailyOfferCard(offer) : null;
+    }
+
+    function renderDailyOfferTile(offer) {
+        const card = dailyOfferCard(offer);
         const purchased = state.progression?.purchasedDailyOfferIds?.includes(offer.id);
         const owned = ownedCount(card.id);
-        const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
-        const isSiegling = card.type === 'SIEGLING';
-        return `<article class="daily-offer-tile" style="--el:${elementColor(card.element)};--rarity:${rarityColor(card.rarity)}">
-            <div class="daily-card-front binder-card daily-card-compact">
-                ${isSiegling ? renderBinderNotches(card.notches) : ''}
-                <div class="binder-card-shell">
-                    <div class="binder-card-header">
-                        <strong>${escapeHtml(card.name || 'Daily Card')}</strong>
-                        <span>${escapeHtml(typeLabel)}</span>
-                    </div>
-                    <div class="binder-card-art">${renderBinderCardArt(card)}</div>
-                    <div class="binder-card-body shop-card-body">
-                        ${renderShopCardStats(card)}
-                        <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / Owned x${owned}</div>
-                        ${renderBinderCardEnergyCost(cardEnergyCost(card), card.costElement || card.trapBucketElement || card.element)}
-                        ${renderShopCardAbilityLine(card)}
-                        ${renderShopCardDescription(card)}
-                    </div>
-                </div>
-            </div>
+        const selected = card.id === state.shopPreviewCardId ? ' is-previewed' : '';
+        return `<article class="daily-offer-tile${selected}" style="--el:${elementColor(card.element)};--rarity:${rarityColor(card.rarity)}">
+            ${renderDailyOfferCardPreview(card, owned)}
             <button class="primary-btn" type="button" data-daily-offer-id="${escapeAttr(offer.id)}" ${purchased ? 'disabled' : ''}>${purchased ? 'Purchased' : renderCoinAmount(offer.price, '')}</button>
         </article>`;
+    }
+
+    function renderDailyOfferCardPreview(card, owned) {
+        const binderVisual = window.SieglingsCardBinderVisual;
+        if (card.type === 'SIEGEKNIGHT') {
+            return `<button class="daily-card-preview card-tile binder-card framed-binder-tile knight-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
+                ${renderKnightBinderCard(card, { compact: true })}
+            </button>`;
+        }
+        if (binderVisual?.usesFramedCardTemplate?.(card)) {
+            return `<button class="daily-card-preview card-tile binder-card framed-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
+                ${binderVisual.renderBinderCardTile(card, {
+                    ownedOverride: owned,
+                    descriptionText: shopCardDescriptionFor(card)
+                })}
+            </button>`;
+        }
+        const modeClass = binderVisual?.resolveArtModeClass(card) || '';
+        return `<button class="daily-card-preview card-tile binder-card${modeClass}" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
+            ${binderVisual?.renderBinderCardShell
+                ? binderVisual.renderBinderCardShell(card, { ownedOverride: owned, descriptionText: shopCardDescriptionFor(card) })
+                : renderBinderCardShell(card)}
+        </button>`;
+    }
+
+    function openShopCardPreview(cardId = '') {
+        const fallback = selectedShopPreviewCard();
+        const nextCardId = cardId || state.shopPreviewCardId || fallback?.id || '';
+        if (!nextCardId) return;
+        state.shopPreviewCardId = nextCardId;
+        state.shopCardPreviewOpen = true;
+        renderShop();
+    }
+
+    function closeShopCardPreview() {
+        state.shopCardPreviewOpen = false;
+        renderShopCardPreviewModal();
+        renderHudTools();
+    }
+
+    function renderShopCardPreviewModal() {
+        const modal = document.getElementById('shopCardPreviewModal');
+        const body = document.getElementById('shopCardPreviewBody');
+        if (!modal || !body) return;
+        const card = selectedShopPreviewCard();
+        modal.classList.toggle('hidden', !state.shopCardPreviewOpen || !card);
+        if (!state.shopCardPreviewOpen || !card) {
+            body.innerHTML = '';
+            return;
+        }
+        const isSiegeknight = card.type === 'SIEGEKNIGHT';
+        const abilities = card.abilities || (card.ability ? [card.ability] : []);
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        const owned = ownedCount(card.id);
+        const cardPreview = isSiegeknight
+            ? `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`
+            : window.SieglingsCardBinderVisual?.renderBinderCardPreview
+            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
+                ownedOverride: owned,
+                previewClass: 'detail-card-preview shop-card-preview-card',
+                compactAbilityLimit: 3,
+                summaryMode: 'description',
+                descriptionText: shopCardDescriptionFor(card)
+            })
+            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+        body.innerHTML = `
+            <div class="shop-card-preview-head">
+                <div>
+                    <span class="eyebrow">${escapeHtml(format(card.rarity || 'Common'))}</span>
+                    <h2 id="shopCardPreviewTitle">${escapeHtml(card.name || 'Daily Card')}</h2>
+                    <span>${escapeHtml(format(card.type || 'Card'))} / ${escapeHtml(format(card.element || 'Neutral'))} / Owned x${owned}</span>
+                </div>
+            </div>
+            <div class="shop-card-preview-layout">
+                <div class="detail-card-preview-wrap">${cardPreview}</div>
+                <div class="shop-card-preview-details">
+                    ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">${renderActiveNotchChips(card.notches)}</div>
+                    <div class="detail-cost-block">
+                        <span class="detail-cost-label">Energy cost</span>
+                        ${renderBinderCardEnergyCost(cost, costElement)}
+                    </div>`}
+                    <div class="detail-grid">
+                        ${isSiegeknight ? `<div><span>Tier</span><strong>${escapeHtml(card.tier || 'SiegeKnight')}</strong></div>
+                        <div><span>Element</span><strong>${format(card.element)}</strong></div>
+                        <div><span>Level</span><strong>${Math.max(1, trainerOwnedLevel(card.id) || card.level || 1)}</strong></div>` : ''}
+                        ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                        <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                        <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
+                        <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                        ${!isSiegeknight && card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${cost} ${format(costElement)}</strong></div>
+                        <div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>
+                        <div><span>Row</span><strong>${format(card.preferredRow || 'Any')}</strong></div>` : ''}
+                    </div>
+                    <div class="detail-flavor" style="--el:${elementColor(card.element)}">
+                        <span>Card text</span>
+                        <p>${escapeHtml(shopCardDescriptionFor(card))}</p>
+                    </div>
+                    <h3 class="detail-section-title">${isSiegeknight ? 'SiegeKnight abilities' : 'Moves &amp; card details'}</h3>
+                    <div class="detail-abilities">
+                        ${abilities.length ? abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('') : '<p class="detail-ability-empty">No printed ability.</p>'}
+                    </div>
+                </div>
+            </div>`;
     }
 
     function renderBinderCardEnergyCost(cost, element) {
@@ -4905,6 +5019,7 @@
     function renderHudTools() {
         const binder = isBinderRoute();
         const social = isSocialRoute();
+        const shop = state.route === 'shop';
         const filterOpen = state.filterTrayOpen;
         const optionsBtn = document.getElementById('optionsBtn');
         optionsBtn?.classList.toggle('hidden', state.route !== 'home');
@@ -4922,7 +5037,11 @@
         const backdrop = document.getElementById('trayBackdrop');
         const showFilterHud = binder || social;
         filterBtn?.classList.toggle('hidden', !showFilterHud);
-        cardBtn?.classList.toggle('hidden', !binder);
+        cardBtn?.classList.toggle('hidden', !(binder || shop));
+        if (cardBtn) {
+            cardBtn.textContent = shop ? 'Card View' : 'Card View';
+            cardBtn.disabled = shop && !(state.dailyOffers || []).length;
+        }
         builderCardViewBtn?.classList.toggle('hidden', state.route !== 'deck-builder');
         if (builderCardViewBtn) {
             const builderAvailable = Boolean(state.options?.cardCatalog?.length);
@@ -4932,7 +5051,7 @@
         }
         filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
         socialFilterBtn?.classList.toggle('active', social && filterOpen);
-        cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
+        cardBtn?.classList.toggle('active', (binder && state.cardTrayOpen) || (shop && state.shopCardPreviewOpen));
         builderCardViewBtn?.classList.toggle('active', state.route === 'deck-builder' && state.builderCardViewOpen);
         filterTray?.classList.toggle('is-closed', !binder || !filterOpen);
         lobbyFilterTray?.classList.toggle('is-closed', !social || !filterOpen);
@@ -6953,6 +7072,15 @@
     document.getElementById('messageSendForm')?.addEventListener('submit', sendChatMessage);
 
     document.addEventListener('click', (event) => {
+        const shopPreviewButton = event.target.closest('[data-shop-preview-card-id]');
+        if (shopPreviewButton) {
+            openShopCardPreview(shopPreviewButton.dataset.shopPreviewCardId);
+            return;
+        }
+        if (event.target.closest('[data-close-shop-card-preview]') || event.target.matches('[data-shop-card-preview-backdrop]')) {
+            closeShopCardPreview();
+            return;
+        }
         if (event.target.closest('[data-clear-pack-result]')) {
             clearPackResult();
             return;
@@ -6983,5 +7111,11 @@
             }
         }
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && state.shopCardPreviewOpen) {
+            closeShopCardPreview();
+        }
     });
 })();
