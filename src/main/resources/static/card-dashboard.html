@@ -96,6 +96,72 @@
         <div class="status-message" id="statusMessage">Loading the current override file...</div>
     </section>
 
+    <section class="panel loading-art-panel">
+        <h2 style="margin:0 0 4px;font-size:15px;">Loading Screen Art</h2>
+        <p class="section-help" style="margin:0 0 8px;">Upload landscape/portrait art for loading screens, the Art Gallery, and custom backgrounds. Files pairing by name (e.g. piece "ember-hollow" + both orientations) become one gallery entry.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input id="loadingArtPieceId" type="text" placeholder="Piece name (e.g. ember-hollow)" style="min-width:200px;">
+            <select id="loadingArtOrientation">
+                <option value="landscape">Landscape</option>
+                <option value="portrait">Portrait</option>
+            </select>
+            <label class="btn btn-secondary file-btn" for="loadingArtFileInput">Choose Image</label>
+            <input id="loadingArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;">
+            <button class="btn" id="loadingArtUploadBtn" type="button">Upload</button>
+            <span id="loadingArtStatus" class="section-help" style="margin:0;"></span>
+        </div>
+        <div id="loadingArtList" class="section-help" style="margin:8px 0 0;"></div>
+        <script>
+        (function () {
+            var fileInput = document.getElementById('loadingArtFileInput');
+            var status = document.getElementById('loadingArtStatus');
+            function setStatus(msg) { if (status) status.textContent = msg; }
+            function refreshList() {
+                fetch('/api/art/loading').then(function (r) { return r.json(); }).then(function (data) {
+                    var list = document.getElementById('loadingArtList');
+                    if (!list) return;
+                    var art = (data && data.art) || [];
+                    list.textContent = art.length
+                        ? 'Current pieces: ' + art.map(function (p) {
+                            var o = [p.landscape ? 'landscape' : '', p.portrait ? 'portrait' : ''].filter(Boolean).join(' + ');
+                            return p.title + ' (' + o + ')';
+                        }).join(' | ')
+                        : 'No loading art uploaded yet.';
+                }).catch(function () {});
+            }
+            fileInput?.addEventListener('change', function () {
+                setStatus(fileInput.files[0] ? fileInput.files[0].name + ' ready' : '');
+            });
+            document.getElementById('loadingArtUploadBtn')?.addEventListener('click', function () {
+                var pieceId = (document.getElementById('loadingArtPieceId')?.value || '').trim();
+                var file = fileInput?.files?.[0];
+                if (!pieceId) return setStatus('Enter a piece name first.');
+                if (!file) return setStatus('Choose an image file first.');
+                var form = new FormData();
+                form.append('pieceId', pieceId);
+                form.append('orientation', document.getElementById('loadingArtOrientation')?.value || 'landscape');
+                form.append('file', file);
+                var headers = {};
+                try {
+                    var token = localStorage.getItem('sieglingsCardEditorToken');
+                    if (token) headers['X-Card-Editor-Token'] = token;
+                } catch (e) { /* anonymous upload attempt */ }
+                setStatus('Uploading...');
+                fetch('/api/art/loading', { method: 'POST', body: form, headers: headers })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) return setStatus(res.d?.error || 'Upload failed. Sign in under Live Publishing first.');
+                        setStatus('Uploaded ' + res.d.url);
+                        if (fileInput) fileInput.value = '';
+                        refreshList();
+                    })
+                    .catch(function () { setStatus('Upload failed — network error.'); });
+            });
+            refreshList();
+        })();
+        </script>
+    </section>
+
     <section class="dashboard-pages panel">
         <button class="page-tab active" id="showSieglingsBtn" type="button" data-editor-page="SIEGLING">Siegeling Page</button>
         <button class="page-tab" id="showActionsBtn" type="button" data-editor-page="ACTION">Strategy / Deception Page</button>
