@@ -220,6 +220,7 @@
         builderVisibleLimit: 0,
         builderRenderTimer: null,
         notifications: [],
+        loadingArt: [],
         friendRequestsOpen: false,
         friendMessage: '',
         friendMessageType: '',
@@ -488,6 +489,117 @@
         }
     }
 
+    // ── Loading art, gallery, and custom backgrounds ─────────────────────
+    // Art pieces come from /api/art/loading, which scans
+    // static/img/art/loading for <id>-landscape.* / <id>-portrait.* pairs.
+    const PAGE_ART_KEY = 'sieglingsPageArt';
+    const PROFILE_ART_KEY = 'sieglingsProfileArt';
+    const ART_CACHE_KEY = 'sieglingsLoadingArtCache';
+
+    function prefersPortraitArt() {
+        return Boolean(window.matchMedia?.('(orientation: portrait)').matches);
+    }
+
+    function artImageFor(piece, preferPortrait = prefersPortraitArt()) {
+        if (!piece) return '';
+        return preferPortrait
+            ? (piece.portrait || piece.landscape || '')
+            : (piece.landscape || piece.portrait || '');
+    }
+
+    function hydrateLoadingArtFromCache() {
+        try {
+            state.loadingArt = JSON.parse(localStorage.getItem(ART_CACHE_KEY) || '[]') || [];
+        } catch (error) {
+            state.loadingArt = [];
+        }
+        if (!Array.isArray(state.loadingArt)) state.loadingArt = [];
+    }
+
+    async function loadLoadingArt() {
+        const data = await fetchJson('/api/art/loading');
+        if (!data || data.error) return;
+        state.loadingArt = Array.isArray(data.art) ? data.art : [];
+        // Cache the list so the very next visit can paint a loading screen
+        // before the network answers.
+        localStorage.setItem(ART_CACHE_KEY, JSON.stringify(state.loadingArt));
+    }
+
+    function showLoadingArtScreen(label) {
+        const screen = document.getElementById('loadingArtScreen');
+        if (!screen || !state.loadingArt.length) return 0;
+        const piece = state.loadingArt[Math.floor(Math.random() * state.loadingArt.length)];
+        const url = artImageFor(piece);
+        if (!url) return 0;
+        screen.style.backgroundImage = `url("${url}")`;
+        const labelEl = document.getElementById('loadingArtLabel');
+        if (labelEl) labelEl.textContent = label || 'Loading...';
+        const titleEl = document.getElementById('loadingArtTitle');
+        if (titleEl) titleEl.textContent = piece.title || '';
+        screen.classList.remove('hidden');
+        screen.setAttribute('aria-hidden', 'false');
+        return Date.now();
+    }
+
+    function hideLoadingArtScreen(shownAt) {
+        const screen = document.getElementById('loadingArtScreen');
+        if (!screen || screen.classList.contains('hidden')) return;
+        // Hold the art on screen briefly so a fast load doesn't flash it.
+        const wait = shownAt ? Math.max(0, 900 - (Date.now() - shownAt)) : 0;
+        window.setTimeout(() => {
+            screen.classList.add('hidden');
+            screen.setAttribute('aria-hidden', 'true');
+        }, wait);
+    }
+
+    function readStoredArt(key) {
+        try {
+            return JSON.parse(localStorage.getItem(key) || 'null');
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function applyCustomPageArt() {
+        const art = readStoredArt(PAGE_ART_KEY);
+        const url = art ? artImageFor(art) : '';
+        document.documentElement.style.setProperty('--page-art', url ? `url("${url}")` : 'none');
+        document.body.classList.toggle('has-custom-art', Boolean(url));
+    }
+
+    function setStoredArt(key, pieceId) {
+        const current = readStoredArt(key);
+        if (current?.id === pieceId) {
+            // Picking the active piece again toggles back to the default look.
+            localStorage.removeItem(key);
+        } else {
+            const piece = (state.loadingArt || []).find(item => item.id === pieceId);
+            if (!piece) return;
+            localStorage.setItem(key, JSON.stringify(piece));
+        }
+        applyCustomPageArt();
+        renderOptions();
+        if (state.route === 'profile') safeRender(renderProfile);
+    }
+
+    function openArtLightbox(pieceId) {
+        const piece = (state.loadingArt || []).find(item => item.id === pieceId);
+        const url = artImageFor(piece);
+        if (!url) return;
+        const img = document.getElementById('artLightboxImg');
+        const title = document.getElementById('artLightboxTitle');
+        if (img) {
+            img.src = url;
+            img.alt = piece.title || 'Artwork';
+        }
+        if (title) title.textContent = piece.title || '';
+        document.getElementById('artLightbox')?.classList.remove('hidden');
+    }
+
+    function closeArtLightbox() {
+        document.getElementById('artLightbox')?.classList.add('hidden');
+    }
+
     function isMobileDeckBuilderViewport() {
         return Boolean(window.matchMedia?.('(max-width: 900px)').matches);
     }
@@ -532,9 +644,15 @@
         // waiting on the network. loadAll() then revalidates in the background.
         safeRender(render);
         bindCatalogSync();
+        hydrateLoadingArtFromCache();
+        applyCustomPageArt();
+        window.addEventListener('orientationchange', applyCustomPageArt);
         // Only show the top loading bar when there's nothing cached to paint yet;
         // otherwise the page is already populated and the refresh is silent.
         setHubLoading(!state.options);
+        // Cold load (no cached catalog): cover the wait with a loading screen
+        // art piece. Cached loads paint instantly, so no takeover there.
+        const loadingArtShownAt = !state.options ? showLoadingArtScreen('Loading your binder...') : 0;
         try {
             await loadAll();
             await syncCatalogIfVersionChanged();
@@ -546,6 +664,7 @@
             console.error('Init load failed', err);
         } finally {
             setHubLoading(false);
+            hideLoadingArtScreen(loadingArtShownAt);
             openSharedProfileFromUrl();
         }
     }
@@ -642,6 +761,7 @@
             state.friendRequestsOpen = !state.friendRequestsOpen;
             renderFriendRequests();
         });
+        document.getElementById('artLightbox')?.addEventListener('click', closeArtLightbox);
         document.getElementById('hudNotifBtn')?.addEventListener('click', () => toggleNotifPanel());
         document.getElementById('clearNotifsBtn')?.addEventListener('click', clearNotifications);
         document.addEventListener('click', (event) => {
@@ -658,6 +778,11 @@
         document.getElementById('optionsModal')?.addEventListener('submit', handleOptionsSubmit);
         document.getElementById('optionsModal')?.addEventListener('input', handleOptionsInput);
         document.getElementById('trayBackdrop')?.addEventListener('click', closeTrays);
+        // The Card View tray re-renders per card, so the x buttons are bound
+        // by delegation rather than per render.
+        document.addEventListener('click', (event) => {
+            if (event.target.closest('[data-tray-close]')) closeTrays();
+        });
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
         document.getElementById('closeDeckPreviewBtn')?.addEventListener('click', closeDeckPreview);
@@ -734,6 +859,7 @@
         if (!state.selectedCardId) {
             state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
         }
+        void loadLoadingArt();
         await refreshRooms();
     }
 
@@ -1352,6 +1478,7 @@
             })
             : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
+            <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
             <div class="detail-card-preview-wrap">${cardPreview}</div>
             ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
                 ${renderActiveNotchChips(card.notches)}
@@ -3511,7 +3638,9 @@
 
     function renderProfileHero(view) {
         const { prefs, user, theme } = view;
-        return `<section class="profile-hero">
+        const profileArt = readStoredArt(PROFILE_ART_KEY);
+        const profileArtUrl = profileArt ? artImageFor(profileArt, false) : '';
+        return `<section class="profile-hero${profileArtUrl ? ' has-art' : ''}"${profileArtUrl ? ` style="--profile-art:url('${escapeAttr(profileArtUrl)}')"` : ''}>
             <div class="profile-hero-effects" aria-hidden="true"><span></span><span></span><span></span></div>
             <div class="profile-hero-content">
                 <div class="profile-avatar-wrap">
@@ -5395,6 +5524,9 @@
 
     function goPlay(payload) {
         queuePlayLoadout(payload);
+        // The art stays up through the navigation, covering the play page's
+        // own startup time.
+        showLoadingArtScreen('Heading into battle...');
         window.location.href = '/play';
     }
 
@@ -7383,6 +7515,10 @@
                         <span class="options-menu-icon">&#128100;</span>
                         <span><strong>Account</strong><small>Manage or permanently delete your account</small></span>
                     </button>
+                    <button class="options-menu-item" type="button" data-options-view="gallery">
+                        <span class="options-menu-icon">&#127912;</span>
+                        <span><strong>Art Gallery</strong><small>Browse loading screen art, set page and profile backgrounds</small></span>
+                    </button>
                     <button class="options-menu-item" type="button" data-options-support>
                         <span class="options-menu-icon">&#127911;</span>
                         <span><strong>Support</strong><small>Join the Discord for help, bug reports, and feedback</small></span>
@@ -7406,6 +7542,34 @@
                     <h3>${escapeHtml(section.title)}</h3>
                     ${section.html}
                 </div>`;
+        } else if (view === 'gallery') {
+            const pageArt = readStoredArt(PAGE_ART_KEY);
+            const profileArt = readStoredArt(PROFILE_ART_KEY);
+            const pieces = state.loadingArt || [];
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Art Gallery</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                ${pieces.length ? `<p class="guide-note">Tap a piece to view it full screen. Set any piece as the page background or your profile card art — picking it again switches back to the default look.</p>
+                <div class="art-gallery-grid">
+                    ${pieces.map(piece => {
+                        const thumb = artImageFor(piece, false);
+                        const isPage = pageArt?.id === piece.id;
+                        const isProfile = profileArt?.id === piece.id;
+                        return `<figure class="art-gallery-tile">
+                            <button class="art-gallery-thumb" type="button" data-art-view="${escapeAttr(piece.id)}" style="background-image:url('${escapeAttr(thumb)}')" aria-label="View ${escapeAttr(piece.title)} full screen"></button>
+                            <figcaption>
+                                <strong>${escapeHtml(piece.title)}</strong>
+                                <div class="art-gallery-actions">
+                                    <button class="ghost-btn compact-btn${isPage ? ' active' : ''}" type="button" data-art-set-page="${escapeAttr(piece.id)}">${isPage ? 'Page bg &#10003;' : 'Page bg'}</button>
+                                    <button class="ghost-btn compact-btn${isProfile ? ' active' : ''}" type="button" data-art-set-profile="${escapeAttr(piece.id)}">${isProfile ? 'Profile &#10003;' : 'Profile'}</button>
+                                </div>
+                            </figcaption>
+                        </figure>`;
+                    }).join('')}
+                </div>
+                ${pageArt || profileArt ? '<button class="ghost-btn compact-btn art-gallery-reset" type="button" data-art-clear>Reset backgrounds to default</button>' : ''}`
+                : `<p class="guide-note">No art yet. Drop loading screen images into <code>img/art/loading/</code> named like <code>fire-ridge-landscape.png</code> and <code>fire-ridge-portrait.png</code> &mdash; the loading screens, this gallery, and the background pickers fill in automatically.</p>`}`;
         } else if (view === 'share') {
             const email = state.profile?.user?.email || '';
             const authed = Boolean(state.profile?.authenticated && email);
@@ -7475,6 +7639,20 @@
         if (event.target.closest('[data-options-close]')) { closeOptions(); return; }
         if (event.target.closest('[data-options-support]')) {
             window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
+            return;
+        }
+        const artView = event.target.closest('[data-art-view]');
+        if (artView) { openArtLightbox(artView.dataset.artView); return; }
+        const artPage = event.target.closest('[data-art-set-page]');
+        if (artPage) { setStoredArt(PAGE_ART_KEY, artPage.dataset.artSetPage); return; }
+        const artProfile = event.target.closest('[data-art-set-profile]');
+        if (artProfile) { setStoredArt(PROFILE_ART_KEY, artProfile.dataset.artSetProfile); return; }
+        if (event.target.closest('[data-art-clear]')) {
+            localStorage.removeItem(PAGE_ART_KEY);
+            localStorage.removeItem(PROFILE_ART_KEY);
+            applyCustomPageArt();
+            renderOptions();
+            if (state.route === 'profile') safeRender(renderProfile);
             return;
         }
         const viewBtn = event.target.closest('[data-options-view]');

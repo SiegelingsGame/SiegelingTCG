@@ -10,8 +10,8 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=159">
-    <link rel="stylesheet" href="/css/home.css?v=75">
+    <link rel="stylesheet" href="/css/style.css?v=160">
+    <link rel="stylesheet" href="/css/home.css?v=76">
 </head>
 <body>
 <div class="home-shell">
@@ -57,6 +57,19 @@
     </div>
 
     <div class="hub-loading-bar hidden" id="hubLoadingBar" role="progressbar" aria-label="Loading" aria-hidden="true"></div>
+
+    <div class="loading-art-screen hidden" id="loadingArtScreen" aria-hidden="true">
+        <div class="loading-art-frame">
+            <span class="loading-art-label" id="loadingArtLabel">Loading...</span>
+            <div class="loading-art-bar"><span></span></div>
+            <span class="loading-art-title" id="loadingArtTitle"></span>
+        </div>
+    </div>
+
+    <div class="art-lightbox hidden" id="artLightbox" role="dialog" aria-label="Artwork preview">
+        <img id="artLightboxImg" alt="">
+        <span class="art-lightbox-title" id="artLightboxTitle"></span>
+    </div>
 
     <main class="home-main">
         <section class="starter-gate hidden" id="starterGate">
@@ -175,6 +188,7 @@
 
     <div class="tray-backdrop hidden" id="trayBackdrop"></div>
     <aside class="filter-panel panel hud-tray filter-tray is-closed" id="filterTray" aria-hidden="true">
+        <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
         <div class="profile-mini" id="profileMini"></div>
         <div class="section-head">
             <h2>Owned Filters</h2>
@@ -199,6 +213,7 @@
         <div class="unlock-card" id="customUnlockCard"></div>
     </aside>
     <aside class="filter-panel panel hud-tray filter-tray lobby-filter-tray is-closed" id="lobbyFilterTray" aria-hidden="true">
+        <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
         <div class="section-head">
             <h2>Lobby Filters</h2>
             <span id="lobbyFilterOpenLabel">0 open</span>
@@ -232,6 +247,7 @@
         </label>
     </aside>
     <aside class="filter-panel panel hud-tray filter-tray builder-filter-tray is-closed" id="builderFilterTray" aria-hidden="true">
+        <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
         <div class="section-head">
             <h2>Binder Filters</h2>
             <span id="builderFilterCount"></span>
@@ -319,13 +335,6 @@
         </div>
     </div>
 
-    <div class="shop-card-preview-modal hidden" id="shopCardPreviewModal" data-shop-card-preview-backdrop role="dialog" aria-modal="true" aria-labelledby="shopCardPreviewTitle">
-        <div class="shop-card-preview-panel panel">
-            <button class="shop-card-preview-close" type="button" data-close-shop-card-preview aria-label="Close card preview">&times;</button>
-            <div id="shopCardPreviewBody"></div>
-        </div>
-    </div>
-
     <div class="deck-preview-modal hidden" id="deckPreviewModal" role="dialog" aria-modal="true" aria-labelledby="deckPreviewTitle">
         <div class="deck-preview-panel panel">
             <div class="section-head deck-preview-head">
@@ -364,7 +373,7 @@
 <script src="/js/game.js?v=170"></script>
 <script src="/js/card-binder-visual.js?v=3"></script>
 <script src="/js/achievements.js?v=5"></script>
-<script src="/js/home.js?v=82"></script>
+<script src="/js/home.js?v=83"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

@@ -156,6 +156,179 @@ body.starter-onboarding-active .hud-fab {
     display: none !important;
 }
 
+/* ── Loading screen art ───────────────────────────────────────────────── */
+.loading-art-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 18px calc(46px + env(safe-area-inset-bottom, 0px));
+    background: #05080f center / cover no-repeat;
+}
+
+.loading-art-screen.hidden {
+    display: none;
+}
+
+.loading-art-frame {
+    display: grid;
+    gap: 9px;
+    justify-items: center;
+    padding: 14px 24px;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 14px;
+    background: rgba(3, 6, 14, 0.6);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.loading-art-label {
+    color: #fff7d9;
+    font-size: 13px;
+    font-weight: 950;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+}
+
+.loading-art-bar {
+    width: 190px;
+    height: 5px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.loading-art-bar span {
+    display: block;
+    width: 40%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ffd700, #ff8a3c);
+    animation: loadingArtSlide 1.1s ease-in-out infinite;
+}
+
+@keyframes loadingArtSlide {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(330%); }
+}
+
+.loading-art-title {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+/* ── Art gallery (Settings) ───────────────────────────────────────────── */
+.art-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.art-gallery-tile {
+    margin: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.art-gallery-thumb {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    background-color: rgba(0, 0, 0, 0.4);
+    background-size: cover;
+    background-position: center;
+    cursor: zoom-in;
+    transition: border-color 0.16s ease, transform 0.16s ease;
+}
+
+.art-gallery-thumb:hover {
+    border-color: rgba(255, 215, 0, 0.6);
+    transform: translateY(-2px);
+}
+
+.art-gallery-tile strong {
+    color: #fff;
+    font-size: 13px;
+}
+
+.art-gallery-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 5px;
+}
+
+.art-gallery-actions .compact-btn.active {
+    border-color: rgba(255, 215, 0, 0.62);
+    color: #ffe9a0;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.art-gallery-reset {
+    margin-top: 14px;
+}
+
+.art-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 3200;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(3, 6, 14, 0.93);
+    cursor: zoom-out;
+}
+
+.art-lightbox.hidden {
+    display: none;
+}
+
+.art-lightbox img {
+    max-width: 100%;
+    max-height: 86vh;
+    border-radius: 12px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+}
+
+.art-lightbox-title {
+    position: fixed;
+    right: 0;
+    bottom: 18px;
+    left: 0;
+    color: #fff7d9;
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: .08em;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+/* Player-selected art behind the profile hero card. */
+.profile-hero.has-art::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background:
+        linear-gradient(180deg, rgba(5, 8, 17, 0.25), rgba(5, 8, 17, 0.78)),
+        var(--profile-art, none) center / cover no-repeat;
+}
+
+.profile-hero.has-art > * {
+    position: relative;
+    z-index: 1;
+}
+
 /* ── Notification center ──────────────────────────────────────────────── */
 /* Auto margins keep the tabs centered while the bell hugs the brand on the
    left; mobile stretches the tabs full-width so the margins are inert there. */
@@ -683,6 +856,64 @@ body.starter-onboarding-active .hud-fab {
     border-color: rgba(255, 215, 0, 0.42);
     color: var(--accent);
     background: rgba(255, 215, 0, 0.1);
+}
+
+/* While a tray is open, its HUD button pulses so the player knows it's the
+   way back out of the menu. */
+.hud-tool.active {
+    animation: hudToolPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes hudToolPulse {
+    0%, 100% {
+        border-color: rgba(255, 215, 0, 0.42);
+        background: rgba(255, 215, 0, 0.1);
+        box-shadow: 0 0 0 rgba(255, 215, 0, 0);
+    }
+    50% {
+        border-color: #ffd700;
+        background: rgba(255, 215, 0, 0.46);
+        box-shadow: 0 0 16px rgba(255, 215, 0, 0.5);
+    }
+}
+
+.tray-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(10, 16, 32, 0.88);
+    color: #fff7d9;
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.tray-close-btn:hover {
+    border-color: rgba(255, 215, 0, 0.62);
+    color: #ffe9a0;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+/* Keep tray headers clear of the corner close button. */
+.filter-panel > .section-head,
+.builder-filter-tray > .section-head {
+    padding-right: 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hud-tool.active,
+    .friend-message-btn.has-unread {
+        animation: none;
+    }
 }
 
 .home-main { padding: 18px 22px 30px; }
