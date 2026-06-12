@@ -317,8 +317,17 @@ public class GameController {
             // roguelike mode, where levels will carry into every fight.
             GameService.SoloHandle handle = gameService.newSoloGame(options);
             attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
+            // Tutorial matches face a 10 HP enemy so new players can finish
+            // the guided objectives quickly.
+            boolean tutorial = req != null && Boolean.TRUE.equals(req.get("tutorial"));
+            if (tutorial) {
+                handle.state().getEnemy().setHealth(10);
+            }
             Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));
             resp.put("soloToken", handle.token());
+            if (tutorial) {
+                resp.put("tutorialMode", true);
+            }
             return resp;
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());

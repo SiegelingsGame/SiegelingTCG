@@ -45,6 +45,16 @@ public class PlayerProgressionController {
         return buildResponse(user, progressionService.getOrCreate(user));
     }
 
+    @PostMapping("/api/player/tutorial-complete")
+    public Map<String, Object> tutorialComplete(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            return buildResponse(user, progressionService.completeTutorial(user));
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @PostMapping("/api/player/starter-pack")
     public Map<String, Object> starterPack(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                            @RequestBody Map<String, Object> req) {
