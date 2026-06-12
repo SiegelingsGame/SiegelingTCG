@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=169">
+    <link rel="stylesheet" href="/css/style.css?v=170">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -719,6 +719,21 @@
     if (isLocal && panel) {
         panel.classList.remove('hidden');
     }
+})();
+</script>
+<script>
+// Apply the player's chosen page art (picked in Home > Settings > Art
+// Gallery) before the board renders so the backdrop never pops in late.
+(function () {
+    try {
+        var art = JSON.parse(localStorage.getItem('sieglingsPageArt') || 'null');
+        if (!art) return;
+        var portrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
+        var url = portrait ? (art.portrait || art.landscape) : (art.landscape || art.portrait);
+        if (!url) return;
+        document.documentElement.style.setProperty('--page-art', 'url("' + url + '")');
+        document.body.classList.add('has-custom-art');
+    } catch (error) { /* default backdrop */ }
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>

@@ -10,8 +10,8 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=159">
-    <link rel="stylesheet" href="/css/home.css?v=75">
+    <link rel="stylesheet" href="/css/style.css?v=160">
+    <link rel="stylesheet" href="/css/home.css?v=76">
 </head>
 <body>
 <div class="home-shell">
@@ -57,6 +57,19 @@
     </div>
 
     <div class="hub-loading-bar hidden" id="hubLoadingBar" role="progressbar" aria-label="Loading" aria-hidden="true"></div>
+
+    <div class="loading-art-screen hidden" id="loadingArtScreen" aria-hidden="true">
+        <div class="loading-art-frame">
+            <span class="loading-art-label" id="loadingArtLabel">Loading...</span>
+            <div class="loading-art-bar"><span></span></div>
+            <span class="loading-art-title" id="loadingArtTitle"></span>
+        </div>
+    </div>
+
+    <div class="art-lightbox hidden" id="artLightbox" role="dialog" aria-label="Artwork preview">
+        <img id="artLightboxImg" alt="">
+        <span class="art-lightbox-title" id="artLightboxTitle"></span>
+    </div>
 
     <main class="home-main">
         <section class="starter-gate hidden" id="starterGate">
@@ -360,7 +373,7 @@
 <script src="/js/game.js?v=170"></script>
 <script src="/js/card-binder-visual.js?v=3"></script>
 <script src="/js/achievements.js?v=5"></script>
-<script src="/js/home.js?v=82"></script>
+<script src="/js/home.js?v=83"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
