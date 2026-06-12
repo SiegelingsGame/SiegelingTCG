@@ -91,7 +91,7 @@ public class AIService {
                 state.recordSieglingSetupActionConsumed(false);
                 state.getEnemy().removeFromHand(card);
                 if (evolutionPlacement && existing != null) {
-                    state.log(existing.getName() + " evolved into " + siegling.getName() + "!");
+                    state.log(existing.getName() + " evolved to " + siegling.getName() + "!");
                 } else {
                     state.log("AI places " + siegling.getName() + " at row " + rowName(chosen[0]) + " col " + chosen[1]);
                 }
