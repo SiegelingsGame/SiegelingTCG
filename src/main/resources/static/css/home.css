@@ -956,11 +956,124 @@ select.search-input { color-scheme: dark; }
     display: grid;
     gap: 6px;
     padding: 8px;
+    justify-items: center;
     border: 1px solid color-mix(in srgb, var(--rarity, var(--accent)) 44%, rgba(255, 255, 255, 0.14));
     border-radius: 10px;
     background:
         radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--el, var(--accent)) 20%, transparent), transparent 38%),
         rgba(255, 255, 255, 0.045);
+}
+
+.daily-offer-tile.is-previewed {
+    border-color: color-mix(in srgb, var(--accent) 62%, var(--rarity, #ffffff));
+    box-shadow:
+        0 0 0 1px rgba(255, 215, 0, 0.18),
+        0 0 24px color-mix(in srgb, var(--rarity, var(--accent)) 28%, transparent);
+}
+
+.daily-card-preview.card-tile {
+    width: 100%;
+    min-height: 0;
+    cursor: pointer;
+    transform: none;
+}
+
+.daily-card-preview.card-tile:hover {
+    transform: none;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.daily-card-preview.card-tile.framed-binder-tile .binder-framed-slot {
+    max-width: none;
+    width: 100%;
+    padding: 0;
+}
+
+.daily-card-preview .knight-card.has-knight-back {
+    width: 100%;
+    pointer-events: none;
+}
+
+.shop-card-preview-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(0, 0, 0, 0.62);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.shop-card-preview-panel {
+    position: relative;
+    width: min(780px, 100%);
+    max-height: calc(100dvh - 36px);
+    overflow: auto;
+    padding: 14px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 38%),
+        #0b1124;
+}
+
+.shop-card-preview-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    color: var(--text);
+    background: rgba(0, 0, 0, 0.36);
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.shop-card-preview-head {
+    padding-right: 38px;
+    margin-bottom: 12px;
+}
+
+.shop-card-preview-head h2 {
+    margin: 2px 0 4px;
+    color: #f8fbff;
+    font-size: 24px;
+    line-height: 1.05;
+}
+
+.shop-card-preview-head span:not(.eyebrow) {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+
+.shop-card-preview-layout {
+    display: grid;
+    grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.shop-card-preview-layout .detail-card-preview-wrap {
+    min-width: 0;
+}
+
+.shop-card-preview-layout .detail-card-preview,
+.shop-card-preview-layout .knight-detail-preview {
+    width: min(100%, 250px);
+    margin: 0 auto;
+}
+
+.shop-card-preview-details {
+    min-width: 0;
 }
 
 .daily-card-front.binder-card {
@@ -7276,6 +7389,17 @@ body.gacha-active {
         padding-inline: 7px;
         font-size: 12px;
     }
+    #cardTrayBtn,
+    #playNowBtn {
+        order: 0;
+    }
+    #joinByCodeBtn,
+    #supportBtn {
+        order: 1;
+    }
+    #authHudBtn {
+        order: 2;
+    }
     .gold-pill {
         grid-column: span 1;
         display: flex;
@@ -7283,6 +7407,25 @@ body.gacha-active {
         justify-content: center;
         text-align: center;
         order: -1;
+    }
+    .shop-card-preview-modal {
+        align-items: end;
+        padding: 10px 10px calc(194px + env(safe-area-inset-bottom, 0px));
+    }
+    .shop-card-preview-panel {
+        max-height: calc(100dvh - 216px - env(safe-area-inset-bottom, 0px));
+        padding: 12px;
+    }
+    .shop-card-preview-layout {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    .shop-card-preview-layout .detail-card-preview,
+    .shop-card-preview-layout .knight-detail-preview {
+        width: min(100%, 190px);
+    }
+    .shop-card-preview-head h2 {
+        font-size: 21px;
     }
     .deck-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));

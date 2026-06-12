@@ -11,7 +11,7 @@
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
     <link rel="stylesheet" href="/css/style.css?v=159">
-    <link rel="stylesheet" href="/css/home.css?v=74">
+    <link rel="stylesheet" href="/css/home.css?v=75">
 </head>
 <body>
 <div class="home-shell">
@@ -319,6 +319,13 @@
         </div>
     </div>
 
+    <div class="shop-card-preview-modal hidden" id="shopCardPreviewModal" data-shop-card-preview-backdrop role="dialog" aria-modal="true" aria-labelledby="shopCardPreviewTitle">
+        <div class="shop-card-preview-panel panel">
+            <button class="shop-card-preview-close" type="button" data-close-shop-card-preview aria-label="Close card preview">&times;</button>
+            <div id="shopCardPreviewBody"></div>
+        </div>
+    </div>
+
     <div class="deck-preview-modal hidden" id="deckPreviewModal" role="dialog" aria-modal="true" aria-labelledby="deckPreviewTitle">
         <div class="deck-preview-panel panel">
             <div class="section-head deck-preview-head">
@@ -357,7 +364,7 @@
 <script src="/js/game.js?v=170"></script>
 <script src="/js/card-binder-visual.js?v=3"></script>
 <script src="/js/achievements.js?v=5"></script>
-<script src="/js/home.js?v=81"></script>
+<script src="/js/home.js?v=82"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
