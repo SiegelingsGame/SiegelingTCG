@@ -1,3 +1,5 @@
+@import url("/css/holographic.css?v=2");
+
 :root {
     --card-aspect-ratio: 5 / 7;
     --card-scale: 1;
@@ -10248,6 +10250,33 @@ body.placement-active .board-cell.legal {
         0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
+.knight-card.knight-full-card-art {
+    position: relative;
+    aspect-ratio: 639 / 919;
+    border: 0;
+    border-radius: 8%;
+    padding: 0;
+    overflow: hidden;
+    background: #15171d;
+    box-shadow:
+        0 16px 34px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.knight-card.knight-full-card-art::before,
+.knight-card.knight-full-card-art::after {
+    display: none;
+}
+
+.knight-card.knight-full-card-art > img {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+}
+
 .knight-card.has-knight-back::before,
 .knight-card.has-knight-back::after {
     display: none;
@@ -10310,7 +10339,8 @@ body.placement-active .board-cell.legal {
     opacity: 0;
 }
 
-.knight-card.has-knight-back .knight-card-body {
+.knight-card.has-knight-back .knight-card-body,
+.knight-card.knight-full-card-art .knight-card-body {
     position: absolute;
     z-index: 4;
     left: 9.8%;
@@ -10328,7 +10358,8 @@ body.placement-active .board-cell.legal {
     font-size: 9px;
 }
 
-.knight-card.has-knight-back .knight-card-name {
+.knight-card.has-knight-back .knight-card-name,
+.knight-card.knight-full-card-art .knight-card-name {
     color: #fff6d8;
     font-size: 1.28em;
     line-height: 1;
@@ -10339,7 +10370,8 @@ body.placement-active .board-cell.legal {
     text-overflow: ellipsis;
 }
 
-.knight-card.has-knight-back .knight-card-meta {
+.knight-card.has-knight-back .knight-card-meta,
+.knight-card.knight-full-card-art .knight-card-meta {
     justify-content: center;
     gap: 3px;
     font-size: 0.72em;
@@ -10347,17 +10379,21 @@ body.placement-active .board-cell.legal {
     margin-bottom: 1px;
 }
 
-.knight-card.has-knight-back .knight-card-meta span {
+.knight-card.has-knight-back .knight-card-meta span,
+.knight-card.knight-full-card-art .knight-card-meta span {
     min-width: 0;
 }
 
 .knight-card.has-knight-back .knight-rarity,
-.knight-card.has-knight-back .knight-tier {
+.knight-card.has-knight-back .knight-tier,
+.knight-card.knight-full-card-art .knight-rarity,
+.knight-card.knight-full-card-art .knight-tier {
     padding: 1px 3px;
     border-radius: 4px;
 }
 
-.knight-card.has-knight-back .knight-card-ability {
+.knight-card.has-knight-back .knight-card-ability,
+.knight-card.knight-full-card-art .knight-card-ability {
     display: block;
     overflow: hidden;
     min-height: 0;
@@ -10374,7 +10410,8 @@ body.placement-active .board-cell.legal {
     overflow-wrap: anywhere;
 }
 
-.knight-card.has-knight-back .knight-card-ability > span {
+.knight-card.has-knight-back .knight-card-ability > span,
+.knight-card.knight-full-card-art .knight-card-ability > span {
     display: inline;
     margin-right: 3px;
     color: #ffea5c;
@@ -10382,7 +10419,8 @@ body.placement-active .board-cell.legal {
     letter-spacing: 0;
 }
 
-.knight-card.has-knight-back .knight-card-body.is-fitted .knight-card-ability {
+.knight-card.has-knight-back .knight-card-body.is-fitted .knight-card-ability,
+.knight-card.knight-full-card-art .knight-card-body.is-fitted .knight-card-ability {
     overflow: visible;
 }
 

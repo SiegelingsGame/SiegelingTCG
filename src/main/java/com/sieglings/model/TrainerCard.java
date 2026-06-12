@@ -33,7 +33,7 @@ public class TrainerCard extends Card {
     }
 
     public TrainerCard copy() {
-        return new TrainerCard(
+        TrainerCard copy = new TrainerCard(
                 getId(),
                 getName(),
                 getElement(),
@@ -43,6 +43,14 @@ public class TrainerCard extends Card {
                 activeAbility == null ? null : activeAbility.copy(),
                 oncePerGame
         );
+        copy.setCardArtUrl(getCardArtUrl());
+        copy.setCardArtMode(getCardArtMode());
+        copy.setCardArtOffsetX(getCardArtOffsetX());
+        copy.setCardArtOffsetY(getCardArtOffsetY());
+        copy.setCardArtScale(getCardArtScale());
+        copy.setCardArtRotation(getCardArtRotation());
+        copy.setHolographic(isHolographic());
+        return copy;
     }
 
     public boolean canUseActive() {
