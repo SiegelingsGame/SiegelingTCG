@@ -698,12 +698,28 @@ public class PlayerProgressionService {
         return normalized.isBlank() ? null : normalized;
     }
 
+    /** Records pack-dropped holographic finishes on the player's collection. */
+    private void applyHolographicDrops(PlayerProgressionEntity progression, PackCatalogService.PackOpenResult result) {
+        if (result.holoCardIds() == null || result.holoCardIds().isEmpty()) {
+            return;
+        }
+        if (progression.getHolographicCardIds() == null) {
+            progression.setHolographicCardIds(new ArrayList<>());
+        }
+        for (String cardId : result.holoCardIds()) {
+            if (!progression.getHolographicCardIds().contains(cardId)) {
+                progression.getHolographicCardIds().add(cardId);
+            }
+        }
+    }
+
     private void addPackHistory(PlayerProgressionEntity progression,
                                 PackCatalogService.PackOpenResult result,
                                 List<CardGrantOutcome> outcomes,
                                 TrainerGrantOutcome trainerOutcome,
                                 int price,
                                 String source) {
+        applyHolographicDrops(progression, result);
         Map<String, Object> entry = new LinkedHashMap<>();
         entry.put("packId", result.pack().id());
         entry.put("packName", result.pack().name());
@@ -734,6 +750,7 @@ public class PlayerProgressionService {
             cardEntry.put("type", card.getCardType().name());
             cardEntry.put("element", card.getElement().name());
             cardEntry.put("rarity", card.getRarity().name());
+            cardEntry.put("holo", result.holoCardIds() != null && result.holoCardIds().contains(card.getId()));
             cardEntry.put("granted", outcome.grantedCopy());
             cardEntry.put("duplicateAtCap", !outcome.grantedCopy());
             cardEntry.put("remnantsAwarded", outcome.remnantsAwarded());
