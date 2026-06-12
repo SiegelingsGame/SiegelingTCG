@@ -72,6 +72,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -159,6 +160,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -217,6 +219,7 @@ class ManualSieglingCatalogTest {
                 "EARTH+FIRE",
                 null,
                 List.of(),
+                null,
                 null,
                 null,
                 null,
@@ -284,6 +287,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -330,6 +334,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 List.of(),
+                null,
                 null,
                 null,
                 null,
@@ -394,6 +399,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -445,6 +451,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -490,7 +497,8 @@ class ManualSieglingCatalogTest {
                 12.5,
                 -8.0,
                 1.35,
-                -15.0
+                -15.0,
+                null
         );
 
         MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
@@ -594,6 +602,7 @@ class ManualSieglingCatalogTest {
                 null,
                 "data:image/png;base64,abc",
                 "REPLACE",
+                null,
                 null,
                 null,
                 null,

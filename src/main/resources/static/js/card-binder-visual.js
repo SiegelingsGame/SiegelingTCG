@@ -129,12 +129,39 @@
         return Boolean(fullCardArtUrl(card));
     }
 
+    function isHolographic(card, options = {}) {
+        if (card?.holographic === true) {
+            return true;
+        }
+        const ids = options.playerHolographicIds || options.holographicCardIds;
+        const cardId = String(card?.id || '').trim().toLowerCase();
+        if (!cardId || !ids) {
+            return false;
+        }
+        if (ids instanceof Set) {
+            return ids.has(cardId);
+        }
+        if (Array.isArray(ids)) {
+            return ids.some((entry) => String(entry || '').trim().toLowerCase() === cardId);
+        }
+        return false;
+    }
+
+    function holographicClass(card, options = {}) {
+        return isHolographic(card, options) ? ' is-holographic' : '';
+    }
+
+    function renderHolographicOverlay() {
+        return '<div class="card-holographic-overlay" aria-hidden="true"></div>';
+    }
+
     function renderFullCardArt(card, options = {}) {
         const artUrl = fullCardArtUrl(card);
         if (!artUrl) return '';
         const extraClass = options.previewClass ? ` ${options.previewClass}` : '';
-        return `<div class="binder-full-card-art${extraClass}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
+        return `<div class="binder-full-card-art${extraClass}${holographicClass(card, options)}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
             <img src="${escapeAttr(artUrl)}" alt="${escapeAttr(card?.name || 'Full art card')}" loading="lazy">
+            ${isHolographic(card, options) ? renderHolographicOverlay() : ''}
         </div>`;
     }
 
@@ -322,7 +349,8 @@
             descriptionText: options.descriptionText
         });
         if (framed) {
-            return `<div class="mulligan-card-slot binder-framed-slot" aria-hidden="true">${framed}</div>`;
+            const holoClass = holographicClass(card, options);
+            return `<div class="mulligan-card-slot binder-framed-slot${holoClass}" aria-hidden="true">${framed}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
         }
         return renderBinderCardShell(card, options);
     }
@@ -347,7 +375,7 @@
         }
         const shell = renderBinderCardShell(card, options);
         const modeClass = resolveArtModeClass(card);
-        return `<div class="binder-card card-visual-preview${extraClass}${modeClass}" style="--el:${elementColor(element)}">${shell}</div>`;
+        return `<div class="binder-card card-visual-preview${extraClass}${modeClass}${holographicClass(card, options)}" style="--el:${elementColor(element)}">${shell}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
     }
 
     window.SieglingsCardBinderVisual = {
@@ -360,6 +388,8 @@
         elementColor,
         usesFramedCardTemplate,
         usesFullCardArt,
+        isHolographic,
+        holographicClass,
         normalizeArtMode,
         normalizeArtTransform,
         buildArtTransformStyle,

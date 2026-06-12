@@ -1,3 +1,5 @@
+@import url("/css/holographic.css?v=2");
+
 :root {
     --card-aspect-ratio: 5 / 7;
     --card-scale: 1;

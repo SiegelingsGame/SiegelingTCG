@@ -1261,6 +1261,9 @@ public class GameController {
                 m.put("cardArtRotation", card.getCardArtRotation());
             }
         }
+        if (card.isHolographic()) {
+            m.put("holographic", true);
+        }
 
         return m;
     }
@@ -1346,6 +1349,9 @@ public class GameController {
         }
         if (card.getCardArtRotation() != null) {
             m.put("cardArtRotation", card.getCardArtRotation());
+        }
+        if (card.isHolographic()) {
+            m.put("holographic", true);
         }
     }
 

@@ -276,6 +276,9 @@ final class ManualSieglingCatalog {
         if (definition.cardArtRotation() != null) {
             card.setCardArtRotation(definition.cardArtRotation());
         }
+        if (definition.holographic() != null) {
+            card.setHolographic(definition.holographic());
+        }
     }
 
     private static void applySieglingMoveDefinition(SieglingCard card, String id,
@@ -652,7 +655,8 @@ final class ManualSieglingCatalog {
                     card.getCardArtOffsetX(),
                     card.getCardArtOffsetY(),
                     card.getCardArtScale(),
-                    card.getCardArtRotation()
+                    card.getCardArtRotation(),
+                    card.isHolographic()
             );
         }
         if (card instanceof SpellCard spell) {
@@ -683,7 +687,8 @@ final class ManualSieglingCatalog {
                     spell.getCardArtOffsetX(),
                     spell.getCardArtOffsetY(),
                     spell.getCardArtScale(),
-                    spell.getCardArtRotation()
+                    spell.getCardArtRotation(),
+                    spell.isHolographic()
             );
         }
         if (card instanceof TrapCard trap) {
@@ -714,7 +719,8 @@ final class ManualSieglingCatalog {
                     trap.getCardArtOffsetX(),
                     trap.getCardArtOffsetY(),
                     trap.getCardArtScale(),
-                    trap.getCardArtRotation()
+                    trap.getCardArtRotation(),
+                    trap.isHolographic()
             );
         }
         throw new IllegalStateException("Unsupported card type for override export: " + card.getClass().getSimpleName());
@@ -797,7 +803,8 @@ final class ManualSieglingCatalog {
             Double cardArtOffsetX,
             Double cardArtOffsetY,
             Double cardArtScale,
-            Double cardArtRotation
+            Double cardArtRotation,
+            Boolean holographic
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)

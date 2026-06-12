@@ -22,6 +22,8 @@ public class PlayerProgressionEntity {
     private int onlineWinStreak;
     private List<String> purchasedTitleIds = new ArrayList<>();
     private int craftCount;
+    /** Card or SiegeKnight ids the player upgraded to a holographic foil finish. */
+    private List<String> holographicCardIds = new ArrayList<>();
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -70,6 +72,10 @@ public class PlayerProgressionEntity {
     }
     public int getCraftCount() { return craftCount; }
     public void setCraftCount(int craftCount) { this.craftCount = Math.max(0, craftCount); }
+    public List<String> getHolographicCardIds() { return holographicCardIds; }
+    public void setHolographicCardIds(List<String> holographicCardIds) {
+        this.holographicCardIds = holographicCardIds == null ? new ArrayList<>() : new ArrayList<>(holographicCardIds);
+    }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

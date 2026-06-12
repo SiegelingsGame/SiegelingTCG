@@ -280,6 +280,7 @@
             "cardArtRotationInput",
             "cardArtRotationValue",
             "resetCardArtTransformBtn",
+            "cardHolographicCheckbox",
             "cardSummary",
             "jsonPreviewMode",
             "jsonPreview",
@@ -323,6 +324,7 @@
             "trainerRaritySelect",
             "trainerActiveCheckbox",
             "trainerOncePerGameCheckbox",
+            "trainerHolographicCheckbox",
             "trainerPassiveNameInput",
             "trainerPassiveDescriptionInput",
             "trainerPassiveTargetTypeSelect",
@@ -449,6 +451,17 @@
                     card.cardArtMode = "";
                 }
             });
+        });
+
+        refs.cardHolographicCheckbox?.addEventListener("change", (event) => {
+            const card = getSelectedCard();
+            if (!card) {
+                return;
+            }
+            card.holographic = Boolean(event.target.checked);
+            renderCardVisualPreview();
+            renderPreview();
+            queueValidation();
         });
 
         refs.cardArtFileInput?.addEventListener("change", async (event) => {
@@ -831,6 +844,7 @@
         refs.trainerRaritySelect.addEventListener("change", (event) => updateSelectedTrainerField("rarity", event.target.value));
         refs.trainerActiveCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("active", Boolean(event.target.checked)));
         refs.trainerOncePerGameCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("oncePerGame", Boolean(event.target.checked)));
+        refs.trainerHolographicCheckbox?.addEventListener("change", (event) => updateSelectedTrainerField("holographic", Boolean(event.target.checked)));
 
         bindTrainerAbilityFieldEvents("passive", {
             nameInput: refs.trainerPassiveNameInput,
@@ -1773,7 +1787,12 @@
         if (cardArtUrl && !cardArtMode) {
             cardArtMode = "REPLACE";
         }
-        return { cardArtUrl, cardArtMode, ...normalizeCardArtTransformFields(card) };
+        return {
+            cardArtUrl,
+            cardArtMode,
+            holographic: card?.holographic === true,
+            ...normalizeCardArtTransformFields(card)
+        };
     }
 
     function appendCardArtExport(exported, card) {
@@ -1797,6 +1816,9 @@
             if (rotation !== 0) {
                 exported.cardArtRotation = rotation;
             }
+        }
+        if (card?.holographic === true) {
+            exported.holographic = true;
         }
         return exported;
     }
@@ -2779,6 +2801,9 @@
             setInputValue(refs.cardArtUrlInput, card.cardArtUrl || "");
             refs.cardArtUrlInput.placeholder = defaultCardArtPath(card.id) || "/assets/cards/example.png";
         }
+        if (refs.cardHolographicCheckbox) {
+            refs.cardHolographicCheckbox.checked = Boolean(card.holographic);
+        }
         syncCardArtTransformControls(card);
         setupCardArtDragInteraction(card);
         attachCardArtPreviewErrorHandler(card);
@@ -3118,6 +3143,9 @@
         setInputValue(refs.trainerNameInput, trainer.name);
         refs.trainerActiveCheckbox.checked = Boolean(trainer.active);
         refs.trainerOncePerGameCheckbox.checked = Boolean(trainer.oncePerGame);
+        if (refs.trainerHolographicCheckbox) {
+            refs.trainerHolographicCheckbox.checked = Boolean(trainer.holographic);
+        }
 
         renderTrainerAbilityEditor("passive", trainer.passiveAbility, {
             nameInput: refs.trainerPassiveNameInput,

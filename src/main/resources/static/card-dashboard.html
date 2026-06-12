@@ -17,6 +17,7 @@
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
     <link rel="stylesheet" href="/css/home.css?v=45">
     <link rel="stylesheet" href="/css/card-dashboard.css?v=17">
+    <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
 <div class="dashboard-shell">
@@ -378,6 +379,10 @@
                             <span>Full card</span>
                         </label>
                     </div>
+                    <label class="toggle-field card-holographic-toggle">
+                        <input id="cardHolographicCheckbox" type="checkbox">
+                        <span>Holographic foil effect</span>
+                    </label>
                     <div class="inline-actions card-art-actions">
                         <label class="btn btn-secondary file-btn" for="cardArtFileInput">Upload Image</label>
                         <input id="cardArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
@@ -640,6 +645,10 @@
                     <label class="toggle-field">
                         <input id="trainerOncePerGameCheckbox" type="checkbox">
                         <span>Mark the active ability as once per game</span>
+                    </label>
+                    <label class="toggle-field">
+                        <input id="trainerHolographicCheckbox" type="checkbox">
+                        <span>Holographic foil effect</span>
                     </label>
                 </section>
 

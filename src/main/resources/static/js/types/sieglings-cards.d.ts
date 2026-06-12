@@ -49,4 +49,6 @@ export interface SieglingCardModel {
     cardArtScale?: number;
     /** Rotation in degrees (-180 to 180). */
     cardArtRotation?: number;
+    /** Rainbow foil shimmer for binder, loadout, and preview surfaces. */
+    holographic?: boolean;
 }

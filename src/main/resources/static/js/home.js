@@ -1143,6 +1143,7 @@
                 cardArtOffsetY: trainer.cardArtOffsetY,
                 cardArtScale: trainer.cardArtScale,
                 cardArtRotation: trainer.cardArtRotation,
+                holographic: trainer.holographic === true,
                 abilities,
                 description: abilities.map(ability => ability.description).filter(Boolean).join(' ')
             };
@@ -1234,6 +1235,7 @@
     // (knight-card has-knight-back styles in style.css) while keeping the
     // binder data: tier, rarity, owned level, XP bar, passive/active text.
     function renderKnightBinderCard(card, options = {}) {
+        card = withPlayerHolographic(card);
         const elHex = elementColor(card.element);
         const elClass = String(card.element || 'NEUTRAL').toLowerCase();
         const rarityClass = String(card.rarity || 'common').toLowerCase();
@@ -1241,8 +1243,11 @@
             ? String(card.cardArtUrl || '').trim()
             : '';
         if (fullCardArtUrl) {
-            return `<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
+            const holoClass = card.holographic ? ' is-holographic' : '';
+            const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+            return `<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
                 <img src="${escapeAttr(fullCardArtUrl)}" alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy">
+                ${holoOverlay}
                 <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
             </div>`;
         }
@@ -1252,18 +1257,23 @@
         const iconPath = (typeof ELEMENT_KEY_ICON_PATHS !== 'undefined'
             && ELEMENT_KEY_ICON_PATHS[String(card.element || '').toUpperCase()]) || '';
         const elementIconStyle = iconPath ? `--knight-element-icon:url('${iconPath}');` : '';
-        return `<div class="knight-card has-knight-back knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
+        const holoClass = card.holographic ? ' is-holographic' : '';
+        const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+        return `<div class="knight-card has-knight-back knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
             <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
+            ${holoOverlay}
             <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
         </div>`;
     }
 
     function renderCardTile(card) {
+        card = withPlayerHolographic(card);
         const selected = card.id === state.selectedCardId ? ' selected' : '';
         const knightClass = card.type === 'SIEGEKNIGHT' ? ' siegeknight-binder-card' : '';
         const binderVisual = window.SieglingsCardBinderVisual;
+        const holoOptions = binderHolographicOptions();
         if (card.type === 'SIEGEKNIGHT') {
             return `<button class="card-tile binder-card framed-binder-tile knight-binder-tile${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
                 ${renderKnightBinderCard(card, { compact: true })}
@@ -1271,12 +1281,12 @@
         }
         if (binderVisual?.usesFullCardArt?.(card)) {
             return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-                ${binderVisual.renderBinderCardTile(card, { descriptionText: shopCardDescriptionFor(card) })}
+                ${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
             </button>`;
         }
         if (binderVisual?.usesFramedCardTemplate?.(card)) {
             return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-                ${binderVisual.renderBinderCardTile(card, { descriptionText: shopCardDescriptionFor(card) })}
+                ${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
             </button>`;
         }
         const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (binderVisual?.resolveArtModeClass(card) || '');
@@ -1287,16 +1297,18 @@
 
     function renderDetail() {
         const panel = document.getElementById('detailPanel');
-        const card = selectedCard();
+        let card = selectedCard();
         if (!panel) return;
         if (!card) {
             panel.innerHTML = '<div class="unlock-card"><strong>Card details loading</strong><span>Select a card from Cards or Decks to inspect art, abilities, notches, and energy costs.</span></div>';
             return;
         }
+        card = withPlayerHolographic(card);
         const abilities = card.abilities || (card.ability ? [card.ability] : []);
         const flavorText = creatureDescriptionFor(card);
         const isSiegeknight = card.type === 'SIEGEKNIGHT';
         const craftCost = remnantCraftCost(card);
+        const holoCost = remnantHolographicCost(card);
         const remnants = remnantBalance();
         const canCraft = !isSiegeknight && state.profile?.authenticated && state.progression?.starterChosen && remnants >= craftCost;
         const craftLabel = state.profile?.authenticated
@@ -1307,6 +1319,15 @@
         const knightLevel = isSiegeknight ? Math.max(1, trainerOwnedLevel(card.id) || card.level || 1) : 0;
         const trainerEntry = isSiegeknight ? trainerOwnedEntry(card.id) : null;
         const ownedKnight = isSiegeknight && trainerOwnedLevel(card.id) > 0;
+        const ownedForHolo = isSiegeknight ? ownedKnight : ownedCount(card.id) > 0;
+        const catalogHolographic = Boolean(findCard(card.id)?.holographic);
+        const playerHolographic = playerOwnsHolographicFinish(card);
+        const alreadyHolographic = catalogHolographic || playerHolographic;
+        const canBuyHolographic = state.profile?.authenticated
+            && state.progression?.starterChosen
+            && ownedForHolo
+            && !alreadyHolographic;
+        const holoAffordable = remnants >= holoCost;
         const maxKnightLevel = Number(trainerEntry?.maxLevel) || 5;
         const atMaxKnightLevel = ownedKnight && knightLevel >= maxKnightLevel;
         const nextXpCost = ownedKnight && !atMaxKnightLevel
@@ -1326,7 +1347,8 @@
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id),
                 previewClass: 'detail-card-preview',
-                descriptionText: shopCardDescriptionFor(card)
+                descriptionText: shopCardDescriptionFor(card),
+                ...binderHolographicOptions()
             })
             : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
@@ -1360,6 +1382,22 @@
             <div class="detail-abilities">
             ${abilities.length ? abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('') : '<p class="detail-ability-empty">No printed ability.</p>'}
             </div>
+            <div class="detail-holographic-panel">
+                ${alreadyHolographic
+                    ? `<span class="detail-knight-hint">${catalogHolographic && !playerHolographic
+                        ? 'This card already has a built-in holographic finish.'
+                        : 'Holographic finish active in your binder and matches.'}</span>`
+                    : !state.profile?.authenticated
+                        ? '<span class="detail-knight-hint">Sign in to upgrade owned cards with a holographic finish.</span>'
+                        : !state.progression?.starterChosen
+                            ? '<span class="detail-knight-hint">Choose a starter pack before upgrading cards.</span>'
+                        : !ownedForHolo
+                            ? '<span class="detail-knight-hint">Own this card first to unlock a holographic finish.</span>'
+                            : `<button class="primary-btn holographic-buy-btn" type="button" id="buyHolographicFinishBtn"${canBuyHolographic ? '' : ' disabled'}>Holographic finish · ${holoCost.toLocaleString()} Remnants</button>
+                               <span class="detail-knight-hint">${holoAffordable
+                                    ? 'Only you see this foil shimmer in your binder and matches.'
+                                    : `Need ${holoCost.toLocaleString()} Remnants · you have ${remnants.toLocaleString()}.`}</span>`}
+            </div>
             ${isSiegeknight ? `<div class="detail-knight-xp-panel">
                 ${ownedKnight ? renderTrainerXpBar(card.id) : ''}
                 <div class="detail-knight-xp-action">
@@ -1378,6 +1416,7 @@
             ${state.route === 'deck-builder' && !isSiegeknight ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
         `;
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
+        document.getElementById('buyHolographicFinishBtn')?.addEventListener('click', () => purchaseHolographicFinish(card.id));
         document.getElementById('buyKnightXpBtn')?.addEventListener('click', () => buyKnightXp(card.id));
         document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
             if (state.route !== 'deck-builder') {
@@ -4108,6 +4147,67 @@
         return REMNANT_CRAFT_COSTS[String(card?.rarity || 'COMMON').toUpperCase()] || REMNANT_CRAFT_COSTS.COMMON;
     }
 
+    function playerHolographicCardIds() {
+        const raw = state.progression?.holographicCards;
+        if (!Array.isArray(raw)) {
+            return new Set();
+        }
+        return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
+    }
+
+    function playerOwnsHolographicFinish(card) {
+        const cardId = String(card?.id || '').trim().toLowerCase();
+        return Boolean(cardId && playerHolographicCardIds().has(cardId));
+    }
+
+    function cardShowsPlayerHolographic(card) {
+        if (!card) {
+            return false;
+        }
+        if (card.holographic === true) {
+            return true;
+        }
+        return playerOwnsHolographicFinish(card);
+    }
+
+    function withPlayerHolographic(card) {
+        if (!card) {
+            return card;
+        }
+        const holographic = cardShowsPlayerHolographic(card);
+        return holographic === Boolean(card.holographic) ? card : { ...card, holographic };
+    }
+
+    function remnantHolographicCost(card) {
+        return remnantCraftCost(card) * 4;
+    }
+
+    function applyProgressionUpdate(progression) {
+        if (!progression) {
+            return;
+        }
+        state.progression = progression;
+        if (state.profile?.authenticated) {
+            state.profile = { ...state.profile, progression };
+            saveCachedAuthProfile(state.profile);
+        }
+    }
+
+    function playHolographicUnlockAnimation() {
+        const wrap = document.querySelector('.detail-card-preview-wrap');
+        if (!wrap) {
+            return;
+        }
+        wrap.classList.remove('holographic-unlock-play');
+        void wrap.offsetWidth;
+        wrap.classList.add('holographic-unlock-play');
+        window.setTimeout(() => wrap.classList.remove('holographic-unlock-play'), 2400);
+    }
+
+    function binderHolographicOptions() {
+        return { playerHolographicIds: playerHolographicCardIds() };
+    }
+
     function collectionSummary() {
         const ownedCards = state.progression?.ownedCards || {};
         const catalog = state.options?.cardCatalog || [];
@@ -5065,6 +5165,46 @@
         renderGold();
         renderProfile();
         renderAchievements();
+    }
+
+    async function purchaseHolographicFinish(cardId) {
+        if (!state.profile?.authenticated) return openAuth();
+        const card = findCard(cardId);
+        const holoCost = remnantHolographicCost(card || { rarity: 'COMMON' });
+        if (!state.progression?.starterChosen) {
+            return alert('Choose a starter pack before upgrading cards.');
+        }
+        if (remnantBalance() < holoCost) {
+            return alert(`You need ${holoCost.toLocaleString()} Remnants for a holographic finish.`);
+        }
+        const btn = document.getElementById('buyHolographicFinishBtn');
+        const btnLabel = btn?.textContent || '';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Applying finish...';
+        }
+        const data = await fetchJson('/api/cards/holographic', { method: 'POST', body: JSON.stringify({ cardId }) });
+        if (data?.error) {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = btnLabel;
+            }
+            return alert(data.error);
+        }
+        if (!data?.progression) {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = btnLabel;
+            }
+            return alert('Unexpected server response. Refresh and try again.');
+        }
+        applyProgressionUpdate(data.progression);
+        playHolographicUnlockAnimation();
+        renderCards();
+        renderDetail();
+        renderHomeDashboard();
+        renderGold();
+        renderProfile();
     }
 
     async function buyKnightXp(trainerId) {

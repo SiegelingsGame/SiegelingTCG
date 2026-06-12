@@ -28,6 +28,8 @@ public abstract class Card {
     private Double cardArtOffsetY;
     private Double cardArtScale;
     private Double cardArtRotation;
+    /** When true, the card renders with a rainbow foil shimmer in binder and loadout views. */
+    private boolean holographic;
 
     protected Card() {}
 
@@ -67,4 +69,6 @@ public abstract class Card {
     public void setCardArtScale(Double cardArtScale) { this.cardArtScale = cardArtScale; }
     public Double getCardArtRotation() { return cardArtRotation; }
     public void setCardArtRotation(Double cardArtRotation) { this.cardArtRotation = cardArtRotation; }
+    public boolean isHolographic() { return holographic; }
+    public void setHolographic(boolean holographic) { this.holographic = holographic; }
 }

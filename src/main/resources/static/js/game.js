@@ -728,7 +728,7 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     const statusBadgesHtml = renderStatusBadgesForCell(cell);
 
     const heldClass = context.heldCard ? ' sgl-held-card' : '';
-    let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}${elementFrameClass(cell.element, cell.rarity)}">`;
+    let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}${elementFrameClass(cell.element, cell.rarity)}${holographicCardClass(cell)}">`;
     if (context.isActing) {
         html += `<div class="acting-badge">Acting</div>`;
     }
@@ -752,6 +752,7 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     html += renderCardStatPills(cell, { mode: 'board' });
     html += `</div>`;
     html += `</div>`;
+    html += holographicCardOverlay(cell);
     html += `</div>`;
     if (context.isLegal) {
         html += `<div class="evolve-prompt">Evolve</div>`;
@@ -3122,6 +3123,33 @@ function getCardPreviewEntries(card) {
     return entries;
 }
 
+function playerHolographicCardIds() {
+    const raw = authState.profile?.progression?.holographicCards;
+    if (!Array.isArray(raw)) {
+        return new Set();
+    }
+    return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
+}
+
+function cardShowsPlayerHolographic(card) {
+    if (!card) {
+        return false;
+    }
+    if (card.holographic === true) {
+        return true;
+    }
+    const cardId = String(card.id || '').trim().toLowerCase();
+    return cardId && playerHolographicCardIds().has(cardId);
+}
+
+function holographicCardClass(card) {
+    return cardShowsPlayerHolographic(card) ? ' is-holographic' : '';
+}
+
+function holographicCardOverlay(card) {
+    return cardShowsPlayerHolographic(card) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+}
+
 function renderShowcaseCard(card, options = {}) {
     if (!card) {
         return '';
@@ -3142,7 +3170,7 @@ function renderShowcaseCard(card, options = {}) {
     const frameClass = cardFrameClass(card).trim();
     const useCompactSummary = hasElementFrame(card.element) || options.compactSummary;
     const classes = ['hand-card', elemClass, cardTypeClass(card), options.cardClass, frameClass,
-        showcaseHasShield ? 'has-shield' : ''].filter(Boolean).join(' ');
+        showcaseHasShield ? 'has-shield' : '', holographicCardClass(card)].filter(Boolean).join(' ');
     const detailEntries = useCompactSummary ? [] : getCardPreviewEntries(card);
     const statLine = getCardSummaryStatLine(card);
     const bodyMode = options.bodyMode || 'full';
@@ -3197,6 +3225,7 @@ function renderShowcaseCard(card, options = {}) {
         html += `</div>`;
     }
     html += `</div>`;
+    html += holographicCardOverlay(card);
     html += `</div>`;
     return html;
 }
@@ -8353,10 +8382,13 @@ function renderLoadoutOptions() {
         const fullCardArtUrl = String(trainer.cardArtUrl || '').trim();
         const fullCardMode = String(trainer.cardArtMode || '').trim().toUpperCase() === 'FULL_CARD';
         if (fullCardArtUrl && fullCardMode) {
-            return `<button type="button" class="knight-card knight-full-card-art${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
+            const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+            return `<button type="button" class="knight-card knight-full-card-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
                 <img src="${escapeHtmlAttribute(fullCardArtUrl)}" alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy">
+                ${holoOverlay}
             </button>`;
         }
         return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
@@ -11509,7 +11541,7 @@ function renderHand() {
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
         const handFrameClass = cardFrameClass(card);
-        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
+        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}${holographicCardClass(card)}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
@@ -11552,6 +11584,7 @@ function renderHand() {
         }
         html += `</div>`; /* body */
         html += `</div>`; /* shell */
+        html += holographicCardOverlay(card);
         html += `</div>`; /* card */
     }
 
