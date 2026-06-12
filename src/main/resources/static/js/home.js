@@ -646,7 +646,14 @@
         bindCatalogSync();
         hydrateLoadingArtFromCache();
         applyCustomPageArt();
-        window.addEventListener('orientationchange', applyCustomPageArt);
+        // Swap page and profile art between portrait/landscape variants the
+        // moment the device rotates, so the full image always fits the screen.
+        const handleOrientationArtChange = () => {
+            applyCustomPageArt();
+            if (state.route === 'profile') safeRender(renderProfile);
+        };
+        window.addEventListener('orientationchange', handleOrientationArtChange);
+        window.matchMedia?.('(orientation: portrait)')?.addEventListener?.('change', handleOrientationArtChange);
         // Only show the top loading bar when there's nothing cached to paint yet;
         // otherwise the page is already populated and the refresh is silent.
         setHubLoading(!state.options);
@@ -3639,7 +3646,7 @@
     function renderProfileHero(view) {
         const { prefs, user, theme } = view;
         const profileArt = readStoredArt(PROFILE_ART_KEY);
-        const profileArtUrl = profileArt ? artImageFor(profileArt, false) : '';
+        const profileArtUrl = profileArt ? artImageFor(profileArt) : '';
         return `<section class="profile-hero${profileArtUrl ? ' has-art' : ''}"${profileArtUrl ? ` style="--profile-art:url('${escapeAttr(profileArtUrl)}')"` : ''}>
             <div class="profile-hero-effects" aria-hidden="true"><span></span><span></span><span></span></div>
             <div class="profile-hero-content">

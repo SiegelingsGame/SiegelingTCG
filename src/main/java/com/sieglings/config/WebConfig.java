@@ -42,6 +42,14 @@ public class WebConfig implements WebMvcConfigurer {
                         "classpath:/static/assets/cards/",
                         "file:" + uploadedCardArtDir + "/"
                 );
+        Path uploadedLoadingArtDir = Path.of("src", "main", "resources", "static", "img", "art", "loading")
+                .toAbsolutePath()
+                .normalize();
+        registry.addResourceHandler("/img/art/loading/**")
+                .addResourceLocations(
+                        "classpath:/static/img/art/loading/",
+                        "file:" + uploadedLoadingArtDir + "/"
+                );
     }
 
     @Override
