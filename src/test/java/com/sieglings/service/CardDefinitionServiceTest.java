@@ -217,7 +217,8 @@ class CardDefinitionServiceTest {
                 )
         ));
 
-        assertEquals(List.of("trainer_active"), service.getTrainerOptions().stream().map(Card::getId).toList());
+        List<String> trainerOptionIds = service.getTrainerOptions().stream().map(Card::getId).toList();
+        assertEquals(List.of("trainer_active", "squire-bob"), trainerOptionIds);
         assertEquals("Retired Marshal", service.getTrainerById("trainer_inactive").getName());
         assertEquals(true, service.hasTrainer("trainer_inactive"));
         assertEquals(false, service.isTrainerActive("trainer_inactive"));

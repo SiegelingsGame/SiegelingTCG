@@ -29,6 +29,7 @@ public class PlayerProgressionService {
     public static final int ONLINE_WIN_GOLD = 5;
     public static final int WIN_STREAK_GOLD = 2;
     public static final int PACK_OPEN_REMNANTS = 40;
+    public static final int TUTORIAL_GOLD_REWARD = 250;
     public static final int SOLO_WIN_REMNANTS = 20;
     public static final int ONLINE_WIN_REMNANTS = 30;
 
@@ -134,6 +135,32 @@ public class PlayerProgressionService {
         return saved;
     }
 
+    /**
+     * Grants the one-time tutorial rewards: a free re-open of the player's
+     * starter pack plus bonus Siegecoins. Guarded by the tutorialCompleted
+     * flag so it can only ever be claimed once per account.
+     */
+    public PlayerProgressionEntity completeTutorial(AccountUser user) {
+        PlayerProgressionEntity progression = getOrCreate(user);
+        if (progression.isTutorialCompleted()) {
+            throw new IllegalArgumentException("Tutorial rewards have already been claimed.");
+        }
+        String packId = progression.getStarterPackId();
+        if (packId == null || packId.isBlank()) {
+            throw new IllegalArgumentException("Choose a starter pack before claiming the tutorial reward.");
+        }
+        PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
+        List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
+        grantRemnants(progression, PACK_OPEN_REMNANTS);
+        progression.setGold(progression.getGold() + TUTORIAL_GOLD_REWARD);
+        progression.setTutorialCompleted(true);
+        addPackHistory(progression, result, outcomes, null, 0, "TUTORIAL");
+        progression.setUpdatedAt(Instant.now());
+        PlayerProgressionEntity saved = store.save(progression);
+        recordPackOpenedAsync(saved.getUserId());
+        return saved;
+    }
+
     public PlayerProgressionEntity openPack(AccountUser user, String packId) {
         PlayerProgressionEntity progression = getOrCreate(user);
         if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
@@ -193,6 +220,35 @@ public class PlayerProgressionService {
         List<String> purchased = new ArrayList<>(progression.getPurchasedDailyOfferIds());
         purchased.add(0, offer.id());
         progression.setPurchasedDailyOfferIds(purchased.stream().limit(90).toList());
+        progression.setUpdatedAt(Instant.now());
+        return store.save(progression);
+    }
+
+    public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId) {
+        PlayerProgressionEntity progression = getOrCreate(user);
+        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+            throw new IllegalArgumentException("Choose a starter pack before upgrading cards.");
+        }
+        String normalizedId = normalizeCardId(cardId);
+        if (!ownsHolographicTarget(progression, normalizedId)) {
+            throw new IllegalArgumentException("You must own this card before applying a holographic finish.");
+        }
+        if (hasHolographicFinish(progression, normalizedId)) {
+            throw new IllegalArgumentException("This card already has a holographic finish.");
+        }
+        Card card = findHolographicTarget(normalizedId);
+        if (card.isHolographic()) {
+            throw new IllegalArgumentException("This card already ships with a holographic finish.");
+        }
+        int cost = holographicCost(card);
+        if (progression.getRemnants() < cost) {
+            throw new IllegalArgumentException("Not enough Remnants for a holographic finish on " + card.getName() + ".");
+        }
+        progression.setRemnants(progression.getRemnants() - cost);
+        List<String> holographicIds = new ArrayList<>(
+                progression.getHolographicCardIds() == null ? List.of() : progression.getHolographicCardIds());
+        holographicIds.add(normalizedId);
+        progression.setHolographicCardIds(holographicIds);
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -349,6 +405,7 @@ public class PlayerProgressionService {
         out.put("ownedCards", progression.getOwnedCards());
         out.put("ownedTotal", ownedTotal(progression));
         out.put("ownedTrainers", serializeOwnedTrainers(progression));
+        out.put("tutorialCompleted", progression.isTutorialCompleted());
         out.put("customDeckUnlocked", ownedTotal(progression) >= CUSTOM_DECK_UNLOCK_COPIES);
         out.put("customDeckUnlockCopies", CUSTOM_DECK_UNLOCK_COPIES);
         out.put("starterPackId", progression.getStarterPackId());
@@ -359,6 +416,14 @@ public class PlayerProgressionService {
         out.put("soloWinStreak", progression.getSoloWinStreak());
         out.put("onlineWinStreak", progression.getOnlineWinStreak());
         out.put("craftCount", progression.getCraftCount());
+        List<String> holographicCards = progression.getHolographicCardIds() == null
+                ? List.of()
+                : progression.getHolographicCardIds();
+        out.put("holographicCards", holographicCards.stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
         if (playerTitleService != null) {
             out.put("playerTitles", playerTitleService.serializeTitlesForUser(user, progression));
         } else {
@@ -578,12 +643,83 @@ public class PlayerProgressionService {
         };
     }
 
+    public int holographicCost(Card card) {
+        return craftCost(card) * 4;
+    }
+
+    public boolean hasHolographicFinish(PlayerProgressionEntity progression, String cardId) {
+        if (progression == null) {
+            return false;
+        }
+        String normalizedId = normalizeCardId(cardId);
+        if (normalizedId == null) {
+            return false;
+        }
+        List<String> holographicCards = progression.getHolographicCardIds();
+        if (holographicCards == null || holographicCards.isEmpty()) {
+            return false;
+        }
+        return holographicCards.stream()
+                .map(this::normalizeCardId)
+                .anyMatch(normalizedId::equals);
+    }
+
+    private boolean ownsHolographicTarget(PlayerProgressionEntity progression, String cardId) {
+        String normalizedId = normalizeCardId(cardId);
+        if (normalizedId == null) {
+            return false;
+        }
+        for (Map.Entry<String, Integer> entry : progression.getOwnedCards().entrySet()) {
+            if (entry.getValue() != null && entry.getValue() > 0
+                    && normalizedId.equals(normalizeCardId(entry.getKey()))) {
+                return true;
+            }
+        }
+        if (progression.getTrainerLevels().containsKey(normalizedId)) {
+            return true;
+        }
+        return progression.getTrainerLevels().keySet().stream()
+                .anyMatch(key -> normalizedId.equals(normalizeTrainerId(key)));
+    }
+
+    private Card findHolographicTarget(String cardId) {
+        return cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(card -> cardId.equals(normalizeCardId(card.getId())))
+                .findFirst()
+                .orElseGet(() -> cardDefinitionService.getActiveTrainerById(cardId)
+                        .orElseThrow(() -> new IllegalArgumentException("Card not found.")));
+    }
+
+    private String normalizeCardId(String cardId) {
+        if (cardId == null) {
+            return null;
+        }
+        String normalized = cardId.trim().toLowerCase(java.util.Locale.ROOT);
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    /** Records pack-dropped holographic finishes on the player's collection. */
+    private void applyHolographicDrops(PlayerProgressionEntity progression, PackCatalogService.PackOpenResult result) {
+        if (result.holoCardIds() == null || result.holoCardIds().isEmpty()) {
+            return;
+        }
+        if (progression.getHolographicCardIds() == null) {
+            progression.setHolographicCardIds(new ArrayList<>());
+        }
+        for (String cardId : result.holoCardIds()) {
+            if (!progression.getHolographicCardIds().contains(cardId)) {
+                progression.getHolographicCardIds().add(cardId);
+            }
+        }
+    }
+
     private void addPackHistory(PlayerProgressionEntity progression,
                                 PackCatalogService.PackOpenResult result,
                                 List<CardGrantOutcome> outcomes,
                                 TrainerGrantOutcome trainerOutcome,
                                 int price,
                                 String source) {
+        applyHolographicDrops(progression, result);
         Map<String, Object> entry = new LinkedHashMap<>();
         entry.put("packId", result.pack().id());
         entry.put("packName", result.pack().name());
@@ -614,6 +750,7 @@ public class PlayerProgressionService {
             cardEntry.put("type", card.getCardType().name());
             cardEntry.put("element", card.getElement().name());
             cardEntry.put("rarity", card.getRarity().name());
+            cardEntry.put("holo", result.holoCardIds() != null && result.holoCardIds().contains(card.getId()));
             cardEntry.put("granted", outcome.grantedCopy());
             cardEntry.put("duplicateAtCap", !outcome.grantedCopy());
             cardEntry.put("remnantsAwarded", outcome.remnantsAwarded());

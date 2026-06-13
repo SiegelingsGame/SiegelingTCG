@@ -16,7 +16,8 @@
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
     <link rel="stylesheet" href="/css/home.css?v=45">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=16">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=17">
+    <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
 <div class="dashboard-shell">
@@ -94,6 +95,72 @@
         </div>
         <div class="status-file" id="filePathLabel"></div>
         <div class="status-message" id="statusMessage">Loading the current override file...</div>
+    </section>
+
+    <section class="panel loading-art-panel">
+        <h2 style="margin:0 0 4px;font-size:15px;">Loading Screen Art</h2>
+        <p class="section-help" style="margin:0 0 8px;">Upload landscape/portrait art for loading screens, the Art Gallery, and custom backgrounds. Files pairing by name (e.g. piece "ember-hollow" + both orientations) become one gallery entry.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input id="loadingArtPieceId" type="text" placeholder="Piece name (e.g. ember-hollow)" style="min-width:200px;">
+            <select id="loadingArtOrientation">
+                <option value="landscape">Landscape</option>
+                <option value="portrait">Portrait</option>
+            </select>
+            <label class="btn btn-secondary file-btn" for="loadingArtFileInput">Choose Image</label>
+            <input id="loadingArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;">
+            <button class="btn" id="loadingArtUploadBtn" type="button">Upload</button>
+            <span id="loadingArtStatus" class="section-help" style="margin:0;"></span>
+        </div>
+        <div id="loadingArtList" class="section-help" style="margin:8px 0 0;"></div>
+        <script>
+        (function () {
+            var fileInput = document.getElementById('loadingArtFileInput');
+            var status = document.getElementById('loadingArtStatus');
+            function setStatus(msg) { if (status) status.textContent = msg; }
+            function refreshList() {
+                fetch('/api/art/loading').then(function (r) { return r.json(); }).then(function (data) {
+                    var list = document.getElementById('loadingArtList');
+                    if (!list) return;
+                    var art = (data && data.art) || [];
+                    list.textContent = art.length
+                        ? 'Current pieces: ' + art.map(function (p) {
+                            var o = [p.landscape ? 'landscape' : '', p.portrait ? 'portrait' : ''].filter(Boolean).join(' + ');
+                            return p.title + ' (' + o + ')';
+                        }).join(' | ')
+                        : 'No loading art uploaded yet.';
+                }).catch(function () {});
+            }
+            fileInput?.addEventListener('change', function () {
+                setStatus(fileInput.files[0] ? fileInput.files[0].name + ' ready' : '');
+            });
+            document.getElementById('loadingArtUploadBtn')?.addEventListener('click', function () {
+                var pieceId = (document.getElementById('loadingArtPieceId')?.value || '').trim();
+                var file = fileInput?.files?.[0];
+                if (!pieceId) return setStatus('Enter a piece name first.');
+                if (!file) return setStatus('Choose an image file first.');
+                var form = new FormData();
+                form.append('pieceId', pieceId);
+                form.append('orientation', document.getElementById('loadingArtOrientation')?.value || 'landscape');
+                form.append('file', file);
+                var headers = {};
+                try {
+                    var token = localStorage.getItem('sieglingsCardEditorToken');
+                    if (token) headers['X-Card-Editor-Token'] = token;
+                } catch (e) { /* anonymous upload attempt */ }
+                setStatus('Uploading...');
+                fetch('/api/art/loading', { method: 'POST', body: form, headers: headers })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) return setStatus(res.d?.error || 'Upload failed. Sign in under Live Publishing first.');
+                        setStatus('Uploaded ' + res.d.url);
+                        if (fileInput) fileInput.value = '';
+                        refreshList();
+                    })
+                    .catch(function () { setStatus('Upload failed — network error.'); });
+            });
+            refreshList();
+        })();
+        </script>
     </section>
 
     <section class="dashboard-pages panel">
@@ -355,7 +422,7 @@
                         <h2>Cards Menu View</h2>
                     </div>
                 </div>
-                <p class="section-help card-visual-help">Replace art stays inside the icon frame; overlay art can extend across the full card. Use Upload Image on the live dashboard so art is stored in cloud storage (a https:// URL). Drag the art in the preview to reposition it; use the scale and rotation controls below. Publish from the header to apply globally in the game. Choose Default icon to revert. Sign in under Live Publishing before uploading or publishing. Notches always render above custom art.</p>
+                <p class="section-help card-visual-help">Replace art stays inside the icon frame; overlay art can extend across the full card; full card art is already complete and skips the template. Use Upload Image on the live dashboard so art is stored in cloud storage (a https:// URL). Drag replace or overlay art in the preview to reposition it; use the scale and rotation controls below. Publish from the header to apply globally in the game. Choose Default icon to revert. Sign in under Live Publishing before uploading or publishing. Notches always render above custom art.</p>
                 <div class="card-visual-stage" id="cardVisualStage">
                     <div class="validation-empty">Select a card to preview.</div>
                 </div>
@@ -373,7 +440,15 @@
                             <input type="radio" name="cardArtMode" value="OVERLAY">
                             <span>Overlay art</span>
                         </label>
+                        <label class="art-mode-option">
+                            <input type="radio" name="cardArtMode" value="FULL_CARD">
+                            <span>Full card</span>
+                        </label>
                     </div>
+                    <label class="toggle-field card-holographic-toggle">
+                        <input id="cardHolographicCheckbox" type="checkbox">
+                        <span>Holographic foil effect</span>
+                    </label>
                     <div class="inline-actions card-art-actions">
                         <label class="btn btn-secondary file-btn" for="cardArtFileInput">Upload Image</label>
                         <input id="cardArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
@@ -636,6 +711,10 @@
                     <label class="toggle-field">
                         <input id="trainerOncePerGameCheckbox" type="checkbox">
                         <span>Mark the active ability as once per game</span>
+                    </label>
+                    <label class="toggle-field">
+                        <input id="trainerHolographicCheckbox" type="checkbox">
+                        <span>Holographic foil effect</span>
                     </label>
                 </section>
 

@@ -728,7 +728,7 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     const statusBadgesHtml = renderStatusBadgesForCell(cell);
 
     const heldClass = context.heldCard ? ' sgl-held-card' : '';
-    let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}${elementFrameClass(cell.element, cell.rarity)}">`;
+    let html = `<div class="board-card hand-card arena-board-card${heldClass} ${elemClass}${hasShield ? ' has-shield' : ''}${elementFrameClass(cell.element, cell.rarity)}${holographicCardClass(cell)}">`;
     if (context.isActing) {
         html += `<div class="acting-badge">Acting</div>`;
     }
@@ -752,6 +752,7 @@ function buildArenaBoardCardMarkup(cell, context = {}) {
     html += renderCardStatPills(cell, { mode: 'board' });
     html += `</div>`;
     html += `</div>`;
+    html += holographicCardOverlay(cell);
     html += `</div>`;
     if (context.isLegal) {
         html += `<div class="evolve-prompt">Evolve</div>`;
@@ -3122,6 +3123,33 @@ function getCardPreviewEntries(card) {
     return entries;
 }
 
+function playerHolographicCardIds() {
+    const raw = authState.profile?.progression?.holographicCards;
+    if (!Array.isArray(raw)) {
+        return new Set();
+    }
+    return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
+}
+
+function cardShowsPlayerHolographic(card) {
+    if (!card) {
+        return false;
+    }
+    if (card.holographic === true) {
+        return true;
+    }
+    const cardId = String(card.id || card.cardId || card.definitionId || '').trim().toLowerCase();
+    return cardId && playerHolographicCardIds().has(cardId);
+}
+
+function holographicCardClass(card) {
+    return cardShowsPlayerHolographic(card) ? ' is-holographic' : '';
+}
+
+function holographicCardOverlay(card) {
+    return cardShowsPlayerHolographic(card) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+}
+
 function renderShowcaseCard(card, options = {}) {
     if (!card) {
         return '';
@@ -3142,7 +3170,7 @@ function renderShowcaseCard(card, options = {}) {
     const frameClass = cardFrameClass(card).trim();
     const useCompactSummary = hasElementFrame(card.element) || options.compactSummary;
     const classes = ['hand-card', elemClass, cardTypeClass(card), options.cardClass, frameClass,
-        showcaseHasShield ? 'has-shield' : ''].filter(Boolean).join(' ');
+        showcaseHasShield ? 'has-shield' : '', holographicCardClass(card)].filter(Boolean).join(' ');
     const detailEntries = useCompactSummary ? [] : getCardPreviewEntries(card);
     const statLine = getCardSummaryStatLine(card);
     const bodyMode = options.bodyMode || 'full';
@@ -3197,6 +3225,7 @@ function renderShowcaseCard(card, options = {}) {
         html += `</div>`;
     }
     html += `</div>`;
+    html += holographicCardOverlay(card);
     html += `</div>`;
     return html;
 }
@@ -5589,6 +5618,9 @@ function renderGameOverOverlay() {
         overlay.dataset.soundPlayed = '1';
         window.SieglingsSounds?.play(result === 'WIN' ? 'win' : 'lose');
     }
+    if (tutorialMatchActive && result === 'WIN' && authState?.token) {
+        void claimTutorialReward();
+    }
 
     document.getElementById('gameOverTitle').textContent = title;
     const msgEl = document.getElementById('gameOverMsg');
@@ -7900,6 +7932,9 @@ async function newGame() {
         });
     }
     const body = getSelectedLoadoutBody();
+    if (tutorialMatchActive) {
+        body.tutorial = true;
+    }
     let started = null;
     try {
         started = await api('new', 'POST', body, LOADOUT_ACTION_TIMEOUT_MS);
@@ -7929,6 +7964,9 @@ async function newGame() {
     }
     if (!started) {
         return;
+    }
+    if (tutorialMatchActive) {
+        showTutorialGoalsPanel();
     }
 }
 
@@ -8080,6 +8118,54 @@ function hydrateOnlineStateFromUrl() {
     }
 }
 
+// ── Tutorial match (new player onboarding) ──────────────────────────────
+// Activated by the home hub's pending loadout carrying tutorial:true. The
+// server starts the AI at 10 HP; winning claims the one-time reward.
+let tutorialMatchActive = false;
+let tutorialRewardRequested = false;
+
+const TUTORIAL_GOALS = [
+    'Place a Siegeling on your board',
+    'Play a Strategy card',
+    'Play a Deception card',
+    'Destroy an enemy Siegeling',
+    'Use your SiegeKnight ability',
+    'Win the match'
+];
+
+function showTutorialGoalsPanel() {
+    if (document.getElementById('tutorialGoalsPanel')) return;
+    const panel = document.createElement('aside');
+    panel.id = 'tutorialGoalsPanel';
+    panel.className = 'tutorial-goals-panel';
+    panel.innerHTML = `<button class="tutorial-goals-head" type="button">Tutorial Goals<span aria-hidden="true">&#9662;</span></button>
+        <ul>${TUTORIAL_GOALS.map(goal => `<li>${goal}</li>`).join('')}</ul>`;
+    document.body.appendChild(panel);
+    panel.querySelector('.tutorial-goals-head')?.addEventListener('click', () => panel.classList.toggle('is-collapsed'));
+}
+
+async function claimTutorialReward() {
+    if (tutorialRewardRequested) return;
+    tutorialRewardRequested = true;
+    try {
+        const resp = await fetch('/api/player/tutorial-complete', {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (data?.error) {
+            showMatchNoticeToast(String(data.error).toLowerCase().includes('already')
+                ? 'Tutorial already completed.'
+                : data.error);
+            return;
+        }
+        showMatchNoticeToast('Tutorial complete! A second starter pack and 250 Siegecoins were added to your account.');
+    } catch (error) {
+        tutorialRewardRequested = false;
+        showMatchNoticeToast('Could not claim tutorial rewards - they stay claimable on your next tutorial win.');
+    }
+}
+
 function applyPendingHomeLoadout() {
     let pending = null;
     try {
@@ -8093,6 +8179,7 @@ function applyPendingHomeLoadout() {
     if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
         return;
     }
+    tutorialMatchActive = Boolean(pending.tutorial);
     // Arrived from the Home hub with a chosen loadout — skip the welcome and go straight to the loadout.
     welcomeDismissed = true;
     if (pending.trainerId && gameOptions?.trainers?.some(trainer => trainer.id === pending.trainerId)) {
@@ -8349,6 +8436,18 @@ function renderLoadoutOptions() {
             topRibbon = '<span class="knight-selected-ribbon">Selected</span>';
         } else if (recommended) {
             topRibbon = '<span class="knight-recommend-ribbon">Recommended</span>';
+        }
+        const fullCardArtUrl = String(trainer.cardArtUrl || '').trim();
+        const fullCardMode = String(trainer.cardArtMode || '').trim().toUpperCase() === 'FULL_CARD';
+        if (fullCardArtUrl && fullCardMode) {
+            const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
+            const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+            return `<button type="button" class="knight-card knight-full-card-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+                ${topRibbon}
+                ${levelBadge}
+                <img src="${escapeHtmlAttribute(fullCardArtUrl)}" alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy">
+                ${holoOverlay}
+            </button>`;
         }
         return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
             ${topRibbon}
@@ -11500,7 +11599,7 @@ function renderHand() {
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
         const handFrameClass = cardFrameClass(card);
-        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
+        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}${holographicCardClass(card)}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
@@ -11543,6 +11642,7 @@ function renderHand() {
         }
         html += `</div>`; /* body */
         html += `</div>`; /* shell */
+        html += holographicCardOverlay(card);
         html += `</div>`; /* card */
     }
 

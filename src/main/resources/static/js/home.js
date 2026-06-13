@@ -215,10 +215,13 @@
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
+        builderRarityFilter: 'ALL',
         builderSort: 'owned-desc',
         builderVisibleLimit: 0,
         builderRenderTimer: null,
-        builderCardViewOpen: false,
+        notifications: [],
+        loadingArt: [],
+        friendRequestsOpen: false,
         friendMessage: '',
         friendMessageType: '',
         selectedDeckId: '',
@@ -250,6 +253,8 @@
         packOpeningPending: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
+        shopPreviewCardId: '',
+        shopCardPreviewOpen: false,
         catalogVersion: 0,
         catalogSyncBound: false,
         profileUserId: '',
@@ -273,8 +278,432 @@
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
 
+    function setHudMinimized(minimized) {
+        document.body.classList.toggle('hud-minimized', minimized);
+        document.getElementById('hudFab')?.classList.toggle('hidden', !minimized);
+        localStorage.setItem('sieglingsHudMinimized', minimized ? '1' : '0');
+    }
+
+    function openFriendsModal() {
+        document.getElementById('friendsModal')?.classList.remove('hidden');
+        state.activeChatPeer = null;
+        // Requests stay tucked behind the bell unless something is pending.
+        state.friendRequestsOpen = (state.profile?.incomingFriendRequests || []).length > 0;
+        document.getElementById('friendAddPop')?.classList.add('hidden');
+        showFriendsChatView(false);
+        renderFriends();
+        renderFriendRequests();
+        // Poll while the modal is open so presence and unread blinks stay
+        // live even away from the Social route.
+        if (state.profile?.authenticated) startSocialPolling();
+    }
+
+    function closeFriendsModal() {
+        document.getElementById('friendsModal')?.classList.add('hidden');
+        state.activeChatPeer = null;
+        showFriendsChatView(false);
+        if (!isSocialRoute()) stopSocialPolling();
+    }
+
+    // Swap the modal between the friends list and the full-screen chat. The
+    // chat is only reachable through a friend's Message button.
+    function showFriendsChatView(open) {
+        document.getElementById('friendsListView')?.classList.toggle('hidden', open);
+        document.getElementById('friendsChatView')?.classList.toggle('hidden', !open);
+        if (open) document.getElementById('friendAddPop')?.classList.add('hidden');
+        const title = document.getElementById('friendsPanelTitle');
+        if (title) title.textContent = open ? 'Chat' : 'Friends';
+    }
+
+    function toggleFriendAddPop(force) {
+        const pop = document.getElementById('friendAddPop');
+        if (!pop) return;
+        const open = typeof force === 'boolean' ? force : pop.classList.contains('hidden');
+        pop.classList.toggle('hidden', !open);
+        if (open) document.getElementById('friendEmailInput')?.focus();
+    }
+
+    // ── Per-friend unread chat tracking ─────────────────────────────────
+    // The threads API flags a thread unread when its latest message came
+    // from the peer; a locally stored "seen" timestamp clears the flag once
+    // the chat has been opened.
+    function chatSeenKey() {
+        return `sieglingsChatSeen:${state.profile?.user?.email || 'anon'}`;
+    }
+
+    function readChatSeen() {
+        try {
+            return JSON.parse(localStorage.getItem(chatSeenKey()) || '{}') || {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function markChatSeen(peerId) {
+        if (!peerId) return;
+        const seen = readChatSeen();
+        seen[peerId] = new Date().toISOString();
+        localStorage.setItem(chatSeenKey(), JSON.stringify(seen));
+    }
+
+    function friendHasUnread(email) {
+        const thread = (state.messageThreads || []).find(t => t.peerId === email);
+        if (!thread || !thread.unread || !thread.lastMessageAt) return false;
+        const seenAt = readChatSeen()[email];
+        // ISO-8601 timestamps compare correctly as strings.
+        return !seenAt || String(thread.lastMessageAt) > String(seenAt);
+    }
+
+    // ── Notification center ─────────────────────────────────────────────
+    // A client-side feed persisted per account. Entries are pushed directly
+    // at event sites (pack opened, mission claimed) and derived by diffing
+    // profile/progression snapshots on refresh (gold, titles, requests,
+    // missions, match results, level).
+    const NOTIF_LIMIT = 60;
+    const NOTIF_TYPE_LABELS = {
+        match: 'Match', mission: 'Missions', friend: 'Friends', gold: 'Rewards',
+        pack: 'Packs', title: 'Titles', badge: 'Badges', rank: 'Rank', server: 'Server'
+    };
+    let notifSnapshot = null;
+    let notifLoadedKey = '';
+
+    function notifStorageKey() {
+        return `sieglingsNotifs:${state.profile?.user?.email || 'anon'}`;
+    }
+
+    function loadNotifications() {
+        notifLoadedKey = notifStorageKey();
+        try {
+            state.notifications = JSON.parse(localStorage.getItem(notifStorageKey()) || '[]');
+        } catch (error) {
+            state.notifications = [];
+        }
+        if (!Array.isArray(state.notifications)) state.notifications = [];
+        renderNotifications();
+    }
+
+    function saveNotifications() {
+        localStorage.setItem(notifStorageKey(), JSON.stringify(state.notifications.slice(0, NOTIF_LIMIT)));
+    }
+
+    function pushNotification(type, title, body = '') {
+        state.notifications.unshift({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            type, title, body, time: Date.now(), read: false
+        });
+        state.notifications = state.notifications.slice(0, NOTIF_LIMIT);
+        saveNotifications();
+        renderNotifications();
+    }
+
+    function clearNotifications() {
+        state.notifications = [];
+        saveNotifications();
+        renderNotifications();
+    }
+
+    function renderNotifications() {
+        const unread = (state.notifications || []).filter(n => !n.read).length;
+        [document.getElementById('hudNotifBadge'), document.getElementById('hudFabBadge')].forEach(badge => {
+            if (!badge) return;
+            badge.textContent = unread > 9 ? '9+' : String(unread);
+            badge.classList.toggle('hidden', !unread);
+        });
+        const list = document.getElementById('notifList');
+        if (!list) return;
+        list.innerHTML = (state.notifications || []).length
+            ? state.notifications.map(n => `<div class="notif-row${n.read ? '' : ' is-unread'}">
+                <div class="notif-row-head">
+                    <span class="notif-type">${escapeHtml(NOTIF_TYPE_LABELS[n.type] || 'Update')}</span>
+                    <time>${escapeHtml(formatDateTime(n.time))}</time>
+                </div>
+                <strong>${escapeHtml(n.title)}</strong>
+                ${n.body ? `<p>${escapeHtml(n.body)}</p>` : ''}
+            </div>`).join('')
+            : '<div class="notif-empty">No notifications yet. Match results, rewards, invites, and unlocks will show up here.</div>';
+    }
+
+    function toggleNotifPanel(force) {
+        const panel = document.getElementById('notifPanel');
+        if (!panel) return;
+        const open = typeof force === 'boolean' ? force : panel.classList.contains('hidden');
+        panel.classList.toggle('hidden', !open);
+        document.getElementById('hudNotifBtn')?.classList.toggle('active', open);
+        if (!open) return;
+        renderNotifications();
+        // Opening the panel marks everything read; rows keep their unread
+        // styling until the next open so the player can still spot what's new.
+        if ((state.notifications || []).some(n => !n.read)) {
+            state.notifications.forEach(n => { n.read = true; });
+            saveNotifications();
+            [document.getElementById('hudNotifBadge'), document.getElementById('hudFabBadge')].forEach(badge => badge?.classList.add('hidden'));
+        }
+    }
+
+    function notifSnapshotFromState() {
+        const prog = state.progression || {};
+        const missions = state.dailyMissions?.missions || state.dailyMissions?.featured || [];
+        return {
+            gold: Number(prog.gold) || 0,
+            titles: (prog.playerTitles || []).filter(t => t.unlocked).map(t => t.id),
+            battleCount: (state.profile?.matchHistory || []).length,
+            latestBattleAt: state.profile?.matchHistory?.[0]?.finishedAt || '',
+            requests: (state.profile?.incomingFriendRequests || []).map(r => r.fromUserId || r.peerEmail),
+            missionsDone: missions.filter(m => m.completed).map(m => m.id),
+            level: Number(prog.level) || 0
+        };
+    }
+
+    function detectNotifications() {
+        if (!state.profile?.authenticated) {
+            notifSnapshot = null;
+            return;
+        }
+        const next = notifSnapshotFromState();
+        const prev = notifSnapshot;
+        notifSnapshot = next;
+        if (!prev) return;
+        if (next.gold > prev.gold) {
+            pushNotification('gold', `+${next.gold - prev.gold} Siegecoins earned`, `Wallet: ${next.gold} Siegecoins`);
+        }
+        next.titles.filter(id => !prev.titles.includes(id)).forEach(id => {
+            const title = (state.titleCatalog || []).find(t => t.id === id);
+            pushNotification('title', `Title earned: ${title?.name || id}`);
+        });
+        next.requests.filter(id => !prev.requests.includes(id)).forEach(id => {
+            const req = (state.profile?.incomingFriendRequests || []).find(r => (r.fromUserId || r.peerEmail) === id);
+            pushNotification('friend', `Friend request from ${req?.displayName || req?.peerEmail || 'a player'}`, 'Open Friends to accept or decline.');
+        });
+        const missions = state.dailyMissions?.missions || state.dailyMissions?.featured || [];
+        next.missionsDone.filter(id => !prev.missionsDone.includes(id)).forEach(id => {
+            const mission = missions.find(m => m.id === id);
+            pushNotification('mission', `Mission complete: ${mission?.title || 'Daily mission'}`, mission?.reward ? `Claim ${mission.reward} Siegecoins from the Home tab.` : '');
+        });
+        if (next.battleCount > prev.battleCount || (next.latestBattleAt && prev.latestBattleAt && next.latestBattleAt !== prev.latestBattleAt)) {
+            const row = (state.profile?.matchHistory || [])[0] || {};
+            const won = String(row.result || '').toUpperCase().includes('WIN');
+            pushNotification('match', `Match ${won ? 'won' : 'finished'}${row.opponentName ? ` vs ${row.opponentName}` : ''}`, 'See the full breakdown on your Profile.');
+        }
+        if (next.level > prev.level) {
+            pushNotification('rank', `Level up! You reached level ${next.level}`);
+        }
+    }
+
+    // ── Loading art, gallery, and custom backgrounds ─────────────────────
+    // Art pieces come from /api/art/loading, which scans
+    // static/img/art/loading for <id>-landscape.* / <id>-portrait.* pairs.
+    const PAGE_ART_KEY = 'sieglingsPageArt';
+    const PROFILE_ART_KEY = 'sieglingsProfileArt';
+    const ART_CACHE_KEY = 'sieglingsLoadingArtCache';
+
+    function prefersPortraitArt() {
+        return Boolean(window.matchMedia?.('(orientation: portrait)').matches);
+    }
+
+    function artImageFor(piece, preferPortrait = prefersPortraitArt()) {
+        if (!piece) return '';
+        return preferPortrait
+            ? (piece.portrait || piece.landscape || '')
+            : (piece.landscape || piece.portrait || '');
+    }
+
+    function hydrateLoadingArtFromCache() {
+        try {
+            state.loadingArt = JSON.parse(localStorage.getItem(ART_CACHE_KEY) || '[]') || [];
+        } catch (error) {
+            state.loadingArt = [];
+        }
+        if (!Array.isArray(state.loadingArt)) state.loadingArt = [];
+    }
+
+    async function loadLoadingArt() {
+        const data = await fetchJson('/api/art/loading');
+        if (!data || data.error) return;
+        state.loadingArt = Array.isArray(data.art) ? data.art : [];
+        // Cache the list so the very next visit can paint a loading screen
+        // before the network answers.
+        localStorage.setItem(ART_CACHE_KEY, JSON.stringify(state.loadingArt));
+    }
+
+    function showLoadingArtScreen(label) {
+        const screen = document.getElementById('loadingArtScreen');
+        if (!screen || !state.loadingArt.length) return 0;
+        const piece = state.loadingArt[Math.floor(Math.random() * state.loadingArt.length)];
+        const url = artImageFor(piece);
+        if (!url) return 0;
+        screen.style.backgroundImage = `url("${url}")`;
+        const labelEl = document.getElementById('loadingArtLabel');
+        if (labelEl) labelEl.textContent = label || 'Loading...';
+        const titleEl = document.getElementById('loadingArtTitle');
+        if (titleEl) titleEl.textContent = piece.title || '';
+        screen.classList.remove('hidden');
+        screen.setAttribute('aria-hidden', 'false');
+        return Date.now();
+    }
+
+    function hideLoadingArtScreen(shownAt) {
+        const screen = document.getElementById('loadingArtScreen');
+        if (!screen || screen.classList.contains('hidden')) return;
+        // Hold the art on screen briefly so a fast load doesn't flash it.
+        const wait = shownAt ? Math.max(0, 900 - (Date.now() - shownAt)) : 0;
+        window.setTimeout(() => {
+            screen.classList.add('hidden');
+            screen.setAttribute('aria-hidden', 'true');
+        }, wait);
+    }
+
+    function readStoredArt(key) {
+        try {
+            return JSON.parse(localStorage.getItem(key) || 'null');
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function applyCustomPageArt() {
+        const art = readStoredArt(PAGE_ART_KEY);
+        const url = art ? artImageFor(art) : '';
+        document.documentElement.style.setProperty('--page-art', url ? `url("${url}")` : 'none');
+        document.body.classList.toggle('has-custom-art', Boolean(url));
+    }
+
+    function setStoredArt(key, pieceId) {
+        const current = readStoredArt(key);
+        if (current?.id === pieceId) {
+            // Picking the active piece again toggles back to the default look.
+            localStorage.removeItem(key);
+        } else {
+            const piece = (state.loadingArt || []).find(item => item.id === pieceId);
+            if (!piece) return;
+            localStorage.setItem(key, JSON.stringify(piece));
+        }
+        applyCustomPageArt();
+        renderOptions();
+        if (state.route === 'profile') safeRender(renderProfile);
+    }
+
+    function openArtLightbox(pieceId) {
+        const piece = (state.loadingArt || []).find(item => item.id === pieceId);
+        const url = artImageFor(piece);
+        if (!url) return;
+        const img = document.getElementById('artLightboxImg');
+        const title = document.getElementById('artLightboxTitle');
+        if (img) {
+            img.src = url;
+            img.alt = piece.title || 'Artwork';
+        }
+        if (title) title.textContent = piece.title || '';
+        document.getElementById('artLightbox')?.classList.remove('hidden');
+    }
+
+    function closeArtLightbox() {
+        document.getElementById('artLightbox')?.classList.add('hidden');
+    }
+
+    // ── New player onboarding tour ───────────────────────────────────────
+    // A spotlight walkthrough of the HUD shown once per account after the
+    // starter pack is chosen, ending with the tutorial match offer.
+    const TOUR_STEPS = [
+        { target: '.nav-tabs', title: 'Navigate your hub', text: 'Home, Play, Cards, Decks, Social, Profile, and Shop all live here. Tap a tab to switch pages.' },
+        { target: '#playNowBtn', title: 'Play', text: 'Jump straight into a battle with your active loadout.' },
+        { target: '#goldPill', title: 'Siegecoins', text: 'Earn coins from matches and daily missions, then spend them on card packs in the Shop.' },
+        { target: '#friendsBtn', title: 'Friends & Chat', text: 'Add friends by email, accept invites, and message them from any page.' },
+        { target: '#hudNotifBtn', title: 'Notifications', text: 'Match results, rewards, mission completions, and unlocks collect here.' },
+        { target: '#optionsBtn', title: 'Settings', text: 'Game guides, the Art Gallery, profile sharing, and support live in Settings.' },
+        { target: null, title: 'Ready for your first siege?', text: 'Play the tutorial match: place a Siegeling, use a Strategy and a Deception, destroy an enemy Siegeling, and fire your Knight ability. Win and you earn a second starter pack plus bonus Siegecoins.' }
+    ];
+    let tourStepIndex = -1;
+
+    function tourStorageKey() {
+        return `sieglingsTourDone:${state.profile?.user?.email || 'anon'}`;
+    }
+
+    function maybeStartOnboardingTour() {
+        if (!state.profile?.authenticated || !state.progression?.starterChosen) return;
+        if (localStorage.getItem(tourStorageKey()) === '1') return;
+        if (document.getElementById('tourOverlay')) return;
+        startOnboardingTour();
+    }
+
+    function startOnboardingTour() {
+        endOnboardingTour(false);
+        const overlay = document.createElement('div');
+        overlay.id = 'tourOverlay';
+        overlay.className = 'tour-overlay';
+        overlay.innerHTML = `
+            <div class="tour-spotlight" id="tourSpotlight"></div>
+            <div class="tour-bubble" id="tourBubble">
+                <strong id="tourTitle"></strong>
+                <p id="tourText"></p>
+                <div class="tour-actions">
+                    <button class="ghost-btn compact-btn" type="button" id="tourSkipBtn">Skip</button>
+                    <span class="tour-count" id="tourCount"></span>
+                    <button class="primary-btn compact-btn" type="button" id="tourNextBtn">Next</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        document.getElementById('tourSkipBtn')?.addEventListener('click', () => endOnboardingTour(true));
+        tourStepIndex = -1;
+        advanceOnboardingTour();
+    }
+
+    function advanceOnboardingTour() {
+        tourStepIndex += 1;
+        const step = TOUR_STEPS[tourStepIndex];
+        if (!step) return endOnboardingTour(true);
+        const overlay = document.getElementById('tourOverlay');
+        const spotlight = document.getElementById('tourSpotlight');
+        const bubble = document.getElementById('tourBubble');
+        if (!overlay || !spotlight || !bubble) return;
+        const titleEl = document.getElementById('tourTitle');
+        const textEl = document.getElementById('tourText');
+        if (titleEl) titleEl.textContent = step.title;
+        if (textEl) textEl.textContent = step.text;
+        const countEl = document.getElementById('tourCount');
+        if (countEl) countEl.textContent = `${tourStepIndex + 1} / ${TOUR_STEPS.length}`;
+        const nextBtn = document.getElementById('tourNextBtn');
+        const finalStep = tourStepIndex === TOUR_STEPS.length - 1;
+        const target = step.target ? document.querySelector(step.target) : null;
+        const visibleTarget = target && !target.classList.contains('hidden') && target.getBoundingClientRect().width > 0 ? target : null;
+        if (finalStep) {
+            if (nextBtn) nextBtn.textContent = state.progression?.tutorialCompleted ? 'Finish' : 'Play Tutorial Match';
+        } else if (nextBtn) {
+            nextBtn.textContent = 'Next';
+        }
+        if (visibleTarget) {
+            const rect = visibleTarget.getBoundingClientRect();
+            const pad = 8;
+            spotlight.style.display = 'block';
+            spotlight.style.top = `${Math.max(0, rect.top - pad)}px`;
+            spotlight.style.left = `${Math.max(0, rect.left - pad)}px`;
+            spotlight.style.width = `${rect.width + pad * 2}px`;
+            spotlight.style.height = `${rect.height + pad * 2}px`;
+            // Place the bubble on whichever half of the screen has room.
+            bubble.classList.toggle('is-top', rect.top > window.innerHeight / 2);
+            bubble.classList.remove('is-centered');
+        } else {
+            spotlight.style.display = 'none';
+            bubble.classList.add('is-centered');
+        }
+        if (!nextBtn) return;
+        if (finalStep && !state.progression?.tutorialCompleted) {
+            nextBtn.onclick = () => {
+                endOnboardingTour(true);
+                goPlay({ mode: 'solo', tutorial: true, loadoutLabel: 'Tutorial Match' });
+            };
+        } else {
+            nextBtn.onclick = advanceOnboardingTour;
+        }
+    }
+
+    function endOnboardingTour(markDone) {
+        document.getElementById('tourOverlay')?.remove();
+        tourStepIndex = -1;
+        if (markDone) localStorage.setItem(tourStorageKey(), '1');
+    }
+
     function isMobileDeckBuilderViewport() {
-        return Boolean(window.matchMedia?.('(max-width: 700px)').matches);
+        return Boolean(window.matchMedia?.('(max-width: 900px)').matches);
     }
 
     function resetBuilderVisibleLimit() {
@@ -317,9 +746,22 @@
         // waiting on the network. loadAll() then revalidates in the background.
         safeRender(render);
         bindCatalogSync();
+        hydrateLoadingArtFromCache();
+        applyCustomPageArt();
+        // Swap page and profile art between portrait/landscape variants the
+        // moment the device rotates, so the full image always fits the screen.
+        const handleOrientationArtChange = () => {
+            applyCustomPageArt();
+            if (state.route === 'profile') safeRender(renderProfile);
+        };
+        window.addEventListener('orientationchange', handleOrientationArtChange);
+        window.matchMedia?.('(orientation: portrait)')?.addEventListener?.('change', handleOrientationArtChange);
         // Only show the top loading bar when there's nothing cached to paint yet;
         // otherwise the page is already populated and the refresh is silent.
         setHubLoading(!state.options);
+        // Cold load (no cached catalog): cover the wait with a loading screen
+        // art piece. Cached loads paint instantly, so no takeover there.
+        const loadingArtShownAt = !state.options ? showLoadingArtScreen('Loading your binder...') : 0;
         try {
             await loadAll();
             await syncCatalogIfVersionChanged();
@@ -331,7 +773,9 @@
             console.error('Init load failed', err);
         } finally {
             setHubLoading(false);
+            hideLoadingArtScreen(loadingArtShownAt);
             openSharedProfileFromUrl();
+            maybeStartOnboardingTour();
         }
     }
 
@@ -376,7 +820,6 @@
         document.getElementById('joinByCodeBtn')?.addEventListener('click', () => navigateHub('social'));
         document.getElementById('joinRoomBtn')?.addEventListener('click', joinRoomFromHome);
         document.getElementById('refreshRoomsBtn')?.addEventListener('click', () => refreshRooms(true));
-        document.getElementById('socialFilterBtn')?.addEventListener('click', () => toggleTray('filter'));
         document.getElementById('quickJoinBtn')?.addEventListener('click', quickJoinFirstRoom);
         document.getElementById('roomSearchInput')?.addEventListener('input', (event) => {
             state.roomSearch = event.target.value.trim().toLowerCase();
@@ -407,11 +850,37 @@
         document.getElementById('deckBuilderBackBtn')?.addEventListener('click', () => navigateHub('decks'));
         document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
-        document.getElementById('cardTrayBtn')?.addEventListener('click', () => toggleTray('card'));
-        document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
-        document.getElementById('supportBtn')?.addEventListener('click', () => {
-            window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
+        document.getElementById('cardTrayBtn')?.addEventListener('click', () => {
+            if (state.route === 'shop') {
+                openShopCardPreview();
+                return;
+            }
+            toggleTray('card');
         });
+        document.getElementById('hudMinimizeBtn')?.addEventListener('click', () => setHudMinimized(true));
+        document.getElementById('hudFab')?.addEventListener('click', () => setHudMinimized(false));
+        if (localStorage.getItem('sieglingsHudMinimized') === '1') setHudMinimized(true);
+        document.getElementById('optionsBtn')?.addEventListener('click', () => openOptions());
+        document.getElementById('friendsBtn')?.addEventListener('click', openFriendsModal);
+        document.getElementById('closeFriendsBtn')?.addEventListener('click', closeFriendsModal);
+        document.getElementById('friendsModal')?.addEventListener('click', (event) => {
+            if (event.target.id === 'friendsModal') closeFriendsModal();
+        });
+        document.getElementById('addFriendBtn')?.addEventListener('click', () => toggleFriendAddPop());
+        document.getElementById('friendRequestsBtn')?.addEventListener('click', () => {
+            state.friendRequestsOpen = !state.friendRequestsOpen;
+            renderFriendRequests();
+        });
+        document.getElementById('artLightbox')?.addEventListener('click', closeArtLightbox);
+        document.getElementById('hudNotifBtn')?.addEventListener('click', () => toggleNotifPanel());
+        document.getElementById('clearNotifsBtn')?.addEventListener('click', clearNotifications);
+        document.addEventListener('click', (event) => {
+            const panel = document.getElementById('notifPanel');
+            if (!panel || panel.classList.contains('hidden')) return;
+            if (panel.contains(event.target) || document.getElementById('hudNotifBtn')?.contains(event.target)) return;
+            toggleNotifPanel(false);
+        });
+        loadNotifications();
         document.getElementById('optionsModal')?.addEventListener('click', (event) => {
             if (event.target.id === 'optionsModal') { closeOptions(); return; }
             handleOptionsClick(event);
@@ -419,6 +888,11 @@
         document.getElementById('optionsModal')?.addEventListener('submit', handleOptionsSubmit);
         document.getElementById('optionsModal')?.addEventListener('input', handleOptionsInput);
         document.getElementById('trayBackdrop')?.addEventListener('click', closeTrays);
+        // The Card View tray re-renders per card, so the x buttons are bound
+        // by delegation rather than per render.
+        document.addEventListener('click', (event) => {
+            if (event.target.closest('[data-tray-close]')) closeTrays();
+        });
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
         document.getElementById('closeDeckPreviewBtn')?.addEventListener('click', closeDeckPreview);
@@ -495,6 +969,7 @@
         if (!state.selectedCardId) {
             state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
         }
+        void loadLoadingArt();
         await refreshRooms();
     }
 
@@ -506,6 +981,7 @@
             state.profileEditOpen = false;
             clearCachedAuthProfile();
             stopPresenceHeartbeat();
+            notifSnapshot = null;
             return null;
         }
         // Bypass the HTTP cache: a stale {authenticated:false} response (Safari
@@ -524,6 +1000,7 @@
             state.profileEditOpen = false;
             clearCachedAuthProfile();
             stopPresenceHeartbeat();
+            notifSnapshot = null;
             return null;
         }
         state.profile = data;
@@ -531,6 +1008,10 @@
         saveCachedAuthProfile(data);
         await loadDailyMissions();
         startPresenceHeartbeat();
+        // The feed is keyed per account, so reload it once we know who is
+        // signed in, then diff the fresh snapshot for new notifications.
+        if (notifStorageKey() !== notifLoadedKey) loadNotifications();
+        detectNotifications();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
             state.profilePrefs = { ...defaultProfilePrefs(data.user || {}), ...serverPrefs };
@@ -672,7 +1153,6 @@
             renderRooms();
             renderFriends();
             renderFriendRequests();
-            renderMessageThreads();
             startSocialPolling();
             stopLobbyPolling();
         } else if (state.route === 'lobby') {
@@ -728,6 +1208,10 @@
         if (!isBinderRoute() && !isSocialRoute()) {
             state.filterTrayOpen = false;
             state.cardTrayOpen = false;
+        }
+        if (state.route !== 'shop') {
+            state.shopCardPreviewOpen = false;
+            renderShopCardPreviewModal();
         }
         renderHudTools();
     }
@@ -842,6 +1326,12 @@
     function renderTrainerXpBar(trainerId, options = {}) {
         const entry = trainerOwnedEntry(trainerId);
         if (!entry) {
+            const fallbackLevel = trainerOwnedLevel(trainerId);
+            if (fallbackLevel > 0) {
+                return `<div class="trainer-xp-bar" aria-label="Level ${fallbackLevel}">
+                    <span class="trainer-xp-bar-label">Lv ${fallbackLevel}</span>
+                </div>`;
+            }
             if (options.unownedPlaceholder) {
                 return '<div class="trainer-xp-bar trainer-xp-bar--unowned"><span>Not owned</span></div>';
             }
@@ -883,6 +1373,13 @@
                 owned,
                 abilityBonus: trainer.abilityBonus,
                 oncePerGame: trainer.oncePerGame,
+                cardArtUrl: trainer.cardArtUrl || '',
+                cardArtMode: trainer.cardArtMode || '',
+                cardArtOffsetX: trainer.cardArtOffsetX,
+                cardArtOffsetY: trainer.cardArtOffsetY,
+                cardArtScale: trainer.cardArtScale,
+                cardArtRotation: trainer.cardArtRotation,
+                holographic: trainer.holographic === true,
                 abilities,
                 description: abilities.map(ability => ability.description).filter(Boolean).join(' ')
             };
@@ -948,58 +1445,84 @@
                     <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / ${ownedLabel}</div>
                     ${energyCost}
                     ${isSiegeknight
-                        ? `<div class="binder-card-knight-xp">${renderTrainerXpBar(card.id, { unownedPlaceholder: true })}</div>`
+                        ? (owned ? `<div class="binder-card-knight-xp">${renderTrainerXpBar(card.id)}</div>` : '')
                         : renderShopCardAbilityLine(card)}
                     ${renderShopCardDescription(card)}
                 </div>
             </div>`;
     }
 
+    function renderKnightBinderCardBody(card, options = {}) {
+        const tier = String(card.tier || 'SiegeKnight');
+        const level = Math.max(1, Number(card.level) || trainerOwnedLevel(card.id) || 1);
+        const owned = trainerOwnedLevel(card.id) > 0;
+        const rarityClass = String(card.rarity || 'common').toLowerCase();
+        const abilities = options.compact ? [] : (card.abilities || []).slice(0, 2);
+        return `
+            <span class="knight-card-name">${escapeHtml(card.name)}</span>
+            <span class="knight-card-meta"><span class="knight-element">${escapeHtml(format(card.element))}</span> <span class="knight-tier tier-${escapeAttr(tier.toLowerCase())}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${escapeAttr(rarityClass)}">${escapeHtml(format(card.rarity))}</span></span>
+            <span class="knight-card-meta knight-binder-owned">${owned ? `Owned · Lv ${level}` : 'Unowned'}</span>
+            ${owned ? `<div class="knight-binder-xp">${renderTrainerXpBar(card.id)}</div>` : ''}
+            ${abilities.map(a => `<span class="knight-card-ability"><span>${escapeHtml(a.name)}</span>${escapeHtml(a.description)}</span>`).join('')}
+        `;
+    }
+
     // SiegeKnight tile/preview using the loadout card template
     // (knight-card has-knight-back styles in style.css) while keeping the
     // binder data: tier, rarity, owned level, XP bar, passive/active text.
     function renderKnightBinderCard(card, options = {}) {
+        card = withPlayerHolographic(card);
         const elHex = elementColor(card.element);
         const elClass = String(card.element || 'NEUTRAL').toLowerCase();
         const rarityClass = String(card.rarity || 'common').toLowerCase();
-        const tier = String(card.tier || 'SiegeKnight');
-        const level = Math.max(1, Number(card.level) || trainerOwnedLevel(card.id) || 1);
-        const owned = trainerOwnedLevel(card.id) > 0;
+        const fullCardArtUrl = window.SieglingsCardBinderVisual?.usesFullCardArt?.(card)
+            ? String(card.cardArtUrl || '').trim()
+            : '';
+        if (fullCardArtUrl) {
+            const holoClass = card.holographic ? ' is-holographic' : '';
+            const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+            return `<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
+                <img src="${escapeAttr(fullCardArtUrl)}" alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy">
+                ${holoOverlay}
+                <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
+            </div>`;
+        }
         const backStyle = typeof siegeknightCardBackStyle === 'function'
             ? siegeknightCardBackStyle()
             : "--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')";
         const iconPath = (typeof ELEMENT_KEY_ICON_PATHS !== 'undefined'
             && ELEMENT_KEY_ICON_PATHS[String(card.element || '').toUpperCase()]) || '';
         const elementIconStyle = iconPath ? `--knight-element-icon:url('${iconPath}');` : '';
-        // Grid tiles are too small for the ability rows — the gray panel
-        // holds name/tier/owned/XP there; the detail preview shows it all.
-        const abilities = options.compact ? [] : (card.abilities || []).slice(0, 2);
-        return `<div class="knight-card has-knight-back knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
+        const holoClass = card.holographic ? ' is-holographic' : '';
+        const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+        return `<div class="knight-card has-knight-back knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
             <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
-            <div class="knight-card-body">
-                <span class="knight-card-name">${escapeHtml(card.name)}</span>
-                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(format(card.element))}</span> <span class="knight-tier tier-${escapeAttr(tier.toLowerCase())}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${escapeAttr(rarityClass)}">${escapeHtml(format(card.rarity))}</span></span>
-                <span class="knight-card-meta knight-binder-owned">${owned ? `Owned · Lv ${level}` : 'Unowned'}</span>
-                <div class="knight-binder-xp">${renderTrainerXpBar(card.id, { unownedPlaceholder: true })}</div>
-                ${abilities.map(a => `<span class="knight-card-ability"><span>${escapeHtml(a.name)}</span>${escapeHtml(a.description)}</span>`).join('')}
-            </div>
+            ${holoOverlay}
+            <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
         </div>`;
     }
 
     function renderCardTile(card) {
+        card = withPlayerHolographic(card);
         const selected = card.id === state.selectedCardId ? ' selected' : '';
         const knightClass = card.type === 'SIEGEKNIGHT' ? ' siegeknight-binder-card' : '';
         const binderVisual = window.SieglingsCardBinderVisual;
+        const holoOptions = binderHolographicOptions();
         if (card.type === 'SIEGEKNIGHT') {
             return `<button class="card-tile binder-card framed-binder-tile knight-binder-tile${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
                 ${renderKnightBinderCard(card, { compact: true })}
             </button>`;
         }
+        if (binderVisual?.usesFullCardArt?.(card)) {
+            return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
+            </button>`;
+        }
         if (binderVisual?.usesFramedCardTemplate?.(card)) {
             return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-                ${binderVisual.renderBinderCardTile(card, { descriptionText: shopCardDescriptionFor(card) })}
+                ${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
             </button>`;
         }
         const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (binderVisual?.resolveArtModeClass(card) || '');
@@ -1010,16 +1533,18 @@
 
     function renderDetail() {
         const panel = document.getElementById('detailPanel');
-        const card = selectedCard();
+        let card = selectedCard();
         if (!panel) return;
         if (!card) {
             panel.innerHTML = '<div class="unlock-card"><strong>Card details loading</strong><span>Select a card from Cards or Decks to inspect art, abilities, notches, and energy costs.</span></div>';
             return;
         }
+        card = withPlayerHolographic(card);
         const abilities = card.abilities || (card.ability ? [card.ability] : []);
         const flavorText = creatureDescriptionFor(card);
         const isSiegeknight = card.type === 'SIEGEKNIGHT';
         const craftCost = remnantCraftCost(card);
+        const holoCost = remnantHolographicCost(card);
         const remnants = remnantBalance();
         const canCraft = !isSiegeknight && state.profile?.authenticated && state.progression?.starterChosen && remnants >= craftCost;
         const craftLabel = state.profile?.authenticated
@@ -1030,6 +1555,15 @@
         const knightLevel = isSiegeknight ? Math.max(1, trainerOwnedLevel(card.id) || card.level || 1) : 0;
         const trainerEntry = isSiegeknight ? trainerOwnedEntry(card.id) : null;
         const ownedKnight = isSiegeknight && trainerOwnedLevel(card.id) > 0;
+        const ownedForHolo = isSiegeknight ? ownedKnight : ownedCount(card.id) > 0;
+        const catalogHolographic = Boolean(findCard(card.id)?.holographic);
+        const playerHolographic = playerOwnsHolographicFinish(card);
+        const alreadyHolographic = catalogHolographic || playerHolographic;
+        const canBuyHolographic = state.profile?.authenticated
+            && state.progression?.starterChosen
+            && ownedForHolo
+            && !alreadyHolographic;
+        const holoAffordable = remnants >= holoCost;
         const maxKnightLevel = Number(trainerEntry?.maxLevel) || 5;
         const atMaxKnightLevel = ownedKnight && knightLevel >= maxKnightLevel;
         const nextXpCost = ownedKnight && !atMaxKnightLevel
@@ -1049,10 +1583,12 @@
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id),
                 previewClass: 'detail-card-preview',
-                descriptionText: shopCardDescriptionFor(card)
+                descriptionText: shopCardDescriptionFor(card),
+                ...binderHolographicOptions()
             })
             : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
         panel.innerHTML = `
+            <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
             <div class="detail-card-preview-wrap">${cardPreview}</div>
             ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
                 ${renderActiveNotchChips(card.notches)}
@@ -1083,6 +1619,22 @@
             <div class="detail-abilities">
             ${abilities.length ? abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('') : '<p class="detail-ability-empty">No printed ability.</p>'}
             </div>
+            <div class="detail-holographic-panel">
+                ${alreadyHolographic
+                    ? `<span class="detail-knight-hint">${catalogHolographic && !playerHolographic
+                        ? 'This card already has a built-in holographic finish.'
+                        : 'Holographic finish active in your binder and matches.'}</span>`
+                    : !state.profile?.authenticated
+                        ? '<span class="detail-knight-hint">Sign in to upgrade owned cards with a holographic finish.</span>'
+                        : !state.progression?.starterChosen
+                            ? '<span class="detail-knight-hint">Choose a starter pack before upgrading cards.</span>'
+                        : !ownedForHolo
+                            ? '<span class="detail-knight-hint">Own this card first to unlock a holographic finish.</span>'
+                            : `<button class="primary-btn holographic-buy-btn" type="button" id="buyHolographicFinishBtn"${canBuyHolographic ? '' : ' disabled'}>Holographic finish · ${holoCost.toLocaleString()} Remnants</button>
+                               <span class="detail-knight-hint">${holoAffordable
+                                    ? 'Only you see this foil shimmer in your binder and matches.'
+                                    : `Need ${holoCost.toLocaleString()} Remnants · you have ${remnants.toLocaleString()}.`}</span>`}
+            </div>
             ${isSiegeknight ? `<div class="detail-knight-xp-panel">
                 ${ownedKnight ? renderTrainerXpBar(card.id) : ''}
                 <div class="detail-knight-xp-action">
@@ -1101,6 +1653,7 @@
             ${state.route === 'deck-builder' && !isSiegeknight ? '<button class="primary-btn" type="button" id="addSelectedToBuilder">Add to deck</button>' : ''}
         `;
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
+        document.getElementById('buyHolographicFinishBtn')?.addEventListener('click', () => purchaseHolographicFinish(card.id));
         document.getElementById('buyKnightXpBtn')?.addEventListener('click', () => buyKnightXp(card.id));
         document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
             if (state.route !== 'deck-builder') {
@@ -1384,6 +1937,12 @@
         if (typeof data?.gold === 'number' && state.progression) {
             state.progression.gold = data.gold;
         }
+        const missions = state.dailyMissions?.missions || state.dailyMissions?.featured || [];
+        const claimed = missions.find(m => m.id === missionId);
+        pushNotification('mission', `Mission claimed: ${claimed?.title || 'Daily mission'}`, claimed?.reward ? `+${claimed.reward} Siegecoins added to your wallet.` : '');
+        // Keep the diff snapshot current so the next sync doesn't re-report
+        // this reward as separately earned gold.
+        if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
         safeRender(renderGold);
         safeRender(renderHomeDashboard);
     }
@@ -1838,32 +2397,16 @@
                     <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
                     <span>${mobileBuilder && catalogCards.length ? `${visibleCatalogCards.length} / ${catalogCards.length}` : `${catalogCards.length} cards`}</span>
                 </div>
-                <div class="builder-catalog-tools">
-                    <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search binder cards...">
-                    <select class="search-input" id="builderElementSelect">
-                        ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
-                    </select>
-                    <select class="search-input" id="builderTypeSelect">
-                        ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
-                    </select>
-                    <select class="search-input" id="builderSortSelect">
-                        <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
-                        <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
-                        <option value="cost-asc"${state.builderSort === 'cost-asc' ? ' selected' : ''}>Cost low</option>
-                        <option value="rarity-desc"${state.builderSort === 'rarity-desc' ? ' selected' : ''}>Rarity high</option>
-                    </select>
-                </div>
                 <div class="deck-builder-binder-list">
                     ${catalogCards.length ? visibleCatalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
                     ${hasMoreCatalogCards ? `<button class="ghost-btn deck-builder-load-more" type="button" data-builder-load-more>Load more cards (${catalogCards.length - visibleCatalogCards.length})</button>` : ''}
                 </div>
             </section>
-            <section class="deck-builder-inspector deck-builder-workbench${state.builderCardViewOpen ? '' : ' is-collapsed'}">
+            <section class="deck-builder-inspector deck-builder-workbench">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
-                    <button class="ghost-btn builder-card-view-toggle" type="button" id="builderCardViewToggle" aria-expanded="${state.builderCardViewOpen ? 'true' : 'false'}">${state.builderCardViewOpen ? 'Hide' : 'Show'}</button>
                 </div>
-                <div class="deck-builder-preview-panel">${mobileBuilder ? renderBuilderMobilePreviewPanel(previewCard) : renderBuilderPreviewPanel(previewCard)}</div>
+                <div class="deck-builder-preview-panel">${renderBuilderPreviewPanel(previewCard)}</div>
                 <div class="deck-builder-recommendations">
                     <div class="section-head decks-row-head">
                         <div><span class="eyebrow">Recommended</span><h3>Evolution tree picks</h3></div>
@@ -1876,11 +2419,13 @@
                     <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
                         <strong>${total}</strong><span>/30</span>
                     </div>
-                    <div>
+                    <div class="deck-builder-deck-head-copy">
                         <span class="eyebrow">Current Deck</span>
                         <p>${total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play'}</p>
+                        <div class="builder-progress-track"><span class="builder-progress-fill" style="width:${Math.min(100, Math.round((total / 30) * 100))}%"></span></div>
                     </div>
                 </div>
+                <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
                 <div class="builder-form-grid deck-builder-deck-form">
                     <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
                     <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
@@ -1889,10 +2434,66 @@
                     <button class="ghost-btn" type="button" id="playCustomBtn"${total < 30 ? ' disabled' : ''}>Play Custom</button>
                     <button class="ghost-btn" type="button" id="clearBuilderBtn"${total ? '' : ' disabled'}>Clear</button>
                 </div>
-                <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
             </aside>
         </div>`;
+        renderBuilderFilterTray(catalogCards);
         bindDeckBuilderPageEvents(page);
+    }
+
+    // Builder binder filters live in the HUD Filters tray (like the Cards
+    // page) to keep the builder page compact. The controls are rendered once
+    // and kept in the DOM so typing in the search box never loses focus; only
+    // the count label updates on re-render.
+    function renderBuilderFilterTray(catalogCards) {
+        const body = document.getElementById('builderFilterBody');
+        if (!body) return;
+        const countLabel = document.getElementById('builderFilterCount');
+        if (countLabel) countLabel.textContent = `${(catalogCards || builderCatalogCards()).length} cards`;
+        if (body.dataset.ready === '1') return;
+        body.dataset.ready = '1';
+        body.innerHTML = `<div class="builder-catalog-tools builder-tray-tools">
+            <input class="search-input" id="builderSearchInput" type="search" value="${escapeAttr(state.builderSearch)}" placeholder="Search binder cards...">
+            <select class="search-input" id="builderElementSelect">
+                ${['ALL', ...elementFilterValues().filter(value => value !== 'ALL')].map(value => `<option value="${escapeAttr(value)}"${value === state.builderElementFilter ? ' selected' : ''}>${value === 'ALL' ? 'All elements' : format(value)}</option>`).join('')}
+            </select>
+            <select class="search-input" id="builderTypeSelect">
+                ${['ALL', 'SIEGLING', 'SPELL', 'TRAP'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderTypeFilter ? ' selected' : ''}>${value === 'ALL' ? 'All types' : format(value)}</option>`).join('')}
+            </select>
+            <select class="search-input" id="builderRaritySelect">
+                ${['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'].map(value => `<option value="${escapeAttr(value)}"${value === state.builderRarityFilter ? ' selected' : ''}>${value === 'ALL' ? 'All rarities' : format(value)}</option>`).join('')}
+            </select>
+            <select class="search-input" id="builderSortSelect">
+                <option value="owned-desc"${state.builderSort === 'owned-desc' ? ' selected' : ''}>Owned first</option>
+                <option value="name-asc"${state.builderSort === 'name-asc' ? ' selected' : ''}>Name</option>
+                <option value="cost-asc"${state.builderSort === 'cost-asc' ? ' selected' : ''}>Cost low</option>
+                <option value="rarity-desc"${state.builderSort === 'rarity-desc' ? ' selected' : ''}>Rarity high</option>
+            </select>
+        </div>`;
+        body.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
+            state.builderSearch = event.target.value.trim().toLowerCase();
+            resetBuilderVisibleLimit();
+            scheduleDeckBuilderPageRender();
+        });
+        body.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
+            state.builderElementFilter = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
+        body.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
+            state.builderTypeFilter = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
+        body.querySelector('#builderRaritySelect')?.addEventListener('change', (event) => {
+            state.builderRarityFilter = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
+        body.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
+            state.builderSort = event.target.value;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
     }
 
     function resolveBuilderPreviewCard(catalogCards) {
@@ -1960,9 +2561,11 @@
                     const canAdd = inDeck < maxCopies && builderTotal() < 30;
                     return `<article class="builder-recommendation-card" style="--el:${elementColor(card.element)}">
                         <button type="button" class="builder-recommendation-main" data-select-builder-card="${escapeAttr(card.id)}">
-                            <strong>${escapeHtml(card.name)}</strong>
-                            <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
-                            <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
+                            <div class="builder-row-copy">
+                                <strong>${escapeHtml(card.name)}</strong>
+                                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
+                                <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
+                            </div>
                         </button>
                         <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
                     </article>`;
@@ -1979,6 +2582,7 @@
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        const addLabel = builderAddLabel(card.id);
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const cardPreview = (window.SieglingsCardBinderVisual?.renderBinderCardPreview)
@@ -2002,12 +2606,40 @@
                 <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
                 ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
             </div>
+            ${renderBuilderMoves(card)}
             ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
                 <strong>${inDeck} / ${maxCopies}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
             </div>
+        </div>`;
+    }
+
+    function builderAddLabel(cardId) {
+        const inDeck = state.builderCounts[cardId] || 0;
+        const maxCopies = builderCardLimit(cardId);
+        if (maxCopies > 0 && inDeck >= maxCopies) return 'Max added';
+        if (builderTotal() >= 30) return 'Deck full';
+        return 'Add to deck';
+    }
+
+    function renderBuilderMoves(card) {
+        const moves = Array.isArray(card?.moves) ? card.moves.filter(Boolean) : [];
+        if (!moves.length) return '';
+        return `<div class="deck-builder-preview-moves">
+            <span class="builder-moves-label">Attacks</span>
+            ${moves.map(move => {
+                const cost = Number(move.energyCost) || 0;
+                const costLabel = move.isPassive ? 'Passive' : cost > 0 ? `${cost} Energy` : 'Free';
+                return `<div class="builder-move-row">
+                    <div class="builder-move-head">
+                        <strong>${escapeHtml(move.name || 'Attack')}</strong>
+                        <span class="builder-move-cost${move.isPassive ? ' is-passive' : ''}">${costLabel}</span>
+                    </div>
+                    ${move.description ? `<p>${escapeHtml(move.description)}</p>` : ''}
+                </div>`;
+            }).join('')}
         </div>`;
     }
 
@@ -2020,6 +2652,7 @@
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
+        const addLabel = builderAddLabel(card.id);
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         return `<div class="deck-builder-preview-card deck-builder-preview-card-compact" style="--el:${elementColor(card.element)}">
@@ -2041,11 +2674,12 @@
                 <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
                 ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
             </div>
+            ${renderBuilderMoves(card)}
             ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.slice(0, 2).map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
             <div class="builder-stepper deck-builder-preview-actions">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
                 <strong>${inDeck} / ${maxCopies}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add to deck</button>
+                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
             </div>
         </div>`;
     }
@@ -2060,12 +2694,12 @@
         return `<article class="deck-builder-binder-row${activeClass}" style="--el:${elementColor(card.element)}">
             <button type="button" class="deck-builder-binder-main" data-select-builder-card="${escapeAttr(card.id)}">
                 <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
-                <div>
+                <div class="builder-row-copy">
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / Owned x${owned}</span>
                     <small>${escapeHtml(format(card.rarity))}${card.evolvesFromId ? ` / Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : ''}</small>
                 </div>
-                <span class="deck-builder-binder-count">x${count}</span>
+                ${count > 0 ? `<span class="deck-builder-binder-count${count >= maxCopies ? ' is-max' : ''}">In deck x${count}</span>` : ''}
             </button>
             <div class="builder-stepper">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
@@ -2086,7 +2720,11 @@
             return `<div class="deck-builder-deck-row${activeClass}" style="--el:${elementColor(card?.element)}">
                 <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
                     <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
-                    <div><strong>${escapeHtml(card?.name || cardId)}</strong><span>${count} / ${maxCopies} copies</span></div>
+                    <div class="builder-row-copy">
+                        <strong>${escapeHtml(card?.name || cardId)}</strong>
+                        <span>${card ? `${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}` : 'Card'}</span>
+                    </div>
+                    <span class="deck-builder-copy-badge${count >= maxCopies ? ' is-max' : ''}"><strong>${count}</strong>/${maxCopies}</span>
                 </button>
                 <div class="builder-stepper">
                     <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
@@ -2114,26 +2752,6 @@
             state.builderVisibleLimit = Math.max(state.builderVisibleLimit || 24, 24) + 24;
             renderDeckBuilderPage();
         });
-        root.querySelector('#builderSearchInput')?.addEventListener('input', (event) => {
-            state.builderSearch = event.target.value.trim().toLowerCase();
-            resetBuilderVisibleLimit();
-            scheduleDeckBuilderPageRender();
-        });
-        root.querySelector('#builderElementSelect')?.addEventListener('change', (event) => {
-            state.builderElementFilter = event.target.value;
-            resetBuilderVisibleLimit();
-            renderDeckBuilderPage();
-        });
-        root.querySelector('#builderTypeSelect')?.addEventListener('change', (event) => {
-            state.builderTypeFilter = event.target.value;
-            resetBuilderVisibleLimit();
-            renderDeckBuilderPage();
-        });
-        root.querySelector('#builderSortSelect')?.addEventListener('change', (event) => {
-            state.builderSort = event.target.value;
-            resetBuilderVisibleLimit();
-            renderDeckBuilderPage();
-        });
         root.querySelector('#builderTrainerSelect')?.addEventListener('change', (event) => {
             localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
         });
@@ -2147,12 +2765,6 @@
         root.querySelector('#clearBuilderBtn')?.addEventListener('click', () => {
             state.builderCounts = {};
             state.builderPreviewCardId = null;
-            renderDeckBuilderPage();
-        });
-        // Card View toggle: on portrait/mobile the preview panel is collapsed by
-        // default to keep the builder compact; this button expands it on demand.
-        root.querySelector('#builderCardViewToggle')?.addEventListener('click', () => {
-            state.builderCardViewOpen = !state.builderCardViewOpen;
             renderDeckBuilderPage();
         });
     }
@@ -2205,6 +2817,7 @@
             .filter(card => builderCardLimit(card.id) > 0)
             .filter(card => state.builderElementFilter === 'ALL' || card.element === state.builderElementFilter)
             .filter(card => state.builderTypeFilter === 'ALL' || card.type === state.builderTypeFilter)
+            .filter(card => state.builderRarityFilter === 'ALL' || card.rarity === state.builderRarityFilter)
             .filter(card => {
                 if (!state.builderSearch) return true;
                 const text = `${card.name} ${card.type} ${card.element} ${card.rarity} ${creatureDescriptionFor(card)} ${JSON.stringify(card.abilities || [])}`.toLowerCase();
@@ -2233,6 +2846,9 @@
         const packs = starterMode ? starterPacks : state.packs;
         const dailyOffers = starterMode ? [] : state.dailyOffers;
         const shopTitles = shopTitleOffers();
+        if (dailyOffers.length && !dailyOffers.some(offer => offer.cardId === state.shopPreviewCardId)) {
+            state.shopPreviewCardId = dailyOffers[0].cardId;
+        }
         grid.innerHTML = `
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
             ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Unlock by playing or buy with Siegecoins</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
@@ -2240,6 +2856,8 @@
             ${packs.length ? packs.map(renderPackTile).join('') : '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>'}
         `;
         document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
+        renderShopCardPreviewModal();
+        renderHudTools();
     }
 
     // Heraldic banner + star — the shared "profile flair / player title" emblem.
@@ -2276,9 +2894,9 @@
         renderProfile();
     }
 
-    function renderDailyOfferTile(offer) {
+    function dailyOfferCard(offer) {
         const catalogCard = findCard(offer.cardId) || {};
-        const card = {
+        return {
             ...catalogCard,
             id: offer.cardId,
             name: offer.cardName || catalogCard.name,
@@ -2288,30 +2906,135 @@
             notches: catalogCard.notches || [],
             abilities: catalogCard.abilities || (catalogCard.ability ? [catalogCard.ability] : [])
         };
+    }
+
+    function selectedShopPreviewCard() {
+        const offers = state.dailyOffers || [];
+        const offer = offers.find(item => item.cardId === state.shopPreviewCardId) || offers[0];
+        return offer ? dailyOfferCard(offer) : null;
+    }
+
+    function renderDailyOfferTile(offer) {
+        const card = dailyOfferCard(offer);
         const purchased = state.progression?.purchasedDailyOfferIds?.includes(offer.id);
         const owned = ownedCount(card.id);
-        const typeLabel = [format(card.type), format(card.element)].filter(Boolean).join(' / ');
-        const isSiegling = card.type === 'SIEGLING';
-        return `<article class="daily-offer-tile" style="--el:${elementColor(card.element)};--rarity:${rarityColor(card.rarity)}">
-            <div class="daily-card-front binder-card daily-card-compact">
-                ${isSiegling ? renderBinderNotches(card.notches) : ''}
-                <div class="binder-card-shell">
-                    <div class="binder-card-header">
-                        <strong>${escapeHtml(card.name || 'Daily Card')}</strong>
-                        <span>${escapeHtml(typeLabel)}</span>
-                    </div>
-                    <div class="binder-card-art">${renderBinderCardArt(card)}</div>
-                    <div class="binder-card-body shop-card-body">
-                        ${renderShopCardStats(card)}
-                        <div class="binder-card-meta">${escapeHtml(format(card.rarity))} / Owned x${owned}</div>
-                        ${renderBinderCardEnergyCost(cardEnergyCost(card), card.costElement || card.trapBucketElement || card.element)}
-                        ${renderShopCardAbilityLine(card)}
-                        ${renderShopCardDescription(card)}
-                    </div>
-                </div>
-            </div>
+        const selected = card.id === state.shopPreviewCardId ? ' is-previewed' : '';
+        return `<article class="daily-offer-tile${selected}" style="--el:${elementColor(card.element)};--rarity:${rarityColor(card.rarity)}">
+            ${renderDailyOfferCardPreview(card, owned)}
             <button class="primary-btn" type="button" data-daily-offer-id="${escapeAttr(offer.id)}" ${purchased ? 'disabled' : ''}>${purchased ? 'Purchased' : renderCoinAmount(offer.price, '')}</button>
         </article>`;
+    }
+
+    function renderDailyOfferCardPreview(card, owned) {
+        const binderVisual = window.SieglingsCardBinderVisual;
+        if (card.type === 'SIEGEKNIGHT') {
+            return `<button class="daily-card-preview card-tile binder-card framed-binder-tile knight-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
+                ${renderKnightBinderCard(card, { compact: true })}
+            </button>`;
+        }
+        if (binderVisual?.usesFullCardArt?.(card)) {
+            return `<button class="daily-card-preview card-tile binder-card framed-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
+                ${binderVisual.renderBinderCardTile(card, {
+                    ownedOverride: owned,
+                    descriptionText: shopCardDescriptionFor(card)
+                })}
+            </button>`;
+        }
+        if (binderVisual?.usesFramedCardTemplate?.(card)) {
+            return `<button class="daily-card-preview card-tile binder-card framed-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
+                ${binderVisual.renderBinderCardTile(card, {
+                    ownedOverride: owned,
+                    descriptionText: shopCardDescriptionFor(card)
+                })}
+            </button>`;
+        }
+        const modeClass = binderVisual?.resolveArtModeClass(card) || '';
+        return `<button class="daily-card-preview card-tile binder-card${modeClass}" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
+            ${binderVisual?.renderBinderCardShell
+                ? binderVisual.renderBinderCardShell(card, { ownedOverride: owned, descriptionText: shopCardDescriptionFor(card) })
+                : renderBinderCardShell(card)}
+        </button>`;
+    }
+
+    function openShopCardPreview(cardId = '') {
+        const fallback = selectedShopPreviewCard();
+        const nextCardId = cardId || state.shopPreviewCardId || fallback?.id || '';
+        if (!nextCardId) return;
+        state.shopPreviewCardId = nextCardId;
+        state.shopCardPreviewOpen = true;
+        renderShop();
+    }
+
+    function closeShopCardPreview() {
+        state.shopCardPreviewOpen = false;
+        renderShopCardPreviewModal();
+        renderHudTools();
+    }
+
+    function renderShopCardPreviewModal() {
+        const modal = document.getElementById('shopCardPreviewModal');
+        const body = document.getElementById('shopCardPreviewBody');
+        if (!modal || !body) return;
+        const card = selectedShopPreviewCard();
+        modal.classList.toggle('hidden', !state.shopCardPreviewOpen || !card);
+        if (!state.shopCardPreviewOpen || !card) {
+            body.innerHTML = '';
+            return;
+        }
+        const isSiegeknight = card.type === 'SIEGEKNIGHT';
+        const abilities = card.abilities || (card.ability ? [card.ability] : []);
+        const cost = cardEnergyCost(card);
+        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
+        const owned = ownedCount(card.id);
+        const cardPreview = isSiegeknight
+            ? `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`
+            : window.SieglingsCardBinderVisual?.renderBinderCardPreview
+            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
+                ownedOverride: owned,
+                previewClass: 'detail-card-preview shop-card-preview-card',
+                compactAbilityLimit: 3,
+                summaryMode: 'description',
+                descriptionText: shopCardDescriptionFor(card)
+            })
+            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+        body.innerHTML = `
+            <div class="shop-card-preview-head">
+                <div>
+                    <span class="eyebrow">${escapeHtml(format(card.rarity || 'Common'))}</span>
+                    <h2 id="shopCardPreviewTitle">${escapeHtml(card.name || 'Daily Card')}</h2>
+                    <span>${escapeHtml(format(card.type || 'Card'))} / ${escapeHtml(format(card.element || 'Neutral'))} / Owned x${owned}</span>
+                </div>
+            </div>
+            <div class="shop-card-preview-layout">
+                <div class="detail-card-preview-wrap">${cardPreview}</div>
+                <div class="shop-card-preview-details">
+                    ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">${renderActiveNotchChips(card.notches)}</div>
+                    <div class="detail-cost-block">
+                        <span class="detail-cost-label">Energy cost</span>
+                        ${renderBinderCardEnergyCost(cost, costElement)}
+                    </div>`}
+                    <div class="detail-grid">
+                        ${isSiegeknight ? `<div><span>Tier</span><strong>${escapeHtml(card.tier || 'SiegeKnight')}</strong></div>
+                        <div><span>Element</span><strong>${format(card.element)}</strong></div>
+                        <div><span>Level</span><strong>${Math.max(1, trainerOwnedLevel(card.id) || card.level || 1)}</strong></div>` : ''}
+                        ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                        <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                        <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
+                        <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                        ${!isSiegeknight && card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${cost} ${format(costElement)}</strong></div>
+                        <div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>
+                        <div><span>Row</span><strong>${format(card.preferredRow || 'Any')}</strong></div>` : ''}
+                    </div>
+                    <div class="detail-flavor" style="--el:${elementColor(card.element)}">
+                        <span>Card text</span>
+                        <p>${escapeHtml(shopCardDescriptionFor(card))}</p>
+                    </div>
+                    <h3 class="detail-section-title">${isSiegeknight ? 'SiegeKnight abilities' : 'Moves &amp; card details'}</h3>
+                    <div class="detail-abilities">
+                        ${abilities.length ? abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('') : '<p class="detail-ability-empty">No printed ability.</p>'}
+                    </div>
+                </div>
+            </div>`;
     }
 
     function renderBinderCardEnergyCost(cost, element) {
@@ -2379,7 +3102,7 @@
 
     function renderShopCardAbilityLine(card) {
         if (card?.type === 'SIEGEKNIGHT') {
-            return renderTrainerXpBar(card.id, { unownedPlaceholder: true });
+            return trainerOwnedLevel(card.id) > 0 ? renderTrainerXpBar(card.id) : '';
         }
         const abilities = card?.abilities || (card?.ability ? [card.ability] : []);
         const primary = abilities[0];
@@ -2404,6 +3127,7 @@
             ? `${format(primaryElement)} Element Pack`
             : pack.name;
         return `<article class="pack-tile ${image ? 'pack-tile-art' : ''}" style="--el:${elementColor(primaryElement)}">
+            <button class="pack-odds-btn" type="button" data-pack-odds="${escapeAttr(pack.id)}" aria-label="Drop rates for ${escapeAttr(displayName)}" title="Drop rates">i</button>
             <div class="pack-art" style="${imageStyle}"></div>
             <div class="pack-info">
                 <span class="pack-kicker">${kicker}</span>
@@ -2413,6 +3137,42 @@
                 <button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}"${openingAnyPack ? ' disabled' : ''}>${label}</button>
             </div>
         </article>`;
+    }
+
+    // Mirrors PackCatalogService odds so the modal still works when the
+    // cached /api/shop/packs payload predates the odds field.
+    const FALLBACK_PACK_ODDS = {
+        siegeKnight: 0.03,
+        cardsPerPack: 5,
+        holoPerCard: { COMMON: 0.08, UNCOMMON: 0.06, RARE: 0.04, EPIC: 0.02, LEGENDARY: 0.01 }
+    };
+
+    function showPackOdds(packId) {
+        const pack = (state.packs || []).find(item => item.id === packId);
+        if (!pack) return;
+        const odds = pack.odds || {
+            ...FALLBACK_PACK_ODDS,
+            siegeKnight: pack.id === 'pack_siegeknight' ? 1 : FALLBACK_PACK_ODDS.siegeKnight
+        };
+        const holo = odds.holoPerCard || FALLBACK_PACK_ODDS.holoPerCard;
+        const pct = value => `${Math.round(Number(value || 0) * 1000) / 10}%`;
+        const knightLine = Number(odds.siegeKnight) >= 1 ? 'Guaranteed' : pct(odds.siegeKnight);
+        const overlay = document.createElement('div');
+        overlay.className = 'pack-odds-modal';
+        overlay.innerHTML = `<div class="pack-odds-panel panel">
+            <div class="section-head">
+                <div><span class="eyebrow">Drop Rates</span><h2>${escapeHtml(pack.name)}</h2></div>
+                <button class="ghost-btn compact-btn" type="button" data-odds-close>Close</button>
+            </div>
+            <p class="pack-odds-note">Every pack contains ${odds.cardsPerPack || 5} cards.</p>
+            <div class="pack-odds-row"><span>Bonus SiegeKnight</span><strong>${knightLine}</strong></div>
+            <p class="pack-odds-note">Holographic finish chance, rolled separately for each card pulled. Rarer cards are rarer holos:</p>
+            ${['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'].map(rarity => `<div class="pack-odds-row"><span>${format(rarity)} holo</span><strong>${pct(holo[rarity])}</strong></div>`).join('')}
+        </div>`;
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay || event.target.closest('[data-odds-close]')) overlay.remove();
+        });
+        document.body.appendChild(overlay);
     }
 
     function packImageFor(pack) {
@@ -2656,13 +3416,13 @@
                     <span>${escapeHtml(subtitle)}</span>
                 </div>
                 <div class="friend-actions">
+                    <button class="ghost-btn compact-btn friend-message-btn${friendHasUnread(friend.email) ? ' has-unread' : ''}" type="button" data-message-friend="${escapeAttr(friend.email)}">Message${friendHasUnread(friend.email) ? '<span class="friend-msg-dot" aria-label="New messages"></span>' : ''}</button>
                     <button class="ghost-btn compact-btn" type="button" data-view-profile="${escapeAttr(friend.email)}">Profile</button>
-                    <button class="ghost-btn compact-btn" type="button" data-message-friend="${escapeAttr(friend.email)}">Message</button>
-                    <button class="ghost-btn compact-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}">Remove</button>
+                    <button class="ghost-btn compact-btn friend-remove-btn" type="button" data-remove-friend="${escapeAttr(friend.email)}" aria-label="Remove friend" title="Remove friend">&times;</button>
                 </div>
             </article>`;
             }).join('')
-            : '<div class="social-empty-state"><strong>No friends found</strong><span>Add a registered player by email to start your list.</span></div>';
+            : '<div class="social-empty-state"><strong>No friends found</strong><span>Tap the + button above to add a registered player by email.</span></div>';
 
         list.querySelectorAll('[data-remove-friend]').forEach(btn => btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend)));
         list.querySelectorAll('[data-view-profile]').forEach(btn => btn.addEventListener('click', () => navigateToPlayerProfile(btn.dataset.viewProfile)));
@@ -2681,7 +3441,15 @@
         const pendingCount = incoming.length;
 
         if (count) count.textContent = `${pendingCount} pending`;
-        if (panel) panel.classList.toggle('hidden', !state.profile?.authenticated);
+        const badge = document.getElementById('friendRequestsBadge');
+        if (badge) {
+            badge.textContent = pendingCount > 9 ? '9+' : String(pendingCount);
+            badge.classList.toggle('hidden', !pendingCount);
+        }
+        document.getElementById('friendRequestsBtn')?.classList.toggle('active', Boolean(state.friendRequestsOpen));
+        // The requests block stays hidden unless the player opens it from the
+        // bell (it opens automatically when an invite is waiting).
+        if (panel) panel.classList.toggle('hidden', !state.profile?.authenticated || !state.friendRequestsOpen);
 
         if (!state.profile?.authenticated) {
             list.innerHTML = '<div class="social-empty-state"><strong>Sign in to manage requests</strong></div>';
@@ -2912,7 +3680,7 @@
             return '<div class="profile-favorite-card-empty"><span>No favorite Siegeling selected</span></div>';
         }
         const binderVisual = window.SieglingsCardBinderVisual;
-        const favoritePreview = binderVisual?.usesFramedCardTemplate?.(card)
+        const favoritePreview = (binderVisual?.usesFullCardArt?.(card) || binderVisual?.usesFramedCardTemplate?.(card))
             ? binderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedCount(card.id) || Number(card.owned) || 1,
                 previewClass: 'detail-card-preview profile-favorite-showcase',
@@ -3017,7 +3785,9 @@
 
     function renderProfileHero(view) {
         const { prefs, user, theme } = view;
-        return `<section class="profile-hero">
+        const profileArt = readStoredArt(PROFILE_ART_KEY);
+        const profileArtUrl = profileArt ? artImageFor(profileArt) : '';
+        return `<section class="profile-hero${profileArtUrl ? ' has-art' : ''}"${profileArtUrl ? ` style="--profile-art:url('${escapeAttr(profileArtUrl)}')"` : ''}>
             <div class="profile-hero-effects" aria-hidden="true"><span></span><span></span><span></span></div>
             <div class="profile-hero-content">
                 <div class="profile-avatar-wrap">
@@ -3653,6 +4423,67 @@
         return REMNANT_CRAFT_COSTS[String(card?.rarity || 'COMMON').toUpperCase()] || REMNANT_CRAFT_COSTS.COMMON;
     }
 
+    function playerHolographicCardIds() {
+        const raw = state.progression?.holographicCards;
+        if (!Array.isArray(raw)) {
+            return new Set();
+        }
+        return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
+    }
+
+    function playerOwnsHolographicFinish(card) {
+        const cardId = String(card?.id || '').trim().toLowerCase();
+        return Boolean(cardId && playerHolographicCardIds().has(cardId));
+    }
+
+    function cardShowsPlayerHolographic(card) {
+        if (!card) {
+            return false;
+        }
+        if (card.holographic === true) {
+            return true;
+        }
+        return playerOwnsHolographicFinish(card);
+    }
+
+    function withPlayerHolographic(card) {
+        if (!card) {
+            return card;
+        }
+        const holographic = cardShowsPlayerHolographic(card);
+        return holographic === Boolean(card.holographic) ? card : { ...card, holographic };
+    }
+
+    function remnantHolographicCost(card) {
+        return remnantCraftCost(card) * 4;
+    }
+
+    function applyProgressionUpdate(progression) {
+        if (!progression) {
+            return;
+        }
+        state.progression = progression;
+        if (state.profile?.authenticated) {
+            state.profile = { ...state.profile, progression };
+            saveCachedAuthProfile(state.profile);
+        }
+    }
+
+    function playHolographicUnlockAnimation() {
+        const wrap = document.querySelector('.detail-card-preview-wrap');
+        if (!wrap) {
+            return;
+        }
+        wrap.classList.remove('holographic-unlock-play');
+        void wrap.offsetWidth;
+        wrap.classList.add('holographic-unlock-play');
+        window.setTimeout(() => wrap.classList.remove('holographic-unlock-play'), 2400);
+    }
+
+    function binderHolographicOptions() {
+        return { playerHolographicIds: playerHolographicCardIds() };
+    }
+
     function collectionSummary() {
         const ownedCards = state.progression?.ownedCards || {};
         const catalog = state.options?.cardCatalog || [];
@@ -3909,6 +4740,10 @@
             state.dailyOffers = data.dailyOffers || state.dailyOffers;
             state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
             const latest = state.progression?.packHistory?.[0];
+            if (latest) {
+                pushNotification('pack', `Pack opened: ${pack?.name || latest.packId || 'Card pack'}`, `${(latest.cards || []).length} cards added to your binder.`);
+            }
+            if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
             state.packOpeningDismissedKey = '';
             state.packReveal = latest ? {
                 packId: latest.packId,
@@ -4299,7 +5134,8 @@
 
     function renderRevealFrontContent(card, ownedPreview) {
         const binderVisual = window.SieglingsCardBinderVisual;
-        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview && binderVisual?.usesFramedCardTemplate?.(card)) {
+        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview
+            && (binderVisual?.usesFullCardArt?.(card) || binderVisual?.usesFramedCardTemplate?.(card))) {
             return binderVisual.renderBinderCardPreview(card, {
                 ownedOverride: ownedPreview,
                 previewClass: 'gacha-card-front',
@@ -4440,7 +5276,8 @@
         const element = card.element || 'FIRE';
         const rarity = card.rarity || 'COMMON';
         const binderVisual = window.SieglingsCardBinderVisual;
-        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview && binderVisual?.usesFramedCardTemplate?.(card)) {
+        if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview
+            && (binderVisual?.usesFullCardArt?.(card) || binderVisual?.usesFramedCardTemplate?.(card))) {
             const ownedPreview = Math.max(1, Math.min(3, ownedCount(card.id) || 1));
             return `<div class="reveal-preview" data-preview-backdrop style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)}">
                 <div class="reveal-preview-card reveal-preview-card-template" role="dialog" aria-modal="true" aria-label="${escapeAttr(card.name || 'Card')} preview">
@@ -4604,6 +5441,46 @@
         renderGold();
         renderProfile();
         renderAchievements();
+    }
+
+    async function purchaseHolographicFinish(cardId) {
+        if (!state.profile?.authenticated) return openAuth();
+        const card = findCard(cardId);
+        const holoCost = remnantHolographicCost(card || { rarity: 'COMMON' });
+        if (!state.progression?.starterChosen) {
+            return alert('Choose a starter pack before upgrading cards.');
+        }
+        if (remnantBalance() < holoCost) {
+            return alert(`You need ${holoCost.toLocaleString()} Remnants for a holographic finish.`);
+        }
+        const btn = document.getElementById('buyHolographicFinishBtn');
+        const btnLabel = btn?.textContent || '';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Applying finish...';
+        }
+        const data = await fetchJson('/api/cards/holographic', { method: 'POST', body: JSON.stringify({ cardId }) });
+        if (data?.error) {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = btnLabel;
+            }
+            return alert(data.error);
+        }
+        if (!data?.progression) {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = btnLabel;
+            }
+            return alert('Unexpected server response. Refresh and try again.');
+        }
+        applyProgressionUpdate(data.progression);
+        playHolographicUnlockAnimation();
+        renderCards();
+        renderDetail();
+        renderHomeDashboard();
+        renderGold();
+        renderProfile();
     }
 
     async function buyKnightXp(trainerId) {
@@ -4787,6 +5664,7 @@
             onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
             battleLaunch: Boolean(payload.battleLaunch),
+            tutorial: Boolean(payload.tutorial),
             customDeckCards,
             loadoutLabel
         }));
@@ -4794,6 +5672,9 @@
 
     function goPlay(payload) {
         queuePlayLoadout(payload);
+        // The art stays up through the navigation, covering the play page's
+        // own startup time.
+        showLoadingArtScreen('Heading into battle...');
         window.location.href = '/play';
     }
 
@@ -4868,7 +5749,7 @@
     }
 
     function isFilterRoute() {
-        return isBinderRoute() || isSocialRoute();
+        return isBinderRoute() || isSocialRoute() || state.route === 'deck-builder';
     }
 
     function toggleTray(type) {
@@ -4901,33 +5782,40 @@
     function renderHudTools() {
         const binder = isBinderRoute();
         const social = isSocialRoute();
+        const shop = state.route === 'shop';
         const filterOpen = state.filterTrayOpen;
         const optionsBtn = document.getElementById('optionsBtn');
-        optionsBtn?.classList.toggle('hidden', state.route !== 'home');
+        optionsBtn?.classList.toggle('hidden', state.route !== 'home' && state.route !== 'profile');
         // Hide "Join With Code" on the Cards/Decks binder routes; it crowds the
         // HUD there and the same action lives on the Social tab.
         const joinBtn = document.getElementById('joinByCodeBtn');
         joinBtn?.classList.toggle('hidden', binder);
+        const builderRoute = state.route === 'deck-builder';
         const filterBtn = document.getElementById('filterTrayBtn');
-        const socialFilterBtn = document.getElementById('socialFilterBtn');
         const cardBtn = document.getElementById('cardTrayBtn');
         const filterTray = document.getElementById('filterTray');
         const lobbyFilterTray = document.getElementById('lobbyFilterTray');
+        const builderFilterTray = document.getElementById('builderFilterTray');
         const cardTray = document.getElementById('detailPanel');
         const backdrop = document.getElementById('trayBackdrop');
-        const showFilterHud = binder || social;
+        const showFilterHud = binder || social || builderRoute;
         filterBtn?.classList.toggle('hidden', !showFilterHud);
-        cardBtn?.classList.toggle('hidden', !binder);
+        cardBtn?.classList.toggle('hidden', !(binder || shop));
+        if (cardBtn) {
+            cardBtn.textContent = 'Card View';
+            cardBtn.disabled = shop && !(state.dailyOffers || []).length;
+        }
         filterBtn?.classList.toggle('active', showFilterHud && filterOpen);
-        socialFilterBtn?.classList.toggle('active', social && filterOpen);
-        cardBtn?.classList.toggle('active', binder && state.cardTrayOpen);
+        cardBtn?.classList.toggle('active', (binder && state.cardTrayOpen) || (shop && state.shopCardPreviewOpen));
         filterTray?.classList.toggle('is-closed', !binder || !filterOpen);
         lobbyFilterTray?.classList.toggle('is-closed', !social || !filterOpen);
+        builderFilterTray?.classList.toggle('is-closed', !builderRoute || !filterOpen);
         cardTray?.classList.toggle('is-closed', !binder || !state.cardTrayOpen);
         filterTray?.setAttribute('aria-hidden', String(!binder || !filterOpen));
         lobbyFilterTray?.setAttribute('aria-hidden', String(!social || !filterOpen));
+        builderFilterTray?.setAttribute('aria-hidden', String(!builderRoute || !filterOpen));
         cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
-        const trayOpen = (binder && filterOpen) || (social && filterOpen) || (binder && state.cardTrayOpen);
+        const trayOpen = (showFilterHud && filterOpen) || (binder && state.cardTrayOpen);
         backdrop?.classList.toggle('hidden', !trayOpen);
     }
 
@@ -5248,7 +6136,7 @@
         const next = Math.max(0, Math.min(copyLimit, current + delta));
         if (next) state.builderCounts[cardId] = next;
         else delete state.builderCounts[cardId];
-        if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        if (delta > 0 || !state.builderPreviewCardId) state.builderPreviewCardId = cardId;
         if (state.route === 'deck-builder') {
             renderDeckBuilderPage();
         }
@@ -6358,7 +7246,6 @@
             state.friendPresence = {};
             state.messageThreads = [];
             renderFriends();
-            renderMessageThreads();
             return;
         }
         await syncProfile();
@@ -6373,7 +7260,6 @@
         }
         renderFriends();
         renderFriendRequests();
-        renderMessageThreads();
         renderSocialActiveLobby();
     }
 
@@ -6406,34 +7292,8 @@
         state.messageThreads = data.threads || [];
     }
 
-    function renderMessageThreads() {
-        const list = document.getElementById('messageThreadList');
-        const count = document.getElementById('messageThreadCount');
-        const compose = document.getElementById('messageCompose');
-        if (!list) return;
-        if (count) count.textContent = `${state.messageThreads.length} thread${state.messageThreads.length === 1 ? '' : 's'}`;
-        if (!state.profile?.authenticated) {
-            list.innerHTML = '<div class="social-empty-state"><strong>Sign in to message friends</strong></div>';
-            compose?.classList.add('hidden');
-            return;
-        }
-        if (!state.messageThreads.length) {
-            list.innerHTML = '<div class="social-empty-state"><strong>No messages yet</strong><span>Open a friend profile and tap Message to start chatting.</span></div>';
-            return;
-        }
-        list.innerHTML = state.messageThreads.map(thread => {
-            const friend = (state.profile?.friends || []).find(row => row.email === thread.peerId);
-            const label = friend?.displayName || thread.peerId;
-            return `<button class="message-thread-btn" type="button" data-open-thread="${escapeAttr(thread.peerId)}">
-                <strong>${escapeHtml(label)}</strong>
-                <span>${escapeHtml(thread.lastMessage || 'No messages yet')}</span>
-            </button>`;
-        }).join('');
-        list.querySelectorAll('[data-open-thread]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.openThread)));
-        if (state.activeChatPeer) {
-            openMessageComposer(state.activeChatPeer, false);
-        }
-    }
+    // The standalone thread list is gone — unread chats surface as a blinking
+    // badge on each friend's Message button (see friendHasUnread).
 
     function chatMessageSenderLabel(message, peerId) {
         if (message?.mine) return 'You';
@@ -6462,11 +7322,15 @@
     async function openMessageComposer(peerId, focusInput = true) {
         if (!state.profile?.authenticated) return openAuth();
         state.activeChatPeer = peerId;
+        // The chat lives inside the friends modal as a full-screen takeover;
+        // opening it from anywhere (friend card, profile page) raises both.
+        document.getElementById('friendsModal')?.classList.remove('hidden');
+        showFriendsChatView(true);
         const compose = document.getElementById('messageCompose');
         const title = document.getElementById('messageComposeTitle');
         const log = document.getElementById('messageLog');
         const friend = (state.profile?.friends || []).find(row => row.email === peerId);
-        if (title) title.textContent = `Chat with ${friend?.displayName || peerId}`;
+        if (title) title.textContent = resolveFriendDisplayName(friend || { email: peerId });
         compose?.classList.remove('hidden');
         const data = await fetchJson(`/api/social/messages/with/${encodeURIComponent(peerId)}`);
         if (!data || data?.error) {
@@ -6480,7 +7344,7 @@
                 : '<div class="social-empty-state"><span>Say hello to start the conversation.</span></div>';
             log.scrollTop = log.scrollHeight;
         }
-        renderMessageThreads();
+        markChatSeen(peerId);
         if (focusInput) document.getElementById('messageInput')?.focus();
     }
 
@@ -6799,6 +7663,18 @@
                         <span class="options-menu-icon">&#128100;</span>
                         <span><strong>Account</strong><small>Manage or permanently delete your account</small></span>
                     </button>
+                    <button class="options-menu-item" type="button" data-options-tour>
+                        <span class="options-menu-icon">&#129517;</span>
+                        <span><strong>New Player Guide</strong><small>Replay the HUD walkthrough and tutorial match offer</small></span>
+                    </button>
+                    <button class="options-menu-item" type="button" data-options-view="gallery">
+                        <span class="options-menu-icon">&#127912;</span>
+                        <span><strong>Art Gallery</strong><small>Browse loading screen art, set page and profile backgrounds</small></span>
+                    </button>
+                    <button class="options-menu-item" type="button" data-options-support>
+                        <span class="options-menu-icon">&#127911;</span>
+                        <span><strong>Support</strong><small>Join the Discord for help, bug reports, and feedback</small></span>
+                    </button>
                     <button class="options-menu-item" type="button" data-options-view="admin">
                         <span class="options-menu-icon">&#9881;</span>
                         <span><strong>Admin</strong><small>Password-protected dashboard access</small></span>
@@ -6818,6 +7694,34 @@
                     <h3>${escapeHtml(section.title)}</h3>
                     ${section.html}
                 </div>`;
+        } else if (view === 'gallery') {
+            const pageArt = readStoredArt(PAGE_ART_KEY);
+            const profileArt = readStoredArt(PROFILE_ART_KEY);
+            const pieces = state.loadingArt || [];
+            body.innerHTML = `<div class="view-profile-modal-head">
+                    <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Art Gallery</h2></div>
+                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                </div>
+                ${pieces.length ? `<p class="guide-note">Tap a piece to view it full screen. Set any piece as the page background or your profile card art — picking it again switches back to the default look.</p>
+                <div class="art-gallery-grid">
+                    ${pieces.map(piece => {
+                        const thumb = artImageFor(piece, false);
+                        const isPage = pageArt?.id === piece.id;
+                        const isProfile = profileArt?.id === piece.id;
+                        return `<figure class="art-gallery-tile">
+                            <button class="art-gallery-thumb" type="button" data-art-view="${escapeAttr(piece.id)}" style="background-image:url('${escapeAttr(thumb)}')" aria-label="View ${escapeAttr(piece.title)} full screen"></button>
+                            <figcaption>
+                                <strong>${escapeHtml(piece.title)}</strong>
+                                <div class="art-gallery-actions">
+                                    <button class="ghost-btn compact-btn${isPage ? ' active' : ''}" type="button" data-art-set-page="${escapeAttr(piece.id)}">${isPage ? 'Page bg &#10003;' : 'Page bg'}</button>
+                                    <button class="ghost-btn compact-btn${isProfile ? ' active' : ''}" type="button" data-art-set-profile="${escapeAttr(piece.id)}">${isProfile ? 'Profile &#10003;' : 'Profile'}</button>
+                                </div>
+                            </figcaption>
+                        </figure>`;
+                    }).join('')}
+                </div>
+                ${pageArt || profileArt ? '<button class="ghost-btn compact-btn art-gallery-reset" type="button" data-art-clear>Reset backgrounds to default</button>' : ''}`
+                : `<p class="guide-note">No art yet. Drop loading screen images into <code>img/art/loading/</code> named like <code>fire-ridge-landscape.png</code> and <code>fire-ridge-portrait.png</code> &mdash; the loading screens, this gallery, and the background pickers fill in automatically.</p>`}`;
         } else if (view === 'share') {
             const email = state.profile?.user?.email || '';
             const authed = Boolean(state.profile?.authenticated && email);
@@ -6885,6 +7789,29 @@
 
     function handleOptionsClick(event) {
         if (event.target.closest('[data-options-close]')) { closeOptions(); return; }
+        if (event.target.closest('[data-options-tour]')) {
+            closeOptions();
+            startOnboardingTour();
+            return;
+        }
+        if (event.target.closest('[data-options-support]')) {
+            window.open('https://discord.gg/T4WrHCGJ9b', '_blank', 'noopener,noreferrer');
+            return;
+        }
+        const artView = event.target.closest('[data-art-view]');
+        if (artView) { openArtLightbox(artView.dataset.artView); return; }
+        const artPage = event.target.closest('[data-art-set-page]');
+        if (artPage) { setStoredArt(PAGE_ART_KEY, artPage.dataset.artSetPage); return; }
+        const artProfile = event.target.closest('[data-art-set-profile]');
+        if (artProfile) { setStoredArt(PROFILE_ART_KEY, artProfile.dataset.artSetProfile); return; }
+        if (event.target.closest('[data-art-clear]')) {
+            localStorage.removeItem(PAGE_ART_KEY);
+            localStorage.removeItem(PROFILE_ART_KEY);
+            applyCustomPageArt();
+            renderOptions();
+            if (state.route === 'profile') safeRender(renderProfile);
+            return;
+        }
         const viewBtn = event.target.closest('[data-options-view]');
         if (viewBtn) { state.optionsView = viewBtn.dataset.optionsView; renderOptions(); return; }
         const tabBtn = event.target.closest('[data-guide-tab]');
@@ -6934,14 +7861,30 @@
 
     document.getElementById('closeMessageComposeBtn')?.addEventListener('click', () => {
         state.activeChatPeer = null;
-        document.getElementById('messageCompose')?.classList.add('hidden');
-        renderMessageThreads();
+        showFriendsChatView(false);
+        // Re-render so the Message button's unread badge clears for the chat
+        // that was just read.
+        renderFriends();
     });
     document.getElementById('messageSendForm')?.addEventListener('submit', sendChatMessage);
 
     document.addEventListener('click', (event) => {
+        const shopPreviewButton = event.target.closest('[data-shop-preview-card-id]');
+        if (shopPreviewButton) {
+            openShopCardPreview(shopPreviewButton.dataset.shopPreviewCardId);
+            return;
+        }
+        if (event.target.closest('[data-close-shop-card-preview]') || event.target.matches('[data-shop-card-preview-backdrop]')) {
+            closeShopCardPreview();
+            return;
+        }
         if (event.target.closest('[data-clear-pack-result]')) {
             clearPackResult();
+            return;
+        }
+        const oddsButton = event.target.closest('[data-pack-odds]');
+        if (oddsButton) {
+            showPackOdds(oddsButton.dataset.packOdds);
             return;
         }
         const packButton = event.target.closest('[data-pack-id]');
@@ -6970,5 +7913,11 @@
             }
         }
         if (event.target.closest('[data-reveal-all-pack]')) revealAllPackCards();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && state.shopCardPreviewOpen) {
+            closeShopCardPreview();
+        }
     });
 })();
