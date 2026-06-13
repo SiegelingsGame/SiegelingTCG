@@ -55,6 +55,10 @@ public class PackCatalogService {
         public PackOpenResult(PackDefinition pack, List<Card> cards) {
             this(pack, cards, null, List.of());
         }
+
+        public PackOpenResult(PackDefinition pack, List<Card> cards, TrainerCard bonusTrainer) {
+            this(pack, cards, bonusTrainer, List.of());
+        }
     }
 
     public record DailyCardOffer(
