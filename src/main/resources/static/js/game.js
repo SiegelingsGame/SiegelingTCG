@@ -11924,6 +11924,20 @@ function activateCardDragSession() {
     const sourceRect = sourceEl.getBoundingClientRect();
     const ghost = sourceEl.cloneNode(true);
     stripHandCardInteractionAttributes(ghost);
+    // The hand card art is lazy-loaded; a freshly cloned lazy <img> can paint
+    // blank when reinserted, exposing the procedural card frame underneath.
+    // Force the ghost art to load eagerly (reusing the already-resolved source
+    // image) so it stays hand-drawn for the whole drag.
+    const sourceImgs = sourceEl.querySelectorAll('img');
+    ghost.querySelectorAll('img').forEach((img, index) => {
+        img.removeAttribute('loading');
+        img.loading = 'eager';
+        img.decoding = 'sync';
+        const sourceImg = sourceImgs[index];
+        if (sourceImg?.currentSrc) {
+            img.src = sourceImg.currentSrc;
+        }
+    });
     ghost.classList.add('card-drag-ghost');
     ghost.style.width = `${sourceRect.width}px`;
     ghost.style.height = `${sourceRect.height}px`;
