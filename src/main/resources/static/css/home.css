@@ -3721,7 +3721,7 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .social-grid {
     display: grid;
-    grid-template-columns: 280px minmax(420px, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     align-items: start;
 }
@@ -3896,7 +3896,39 @@ body.starter-onboarding-active .starter-gate h1 {
 }
 
 .social-code-row {
-    margin-bottom: 14px;
+    margin-bottom: 10px;
+}
+
+.social-quick-join-btn {
+    width: 100%;
+    min-height: 40px;
+    margin: 0 0 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(74, 222, 128, 0.62);
+    border-radius: 8px;
+    color: #eafff1;
+    background: linear-gradient(180deg, #2fbf63, #15814a);
+    font-weight: 950;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 8px 20px rgba(16, 137, 74, 0.28);
+}
+
+.social-quick-join-btn:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+
+.social-quick-join-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(0.35);
+    transform: none;
+    box-shadow: none;
 }
 
 .social-room-tile {
