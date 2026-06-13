@@ -87,6 +87,10 @@ function siegeknightCardBackStyle() {
 }
 let handTouchSuppressHandIndex = null;
 let handTouchSuppressUntil = 0;
+// Tracks the last hand-card tap so a quick second tap on the same card opens
+// its full card preview instead of just toggling the selection.
+let lastHandActivation = { handIndex: -1, time: 0 };
+const HAND_DOUBLE_TAP_MS = 320;
 let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
@@ -4373,6 +4377,45 @@ function getFocusedPreviewCard() {
     return hoveredCard || selectedCard || null;
 }
 
+// Distinct, value-adding hints for whatever card is currently focused. Each
+// line says something the others (and the action banner) do not, so the hint
+// drawer never repeats the same "use the eye button" message three times.
+function getFocusedCardHints(card) {
+    const hints = [];
+
+    if (isBoardPreviewCard(card)) {
+        hints.push(
+            `${boardCardOwnershipLabel(card)} Siegeling — ${card.hp ?? '?'}/${card.maxHp ?? '?'} HP.`
+        );
+        const moveCount = getSieglingMovesForDisplay(card).length;
+        if (moveCount > 0) {
+            hints.push(`Open the Battle View (⚔) to simulate its ${moveCount} move${moveCount === 1 ? '' : 's'} and what each one can hit.`);
+        }
+        return hints;
+    }
+
+    const lockReason = getHandCardLockReason(card);
+    if (lockReason) {
+        hints.push(lockReason);
+    } else if (card.type === 'SIEGLING') {
+        if (card.evolvesFromName) {
+            hints.push(`After ${card.evolvesFromName} survives a full battle phase in that form, play this on it to evolve.`);
+        }
+        const moveCount = getSieglingMovesForDisplay(card).length;
+        if (moveCount > 0) {
+            hints.push(`Open the Battle View (⚔) to preview the ${moveCount} move${moveCount === 1 ? '' : 's'} it can make once placed.`);
+        }
+    } else if (card.type === 'TRAP') {
+        hints.push('Deceptions stay hidden until their trigger condition is met.');
+    } else if (card.costElement && card.costAmount > 0) {
+        hints.push(`This costs ${card.costAmount} ${formatElementLabel(card.costElement)} to play.`);
+    }
+
+    // One discovery tip covering both ways into the full card preview.
+    hints.push('Double-tap the card or tap the eye button for its full preview.');
+    return hints;
+}
+
 function getInteractionHintState() {
     const state = getInteractionBannerState();
     const focusedCard = getFocusedPreviewCard();
@@ -4383,28 +4426,7 @@ function getInteractionHintState() {
     }
 
     if (focusedCard) {
-        if (isBoardPreviewCard(focusedCard)) {
-            hints.push(
-                `${boardCardOwnershipLabel(focusedCard)} Siegeling — ${focusedCard.hp ?? '?'}/${focusedCard.maxHp ?? '?'} HP.`
-            );
-        } else {
-            const lockReason = getHandCardLockReason(focusedCard);
-            if (lockReason) {
-                hints.push(lockReason);
-            } else if (focusedCard.type === 'SIEGLING') {
-                if (focusedCard.evolvesFromName) {
-                    hints.push(`After ${focusedCard.evolvesFromName} survives a full battle phase in that form, play this on it to evolve.`);
-                } else if (gameState?.currentPhase === 'SETUP' && !gameState?.playerPlacementUsed) {
-                    hints.push('Drag onto a highlighted cell to place, or tap the eye button for the full card preview.');
-                }
-            } else if (focusedCard.type === 'TRAP') {
-                hints.push('Deceptions stay hidden until their trigger condition is met.');
-            } else if (focusedCard.costElement && focusedCard.costAmount > 0) {
-                hints.push(`This costs ${focusedCard.costAmount} ${formatElementLabel(focusedCard.costElement)} to play.`);
-            }
-        }
-
-        hints.push('Use the eye button to open the focused card drawer.');
+        getFocusedCardHints(focusedCard).forEach((hint) => hints.push(hint));
     }
 
     const uniqueHints = [...new Set(hints.filter(Boolean))];
@@ -4425,9 +4447,10 @@ function renderHintPanel() {
     const hintState = getInteractionHintState();
     if (!hintState.available) {
         panel.innerHTML = `
-            <div class="hint-drawer-copy">Select or hover a hand card, or click a Siegeling on either board, to see contextual help.</div>
+            <div class="hint-drawer-copy">Select or hover a hand card, or tap a Siegeling on either board, to see contextual help.</div>
             <div class="hint-list">
-                <div class="hint-item">The eye button opens the live card preview drawer when something is focused.</div>
+                <div class="hint-item">Double-tap a hand card (or tap the eye button) to open its full preview.</div>
+                <div class="hint-item">Open the Battle View (⚔) to simulate your board's attacks before battle begins.</div>
             </div>
         `;
         return;
@@ -7367,7 +7390,7 @@ function getInteractionBannerState() {
         return {
             kind: 'place',
             label: 'Placement',
-            message: `Drag ${selectedCard.name} onto a highlighted slot, or tap a slot to place. Use the eye button for the full card preview.`
+            message: `Drag ${selectedCard.name} onto a highlighted slot, or tap a slot to place.`
         };
     }
     if (gameState.currentPhase === 'SETUP' && gameState.playerPlacementUsed) {
@@ -9578,8 +9601,8 @@ function renderDomLegacy() {
         const panelTitle = phase === 'BATTLE'
             ? battleHandViewOpen ? 'View Battle Action' : 'View Hand'
             : getSelectedBattlePreviewCard()
-                ? 'Preview selected card abilities'
-                : 'Preview Siegeling battle abilities';
+                ? 'Battle View — simulate this card\'s attacks'
+                : 'Battle View — simulate your Siegelings\' attacks';
         btnBattlePanel.innerHTML = phase === 'BATTLE'
             ? battleHandViewOpen ? '&#9876;' : '&#127183;'
             : '&#9876;';
@@ -11901,6 +11924,20 @@ function activateCardDragSession() {
     const sourceRect = sourceEl.getBoundingClientRect();
     const ghost = sourceEl.cloneNode(true);
     stripHandCardInteractionAttributes(ghost);
+    // The hand card art is lazy-loaded; a freshly cloned lazy <img> can paint
+    // blank when reinserted, exposing the procedural card frame underneath.
+    // Force the ghost art to load eagerly (reusing the already-resolved source
+    // image) so it stays hand-drawn for the whole drag.
+    const sourceImgs = sourceEl.querySelectorAll('img');
+    ghost.querySelectorAll('img').forEach((img, index) => {
+        img.removeAttribute('loading');
+        img.loading = 'eager';
+        img.decoding = 'sync';
+        const sourceImg = sourceImgs[index];
+        if (sourceImg?.currentSrc) {
+            img.src = sourceImg.currentSrc;
+        }
+    });
     ghost.classList.add('card-drag-ghost');
     ghost.style.width = `${sourceRect.width}px`;
     ghost.style.height = `${sourceRect.height}px`;
@@ -12016,7 +12053,7 @@ function handleCardDragPointerEnd(event) {
     if (isMobileLayout()) {
         event.preventDefault();
         event.stopPropagation();
-        selectCard(handIndex);
+        activateHandCard(handIndex);
         handTouchSuppressHandIndex = handIndex;
         handTouchSuppressUntil = Date.now() + 500;
     }
@@ -12028,7 +12065,52 @@ function handleHandCardClick(event, handIndex) {
         event.stopPropagation();
         return;
     }
+    // On touch devices the tap is fully handled in touchend; ignore the
+    // synthetic click that follows so it is not counted as a second tap.
+    if (isMobileLayout() && handTouchSuppressHandIndex === handIndex && Date.now() < handTouchSuppressUntil) {
+        return;
+    }
+    activateHandCard(handIndex);
+}
+
+// Quick second tap on the same hand card opens its full preview; a single tap
+// keeps the normal select/toggle behaviour.
+function handCardActivationIsDoubleTap(handIndex) {
+    const now = Date.now();
+    const isDouble = lastHandActivation.handIndex === handIndex
+        && (now - lastHandActivation.time) <= HAND_DOUBLE_TAP_MS;
+    lastHandActivation = { handIndex, time: isDouble ? 0 : now };
+    return isDouble;
+}
+
+function activateHandCard(handIndex) {
+    if (handCardActivationIsDoubleTap(handIndex)) {
+        openHandCardPreview(handIndex);
+        return;
+    }
     selectCard(handIndex);
+}
+
+function openHandCardPreview(handIndex) {
+    if (!gameState || gameState.currentPhase !== 'SETUP') {
+        return;
+    }
+    const card = gameState.player?.hand?.[handIndex];
+    if (!card) {
+        return;
+    }
+    clearArenaSelection();
+    hoveredBoardCard = null;
+    selectedCard = card;
+    selectedHandIndex = handIndex;
+    clearTargetMode();
+    // Action cards need the explicit confirm step rather than auto-firing.
+    if (isActionCard(card) && isMobileLayout()) {
+        mobileSpellPreviewPending = true;
+    }
+    updateSelectedInfo(card, getHandCardLockReason(card) || null);
+    openDrawer('selected');
+    render();
 }
 
 function handleHandCardTouchStart(event, handIndex) {
@@ -12074,7 +12156,7 @@ function handleHandCardTouchEnd(event, handIndex) {
     }
     event.preventDefault();
     event.stopPropagation();
-    selectCard(handIndex);
+    activateHandCard(handIndex);
     handTouchSuppressHandIndex = handIndex;
     handTouchSuppressUntil = Date.now() + 500;
 }
@@ -12457,7 +12539,7 @@ function renderSelectedCardBattlePreview(card) {
         : 'No printed ability text is available for this card.';
 
     let html = '<div class="battle-standby-preview battle-selected-preview">';
-    html += '<div class="battle-attacker"><strong>Selected card preview.</strong> Battle abilities and effects for the card in your hand.</div>';
+    html += '<div class="battle-attacker"><strong>Battle View — selected card.</strong> Simulate the moves and effects this hand card could use once it is in play.</div>';
     html += `<article class="battle-standby-card battle-selected-card ${elementClass}">`;
     html += '<div class="battle-standby-card-head">';
     html += `<div><div class="battle-standby-selected-label">Selected</div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Card')}</div><div class="battle-standby-card-meta">${escapeHtml(getSelectedCardBattlePreviewMeta(card))}</div></div>`;
@@ -12480,12 +12562,12 @@ function renderStandbyBattleAbilityPreview() {
 
     const entries = getStandbyBattlePreviewCards();
     if (entries.length === 0) {
-        return '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Place a Siegeling to preview its battle abilities here.</div><div class="battle-hint">When battle begins, this panel becomes the live speed-order action queue.</div>';
+        return '<div class="battle-attacker"><strong>Battle View.</strong> Place a Siegeling, or select one in hand, to simulate the attacks and moves it could make.</div><div class="battle-hint">When battle begins, this panel becomes the live speed-order action queue.</div>';
     }
 
     let html = '<div class="battle-standby-preview">';
-    html += '<div class="battle-attacker"><strong>Battle queue is on standby.</strong> Review your board abilities before ending setup.</div>';
-    html += '<div class="battle-hint">Listed in projected speed order. Energy availability is checked again when each Siegeling acts.</div>';
+    html += '<div class="battle-attacker"><strong>Battle View.</strong> Simulate which attacks and moves each of your Siegelings could make this battle.</div>';
+    html += '<div class="battle-hint">Listed in projected speed order. Energy availability is re-checked when each Siegeling actually acts.</div>';
     html += '<div class="battle-standby-list">';
     for (const entry of entries) {
         const card = entry.card;
@@ -12607,7 +12689,7 @@ function renderBattlePanel() {
             return;
         }
         setPanelHtml(buildQueueShell(
-            'Stand By',
+            'Battle View',
             'waiting',
             renderStandbyBattleAbilityPreview()
         ));
