@@ -9397,13 +9397,27 @@ async function executeBattle() {
 function openBattlePanel(forceOpen = false) {
     renderBattlePanel();
     if (usesInlineBattleDock()) {
-        if (gameState?.currentPhase === 'BATTLE' && (battleHandViewOpen || forceOpen)) {
-            battleHandViewOpen = false;
-            render();
+        // During a live battle the queue lives in the docked hand tray, so the
+        // sword button just flips back from the hand view to that dock.
+        if (gameState?.currentPhase === 'BATTLE') {
+            if (battleHandViewOpen || forceOpen) {
+                battleHandViewOpen = false;
+                render();
+            }
+            if (activeDrawer === 'battle') {
+                closeDrawer(true);
+            }
+            return;
         }
+        // Outside battle there is no docked queue, so surface the Battle View
+        // preview in the slide-up drawer where moves can be inspected.
         if (activeDrawer === 'battle') {
-            closeDrawer(true);
+            if (!forceOpen) {
+                closeDrawer();
+            }
+            return;
         }
+        openDrawer('battle');
         return;
     }
     if (activeDrawer === 'battle') {
