@@ -13185,23 +13185,34 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 }
 
 /* ============================================================
-   LANDSCAPE MODE — dedicated TCG layout for phones in landscape
-   (width below 980px). iPad landscape uses the tablet block below.
+   PORTRAIT PHONES — keep the hand selector snug against the
+   Knight/Draw buttons and hand the freed height to the arena.
    ============================================================ */
 @media (max-width: 700px) and (orientation: portrait) {
+    /* Trim the tray's vertical padding on both ends. The dock is pinned to
+       the viewport bottom, so a shorter tray pushes its top edge down and
+       lets the battlefield (flex: 1) grow — more arena, hand still hugging
+       the action buttons. */
     .hand-tray {
+        padding-top: 2px;
         padding-bottom: 0;
     }
 
     .hand-tray .hand-cards {
         align-items: flex-end;
-        padding-bottom: 0;
+        padding-top: 0;
+        padding-bottom: 2px;
     }
 
     .action-bar {
         padding-top: 2px;
     }
 }
+
+/* ============================================================
+   LANDSCAPE MODE — dedicated TCG layout for phones in landscape
+   (width below 980px). iPad landscape uses the tablet block below.
+   ============================================================ */
 
 @media (orientation: landscape) and (max-width: 979px) {
     .mobile-hud,
