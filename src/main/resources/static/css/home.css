@@ -3510,7 +3510,23 @@ body.starter-onboarding-active .starter-gate h1 {
 }
 
 .builder-card-mark,
+/* Element-icon thumbnail in each binder row. It holds an .element-icon-art
+   <img> that is position:absolute; inset:0 — so this MUST be a sized,
+   positioned, clipped box. Without it the absolute image sized against the
+   viewport and filled the whole screen behind the deck builder. */
+.builder-card-mark {
+    position: relative;
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    overflow: hidden;
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 16px color-mix(in srgb, var(--el, var(--accent)) 18%, transparent);
+}
+
 .builder-catalog-art {
+    position: relative;
     width: 42px;
     height: 42px;
     display: grid;
