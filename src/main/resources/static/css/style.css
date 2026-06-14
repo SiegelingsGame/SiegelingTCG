@@ -13190,6 +13190,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
    ============================================================ */
 @media (max-width: 700px) and (orientation: portrait) {
     .hand-tray {
+        padding-top: 4px;
         padding-bottom: 0;
     }
 
@@ -13198,8 +13199,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         padding-bottom: 0;
     }
 
+    /* Pull the hand selector down against the Knight/Draw buttons so more of
+       the arena board shows above it. Drop the decorative "Hand Selector"
+       caption and collapse the inter-section gaps on phones. */
+    .desktop-menu-hand .desktop-section-title {
+        display: none;
+    }
+
+    .desktop-menu-hand {
+        min-height: 0;
+    }
+
+    .desktop-menu-bottom-dock {
+        gap: 4px;
+    }
+
     .action-bar {
-        padding-top: 2px;
+        padding-top: 0;
     }
 }
 
