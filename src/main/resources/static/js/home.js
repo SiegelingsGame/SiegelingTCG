@@ -467,8 +467,7 @@
             pushNotification('gold', `+${next.gold - prev.gold} Siegecoins earned`, `Wallet: ${next.gold} Siegecoins`);
         }
         next.titles.filter(id => !prev.titles.includes(id)).forEach(id => {
-            const title = (state.titleCatalog || []).find(t => t.id === id);
-            pushNotification('title', `Title earned: ${title?.name || id}`);
+            pushNotification('title', `Title earned: ${resolveTitleDisplayName(id)}`);
         });
         next.requests.filter(id => !prev.requests.includes(id)).forEach(id => {
             const req = (state.profile?.incomingFriendRequests || []).find(r => (r.fromUserId || r.peerEmail) === id);
@@ -620,6 +619,10 @@
 
     function maybeStartOnboardingTour() {
         if (!state.profile?.authenticated || !state.progression?.starterChosen) return;
+        // Players who have completed the tutorial match never see the tour
+        // again — this flag is server-side, so it holds across devices and
+        // cleared local storage (localStorage alone re-triggered the popup).
+        if (state.progression?.tutorialCompleted) return;
         if (localStorage.getItem(tourStorageKey()) === '1') return;
         if (document.getElementById('tourOverlay')) return;
         startOnboardingTour();
@@ -3127,6 +3130,7 @@
             ? `${format(primaryElement)} Element Pack`
             : pack.name;
         return `<article class="pack-tile ${image ? 'pack-tile-art' : ''}" style="--el:${elementColor(primaryElement)}">
+            <button class="pack-odds-btn" type="button" data-pack-odds="${escapeAttr(pack.id)}" aria-label="Drop rates for ${escapeAttr(displayName)}" title="Drop rates">i</button>
             <div class="pack-art" style="${imageStyle}"></div>
             <div class="pack-info">
                 <span class="pack-kicker">${kicker}</span>
@@ -3136,6 +3140,42 @@
                 <button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}"${openingAnyPack ? ' disabled' : ''}>${label}</button>
             </div>
         </article>`;
+    }
+
+    // Mirrors PackCatalogService odds so the modal still works when the
+    // cached /api/shop/packs payload predates the odds field.
+    const FALLBACK_PACK_ODDS = {
+        siegeKnight: 0.03,
+        cardsPerPack: 5,
+        holoPerCard: { COMMON: 0.08, UNCOMMON: 0.06, RARE: 0.04, EPIC: 0.02, LEGENDARY: 0.01 }
+    };
+
+    function showPackOdds(packId) {
+        const pack = (state.packs || []).find(item => item.id === packId);
+        if (!pack) return;
+        const odds = pack.odds || {
+            ...FALLBACK_PACK_ODDS,
+            siegeKnight: pack.id === 'pack_siegeknight' ? 1 : FALLBACK_PACK_ODDS.siegeKnight
+        };
+        const holo = odds.holoPerCard || FALLBACK_PACK_ODDS.holoPerCard;
+        const pct = value => `${Math.round(Number(value || 0) * 1000) / 10}%`;
+        const knightLine = Number(odds.siegeKnight) >= 1 ? 'Guaranteed' : pct(odds.siegeKnight);
+        const overlay = document.createElement('div');
+        overlay.className = 'pack-odds-modal';
+        overlay.innerHTML = `<div class="pack-odds-panel panel">
+            <div class="section-head">
+                <div><span class="eyebrow">Drop Rates</span><h2>${escapeHtml(pack.name)}</h2></div>
+                <button class="ghost-btn compact-btn" type="button" data-odds-close>Close</button>
+            </div>
+            <p class="pack-odds-note">Every pack contains ${odds.cardsPerPack || 5} cards.</p>
+            <div class="pack-odds-row"><span>Bonus SiegeKnight</span><strong>${knightLine}</strong></div>
+            <p class="pack-odds-note">Holographic finish chance, rolled separately for each card pulled. Rarer cards are rarer holos:</p>
+            ${['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'].map(rarity => `<div class="pack-odds-row"><span>${format(rarity)} holo</span><strong>${pct(holo[rarity])}</strong></div>`).join('')}
+        </div>`;
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay || event.target.closest('[data-odds-close]')) overlay.remove();
+        });
+        document.body.appendChild(overlay);
     }
 
     function packImageFor(pack) {
@@ -3621,6 +3661,27 @@
         const fromProgression = (state.progression?.playerTitles || []).filter(title => title.unlocked);
         if (fromProgression.length) return fromProgression;
         return (state.titleCatalog || []).filter(title => title.unlocked);
+    }
+
+    // Turn a raw title id (e.g. "title_ach_mission_claim") into readable words
+    // so a notification never surfaces the internal key if a label is missing.
+    function humanizeTitleId(id) {
+        return String(id || '')
+            .replace(/^title[_-]/i, '')
+            .replace(/^ach[_-]/i, '')
+            .replace(/[_-]+/g, ' ')
+            .trim()
+            .replace(/\b\w/g, ch => ch.toUpperCase()) || 'New title';
+    }
+
+    // Prefer the human label from the player's earned titles, then the shop
+    // catalog, then a humanized fallback — never the raw id.
+    function resolveTitleDisplayName(id) {
+        const fromProgression = (state.progression?.playerTitles || []).find(t => t.id === id);
+        const fromCatalog = (state.titleCatalog || []).find(t => t.id === id);
+        return fromProgression?.label || fromProgression?.name
+            || fromCatalog?.label || fromCatalog?.name
+            || humanizeTitleId(id);
     }
 
     function ownedSieglingCards() {
@@ -7843,6 +7904,11 @@
         }
         if (event.target.closest('[data-clear-pack-result]')) {
             clearPackResult();
+            return;
+        }
+        const oddsButton = event.target.closest('[data-pack-odds]');
+        if (oddsButton) {
+            showPackOdds(oddsButton.dataset.packOdds);
             return;
         }
         const packButton = event.target.closest('[data-pack-id]');

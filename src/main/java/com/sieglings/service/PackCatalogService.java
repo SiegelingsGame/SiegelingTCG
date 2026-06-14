@@ -3,6 +3,7 @@ package com.sieglings.service;
 import com.sieglings.model.Card;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.CardType;
+import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.EnumMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,6 +26,18 @@ import java.util.stream.Collectors;
 public class PackCatalogService {
     /** Chance a normal pack also contains a SiegeKnight (very rare). Tunable balance knob. */
     public static final double TRAINER_DROP_CHANCE = 0.03;
+
+    /**
+     * Chance for each pulled card to drop with a holographic finish. Higher
+     * rarities are rarer as holos, so the shiniest pulls stay special.
+     */
+    public static final Map<Rarity, Double> HOLO_DROP_CHANCE = new EnumMap<>(Map.of(
+            Rarity.COMMON, 0.08,
+            Rarity.UNCOMMON, 0.06,
+            Rarity.RARE, 0.04,
+            Rarity.EPIC, 0.02,
+            Rarity.LEGENDARY, 0.01
+    ));
     /** Dedicated, expensive pack that always contains a SiegeKnight. */
     public static final String SIEGEKNIGHT_PACK_ID = "pack_siegeknight";
 
@@ -37,9 +51,13 @@ public class PackCatalogService {
             boolean starterEligible
     ) {}
 
-    public record PackOpenResult(PackDefinition pack, List<Card> cards, TrainerCard bonusTrainer) {
+    public record PackOpenResult(PackDefinition pack, List<Card> cards, TrainerCard bonusTrainer, List<String> holoCardIds) {
         public PackOpenResult(PackDefinition pack, List<Card> cards) {
-            this(pack, cards, null);
+            this(pack, cards, null, List.of());
+        }
+
+        public PackOpenResult(PackDefinition pack, List<Card> cards, TrainerCard bonusTrainer) {
+            this(pack, cards, bonusTrainer, List.of());
         }
     }
 
@@ -126,7 +144,7 @@ public class PackCatalogService {
             if (cards.size() < 5) {
                 throw new IllegalArgumentException("This pack does not have enough live " + focusType.get().name().toLowerCase(Locale.ROOT) + " cards configured.");
             }
-            return new PackOpenResult(pack, cards, rollBonusTrainer(pack));
+            return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollHolographicDrops(cards));
         }
 
         List<Card> sieglings = selectRandom(pool, CardType.SIEGLING, 3);
@@ -152,7 +170,7 @@ public class PackCatalogService {
             }
             cards.add(filler.get(0));
         }
-        return new PackOpenResult(pack, cards, rollBonusTrainer(pack));
+        return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollHolographicDrops(cards));
     }
 
     /**
@@ -174,6 +192,22 @@ public class PackCatalogService {
             return null;
         }
         return candidates.get(new Random().nextInt(candidates.size())).copy();
+    }
+
+    /** Rolls each pulled card against its rarity's holo chance. */
+    private List<String> rollHolographicDrops(List<Card> cards) {
+        Random random = new Random();
+        List<String> holo = new ArrayList<>();
+        for (Card card : cards) {
+            if (card.isHolographic()) {
+                continue;
+            }
+            double chance = HOLO_DROP_CHANCE.getOrDefault(card.getRarity(), 0.0);
+            if (random.nextDouble() < chance) {
+                holo.add(card.getId());
+            }
+        }
+        return holo;
     }
 
     public List<Map<String, Object>> serializePacks() {
@@ -246,6 +280,15 @@ public class PackCatalogService {
         out.put("price", pack.price());
         out.put("elements", pack.elements().stream().map(Enum::name).toList());
         out.put("starterEligible", pack.starterEligible());
+        Map<String, Object> odds = new LinkedHashMap<>();
+        odds.put("siegeKnight", SIEGEKNIGHT_PACK_ID.equals(pack.id()) ? 1.0 : TRAINER_DROP_CHANCE);
+        Map<String, Double> holoPerCard = new LinkedHashMap<>();
+        for (Rarity rarity : Rarity.values()) {
+            holoPerCard.put(rarity.name(), HOLO_DROP_CHANCE.getOrDefault(rarity, 0.0));
+        }
+        odds.put("holoPerCard", holoPerCard);
+        odds.put("cardsPerPack", 5);
+        out.put("odds", odds);
         return out;
     }
 

@@ -11,7 +11,7 @@
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
     <link rel="stylesheet" href="/css/style.css?v=160">
-    <link rel="stylesheet" href="/css/home.css?v=79">
+    <link rel="stylesheet" href="/css/home.css?v=83">
 </head>
 <body>
 <div class="home-shell">
@@ -134,14 +134,6 @@
 
             <section class="browser-panel panel hidden social-section" id="socialSection">
                 <div class="social-grid">
-                    <aside class="social-side-stack">
-                        <section class="social-panel social-card">
-                            <div class="social-panel-head"><div><span class="eyebrow">Quick Join</span><h2>Jump in fast</h2></div></div>
-                            <p class="social-muted">Join the first available 1v1 lobby.</p>
-                            <button class="ghost-btn social-wide-action" id="quickJoinBtn" type="button">Quick Join</button>
-                        </section>
-                    </aside>
-
                     <section class="social-main-stack">
                         <div class="social-search-row">
                             <input class="search-input" id="roomSearchInput" type="search" placeholder="Search lobbies...">
@@ -156,6 +148,7 @@
                                 </div>
                             </div>
                             <div class="join-row social-code-row"><input class="search-input" id="roomCodeInput" placeholder="Room code"><button class="primary-btn" id="joinRoomBtn" type="button">Join Code</button></div>
+                            <button class="social-quick-join-btn" id="quickJoinBtn" type="button" title="Join the first available 1v1 lobby">Quick Join</button>
                             <div class="room-list" id="roomList"></div>
                         </section>
                         <section class="social-panel social-card social-active-card" id="socialActiveLobby"></section>
@@ -373,7 +366,7 @@
 <script src="/js/game.js?v=170"></script>
 <script src="/js/card-binder-visual.js?v=3"></script>
 <script src="/js/achievements.js?v=5"></script>
-<script src="/js/home.js?v=85"></script>
+<script src="/js/home.js?v=87"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
