@@ -41,24 +41,26 @@ public class MatchHistoryService {
             if (state.isMatchHistoryRecorded()) {
                 return;
             }
-            recordForSide(state, true);
-            recordForSide(state, false);
-            state.setMatchHistoryRecorded(true);
+            boolean playerRecorded = recordForSide(state, true);
+            boolean enemyRecorded = recordForSide(state, false);
+            if (playerRecorded || enemyRecorded) {
+                state.setMatchHistoryRecorded(true);
+            }
         }
     }
 
-    private void recordForSide(GameState state, boolean isPlayerSide) {
+    private boolean recordForSide(GameState state, boolean isPlayerSide) {
         Player player = isPlayerSide ? state.getPlayer() : state.getEnemy();
         Player opponent = isPlayerSide ? state.getEnemy() : state.getPlayer();
         if (player.getAccountUserId() == null || player.getAccountUserId().isBlank()) {
             logger.info("Skipping match history for {} side because no account user id is attached.", isPlayerSide ? "player" : "enemy");
-            return;
+            return false;
         }
 
         AccountUser user = accountUserStore.findById(player.getAccountUserId()).orElse(null);
         if (user == null) {
             logger.warn("Skipping match history for missing account user id {}.", player.getAccountUserId());
-            return;
+            return false;
         }
 
         MatchHistoryEntity history = new MatchHistoryEntity();
@@ -84,6 +86,7 @@ public class MatchHistoryService {
         matchHistoryStore.save(history);
         playerProgressionService.awardMatchGold(history);
         logger.info("Recorded {} match history {} for user {}.", history.getMatchType(), history.getId(), user.getId());
+        return true;
     }
 
     private int totalEnergy(Player player) {
