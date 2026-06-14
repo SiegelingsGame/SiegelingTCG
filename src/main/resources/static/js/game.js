@@ -647,8 +647,8 @@ const ARENA_BOARD_NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'R
 const ELEMENT_FRAME_CLASS = {
     FIRE: 'frame-fire-metal',
     METAL: 'frame-fire-metal',
-    EARTH: 'frame-earth-psychic',
-    PSYCHIC: 'frame-earth-psychic',
+    EARTH: 'frame-earth',
+    PSYCHIC: 'frame-psychic',
     ICE: 'frame-ice-water',
     WATER: 'frame-ice-water',
     WIND: 'frame-air-electric',
