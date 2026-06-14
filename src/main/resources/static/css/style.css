@@ -5007,6 +5007,33 @@ body.battle-phase-active .battlefield::after {
     .loadout-box .builder-deck-list {
         max-height: min(56vh, calc(100dvh - 300px));
     }
+
+    .loadout-step-chip {
+        min-width: 0;
+        padding: 8px 6px;
+    }
+
+    .loadout-step-chip .loadout-step-text {
+        display: none;
+    }
+
+    .loadout-swap-bar {
+        grid-template-columns: 1fr;
+    }
+
+    .loadout-nav {
+        flex-wrap: wrap;
+    }
+
+    .loadout-nav .loadout-summary {
+        order: -1;
+        flex-basis: 100%;
+    }
+
+    .loadout-nav .loadout-start-btn {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
 }
 
 /* iPad portrait dock: iPhone-style match header + taller hand selector */
@@ -9250,16 +9277,195 @@ body.placement-active .board-cell.legal {
     justify-content: start;
 }
 
+/* ── Loadout wizard (stepped flow) ─────────────────── */
+
 .loadout-core {
-    display: grid;
-    gap: clamp(14px, 1.5vw, 22px);
-    align-items: start;
+    display: block;
+    min-width: 0;
 }
 
-.loadout-flow {
+.loadout-steps {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.loadout-step-chip {
+    flex: 1 1 0;
+    min-width: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 0.74em;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    transition: border-color 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+}
+
+.loadout-step-chip .loadout-step-num {
     display: grid;
-    gap: 14px;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 0.9em;
+}
+
+.loadout-step-chip .loadout-step-text {
+    display: inline;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.loadout-step-chip.done .loadout-step-num {
+    background: linear-gradient(180deg, #7ad97a, #2e9e4f);
+    color: #06210f;
+}
+
+.loadout-step-chip.active {
+    border-color: #fff0a8;
+    background: linear-gradient(180deg, rgba(255, 226, 90, 0.22), rgba(212, 155, 0, 0.12));
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.22);
+}
+
+.loadout-step-chip.active .loadout-step-num {
+    background: linear-gradient(180deg, #ffe25a, #d49b00);
+    color: #101828;
+}
+
+.loadout-step-chip.locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.loadout-step {
+    display: none;
+    min-width: 0;
+}
+
+.loadout-step.active {
+    display: block;
+    animation: loadoutStepIn 0.22s ease;
+}
+
+@keyframes loadoutStepIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+.loadout-nav {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 12px 0;
+    background: linear-gradient(0deg, rgba(7, 15, 32, 0.96) 62%, rgba(7, 15, 32, 0));
+}
+
+.loadout-nav .loadout-summary {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+.loadout-nav .loadout-back-btn {
+    flex: 0 0 auto;
+}
+
+.loadout-nav .loadout-start-btn {
+    flex: 0 0 auto;
+    min-width: 180px;
+}
+
+.loadout-swap-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.loadout-swap-field {
+    display: grid;
+    gap: 6px;
+    font-size: 0.7em;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #8bc2ff;
+}
+
+.loadout-swap-field select {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(10, 20, 42, 0.92);
+    color: var(--text);
+    font-size: 1.05em;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    cursor: pointer;
+}
+
+.loadout-step[data-step="review"] .selected-loadout-panel {
+    width: 100%;
+    position: relative;
+}
+
+.selected-loadout-evolutions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.selected-loadout-strategy {
+    display: grid;
+    gap: 8px;
+}
+
+.selected-loadout-strategy-copy {
+    margin: 0;
+    color: var(--text-dim);
+    line-height: 1.45;
+}
+
+.selected-loadout-subtle-label {
+    color: #fff0a8;
+    font-size: 0.7em;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.selected-loadout-evolution-block {
+    display: grid;
+    gap: 6px;
+}
+
+.loadout-evolution {
+    color: var(--text-dim);
+    font-size: 0.8em;
+    line-height: 1.4;
+}
+
+.loadout-evolution strong {
+    color: #fff6d8;
 }
 
 .selected-loadout-panel {
@@ -12735,6 +12941,36 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-weight: 700;
     }
 
+    .loadout-nav {
+        display: grid;
+        grid-template-columns: minmax(96px, 0.4fr) minmax(0, 1fr);
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px 0;
+    }
+
+    .loadout-nav .loadout-summary {
+        grid-column: 1 / -1;
+        min-width: 0;
+        width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .loadout-nav .loadout-back-btn,
+    .loadout-nav .loadout-start-btn {
+        width: 100%;
+        min-width: 0;
+        padding: 13px 14px;
+    }
+
+    .loadout-nav .loadout-back-btn {
+        grid-column: 1;
+    }
+
+    .loadout-nav .loadout-start-btn {
+        grid-column: 2;
+    }
+
     .card-tooltip {
         display: none !important;
     }
@@ -14324,6 +14560,145 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     100% { filter: brightness(1)   drop-shadow(0 0 0 transparent); transform: translate(0, 0); }
 }
 
+/* Claiming: enemy pressure cracks the card open, then its element flies into
+   the player's temporary energy pool. */
+.board-card.sgl-claim-dissolving {
+    --sgl-claim-color: #a8ffd0;
+    pointer-events: none;
+    z-index: 9;
+    animation: sgl-claim-card-dissolve 900ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--sgl-claim-color) 78%, white 8%),
+        0 0 24px color-mix(in srgb, var(--sgl-claim-color) 64%, transparent),
+        inset 0 0 18px color-mix(in srgb, var(--sgl-claim-color) 30%, transparent);
+}
+
+.board-card.sgl-claim-dissolving::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 14;
+    background:
+        radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.72), transparent 22%),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--sgl-claim-color) 70%, transparent), transparent 64%),
+        conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--sgl-claim-color) 72%, transparent), transparent 42%, color-mix(in srgb, var(--sgl-claim-color) 45%, transparent), transparent 78%);
+    mix-blend-mode: screen;
+    animation: sgl-claim-burst 900ms ease-out forwards;
+}
+
+.sgl-claim-mote {
+    --sgl-claim-color: #a8ffd0;
+    --sgl-claim-dx: 0px;
+    --sgl-claim-dy: 0px;
+    --sgl-claim-delay: 0ms;
+    --sgl-claim-duration: 860ms;
+    position: fixed;
+    width: 9px;
+    height: 9px;
+    margin-left: -4.5px;
+    margin-top: -4.5px;
+    border-radius: 999px;
+    z-index: 560;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 32% 28%, white, var(--sgl-claim-color) 42%, color-mix(in srgb, var(--sgl-claim-color) 55%, transparent) 72%, transparent);
+    box-shadow:
+        0 0 10px var(--sgl-claim-color),
+        0 0 20px color-mix(in srgb, var(--sgl-claim-color) 70%, transparent);
+    animation: sgl-claim-mote-flight var(--sgl-claim-duration) cubic-bezier(0.16, 0.72, 0.24, 1) var(--sgl-claim-delay) forwards;
+}
+
+.sgl-claim-mote::after {
+    content: '';
+    position: absolute;
+    inset: 3px 7px 3px -15px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--sgl-claim-color) 76%, transparent));
+    filter: blur(1px);
+}
+
+.sgl-claim-pool-pulse {
+    --sgl-claim-color: #a8ffd0;
+    animation: sgl-claim-pool-pulse 760ms ease-out;
+}
+
+@keyframes sgl-claim-card-dissolve {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: brightness(1) saturate(1);
+    }
+    28% {
+        opacity: 1;
+        transform: translateY(-3px) scale(1.04);
+        filter: brightness(1.8) saturate(1.45) drop-shadow(0 0 14px var(--sgl-claim-color));
+    }
+    68% {
+        opacity: 0.52;
+        transform: translateY(-8px) scale(0.92);
+        filter: brightness(2.2) saturate(1.7) blur(0.8px) drop-shadow(0 0 22px var(--sgl-claim-color));
+    }
+    100% {
+        opacity: 0.06;
+        transform: translateY(-14px) scale(0.72);
+        filter: brightness(2.8) saturate(2) blur(3px) drop-shadow(0 0 28px var(--sgl-claim-color));
+    }
+}
+
+@keyframes sgl-claim-burst {
+    0% {
+        opacity: 0;
+        transform: scale(0.7) rotate(0deg);
+        filter: blur(8px);
+    }
+    22% {
+        opacity: 1;
+        transform: scale(1.04) rotate(32deg);
+        filter: blur(0);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.48) rotate(170deg);
+        filter: blur(4px);
+    }
+}
+
+@keyframes sgl-claim-mote-flight {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0) scale(0.35);
+    }
+    12% {
+        opacity: 1;
+        transform: translate(0, -8px) scale(1.2);
+    }
+    62% {
+        opacity: 0.95;
+        transform: translate(calc(var(--sgl-claim-dx) * 0.62), calc(var(--sgl-claim-dy) * 0.62 - 26px)) scale(0.92);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(var(--sgl-claim-dx), var(--sgl-claim-dy)) scale(0.22);
+    }
+}
+
+@keyframes sgl-claim-pool-pulse {
+    0% {
+        filter: brightness(1);
+        box-shadow: none;
+    }
+    32% {
+        filter: brightness(1.65) drop-shadow(0 0 16px var(--sgl-claim-color));
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--sgl-claim-color) 36%, transparent), 0 0 22px color-mix(in srgb, var(--sgl-claim-color) 42%, transparent);
+    }
+    100% {
+        filter: brightness(1);
+        box-shadow: none;
+    }
+}
+
 /* Health-bar direct-attack impact: shake + element-colored flash on the
    top HUD HP container when an attack targets the player/enemy directly. */
 .tb-hp, .mobile-hud-side, .hud-hp-row, .safe-hp-half {
@@ -14433,6 +14808,10 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 @media (prefers-reduced-motion: reduce) {
     .board-card.sgl-status-applied::after { animation: none; opacity: 0.6; }
     .board-card.sgl-status-freeze { animation: none; }
+    .board-card.sgl-claim-dissolving,
+    .board-card.sgl-claim-dissolving::after,
+    .sgl-claim-pool-pulse { animation-duration: 240ms !important; }
+    .sgl-claim-mote { animation-duration: 260ms !important; }
 }
 
 /* Healing — glowing green "+" cross with outward particle burst. Anchored

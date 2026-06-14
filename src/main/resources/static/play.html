@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=174">
+    <link rel="stylesheet" href="/css/style.css?v=177">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -573,43 +573,51 @@
             <button class="loadout-close-btn" type="button" onclick="returnToPlayMain()" aria-label="Return to Play main screen">&times;</button>
             <div class="invite-room-badge hidden" id="inviteRoomBadge"></div>
         </div>
-        <div class="player-identity-card" id="playerIdentityCard">
-            <label class="online-field">
-                <span>Name on the battlefield</span>
-                <input type="text" id="playerNameInput" maxlength="20" placeholder="Your name" oninput="onPlayerNameInput()">
-            </label>
-            <div class="identity-note" id="playerIdentityNote">This name is shown in online matches and saved on this device.</div>
-        </div>
-        <div class="loadout-toggle-set">
-            <div class="loadout-toggle-label">Battle Mode</div>
-            <div class="match-mode-tabs" role="group" aria-label="Battle Mode">
-                <button class="loadout-tab active" id="soloMatchTab" type="button" onclick="setMatchMode('solo')" aria-pressed="true">Solo Vs AI</button>
-                <button class="loadout-tab" id="onlineMatchTab" type="button" onclick="setMatchMode('online')" aria-pressed="false">Online Match</button>
-            </div>
-        </div>
-        <div id="onlineMatchPanel" class="hidden loadout-online-panel">
-            <div class="loadout-tabs" role="group" aria-label="Online room mode">
-                <button class="loadout-tab active" id="hostRoomTab" type="button" onclick="setOnlineRoomMode('create')" aria-pressed="true">Host Room</button>
-                <button class="loadout-tab" id="joinRoomTab" type="button" onclick="setOnlineRoomMode('join')" aria-pressed="false">Join Room</button>
-            </div>
-            <div class="online-match-grid">
-                <label class="online-field" id="roomCodeField">
-                    <span>Room Code</span>
-                    <input type="text" id="roomCodeInput" maxlength="6" placeholder="ABC123">
-                </label>
-            </div>
-            <div id="onlineStatus" class="loadout-summary"></div>
-        </div>
-        <div class="loadout-toggle-set">
-            <div class="loadout-toggle-label">Deck Source</div>
-            <div class="loadout-tabs" role="group" aria-label="Deck Source">
-                <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Preset Decks</button>
-                <button class="loadout-tab" id="savedTab" type="button" onclick="switchLoadoutMode('saved')" aria-pressed="false">My Decks</button>
-                <button class="loadout-tab" id="builderTab" type="button" onclick="switchLoadoutMode('builder')" aria-pressed="false">Deck Builder</button>
-            </div>
+        <div class="loadout-steps" id="loadoutSteps" role="tablist" aria-label="Loadout steps">
+            <button class="loadout-step-chip active" type="button" id="loadoutStepChip-setup" data-step="setup" onclick="setLoadoutStep('setup')"><span class="loadout-step-num">1</span><span class="loadout-step-text">Setup</span></button>
+            <button class="loadout-step-chip" type="button" id="loadoutStepChip-deck" data-step="deck" onclick="setLoadoutStep('deck')"><span class="loadout-step-num">2</span><span class="loadout-step-text">Deck</span></button>
+            <button class="loadout-step-chip" type="button" id="loadoutStepChip-knight" data-step="knight" onclick="setLoadoutStep('knight')"><span class="loadout-step-num">3</span><span class="loadout-step-text">SiegeKnight</span></button>
+            <button class="loadout-step-chip" type="button" id="loadoutStepChip-review" data-step="review" onclick="setLoadoutStep('review')"><span class="loadout-step-num">4</span><span class="loadout-step-text">Loadout</span></button>
         </div>
         <div class="loadout-core">
-            <div class="loadout-flow">
+            <section class="loadout-step active" data-step="setup" id="loadoutStepSetup">
+                <div class="player-identity-card" id="playerIdentityCard">
+                    <label class="online-field">
+                        <span>Name on the battlefield</span>
+                        <input type="text" id="playerNameInput" maxlength="20" placeholder="Your name" oninput="onPlayerNameInput()">
+                    </label>
+                    <div class="identity-note" id="playerIdentityNote">This name is shown in online matches and saved on this device.</div>
+                </div>
+                <div class="loadout-toggle-set">
+                    <div class="loadout-toggle-label">Battle Mode</div>
+                    <div class="match-mode-tabs" role="group" aria-label="Battle Mode">
+                        <button class="loadout-tab active" id="soloMatchTab" type="button" onclick="setMatchMode('solo')" aria-pressed="true">Solo Vs AI</button>
+                        <button class="loadout-tab" id="onlineMatchTab" type="button" onclick="setMatchMode('online')" aria-pressed="false">Online Match</button>
+                    </div>
+                </div>
+                <div id="onlineMatchPanel" class="hidden loadout-online-panel">
+                    <div class="loadout-tabs" role="group" aria-label="Online room mode">
+                        <button class="loadout-tab active" id="hostRoomTab" type="button" onclick="setOnlineRoomMode('create')" aria-pressed="true">Host Room</button>
+                        <button class="loadout-tab" id="joinRoomTab" type="button" onclick="setOnlineRoomMode('join')" aria-pressed="false">Join Room</button>
+                    </div>
+                    <div class="online-match-grid">
+                        <label class="online-field" id="roomCodeField">
+                            <span>Room Code</span>
+                            <input type="text" id="roomCodeInput" maxlength="6" placeholder="ABC123" oninput="updateLoadoutSummary()">
+                        </label>
+                    </div>
+                    <div id="onlineStatus" class="loadout-summary"></div>
+                </div>
+            </section>
+            <section class="loadout-step" data-step="deck" id="loadoutStepDeck">
+                <div class="loadout-toggle-set">
+                    <div class="loadout-toggle-label">Deck Source</div>
+                    <div class="loadout-tabs" role="group" aria-label="Deck Source">
+                        <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Preset Decks</button>
+                        <button class="loadout-tab" id="savedTab" type="button" onclick="switchLoadoutMode('saved')" aria-pressed="false">My Decks</button>
+                        <button class="loadout-tab" id="builderTab" type="button" onclick="switchLoadoutMode('builder')" aria-pressed="false">Deck Builder</button>
+                    </div>
+                </div>
                 <div id="presetLoadoutPanel" class="loadout-section deck-section">
                     <div class="loadout-section-title-row">
                         <div>
@@ -649,6 +657,8 @@
                         </div>
                     </div>
                 </div>
+            </section>
+            <section class="loadout-step" data-step="knight" id="loadoutStepKnight">
                 <div class="loadout-section trainer-section">
                     <div class="loadout-section-title-row">
                         <div>
@@ -657,6 +667,21 @@
                         </div>
                     </div>
                     <div id="trainerOptions" class="loadout-options"></div>
+                </div>
+            </section>
+            <section class="loadout-step" data-step="review" id="loadoutStepReview">
+                <div class="loadout-swap-bar">
+                    <label class="loadout-swap-field">
+                        <span>Deck</span>
+                        <select id="loadoutDeckSwap" onchange="onLoadoutDeckSwap(this.value)"></select>
+                    </label>
+                    <label class="loadout-swap-field">
+                        <span>SiegeKnight</span>
+                        <select id="loadoutKnightSwap" onchange="onLoadoutKnightSwap(this.value)"></select>
+                    </label>
+                </div>
+                <div class="selected-loadout-panel" id="selectedLoadoutPanel" aria-label="Selected Loadout">
+                    <div id="selectedLoadoutPreview" class="selected-loadout-preview"></div>
                 </div>
                 <div class="loadout-section hidden" id="savedDecksSection">
                     <div class="saved-decks-header">
@@ -671,17 +696,12 @@
                     </div>
                     <div id="savedDeckList" class="saved-deck-list"></div>
                 </div>
-            </div>
-            <aside class="selected-loadout-panel" id="selectedLoadoutPanel" aria-label="Selected Loadout">
-                <div id="selectedLoadoutPreview" class="selected-loadout-preview"></div>
-                <div id="loadoutSummary" class="loadout-summary"></div>
-                <div class="loadout-actions">
-                    <div class="loadout-actions-shell">
-                        <button class="btn loadout-back-btn" type="button" onclick="returnToPlayMain()">Main Menu</button>
-                        <button class="btn btn-primary loadout-start-btn" type="button" id="btnStartLoadout" onclick="startSelectedGame()">Start Battle</button>
-                    </div>
-                </div>
-            </aside>
+            </section>
+        </div>
+        <div class="loadout-nav" id="loadoutNav">
+            <button class="btn loadout-back-btn" type="button" id="loadoutBackBtn" onclick="loadoutStepBack()">Main Menu</button>
+            <div id="loadoutSummary" class="loadout-summary"></div>
+            <button class="btn btn-primary loadout-start-btn" type="button" id="btnStartLoadout" onclick="startSelectedGame()">Start Battle</button>
         </div>
     </div>
 </div>
@@ -740,10 +760,10 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=178"></script>
+    <script src="/js/game.js?v=181"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
-    <script src="/js/action-queue.js?v=34"></script>
+    <script src="/js/action-queue.js?v=35"></script>
     <script src="/js/loading-gate.js?v=2"></script>
     <script src="/js/sw-register.js?v=1"></script>
 </body>

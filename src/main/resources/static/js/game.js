@@ -25,6 +25,8 @@ let gameOptions = null;
 let selectedDeckId = null;
 let selectedTrainerId = null;
 let loadoutMode = 'preset';
+let loadoutStep = 'setup';
+const LOADOUT_STEPS = ['setup', 'deck', 'knight', 'review'];
 let builderCounts = {};
 let builderElementFilter = 'ALL';
 let builderTypeFilter = 'ALL';
@@ -51,6 +53,7 @@ let hoveredBoardCard = null;
 /** Persisted board selection for live preview / drawer ({ isPlayer, row, col, instanceId }). */
 let arenaSelection = null;
 let pendingClaimTarget = null;
+let claimFxInFlight = false;
 let lastRenderedPhase = null;
 let phaseTransitionTimer = null;
 // Resolver for the in-flight phase-transition banner promise. Tracked so the
@@ -4286,6 +4289,204 @@ function activateTrainerAbilityFromPopup() {
     onTrainerUse();
 }
 
+function waitForClaimFx(ms) {
+    return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
+function isReducedMotionPreferred() {
+    return Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+}
+
+function getVisibleElementCenter(el) {
+    if (!el) {
+        return null;
+    }
+    const rect = el.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+        return null;
+    }
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return null;
+    }
+    return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        rect
+    };
+}
+
+function findFirstVisibleElement(selectors) {
+    for (const selector of selectors) {
+        const nodes = document.querySelectorAll(selector);
+        for (const node of nodes) {
+            if (getVisibleElementCenter(node)) {
+                return node;
+            }
+        }
+    }
+    return null;
+}
+
+function getClaimBoardCellElement(row, col) {
+    return document.querySelector(`#playerGrid .board-cell[data-row="${row}"][data-col="${col}"]`);
+}
+
+function getClaimFxEnemyOrigin() {
+    const enemyCard = findFirstVisibleElement([
+        '#enemyGrid .board-card',
+        '#enemyGrid .board-cell.has-card'
+    ]);
+    const enemyCardCenter = getVisibleElementCenter(enemyCard);
+    if (enemyCardCenter) {
+        return enemyCardCenter;
+    }
+
+    const enemyGrid = document.getElementById('enemyGrid');
+    const enemyGridCenter = getVisibleElementCenter(enemyGrid);
+    if (enemyGridCenter) {
+        return {
+            x: enemyGridCenter.x,
+            y: enemyGridCenter.rect.bottom - enemyGridCenter.rect.height * 0.12,
+            rect: enemyGridCenter.rect
+        };
+    }
+
+    return {
+        x: window.innerWidth / 2,
+        y: Math.max(32, window.innerHeight * 0.22)
+    };
+}
+
+function getClaimAttackElement(card) {
+    const enemyBoardCards = Array.isArray(gameState?.enemyBoard)
+        ? gameState.enemyBoard.flat().filter(Boolean)
+        : [];
+    return gameState?.enemy?.trainer?.element
+        || enemyBoardCards[0]?.element
+        || card?.element
+        || 'NEUTRAL';
+}
+
+function getClaimEnergyTarget(element) {
+    const key = String(element || 'NEUTRAL').toLowerCase();
+    return findFirstVisibleElement([
+        `#playerEnergy .solid-token.token-${key}`,
+        '#playerEnergy .energy-token',
+        '#playerEnergy',
+        '#railPlayerElements .hud-elem-dot',
+        '#railPlayerElements',
+        '#hudRailPlayer .hud-section-elements',
+        '#hudRailPlayer',
+        '#mobilePlayerElements .m-elem-dot',
+        '#mobilePlayerEnergyCount',
+        '.mobile-hud-player',
+        '#safeEnergyFillPlayer',
+        '.safe-hp-player',
+        '.top-bar-player'
+    ]) || document.getElementById('playerEnergy') || document.getElementById('railPlayerElements');
+}
+
+function pulseClaimEnergyTarget(targetEl, element) {
+    if (!targetEl) {
+        return;
+    }
+    targetEl.style.setProperty('--sgl-claim-color', getElementHex(element));
+    targetEl.classList.remove('sgl-claim-pool-pulse');
+    void targetEl.offsetWidth;
+    targetEl.classList.add('sgl-claim-pool-pulse');
+    window.setTimeout(() => targetEl.classList.remove('sgl-claim-pool-pulse'), 760);
+}
+
+function spawnClaimEnergyMotes(cardEl, targetEl, element) {
+    const start = getVisibleElementCenter(cardEl);
+    const target = getVisibleElementCenter(targetEl) || getVisibleElementCenter(document.getElementById('playerEnergy'));
+    if (!start || !target || !document.body) {
+        return waitForClaimFx(120);
+    }
+
+    const reduced = isReducedMotionPreferred();
+    const color = getElementHex(element);
+    const count = reduced ? 5 : 18;
+    const duration = reduced ? 260 : 860;
+    const maxDelay = reduced ? 80 : 260;
+    const spreadX = Math.max(12, start.rect.width * 0.36);
+    const spreadY = Math.max(16, start.rect.height * 0.34);
+
+    for (let i = 0; i < count; i++) {
+        const mote = document.createElement('span');
+        mote.className = 'sgl-claim-mote';
+        mote.setAttribute('aria-hidden', 'true');
+
+        const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.55;
+        const radius = 0.25 + Math.random() * 0.75;
+        const startX = start.x + Math.cos(angle) * spreadX * radius;
+        const startY = start.y + Math.sin(angle) * spreadY * radius;
+        const endJitterX = (Math.random() - 0.5) * Math.min(24, target.rect.width * 0.45);
+        const endJitterY = (Math.random() - 0.5) * Math.min(18, target.rect.height * 0.45);
+        const delay = Math.round((i / Math.max(1, count - 1)) * maxDelay);
+
+        mote.style.left = `${startX}px`;
+        mote.style.top = `${startY}px`;
+        mote.style.setProperty('--sgl-claim-color', color);
+        mote.style.setProperty('--sgl-claim-dx', `${target.x + endJitterX - startX}px`);
+        mote.style.setProperty('--sgl-claim-dy', `${target.y + endJitterY - startY}px`);
+        mote.style.setProperty('--sgl-claim-delay', `${delay}ms`);
+        mote.style.setProperty('--sgl-claim-duration', `${duration}ms`);
+        document.body.appendChild(mote);
+        window.setTimeout(() => mote.remove(), duration + delay + 120);
+    }
+
+    pulseClaimEnergyTarget(targetEl, element);
+    return waitForClaimFx(duration + maxDelay + 80);
+}
+
+async function playClaimBoardCardFx(row, col, card) {
+    if (!card || typeof document === 'undefined') {
+        return;
+    }
+
+    const cellEl = getClaimBoardCellElement(row, col);
+    const cardEl = cellEl?.querySelector('.board-card');
+    const cardCenter = getVisibleElementCenter(cardEl);
+    if (!cardEl || !cardCenter) {
+        return;
+    }
+
+    const claimElement = card.element || 'NEUTRAL';
+    const attackElement = getClaimAttackElement(card);
+    const claimColor = getElementHex(claimElement);
+    const origin = getClaimFxEnemyOrigin();
+    const reduced = isReducedMotionPreferred();
+    const projectileMs = reduced ? 120 : 430;
+
+    if (window.SieglingsFx?.attackBetween && origin) {
+        window.SieglingsFx.attackBetween(
+            origin.x,
+            origin.y,
+            cardCenter.x,
+            cardCenter.y,
+            attackElement,
+            { duration: projectileMs }
+        );
+        await waitForClaimFx(projectileMs);
+    }
+
+    window.SieglingsFx?.impactAtPoint?.(cardCenter.x, cardCenter.y, attackElement);
+    cardEl.style.setProperty('--sgl-claim-color', claimColor);
+    cardEl.classList.add('sgl-claim-dissolving');
+    window.SieglingsFx?.floatingText?.(
+        cardCenter.x,
+        cardCenter.y - Math.max(18, cardCenter.rect.height * 0.18),
+        `+1 ${formatElementLabel(claimElement)}`,
+        claimColor,
+        20
+    );
+
+    await waitForClaimFx(reduced ? 70 : 140);
+    await spawnClaimEnergyMotes(cardEl, getClaimEnergyTarget(claimElement), claimElement);
+}
+
 function getPendingClaimCard() {
     if (!pendingClaimTarget) {
         return null;
@@ -4325,8 +4526,8 @@ function renderClaimPopup() {
         copy.textContent = 'Claiming can break its links and lower your permanent network energy, but the temporary claim energy applies right away for this setup turn.';
     }
     if (confirmBtn) {
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = 'Claim';
+        confirmBtn.disabled = claimFxInFlight;
+        confirmBtn.textContent = claimFxInFlight ? 'Claiming...' : 'Claim';
     }
 }
 
@@ -6021,7 +6222,7 @@ function isSocialBattleLaunch() {
 }
 
 function shouldShowOnlineLoadoutOnPlay() {
-    return matchMode === 'online' || Boolean(multiplayerSession?.roomId) || Boolean(socialOnlineLaunchRoomId);
+    return true;
 }
 
 function loadSavedPlayerName() {
@@ -8014,6 +8215,9 @@ function openLoadoutSelector() {
         return;
     }
     hydrateSavedPlayerName();
+    // The room is already known for invite links and online loadout-phase, so
+    // skip the match-setup step and drop the player straight onto the deck step.
+    loadoutStep = (isInviteJoinFlow() || currentRoomStatus?.loadoutPhase) ? 'deck' : 'setup';
     renderLoadoutOptions();
     updateLoadoutSummary();
     syncEntryOverlays();
@@ -8370,6 +8574,217 @@ function adjustBuilderCard(cardId, delta) {
     updateLoadoutSummary();
 }
 
+function loadoutStepIndex(step) {
+    const idx = LOADOUT_STEPS.indexOf(step);
+    return idx === -1 ? 0 : idx;
+}
+
+// Each step gates the next: setup needs a name/room for online play, the deck
+// step needs a valid deck for the active source, and the knight/review steps
+// need an owned SiegeKnight. Solo play leaves setup unconstrained.
+function isLoadoutStepValid(step) {
+    if (!gameOptions) return false;
+    switch (step) {
+        case 'setup': {
+            if (matchMode !== 'online') return true;
+            if (!getCurrentPlayerName()) return false;
+            if (onlineRoomMode === 'join' && !isInviteJoinFlow() && !getCurrentRoomCode()) return false;
+            return true;
+        }
+        case 'deck': {
+            if (loadoutMode === 'builder') {
+                return getBuilderCardCount() >= gameOptions.deckBuilder.minDeckSize;
+            }
+            if (loadoutMode === 'saved') {
+                const savedDeck = getSelectedSavedDeck();
+                if (!savedDeck) return false;
+                return savedDeck.custom
+                    ? (savedDeck.customDeckCards || []).length >= gameOptions.deckBuilder.minDeckSize
+                    : Boolean(savedDeck.deckId);
+            }
+            return Boolean(selectedDeckId);
+        }
+        case 'knight':
+        case 'review':
+            return Boolean(selectedTrainerId) && getVisibleLoadoutTrainers().some(trainer => trainer.id === selectedTrainerId);
+        default:
+            return false;
+    }
+}
+
+// Highest step index the player may reach given current validity (first
+// incomplete step blocks everything past it).
+function maxReachableLoadoutStep() {
+    let max = 0;
+    for (let i = 0; i < LOADOUT_STEPS.length - 1; i++) {
+        if (isLoadoutStepValid(LOADOUT_STEPS[i])) {
+            max = i + 1;
+        } else {
+            break;
+        }
+    }
+    return max;
+}
+
+function setLoadoutStep(step) {
+    const target = loadoutStepIndex(step);
+    // Backward jumps are always allowed; forward jumps stop at the first
+    // incomplete step.
+    if (target > loadoutStepIndex(loadoutStep) && target > maxReachableLoadoutStep()) {
+        return;
+    }
+    loadoutStep = LOADOUT_STEPS[target];
+    updateLoadoutSummary();
+    document.getElementById('loadoutOverlay')?.querySelector('.loadout-box')?.scrollTo?.({ top: 0, behavior: 'smooth' });
+}
+
+function loadoutStepBack() {
+    const idx = loadoutStepIndex(loadoutStep);
+    if (idx <= 0) {
+        returnToPlayMain();
+        return;
+    }
+    loadoutStep = LOADOUT_STEPS[idx - 1];
+    updateLoadoutSummary();
+}
+
+// Toggles which step section is visible, updates the progress chips, and (for
+// every step except the final review) repurposes the footer primary button as a
+// "next" control. On review, the button keeps the start/lock label that
+// applyLoadoutSummary assigned.
+function syncLoadoutStepChrome() {
+    const overlay = document.getElementById('loadoutOverlay');
+    if (!overlay) return;
+    const reachable = maxReachableLoadoutStep();
+    const currentIdx = loadoutStepIndex(loadoutStep);
+
+    overlay.querySelectorAll('.loadout-step').forEach(section => {
+        section.classList.toggle('active', section.dataset.step === loadoutStep);
+    });
+
+    LOADOUT_STEPS.forEach((step, idx) => {
+        const chip = document.getElementById(`loadoutStepChip-${step}`);
+        if (!chip) return;
+        chip.classList.toggle('active', step === loadoutStep);
+        chip.classList.toggle('done', idx < currentIdx);
+        const locked = idx > reachable;
+        chip.classList.toggle('locked', locked);
+        chip.disabled = locked;
+        chip.setAttribute('aria-selected', step === loadoutStep ? 'true' : 'false');
+    });
+
+    const backBtn = document.getElementById('loadoutBackBtn');
+    if (backBtn) {
+        backBtn.textContent = currentIdx <= 0 ? 'Main Menu' : 'Back';
+    }
+
+    const primary = document.getElementById('btnStartLoadout');
+    if (gameOptions && primary && loadoutStep !== 'review') {
+        const labels = { setup: 'Choose Deck', deck: 'Select SiegeKnight', knight: 'To Battle' };
+        primary.onclick = () => setLoadoutStep(LOADOUT_STEPS[currentIdx + 1]);
+        syncLoadoutStartButton(primary, !isLoadoutStepValid(loadoutStep), labels[loadoutStep] || 'Next');
+    }
+}
+
+// Populates the Step 3 quick-swap dropdowns from the same option pools used by
+// the deck/knight grids so swaps reuse the existing selection handlers.
+function renderLoadoutSwaps() {
+    if (!gameOptions) return;
+    const deckSelect = document.getElementById('loadoutDeckSwap');
+    const knightSelect = document.getElementById('loadoutKnightSwap');
+
+    if (deckSelect) {
+        const savedDecks = authState.profile?.savedDecks || [];
+        let html = '';
+        if (loadoutMode === 'builder') {
+            html += `<option value="" selected disabled>Custom Build (edit on Deck step)</option>`;
+        }
+        html += `<optgroup label="Preset Decks">`;
+        html += gameOptions.decks.map(deck => {
+            const selected = loadoutMode === 'preset' && deck.id === selectedDeckId ? ' selected' : '';
+            return `<option value="preset:${escapeHtmlAttribute(deck.id)}"${selected}>${escapeHtml(deck.name)}</option>`;
+        }).join('');
+        html += `</optgroup>`;
+        html += `<optgroup label="My Decks">`;
+        html += savedDecks.length
+            ? savedDecks.map(deck => {
+                const selected = loadoutMode === 'saved' && deck.id === selectedSavedDeckId ? ' selected' : '';
+                return `<option value="saved:${escapeHtmlAttribute(deck.id)}"${selected}>${escapeHtml(deck.name)}</option>`;
+            }).join('')
+            : `<option value="" disabled>No saved decks yet</option>`;
+        html += `</optgroup>`;
+        deckSelect.innerHTML = html;
+    }
+
+    if (knightSelect) {
+        const trainers = getVisibleLoadoutTrainers();
+        knightSelect.innerHTML = trainers.map(trainer => {
+            const selected = trainer.id === selectedTrainerId ? ' selected' : '';
+            return `<option value="${escapeHtmlAttribute(trainer.id)}"${selected}>${escapeHtml(trainer.name)} - ${escapeHtml(formatElementLabel(trainer.element))}</option>`;
+        }).join('');
+        knightSelect.disabled = trainers.length === 0;
+    }
+}
+
+function onLoadoutDeckSwap(value) {
+    if (!value) return;
+    const sep = value.indexOf(':');
+    const kind = value.slice(0, sep);
+    const id = value.slice(sep + 1);
+    if (kind === 'preset') {
+        switchLoadoutMode('preset');
+        selectDeckOption(id);
+    } else if (kind === 'saved') {
+        switchLoadoutMode('saved');
+        selectSavedDeckForLoadout(id);
+    }
+    updateLoadoutSummary();
+}
+
+function onLoadoutKnightSwap(value) {
+    if (!value) return;
+    selectTrainerOption(value);
+    updateLoadoutSummary();
+}
+
+// Card ids in the currently selected deck, used to surface evolution lines on
+// the review step. Returns [] when the source has no resolvable list.
+function getDeckLoadoutCardIds() {
+    if (!gameOptions) return [];
+    if (loadoutMode === 'builder') {
+        return Object.keys(builderCounts);
+    }
+    if (loadoutMode === 'saved') {
+        const savedDeck = getSelectedSavedDeck();
+        if (!savedDeck) return [];
+        if (savedDeck.custom) {
+            return Array.from(new Set(savedDeck.customDeckCards || []));
+        }
+        const deck = gameOptions.decks.find(item => item.id === savedDeck.deckId);
+        return (deck?.cards || []).map(entry => entry.id);
+    }
+    const deck = gameOptions.decks.find(item => item.id === selectedDeckId);
+    return (deck?.cards || []).map(entry => entry.id);
+}
+
+// Evolution cards present in the selected deck. Empty when the full card
+// catalog is unavailable (options-lite) or the deck has none.
+function getDeckEvolutionLines() {
+    const catalog = gameOptions?.cardCatalog;
+    if (!Array.isArray(catalog) || !catalog.length) return [];
+    const byId = new Map(catalog.map(card => [card.id, card]));
+    const seen = new Set();
+    const lines = [];
+    getDeckLoadoutCardIds().forEach(id => {
+        const card = byId.get(id);
+        if (card && card.evolvesFromName && !seen.has(card.id)) {
+            seen.add(card.id);
+            lines.push({ name: card.name, from: card.evolvesFromName });
+        }
+    });
+    return lines;
+}
+
 function renderLoadoutOptions() {
     if (!gameOptions) return;
 
@@ -8559,6 +8974,7 @@ function renderLoadoutOptions() {
     renderDeckBuilder();
     renderOnlineStatus();
     renderSavedDecks();
+    syncLoadoutStepChrome();
 }
 
 function getDeckLoadoutTheme(deck) {
@@ -8671,6 +9087,26 @@ function renderSelectedLoadoutPreview() {
         .filter(Boolean)
         .slice(0, 4);
 
+    const evolutionLines = getDeckEvolutionLines();
+    const strategyDescription = theme.description || deck?.description || 'Tune your list, choose a commander, and bring your preferred plan into battle.';
+    const evolutionBlock = evolutionLines.length
+        ? `<div class="selected-loadout-evolution-block">
+                <div class="selected-loadout-subtle-label">Cards That Evolve</div>
+                <div class="selected-loadout-evolutions">
+                    ${evolutionLines.map(line => `<span class="loadout-evolution"><strong>${escapeHtml(line.name)}</strong> &#9666; from ${escapeHtml(line.from)}</span>`).join('')}
+                </div>
+            </div>`
+        : '';
+    const strategySection = `<div class="selected-loadout-section selected-loadout-strategy">
+            <div class="selected-loadout-label">Strategy</div>
+            <p class="selected-loadout-strategy-copy">${escapeHtml(strategyDescription)}</p>
+            <div class="selected-loadout-subtle-label">Deck Strengths</div>
+            <div class="selected-loadout-traits">
+                ${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}
+            </div>
+            ${evolutionBlock}
+        </div>`;
+
     const trainerSummary = trainer
         ? `<div class="preview-knight-card">
                 <div class="preview-knight-icon has-knight-back" style="color:${getElementHex(trainer.element)};${siegeknightCardBackStyle()}">
@@ -8695,9 +9131,7 @@ function renderSelectedLoadoutPreview() {
             <span>Playstyle</span>
             <strong>${escapeHtml(theme.playstyle || 'Balanced')}</strong>
         </div>
-        <div class="selected-loadout-traits">
-            ${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}
-        </div>
+        ${strategySection}
         <div class="selected-loadout-section">
             <div class="selected-loadout-label">Recommended SiegeKnights</div>
             <div class="selected-loadout-recs">
@@ -8709,6 +9143,8 @@ function renderSelectedLoadoutPreview() {
             ${trainerSummary}
         </div>
     `;
+
+    renderLoadoutSwaps();
 }
 
 function renderOnlineStatus() {
@@ -8852,7 +9288,16 @@ function syncLoadoutStartButton(startBtn, disabled, label) {
     startBtn.setAttribute('aria-busy', loadoutStartPending ? 'true' : 'false');
 }
 
+// Public entry point: refresh the summary/start-button, then re-sync the wizard
+// chrome so the visible step, progress chips, and footer button stay correct on
+// every state change. applyLoadoutSummary owns the review-step button semantics;
+// syncLoadoutStepChrome overrides the button for the earlier "next" steps.
 function updateLoadoutSummary() {
+    applyLoadoutSummary();
+    syncLoadoutStepChrome();
+}
+
+function applyLoadoutSummary() {
     const summary = document.getElementById('loadoutSummary');
     const startBtn = document.getElementById('btnStartLoadout');
     const playerName = getCurrentPlayerName();
@@ -9466,10 +9911,28 @@ async function placeCard(row, col) {
 }
 
 async function claimBoardCard(row, col) {
+    if (claimFxInFlight) {
+        return;
+    }
+    const claimCard = gameState?.playerBoard?.[row]?.[col] || null;
+    if (!isClaimableBoardCell(claimCard, true)) {
+        return;
+    }
     clearTargetMode();
-    const data = await api('claim', 'POST', { row, col });
-    if (!data) return;
-    resetInteractionState();
+    claimFxInFlight = true;
+    try {
+        await playClaimBoardCardFx(row, col, claimCard);
+        const data = await api('claim', 'POST', { row, col });
+        if (!data) return;
+        resetInteractionState();
+    } finally {
+        claimFxInFlight = false;
+        const cardEl = getClaimBoardCellElement(row, col)?.querySelector('.board-card');
+        if (cardEl) {
+            cardEl.classList.remove('sgl-claim-dissolving');
+            cardEl.style.removeProperty('--sgl-claim-color');
+        }
+    }
 }
 
 async function castSpell(cardId, targetRow, targetCol, destRow = -1, destCol = -1) {

@@ -806,6 +806,16 @@
         if (!m) return null;
         return { from: m[1].trim(), to: m[2].trim() };
     }
+    function parseClaimFromLog(line) {
+        const text = stripLogPrefix(line);
+        const m = text.match(/^(.+?)\s+claims\s+(.+?)\s+and\s+gains\s+1\s+temporary\s+([a-z]+)\s+energy[.!]?$/i);
+        if (!m) return null;
+        return {
+            actor: m[1].trim(),
+            name: m[2].trim(),
+            element: normalizeElement(m[3])
+        };
+    }
     function diffPlacements(prev, next, isPlayer) {
         const out = [];
         if (!next) return out;
@@ -1893,6 +1903,11 @@
             const playerName   = nextState.playerName || prevState.playerName || 'Player';
             const enemyName    = nextState.enemyName  || prevState.enemyName  || 'Opponent';
             const newLogs      = getNewLogEntries(prevState, nextState);
+            const claimLogs    = newLogs.map(parseClaimFromLog).filter(Boolean);
+            const isClaimRemoval = (entry) => claimLogs.some((claim) =>
+                namesMatch(claim.name, entry.name)
+                && (!claim.element || claim.element === normalizeElement(entry.cell?.element || entry.element))
+            );
             const siegeBountyLogs = newLogs.map(parseSiegeBountyFromLog).filter(Boolean);
             const findSiegeBountyHit = (targetNames, amount) => {
                 if (!amount || !siegeBountyLogs.length) return null;
@@ -1966,8 +1981,10 @@
 
             // Damage events (attacks / abilities that hit)
             let damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true)
+                .filter((t) => !isClaimRemoval(t))
                 .filter((t) => !isMoveOrigin(t, movesOnPlayer));
             let damageOnEnemy  = diffDamage(prevEnemy,  nextEnemy,  false)
+                .filter((t) => !isClaimRemoval(t))
                 .filter((t) => !isMoveOrigin(t, movesOnEnemy));
 
             // Shields granted during the turn evaporate in the server's
@@ -2002,9 +2019,11 @@
                 && namesMatch(p.evolutionFrom.name, d.name)
             );
             const destructionsOnPlayer = diffDestructions(prevPlayer, nextPlayer, true)
+                .filter((d) => !isClaimRemoval(d))
                 .filter((d) => !isEvolutionDestruction(d, newPlayerPlacements))
                 .filter((d) => !isMoveOrigin(d, movesOnPlayer));
             const destructionsOnEnemy  = diffDestructions(prevEnemy,  nextEnemy,  false)
+                .filter((d) => !isClaimRemoval(d))
                 .filter((d) => !isEvolutionDestruction(d, newEnemyPlacements))
                 .filter((d) => !isMoveOrigin(d, movesOnEnemy));
             const matchDestruction = (list, t) => {
