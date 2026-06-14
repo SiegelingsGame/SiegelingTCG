@@ -127,9 +127,7 @@ public class PackCatalogService {
             throw new IllegalArgumentException("Choose a starter-eligible pack.");
         }
 
-        List<Card> pool = cardDefinitionService.getDeckBuilderCatalog().stream()
-                .filter(card -> pack.elements().contains(card.getElement()))
-                .toList();
+        List<Card> pool = cardPoolForPack(pack, !starterOnly);
         Optional<CardType> focusType = focusedType(pack.id());
         if (focusType.isPresent()) {
             List<Card> focusCards = randomElementPool(pool, focusType.get()).stream()
@@ -179,19 +177,32 @@ public class PackCatalogService {
      */
     private TrainerCard rollBonusTrainer(PackDefinition pack) {
         boolean guaranteed = SIEGEKNIGHT_PACK_ID.equals(pack.id());
-        if (!guaranteed && new Random().nextDouble() >= TRAINER_DROP_CHANCE) {
+        Random random = new Random();
+        if (!guaranteed && random.nextDouble() >= TRAINER_DROP_CHANCE) {
             return null;
         }
-        List<TrainerCard> candidates = cardDefinitionService.getTrainerOptions().stream()
-                .filter(trainer -> pack.elements().contains(trainer.getElement()))
+        List<TrainerCard> candidates = bonusTrainerCandidates(pack);
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        return candidates.get(random.nextInt(candidates.size())).copy();
+    }
+
+    List<Card> cardPoolForPack(PackDefinition pack, boolean includeNeutralCards) {
+        return cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(card -> pack.elements().contains(card.getElement())
+                        || (includeNeutralCards && card.getElement() == Element.NEUTRAL))
                 .toList();
-        if (candidates.isEmpty()) {
-            candidates = cardDefinitionService.getTrainerOptions();
-        }
-        if (candidates.isEmpty()) {
-            return null;
-        }
-        return candidates.get(new Random().nextInt(candidates.size())).copy();
+    }
+
+    List<TrainerCard> bonusTrainerCandidates(PackDefinition pack) {
+        List<TrainerCard> trainers = cardDefinitionService.getTrainerOptions();
+        List<TrainerCard> candidates = trainers.stream()
+                .filter(trainer -> trainer.getElement() == null
+                        || trainer.getElement() == Element.NEUTRAL
+                        || pack.elements().contains(trainer.getElement()))
+                .toList();
+        return candidates.isEmpty() ? trainers : candidates;
     }
 
     /** Rolls each pulled card against its rarity's holo chance. */

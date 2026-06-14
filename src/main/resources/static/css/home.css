@@ -5542,6 +5542,27 @@ body.gacha-active {
     min-height: 0;
 }
 
+.reveal-front .gacha-knight-card-front {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+}
+
+.reveal-front .gacha-knight-card-front .knight-card {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    box-shadow: none;
+}
+
+.reveal-preview-template-knight .knight-card {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+}
+
 .reveal-spark {
     position: absolute;
     left: 50%;
