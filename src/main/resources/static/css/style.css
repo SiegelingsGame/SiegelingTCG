@@ -13703,6 +13703,12 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .tb-turn { font-size: 0.6em; }
 
     .app-shell {
+        /* The base @media (min-width:980px) rule makes this a 4-column grid
+           (hud-rail | arena | hud-rail | sidebar). This short-landscape block
+           hides the hud-rails and lays the board + sidebar out as a flex row,
+           so it must reset display to flex — otherwise the stale grid template
+           mis-sizes the arena column and the board collapses out of view. */
+        display: flex;
         flex-direction: row;
         overflow: hidden;
         gap: 0;
