@@ -87,7 +87,7 @@
 
     function normalizeArtMode(value) {
         const mode = String(value || '').trim().toUpperCase();
-        return mode === 'REPLACE' || mode === 'OVERLAY' ? mode : '';
+        return mode === 'REPLACE' || mode === 'OVERLAY' || mode === 'FULL_CARD' ? mode : '';
     }
 
     function clampNumber(value, min, max) {
@@ -118,6 +118,51 @@
     function renderCustomArtImage(className, artUrl, card) {
         const style = buildArtTransformStyle(card);
         return `<img class="${className}" src="${escapeAttr(artUrl)}" alt=""${style ? ` style="${style}"` : ''}>`;
+    }
+
+    function fullCardArtUrl(card) {
+        const artUrl = String(card?.cardArtUrl || '').trim();
+        return artUrl && normalizeArtMode(card?.cardArtMode) === 'FULL_CARD' ? artUrl : '';
+    }
+
+    function usesFullCardArt(card) {
+        return Boolean(fullCardArtUrl(card));
+    }
+
+    function isHolographic(card, options = {}) {
+        if (card?.holographic === true) {
+            return true;
+        }
+        const ids = options.playerHolographicIds || options.holographicCardIds;
+        const cardId = String(card?.id || '').trim().toLowerCase();
+        if (!cardId || !ids) {
+            return false;
+        }
+        if (ids instanceof Set) {
+            return ids.has(cardId);
+        }
+        if (Array.isArray(ids)) {
+            return ids.some((entry) => String(entry || '').trim().toLowerCase() === cardId);
+        }
+        return false;
+    }
+
+    function holographicClass(card, options = {}) {
+        return isHolographic(card, options) ? ' is-holographic' : '';
+    }
+
+    function renderHolographicOverlay() {
+        return '<div class="card-holographic-overlay" aria-hidden="true"></div>';
+    }
+
+    function renderFullCardArt(card, options = {}) {
+        const artUrl = fullCardArtUrl(card);
+        if (!artUrl) return '';
+        const extraClass = options.previewClass ? ` ${options.previewClass}` : '';
+        return `<div class="binder-full-card-art${extraClass}${holographicClass(card, options)}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
+            <img src="${escapeAttr(artUrl)}" alt="${escapeAttr(card?.name || 'Full art card')}" loading="lazy">
+            ${isHolographic(card, options) ? renderHolographicOverlay() : ''}
+        </div>`;
     }
 
     function renderElementIcon(element) {
@@ -211,7 +256,7 @@
             const reaction = format(card.requiredReaction || 'Trigger');
             const bucket = card.trapBucketAmount
                 ? `${card.trapBucketAmount} ${format(card.trapBucketElement || card.element)}`
-                : 'Trap set';
+                : 'Deception set';
             return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(reaction)}</span><span>${escapeHtml(bucket)}</span></div>`;
         }
         return `<div class="binder-card-stats shop-card-stats-alt"><span>${escapeHtml(format(type || 'Card'))}</span><span>${escapeHtml(format(card.element || 'Neutral'))}</span></div>`;
@@ -259,21 +304,92 @@
             </div>`;
     }
 
+    function usesFramedCardTemplate(card) {
+        const type = normalizeCardType(card);
+        if (type === 'SIEGEKNIGHT') {
+            return false;
+        }
+        const showcase = window.SieglingsCardShowcase;
+        if (!showcase?.renderShowcaseCard) {
+            return false;
+        }
+        if (typeof showcase.cardFrameClass === 'function') {
+            return Boolean(showcase.cardFrameClass(card).trim());
+        }
+        if (typeof showcase.hasElementFrame === 'function') {
+            return showcase.hasElementFrame(card?.element);
+        }
+        return ['FIRE', 'EARTH', 'ICE', 'WIND'].includes(String(card?.element || '').toUpperCase());
+    }
+
+    function renderFramedShowcaseCard(card, options = {}) {
+        const showcase = window.SieglingsCardShowcase;
+        if (!usesFramedCardTemplate(card) || !showcase?.renderShowcaseCard) {
+            return '';
+        }
+        // Binder surfaces show the card description in the painted info
+        // panel instead of the move list (cost/evo live in the corner chips).
+        return showcase.renderShowcaseCard(card, {
+            artVariant: options.artVariant || 'preview',
+            cardClass: options.cardClass || 'mulligan-showcase binder-grid-showcase',
+            compactAbilityLimit: options.compactAbilityLimit ?? 2,
+            summaryMode: options.summaryMode || 'description',
+            descriptionText: options.descriptionText || ''
+        });
+    }
+
+    function renderBinderCardTile(card, options = {}) {
+        if (usesFullCardArt(card)) {
+            return renderFullCardArt(card, options);
+        }
+        const framed = renderFramedShowcaseCard(card, {
+            cardClass: options.cardClass || 'mulligan-showcase binder-grid-showcase',
+            compactAbilityLimit: options.compactAbilityLimit ?? 2,
+            summaryMode: options.summaryMode,
+            descriptionText: options.descriptionText
+        });
+        if (framed) {
+            const holoClass = holographicClass(card, options);
+            return `<div class="mulligan-card-slot binder-framed-slot${holoClass}" aria-hidden="true">${framed}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
+        }
+        return renderBinderCardShell(card, options);
+    }
+
     function renderBinderCardPreview(card, options = {}) {
+        if (usesFullCardArt(card)) {
+            return renderFullCardArt(card, options);
+        }
         const element = card?.element || 'FIRE';
-        const shell = renderBinderCardShell(card, options);
         const extraClass = options.previewClass ? ` ${options.previewClass}` : '';
+        const previewClass = String(options.previewClass || '').includes('detail')
+            ? `selected-preview-card detail-card-preview${extraClass}`
+            : `mulligan-showcase binder-showcase-card${extraClass}`;
+        const framed = renderFramedShowcaseCard(card, {
+            cardClass: previewClass.trim(),
+            compactAbilityLimit: options.compactAbilityLimit ?? 3,
+            summaryMode: options.summaryMode,
+            descriptionText: options.descriptionText
+        });
+        if (framed) {
+            return framed;
+        }
+        const shell = renderBinderCardShell(card, options);
         const modeClass = resolveArtModeClass(card);
-        return `<div class="binder-card card-visual-preview${extraClass}${modeClass}" style="--el:${elementColor(element)}">${shell}</div>`;
+        return `<div class="binder-card card-visual-preview${extraClass}${modeClass}${holographicClass(card, options)}" style="--el:${elementColor(element)}">${shell}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
     }
 
     window.SieglingsCardBinderVisual = {
         renderBinderCardPreview,
+        renderBinderCardTile,
         renderBinderCardShell,
         renderBinderCardArt,
         renderBinderCardOverlay,
         renderElementIcon,
         elementColor,
+        usesFramedCardTemplate,
+        usesFullCardArt,
+        isHolographic,
+        holographicClass,
         normalizeArtMode,
         normalizeArtTransform,
         buildArtTransformStyle,

@@ -48,11 +48,13 @@ public class PlayerProgressionStore {
         payload.put("trainerLevels", progression.getTrainerLevels());
         payload.put("trainerPoints", progression.getTrainerPoints());
         payload.put("starterPackId", progression.getStarterPackId());
+        payload.put("tutorialCompleted", progression.isTutorialCompleted());
         payload.put("rewardedMatchIds", progression.getRewardedMatchIds());
         payload.put("purchasedDeckIds", progression.getPurchasedDeckIds());
         payload.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
         payload.put("purchasedTitleIds", progression.getPurchasedTitleIds());
         payload.put("craftCount", progression.getCraftCount());
+        payload.put("holographicCardIds", progression.getHolographicCardIds());
         payload.put("packHistory", progression.getPackHistory());
         payload.put("soloWinStreak", progression.getSoloWinStreak());
         payload.put("onlineWinStreak", progression.getOnlineWinStreak());
@@ -92,12 +94,14 @@ public class PlayerProgressionStore {
         progression.setTrainerLevels(readIntMap(snapshot.get("trainerLevels")));
         progression.setTrainerPoints(readIntMap(snapshot.get("trainerPoints")));
         progression.setStarterPackId(snapshot.getString("starterPackId"));
+        progression.setTutorialCompleted(Boolean.TRUE.equals(snapshot.getBoolean("tutorialCompleted")));
         progression.setRewardedMatchIds(readStringList(snapshot.get("rewardedMatchIds")));
         progression.setPurchasedDeckIds(readStringList(snapshot.get("purchasedDeckIds")));
         progression.setPurchasedDailyOfferIds(readStringList(snapshot.get("purchasedDailyOfferIds")));
         progression.setPurchasedTitleIds(readStringList(snapshot.get("purchasedTitleIds")));
         Long craftCount = snapshot.getLong("craftCount");
         progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());
+        progression.setHolographicCardIds(readStringList(snapshot.get("holographicCardIds")));
         Long soloWinStreak = snapshot.getLong("soloWinStreak");
         Long onlineWinStreak = snapshot.getLong("onlineWinStreak");
         progression.setSoloWinStreak(soloWinStreak == null ? 0 : soloWinStreak.intValue());

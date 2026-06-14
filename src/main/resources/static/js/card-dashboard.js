@@ -280,6 +280,7 @@
             "cardArtRotationInput",
             "cardArtRotationValue",
             "resetCardArtTransformBtn",
+            "cardHolographicCheckbox",
             "cardSummary",
             "jsonPreviewMode",
             "jsonPreview",
@@ -323,6 +324,7 @@
             "trainerRaritySelect",
             "trainerActiveCheckbox",
             "trainerOncePerGameCheckbox",
+            "trainerHolographicCheckbox",
             "trainerPassiveNameInput",
             "trainerPassiveDescriptionInput",
             "trainerPassiveTargetTypeSelect",
@@ -451,6 +453,17 @@
             });
         });
 
+        refs.cardHolographicCheckbox?.addEventListener("change", (event) => {
+            const card = getSelectedCard();
+            if (!card) {
+                return;
+            }
+            card.holographic = Boolean(event.target.checked);
+            renderCardVisualPreview();
+            renderPreview();
+            queueValidation();
+        });
+
         refs.cardArtFileInput?.addEventListener("change", async (event) => {
             const file = event.target.files?.[0];
             if (!file) {
@@ -490,7 +503,7 @@
                 clearEphemeralCardArtPreview();
                 mutateSelectedCard((selected) => {
                     selected.cardArtUrl = hostedUrl;
-                    selected.cardArtMode = "REPLACE";
+                    selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "REPLACE";
                 }, { render: false });
                 setStatus(
                     state.liveEditingEnabled
@@ -831,6 +844,7 @@
         refs.trainerRaritySelect.addEventListener("change", (event) => updateSelectedTrainerField("rarity", event.target.value));
         refs.trainerActiveCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("active", Boolean(event.target.checked)));
         refs.trainerOncePerGameCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("oncePerGame", Boolean(event.target.checked)));
+        refs.trainerHolographicCheckbox?.addEventListener("change", (event) => updateSelectedTrainerField("holographic", Boolean(event.target.checked)));
 
         bindTrainerAbilityFieldEvents("passive", {
             nameInput: refs.trainerPassiveNameInput,
@@ -1551,7 +1565,7 @@
 
     function normalizeCardArtMode(value) {
         const mode = String(value || "").trim().toUpperCase();
-        return mode === "REPLACE" || mode === "OVERLAY" ? mode : "";
+        return mode === "REPLACE" || mode === "OVERLAY" || mode === "FULL_CARD" ? mode : "";
     }
 
     function defaultCardArtPath(cardId) {
@@ -1616,6 +1630,11 @@
     function hasCustomCardArt(card) {
         const { cardArtUrl, cardArtMode } = normalizeCardArtFields(card);
         return Boolean(cardArtUrl && cardArtMode);
+    }
+
+    function hasTransformableCardArt(card) {
+        const { cardArtUrl, cardArtMode } = normalizeCardArtFields(card);
+        return Boolean(cardArtUrl && (cardArtMode === "REPLACE" || cardArtMode === "OVERLAY"));
     }
 
     function formatCardArtScaleValue(scale) {
@@ -1734,7 +1753,7 @@
     }
 
     function syncCardArtTransformControls(card) {
-        const showTransform = hasCustomCardArt(card);
+        const showTransform = hasTransformableCardArt(card);
         refs.cardArtTransformControls?.classList.toggle("hidden", !showTransform);
         if (!showTransform) {
             return;
@@ -1768,7 +1787,12 @@
         if (cardArtUrl && !cardArtMode) {
             cardArtMode = "REPLACE";
         }
-        return { cardArtUrl, cardArtMode, ...normalizeCardArtTransformFields(card) };
+        return {
+            cardArtUrl,
+            cardArtMode,
+            holographic: card?.holographic === true,
+            ...normalizeCardArtTransformFields(card)
+        };
     }
 
     function appendCardArtExport(exported, card) {
@@ -1792,6 +1816,9 @@
             if (rotation !== 0) {
                 exported.cardArtRotation = rotation;
             }
+        }
+        if (card?.holographic === true) {
+            exported.holographic = true;
         }
         return exported;
     }
@@ -1891,7 +1918,8 @@
             active: trainer?.active !== false,
             oncePerGame: Boolean(trainer?.oncePerGame),
             passiveAbility,
-            activeAbility
+            activeAbility,
+            ...normalizeCardArtFields(trainer)
         };
     }
 
@@ -1954,7 +1982,7 @@
 
     function createBlankSpellCard() {
         const element = firstMetaValue("elements", "FIRE");
-        const name = "New Spell";
+        const name = "New Strategy";
         return normalizeCard({
             type: "SPELL",
             id: createUniqueCardId("new-spell"),
@@ -1972,7 +2000,7 @@
 
     function createBlankTrapCard() {
         const element = firstMetaValue("elements", "FIRE");
-        const name = "New Trap";
+        const name = "New Deception";
         return normalizeCard({
             type: "TRAP",
             id: createUniqueCardId("new-trap"),
@@ -2430,7 +2458,7 @@
         refs.actionTypeFilterSelect.value = state.actionTypeFilter;
         refs.actionTypeFilterSelect.classList.toggle("hidden", state.editorPage !== "ACTION");
         refs.browserTitle.textContent = state.editorPage === "ACTION"
-            ? "Spells And Traps"
+            ? "Strategies And Deceptions"
             : (state.editorPage === "MOVES_POOL" ? "Shared Abilities" : "Siegelings");
         refs.showSieglingsBtn.classList.toggle("active", state.editorPage === "SIEGLING");
         refs.showActionsBtn.classList.toggle("active", state.editorPage === "ACTION");
@@ -2515,11 +2543,11 @@
         refs.spellRequiredComboSignatureField.classList.toggle("hidden", !isSpell);
         refs.trapBucketElementField.classList.toggle("hidden", !isTrap);
         refs.trapBucketAmountField.classList.toggle("hidden", !isTrap);
-        refs.actionCardSectionTitle.textContent = isTrap ? "Trap Trigger And Effect" : "Spell Cost And Requirements";
+        refs.actionCardSectionTitle.textContent = isTrap ? "Deception Trigger And Effect" : "Strategy Cost And Requirements";
         refs.actionCardHelpText.textContent = isTrap
-            ? "Trap cards trigger from the opponent's bucket, so choose the enemy element threshold that springs this effect."
-            : "Spell cards can use a normal energy cost, a reaction gate, or a combo signature to control when they can be cast.";
-        refs.abilitySectionTitle.textContent = isSiegling ? "Ability Editor" : (isTrap ? "Trap Effect" : "Spell Effect");
+            ? "Deception cards trigger from the opponent's bucket, so choose the enemy element threshold that springs this effect."
+            : "Strategy cards can use a normal energy cost, a reaction gate, or a combo signature to control when they can be cast.";
+        refs.abilitySectionTitle.textContent = isSiegling ? "Ability Editor" : (isTrap ? "Deception Effect" : "Strategy Effect");
 
         if (refs.sieglingMovesSection) {
             refs.sieglingMovesSection.classList.toggle("hidden", !isSiegling);
@@ -2773,6 +2801,9 @@
             setInputValue(refs.cardArtUrlInput, card.cardArtUrl || "");
             refs.cardArtUrlInput.placeholder = defaultCardArtPath(card.id) || "/assets/cards/example.png";
         }
+        if (refs.cardHolographicCheckbox) {
+            refs.cardHolographicCheckbox.checked = Boolean(card.holographic);
+        }
         syncCardArtTransformControls(card);
         setupCardArtDragInteraction(card);
         attachCardArtPreviewErrorHandler(card);
@@ -2782,7 +2813,7 @@
         if (getEphemeralCardArtPreviewUrl(card.id)) {
             return;
         }
-        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card");
+        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card, .binder-full-card-art img");
         if (!artImg) {
             return;
         }
@@ -2931,7 +2962,7 @@
                         <strong>${escapeHtml(deck.name || "Unnamed Deck")}</strong>
                         <span class="summary-badge">${escapeHtml(statusBadge)} | ${deck.cardIds.length} cards</span>
                     </div>
-                    <div class="card-meta">${escapeHtml(`${counts.sieglings} Siegelings | ${counts.spells} Spells | ${counts.traps} Traps`)}</div>
+                    <div class="card-meta">${escapeHtml(`${counts.sieglings} Siegelings | ${counts.spells} Strategies | ${counts.traps} Deceptions`)}</div>
                     <div class="card-id">${escapeHtml(deck.id || "missing-id")}</div>
                 </div>
             `;
@@ -2985,10 +3016,10 @@
                     <strong>${escapeHtml(entry.card?.name || entry.cardId)}</strong>
                     <div class="card-meta">${escapeHtml(entry.card ? formatCardMeta(entry.card) : "Missing from the current card catalog")}</div>
                 </div>
-                <div class="deck-card-actions">
-                    <button class="btn btn-secondary" type="button" data-remove-deck-card-id="${escapeHtml(entry.cardId)}">-</button>
+                <div class="dashboard-deck-card-actions">
+                    <button class="btn btn-danger btn-sm deck-card-action-btn" type="button" data-remove-deck-card-id="${escapeHtml(entry.cardId)}">Remove</button>
                     <span class="deck-card-count">${entry.count}</span>
-                    <button class="btn btn-secondary" type="button" data-add-deck-card-id="${escapeHtml(entry.cardId)}">+</button>
+                    <button class="btn btn-secondary btn-sm deck-card-action-btn" type="button" data-add-deck-card-id="${escapeHtml(entry.cardId)}">Add</button>
                 </div>
             </div>
         `).join("");
@@ -3017,8 +3048,8 @@
                 <div class="stat-strip">
                     <span class="stat-chip">${deck.cardIds.length} cards</span>
                     <span class="stat-chip">${counts.sieglings} Siegelings</span>
-                    <span class="stat-chip">${counts.spells} Spells</span>
-                    <span class="stat-chip">${counts.traps} Traps</span>
+                    <span class="stat-chip">${counts.spells} Strategies</span>
+                    <span class="stat-chip">${counts.traps} Deceptions</span>
                 </div>
                 <div class="summary-tags">
                     ${(elementChips.length > 0
@@ -3112,6 +3143,9 @@
         setInputValue(refs.trainerNameInput, trainer.name);
         refs.trainerActiveCheckbox.checked = Boolean(trainer.active);
         refs.trainerOncePerGameCheckbox.checked = Boolean(trainer.oncePerGame);
+        if (refs.trainerHolographicCheckbox) {
+            refs.trainerHolographicCheckbox.checked = Boolean(trainer.holographic);
+        }
 
         renderTrainerAbilityEditor("passive", trainer.passiveAbility, {
             nameInput: refs.trainerPassiveNameInput,
@@ -3564,8 +3598,8 @@
             deck.active ? "Active in loadout" : "Hidden from loadout",
             `${deck.cardIds.length} cards`,
             `${counts.sieglings} Siegelings`,
-            `${counts.spells} Spells`,
-            `${counts.traps} Traps`,
+            `${counts.spells} Strategies`,
+            `${counts.traps} Deceptions`,
             elements.length > 0 ? elements.map(formatEnumLabel).join(" / ") : "No element focus"
         ];
     }
@@ -3852,7 +3886,7 @@
             });
         });
         state.trainers.forEach((trainer) => {
-            if (!trainer.active || !trainer.element) {
+            if (!trainer.active || !trainer.element || trainer.element === "NEUTRAL") {
                 return;
             }
             if (!liveNames.has(trainer.element)) {
@@ -3961,7 +3995,7 @@
     }
 
     function buildExportTrainer(trainer) {
-        return {
+        const exported = {
             id: trainer.id.trim(),
             name: trainer.name.trim(),
             element: trainer.element,
@@ -3972,6 +4006,7 @@
             passiveAbility: { ...buildExportAbility(trainer.passiveAbility || createBlankTrainerPassiveAbility(trainer.element)), passive: true },
             activeAbility: { ...buildExportAbility(trainer.activeAbility || createBlankTrainerActiveAbility(trainer.element)), passive: false }
         };
+        return appendCardArtExport(exported, trainer);
     }
 
     function buildExportAbility(ability) {

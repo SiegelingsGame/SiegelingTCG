@@ -1,3 +1,5 @@
+@import url("/css/holographic.css?v=2");
+
 :root {
     --card-aspect-ratio: 5 / 7;
     --card-scale: 1;
@@ -613,10 +615,16 @@ body {
     height: 100%;
     background: rgba(0, 0, 0, 0.42);
     overflow: hidden;
+    display: flex;
+}
+
+.safe-hp-enemy {
+    justify-content: flex-start;
 }
 
 .safe-hp-player {
     border-left: 1px solid rgba(0, 0, 0, 0.55);
+    justify-content: flex-end;
 }
 
 .safe-hp-fill {
@@ -625,10 +633,23 @@ body {
     transition: width 0.35s ease, background 0.25s ease;
 }
 
-/* Mirror the player side so both health bars drain toward the outer edges,
-   leaving the centre (Dynamic Island / notch) and system clock/battery clear. */
-.safe-hp-player .safe-hp-fill {
+/* Both health bars meet at the center seam and lose HP from that seam
+   outward — enemy keeps the outer-left edge, player keeps the outer-right. */
+.safe-hp-fill,
+.safe-energy-fill {
+    flex-shrink: 0;
+}
+
+.safe-hp-enemy .safe-hp-fill,
+.safe-hp-enemy .safe-energy-fill {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+.safe-hp-player .safe-hp-fill,
+.safe-hp-player .safe-energy-fill {
     margin-left: auto;
+    margin-right: 0;
 }
 
 /* Thin energy underline pinned to the very bottom of the strip, below the
@@ -647,10 +668,6 @@ body {
     width: 0;
     background: linear-gradient(90deg, rgba(255, 215, 0, 0.45), #ffd700);
     transition: width 0.35s ease, background 0.25s ease;
-}
-
-.safe-hp-player .safe-energy-fill {
-    margin-left: auto;
 }
 
 /* Low-HP danger pulse on the affected side. */
@@ -770,6 +787,7 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     background: rgba(255, 255, 255, 0.07);
     border-radius: 4px;
     overflow: hidden;
+    display: flex;
 }
 
 .hud-hp-fill {
@@ -780,8 +798,14 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     transition: width 0.4s ease, background-color 0.4s ease;
 }
 
-.hud-hp-fill-enemy { background: linear-gradient(90deg, #7b0a1a, var(--danger)); }
-.hud-hp-fill-player { background: linear-gradient(90deg, #0a5c2e, var(--success)); }
+.hud-hp-fill-enemy {
+    margin-right: auto;
+    background: linear-gradient(90deg, #7b0a1a, var(--danger));
+}
+.hud-hp-fill-player {
+    margin-left: auto;
+    background: linear-gradient(270deg, #0a5c2e, var(--success));
+}
 
 .hud-hp-label {
     font-size: 0.68em;
@@ -3336,17 +3360,25 @@ body.battle-phase-active .battlefield::after {
         background: rgba(255, 255, 255, 0.08);
         border-radius: 3px;
         overflow: hidden;
+        display: flex;
     }
 
     .m-hp-fill {
         height: 100%;
         border-radius: 3px;
+        flex-shrink: 0;
         /* Colour morphs with the bar as HP drops (see hudHpTierColor). */
         transition: width 0.35s ease, background-color 0.35s ease;
     }
 
-    .mobile-hud-enemy .m-hp-fill { background: var(--danger); }
-    .mobile-hud-player .m-hp-fill { background: var(--success); }
+    .mobile-hud-enemy .m-hp-fill {
+        margin-right: auto;
+        background: var(--danger);
+    }
+    .mobile-hud-player .m-hp-fill {
+        margin-left: auto;
+        background: var(--success);
+    }
 
     .m-counts {
         display: flex;
@@ -5005,6 +5037,33 @@ body.battle-phase-active .battlefield::after {
     .loadout-box .builder-deck-list {
         max-height: min(56vh, calc(100dvh - 300px));
     }
+
+    .loadout-step-chip {
+        min-width: 0;
+        padding: 8px 6px;
+    }
+
+    .loadout-step-chip .loadout-step-text {
+        display: none;
+    }
+
+    .loadout-swap-bar {
+        grid-template-columns: 1fr;
+    }
+
+    .loadout-nav {
+        flex-wrap: wrap;
+    }
+
+    .loadout-nav .loadout-summary {
+        order: -1;
+        flex-basis: 100%;
+    }
+
+    .loadout-nav .loadout-start-btn {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
 }
 
 /* iPad portrait dock: iPhone-style match header + taller hand selector */
@@ -5054,10 +5113,24 @@ body.battle-phase-active .battlefield::after {
         background: rgba(255, 255, 255, 0.08);
         border-radius: 3px;
         overflow: hidden;
+        display: flex;
     }
 
-    .mobile-hud-enemy .m-hp-fill { background: var(--danger); }
-    .mobile-hud-player .m-hp-fill { background: var(--success); }
+    .m-hp-fill {
+        height: 100%;
+        border-radius: 3px;
+        flex-shrink: 0;
+        transition: width 0.35s ease, background-color 0.35s ease;
+    }
+
+    .mobile-hud-enemy .m-hp-fill {
+        margin-right: auto;
+        background: var(--danger);
+    }
+    .mobile-hud-player .m-hp-fill {
+        margin-left: auto;
+        background: var(--success);
+    }
 
     .m-counts {
         display: flex;
@@ -5881,6 +5954,7 @@ body.placement-active .board-cell.legal {
 
 .board-card.arena-board-card .arena-board-combat {
     flex: 0 0 auto;
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -5922,13 +5996,22 @@ body.placement-active .board-cell.legal {
     overflow: hidden;
 }
 
+/* Badges overlay the bottom of the art, sitting right above the health bar /
+   info panel instead of taking flow space — so they never push the HP/SPD
+   pills off the bottom of the card. */
 .board-card.arena-board-card .arena-board-badges {
-    flex: 0 0 auto;
-    width: 100%;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    margin-bottom: 1px;
+    width: auto;
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 0;
+    z-index: 3;
+    pointer-events: none;
 }
 
 .board-card.arena-board-card .arena-board-badges:empty {
@@ -6099,14 +6182,22 @@ body.placement-active .board-cell.legal {
     display: none;
 }
 
-/* HP bar pinned to the top of the painted info panel. */
+/* HP bar pinned to the top of the painted info panel. It now lives inside the
+   absolutely-positioned combat panel, so anchor it just above that panel's top
+   edge (card-relative top% would land it on the stat pills). */
 .board-card.arena-board-card.element-frame .arena-board-health {
     position: absolute;
-    left: 11.5%;
-    right: 11.5%;
-    top: 70.6%;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: calc(100% + 2px);
     width: auto;
     z-index: 2;
+}
+
+/* Badges sit above the health bar, overlapping the bottom of the art. */
+.board-card.arena-board-card.element-frame .arena-board-badges {
+    bottom: calc(100% + 10px);
 }
 
 /* Stat pills + status badges fill the rest of the panel, stopping above
@@ -6867,7 +6958,7 @@ body.placement-active .board-cell.legal {
 
 /* Hand tray cards use the same painted element templates as board cards,
    but keep their compact tray layout and hover behavior. */
-#playerHand .hand-card.element-frame {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame {
     padding: 0;
     border: none;
     border-radius: 0;
@@ -6875,27 +6966,27 @@ body.placement-active .board-cell.legal {
     box-shadow: none;
 }
 
-#playerHand .hand-card.element-frame::before {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame::before {
     display: none;
 }
 
-#playerHand .hand-card.element-frame.frame-fire {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-fire {
     background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
 }
 
-#playerHand .hand-card.element-frame.frame-earth {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-earth {
     background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
 }
 
-#playerHand .hand-card.element-frame.frame-ice {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-ice {
     background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
 }
 
-#playerHand .hand-card.element-frame.frame-wind {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-wind {
     background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
 }
 
-#playerHand .hand-card.element-frame .hand-card-shell {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-card-shell {
     position: absolute;
     inset: 0;
     display: block;
@@ -6904,7 +6995,7 @@ body.placement-active .board-cell.legal {
     padding: 0;
 }
 
-#playerHand .hand-card.element-frame .hand-card-header {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-card-header {
     position: absolute;
     left: 13%;
     right: 13%;
@@ -6915,7 +7006,7 @@ body.placement-active .board-cell.legal {
     gap: 0;
 }
 
-#playerHand .hand-card.element-frame .card-title {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-title {
     color: #ffffff;
     font-size: 0.72em;
     font-weight: 900;
@@ -6932,15 +7023,15 @@ body.placement-active .board-cell.legal {
 }
 
 /* Tray cards are too small for corner chips — hide them there. */
-#playerHand .hand-card.element-frame .card-corner-chip {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-corner-chip {
     display: none;
 }
 
-#playerHand .hand-card.element-frame .card-label {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-label {
     display: none;
 }
 
-#playerHand .hand-card.element-frame .card-art-hand {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand {
     position: absolute;
     left: 9.8%;
     top: 10%;
@@ -6954,12 +7045,12 @@ body.placement-active .board-cell.legal {
     box-shadow: none;
 }
 
-#playerHand .hand-card.element-frame .card-art-hand.card-art-fallback::before,
-#playerHand .hand-card.element-frame .card-art-hand.card-art-fallback span {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand.card-art-fallback::before,
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand.card-art-fallback span {
     display: none;
 }
 
-#playerHand .hand-card.element-frame .card-stat-pills {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-stat-pills {
     position: absolute;
     left: 11.5%;
     right: 11.5%;
@@ -6970,7 +7061,7 @@ body.placement-active .board-cell.legal {
     gap: 0.18em;
 }
 
-#playerHand .hand-card.element-frame .card-stat-pill {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-stat-pill {
     min-width: 0;
     padding: 1px 2px;
     background: rgba(0, 0, 0, 0.3);
@@ -6979,31 +7070,31 @@ body.placement-active .board-cell.legal {
     line-height: 1.1;
 }
 
-#playerHand .hand-card.element-frame .hand-notches {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-notches {
     inset: 0;
 }
 
-#playerHand .hand-card.element-frame .notch-dot {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot {
     width: 10.4%;
     height: auto;
     aspect-ratio: 1 / 1;
     border-width: 1px;
 }
 
-#playerHand .hand-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
     background: transparent;
     border-color: transparent;
     box-shadow: none;
 }
 
-#playerHand .hand-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
-#playerHand .hand-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
-#playerHand .hand-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
-#playerHand .hand-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
-#playerHand .hand-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
-#playerHand .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
-#playerHand .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
-#playerHand .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
 
 /* Showcase previews share the painted frame, with copy constrained to the
    template's bottom info panel. */
@@ -7051,6 +7142,129 @@ body.placement-active .board-cell.legal {
 .mulligan-showcase.element-frame.frame-wind,
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame.frame-wind {
     background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
+}
+
+/* Siegeling painted frames now use paired element art and rarity-colored rails.
+   These rules intentionally apply to every Siegeling card surface that carries
+   .element-frame: board cards, hand cards, previews, mulligan, and binder tiles. */
+.element-frame.frame-fire-metal.frame-rarity-common {
+    background: url('/img/frames/frame-fire-metal-common.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-fire-metal.frame-rarity-uncommon {
+    background: url('/img/frames/frame-fire-metal-uncommon.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-fire-metal.frame-rarity-rare {
+    background: url('/img/frames/frame-fire-metal-rare.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-fire-metal.frame-rarity-epic {
+    background: url('/img/frames/frame-fire-metal-epic.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-fire-metal.frame-rarity-legendary {
+    background: url('/img/frames/frame-fire-metal-legendary.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth.frame-rarity-common {
+    background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth.frame-rarity-uncommon {
+    background: url('/img/frames/frame-earth-uncommon.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth.frame-rarity-rare {
+    background: url('/img/frames/frame-earth-rare.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth.frame-rarity-epic {
+    background: url('/img/frames/frame-earth-epic.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth.frame-rarity-legendary {
+    background: url('/img/frames/frame-earth-legendary.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-common {
+    background: url('/img/frames/frame-psychic-common.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-uncommon {
+    background: url('/img/frames/frame-psychic-uncommon.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-rare {
+    background: url('/img/frames/frame-psychic-rare.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-epic {
+    background: url('/img/frames/frame-psychic-epic.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-legendary {
+    background: url('/img/frames/frame-psychic-legendary.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth-psychic.frame-rarity-common {
+    background: url('/img/frames/frame-earth-psychic-common.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth-psychic.frame-rarity-uncommon {
+    background: url('/img/frames/frame-earth-psychic-uncommon.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth-psychic.frame-rarity-rare {
+    background: url('/img/frames/frame-earth-psychic-rare.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth-psychic.frame-rarity-epic {
+    background: url('/img/frames/frame-earth-psychic-epic.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth-psychic.frame-rarity-legendary {
+    background: url('/img/frames/frame-earth-psychic-legendary.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-air-electric.frame-rarity-common {
+    background: url('/img/frames/frame-air-electric-common.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-air-electric.frame-rarity-uncommon {
+    background: url('/img/frames/frame-air-electric-uncommon.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-air-electric.frame-rarity-rare {
+    background: url('/img/frames/frame-air-electric-rare.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-air-electric.frame-rarity-epic {
+    background: url('/img/frames/frame-air-electric-epic.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-air-electric.frame-rarity-legendary {
+    background: url('/img/frames/frame-air-electric-legendary.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-ice-water.frame-rarity-common {
+    background: url('/img/frames/frame-ice-water-common.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-ice-water.frame-rarity-uncommon {
+    background: url('/img/frames/frame-ice-water-uncommon.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-ice-water.frame-rarity-rare {
+    background: url('/img/frames/frame-ice-water-rare.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-ice-water.frame-rarity-epic {
+    background: url('/img/frames/frame-ice-water-epic.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-ice-water.frame-rarity-legendary {
+    background: url('/img/frames/frame-ice-water-legendary.png') center / 100% 100% no-repeat !important;
 }
 
 .card-preview-card.element-frame .hand-card-shell,
@@ -7418,6 +7632,24 @@ body.placement-active .board-cell.legal {
     white-space: nowrap;
 }
 
+/* Binder/collection panels: flavor description instead of the move list.
+   fitFramedSummaryList() shrinks the font until the panel fits. */
+.card-summary-description-list {
+    display: block;
+}
+
+.card-summary-description {
+    display: block;
+    white-space: normal;
+    color: var(--summary-ink, #e8f1ff);
+    font-size: 1em;
+    font-weight: 600;
+    line-height: 1.3;
+    text-shadow:
+        0 1px 1px var(--summary-shadow, rgba(2, 8, 18, 0.92)),
+        0 0 4px var(--summary-shadow, rgba(2, 8, 18, 0.92));
+}
+
 /* Top-corner chips on painted-frame previews: cost top-left, evolution
    top-right, on the frame band between the corner and center notches.
    The band spans 0-9.5% of card height with notch centers at 5.6%, so the
@@ -7439,7 +7671,37 @@ body.placement-active .board-cell.legal {
     font-size: 0.52em;
 }
 
-.hand-card.element-frame .card-corner-cost { left: 13.5%; }
+.hand-card.element-frame .card-corner-cost {
+    left: 13.5%;
+    width: auto;
+    max-width: 32%;
+    min-width: 0;
+    height: auto;
+    min-height: 6%;
+    padding: 0.14em 0.2em;
+    gap: 0;
+    background: rgba(8, 10, 18, 0.58);
+    border-color: rgba(255, 244, 214, 0.24);
+    z-index: 12;
+}
+
+.hand-card.element-frame .card-corner-cost .card-summary-energy-icons {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 0.08em;
+    width: auto;
+    min-width: 0;
+}
+
+.hand-card.element-frame .card-corner-cost .card-summary-energy-icon {
+    flex: 0 0 1.18em;
+    width: 1.18em;
+    height: 1.18em;
+}
+
 .hand-card.element-frame .card-corner-evo { right: 13.5%; }
 
 .hand-card.element-frame .card-corner-evo-tag {
@@ -7494,6 +7756,10 @@ body.placement-active .board-cell.legal {
     background-size: 100% 100%;
     background-repeat: no-repeat;
     background-position: center;
+}
+
+.hand-card.spell-trap-frame .hand-card-shell {
+    z-index: auto;
 }
 
 .hand-card.spell-trap-frame .hand-card-header {
@@ -7580,20 +7846,24 @@ body.placement-active .board-cell.legal {
 }
 
 .hand-card.spell-trap-frame .card-corner-chip.card-corner-cost {
-    left: 38.9%;
-    top: 10.35%;
-    width: 22.2%;
-    max-width: 22.2%;
-    height: 7.7%;
+    left: 42.1%;
+    top: 8.16%;
+    width: 18.62%;
+    max-width: 18.62%;
+    min-width: 18.62%;
+    height: 10.34%;
+    min-height: 10.34%;
     justify-content: center;
+    align-items: center;
     padding: 0;
     gap: 1px;
     border: 0;
     background: transparent;
     box-shadow: none;
     transform: none;
-    z-index: 12 !important;
-    font-size: 0.72em;
+    z-index: 30 !important;
+    isolation: isolate;
+    font-size: 0.66em;
 }
 
 .hand-card.spell-trap-frame .card-corner-chip.card-corner-cost,
@@ -7604,35 +7874,90 @@ body.placement-active .board-cell.legal {
 .hand-card.spell-trap-frame .card-corner-cost .card-summary-energy-icons {
     position: relative;
     display: grid;
-    width: 92%;
-    height: 92%;
+    width: 100%;
+    height: 100%;
     gap: 0;
     place-items: center;
+    z-index: 31;
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .card-summary-energy-icon {
-    width: 1.18em;
-    height: 1.18em;
+    position: relative;
+    width: 70%;
+    height: auto;
+    aspect-ratio: 1 / 1;
     margin: 0;
+    z-index: 31;
+    filter:
+        drop-shadow(0 0 2px rgba(255, 255, 255, 0.78))
+        drop-shadow(0 1px 1px rgba(0, 0, 0, 0.72));
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-1 .card-summary-energy-icon {
-    width: 2.35em;
-    height: 2.35em;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 62%;
+    height: auto;
+    transform: translate(-50%, -50%);
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-2 {
-    grid-template-rows: repeat(2, 1fr);
+    position: relative;
+    display: block;
+    padding: 0;
 }
 
-.hand-card.spell-trap-frame .card-corner-cost .energy-count-3,
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-2 .card-summary-energy-icon {
+    position: absolute;
+    top: 50%;
+    width: 30%;
+    height: auto;
+    transform: translate(-50%, -50%);
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-2 .card-summary-energy-icon:nth-child(1) {
+    left: 35%;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-2 .card-summary-energy-icon:nth-child(2) {
+    left: 65%;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 {
+    position: relative;
+    display: block;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon {
+    position: absolute;
+    width: 27%;
+    height: auto;
+    transform: translate(-50%, -50%);
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon:nth-child(1) {
+    left: 50%;
+    top: 30%;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon:nth-child(2) {
+    left: 36%;
+    top: 65%;
+}
+
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon:nth-child(3) {
+    left: 64%;
+    top: 65%;
+}
+
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-4 {
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(2, 1fr);
 }
 
-.hand-card.spell-trap-frame .card-corner-cost .energy-count-3 .card-summary-energy-icon:nth-child(1) {
-    grid-column: 1 / 3;
+.hand-card.spell-trap-frame .card-corner-cost .energy-count-4 .card-summary-energy-icon {
+    width: 56%;
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-5,
@@ -7671,13 +7996,13 @@ body.placement-active .board-cell.legal {
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-8 .card-summary-energy-icon {
-    width: 0.82em;
-    height: 0.82em;
+    width: 58%;
+    height: auto;
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-9 .card-summary-energy-icon {
-    width: 0.82em;
-    height: 0.82em;
+    width: 58%;
+    height: auto;
 }
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-many .card-summary-energy-icon {
@@ -7686,8 +8011,12 @@ body.placement-active .board-cell.legal {
 
 .hand-card.spell-trap-frame .card-corner-cost .energy-count-many .card-summary-energy-icon:first-child {
     display: block;
-    width: 2.45em;
-    height: 2.45em;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 64%;
+    height: auto;
+    transform: translate(-50%, -50%);
     border-color: rgba(255, 255, 255, 0.85);
     background:
         var(--notch-icon) center / 100% 100% no-repeat,
@@ -9032,16 +9361,195 @@ body.placement-active .board-cell.legal {
     justify-content: start;
 }
 
+/* ── Loadout wizard (stepped flow) ─────────────────── */
+
 .loadout-core {
-    display: grid;
-    gap: clamp(14px, 1.5vw, 22px);
-    align-items: start;
+    display: block;
+    min-width: 0;
 }
 
-.loadout-flow {
+.loadout-steps {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.loadout-step-chip {
+    flex: 1 1 0;
+    min-width: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 0.74em;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    transition: border-color 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+}
+
+.loadout-step-chip .loadout-step-num {
     display: grid;
-    gap: 14px;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 0.9em;
+}
+
+.loadout-step-chip .loadout-step-text {
+    display: inline;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.loadout-step-chip.done .loadout-step-num {
+    background: linear-gradient(180deg, #7ad97a, #2e9e4f);
+    color: #06210f;
+}
+
+.loadout-step-chip.active {
+    border-color: #fff0a8;
+    background: linear-gradient(180deg, rgba(255, 226, 90, 0.22), rgba(212, 155, 0, 0.12));
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.22);
+}
+
+.loadout-step-chip.active .loadout-step-num {
+    background: linear-gradient(180deg, #ffe25a, #d49b00);
+    color: #101828;
+}
+
+.loadout-step-chip.locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.loadout-step {
+    display: none;
+    min-width: 0;
+}
+
+.loadout-step.active {
+    display: block;
+    animation: loadoutStepIn 0.22s ease;
+}
+
+@keyframes loadoutStepIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+.loadout-nav {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 12px 0;
+    background: linear-gradient(0deg, rgba(7, 15, 32, 0.96) 62%, rgba(7, 15, 32, 0));
+}
+
+.loadout-nav .loadout-summary {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+.loadout-nav .loadout-back-btn {
+    flex: 0 0 auto;
+}
+
+.loadout-nav .loadout-start-btn {
+    flex: 0 0 auto;
+    min-width: 180px;
+}
+
+.loadout-swap-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.loadout-swap-field {
+    display: grid;
+    gap: 6px;
+    font-size: 0.7em;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #8bc2ff;
+}
+
+.loadout-swap-field select {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(10, 20, 42, 0.92);
+    color: var(--text);
+    font-size: 1.05em;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    cursor: pointer;
+}
+
+.loadout-step[data-step="review"] .selected-loadout-panel {
+    width: 100%;
+    position: relative;
+}
+
+.selected-loadout-evolutions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.selected-loadout-strategy {
+    display: grid;
+    gap: 8px;
+}
+
+.selected-loadout-strategy-copy {
+    margin: 0;
+    color: var(--text-dim);
+    line-height: 1.45;
+}
+
+.selected-loadout-subtle-label {
+    color: #fff0a8;
+    font-size: 0.7em;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.selected-loadout-evolution-block {
+    display: grid;
+    gap: 6px;
+}
+
+.loadout-evolution {
+    color: var(--text-dim);
+    font-size: 0.8em;
+    line-height: 1.4;
+}
+
+.loadout-evolution strong {
+    color: #fff6d8;
 }
 
 .selected-loadout-panel {
@@ -9945,6 +10453,14 @@ body.placement-active .board-cell.legal {
     background: linear-gradient(to top, rgba(2, 6, 18, 0.96) 0%, rgba(6, 10, 24, 0.9) 78%, transparent 100%);
 }
 
+/* Rows keep their natural height — if they could flex-shrink, wrapped
+   ability text would spill over the next row AND body.scrollHeight would
+   never grow, so fitSiegeKnightCardText() couldn't detect the overflow
+   and shrink the font. */
+.knight-card-body > * {
+    flex-shrink: 0;
+}
+
 .knight-card-name {
     color: #fff4d6;
     font-size: clamp(0.92rem, 1vw, 1.18rem);
@@ -10024,6 +10540,33 @@ body.placement-active .board-cell.legal {
         0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
+.knight-card.knight-full-card-art {
+    position: relative;
+    aspect-ratio: 639 / 919;
+    border: 0;
+    border-radius: 8%;
+    padding: 0;
+    overflow: hidden;
+    background: #15171d;
+    box-shadow:
+        0 16px 34px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.knight-card.knight-full-card-art::before,
+.knight-card.knight-full-card-art::after {
+    display: none;
+}
+
+.knight-card.knight-full-card-art > img {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+}
+
 .knight-card.has-knight-back::before,
 .knight-card.has-knight-back::after {
     display: none;
@@ -10086,7 +10629,8 @@ body.placement-active .board-cell.legal {
     opacity: 0;
 }
 
-.knight-card.has-knight-back .knight-card-body {
+.knight-card.has-knight-back .knight-card-body,
+.knight-card.knight-full-card-art .knight-card-body {
     position: absolute;
     z-index: 4;
     left: 9.8%;
@@ -10104,7 +10648,8 @@ body.placement-active .board-cell.legal {
     font-size: 9px;
 }
 
-.knight-card.has-knight-back .knight-card-name {
+.knight-card.has-knight-back .knight-card-name,
+.knight-card.knight-full-card-art .knight-card-name {
     color: #fff6d8;
     font-size: 1.28em;
     line-height: 1;
@@ -10115,7 +10660,8 @@ body.placement-active .board-cell.legal {
     text-overflow: ellipsis;
 }
 
-.knight-card.has-knight-back .knight-card-meta {
+.knight-card.has-knight-back .knight-card-meta,
+.knight-card.knight-full-card-art .knight-card-meta {
     justify-content: center;
     gap: 3px;
     font-size: 0.72em;
@@ -10123,17 +10669,21 @@ body.placement-active .board-cell.legal {
     margin-bottom: 1px;
 }
 
-.knight-card.has-knight-back .knight-card-meta span {
+.knight-card.has-knight-back .knight-card-meta span,
+.knight-card.knight-full-card-art .knight-card-meta span {
     min-width: 0;
 }
 
 .knight-card.has-knight-back .knight-rarity,
-.knight-card.has-knight-back .knight-tier {
+.knight-card.has-knight-back .knight-tier,
+.knight-card.knight-full-card-art .knight-rarity,
+.knight-card.knight-full-card-art .knight-tier {
     padding: 1px 3px;
     border-radius: 4px;
 }
 
-.knight-card.has-knight-back .knight-card-ability {
+.knight-card.has-knight-back .knight-card-ability,
+.knight-card.knight-full-card-art .knight-card-ability {
     display: block;
     overflow: hidden;
     min-height: 0;
@@ -10150,7 +10700,8 @@ body.placement-active .board-cell.legal {
     overflow-wrap: anywhere;
 }
 
-.knight-card.has-knight-back .knight-card-ability > span {
+.knight-card.has-knight-back .knight-card-ability > span,
+.knight-card.knight-full-card-art .knight-card-ability > span {
     display: inline;
     margin-right: 3px;
     color: #ffea5c;
@@ -10158,7 +10709,8 @@ body.placement-active .board-cell.legal {
     letter-spacing: 0;
 }
 
-.knight-card.has-knight-back .knight-card-body.is-fitted .knight-card-ability {
+.knight-card.has-knight-back .knight-card-body.is-fitted .knight-card-ability,
+.knight-card.knight-full-card-art .knight-card-body.is-fitted .knight-card-ability {
     overflow: visible;
 }
 
@@ -12473,6 +13025,36 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-weight: 700;
     }
 
+    .loadout-nav {
+        display: grid;
+        grid-template-columns: minmax(96px, 0.4fr) minmax(0, 1fr);
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px 0;
+    }
+
+    .loadout-nav .loadout-summary {
+        grid-column: 1 / -1;
+        min-width: 0;
+        width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .loadout-nav .loadout-back-btn,
+    .loadout-nav .loadout-start-btn {
+        width: 100%;
+        min-width: 0;
+        padding: 13px 14px;
+    }
+
+    .loadout-nav .loadout-back-btn {
+        grid-column: 1;
+    }
+
+    .loadout-nav .loadout-start-btn {
+        grid-column: 2;
+    }
+
     .card-tooltip {
         display: none !important;
     }
@@ -12923,9 +13505,50 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 }
 
 /* ============================================================
+   PORTRAIT PHONES — keep the hand selector snug against the
+   Knight/Draw buttons and hand the freed height to the arena.
+   ============================================================ */
+@media (max-width: 700px) and (orientation: portrait) {
+    /* Trim the tray's vertical padding on both ends. The dock is pinned to
+       the viewport bottom, so a shorter tray pushes its top edge down and
+       lets the battlefield (flex: 1) grow — more arena, hand still hugging
+       the action buttons. */
+    .hand-tray {
+        padding-top: 2px;
+        padding-bottom: 0;
+    }
+
+    .hand-tray .hand-cards {
+        align-items: flex-end;
+        padding-top: 0;
+        padding-bottom: 2px;
+    }
+
+    /* Pull the hand selector down against the Knight/Draw buttons so more of
+       the arena board shows above it. Drop the decorative "Hand Selector"
+       caption and collapse the inter-section gaps on phones. */
+    .desktop-menu-hand .desktop-section-title {
+        display: none;
+    }
+
+    .desktop-menu-hand {
+        min-height: 0;
+    }
+
+    .desktop-menu-bottom-dock {
+        gap: 4px;
+    }
+
+    .action-bar {
+        padding-top: 0;
+    }
+}
+
+/* ============================================================
    LANDSCAPE MODE — dedicated TCG layout for phones in landscape
    (width below 980px). iPad landscape uses the tablet block below.
    ============================================================ */
+
 @media (orientation: landscape) and (max-width: 979px) {
     .mobile-hud,
     .mobile-stat-sheet {
@@ -13400,6 +14023,12 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .tb-turn { font-size: 0.6em; }
 
     .app-shell {
+        /* The base @media (min-width:980px) rule makes this a 4-column grid
+           (hud-rail | arena | hud-rail | sidebar). This short-landscape block
+           hides the hud-rails and lays the board + sidebar out as a flex row,
+           so it must reset display to flex — otherwise the stale grid template
+           mis-sizes the arena column and the board collapses out of view. */
+        display: flex;
         flex-direction: row;
         overflow: hidden;
         gap: 0;
@@ -14021,6 +14650,145 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     100% { filter: brightness(1)   drop-shadow(0 0 0 transparent); transform: translate(0, 0); }
 }
 
+/* Claiming: enemy pressure cracks the card open, then its element flies into
+   the player's temporary energy pool. */
+.board-card.sgl-claim-dissolving {
+    --sgl-claim-color: #a8ffd0;
+    pointer-events: none;
+    z-index: 9;
+    animation: sgl-claim-card-dissolve 900ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--sgl-claim-color) 78%, white 8%),
+        0 0 24px color-mix(in srgb, var(--sgl-claim-color) 64%, transparent),
+        inset 0 0 18px color-mix(in srgb, var(--sgl-claim-color) 30%, transparent);
+}
+
+.board-card.sgl-claim-dissolving::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 14;
+    background:
+        radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.72), transparent 22%),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--sgl-claim-color) 70%, transparent), transparent 64%),
+        conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--sgl-claim-color) 72%, transparent), transparent 42%, color-mix(in srgb, var(--sgl-claim-color) 45%, transparent), transparent 78%);
+    mix-blend-mode: screen;
+    animation: sgl-claim-burst 900ms ease-out forwards;
+}
+
+.sgl-claim-mote {
+    --sgl-claim-color: #a8ffd0;
+    --sgl-claim-dx: 0px;
+    --sgl-claim-dy: 0px;
+    --sgl-claim-delay: 0ms;
+    --sgl-claim-duration: 860ms;
+    position: fixed;
+    width: 9px;
+    height: 9px;
+    margin-left: -4.5px;
+    margin-top: -4.5px;
+    border-radius: 999px;
+    z-index: 560;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 32% 28%, white, var(--sgl-claim-color) 42%, color-mix(in srgb, var(--sgl-claim-color) 55%, transparent) 72%, transparent);
+    box-shadow:
+        0 0 10px var(--sgl-claim-color),
+        0 0 20px color-mix(in srgb, var(--sgl-claim-color) 70%, transparent);
+    animation: sgl-claim-mote-flight var(--sgl-claim-duration) cubic-bezier(0.16, 0.72, 0.24, 1) var(--sgl-claim-delay) forwards;
+}
+
+.sgl-claim-mote::after {
+    content: '';
+    position: absolute;
+    inset: 3px 7px 3px -15px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--sgl-claim-color) 76%, transparent));
+    filter: blur(1px);
+}
+
+.sgl-claim-pool-pulse {
+    --sgl-claim-color: #a8ffd0;
+    animation: sgl-claim-pool-pulse 760ms ease-out;
+}
+
+@keyframes sgl-claim-card-dissolve {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: brightness(1) saturate(1);
+    }
+    28% {
+        opacity: 1;
+        transform: translateY(-3px) scale(1.04);
+        filter: brightness(1.8) saturate(1.45) drop-shadow(0 0 14px var(--sgl-claim-color));
+    }
+    68% {
+        opacity: 0.52;
+        transform: translateY(-8px) scale(0.92);
+        filter: brightness(2.2) saturate(1.7) blur(0.8px) drop-shadow(0 0 22px var(--sgl-claim-color));
+    }
+    100% {
+        opacity: 0.06;
+        transform: translateY(-14px) scale(0.72);
+        filter: brightness(2.8) saturate(2) blur(3px) drop-shadow(0 0 28px var(--sgl-claim-color));
+    }
+}
+
+@keyframes sgl-claim-burst {
+    0% {
+        opacity: 0;
+        transform: scale(0.7) rotate(0deg);
+        filter: blur(8px);
+    }
+    22% {
+        opacity: 1;
+        transform: scale(1.04) rotate(32deg);
+        filter: blur(0);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.48) rotate(170deg);
+        filter: blur(4px);
+    }
+}
+
+@keyframes sgl-claim-mote-flight {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0) scale(0.35);
+    }
+    12% {
+        opacity: 1;
+        transform: translate(0, -8px) scale(1.2);
+    }
+    62% {
+        opacity: 0.95;
+        transform: translate(calc(var(--sgl-claim-dx) * 0.62), calc(var(--sgl-claim-dy) * 0.62 - 26px)) scale(0.92);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(var(--sgl-claim-dx), var(--sgl-claim-dy)) scale(0.22);
+    }
+}
+
+@keyframes sgl-claim-pool-pulse {
+    0% {
+        filter: brightness(1);
+        box-shadow: none;
+    }
+    32% {
+        filter: brightness(1.65) drop-shadow(0 0 16px var(--sgl-claim-color));
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--sgl-claim-color) 36%, transparent), 0 0 22px color-mix(in srgb, var(--sgl-claim-color) 42%, transparent);
+    }
+    100% {
+        filter: brightness(1);
+        box-shadow: none;
+    }
+}
+
 /* Health-bar direct-attack impact: shake + element-colored flash on the
    top HUD HP container when an attack targets the player/enemy directly. */
 .tb-hp, .mobile-hud-side, .hud-hp-row, .safe-hp-half {
@@ -14130,6 +14898,10 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 @media (prefers-reduced-motion: reduce) {
     .board-card.sgl-status-applied::after { animation: none; opacity: 0.6; }
     .board-card.sgl-status-freeze { animation: none; }
+    .board-card.sgl-claim-dissolving,
+    .board-card.sgl-claim-dissolving::after,
+    .sgl-claim-pool-pulse { animation-duration: 240ms !important; }
+    .sgl-claim-mote { animation-duration: 260ms !important; }
 }
 
 /* Healing — glowing green "+" cross with outward particle burst. Anchored
@@ -15697,4 +16469,68 @@ body.sgl-opponent-turn .battle-cta-row {
     0%   { opacity: 0; transform: scale(0.86); }
     20%  { opacity: 0.8; transform: scale(1.03); }
     100% { opacity: 0; transform: scale(1.14); }
+}
+
+/* ── Custom page art backdrop ─────────────────────────────────────────── */
+/* Set from Home > Settings > Art Gallery; --page-art carries the chosen
+   loading-screen image. Heavily dimmed so the UI stays readable. */
+body.has-custom-art::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--page-art, none) center / cover no-repeat;
+    opacity: 0.22;
+}
+
+/* ── Tutorial match goals panel ───────────────────────────────────────── */
+.tutorial-goals-panel {
+    position: fixed;
+    top: 70px;
+    right: 10px;
+    z-index: 900;
+    width: 232px;
+    border: 1px solid rgba(255, 215, 0, 0.45);
+    border-radius: 12px;
+    background: rgba(10, 16, 32, 0.93);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+    font-size: 12px;
+}
+
+.tutorial-goals-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 11px;
+    border: 0;
+    background: transparent;
+    color: #ffd700;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.tutorial-goals-panel ul {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+    padding: 0 12px 10px 26px;
+    color: rgba(240, 244, 252, 0.85);
+}
+
+.tutorial-goals-panel.is-collapsed ul {
+    display: none;
+}
+
+@media (max-width: 700px) {
+    .tutorial-goals-panel {
+        top: auto;
+        right: 8px;
+        bottom: 86px;
+        width: 200px;
+    }
 }

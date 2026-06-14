@@ -42,7 +42,11 @@
 
 html,
 body {
+    height: auto;
     min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 body {
@@ -284,6 +288,12 @@ input[type="file"] {
     display: flex;
     gap: 12px;
     padding: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: 10px;
+    scrollbar-width: thin;
 }
 
 .page-tab {
@@ -761,10 +771,10 @@ textarea {
 }
 
 .deck-card-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    display: flex;
     gap: 12px;
     align-items: center;
+    justify-content: space-between;
     padding: 12px 14px;
     border-radius: var(--radius-md);
     background: rgba(255, 255, 255, 0.04);
@@ -773,20 +783,30 @@ textarea {
 
 .deck-card-main {
     min-width: 0;
+    flex: 1 1 auto;
     display: grid;
     gap: 4px;
 }
 
-.deck-card-actions {
+.dashboard-deck-card-actions {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 8px;
+    justify-content: flex-end;
+    min-width: 190px;
 }
 
 .deck-card-count {
-    min-width: 2ch;
+    min-width: 3ch;
     text-align: center;
     font-weight: 700;
+    color: var(--text-main);
+}
+
+.deck-card-action-btn {
+    min-width: 72px;
+    justify-content: center;
 }
 
 .deck-catalog-row-footer {
@@ -1021,6 +1041,15 @@ textarea {
         justify-content: flex-start;
     }
 
+    .dashboard-pages {
+        scroll-snap-type: x proximity;
+    }
+
+    .page-tab {
+        flex: 0 0 clamp(132px, 38vw, 190px);
+        scroll-snap-align: start;
+    }
+
     .workspace-grid {
         grid-template-columns: 1fr;
     }
@@ -1068,10 +1097,11 @@ textarea {
     }
 
     .deck-card-row {
-        grid-template-columns: 1fr;
+        align-items: flex-start;
+        flex-direction: column;
     }
 
-    .deck-card-actions,
+    .dashboard-deck-card-actions,
     .deck-catalog-row-footer {
         justify-content: flex-start;
         flex-wrap: wrap;
@@ -1271,7 +1301,8 @@ body.move-picker-open {
 }
 
 .card-visual-stage .binder-card,
-.card-visual-stage .card-visual-preview {
+.card-visual-stage .card-visual-preview,
+.card-visual-stage .binder-full-card-art {
     width: min(100%, 240px);
     margin: 0 auto;
     pointer-events: none;

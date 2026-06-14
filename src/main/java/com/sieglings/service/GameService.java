@@ -239,7 +239,7 @@ public class GameService {
         actor.removeFromHand(card);
 
         if (evolutionPlacement && existing != null) {
-            state.log(existing.getName() + " evolved into " + siegling.getName() + "!");
+            state.log(existing.getName() + " evolved to " + siegling.getName() + "!");
         } else {
             state.log(sideName(state, isPlayerSide) + " places " + siegling.getName()
                     + " at " + rowName(row) + " row, col " + col + ".");
@@ -371,7 +371,7 @@ public class GameService {
             energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount());
             state.recordSieglingSetupActionConsumed(isPlayerSide);
         } else {
-            state.log("Spell or trap not found in hand!");
+            state.log("Strategy or deception not found in hand!");
             return state;
         }
 

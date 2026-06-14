@@ -317,8 +317,17 @@ public class GameController {
             // roguelike mode, where levels will carry into every fight.
             GameService.SoloHandle handle = gameService.newSoloGame(options);
             attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
+            // Tutorial matches face a 10 HP enemy so new players can finish
+            // the guided objectives quickly.
+            boolean tutorial = req != null && Boolean.TRUE.equals(req.get("tutorial"));
+            if (tutorial) {
+                handle.state().getEnemy().setHealth(10);
+            }
             Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));
             resp.put("soloToken", handle.token());
+            if (tutorial) {
+                resp.put("tutorialMode", true);
+            }
             return resp;
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
@@ -1261,6 +1270,9 @@ public class GameController {
                 m.put("cardArtRotation", card.getCardArtRotation());
             }
         }
+        if (card.isHolographic()) {
+            m.put("holographic", true);
+        }
 
         return m;
     }
@@ -1274,6 +1286,7 @@ public class GameController {
         m.put("tier", trainer.getTier());
         m.put("rarity", trainer.getRarity().name());
         m.put("oncePerGame", trainer.isOncePerGame());
+        appendCardArt(m, trainer);
 
         if (trainer.getAbility() != null) {
             m.put("passive", Map.of(
@@ -1310,6 +1323,7 @@ public class GameController {
         m.put("tier", trainer.getTier());
         m.put("rarity", trainer.getRarity().name());
         m.put("oncePerGame", trainer.isOncePerGame());
+        appendCardArt(m, trainer);
         String key = trainer.getId() == null ? "" : trainer.getId().toLowerCase(java.util.Locale.ROOT);
         int level = ownedLevels.getOrDefault(key, 0);
         boolean owned = !gated || level > 0;
@@ -1323,6 +1337,31 @@ public class GameController {
             m.put("active", trainer.getActiveAbility().getDescription());
         }
         return m;
+    }
+
+    private void appendCardArt(Map<String, Object> m, Card card) {
+        if (card.getCardArtUrl() == null || card.getCardArtUrl().isBlank()) {
+            return;
+        }
+        m.put("cardArtUrl", card.getCardArtUrl());
+        if (card.getCardArtMode() != null && !card.getCardArtMode().isBlank()) {
+            m.put("cardArtMode", card.getCardArtMode());
+        }
+        if (card.getCardArtOffsetX() != null) {
+            m.put("cardArtOffsetX", card.getCardArtOffsetX());
+        }
+        if (card.getCardArtOffsetY() != null) {
+            m.put("cardArtOffsetY", card.getCardArtOffsetY());
+        }
+        if (card.getCardArtScale() != null) {
+            m.put("cardArtScale", card.getCardArtScale());
+        }
+        if (card.getCardArtRotation() != null) {
+            m.put("cardArtRotation", card.getCardArtRotation());
+        }
+        if (card.isHolographic()) {
+            m.put("holographic", true);
+        }
     }
 
     private Object[][] serializeBoard(GameState gs, boolean canonicalPlayerSide) {
@@ -1351,6 +1390,9 @@ public class GameController {
                 m.put("battlePhasesSeen", ci.getBattlePhasesSeen());
                 m.put("statuses", ci.getStatusEffects().stream().map(Enum::name).toList());
                 m.put("notches", serializeNotches(ci.getNotches()));
+                if (ci.getCard().isHolographic()) {
+                    m.put("holographic", true);
+                }
                 List<Ability> visibleBoardAbilities = visibleSieglingAbilities(ci.getCard());
                 if (!visibleBoardAbilities.isEmpty()) {
                     m.put("abilities", visibleBoardAbilities.stream()

@@ -14,6 +14,7 @@ public class PlayerProgressionEntity {
     private Map<String, Integer> trainerLevels = new LinkedHashMap<>();
     private Map<String, Integer> trainerPoints = new LinkedHashMap<>();
     private String starterPackId;
+    private boolean tutorialCompleted;
     private List<String> rewardedMatchIds = new ArrayList<>();
     private List<String> purchasedDeckIds = new ArrayList<>();
     private List<String> purchasedDailyOfferIds = new ArrayList<>();
@@ -22,6 +23,8 @@ public class PlayerProgressionEntity {
     private int onlineWinStreak;
     private List<String> purchasedTitleIds = new ArrayList<>();
     private int craftCount;
+    /** Card or SiegeKnight ids the player upgraded to a holographic foil finish. */
+    private List<String> holographicCardIds = new ArrayList<>();
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -44,6 +47,9 @@ public class PlayerProgressionEntity {
     }
     public String getStarterPackId() { return starterPackId; }
     public void setStarterPackId(String starterPackId) { this.starterPackId = starterPackId; }
+
+    public boolean isTutorialCompleted() { return tutorialCompleted; }
+    public void setTutorialCompleted(boolean tutorialCompleted) { this.tutorialCompleted = tutorialCompleted; }
     public List<String> getRewardedMatchIds() { return rewardedMatchIds; }
     public void setRewardedMatchIds(List<String> rewardedMatchIds) {
         this.rewardedMatchIds = rewardedMatchIds == null ? new ArrayList<>() : new ArrayList<>(rewardedMatchIds);
@@ -70,6 +76,10 @@ public class PlayerProgressionEntity {
     }
     public int getCraftCount() { return craftCount; }
     public void setCraftCount(int craftCount) { this.craftCount = Math.max(0, craftCount); }
+    public List<String> getHolographicCardIds() { return holographicCardIds; }
+    public void setHolographicCardIds(List<String> holographicCardIds) {
+        this.holographicCardIds = holographicCardIds == null ? new ArrayList<>() : new ArrayList<>(holographicCardIds);
+    }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }
