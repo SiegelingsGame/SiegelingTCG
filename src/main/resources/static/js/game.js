@@ -7990,6 +7990,14 @@ async function loadGameOptions() {
     try {
         renderWelcomeTutorial();
         renderWelcomeAuth();
+        // Arriving from the hub with a chosen loadout (e.g. Start Match) means
+        // the player asked to play now — drop them straight onto deck selection
+        // instead of holding them on the welcome screen. Critically this happens
+        // before any network await, so a slow/hung account restore can't trap
+        // them behind the "Restoring your account…" spinner.
+        if (peekPendingHomeLoadout()) {
+            welcomeDismissed = true;
+        }
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();
@@ -8004,10 +8012,15 @@ async function loadGameOptions() {
             }
         }
 
+        // Refresh the account profile in the background. It must not gate the
+        // loadout transition: /api/auth/me has no timeout, and blocking on it
+        // would strand a player who just pressed Start Match on the welcome
+        // overlay if the auth check stalls.
+        void syncAuthProfile(true);
+
         const [data, editorState] = await Promise.all([
             fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
-            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS),
-            syncAuthProfile(true)
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS)
         ]);
         if (!data) {
             // If we already painted usable (if stale) options from cache, keep
@@ -8393,17 +8406,33 @@ async function claimTutorialReward() {
     }
 }
 
-function applyPendingHomeLoadout() {
-    let pending = null;
+// Reads the hub handoff (Start Match, deck builder launch, etc.) without
+// consuming it, so the boot path can decide to skip the welcome screen before
+// the network settles. Returns null when missing, malformed, or stale.
+function peekPendingHomeLoadout() {
     try {
         const raw = localStorage.getItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
-        pending = raw ? JSON.parse(raw) : null;
+        if (!raw) {
+            return null;
+        }
+        const pending = JSON.parse(raw);
+        if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
+            return null;
+        }
+        return pending;
+    } catch (e) {
+        return null;
+    }
+}
+
+function applyPendingHomeLoadout() {
+    const pending = peekPendingHomeLoadout();
+    try {
         localStorage.removeItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
     } catch (e) {
-        localStorage.removeItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
-        return;
+        /* ignore storage errors */
     }
-    if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
+    if (!pending) {
         return;
     }
     tutorialMatchActive = Boolean(pending.tutorial);
