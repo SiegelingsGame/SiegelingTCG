@@ -1856,6 +1856,24 @@
         }
     }
 
+    // Compact "how long ago" label for friend last-seen timestamps.
+    function timeAgoLabel(value) {
+        if (!value) return '';
+        const then = new Date(value).getTime();
+        if (!Number.isFinite(then)) return '';
+        const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+        if (secs < 60) return 'just now';
+        const mins = Math.floor(secs / 60);
+        if (mins < 60) return `${mins}m ago`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        if (days < 30) return `${days}d ago`;
+        const months = Math.floor(days / 30);
+        if (months < 12) return `${months}mo ago`;
+        return `${Math.floor(months / 12)}y ago`;
+    }
+
     function homeCountTile(icon, label, value, hint, iconIsMarkup = false) {
         return `<article class="command-count-card">
             <span class="count-icon">${iconIsMarkup ? icon : escapeHtml(icon)}</span>
@@ -2898,6 +2916,14 @@
     }
 
     function dailyOfferCard(offer) {
+        // SiegeKnight offers resolve from the trainer catalog (knights aren't in
+        // the binder card catalog) and render through the knight preview path.
+        if (offer.type === 'TRAINER' || offer.type === 'SIEGEKNIGHT') {
+            const knight = siegeknightBinderCards().find(entry => entry.id === offer.cardId);
+            if (knight) {
+                return { ...knight, type: 'SIEGEKNIGHT', rarity: offer.rarity || knight.rarity || 'RARE' };
+            }
+        }
         const catalogCard = findCard(offer.cardId) || {};
         return {
             ...catalogCard,
@@ -3399,7 +3425,13 @@
                 const displayName = resolveFriendDisplayName(friend, presence);
                 const online = Boolean(presence.presence?.online);
                 const status = presence.presence?.status || 'OFFLINE';
-                const statusLabel = online ? status.replace('_', ' ') : 'Offline';
+                const lastSeenAt = presence.presence?.lastSeenAt;
+                // Online: show live status. Offline: show when they last logged
+                // in plus how long ago that was.
+                const ago = timeAgoLabel(lastSeenAt);
+                const statusLabel = online
+                    ? status.replace('_', ' ')
+                    : (lastSeenAt ? `Last seen ${formatDateTime(lastSeenAt)}${ago ? ` · ${ago}` : ''}` : 'Offline');
                 const email = String(friend.email || '').trim();
                 const showEmail = email && displayName.toLowerCase() !== email.toLowerCase();
                 const subtitle = showEmail ? `${email} · ${statusLabel}` : statusLabel;

@@ -221,23 +221,29 @@ public class PackCatalogService {
         if (cards.isEmpty()) {
             return List.of();
         }
+        // SiegeKnights live outside the deck-builder catalog; pull them in so a
+        // knight can headline the daily rotation.
+        List<Card> trainers = cardDefinitionService.getTrainerOptions().stream()
+                .map(trainer -> (Card) trainer)
+                .toList();
         String date = java.time.LocalDate.now(java.time.ZoneId.systemDefault()).toString();
         List<DailyCardOffer> offers = new ArrayList<>();
-        List<CardType> slots = List.of(
-                CardType.SIEGLING,
-                CardType.SIEGLING,
-                CardType.SPELL,
-                CardType.TRAP,
-                CardType.SIEGLING
-        );
+        // Guarantee one of every card type, then a fifth slot of a random type
+        // (stable for the day) so the rotation always covers the full roster.
+        CardType[] everyType = { CardType.TRAINER, CardType.SIEGLING, CardType.SPELL, CardType.TRAP };
+        List<CardType> slots = new ArrayList<>(List.of(everyType));
+        slots.add(everyType[Math.floorMod((date + ":extra").hashCode(), everyType.length)]);
         Set<String> selectedCardIds = new HashSet<>();
         for (int i = 0; i < slots.size(); i++) {
             CardType type = slots.get(i);
-            List<Card> candidates = cards.stream()
+            List<Card> typePool = type == CardType.TRAINER ? trainers : cards;
+            List<Card> candidates = typePool.stream()
                     .filter(card -> card.getCardType() == type)
                     .filter(card -> !selectedCardIds.contains(card.getId()))
                     .toList();
             if (candidates.isEmpty()) {
+                // No live card of this type (e.g. trainers not configured) —
+                // fall back to any unused deck-builder card so the slot fills.
                 candidates = cards.stream()
                         .filter(card -> !selectedCardIds.contains(card.getId()))
                         .toList();
