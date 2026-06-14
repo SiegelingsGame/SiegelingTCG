@@ -467,8 +467,7 @@
             pushNotification('gold', `+${next.gold - prev.gold} Siegecoins earned`, `Wallet: ${next.gold} Siegecoins`);
         }
         next.titles.filter(id => !prev.titles.includes(id)).forEach(id => {
-            const title = (state.titleCatalog || []).find(t => t.id === id);
-            pushNotification('title', `Title earned: ${title?.name || id}`);
+            pushNotification('title', `Title earned: ${resolveTitleDisplayName(id)}`);
         });
         next.requests.filter(id => !prev.requests.includes(id)).forEach(id => {
             const req = (state.profile?.incomingFriendRequests || []).find(r => (r.fromUserId || r.peerEmail) === id);
@@ -3662,6 +3661,27 @@
         const fromProgression = (state.progression?.playerTitles || []).filter(title => title.unlocked);
         if (fromProgression.length) return fromProgression;
         return (state.titleCatalog || []).filter(title => title.unlocked);
+    }
+
+    // Turn a raw title id (e.g. "title_ach_mission_claim") into readable words
+    // so a notification never surfaces the internal key if a label is missing.
+    function humanizeTitleId(id) {
+        return String(id || '')
+            .replace(/^title[_-]/i, '')
+            .replace(/^ach[_-]/i, '')
+            .replace(/[_-]+/g, ' ')
+            .trim()
+            .replace(/\b\w/g, ch => ch.toUpperCase()) || 'New title';
+    }
+
+    // Prefer the human label from the player's earned titles, then the shop
+    // catalog, then a humanized fallback — never the raw id.
+    function resolveTitleDisplayName(id) {
+        const fromProgression = (state.progression?.playerTitles || []).find(t => t.id === id);
+        const fromCatalog = (state.titleCatalog || []).find(t => t.id === id);
+        return fromProgression?.label || fromProgression?.name
+            || fromCatalog?.label || fromCatalog?.name
+            || humanizeTitleId(id);
     }
 
     function ownedSieglingCards() {

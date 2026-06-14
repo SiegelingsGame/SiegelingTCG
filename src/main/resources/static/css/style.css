@@ -6887,7 +6887,7 @@ body.placement-active .board-cell.legal {
 
 /* Hand tray cards use the same painted element templates as board cards,
    but keep their compact tray layout and hover behavior. */
-#playerHand .hand-card.element-frame {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame {
     padding: 0;
     border: none;
     border-radius: 0;
@@ -6895,27 +6895,27 @@ body.placement-active .board-cell.legal {
     box-shadow: none;
 }
 
-#playerHand .hand-card.element-frame::before {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame::before {
     display: none;
 }
 
-#playerHand .hand-card.element-frame.frame-fire {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-fire {
     background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
 }
 
-#playerHand .hand-card.element-frame.frame-earth {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-earth {
     background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
 }
 
-#playerHand .hand-card.element-frame.frame-ice {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-ice {
     background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
 }
 
-#playerHand .hand-card.element-frame.frame-wind {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-wind {
     background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
 }
 
-#playerHand .hand-card.element-frame .hand-card-shell {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-card-shell {
     position: absolute;
     inset: 0;
     display: block;
@@ -6924,7 +6924,7 @@ body.placement-active .board-cell.legal {
     padding: 0;
 }
 
-#playerHand .hand-card.element-frame .hand-card-header {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-card-header {
     position: absolute;
     left: 13%;
     right: 13%;
@@ -6935,7 +6935,7 @@ body.placement-active .board-cell.legal {
     gap: 0;
 }
 
-#playerHand .hand-card.element-frame .card-title {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-title {
     color: #ffffff;
     font-size: 0.72em;
     font-weight: 900;
@@ -6952,15 +6952,15 @@ body.placement-active .board-cell.legal {
 }
 
 /* Tray cards are too small for corner chips — hide them there. */
-#playerHand .hand-card.element-frame .card-corner-chip {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-corner-chip {
     display: none;
 }
 
-#playerHand .hand-card.element-frame .card-label {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-label {
     display: none;
 }
 
-#playerHand .hand-card.element-frame .card-art-hand {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand {
     position: absolute;
     left: 9.8%;
     top: 10%;
@@ -6974,12 +6974,12 @@ body.placement-active .board-cell.legal {
     box-shadow: none;
 }
 
-#playerHand .hand-card.element-frame .card-art-hand.card-art-fallback::before,
-#playerHand .hand-card.element-frame .card-art-hand.card-art-fallback span {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand.card-art-fallback::before,
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand.card-art-fallback span {
     display: none;
 }
 
-#playerHand .hand-card.element-frame .card-stat-pills {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-stat-pills {
     position: absolute;
     left: 11.5%;
     right: 11.5%;
@@ -6990,7 +6990,7 @@ body.placement-active .board-cell.legal {
     gap: 0.18em;
 }
 
-#playerHand .hand-card.element-frame .card-stat-pill {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-stat-pill {
     min-width: 0;
     padding: 1px 2px;
     background: rgba(0, 0, 0, 0.3);
@@ -6999,31 +6999,31 @@ body.placement-active .board-cell.legal {
     line-height: 1.1;
 }
 
-#playerHand .hand-card.element-frame .hand-notches {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-notches {
     inset: 0;
 }
 
-#playerHand .hand-card.element-frame .notch-dot {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot {
     width: 10.4%;
     height: auto;
     aspect-ratio: 1 / 1;
     border-width: 1px;
 }
 
-#playerHand .hand-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
     background: transparent;
     border-color: transparent;
     box-shadow: none;
 }
 
-#playerHand .hand-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
-#playerHand .hand-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
-#playerHand .hand-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
-#playerHand .hand-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
-#playerHand .hand-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
-#playerHand .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
-#playerHand .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
-#playerHand .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
+:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
 
 /* Showcase previews share the painted frame, with copy constrained to the
    template's bottom info panel. */
@@ -13185,18 +13185,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 }
 
 /* ============================================================
-   LANDSCAPE MODE — dedicated TCG layout for phones in landscape
-   (width below 980px). iPad landscape uses the tablet block below.
+   PORTRAIT PHONES — keep the hand selector snug against the
+   Knight/Draw buttons and hand the freed height to the arena.
    ============================================================ */
 @media (max-width: 700px) and (orientation: portrait) {
+    /* Trim the tray's vertical padding on both ends. The dock is pinned to
+       the viewport bottom, so a shorter tray pushes its top edge down and
+       lets the battlefield (flex: 1) grow — more arena, hand still hugging
+       the action buttons. */
     .hand-tray {
-        padding-top: 4px;
+        padding-top: 2px;
         padding-bottom: 0;
     }
 
     .hand-tray .hand-cards {
         align-items: flex-end;
-        padding-bottom: 0;
+        padding-top: 0;
+        padding-bottom: 2px;
     }
 
     /* Pull the hand selector down against the Knight/Draw buttons so more of
@@ -13218,6 +13223,11 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         padding-top: 0;
     }
 }
+
+/* ============================================================
+   LANDSCAPE MODE — dedicated TCG layout for phones in landscape
+   (width below 980px). iPad landscape uses the tablet block below.
+   ============================================================ */
 
 @media (orientation: landscape) and (max-width: 979px) {
     .mobile-hud,
