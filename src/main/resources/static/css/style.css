@@ -7096,6 +7096,46 @@ body.placement-active .board-cell.legal {
     background: url('/img/frames/frame-fire-metal-legendary.png') center / 100% 100% no-repeat !important;
 }
 
+.element-frame.frame-earth.frame-rarity-common {
+    background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth.frame-rarity-uncommon {
+    background: url('/img/frames/frame-earth-uncommon.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth.frame-rarity-rare {
+    background: url('/img/frames/frame-earth-rare.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth.frame-rarity-epic {
+    background: url('/img/frames/frame-earth-epic.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-earth.frame-rarity-legendary {
+    background: url('/img/frames/frame-earth-legendary.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-common {
+    background: url('/img/frames/frame-psychic-common.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-uncommon {
+    background: url('/img/frames/frame-psychic-uncommon.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-rare {
+    background: url('/img/frames/frame-psychic-rare.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-epic {
+    background: url('/img/frames/frame-psychic-epic.png') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-psychic.frame-rarity-legendary {
+    background: url('/img/frames/frame-psychic-legendary.png') center / 100% 100% no-repeat !important;
+}
+
 .element-frame.frame-earth-psychic.frame-rarity-common {
     background: url('/img/frames/frame-earth-psychic-common.png') center / 100% 100% no-repeat !important;
 }
