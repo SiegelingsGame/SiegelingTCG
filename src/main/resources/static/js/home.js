@@ -619,6 +619,10 @@
 
     function maybeStartOnboardingTour() {
         if (!state.profile?.authenticated || !state.progression?.starterChosen) return;
+        // Players who have completed the tutorial match never see the tour
+        // again — this flag is server-side, so it holds across devices and
+        // cleared local storage (localStorage alone re-triggered the popup).
+        if (state.progression?.tutorialCompleted) return;
         if (localStorage.getItem(tourStorageKey()) === '1') return;
         if (document.getElementById('tourOverlay')) return;
         startOnboardingTour();
