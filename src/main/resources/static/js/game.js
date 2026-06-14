@@ -8906,6 +8906,16 @@ function renderLoadoutOptions() {
         }
         const fullCardArtUrl = String(trainer.cardArtUrl || '').trim();
         const fullCardMode = String(trainer.cardArtMode || '').trim().toUpperCase() === 'FULL_CARD';
+        // Name / type / passive / ultimate, shown in the description box for every
+        // SiegeKnight card — including hand-drawn full-art cards, which previously
+        // rendered the artwork alone with no readable info.
+        const knightCardBody = `
+            <div class="knight-card-body">
+                <span class="knight-card-name">${escapeHtml(trainer.name)}</span>
+                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(formatElementLabel(trainer.element))}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${rarityClass}">${escapeHtml(trainer.rarity)}</span></span>
+                <span class="knight-card-ability"><span>Passive</span>${escapeHtml(readTrainerAbilityText(trainer.passive))}</span>
+                <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(readTrainerAbilityText(trainer.active))}</span>
+            </div>`;
         if (fullCardArtUrl && fullCardMode) {
             const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
             const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
@@ -8914,6 +8924,7 @@ function renderLoadoutOptions() {
                 ${levelBadge}
                 <img src="${escapeHtmlAttribute(fullCardArtUrl)}" alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy">
                 ${holoOverlay}
+                ${knightCardBody}
             </button>`;
         }
         return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
@@ -8923,12 +8934,7 @@ function renderLoadoutOptions() {
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
             <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
-            <div class="knight-card-body">
-                <span class="knight-card-name">${escapeHtml(trainer.name)}</span>
-                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(formatElementLabel(trainer.element))}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${rarityClass}">${escapeHtml(trainer.rarity)}</span></span>
-                <span class="knight-card-ability"><span>Passive</span>${escapeHtml(readTrainerAbilityText(trainer.passive))}</span>
-                <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(readTrainerAbilityText(trainer.active))}</span>
-            </div>
+            ${knightCardBody}
         </button>`;
     }).join('');
     scheduleSiegeKnightCardFit();
