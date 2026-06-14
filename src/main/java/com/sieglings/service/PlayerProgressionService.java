@@ -216,7 +216,13 @@ public class PlayerProgressionService {
             throw new IllegalArgumentException("Not enough Siegecoins for that daily card.");
         }
         progression.setGold(progression.getGold() - offer.price());
-        grantCardsWithCap(progression, List.of(offer.card()));
+        // SiegeKnight offers unlock/level the trainer; everything else is a
+        // normal card grant.
+        if (offer.card() instanceof TrainerCard trainer) {
+            grantTrainer(progression, trainer);
+        } else {
+            grantCardsWithCap(progression, List.of(offer.card()));
+        }
         List<String> purchased = new ArrayList<>(progression.getPurchasedDailyOfferIds());
         purchased.add(0, offer.id());
         progression.setPurchasedDailyOfferIds(purchased.stream().limit(90).toList());
