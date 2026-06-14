@@ -10648,6 +10648,11 @@ body.placement-active .board-cell.legal {
     font-size: 9px;
 }
 
+/* Keep the description box readable above the holographic sheen (z-index 12). */
+.knight-card.knight-full-card-art .knight-card-body {
+    z-index: 13;
+}
+
 .knight-card.has-knight-back .knight-card-name,
 .knight-card.knight-full-card-art .knight-card-name {
     color: #fff6d8;
