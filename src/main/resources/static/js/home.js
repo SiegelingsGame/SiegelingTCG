@@ -769,6 +769,7 @@
             await loadAll();
             await syncCatalogIfVersionChanged();
             render();
+            renderRoute();
             focusRouteTarget(routeFocusFromHash());
             syncAuthRouteIntent();
             ensureHostLobbyPolling();
@@ -1201,11 +1202,12 @@
             ['decks', 'decksSection'],
             ['deck-builder', 'deckBuilderSection'],
             ['social', 'socialSection'],
+            ['lobby', 'lobbySection'],
             ['profile', 'profileSection'],
             ['achievements', 'achievementsSection'],
             ['shop', 'shopSection']
         ].forEach(([route, sectionId]) => {
-            const active = state.route === route || (route === 'social' && state.route === 'lobby');
+            const active = state.route === route;
             document.getElementById(sectionId)?.classList.toggle('hidden', !active);
         });
         if (!isBinderRoute() && !isSocialRoute()) {
@@ -1457,15 +1459,18 @@
 
     function renderKnightBinderCardBody(card, options = {}) {
         const tier = String(card.tier || 'SiegeKnight');
-        const level = Math.max(1, Number(card.level) || trainerOwnedLevel(card.id) || 1);
-        const owned = trainerOwnedLevel(card.id) > 0;
+        const ownedLevel = trainerOwnedLevel(card.id);
+        const level = Math.max(1, Number(card.level) || ownedLevel || 1);
+        const owned = card.owned === true || ownedLevel > 0;
+        const showOwnership = options.showOwnership !== false;
+        const showXp = showOwnership && ownedLevel > 0 && options.showXp !== false;
         const rarityClass = String(card.rarity || 'common').toLowerCase();
         const abilities = options.compact ? [] : (card.abilities || []).slice(0, 2);
         return `
             <span class="knight-card-name">${escapeHtml(card.name)}</span>
             <span class="knight-card-meta"><span class="knight-element">${escapeHtml(format(card.element))}</span> <span class="knight-tier tier-${escapeAttr(tier.toLowerCase())}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${escapeAttr(rarityClass)}">${escapeHtml(format(card.rarity))}</span></span>
-            <span class="knight-card-meta knight-binder-owned">${owned ? `Owned · Lv ${level}` : 'Unowned'}</span>
-            ${owned ? `<div class="knight-binder-xp">${renderTrainerXpBar(card.id)}</div>` : ''}
+            ${showOwnership ? `<span class="knight-card-meta knight-binder-owned">${owned ? `Owned · Lv ${level}` : 'Unowned'}</span>` : ''}
+            ${showXp ? `<div class="knight-binder-xp">${renderTrainerXpBar(card.id)}</div>` : ''}
             ${abilities.map(a => `<span class="knight-card-ability"><span>${escapeHtml(a.name)}</span>${escapeHtml(a.description)}</span>`).join('')}
         `;
     }
@@ -1478,13 +1483,15 @@
         const elHex = elementColor(card.element);
         const elClass = String(card.element || 'NEUTRAL').toLowerCase();
         const rarityClass = String(card.rarity || 'common').toLowerCase();
+        const extraClass = String(options.extraClass || '').trim();
+        const extraClassAttr = extraClass ? ` ${escapeAttr(extraClass)}` : '';
         const fullCardArtUrl = window.SieglingsCardBinderVisual?.usesFullCardArt?.(card)
             ? String(card.cardArtUrl || '').trim()
             : '';
         if (fullCardArtUrl) {
             const holoClass = card.holographic ? ' is-holographic' : '';
             const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
-            return `<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
+            return `<div class="knight-card knight-full-card-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
                 <img src="${escapeAttr(fullCardArtUrl)}" alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy">
                 ${holoOverlay}
                 <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
@@ -1498,7 +1505,7 @@
         const elementIconStyle = iconPath ? `--knight-element-icon:url('${iconPath}');` : '';
         const holoClass = card.holographic ? ' is-holographic' : '';
         const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
-        return `<div class="knight-card has-knight-back knight-binder-card rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
+        return `<div class="knight-card has-knight-back knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
             <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
@@ -5089,9 +5096,12 @@
         if (!trainer?.id) return null;
         const option = (state.options?.trainers || []).find(item => String(item.id || '').toLowerCase() === String(trainer.id).toLowerCase());
         const element = trainer.element || option?.element || starterElementFromPackId(latest.packId).toUpperCase() || latest.cards?.[0]?.element || 'FIRE';
+        const abilityText = (ability) => typeof ability === 'string'
+            ? ability
+            : (ability?.description || ability?.name || '');
         const abilities = [
-            option?.passive ? { name: 'Passive', description: option.passive } : null,
-            option?.active ? { name: option.oncePerGame ? 'Ultimate' : 'Active', description: option.active } : null
+            option?.passive ? { name: 'Passive', description: abilityText(option.passive) } : null,
+            option?.active ? { name: option.oncePerGame ? 'Ultimate' : 'Active', description: abilityText(option.active) } : null
         ].filter(Boolean);
         return {
             id: trainer.id,
@@ -5102,6 +5112,16 @@
             tier: trainer.tier || option?.tier || 'SiegeKnight',
             level: trainer.level || option?.level || 1,
             owned: true,
+            passive: option?.passive,
+            active: option?.active,
+            oncePerGame: trainer.oncePerGame ?? option?.oncePerGame,
+            cardArtUrl: trainer.cardArtUrl || option?.cardArtUrl || '',
+            cardArtMode: trainer.cardArtMode || option?.cardArtMode || '',
+            cardArtOffsetX: trainer.cardArtOffsetX ?? option?.cardArtOffsetX,
+            cardArtOffsetY: trainer.cardArtOffsetY ?? option?.cardArtOffsetY,
+            cardArtScale: trainer.cardArtScale ?? option?.cardArtScale,
+            cardArtRotation: trainer.cardArtRotation ?? option?.cardArtRotation,
+            holographic: trainer.holographic === true || option?.holographic === true,
             abilities,
             description: abilities.map(ability => ability.description).filter(Boolean).join(' '),
             revealId: `${trainer.id || 'trainer'}-${index}`,
@@ -5158,6 +5178,11 @@
 
     function renderRevealFrontContent(card, ownedPreview) {
         const binderVisual = window.SieglingsCardBinderVisual;
+        if (card?.type === 'SIEGEKNIGHT') {
+            return `<div class="gacha-card-front gacha-knight-card-front">
+                ${renderKnightBinderCard(card, { showOwnership: false, showXp: false, extraClass: 'gacha-knight-card' })}
+            </div>`;
+        }
         if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview
             && (binderVisual?.usesFullCardArt?.(card) || binderVisual?.usesFramedCardTemplate?.(card))) {
             return binderVisual.renderBinderCardPreview(card, {
@@ -5300,6 +5325,17 @@
         const element = card.element || 'FIRE';
         const rarity = card.rarity || 'COMMON';
         const binderVisual = window.SieglingsCardBinderVisual;
+        if (card?.type === 'SIEGEKNIGHT') {
+            return `<div class="reveal-preview" data-preview-backdrop style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)}">
+                <div class="reveal-preview-card reveal-preview-card-template" role="dialog" aria-modal="true" aria-label="${escapeAttr(card.name || 'SiegeKnight')} preview">
+                    <button class="reveal-preview-close" type="button" data-close-preview aria-label="Back to pack">&times;</button>
+                    <div class="reveal-preview-template reveal-preview-template-knight">
+                        ${renderKnightBinderCard(card, { showOwnership: false, showXp: false, extraClass: 'gacha-preview-card' })}
+                    </div>
+                    <button class="ghost-btn reveal-preview-back" type="button" data-close-preview>Back to pack</button>
+                </div>
+            </div>`;
+        }
         if (card?.type !== 'SIEGEKNIGHT' && binderVisual?.renderBinderCardPreview
             && (binderVisual?.usesFullCardArt?.(card) || binderVisual?.usesFramedCardTemplate?.(card))) {
             const ownedPreview = Math.max(1, Math.min(3, ownedCount(card.id) || 1));
@@ -6609,9 +6645,14 @@
         }
     }
 
+    function normalizeRoomId(roomId) {
+        return String(roomId || '').trim().toUpperCase();
+    }
+
     function lobbyPath(roomId) {
-        if (!roomId) return '/social';
-        return `/social/lobby/${encodeURIComponent(String(roomId).trim().toUpperCase())}`;
+        const normalized = normalizeRoomId(roomId);
+        if (!normalized) return '/social';
+        return `/social/lobby/${encodeURIComponent(normalized)}`;
     }
 
     function buildSocialRoomShareUrl(roomId) {
@@ -6626,23 +6667,31 @@
 
     function isOwnLobbyRoomId(roomId) {
         if (!roomId) return false;
-        const normalized = String(roomId).trim().toUpperCase();
+        const normalized = normalizeRoomId(roomId);
         const hostLobby = readHostLobby();
-        if (hostLobby?.roomId && hostLobby.roomId.toUpperCase() === normalized) return true;
-        const listed = state.rooms.find(entry => String(entry.roomId || '').toUpperCase() === normalized);
+        if (hostLobby?.roomId && normalizeRoomId(hostLobby.roomId) === normalized) return true;
+        const listed = state.rooms.find(entry => normalizeRoomId(entry.roomId) === normalized);
         if (listed && listed.hostUserId && listed.hostUserId === state.profile?.user?.id) return true;
         return false;
     }
 
-    async function reconnectHostLobbySession(roomId) {
+    function staleLobbyError(message) {
+        const text = String(message || '').toLowerCase();
+        return text.includes('room not found')
+            || text.includes('lobby has expired')
+            || text.includes('lobby has been closed')
+            || text.includes('no longer available');
+    }
+
+    async function reconnectHostLobbySession(roomId, options = {}) {
         if (!state.token || !roomId) return null;
         const data = await fetchJson('/api/match/reconnect-host', {
             method: 'POST',
             body: JSON.stringify({ roomId })
         });
         if (data?.error) {
-            alert(data.error);
-            return null;
+            if (!options.silent) alert(data.error);
+            return { error: data.error };
         }
         if (!data?.roomId || !data?.playerToken) return null;
         writeHostLobby({
@@ -6654,8 +6703,59 @@
         return { roomId: data.roomId, playerToken: data.playerToken, role: 'host' };
     }
 
+    async function replaceStaleHostLobby(roomId, reason = '') {
+        if (!state.options?.decks?.length) {
+            alert('Deck options are still loading. Try again in a moment.');
+            return null;
+        }
+        if (state.lobbyBusy) return null;
+        localStorage.removeItem(HOST_LOBBY_KEY);
+        clearLobbySession();
+        state.hostLobbyStatus = null;
+        state.lobbyStatus = null;
+        state.lobbyBusy = true;
+        renderSocialActiveLobby();
+        try {
+            const data = await fetchJson('/api/match/create', {
+                method: 'POST',
+                body: JSON.stringify(buildSocialMatchBody())
+            });
+            if (data?.error) {
+                alert(`That waiting room is no longer open. ${data.error}`);
+                navigateHub('social', { focus: 'lobby', replace: true });
+                return null;
+            }
+            writeHostLobby({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                expiresAt: data.expiresAt || null,
+                shareUrl: data.shareUrl || buildSocialRoomShareUrl(data.roomId)
+            });
+            const session = { roomId: data.roomId, playerToken: data.playerToken, role: 'host' };
+            writeLobbySession(session);
+            saveMultiplayerSession({
+                roomId: data.roomId,
+                playerToken: data.playerToken,
+                viewerSide: data.viewerSide || 'PLAYER'
+            });
+            state.hostLobbyStatus = data;
+            state.lobbyRoomId = normalizeRoomId(data.roomId);
+            if (state.lobbyRoomId) {
+                history.replaceState(null, '', lobbyPath(state.lobbyRoomId));
+            }
+            await refreshRooms(true);
+            return session;
+        } finally {
+            state.lobbyBusy = false;
+            renderSocialActiveLobby();
+            if (reason) {
+                console.info('Replaced stale lobby', { roomId, reason });
+            }
+        }
+    }
+
     function openLobbyWaitingRoom(roomId, options = {}) {
-        const normalized = String(roomId || '').trim().toUpperCase();
+        const normalized = normalizeRoomId(roomId);
         if (!normalized) return;
         state.lobbyRoomId = normalized;
         const nextPath = lobbyPath(normalized);
@@ -6667,7 +6767,9 @@
         state.route = 'lobby';
         setActiveRoute();
         renderSections();
-        renderRoute();
+        if (options.render !== false) {
+            renderRoute();
+        }
     }
 
     async function enterLobbyWaitingRoom() {
@@ -6696,20 +6798,39 @@
     }
 
     async function ensureLobbySession(roomId) {
+        const normalized = normalizeRoomId(roomId);
         const hostLobby = readHostLobby();
-        if (hostLobby?.roomId === roomId && hostLobby.playerToken) {
-            return { roomId, playerToken: hostLobby.playerToken, role: 'host' };
+        if (hostLobby?.roomId && normalizeRoomId(hostLobby.roomId) === normalized) {
+            const reconnected = await reconnectHostLobbySession(normalized, { silent: true });
+            if (reconnected?.playerToken) return reconnected;
+            const status = hostLobby.playerToken
+                ? await fetchMatchStatus({ roomId: normalized, playerToken: hostLobby.playerToken })
+                : null;
+            if (status && !status.error) {
+                return { roomId: normalized, playerToken: hostLobby.playerToken, role: 'host' };
+            }
+            const error = reconnected?.error || status?.error;
+            if (staleLobbyError(error)) {
+                return replaceStaleHostLobby(normalized, error);
+            }
+            if (error) {
+                alert(error);
+                return null;
+            }
         }
         const saved = readLobbySession();
-        if (saved?.roomId === roomId && saved.playerToken) {
+        if (normalizeRoomId(saved?.roomId) === normalized && saved.playerToken) {
             const status = await fetchMatchStatus(saved);
             if (status && !status.error) {
                 return saved;
             }
         }
-        if (isOwnLobbyRoomId(roomId)) {
-            const reconnected = await reconnectHostLobbySession(roomId);
-            if (reconnected) return reconnected;
+        if (isOwnLobbyRoomId(normalized)) {
+            const reconnected = await reconnectHostLobbySession(normalized);
+            if (reconnected?.playerToken) return reconnected;
+            if (staleLobbyError(reconnected?.error)) {
+                return replaceStaleHostLobby(normalized, reconnected.error);
+            }
             return null;
         }
         if (!state.options?.decks?.length) {

@@ -44,6 +44,59 @@ class MultiplayerServiceRoomListTest {
     }
 
     @Test
+    void createRoomFallsBackToMemoryWhenLobbyPersistenceIsUnavailable() throws Exception {
+        MultiplayerService service = new MultiplayerService();
+        injectLobbyPersistence(service, new UnavailableLobbyPersistenceService());
+
+        MultiplayerService.RoomSession host = service.createRoom(
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, "Blazing Core"),
+                "user-host"
+        );
+        MultiplayerService.RoomSession guest = service.joinRoom(
+                host.roomId(),
+                "Guest",
+                new GameService.StartOptions("deck_water", "trainer06", null, "Tide Deck"),
+                "user-guest"
+        );
+
+        MultiplayerRoom room = service.requireRoom(host.roomId());
+        assertEquals(host.roomId(), guest.roomId());
+        assertTrue(room.hasGuest());
+        assertFalse(room.isClosed());
+        assertTrue(room.getExpiresAt().isAfter(Instant.now()));
+    }
+
+    @Test
+    void matchStartDoesNotFailWhenLobbyPersistenceIsUnavailable() throws Exception {
+        MultiplayerService service = new MultiplayerService();
+        injectGameService(service);
+        injectLobbyPersistence(service, new UnavailableLobbyPersistenceService());
+        MultiplayerService.RoomSession host = service.createRoom(
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, "Blazing Core"),
+                "user-host"
+        );
+        MultiplayerService.RoomSession guest = service.joinRoom(
+                host.roomId(),
+                "Guest",
+                new GameService.StartOptions("deck_water", "trainer06", null, "Tide Deck"),
+                "user-guest"
+        );
+
+        service.setPlayerReady(host.roomId(), host.playerToken(), "Host", service.requireRoom(host.roomId()).getHostOptions());
+        MultiplayerService.RoomSession started = service.setPlayerReady(
+                host.roomId(),
+                guest.playerToken(),
+                "Guest",
+                service.requireRoom(host.roomId()).getGuestOptions()
+        );
+
+        assertTrue(started.started());
+        assertTrue(service.requireRoom(host.roomId()).isStarted());
+    }
+
+    @Test
     void hostCannotJoinOwnLobbyAsGuest() {
         MultiplayerService service = new MultiplayerService();
         MultiplayerService.RoomSession host = service.createRoom(
@@ -194,5 +247,33 @@ class MultiplayerServiceRoomListTest {
         Field field = MultiplayerService.class.getDeclaredField("gameService");
         field.setAccessible(true);
         field.set(service, gameService);
+    }
+
+    private void injectLobbyPersistence(MultiplayerService service, LobbyPersistenceService persistenceService) throws Exception {
+        Field field = MultiplayerService.class.getDeclaredField("lobbyPersistenceService");
+        field.setAccessible(true);
+        field.set(service, persistenceService);
+    }
+
+    private static class UnavailableLobbyPersistenceService extends LobbyPersistenceService {
+        @Override
+        public void registerOpenLobby(MultiplayerRoom room, String hostUserId) {
+            throw new IllegalStateException("Persistence unavailable.");
+        }
+
+        @Override
+        public void markStarted(String roomId) {
+            throw new IllegalStateException("Persistence unavailable.");
+        }
+
+        @Override
+        public void closeLobby(String roomId, String hostUserId) {
+            throw new IllegalStateException("Persistence unavailable.");
+        }
+
+        @Override
+        public boolean isJoinable(String roomId, Instant now) {
+            throw new IllegalStateException("Persistence unavailable.");
+        }
     }
 }

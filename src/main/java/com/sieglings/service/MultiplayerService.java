@@ -38,11 +38,13 @@ public class MultiplayerService {
         room.setFormat("PVP");
         rooms.put(roomId, room);
         if (lobbyPersistenceService != null) {
-            lobbyPersistenceService.registerOpenLobby(room, accountUserId);
+            try {
+                lobbyPersistenceService.registerOpenLobby(room, accountUserId);
+            } catch (IllegalStateException ex) {
+                initializeLocalLobbyDeadline(room);
+            }
         } else {
-            Instant now = Instant.now();
-            room.setCreatedAt(now);
-            room.setExpiresAt(now.plus(LobbyPersistenceService.OPEN_LOBBY_TTL));
+            initializeLocalLobbyDeadline(room);
         }
         return new RoomSession(roomId, token, true, false);
     }
@@ -171,14 +173,30 @@ public class MultiplayerService {
         }
         room.setGameState(gameState);
         if (lobbyPersistenceService != null) {
-            lobbyPersistenceService.markStarted(room.getRoomId());
+            try {
+                lobbyPersistenceService.markStarted(room.getRoomId());
+            } catch (IllegalStateException ignored) {
+                // The in-memory room has already started; persistence can catch up later.
+            }
         }
         room.addLobbyChatMessage("Arena", "system", "Both players are ready — match starting.");
     }
 
     public synchronized void closeRoom(String roomId, String hostUserId) {
         if (lobbyPersistenceService != null) {
-            lobbyPersistenceService.closeLobby(roomId, hostUserId);
+            try {
+                lobbyPersistenceService.closeLobby(roomId, hostUserId);
+            } catch (IllegalStateException ex) {
+                MultiplayerRoom room = rooms.get(roomId);
+                if (room != null && hostUserId != null && room.getHostUserId() != null
+                        && !hostUserId.equals(room.getHostUserId())) {
+                    throw new IllegalArgumentException("Only the host can close this lobby.");
+                }
+                if (room != null) {
+                    room.setClosed(true);
+                }
+                removeRoom(roomId);
+            }
         } else {
             MultiplayerRoom room = rooms.get(roomId);
             if (room != null) {
@@ -238,10 +256,23 @@ public class MultiplayerService {
         if (room.isClosed() || room.isExpired(now)) {
             throw new IllegalArgumentException("That lobby has expired.");
         }
-        if (lobbyPersistenceService != null && !lobbyPersistenceService.isJoinable(roomId, now)) {
-            throw new IllegalArgumentException("That lobby is no longer available.");
+        if (lobbyPersistenceService != null) {
+            try {
+                if (!lobbyPersistenceService.isJoinable(roomId, now)) {
+                    throw new IllegalArgumentException("That lobby is no longer available.");
+                }
+            } catch (IllegalStateException ignored) {
+                // Keep local/dev lobbies usable when the persistence backend is unavailable.
+            }
         }
         return room;
+    }
+
+    private void initializeLocalLobbyDeadline(MultiplayerRoom room) {
+        Instant now = Instant.now();
+        room.setCreatedAt(now);
+        room.setExpiresAt(now.plus(LobbyPersistenceService.OPEN_LOBBY_TTL));
+        room.setClosed(false);
     }
 
     public void removeRoom(String roomId) {
