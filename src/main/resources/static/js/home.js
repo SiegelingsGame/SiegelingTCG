@@ -817,8 +817,8 @@
             renderFilters();
             renderCards();
         });
-        document.getElementById('playNowBtn')?.addEventListener('click', () => goPlay({ mode: 'solo' }));
-        document.getElementById('startPveBtn')?.addEventListener('click', () => goPlay({ mode: 'solo' }));
+        document.getElementById('playNowBtn')?.addEventListener('click', () => goPlay({ mode: 'solo', directLoadout: true }));
+        document.getElementById('startPveBtn')?.addEventListener('click', () => goPlay({ mode: 'solo', directLoadout: true }));
         document.getElementById('createLobbyBtn')?.addEventListener('click', createLobbyFromHome);
         document.getElementById('shopShortcutBtn')?.addEventListener('click', () => navigateHub('shop'));
         document.getElementById('joinByCodeBtn')?.addEventListener('click', () => navigateHub('social'));
@@ -2042,8 +2042,8 @@
             const action = btn.dataset.homeAction;
             const directLink = btn.tagName === 'A';
             if (action === 'pve') {
-                queuePlayLoadout({ mode: 'solo' });
-                if (!directLink) return goPlay({ mode: 'solo' });
+                queuePlayLoadout({ mode: 'solo', directLoadout: true });
+                if (!directLink) return goPlay({ mode: 'solo', directLoadout: true });
                 return;
             }
             if (action === 'create-lobby') {
@@ -5756,6 +5756,7 @@
             onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
             battleLaunch: Boolean(payload.battleLaunch),
+            directLoadout: Boolean(payload.directLoadout),
             tutorial: Boolean(payload.tutorial),
             customDeckCards,
             loadoutLabel

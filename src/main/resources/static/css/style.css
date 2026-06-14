@@ -615,10 +615,16 @@ body {
     height: 100%;
     background: rgba(0, 0, 0, 0.42);
     overflow: hidden;
+    display: flex;
+}
+
+.safe-hp-enemy {
+    justify-content: flex-start;
 }
 
 .safe-hp-player {
     border-left: 1px solid rgba(0, 0, 0, 0.55);
+    justify-content: flex-end;
 }
 
 .safe-hp-fill {
@@ -627,10 +633,23 @@ body {
     transition: width 0.35s ease, background 0.25s ease;
 }
 
-/* Mirror the player side so both health bars drain toward the outer edges,
-   leaving the centre (Dynamic Island / notch) and system clock/battery clear. */
-.safe-hp-player .safe-hp-fill {
+/* Both health bars meet at the center seam and lose HP from that seam
+   outward — enemy keeps the outer-left edge, player keeps the outer-right. */
+.safe-hp-fill,
+.safe-energy-fill {
+    flex-shrink: 0;
+}
+
+.safe-hp-enemy .safe-hp-fill,
+.safe-hp-enemy .safe-energy-fill {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+.safe-hp-player .safe-hp-fill,
+.safe-hp-player .safe-energy-fill {
     margin-left: auto;
+    margin-right: 0;
 }
 
 /* Thin energy underline pinned to the very bottom of the strip, below the
@@ -649,10 +668,6 @@ body {
     width: 0;
     background: linear-gradient(90deg, rgba(255, 215, 0, 0.45), #ffd700);
     transition: width 0.35s ease, background 0.25s ease;
-}
-
-.safe-hp-player .safe-energy-fill {
-    margin-left: auto;
 }
 
 /* Low-HP danger pulse on the affected side. */
@@ -772,6 +787,7 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     background: rgba(255, 255, 255, 0.07);
     border-radius: 4px;
     overflow: hidden;
+    display: flex;
 }
 
 .hud-hp-fill {
@@ -782,8 +798,14 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     transition: width 0.4s ease, background-color 0.4s ease;
 }
 
-.hud-hp-fill-enemy { background: linear-gradient(90deg, #7b0a1a, var(--danger)); }
-.hud-hp-fill-player { background: linear-gradient(90deg, #0a5c2e, var(--success)); }
+.hud-hp-fill-enemy {
+    margin-right: auto;
+    background: linear-gradient(90deg, #7b0a1a, var(--danger));
+}
+.hud-hp-fill-player {
+    margin-left: auto;
+    background: linear-gradient(270deg, #0a5c2e, var(--success));
+}
 
 .hud-hp-label {
     font-size: 0.68em;
@@ -3338,17 +3360,25 @@ body.battle-phase-active .battlefield::after {
         background: rgba(255, 255, 255, 0.08);
         border-radius: 3px;
         overflow: hidden;
+        display: flex;
     }
 
     .m-hp-fill {
         height: 100%;
         border-radius: 3px;
+        flex-shrink: 0;
         /* Colour morphs with the bar as HP drops (see hudHpTierColor). */
         transition: width 0.35s ease, background-color 0.35s ease;
     }
 
-    .mobile-hud-enemy .m-hp-fill { background: var(--danger); }
-    .mobile-hud-player .m-hp-fill { background: var(--success); }
+    .mobile-hud-enemy .m-hp-fill {
+        margin-right: auto;
+        background: var(--danger);
+    }
+    .mobile-hud-player .m-hp-fill {
+        margin-left: auto;
+        background: var(--success);
+    }
 
     .m-counts {
         display: flex;
@@ -5083,10 +5113,24 @@ body.battle-phase-active .battlefield::after {
         background: rgba(255, 255, 255, 0.08);
         border-radius: 3px;
         overflow: hidden;
+        display: flex;
     }
 
-    .mobile-hud-enemy .m-hp-fill { background: var(--danger); }
-    .mobile-hud-player .m-hp-fill { background: var(--success); }
+    .m-hp-fill {
+        height: 100%;
+        border-radius: 3px;
+        flex-shrink: 0;
+        transition: width 0.35s ease, background-color 0.35s ease;
+    }
+
+    .mobile-hud-enemy .m-hp-fill {
+        margin-right: auto;
+        background: var(--danger);
+    }
+    .mobile-hud-player .m-hp-fill {
+        margin-left: auto;
+        background: var(--success);
+    }
 
     .m-counts {
         display: flex;
