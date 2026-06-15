@@ -29,6 +29,8 @@ public class PlayerProgressionService {
     public static final int ONLINE_WIN_GOLD = 5;
     public static final int WIN_STREAK_GOLD = 2;
     public static final int PACK_OPEN_REMNANTS = 40;
+    public static final double BULK_PACK_DISCOUNT = 0.05;
+    public static final int MAX_BULK_PACK_COUNT = 10;
     public static final int TUTORIAL_GOLD_REWARD = 250;
     public static final int SOLO_WIN_REMNANTS = 20;
     public static final int ONLINE_WIN_REMNANTS = 30;
@@ -177,6 +179,66 @@ public class PlayerProgressionService {
                 ? null
                 : grantTrainer(progression, result.bonusTrainer());
         addPackHistory(progression, result, outcomes, trainerOutcome, result.pack().price(), "SHOP");
+        progression.setUpdatedAt(Instant.now());
+        PlayerProgressionEntity saved = store.save(progression);
+        recordPackOpenedAsync(saved.getUserId());
+        return saved;
+    }
+
+    /** Total Siegecoin cost for {@code count} copies of a pack, applying the bulk discount for multi-buys. */
+    public static int bulkPackCost(int unitPrice, int count) {
+        long gross = (long) unitPrice * Math.max(1, count);
+        if (count <= 1) {
+            return (int) gross;
+        }
+        return (int) Math.round(gross * (1.0 - BULK_PACK_DISCOUNT));
+    }
+
+    /**
+     * Opens {@code count} copies of a pack in a single transaction, charging the discounted bundle price.
+     * All pulled cards are combined into one pack-history entry so the reveal shows the full bundle at once.
+     */
+    public PlayerProgressionEntity openPacks(AccountUser user, String packId, int count) {
+        int safeCount = Math.max(1, Math.min(count, MAX_BULK_PACK_COUNT));
+        if (safeCount == 1) {
+            return openPack(user, packId);
+        }
+        PlayerProgressionEntity progression = getOrCreate(user);
+        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+            throw new IllegalArgumentException("Choose a starter pack before buying more packs.");
+        }
+        PackCatalogService.PackDefinition pack = packCatalogService.findPack(packId)
+                .orElseThrow(() -> new IllegalArgumentException("Pack not found."));
+        int totalCost = bulkPackCost(pack.price(), safeCount);
+        if (progression.getGold() < totalCost) {
+            throw new IllegalArgumentException("Not enough Siegecoins for that bundle.");
+        }
+        progression.setGold(progression.getGold() - totalCost);
+
+        List<Card> allCards = new ArrayList<>();
+        List<String> allHoloIds = new ArrayList<>();
+        List<CardGrantOutcome> allOutcomes = new ArrayList<>();
+        TrainerGrantOutcome firstTrainerOutcome = null;
+        PackCatalogService.PackDefinition openedPack = pack;
+        for (int i = 0; i < safeCount; i++) {
+            PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, false);
+            openedPack = result.pack();
+            allOutcomes.addAll(grantCardsWithCap(progression, result.cards()));
+            grantRemnants(progression, PACK_OPEN_REMNANTS);
+            if (result.bonusTrainer() != null) {
+                TrainerGrantOutcome trainerOutcome = grantTrainer(progression, result.bonusTrainer());
+                if (firstTrainerOutcome == null) {
+                    firstTrainerOutcome = trainerOutcome;
+                }
+            }
+            allCards.addAll(result.cards());
+            if (result.holoCardIds() != null) {
+                allHoloIds.addAll(result.holoCardIds());
+            }
+        }
+        PackCatalogService.PackOpenResult combined =
+                new PackCatalogService.PackOpenResult(openedPack, allCards, null, allHoloIds);
+        addPackHistory(progression, combined, allOutcomes, firstTrainerOutcome, totalCost, "SHOP");
         progression.setUpdatedAt(Instant.now());
         PlayerProgressionEntity saved = store.save(progression);
         recordPackOpenedAsync(saved.getUserId());

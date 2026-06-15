@@ -7,6 +7,13 @@
     const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
+    // Bulk pack buy: 10 pulls at a 5% discount. Mirrors PlayerProgressionService.
+    const BULK_PACK_COUNT = 10;
+    const BULK_PACK_DISCOUNT = 0.05;
+    function bulkPackCost(unitPrice, count) {
+        const gross = (Number(unitPrice) || 0) * Math.max(1, count);
+        return count <= 1 ? gross : Math.round(gross * (1 - BULK_PACK_DISCOUNT));
+    }
     const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
     // Static data (card catalog, packs, descriptions) rarely changes, so keep it
     // cached for a full day. It lives in localStorage (see hubCacheStorage) so it
@@ -3150,11 +3157,7 @@
         const starterMode = state.profile?.authenticated && state.progression && !state.progression.starterChosen;
         const openingThisPack = state.packOpeningPending?.packId === pack.id;
         const openingAnyPack = Boolean(state.packOpeningPending);
-        const label = openingThisPack
-            ? 'Opening...'
-            : starterMode && pack.starterEligible
-            ? 'Choose Starter'
-            : renderCoinAmount(pack.price, '');
+        const isStarterChoice = starterMode && pack.starterEligible;
         const primaryElement = pack.elements?.[0] || 'FIRE';
         const image = packImageFor(pack);
         const imageStyle = image ? `--pack-art-image:url('${escapeAttr(image)}');` : '';
@@ -3162,6 +3165,20 @@
         const displayName = pack.starterEligible && !starterMode
             ? `${format(primaryElement)} Element Pack`
             : pack.name;
+        // Starter picks and in-progress opens stay a single button. Otherwise show a
+        // single pull plus a discounted x10 bundle.
+        let actions;
+        if (openingThisPack) {
+            actions = `<button class="primary-btn" type="button" disabled>Opening...</button>`;
+        } else if (isStarterChoice) {
+            actions = `<button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}"${openingAnyPack ? ' disabled' : ''}>Choose Starter</button>`;
+        } else {
+            const bulkCost = bulkPackCost(pack.price, BULK_PACK_COUNT);
+            actions = `<div class="pack-buy-actions">
+                <button class="primary-btn pack-buy-btn" type="button" data-pack-id="${escapeAttr(pack.id)}" data-pack-count="1"${openingAnyPack ? ' disabled' : ''}><span class="pack-buy-qty">x1</span>${renderCoinAmount(pack.price, '')}</button>
+                <button class="ghost-btn pack-buy-btn pack-buy-bulk" type="button" data-pack-id="${escapeAttr(pack.id)}" data-pack-count="${BULK_PACK_COUNT}"${openingAnyPack ? ' disabled' : ''} title="${BULK_PACK_COUNT} pulls, ${Math.round(BULK_PACK_DISCOUNT * 100)}% off"><span class="pack-buy-qty">x${BULK_PACK_COUNT}</span>${renderCoinAmount(bulkCost, '')}</button>
+            </div>`;
+        }
         return `<article class="pack-tile ${image ? 'pack-tile-art' : ''}" style="--el:${elementColor(primaryElement)}">
             <button class="pack-odds-btn" type="button" data-pack-odds="${escapeAttr(pack.id)}" aria-label="Drop rates for ${escapeAttr(displayName)}" title="Drop rates">i</button>
             <div class="pack-art" style="${imageStyle}"></div>
@@ -3170,7 +3187,7 @@
                 <strong>${escapeHtml(displayName)}</strong>
                 <span>${pack.elements.map(format).join(' / ')}</span>
                 <span>${escapeHtml(formatGameText(pack.description || ''))}</span>
-                <button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}"${openingAnyPack ? ' disabled' : ''}>${label}</button>
+                ${actions}
             </div>
         </article>`;
     }
@@ -4772,7 +4789,7 @@
         return new Promise(resolve => window.setTimeout(resolve, 760));
     }
 
-    async function choosePack(packId) {
+    async function choosePack(packId, count = 1) {
         if (!state.profile?.authenticated) {
             openAuth();
             return;
@@ -4783,7 +4800,9 @@
         const starterMode = state.progression && !state.progression.starterChosen;
         const endpoint = starterMode ? '/api/player/starter-pack' : '/api/shop/open-pack';
         const pack = state.packs.find(item => item.id === packId) || null;
-        state.packOpeningPending = { packId, startedAt: Date.now(), element: pack?.elements?.[0] || 'FIRE', name: pack?.name || 'Pack' };
+        // Starter pulls are always single; bulk only applies to normal shop buys.
+        const packCount = starterMode ? 1 : Math.max(1, Math.min(Number(count) || 1, BULK_PACK_COUNT));
+        state.packOpeningPending = { packId, startedAt: Date.now(), element: pack?.elements?.[0] || 'FIRE', name: pack?.name || 'Pack', count: packCount };
         state.packOpeningDismissedKey = '';
         navigateHub('shop', { shopView: 'cardpack' });
         renderPackOpeningPending();
@@ -4791,7 +4810,7 @@
         try {
             const data = await fetchJson(endpoint, {
                 method: 'POST',
-                body: JSON.stringify({ packId }),
+                body: JSON.stringify({ packId, count: packCount }),
                 timeoutMs: PACK_OPEN_TIMEOUT_MS
             });
             if (data?.error) {
@@ -8066,7 +8085,7 @@
             return;
         }
         const packButton = event.target.closest('[data-pack-id]');
-        if (packButton) choosePack(packButton.dataset.packId);
+        if (packButton) choosePack(packButton.dataset.packId, Number(packButton.dataset.packCount) || 1);
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const titleButton = event.target.closest('[data-purchase-title-id]');

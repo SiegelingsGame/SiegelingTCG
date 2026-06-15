@@ -30,6 +30,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlayerProgressionServiceTest {
 
     @Test
+    void bulkPackCostAppliesFivePercentDiscountForMultiBuys() {
+        // Single pulls pay full price; bulk pulls get 5% off the gross.
+        assertEquals(100, PlayerProgressionService.bulkPackCost(100, 1));
+        assertEquals(950, PlayerProgressionService.bulkPackCost(100, 10));
+        assertEquals(1140, PlayerProgressionService.bulkPackCost(120, 10));
+        assertEquals(11400, PlayerProgressionService.bulkPackCost(1200, 10));
+    }
+
+    @Test
     void getOrCreateDoesNotOverwriteExistingProgressionOnRead() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity existing = new PlayerProgressionEntity();
