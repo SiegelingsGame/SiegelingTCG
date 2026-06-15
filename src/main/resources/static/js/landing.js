@@ -389,11 +389,37 @@
         }
     }
 
+    // ── Play Now → Prepare for Battle ─────────────────────────────────────
+    // Route Play Now straight to the loadout ("Prepare for Battle") screen
+    // instead of the play page's welcome overlay. Writing the same hub handoff
+    // the in-app Start Match uses lets the play page skip the welcome and drop
+    // players — guests included — onto premade decks and the common SiegeKnight
+    // roster. The anchor's href="/play" still performs the navigation.
+    const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
+
+    function bindPlayNow() {
+        const trigger = document.getElementById('ctaPlay');
+        if (!trigger) return;
+        trigger.addEventListener('click', () => {
+            try {
+                localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
+                    createdAt: Date.now(),
+                    mode: 'solo',
+                    directLoadout: true
+                }));
+            } catch (e) {
+                /* If storage is unavailable, navigation still proceeds and the
+                   play page simply shows its welcome overlay as before. */
+            }
+        });
+    }
+
     function init() {
         renderCreatureGrid();
         bindParallax();
         bindTrailerModal();
         bindLoginModal();
+        bindPlayNow();
         setFooterYear();
         bindSiegelingsColorWave();
         window.addEventListener('resize', fitHeroTagline);
