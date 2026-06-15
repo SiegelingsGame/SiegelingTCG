@@ -8270,6 +8270,14 @@ function getOwnedTrainerIdSet() {
     return new Set(owned.map((entry) => entry?.id).filter(Boolean));
 }
 
+// The common base tier guests are allowed to play. COMMON is included for
+// forward-compatibility; today the lowest catalog rarity is UNCOMMON.
+const GUEST_TRAINER_RARITIES = new Set(['COMMON', 'UNCOMMON']);
+
+function isCommonTierTrainer(trainer) {
+    return GUEST_TRAINER_RARITIES.has(String(trainer?.rarity || '').toUpperCase());
+}
+
 function getVisibleLoadoutTrainers() {
     if (!gameOptions?.trainers?.length) {
         return [];
@@ -8281,7 +8289,9 @@ function getVisibleLoadoutTrainers() {
     if (authState.profile?.authenticated) {
         return gameOptions.trainers.filter((trainer) => trainer.owned !== false);
     }
-    return gameOptions.trainers;
+    // Guests (no account) only get the common base SiegeKnight for each element;
+    // rarer knights unlock through account progression.
+    return gameOptions.trainers.filter(isCommonTierTrainer);
 }
 
 function selectTrainerOption(trainerId) {
