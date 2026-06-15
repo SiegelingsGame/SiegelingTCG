@@ -6168,11 +6168,19 @@
         cacheProfilePrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
-        startPresenceHeartbeat();
         state.authRegisterStep = 'credentials';
         state.registerDraft = { email: '', password: '' };
-        await ensurePacksLoaded();
-        render();
+        // Close the login UI instantly, then cover the data load with a random
+        // loading-screen art piece so the player isn't staring at the form.
+        renderAuthModal();
+        const loadingShownAt = showLoadingArtScreen('Loading your Siegelings…');
+        startPresenceHeartbeat();
+        try {
+            await ensurePacksLoaded();
+            render();
+        } finally {
+            hideLoadingArtScreen(loadingShownAt);
+        }
     }
 
     async function logout() {
