@@ -21,7 +21,6 @@ import java.util.Set;
 @Service
 public class ProfileSettingsService {
     private static final Set<String> AVATAR_MODES = Set.of("INITIAL", "ELEMENT");
-    private static final Set<String> PROFILE_THEME_KEYS = Set.of("FIRE", "ICE", "WIND", "EARTH", "NEUTRAL");
 
     @Autowired
     private ProfileSettingsStore settingsStore;
@@ -70,9 +69,11 @@ public class ProfileSettingsService {
             Object favoriteElement = req.get("favoriteElement");
             settings.setFavoriteElement(normalizeElement(favoriteElement == null ? null : String.valueOf(favoriteElement)));
         }
-        if (req.containsKey("profileTheme")) {
-            Object profileTheme = req.get("profileTheme");
-            settings.setProfileTheme(normalizeProfileTheme(profileTheme == null ? null : String.valueOf(profileTheme)));
+        if (req.containsKey("profileArtId")) {
+            settings.setProfileArtId(trim(readString(req, "profileArtId"), 120));
+        }
+        if (req.containsKey("pageArtId")) {
+            settings.setPageArtId(trim(readString(req, "pageArtId"), 120));
         }
         String requestedTitleId = readString(req, "playerTitleId");
         if (requestedTitleId.isBlank()) {
@@ -121,7 +122,8 @@ public class ProfileSettingsService {
         out.put("avatarUrl", settings.getAvatarUrl() == null ? "" : settings.getAvatarUrl());
         out.put("favoriteElement", normalizeElement(settings.getFavoriteElement()));
         out.put("favoriteElementLabel", toProfileElementLabel(settings.getFavoriteElement()));
-        out.put("profileTheme", toProfileThemeLabel(settings.getProfileTheme()));
+        out.put("profileArtId", settings.getProfileArtId() == null ? "" : settings.getProfileArtId());
+        out.put("pageArtId", settings.getPageArtId() == null ? "" : settings.getPageArtId());
 
         String titleId = playerTitleService.migrateLegacyTitleId(settings.getPlayerTitle(), settings.getFavoriteElement());
         out.put("playerTitleId", titleId);
@@ -237,22 +239,6 @@ public class ProfileSettingsService {
             return "FIRE";
         }
         return normalized.length() > 20 ? normalized.substring(0, 20) : normalized;
-    }
-
-    private String normalizeProfileTheme(String theme) {
-        if (theme == null) {
-            return "";
-        }
-        String normalized = theme.trim().toUpperCase(Locale.ROOT);
-        return PROFILE_THEME_KEYS.contains(normalized) ? normalized : "";
-    }
-
-    private String toProfileThemeLabel(String theme) {
-        String normalized = normalizeProfileTheme(theme);
-        if (normalized.isBlank()) {
-            return "";
-        }
-        return normalized.charAt(0) + normalized.substring(1).toLowerCase(Locale.ROOT);
     }
 
     private String toProfileElementLabel(String element) {

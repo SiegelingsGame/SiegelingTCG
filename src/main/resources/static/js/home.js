@@ -110,7 +110,7 @@
         Fire: {
             accent: '#ff6a2a',
             glow: 'rgba(255, 106, 42, 0.34)',
-            gradient: 'linear-gradient(135deg, rgba(74, 10, 20, 0.6), rgba(157, 41, 17, 0.48) 52%, rgba(255, 128, 30, 0.22))',
+            gradient: 'linear-gradient(135deg, rgba(74, 10, 20, 0.42), rgba(157, 41, 17, 0.32) 52%, rgba(255, 128, 30, 0.16))',
             border: 'rgba(255, 126, 56, 0.55)',
             badge: 'linear-gradient(135deg, #ff8a2a, #f43f1c)',
             mood: 'Blazing Core Duelist',
@@ -119,7 +119,7 @@
         Ice: {
             accent: '#7ad9e7',
             glow: 'rgba(122, 217, 231, 0.32)',
-            gradient: 'linear-gradient(135deg, rgba(10, 24, 54, 0.6), rgba(23, 78, 129, 0.48) 54%, rgba(155, 231, 255, 0.2))',
+            gradient: 'linear-gradient(135deg, rgba(10, 24, 54, 0.42), rgba(23, 78, 129, 0.32) 54%, rgba(155, 231, 255, 0.15))',
             border: 'rgba(146, 232, 255, 0.55)',
             badge: 'linear-gradient(135deg, #b8f3ff, #3c8ed8)',
             mood: 'Frostglass Tactician',
@@ -128,7 +128,7 @@
         Wind: {
             accent: '#64c987',
             glow: 'rgba(100, 201, 135, 0.31)',
-            gradient: 'linear-gradient(135deg, rgba(6, 45, 45, 0.6), rgba(17, 120, 92, 0.46) 55%, rgba(150, 255, 180, 0.18))',
+            gradient: 'linear-gradient(135deg, rgba(6, 45, 45, 0.42), rgba(17, 120, 92, 0.3) 55%, rgba(150, 255, 180, 0.14))',
             border: 'rgba(132, 236, 170, 0.52)',
             badge: 'linear-gradient(135deg, #96ffb4, #19a974)',
             mood: 'Gale-Thread Strategist',
@@ -137,7 +137,7 @@
         Earth: {
             accent: '#d0a65f',
             glow: 'rgba(208, 166, 95, 0.29)',
-            gradient: 'linear-gradient(135deg, rgba(22, 41, 25, 0.6), rgba(82, 67, 35, 0.48) 55%, rgba(199, 160, 89, 0.2))',
+            gradient: 'linear-gradient(135deg, rgba(22, 41, 25, 0.42), rgba(82, 67, 35, 0.32) 55%, rgba(199, 160, 89, 0.15))',
             border: 'rgba(208, 166, 95, 0.55)',
             badge: 'linear-gradient(135deg, #d0a65f, #537a3a)',
             mood: 'Mossgold Sentinel',
@@ -146,7 +146,7 @@
         Neutral: {
             accent: '#b8c0cc',
             glow: 'rgba(184, 192, 204, 0.25)',
-            gradient: 'linear-gradient(135deg, rgba(12, 17, 28, 0.6), rgba(48, 56, 72, 0.48) 55%, rgba(218, 226, 238, 0.16))',
+            gradient: 'linear-gradient(135deg, rgba(12, 17, 28, 0.42), rgba(48, 56, 72, 0.32) 55%, rgba(218, 226, 238, 0.13))',
             border: 'rgba(210, 218, 230, 0.45)',
             badge: 'linear-gradient(135deg, #d8dee8, #5f6b7a)',
             mood: 'Astral Core Adept',
@@ -529,6 +529,9 @@
         // Cache the list so the very next visit can paint a loading screen
         // before the network answers.
         localStorage.setItem(ART_CACHE_KEY, JSON.stringify(state.loadingArt));
+        // Now that the catalog is known, resolve any account-saved background
+        // ids that arrived before the art list did.
+        applyProfileArtFromPrefs(state.profilePrefs);
     }
 
     function showLoadingArtScreen(label) {
@@ -573,8 +576,17 @@
         document.body.classList.toggle('has-custom-art', Boolean(url));
     }
 
+    // Maps a background localStorage key to the profile-settings field that
+    // persists the chosen art id to the account (so it follows the player across
+    // browsers/devices).
+    const ART_KEY_TO_FIELD = {
+        [PAGE_ART_KEY]: 'pageArtId',
+        [PROFILE_ART_KEY]: 'profileArtId'
+    };
+
     function setStoredArt(key, pieceId) {
         const current = readStoredArt(key);
+        let selectedId = '';
         if (current?.id === pieceId) {
             // Picking the active piece again toggles back to the default look.
             localStorage.removeItem(key);
@@ -582,10 +594,57 @@
             const piece = (state.loadingArt || []).find(item => item.id === pieceId);
             if (!piece) return;
             localStorage.setItem(key, JSON.stringify(piece));
+            selectedId = piece.id;
         }
+        persistArtSelection(key, selectedId);
         applyCustomPageArt();
         renderOptions();
         if (state.route === 'profile') safeRender(renderProfile);
+    }
+
+    // Mirrors the working localStorage background selection onto the account so a
+    // fresh browser can rehydrate it. Updates in-memory prefs immediately and
+    // best-effort saves to the server (the localStorage copy keeps it usable even
+    // if the request fails).
+    function persistArtSelection(key, pieceId) {
+        const field = ART_KEY_TO_FIELD[key];
+        if (!field) return;
+        const value = String(pieceId || '');
+        if (state.profilePrefs) state.profilePrefs[field] = value;
+        cacheProfilePrefs(state.profilePrefs);
+        if (!state.profile?.authenticated) return;
+        fetchJson('/api/profile/settings', { method: 'POST', body: JSON.stringify({ [field]: value }) })
+            .then(data => {
+                const serverPrefs = data && !data.error ? applyProfileSettingsFromServer(data.profileSettings) : null;
+                if (serverPrefs) {
+                    state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
+                    cacheProfilePrefs(state.profilePrefs);
+                }
+            })
+            .catch(() => { /* localStorage keeps the selection usable offline */ });
+    }
+
+    // Rehydrates the page/profile background images from saved account prefs,
+    // resolving the stored art ids against the loaded gallery. Called whenever
+    // prefs load and again once the art catalog finishes loading.
+    function applyProfileArtFromPrefs(prefs) {
+        if (!prefs) return;
+        syncArtKeyFromId(PAGE_ART_KEY, prefs.pageArtId);
+        syncArtKeyFromId(PROFILE_ART_KEY, prefs.profileArtId);
+        applyCustomPageArt();
+        if (state.route === 'profile') safeRender(renderProfile);
+    }
+
+    function syncArtKeyFromId(key, pieceId) {
+        const id = String(pieceId || '').trim();
+        if (!id) {
+            localStorage.removeItem(key);
+            return;
+        }
+        const piece = (state.loadingArt || []).find(item => item.id === id);
+        // If the catalog hasn't loaded yet we leave any existing copy in place;
+        // loadLoadingArt() re-runs this once the pieces are available.
+        if (piece) localStorage.setItem(key, JSON.stringify(piece));
     }
 
     function openArtLightbox(pieceId) {
@@ -1030,6 +1089,7 @@
         } else if (!state.profilePrefs) {
             state.profilePrefs = defaultProfilePrefs(data.user || {});
         }
+        applyProfileArtFromPrefs(state.profilePrefs);
         return data;
     }
 
@@ -3683,7 +3743,8 @@
             avatar: initials(displayName),
             avatarUrl: '',
             favoriteElement,
-            profileTheme: '',
+            profileArtId: '',
+            pageArtId: '',
             playerTitle: theme.mood,
             playerTitleId: defaultStarterTitleId(favoriteElement),
             bio: starterProfileBio(favoriteElement),
@@ -3854,24 +3915,11 @@
         }[normalizeProfileElement(element)] || 'Ready to tune a deck, open a pack, and make the next match count.';
     }
 
-    // Resolves the theme/background that paints the profile surfaces. Players can
-    // pick an explicit background in Edit Profile (prefs.profileTheme); an empty
-    // value keeps the legacy behaviour of matching their favorite element.
+    // The profile color theme always tracks the player's favorite element. The
+    // selectable "profile background" is an image (see profileArtId), not a color.
     function profileThemeFor(prefs = {}) {
-        const choice = normalizeProfileThemeKey(prefs.profileTheme);
-        if (choice && elementThemes[choice]) return elementThemes[choice];
         const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
         return elementThemes[favoriteElement] || elementThemes.Neutral;
-    }
-
-    // Returns a valid theme key (matching an elementThemes entry) or '' for the
-    // "match favorite element" default. Accepts any casing the server sends.
-    function normalizeProfileThemeKey(value) {
-        const raw = String(value || '').trim();
-        if (!raw) return '';
-        const match = Object.keys(elementThemes)
-            .find(key => key.toLowerCase() === raw.toLowerCase());
-        return match || '';
     }
 
     function profileThemeStyle(theme) {
@@ -4349,7 +4397,7 @@
                     ${profileInput('Avatar initials', 'avatar', prefs.avatar)}
                     ${profileInput('Avatar image URL', 'avatarUrl', prefs.avatarUrl)}
                     <label><span>Favorite element</span><select class="search-input" data-profile-field="favoriteElement">${PROFILE_ELEMENTS.map(element => `<option value="${element}"${element === prefs.favoriteElement ? ' selected' : ''}>${element}</option>`).join('')}</select></label>
-                    ${profileThemeSelect(prefs.profileTheme, prefs.favoriteElement)}
+                    ${profileBackgroundSelect(prefs.profileArtId)}
                     ${profileTitleSelect(prefs.playerTitleId, prefs)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
                     ${profileCardBackSelect(prefs.preferredCardBack)}
@@ -4367,21 +4415,21 @@
         return `<label><span>${escapeHtml(label)}</span><input class="search-input" data-profile-field="${escapeAttr(field)}" value="${escapeAttr(value)}"></label>`;
     }
 
-    // Renders the profile background/theme picker. The first option keeps the
-    // background in sync with the player's favorite element; the rest let them
-    // lock in a specific themed background regardless of that element.
-    function profileThemeSelect(selected, favoriteElement) {
-        const current = String(selected || '').trim();
-        const normalizedFav = normalizeProfileElement(favoriteElement);
-        const autoMotif = elementThemes[normalizedFav]?.motif || '';
-        const autoLabel = `Match favorite element${autoMotif ? ` (${autoMotif})` : ''}`;
-        const options = [`<option value=""${current ? '' : ' selected'}>${escapeHtml(autoLabel)}</option>`]
-            .concat(PROFILE_ELEMENTS.map(key => {
-                const motif = elementThemes[key]?.motif;
-                const label = motif ? `${motif} · ${key}` : key;
-                return `<option value="${escapeAttr(key)}"${key === current ? ' selected' : ''}>${escapeHtml(label)}</option>`;
-            }));
-        return `<label><span>Profile background</span><select class="search-input" data-profile-field="profileTheme">${options.join('')}</select></label>`;
+    // Renders the profile background image picker, listing the art gallery pieces.
+    // The first option is the default (no image); any saved id not in the loaded
+    // catalog is preserved so a slow art fetch never wipes the player's choice.
+    function profileBackgroundSelect(selectedId) {
+        const current = String(selectedId || '').trim();
+        const pieces = (state.loadingArt || []).slice();
+        const ids = pieces.map(piece => piece.id);
+        const options = [`<option value=""${current ? '' : ' selected'}>Default (no image)</option>`];
+        if (current && !ids.includes(current)) {
+            options.push(`<option value="${escapeAttr(current)}" selected>${escapeHtml(current)}</option>`);
+        }
+        pieces.forEach(piece => {
+            options.push(`<option value="${escapeAttr(piece.id)}"${piece.id === current ? ' selected' : ''}>${escapeHtml(piece.title || piece.id)}</option>`);
+        });
+        return `<label><span>Profile background</span><select class="search-input" data-profile-field="profileArtId">${options.join('')}</select></label>`;
     }
 
     // Renders the preferred card back picker as a dropdown of premade backs.
@@ -4486,7 +4534,6 @@
             next[input.dataset.profileField] = input.value.trim();
         });
         next.favoriteElement = normalizeProfileElement(next.favoriteElement);
-        next.profileTheme = normalizeProfileThemeKey(next.profileTheme);
         next.avatarMode = next.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL';
         next.avatar = (next.avatar || initials(next.displayName)).slice(0, 4).toUpperCase();
         if (!next.playerTitleId && next.playerTitle) {
@@ -4504,6 +4551,7 @@
             ? { ...defaultProfilePrefs(state.profile?.user || {}), ...applyProfileSettingsFromServer(data.profileSettings) }
             : next;
         cacheProfilePrefs(state.profilePrefs);
+        applyProfileArtFromPrefs(state.profilePrefs);
         if (state.profile?.user && state.profilePrefs?.displayName) {
             state.profile.user.displayName = state.profilePrefs.displayName;
         }
@@ -4881,6 +4929,7 @@
                 if (serverPrefs) {
                     state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
                     cacheProfilePrefs(state.profilePrefs);
+                    applyProfileArtFromPrefs(state.profilePrefs);
                 } else {
                     applyStarterProfileDefaults();
                 }
@@ -6225,6 +6274,7 @@
         state.progression = data.progression;
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
+        applyProfileArtFromPrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
         state.authRegisterStep = 'credentials';
@@ -6626,7 +6676,8 @@
             avatarMode: settings.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL',
             avatar: settings.avatar || '',
             avatarUrl: settings.avatarUrl || '',
-            profileTheme: normalizeProfileThemeKey(settings.profileTheme),
+            profileArtId: settings.profileArtId || '',
+            pageArtId: settings.pageArtId || '',
             playerTitle: settings.playerTitle || '',
             playerTitleId: settings.playerTitleId || settings.playerTitle || '',
             bio: settings.bio || '',
@@ -6663,7 +6714,8 @@
                 avatar: prefs.avatar,
                 avatarUrl: prefs.avatarUrl,
                 favoriteElement: prefs.favoriteElement,
-                profileTheme: prefs.profileTheme,
+                profileArtId: prefs.profileArtId,
+                pageArtId: prefs.pageArtId,
                 playerTitle: prefs.playerTitle,
                 playerTitleId: prefs.playerTitleId,
                 bio: prefs.bio,
@@ -8054,6 +8106,8 @@
         if (event.target.closest('[data-art-clear]')) {
             localStorage.removeItem(PAGE_ART_KEY);
             localStorage.removeItem(PROFILE_ART_KEY);
+            persistArtSelection(PAGE_ART_KEY, '');
+            persistArtSelection(PROFILE_ART_KEY, '');
             applyCustomPageArt();
             renderOptions();
             if (state.route === 'profile') safeRender(renderProfile);
