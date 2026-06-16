@@ -184,6 +184,19 @@ body.starter-onboarding-active .hud-fab {
     -webkit-backdrop-filter: blur(5px);
 }
 
+.loading-art-spinner {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 215, 0, 0.22);
+    border-top-color: #ffd700;
+    animation: loadingArtSpin 0.8s linear infinite;
+}
+
+@keyframes loadingArtSpin {
+    to { transform: rotate(360deg); }
+}
+
 .loading-art-label {
     color: #fff7d9;
     font-size: 13px;
