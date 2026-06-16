@@ -42,6 +42,7 @@ public class ProfileSettingsStore {
         payload.put("avatar", settings.getAvatar());
         payload.put("avatarUrl", settings.getAvatarUrl());
         payload.put("favoriteElement", settings.getFavoriteElement());
+        payload.put("profileTheme", settings.getProfileTheme());
         payload.put("playerTitle", settings.getPlayerTitle());
         payload.put("bio", settings.getBio());
         payload.put("preferredCardBack", settings.getPreferredCardBack());
@@ -78,6 +79,7 @@ public class ProfileSettingsStore {
         settings.setAvatar(snapshot.getString("avatar"));
         settings.setAvatarUrl(snapshot.getString("avatarUrl"));
         settings.setFavoriteElement(snapshot.getString("favoriteElement"));
+        settings.setProfileTheme(snapshot.getString("profileTheme"));
         settings.setPlayerTitle(snapshot.getString("playerTitle"));
         settings.setBio(snapshot.getString("bio"));
         settings.setPreferredCardBack(snapshot.getString("preferredCardBack"));

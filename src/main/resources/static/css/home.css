@@ -6033,10 +6033,14 @@ body.gacha-active {
     padding: 20px;
     border: 1px solid var(--profile-border, rgba(255, 126, 56, 0.55));
     border-radius: 14px;
+    /* Liquid-glass treatment: the themed gradient is translucent and sits over a
+       backdrop blur so any page/profile background art reads through the panel. */
     background:
         radial-gradient(circle at 12% 20%, var(--profile-glow, rgba(255, 106, 42, 0.3)), transparent 34%),
         radial-gradient(circle at 90% 15%, rgba(255, 255, 255, 0.13), transparent 24%),
-        var(--profile-gradient, linear-gradient(135deg, rgba(74, 10, 20, 0.98), rgba(157, 41, 17, 0.82)));
+        var(--profile-gradient, linear-gradient(135deg, rgba(74, 10, 20, 0.6), rgba(157, 41, 17, 0.48)));
+    backdrop-filter: blur(18px) saturate(135%);
+    -webkit-backdrop-filter: blur(18px) saturate(135%);
     box-shadow:
         0 24px 70px rgba(0, 0, 0, 0.42),
         inset 0 1px 0 rgba(255, 255, 255, 0.16),
@@ -6046,7 +6050,7 @@ body.gacha-active {
 .profile-hero-neutral {
     --profile-accent: #b8c0cc;
     --profile-glow: rgba(184, 192, 204, 0.25);
-    --profile-gradient: linear-gradient(135deg, rgba(12, 17, 28, 0.98), rgba(48, 56, 72, 0.84));
+    --profile-gradient: linear-gradient(135deg, rgba(12, 17, 28, 0.6), rgba(48, 56, 72, 0.48));
     --profile-border: rgba(210, 218, 230, 0.45);
 }
 
@@ -6357,7 +6361,9 @@ body.gacha-active {
     background:
         radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--profile-accent, #ff6a2a) 16%, transparent), transparent 42%),
         linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
-        rgba(8, 13, 28, 0.72);
+        rgba(8, 13, 28, 0.6);
+    backdrop-filter: blur(14px) saturate(125%);
+    -webkit-backdrop-filter: blur(14px) saturate(125%);
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.08),
         0 18px 38px rgba(0, 0, 0, 0.23);

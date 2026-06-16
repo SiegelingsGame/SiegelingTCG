@@ -110,7 +110,7 @@
         Fire: {
             accent: '#ff6a2a',
             glow: 'rgba(255, 106, 42, 0.34)',
-            gradient: 'linear-gradient(135deg, rgba(74, 10, 20, 0.98), rgba(157, 41, 17, 0.82) 52%, rgba(255, 128, 30, 0.34))',
+            gradient: 'linear-gradient(135deg, rgba(74, 10, 20, 0.6), rgba(157, 41, 17, 0.48) 52%, rgba(255, 128, 30, 0.22))',
             border: 'rgba(255, 126, 56, 0.55)',
             badge: 'linear-gradient(135deg, #ff8a2a, #f43f1c)',
             mood: 'Blazing Core Duelist',
@@ -119,7 +119,7 @@
         Ice: {
             accent: '#7ad9e7',
             glow: 'rgba(122, 217, 231, 0.32)',
-            gradient: 'linear-gradient(135deg, rgba(10, 24, 54, 0.98), rgba(23, 78, 129, 0.82) 54%, rgba(155, 231, 255, 0.28))',
+            gradient: 'linear-gradient(135deg, rgba(10, 24, 54, 0.6), rgba(23, 78, 129, 0.48) 54%, rgba(155, 231, 255, 0.2))',
             border: 'rgba(146, 232, 255, 0.55)',
             badge: 'linear-gradient(135deg, #b8f3ff, #3c8ed8)',
             mood: 'Frostglass Tactician',
@@ -128,7 +128,7 @@
         Wind: {
             accent: '#64c987',
             glow: 'rgba(100, 201, 135, 0.31)',
-            gradient: 'linear-gradient(135deg, rgba(6, 45, 45, 0.98), rgba(17, 120, 92, 0.78) 55%, rgba(150, 255, 180, 0.24))',
+            gradient: 'linear-gradient(135deg, rgba(6, 45, 45, 0.6), rgba(17, 120, 92, 0.46) 55%, rgba(150, 255, 180, 0.18))',
             border: 'rgba(132, 236, 170, 0.52)',
             badge: 'linear-gradient(135deg, #96ffb4, #19a974)',
             mood: 'Gale-Thread Strategist',
@@ -137,7 +137,7 @@
         Earth: {
             accent: '#d0a65f',
             glow: 'rgba(208, 166, 95, 0.29)',
-            gradient: 'linear-gradient(135deg, rgba(22, 41, 25, 0.98), rgba(82, 67, 35, 0.82) 55%, rgba(199, 160, 89, 0.28))',
+            gradient: 'linear-gradient(135deg, rgba(22, 41, 25, 0.6), rgba(82, 67, 35, 0.48) 55%, rgba(199, 160, 89, 0.2))',
             border: 'rgba(208, 166, 95, 0.55)',
             badge: 'linear-gradient(135deg, #d0a65f, #537a3a)',
             mood: 'Mossgold Sentinel',
@@ -146,7 +146,7 @@
         Neutral: {
             accent: '#b8c0cc',
             glow: 'rgba(184, 192, 204, 0.25)',
-            gradient: 'linear-gradient(135deg, rgba(12, 17, 28, 0.98), rgba(48, 56, 72, 0.84) 55%, rgba(218, 226, 238, 0.2))',
+            gradient: 'linear-gradient(135deg, rgba(12, 17, 28, 0.6), rgba(48, 56, 72, 0.48) 55%, rgba(218, 226, 238, 0.16))',
             border: 'rgba(210, 218, 230, 0.45)',
             badge: 'linear-gradient(135deg, #d8dee8, #5f6b7a)',
             mood: 'Astral Core Adept',
@@ -3654,7 +3654,7 @@
         };
         const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
         prefs.favoriteElement = favoriteElement;
-        const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
+        const theme = profileThemeFor(prefs);
         const collection = collectionSummary();
         const savedDecks = state.profile?.savedDecks || [];
         const battles = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
@@ -3683,6 +3683,7 @@
             avatar: initials(displayName),
             avatarUrl: '',
             favoriteElement,
+            profileTheme: '',
             playerTitle: theme.mood,
             playerTitleId: defaultStarterTitleId(favoriteElement),
             bio: starterProfileBio(favoriteElement),
@@ -3851,6 +3852,26 @@
             Wind: 'Wind starter chosen. Build around tempo, disruption, and fast Siegelings.',
             Ice: 'Ice starter chosen. Build around freezes, control, and resilient board lines.'
         }[normalizeProfileElement(element)] || 'Ready to tune a deck, open a pack, and make the next match count.';
+    }
+
+    // Resolves the theme/background that paints the profile surfaces. Players can
+    // pick an explicit background in Edit Profile (prefs.profileTheme); an empty
+    // value keeps the legacy behaviour of matching their favorite element.
+    function profileThemeFor(prefs = {}) {
+        const choice = normalizeProfileThemeKey(prefs.profileTheme);
+        if (choice && elementThemes[choice]) return elementThemes[choice];
+        const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
+        return elementThemes[favoriteElement] || elementThemes.Neutral;
+    }
+
+    // Returns a valid theme key (matching an elementThemes entry) or '' for the
+    // "match favorite element" default. Accepts any casing the server sends.
+    function normalizeProfileThemeKey(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const match = Object.keys(elementThemes)
+            .find(key => key.toLowerCase() === raw.toLowerCase());
+        return match || '';
     }
 
     function profileThemeStyle(theme) {
@@ -4328,6 +4349,7 @@
                     ${profileInput('Avatar initials', 'avatar', prefs.avatar)}
                     ${profileInput('Avatar image URL', 'avatarUrl', prefs.avatarUrl)}
                     <label><span>Favorite element</span><select class="search-input" data-profile-field="favoriteElement">${PROFILE_ELEMENTS.map(element => `<option value="${element}"${element === prefs.favoriteElement ? ' selected' : ''}>${element}</option>`).join('')}</select></label>
+                    ${profileThemeSelect(prefs.profileTheme, prefs.favoriteElement)}
                     ${profileTitleSelect(prefs.playerTitleId, prefs)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
                     ${profileCardBackSelect(prefs.preferredCardBack)}
@@ -4343,6 +4365,23 @@
 
     function profileInput(label, field, value) {
         return `<label><span>${escapeHtml(label)}</span><input class="search-input" data-profile-field="${escapeAttr(field)}" value="${escapeAttr(value)}"></label>`;
+    }
+
+    // Renders the profile background/theme picker. The first option keeps the
+    // background in sync with the player's favorite element; the rest let them
+    // lock in a specific themed background regardless of that element.
+    function profileThemeSelect(selected, favoriteElement) {
+        const current = String(selected || '').trim();
+        const normalizedFav = normalizeProfileElement(favoriteElement);
+        const autoMotif = elementThemes[normalizedFav]?.motif || '';
+        const autoLabel = `Match favorite element${autoMotif ? ` (${autoMotif})` : ''}`;
+        const options = [`<option value=""${current ? '' : ' selected'}>${escapeHtml(autoLabel)}</option>`]
+            .concat(PROFILE_ELEMENTS.map(key => {
+                const motif = elementThemes[key]?.motif;
+                const label = motif ? `${motif} · ${key}` : key;
+                return `<option value="${escapeAttr(key)}"${key === current ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+            }));
+        return `<label><span>Profile background</span><select class="search-input" data-profile-field="profileTheme">${options.join('')}</select></label>`;
     }
 
     // Renders the preferred card back picker as a dropdown of premade backs.
@@ -4447,6 +4486,7 @@
             next[input.dataset.profileField] = input.value.trim();
         });
         next.favoriteElement = normalizeProfileElement(next.favoriteElement);
+        next.profileTheme = normalizeProfileThemeKey(next.profileTheme);
         next.avatarMode = next.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL';
         next.avatar = (next.avatar || initials(next.displayName)).slice(0, 4).toUpperCase();
         if (!next.playerTitleId && next.playerTitle) {
@@ -6586,6 +6626,7 @@
             avatarMode: settings.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL',
             avatar: settings.avatar || '',
             avatarUrl: settings.avatarUrl || '',
+            profileTheme: normalizeProfileThemeKey(settings.profileTheme),
             playerTitle: settings.playerTitle || '',
             playerTitleId: settings.playerTitleId || settings.playerTitle || '',
             bio: settings.bio || '',
@@ -6622,6 +6663,7 @@
                 avatar: prefs.avatar,
                 avatarUrl: prefs.avatarUrl,
                 favoriteElement: prefs.favoriteElement,
+                profileTheme: prefs.profileTheme,
                 playerTitle: prefs.playerTitle,
                 playerTitleId: prefs.playerTitleId,
                 bio: prefs.bio,
@@ -7576,7 +7618,7 @@
         };
         const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
         prefs.favoriteElement = favoriteElement;
-        const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
+        const theme = profileThemeFor(prefs);
         const stats = data.stats || {};
         const battles = (data.recentMatches || []).map((row, index) => normalizeBattle(row, favoriteElement, index));
         const record = battleRecord(battles);

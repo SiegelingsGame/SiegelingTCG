@@ -10,6 +10,8 @@ public class ProfileSettingsEntity {
     private String avatar = "";
     private String avatarUrl = "";
     private String favoriteElement = "FIRE";
+    /** Optional themed profile background key (e.g. FIRE/ICE/WIND/EARTH/NEUTRAL); blank matches favoriteElement. */
+    private String profileTheme = "";
     private String playerTitle = "";
     private String bio = "";
     private String preferredCardBack = "";
@@ -28,6 +30,8 @@ public class ProfileSettingsEntity {
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public String getFavoriteElement() { return favoriteElement; }
     public void setFavoriteElement(String favoriteElement) { this.favoriteElement = favoriteElement; }
+    public String getProfileTheme() { return profileTheme; }
+    public void setProfileTheme(String profileTheme) { this.profileTheme = profileTheme; }
     public String getPlayerTitle() { return playerTitle; }
     public void setPlayerTitle(String playerTitle) { this.playerTitle = playerTitle; }
     public String getBio() { return bio; }
