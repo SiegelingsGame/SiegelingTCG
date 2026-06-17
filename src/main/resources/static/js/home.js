@@ -1057,7 +1057,15 @@
         // Bypass the HTTP cache: a stale {authenticated:false} response (Safari
         // is especially eager to cache GETs) would otherwise wipe a valid token.
         const data = await fetchJson('/api/auth/me', { cache: 'no-store' });
-        if (!data?.authenticated) {
+        // A null response means the request itself failed (offline, timeout, 5xx) —
+        // it is NOT evidence that the session is gone. Keep the cached profile and
+        // token so a transient blip can't blank the signed-in UI here, nor strand
+        // the next page on the "Restoring your account…" state (which reads this
+        // same cache). Only a definitive {authenticated:false} clears the profile.
+        if (!data) {
+            return state.profile;
+        }
+        if (!data.authenticated) {
             // Do NOT delete the persisted token here. The token is shared with the
             // Play page (play.html/game.js); a transient failure or stale response
             // would otherwise sign the player out everywhere, and revisiting any

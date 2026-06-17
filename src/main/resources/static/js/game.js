@@ -190,16 +190,22 @@ let authRegisterStep = 'credentials';
 let authPopupOpen = false;
 let registerDraft = { email: '', password: '' };
 const initialAuthToken = loadSavedAuthToken();
+// Seed from the cached snapshot so the signed-in UI renders instantly; the
+// background /api/auth/me on init revalidates and refreshes it.
+const initialCachedProfile = initialAuthToken ? loadCachedAuthProfile() : null;
 let authState = {
     token: initialAuthToken,
-    // Seed from the cached snapshot so the signed-in UI renders instantly; the
-    // background /api/auth/me on init revalidates and refreshes it.
-    profile: initialAuthToken ? loadCachedAuthProfile() : null,
+    profile: initialCachedProfile,
     loading: false,
-    // Whether /api/auth/me has returned a definitive answer this page load. Until
-    // it has, a present token means "signing in", NOT "logged out" — so the
-    // welcome screen shows a loading state instead of flashing the Log In card.
-    profileResolved: false,
+    // Whether we can treat the auth state as known for this page load. Seed it true
+    // when we already have a cached signed-in profile so navigating to Play from the
+    // hub paints the account immediately with NO "Restoring your account…" loading —
+    // the player is already signed in, so there is nothing to wait on. The silent
+    // background /api/auth/me still revalidates and corrects this if the session has
+    // genuinely lapsed. When there is no cached profile, a present token means
+    // "signing in", NOT "logged out", so the welcome screen shows a loading state
+    // instead of flashing the Log In card.
+    profileResolved: Boolean(initialCachedProfile?.authenticated),
     error: ''
 };
 let selectedSavedDeckId = null;
@@ -6473,7 +6479,17 @@ function dismissWelcome() {
 // on `authenticated` so a genuinely signed-in player keeps their token (and knight
 // progression) untouched.
 function dropStaleGuestToken() {
-    if (!authState.profile?.authenticated && (authState.token || authState.profile)) {
+    // Only drop the shared token once /api/auth/me has returned a *definitive*
+    // answer (profileResolved). During the "Restoring your account…" window the
+    // profile is not authenticated yet simply because the check is still in flight
+    // — the token may belong to a perfectly valid session. Wiping it here (e.g. a
+    // signed-in player tapping "Battle" before the restore settles) clears the
+    // token from localStorage and logs them out on every page, since the hub and
+    // Play page share it. A genuinely stale token is harmless: the server resolves
+    // a missing/expired session to a guest anyway (AccountService.findUser returns
+    // null), so we lose nothing by letting an unresolved token ride along until we
+    // actually know it is invalid.
+    if (authState.profileResolved && !authState.profile?.authenticated && (authState.token || authState.profile)) {
         clearAuthState();
     }
 }
