@@ -167,13 +167,45 @@
         }
     }
 
+    // Drop the heavy per-match game logs before caching. The /api/auth/me payload
+    // embeds the full log of every recorded match, which can blow past the ~5MB
+    // localStorage quota; the write then throws QuotaExceededError, gets swallowed,
+    // and the cache never persists — which strands the Play page on the "Restoring
+    // your account…" takeover (it reads this same cache). The hub never needs the
+    // logs to render, so slim them out, and fall back to a minimal snapshot if even
+    // the slimmed copy won't fit.
+    function slimProfileForCache(profile) {
+        if (!profile || !Array.isArray(profile.matchHistory)) return profile;
+        return {
+            ...profile,
+            matchHistory: profile.matchHistory.map((entry) => {
+                if (!entry || !('gameLog' in entry)) return entry;
+                const { gameLog, ...rest } = entry;
+                return rest;
+            })
+        };
+    }
+
     function saveCachedAuthProfile(profile) {
         try {
             if (!profile?.authenticated) {
                 localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
                 return;
             }
-            localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+            const savedAt = Date.now();
+            const slim = slimProfileForCache(profile);
+            try {
+                localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt, profile: slim }));
+            } catch (quotaError) {
+                const minimal = {
+                    authenticated: true,
+                    user: slim.user,
+                    progression: slim.progression,
+                    savedDecks: slim.savedDecks || [],
+                    matchHistory: []
+                };
+                localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt, profile: minimal }));
+            }
         } catch (error) {
             // The profile cache is a render optimization only.
         }

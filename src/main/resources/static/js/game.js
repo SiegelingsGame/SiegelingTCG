@@ -6056,13 +6056,54 @@ function loadCachedAuthProfile() {
     }
 }
 
+// Strip the heavy, rarely-needed fields from a profile before caching it. The
+// /api/auth/me payload embeds the FULL game log of every recorded match, which
+// can run to several megabytes — well past the ~5MB localStorage quota. When the
+// write throws QuotaExceededError it used to be swallowed silently, so the cache
+// never persisted and the Play page fell back to the "Restoring your account…"
+// takeover on every single visit. The welcome card only needs match metadata
+// (result/labels/health), never the per-line log, so we drop the logs for the
+// cached copy. The live in-memory profile keeps its logs, so the match-detail
+// modal still works once the background /api/auth/me refresh lands.
+function slimProfileForCache(profile) {
+    if (!profile || !Array.isArray(profile.matchHistory)) {
+        return profile;
+    }
+    return {
+        ...profile,
+        matchHistory: profile.matchHistory.map((entry) => {
+            if (!entry || !('gameLog' in entry)) {
+                return entry;
+            }
+            const { gameLog, ...rest } = entry;
+            return rest;
+        })
+    };
+}
+
 function saveCachedAuthProfile(profile) {
     try {
         if (!profile?.authenticated) {
             localStorage.removeItem(AUTH_PROFILE_STORAGE_KEY);
             return;
         }
-        localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+        const savedAt = Date.now();
+        const slim = slimProfileForCache(profile);
+        try {
+            localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt, profile: slim }));
+        } catch (quotaError) {
+            // Still too big (huge deck/match counts): fall back to the bare minimum
+            // the signed-in UI needs so SOMETHING always persists and the Play page
+            // can paint signed-in instead of looping on "Restoring your account…".
+            const minimal = {
+                authenticated: true,
+                user: slim.user,
+                progression: slim.progression,
+                savedDecks: slim.savedDecks || [],
+                matchHistory: []
+            };
+            localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt, profile: minimal }));
+        }
     } catch (e) {
         // The profile cache is a render optimization only.
     }
