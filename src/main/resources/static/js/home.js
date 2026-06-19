@@ -219,6 +219,23 @@
         }
     }
 
+    // Single source of truth for interpreting an /api/auth/me response. Sessions
+    // must only ever be dropped on an AUTHORITATIVE answer — never on a transient
+    // failure — so this returns one of three states the callers act on:
+    //   'signed-in'  -> server confirmed a valid session
+    //   'signed-out' -> server authoritatively reports no/expired session
+    //   'unknown'    -> request failed (offline, timeout, abort, 5xx) or the body
+    //                   was malformed; the session is NOT proven gone, so keep it.
+    // The app's two fetch helpers signal failure differently (game.js returns null,
+    // home.js returns an { error } object), so both shapes collapse to 'unknown'.
+    // Only a clean, error-free { authenticated: <boolean> } is authoritative.
+    function classifyAuthMe(data) {
+        if (!data || data.error || typeof data.authenticated !== 'boolean') {
+            return 'unknown';
+        }
+        return data.authenticated ? 'signed-in' : 'signed-out';
+    }
+
     const initialAuthToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
     // Seed from the cached snapshot so the signed-in hub renders instantly; the
     // background syncProfile() on init revalidates and refreshes it.
@@ -1089,15 +1106,15 @@
         // Bypass the HTTP cache: a stale {authenticated:false} response (Safari
         // is especially eager to cache GETs) would otherwise wipe a valid token.
         const data = await fetchJson('/api/auth/me', { cache: 'no-store' });
-        // A null response means the request itself failed (offline, timeout, 5xx) —
-        // it is NOT evidence that the session is gone. Keep the cached profile and
-        // token so a transient blip can't blank the signed-in UI here, nor strand
-        // the next page on the "Restoring your account…" state (which reads this
-        // same cache). Only a definitive {authenticated:false} clears the profile.
-        if (!data) {
+        const status = classifyAuthMe(data);
+        // Fail open: only an AUTHORITATIVE "signed out" clears the session. A
+        // network/timeout/5xx (status === 'unknown') keeps the cached profile +
+        // token and retries later — otherwise one flaky /api/auth/me blanks the
+        // signed-in UI even though the session is valid.
+        if (status === 'unknown') {
             return state.profile;
         }
-        if (!data.authenticated) {
+        if (status === 'signed-out') {
             // Do NOT delete the persisted token here. The token is shared with the
             // Play page (play.html/game.js); a transient failure or stale response
             // would otherwise sign the player out everywhere, and revisiting any

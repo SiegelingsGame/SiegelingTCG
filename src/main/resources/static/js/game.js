@@ -6992,6 +6992,19 @@ async function submitAuth(mode) {
     updateLoadoutSummary();
 }
 
+// Single source of truth for interpreting an /api/auth/me response, mirrored in
+// home.js. Sessions are only ever dropped on an AUTHORITATIVE answer — never on a
+// transient failure. Returns 'signed-in', 'signed-out', or 'unknown' (request
+// failed or body malformed -> session NOT proven gone, so keep it). This page's
+// fetchJson returns null on failure while the hub's returns an { error } object;
+// both collapse to 'unknown'. Only a clean { authenticated: <boolean> } is acted on.
+function classifyAuthMe(data) {
+    if (!data || data.error || typeof data.authenticated !== 'boolean') {
+        return 'unknown';
+    }
+    return data.authenticated ? 'signed-in' : 'signed-out';
+}
+
 async function syncAuthProfile(silent = false) {
     if (!authState.token) {
         authState.profile = null;
@@ -7012,14 +7025,16 @@ async function syncAuthProfile(silent = false) {
     // signed in on another page (e.g. the hub), logging them back out here.
     const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET', cache: 'no-store' });
     authState.loading = false;
-    if (!data) {
+    const status = classifyAuthMe(data);
+    // Fail open: a transient failure ('unknown') must never drop a valid session.
+    if (status === 'unknown') {
         if (!silent) {
             renderWelcomeAuth();
             renderSavedDecks();
         }
         return false;
     }
-    if (!data.authenticated) {
+    if (status === 'signed-out') {
         // Keep the shared token; only an explicit Log Out (or the deliberate guest
         // flow) should remove it. Wiping it here would sign the player out on the
         // hub and every other page too.
