@@ -5,6 +5,24 @@
     // /api/auth/me in the background instead of blocking on it.
     const AUTH_PROFILE_CACHE_KEY = 'sieglingsAuthProfile';
     const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    // Sentinel stored under AUTH_TOKEN_KEY once auth has moved to the httpOnly
+    // session cookie. Not a credential (the real token rides in the cookie the
+    // browser sends automatically) but it still drives every "signed in?" check and
+    // cross-tab storage-event sync exactly as a real token used to.
+    const COOKIE_SESSION_VALUE = 'cookie';
+    // True when the readable, secret-free `sgl_auth` companion cookie is present —
+    // signals a live session AND proves cookies round-trip in this environment.
+    function hasReadableAuthCookie() {
+        try {
+            return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+        } catch (e) {
+            return false;
+        }
+    }
+    // Only a real legacy Bearer token (not the cookie sentinel) is sent as a header.
+    function isLegacyBearerToken(token) {
+        return Boolean(token) && token !== COOKIE_SESSION_VALUE;
+    }
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     // Bulk pack buy: 10 pulls at a 5% discount. Mirrors PlayerProgressionService.
@@ -236,7 +254,10 @@
         return data.authenticated ? 'signed-in' : 'signed-out';
     }
 
-    const initialAuthToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    // Fall back to the cookie sentinel when an httpOnly session cookie exists but the
+    // localStorage marker is missing, so a live cookie session is still recognized.
+    const initialAuthToken = (localStorage.getItem(AUTH_TOKEN_KEY) || '')
+        || (hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : '');
     // Seed from the cached snapshot so the signed-in hub renders instantly; the
     // background syncProfile() on init revalidates and refreshes it.
     const cachedAuthProfile = initialAuthToken ? loadCachedAuthProfile() : null;
@@ -1129,6 +1150,13 @@
             stopPresenceHeartbeat();
             notifSnapshot = null;
             return null;
+        }
+        // Transparent migration: a legacy token rode in as a Bearer header and the
+        // server has now set the session cookie (confirmed by the readable companion
+        // cookie). Drop the secret from localStorage and keep only the sentinel.
+        if (isLegacyBearerToken(state.token) && hasReadableAuthCookie()) {
+            state.token = COOKIE_SESSION_VALUE;
+            try { localStorage.setItem(AUTH_TOKEN_KEY, state.token); } catch (e) { /* ignore */ }
         }
         state.profile = data;
         state.progression = data.progression || null;
@@ -6079,13 +6107,15 @@
 
     async function fetchJson(path, options = {}) {
         const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-        if (state.token) headers.Authorization = `Bearer ${state.token}`;
+        // Cookie-mode sessions authenticate via the httpOnly cookie (sent
+        // automatically); only attach a Bearer header for a real legacy token.
+        if (isLegacyBearerToken(state.token)) headers.Authorization = `Bearer ${state.token}`;
         const timeoutMs = Number(options.timeoutMs) || 0;
         const controller = timeoutMs && window.AbortController ? new AbortController() : null;
         const timeout = controller
             ? window.setTimeout(() => controller.abort(), timeoutMs)
             : null;
-        const fetchOptions = { ...options, headers };
+        const fetchOptions = { credentials: 'same-origin', ...options, headers };
         delete fetchOptions.timeoutMs;
         if (controller) {
             fetchOptions.signal = controller.signal;
@@ -6324,7 +6354,10 @@
             : { email, password };
         const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) });
         if (data?.error) return alert(data.error);
-        state.token = data.token || '';
+        // Prefer cookie auth: the server set an httpOnly session cookie, so store the
+        // sentinel (no secret in localStorage) once the companion cookie confirms
+        // cookies work here. Otherwise fall back to the real token + Bearer header.
+        state.token = hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : (data.token || '');
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
         saveCachedAuthProfile(data);

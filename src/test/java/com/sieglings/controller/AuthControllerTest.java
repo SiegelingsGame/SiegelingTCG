@@ -1,5 +1,6 @@
 package com.sieglings.controller;
 
+import com.sieglings.config.SessionCookieService;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.entity.SavedDeckEntity;
@@ -8,6 +9,7 @@ import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
 import com.sieglings.service.SavedDeckService;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -28,7 +30,7 @@ class AuthControllerTest {
             }
         });
 
-        Map<String, Object> response = controller.me("Bearer token");
+        Map<String, Object> response = controller.me("Bearer token", new MockHttpServletResponse());
 
         assertEquals(true, response.get("authenticated"));
         assertFalse(response.containsKey("token"));
@@ -51,7 +53,7 @@ class AuthControllerTest {
         Map<String, Object> response = controller.login(Map.of(
                 "email", user.getEmail(),
                 "password", "password1"
-        ));
+        ), new MockHttpServletResponse());
 
         assertEquals(true, response.get("authenticated"));
         assertEquals("session-token", response.get("token"));
@@ -67,6 +69,7 @@ class AuthControllerTest {
         setField(controller, "savedDeckService", new ThrowingSavedDeckService());
         setField(controller, "matchHistoryService", new ThrowingMatchHistoryService());
         setField(controller, "cardDefinitionService", new CardDefinitionService());
+        setField(controller, "sessionCookieService", new SessionCookieService(true));
         return controller;
     }
 
