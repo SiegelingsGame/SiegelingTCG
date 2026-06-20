@@ -17,7 +17,7 @@
  *
  * Bump CACHE_VERSION to force a clean sweep of every cache on the next visit.
  */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v6';
 const STATIC_CACHE = `siegelings-static-${CACHE_VERSION}`;
 const IMAGE_CACHE = `siegelings-img-${CACHE_VERSION}`;
 const HTML_CACHE = `siegelings-html-${CACHE_VERSION}`;
@@ -80,8 +80,32 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // Scripts and styles are network-first (cache only as offline fallback). The app
+    // shell carries the auth logic, and an installed Web App (iOS standalone) can
+    // otherwise keep running a stale, buggy bundle across relaunches even after a
+    // fix ships — stale-while-revalidate serves the old file first and only updates
+    // the NEXT launch. Network-first guarantees the latest code whenever online.
+    if (req.destination === 'script' || req.destination === 'style') {
+        event.respondWith(networkFirstAsset(req));
+        return;
+    }
+
     event.respondWith(staleWhileRevalidate(req));
 });
+
+async function networkFirstAsset(req) {
+    const cache = await caches.open(STATIC_CACHE);
+    try {
+        const res = await fetch(req);
+        if (res && res.ok) {
+            cache.put(req, res.clone());
+        }
+        return res;
+    } catch (e) {
+        const cached = await cache.match(req);
+        return cached || Response.error();
+    }
+}
 
 async function networkFirst(req) {
     const cache = await caches.open(HTML_CACHE);

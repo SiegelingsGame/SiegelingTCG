@@ -97,6 +97,45 @@ const HAND_DOUBLE_TAP_MS = 320;
 let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
+// Sentinel stored under AUTH_TOKEN_STORAGE_KEY once auth has moved to the httpOnly
+// session cookie. It is NOT a credential — the real token lives in the cookie the
+// browser sends automatically — but its presence still drives every "are we signed
+// in?" check and cross-tab storage-event sync exactly as a real token used to.
+const COOKIE_SESSION_VALUE = 'cookie';
+// True when the readable, secret-free `sgl_auth` companion cookie is present. The
+// server sets it alongside the httpOnly session cookie, so this both signals a
+// live session and proves cookies actually round-trip in this environment.
+function hasReadableAuthCookie() {
+    try {
+        return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+    } catch (e) {
+        return false;
+    }
+}
+// Whether the stored token value is a real legacy Bearer token (vs the cookie
+// sentinel). Only legacy tokens are sent as an Authorization header.
+function isLegacyBearerToken(token) {
+    return Boolean(token) && token !== COOKIE_SESSION_VALUE;
+}
+// True when running as an installed standalone Web App (iOS "Add to Home Screen"
+// / Android PWA). iOS standalone Web Apps do NOT reliably send the session cookie
+// across the full-page navigations this multi-page app uses (Home <-> Play), so in
+// that context we keep authenticating with the localStorage Bearer token — which
+// DOES persist across those navigations — instead of the cookie-only path. Browsers
+// keep the cookie-only path so the token stays out of script-readable storage.
+function isStandalonePWA() {
+    try {
+        return window.navigator.standalone === true
+            || Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    } catch (e) {
+        return false;
+    }
+}
+// On login, store the cookie sentinel only when cookies are confirmed working AND
+// we're not in a standalone Web App; otherwise persist the real token for Bearer auth.
+function preferredStoredToken(loginToken) {
+    return (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
+}
 // Last authenticated profile, cached in localStorage and shared with the hub so
 // every page can render the signed-in UI instantly and then revalidate against
 // /api/auth/me in the background instead of blocking on it.
@@ -189,17 +228,26 @@ let authMode = 'login';
 let authRegisterStep = 'credentials';
 let authPopupOpen = false;
 let registerDraft = { email: '', password: '' };
-const initialAuthToken = loadSavedAuthToken();
+// Fall back to the cookie sentinel when an httpOnly session cookie exists but the
+// localStorage marker is missing (e.g. localStorage cleared independently), so a
+// live cookie session is still recognized as signed-in.
+const initialAuthToken = loadSavedAuthToken() || (hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : '');
+// Seed from the cached snapshot so the signed-in UI renders instantly; the
+// background /api/auth/me on init revalidates and refreshes it.
+const initialCachedProfile = initialAuthToken ? loadCachedAuthProfile() : null;
 let authState = {
     token: initialAuthToken,
-    // Seed from the cached snapshot so the signed-in UI renders instantly; the
-    // background /api/auth/me on init revalidates and refreshes it.
-    profile: initialAuthToken ? loadCachedAuthProfile() : null,
+    profile: initialCachedProfile,
     loading: false,
-    // Whether /api/auth/me has returned a definitive answer this page load. Until
-    // it has, a present token means "signing in", NOT "logged out" — so the
-    // welcome screen shows a loading state instead of flashing the Log In card.
-    profileResolved: false,
+    // Whether we can treat the auth state as known for this page load. Seed it true
+    // when we already have a cached signed-in profile so navigating to Play from the
+    // hub paints the account immediately with NO "Restoring your account…" loading —
+    // the player is already signed in, so there is nothing to wait on. The silent
+    // background /api/auth/me still revalidates and corrects this if the session has
+    // genuinely lapsed. When there is no cached profile, a present token means
+    // "signing in", NOT "logged out", so the welcome screen shows a loading state
+    // instead of flashing the Log In card.
+    profileResolved: Boolean(initialCachedProfile?.authenticated),
     error: ''
 };
 let selectedSavedDeckId = null;
@@ -6050,13 +6098,62 @@ function loadCachedAuthProfile() {
     }
 }
 
+// Strip the heavy, rarely-needed fields from a profile before caching it. The
+// /api/auth/me payload embeds the FULL game log of every recorded match, which
+// can run to several megabytes — well past the ~5MB localStorage quota. When the
+// write throws QuotaExceededError it used to be swallowed silently, so the cache
+// never persisted and the Play page fell back to the "Restoring your account…"
+// takeover on every single visit. The welcome card only needs match metadata
+// (result/labels/health), never the per-line log, so we drop the logs for the
+// cached copy. The live in-memory profile keeps its logs, so the match-detail
+// modal still works once the background /api/auth/me refresh lands.
+function slimProfileForCache(profile) {
+    if (!profile) {
+        return profile;
+    }
+    // Never persist the bearer token. The httpOnly-cookie migration keeps the
+    // credential out of page-script reach, but the login response body still
+    // carries `token` for legacy clients — strip it so it can't leak into
+    // localStorage via the cached profile.
+    const { token, ...rest } = profile;
+    if (!Array.isArray(rest.matchHistory)) {
+        return rest;
+    }
+    return {
+        ...rest,
+        matchHistory: rest.matchHistory.map((entry) => {
+            if (!entry || !('gameLog' in entry)) {
+                return entry;
+            }
+            const { gameLog, ...rest } = entry;
+            return rest;
+        })
+    };
+}
+
 function saveCachedAuthProfile(profile) {
     try {
         if (!profile?.authenticated) {
             localStorage.removeItem(AUTH_PROFILE_STORAGE_KEY);
             return;
         }
-        localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+        const savedAt = Date.now();
+        const slim = slimProfileForCache(profile);
+        try {
+            localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt, profile: slim }));
+        } catch (quotaError) {
+            // Still too big (huge deck/match counts): fall back to the bare minimum
+            // the signed-in UI needs so SOMETHING always persists and the Play page
+            // can paint signed-in instead of looping on "Restoring your account…".
+            const minimal = {
+                authenticated: true,
+                user: slim.user,
+                progression: slim.progression,
+                savedDecks: slim.savedDecks || [],
+                matchHistory: []
+            };
+            localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt, profile: minimal }));
+        }
     } catch (e) {
         // The profile cache is a render optimization only.
     }
@@ -6123,7 +6220,9 @@ function renderAuthDependentSurfaces() {
 }
 
 async function refreshAuthFromStorage(silent = true) {
-    const stored = loadSavedAuthToken();
+    // Same cookie fallback as init: a live httpOnly session whose localStorage
+    // marker is missing must not be wiped on focus/pageshow/storage.
+    const stored = loadSavedAuthToken() || (hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : '');
     const tokenChanged = stored !== authState.token;
     const profileStale = Boolean(stored) && !authState.profile?.authenticated;
     const loggedOutElsewhere = !stored && Boolean(authState.profile?.authenticated);
@@ -6203,7 +6302,9 @@ function renderPlayHubAuth() {
 
 function getAuthHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
-    if (authState.token && !headers.Authorization) {
+    // Cookie-mode sessions authenticate via the httpOnly cookie the browser sends
+    // automatically, so only attach a Bearer header for a real legacy token.
+    if (isLegacyBearerToken(authState.token) && !headers.Authorization) {
         headers.Authorization = `Bearer ${authState.token}`;
     }
     return headers;
@@ -6473,7 +6574,17 @@ function dismissWelcome() {
 // on `authenticated` so a genuinely signed-in player keeps their token (and knight
 // progression) untouched.
 function dropStaleGuestToken() {
-    if (!authState.profile?.authenticated && (authState.token || authState.profile)) {
+    // Only drop the shared token once /api/auth/me has returned a *definitive*
+    // answer (profileResolved). During the "Restoring your account…" window the
+    // profile is not authenticated yet simply because the check is still in flight
+    // — the token may belong to a perfectly valid session. Wiping it here (e.g. a
+    // signed-in player tapping "Battle" before the restore settles) clears the
+    // token from localStorage and logs them out on every page, since the hub and
+    // Play page share it. A genuinely stale token is harmless: the server resolves
+    // a missing/expired session to a guest anyway (AccountService.findUser returns
+    // null), so we lose nothing by letting an unresolved token ride along until we
+    // actually know it is invalid.
+    if (authState.profileResolved && !authState.profile?.authenticated && (authState.token || authState.profile)) {
         clearAuthState();
     }
 }
@@ -6917,7 +7028,11 @@ async function submitAuth(mode) {
         return;
     }
 
-    saveAuthToken(data.token || '');
+    // Prefer cookie auth in browsers: persist the sentinel (no secret in
+    // localStorage) once the companion cookie confirms cookies round-trip. In a
+    // standalone Web App, or when cookies are blocked, keep the real token and send
+    // it as a Bearer header so auth survives cross-page navigation.
+    saveAuthToken(preferredStoredToken(data.token));
     authState.profile = data;
     authState.profileResolved = true;
     saveCachedAuthProfile(data);
@@ -6933,6 +7048,19 @@ async function submitAuth(mode) {
     renderSavedDecks();
     renderLoadoutOptions();
     updateLoadoutSummary();
+}
+
+// Single source of truth for interpreting an /api/auth/me response, mirrored in
+// home.js. Sessions are only ever dropped on an AUTHORITATIVE answer — never on a
+// transient failure. Returns 'signed-in', 'signed-out', or 'unknown' (request
+// failed or body malformed -> session NOT proven gone, so keep it). This page's
+// fetchJson returns null on failure while the hub's returns an { error } object;
+// both collapse to 'unknown'. Only a clean { authenticated: <boolean> } is acted on.
+function classifyAuthMe(data) {
+    if (!data || data.error || typeof data.authenticated !== 'boolean') {
+        return 'unknown';
+    }
+    return data.authenticated ? 'signed-in' : 'signed-out';
 }
 
 async function syncAuthProfile(silent = false) {
@@ -6955,20 +7083,31 @@ async function syncAuthProfile(silent = false) {
     // signed in on another page (e.g. the hub), logging them back out here.
     const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET', cache: 'no-store' });
     authState.loading = false;
-    if (!data) {
+    const status = classifyAuthMe(data);
+    // Fail open: a transient failure ('unknown') must never drop a valid session.
+    if (status === 'unknown') {
         if (!silent) {
             renderWelcomeAuth();
             renderSavedDecks();
         }
         return false;
     }
-    if (!data.authenticated) {
+    if (status === 'signed-out') {
         // Keep the shared token; only an explicit Log Out (or the deliberate guest
         // flow) should remove it. Wiping it here would sign the player out on the
         // hub and every other page too.
         authState.profileResolved = true;
         clearAuthProfile();
         return false;
+    }
+
+    // Transparent migration (browsers only): a legacy token rode in as a Bearer
+    // header and the server has now set the session cookie (confirmed by the
+    // readable companion cookie). Drop the secret and keep only the sentinel. Skip
+    // in a standalone Web App, where the cookie isn't reliably sent across pages so
+    // the Bearer token must stay.
+    if (isLegacyBearerToken(authState.token) && hasReadableAuthCookie() && !isStandalonePWA()) {
+        saveAuthToken(COOKIE_SESSION_VALUE);
     }
 
     authState.profile = data;
@@ -7959,6 +8098,7 @@ async function fetchJson(urlOrUrls, options = {}, timeoutMs = DEFAULT_REQUEST_TI
         const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
         try {
             const resp = await fetch(url, {
+                credentials: 'same-origin',
                 ...options,
                 headers: getAuthHeaders(options.headers || {}),
                 signal: controller.signal

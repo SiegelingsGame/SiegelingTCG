@@ -69,6 +69,12 @@ public class ProfileSettingsService {
             Object favoriteElement = req.get("favoriteElement");
             settings.setFavoriteElement(normalizeElement(favoriteElement == null ? null : String.valueOf(favoriteElement)));
         }
+        if (req.containsKey("profileArtId")) {
+            settings.setProfileArtId(trim(readString(req, "profileArtId"), 120));
+        }
+        if (req.containsKey("pageArtId")) {
+            settings.setPageArtId(trim(readString(req, "pageArtId"), 120));
+        }
         String requestedTitleId = readString(req, "playerTitleId");
         if (requestedTitleId.isBlank()) {
             requestedTitleId = readString(req, "playerTitle");
@@ -116,6 +122,8 @@ public class ProfileSettingsService {
         out.put("avatarUrl", settings.getAvatarUrl() == null ? "" : settings.getAvatarUrl());
         out.put("favoriteElement", normalizeElement(settings.getFavoriteElement()));
         out.put("favoriteElementLabel", toProfileElementLabel(settings.getFavoriteElement()));
+        out.put("profileArtId", settings.getProfileArtId() == null ? "" : settings.getProfileArtId());
+        out.put("pageArtId", settings.getPageArtId() == null ? "" : settings.getPageArtId());
 
         String titleId = playerTitleService.migrateLegacyTitleId(settings.getPlayerTitle(), settings.getFavoriteElement());
         out.put("playerTitleId", titleId);

@@ -5,6 +5,42 @@
     // /api/auth/me in the background instead of blocking on it.
     const AUTH_PROFILE_CACHE_KEY = 'sieglingsAuthProfile';
     const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    // Sentinel stored under AUTH_TOKEN_KEY once auth has moved to the httpOnly
+    // session cookie. Not a credential (the real token rides in the cookie the
+    // browser sends automatically) but it still drives every "signed in?" check and
+    // cross-tab storage-event sync exactly as a real token used to.
+    const COOKIE_SESSION_VALUE = 'cookie';
+    // True when the readable, secret-free `sgl_auth` companion cookie is present —
+    // signals a live session AND proves cookies round-trip in this environment.
+    function hasReadableAuthCookie() {
+        try {
+            return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+        } catch (e) {
+            return false;
+        }
+    }
+    // Only a real legacy Bearer token (not the cookie sentinel) is sent as a header.
+    function isLegacyBearerToken(token) {
+        return Boolean(token) && token !== COOKIE_SESSION_VALUE;
+    }
+    // True when running as an installed standalone Web App (iOS "Add to Home Screen"
+    // / Android PWA). iOS standalone Web Apps don't reliably send the session cookie
+    // across the full-page navigations this multi-page app uses (Home <-> Play), so
+    // there we keep authenticating with the localStorage Bearer token (which does
+    // persist across those navigations) rather than the cookie-only path.
+    function isStandalonePWA() {
+        try {
+            return window.navigator.standalone === true
+                || Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        } catch (e) {
+            return false;
+        }
+    }
+    // On login, store the cookie sentinel only when cookies are confirmed working AND
+    // we're not a standalone Web App; otherwise keep the real token for Bearer auth.
+    function preferredStoredToken(loginToken) {
+        return (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
+    }
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     // Bulk pack buy: 10 pulls at a 5% discount. Mirrors PlayerProgressionService.
@@ -110,7 +146,7 @@
         Fire: {
             accent: '#ff6a2a',
             glow: 'rgba(255, 106, 42, 0.34)',
-            gradient: 'linear-gradient(135deg, rgba(74, 10, 20, 0.98), rgba(157, 41, 17, 0.82) 52%, rgba(255, 128, 30, 0.34))',
+            gradient: 'linear-gradient(135deg, rgba(74, 10, 20, 0.42), rgba(157, 41, 17, 0.32) 52%, rgba(255, 128, 30, 0.16))',
             border: 'rgba(255, 126, 56, 0.55)',
             badge: 'linear-gradient(135deg, #ff8a2a, #f43f1c)',
             mood: 'Blazing Core Duelist',
@@ -119,7 +155,7 @@
         Ice: {
             accent: '#7ad9e7',
             glow: 'rgba(122, 217, 231, 0.32)',
-            gradient: 'linear-gradient(135deg, rgba(10, 24, 54, 0.98), rgba(23, 78, 129, 0.82) 54%, rgba(155, 231, 255, 0.28))',
+            gradient: 'linear-gradient(135deg, rgba(10, 24, 54, 0.42), rgba(23, 78, 129, 0.32) 54%, rgba(155, 231, 255, 0.15))',
             border: 'rgba(146, 232, 255, 0.55)',
             badge: 'linear-gradient(135deg, #b8f3ff, #3c8ed8)',
             mood: 'Frostglass Tactician',
@@ -128,7 +164,7 @@
         Wind: {
             accent: '#64c987',
             glow: 'rgba(100, 201, 135, 0.31)',
-            gradient: 'linear-gradient(135deg, rgba(6, 45, 45, 0.98), rgba(17, 120, 92, 0.78) 55%, rgba(150, 255, 180, 0.24))',
+            gradient: 'linear-gradient(135deg, rgba(6, 45, 45, 0.42), rgba(17, 120, 92, 0.3) 55%, rgba(150, 255, 180, 0.14))',
             border: 'rgba(132, 236, 170, 0.52)',
             badge: 'linear-gradient(135deg, #96ffb4, #19a974)',
             mood: 'Gale-Thread Strategist',
@@ -137,7 +173,7 @@
         Earth: {
             accent: '#d0a65f',
             glow: 'rgba(208, 166, 95, 0.29)',
-            gradient: 'linear-gradient(135deg, rgba(22, 41, 25, 0.98), rgba(82, 67, 35, 0.82) 55%, rgba(199, 160, 89, 0.28))',
+            gradient: 'linear-gradient(135deg, rgba(22, 41, 25, 0.42), rgba(82, 67, 35, 0.32) 55%, rgba(199, 160, 89, 0.15))',
             border: 'rgba(208, 166, 95, 0.55)',
             badge: 'linear-gradient(135deg, #d0a65f, #537a3a)',
             mood: 'Mossgold Sentinel',
@@ -146,7 +182,7 @@
         Neutral: {
             accent: '#b8c0cc',
             glow: 'rgba(184, 192, 204, 0.25)',
-            gradient: 'linear-gradient(135deg, rgba(12, 17, 28, 0.98), rgba(48, 56, 72, 0.84) 55%, rgba(218, 226, 238, 0.2))',
+            gradient: 'linear-gradient(135deg, rgba(12, 17, 28, 0.42), rgba(48, 56, 72, 0.32) 55%, rgba(218, 226, 238, 0.13))',
             border: 'rgba(210, 218, 230, 0.45)',
             badge: 'linear-gradient(135deg, #d8dee8, #5f6b7a)',
             mood: 'Astral Core Adept',
@@ -167,13 +203,51 @@
         }
     }
 
+    // Drop the heavy per-match game logs before caching. The /api/auth/me payload
+    // embeds the full log of every recorded match, which can blow past the ~5MB
+    // localStorage quota; the write then throws QuotaExceededError, gets swallowed,
+    // and the cache never persists — which strands the Play page on the "Restoring
+    // your account…" takeover (it reads this same cache). The hub never needs the
+    // logs to render, so slim them out, and fall back to a minimal snapshot if even
+    // the slimmed copy won't fit.
+    function slimProfileForCache(profile) {
+        if (!profile) return profile;
+        // Never persist the bearer token: the httpOnly-cookie migration keeps the
+        // credential out of page-script reach, but the login response body still
+        // carries `token` for legacy clients — strip it so it can't leak into
+        // localStorage via the cached profile.
+        const { token, ...rest } = profile;
+        if (!Array.isArray(rest.matchHistory)) return rest;
+        return {
+            ...rest,
+            matchHistory: rest.matchHistory.map((entry) => {
+                if (!entry || !('gameLog' in entry)) return entry;
+                const { gameLog, ...e } = entry;
+                return e;
+            })
+        };
+    }
+
     function saveCachedAuthProfile(profile) {
         try {
             if (!profile?.authenticated) {
                 localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
                 return;
             }
-            localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+            const savedAt = Date.now();
+            const slim = slimProfileForCache(profile);
+            try {
+                localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt, profile: slim }));
+            } catch (quotaError) {
+                const minimal = {
+                    authenticated: true,
+                    user: slim.user,
+                    progression: slim.progression,
+                    savedDecks: slim.savedDecks || [],
+                    matchHistory: []
+                };
+                localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt, profile: minimal }));
+            }
         } catch (error) {
             // The profile cache is a render optimization only.
         }
@@ -187,7 +261,27 @@
         }
     }
 
-    const initialAuthToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    // Single source of truth for interpreting an /api/auth/me response. Sessions
+    // must only ever be dropped on an AUTHORITATIVE answer — never on a transient
+    // failure — so this returns one of three states the callers act on:
+    //   'signed-in'  -> server confirmed a valid session
+    //   'signed-out' -> server authoritatively reports no/expired session
+    //   'unknown'    -> request failed (offline, timeout, abort, 5xx) or the body
+    //                   was malformed; the session is NOT proven gone, so keep it.
+    // The app's two fetch helpers signal failure differently (game.js returns null,
+    // home.js returns an { error } object), so both shapes collapse to 'unknown'.
+    // Only a clean, error-free { authenticated: <boolean> } is authoritative.
+    function classifyAuthMe(data) {
+        if (!data || data.error || typeof data.authenticated !== 'boolean') {
+            return 'unknown';
+        }
+        return data.authenticated ? 'signed-in' : 'signed-out';
+    }
+
+    // Fall back to the cookie sentinel when an httpOnly session cookie exists but the
+    // localStorage marker is missing, so a live cookie session is still recognized.
+    const initialAuthToken = (localStorage.getItem(AUTH_TOKEN_KEY) || '')
+        || (hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : '');
     // Seed from the cached snapshot so the signed-in hub renders instantly; the
     // background syncProfile() on init revalidates and refreshes it.
     const cachedAuthProfile = initialAuthToken ? loadCachedAuthProfile() : null;
@@ -235,6 +329,8 @@
         filterTrayOpen: false,
         cardTrayOpen: false,
         authOpen: false,
+        authMode: 'login',
+        authDraft: { email: '', password: '' },
         authRegisterStep: 'credentials',
         registerDraft: { email: '', password: '' },
         profileEditOpen: false,
@@ -529,6 +625,9 @@
         // Cache the list so the very next visit can paint a loading screen
         // before the network answers.
         localStorage.setItem(ART_CACHE_KEY, JSON.stringify(state.loadingArt));
+        // Now that the catalog is known, resolve any account-saved background
+        // ids that arrived before the art list did.
+        applyProfileArtFromPrefs(state.profilePrefs);
     }
 
     function showLoadingArtScreen(label) {
@@ -573,8 +672,17 @@
         document.body.classList.toggle('has-custom-art', Boolean(url));
     }
 
+    // Maps a background localStorage key to the profile-settings field that
+    // persists the chosen art id to the account (so it follows the player across
+    // browsers/devices).
+    const ART_KEY_TO_FIELD = {
+        [PAGE_ART_KEY]: 'pageArtId',
+        [PROFILE_ART_KEY]: 'profileArtId'
+    };
+
     function setStoredArt(key, pieceId) {
         const current = readStoredArt(key);
+        let selectedId = '';
         if (current?.id === pieceId) {
             // Picking the active piece again toggles back to the default look.
             localStorage.removeItem(key);
@@ -582,10 +690,57 @@
             const piece = (state.loadingArt || []).find(item => item.id === pieceId);
             if (!piece) return;
             localStorage.setItem(key, JSON.stringify(piece));
+            selectedId = piece.id;
         }
+        persistArtSelection(key, selectedId);
         applyCustomPageArt();
         renderOptions();
         if (state.route === 'profile') safeRender(renderProfile);
+    }
+
+    // Mirrors the working localStorage background selection onto the account so a
+    // fresh browser can rehydrate it. Updates in-memory prefs immediately and
+    // best-effort saves to the server (the localStorage copy keeps it usable even
+    // if the request fails).
+    function persistArtSelection(key, pieceId) {
+        const field = ART_KEY_TO_FIELD[key];
+        if (!field) return;
+        const value = String(pieceId || '');
+        if (state.profilePrefs) state.profilePrefs[field] = value;
+        cacheProfilePrefs(state.profilePrefs);
+        if (!state.profile?.authenticated) return;
+        fetchJson('/api/profile/settings', { method: 'POST', body: JSON.stringify({ [field]: value }) })
+            .then(data => {
+                const serverPrefs = data && !data.error ? applyProfileSettingsFromServer(data.profileSettings) : null;
+                if (serverPrefs) {
+                    state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
+                    cacheProfilePrefs(state.profilePrefs);
+                }
+            })
+            .catch(() => { /* localStorage keeps the selection usable offline */ });
+    }
+
+    // Rehydrates the page/profile background images from saved account prefs,
+    // resolving the stored art ids against the loaded gallery. Called whenever
+    // prefs load and again once the art catalog finishes loading.
+    function applyProfileArtFromPrefs(prefs) {
+        if (!prefs) return;
+        syncArtKeyFromId(PAGE_ART_KEY, prefs.pageArtId);
+        syncArtKeyFromId(PROFILE_ART_KEY, prefs.profileArtId);
+        applyCustomPageArt();
+        if (state.route === 'profile') safeRender(renderProfile);
+    }
+
+    function syncArtKeyFromId(key, pieceId) {
+        const id = String(pieceId || '').trim();
+        if (!id) {
+            localStorage.removeItem(key);
+            return;
+        }
+        const piece = (state.loadingArt || []).find(item => item.id === id);
+        // If the catalog hasn't loaded yet we leave any existing copy in place;
+        // loadLoadingArt() re-runs this once the pieces are available.
+        if (piece) localStorage.setItem(key, JSON.stringify(piece));
     }
 
     function openArtLightbox(pieceId) {
@@ -906,6 +1061,10 @@
         });
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
+        // Close when the backdrop (the overlay itself) is tapped, like the Play popup.
+        document.getElementById('authModal')?.addEventListener('click', (event) => {
+            if (event.target === event.currentTarget) closeAuth();
+        });
         document.getElementById('closeDeckPreviewBtn')?.addEventListener('click', closeDeckPreview);
         document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
             if (event.target === event.currentTarget) closeDeckPreview();
@@ -998,7 +1157,15 @@
         // Bypass the HTTP cache: a stale {authenticated:false} response (Safari
         // is especially eager to cache GETs) would otherwise wipe a valid token.
         const data = await fetchJson('/api/auth/me', { cache: 'no-store' });
-        if (!data?.authenticated) {
+        const status = classifyAuthMe(data);
+        // Fail open: only an AUTHORITATIVE "signed out" clears the session. A
+        // network/timeout/5xx (status === 'unknown') keeps the cached profile +
+        // token and retries later — otherwise one flaky /api/auth/me blanks the
+        // signed-in UI even though the session is valid.
+        if (status === 'unknown') {
+            return state.profile;
+        }
+        if (status === 'signed-out') {
             // Do NOT delete the persisted token here. The token is shared with the
             // Play page (play.html/game.js); a transient failure or stale response
             // would otherwise sign the player out everywhere, and revisiting any
@@ -1013,6 +1180,14 @@
             stopPresenceHeartbeat();
             notifSnapshot = null;
             return null;
+        }
+        // Transparent migration (browsers only): a legacy token rode in as a Bearer
+        // header and the server has set the session cookie (confirmed by the readable
+        // companion cookie). Drop the secret and keep only the sentinel. Skip in a
+        // standalone Web App, where the cookie isn't reliably sent across pages.
+        if (isLegacyBearerToken(state.token) && hasReadableAuthCookie() && !isStandalonePWA()) {
+            state.token = COOKIE_SESSION_VALUE;
+            try { localStorage.setItem(AUTH_TOKEN_KEY, state.token); } catch (e) { /* ignore */ }
         }
         state.profile = data;
         state.progression = data.progression || null;
@@ -1030,6 +1205,7 @@
         } else if (!state.profilePrefs) {
             state.profilePrefs = defaultProfilePrefs(data.user || {});
         }
+        applyProfileArtFromPrefs(state.profilePrefs);
         return data;
     }
 
@@ -1095,6 +1271,11 @@
             stored = localStorage.getItem(AUTH_TOKEN_KEY) || '';
         } catch (e) {
             stored = '';
+        }
+        // Same cookie fallback as init: a live httpOnly session whose localStorage
+        // marker is missing must not be wiped on focus/pageshow/storage.
+        if (!stored && hasReadableAuthCookie()) {
+            stored = COOKIE_SESSION_VALUE;
         }
         const tokenChanged = stored !== state.token;
         const profileStale = Boolean(stored) && !state.profile?.authenticated;
@@ -3654,7 +3835,7 @@
         };
         const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
         prefs.favoriteElement = favoriteElement;
-        const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
+        const theme = profileThemeFor(prefs);
         const collection = collectionSummary();
         const savedDecks = state.profile?.savedDecks || [];
         const battles = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
@@ -3683,6 +3864,8 @@
             avatar: initials(displayName),
             avatarUrl: '',
             favoriteElement,
+            profileArtId: '',
+            pageArtId: '',
             playerTitle: theme.mood,
             playerTitleId: defaultStarterTitleId(favoriteElement),
             bio: starterProfileBio(favoriteElement),
@@ -3851,6 +4034,13 @@
             Wind: 'Wind starter chosen. Build around tempo, disruption, and fast Siegelings.',
             Ice: 'Ice starter chosen. Build around freezes, control, and resilient board lines.'
         }[normalizeProfileElement(element)] || 'Ready to tune a deck, open a pack, and make the next match count.';
+    }
+
+    // The profile color theme always tracks the player's favorite element. The
+    // selectable "profile background" is an image (see profileArtId), not a color.
+    function profileThemeFor(prefs = {}) {
+        const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
+        return elementThemes[favoriteElement] || elementThemes.Neutral;
     }
 
     function profileThemeStyle(theme) {
@@ -4328,6 +4518,7 @@
                     ${profileInput('Avatar initials', 'avatar', prefs.avatar)}
                     ${profileInput('Avatar image URL', 'avatarUrl', prefs.avatarUrl)}
                     <label><span>Favorite element</span><select class="search-input" data-profile-field="favoriteElement">${PROFILE_ELEMENTS.map(element => `<option value="${element}"${element === prefs.favoriteElement ? ' selected' : ''}>${element}</option>`).join('')}</select></label>
+                    ${profileBackgroundSelect(prefs.profileArtId)}
                     ${profileTitleSelect(prefs.playerTitleId, prefs)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
                     ${profileCardBackSelect(prefs.preferredCardBack)}
@@ -4343,6 +4534,23 @@
 
     function profileInput(label, field, value) {
         return `<label><span>${escapeHtml(label)}</span><input class="search-input" data-profile-field="${escapeAttr(field)}" value="${escapeAttr(value)}"></label>`;
+    }
+
+    // Renders the profile background image picker, listing the art gallery pieces.
+    // The first option is the default (no image); any saved id not in the loaded
+    // catalog is preserved so a slow art fetch never wipes the player's choice.
+    function profileBackgroundSelect(selectedId) {
+        const current = String(selectedId || '').trim();
+        const pieces = (state.loadingArt || []).slice();
+        const ids = pieces.map(piece => piece.id);
+        const options = [`<option value=""${current ? '' : ' selected'}>Default (no image)</option>`];
+        if (current && !ids.includes(current)) {
+            options.push(`<option value="${escapeAttr(current)}" selected>${escapeHtml(current)}</option>`);
+        }
+        pieces.forEach(piece => {
+            options.push(`<option value="${escapeAttr(piece.id)}"${piece.id === current ? ' selected' : ''}>${escapeHtml(piece.title || piece.id)}</option>`);
+        });
+        return `<label><span>Profile background</span><select class="search-input" data-profile-field="profileArtId">${options.join('')}</select></label>`;
     }
 
     // Renders the preferred card back picker as a dropdown of premade backs.
@@ -4464,6 +4672,7 @@
             ? { ...defaultProfilePrefs(state.profile?.user || {}), ...applyProfileSettingsFromServer(data.profileSettings) }
             : next;
         cacheProfilePrefs(state.profilePrefs);
+        applyProfileArtFromPrefs(state.profilePrefs);
         if (state.profile?.user && state.profilePrefs?.displayName) {
             state.profile.user.displayName = state.profilePrefs.displayName;
         }
@@ -4841,6 +5050,7 @@
                 if (serverPrefs) {
                     state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
                     cacheProfilePrefs(state.profilePrefs);
+                    applyProfileArtFromPrefs(state.profilePrefs);
                 } else {
                     applyStarterProfileDefaults();
                 }
@@ -5929,17 +6139,22 @@
         cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
         const trayOpen = (showFilterHud && filterOpen) || (binder && state.cardTrayOpen);
         backdrop?.classList.toggle('hidden', !trayOpen);
+        // Lock the page scroll behind an open tray so touch gestures stay
+        // confined to the tray instead of scrolling the background.
+        document.body.classList.toggle('tray-open', trayOpen);
     }
 
     async function fetchJson(path, options = {}) {
         const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-        if (state.token) headers.Authorization = `Bearer ${state.token}`;
+        // Cookie-mode sessions authenticate via the httpOnly cookie (sent
+        // automatically); only attach a Bearer header for a real legacy token.
+        if (isLegacyBearerToken(state.token)) headers.Authorization = `Bearer ${state.token}`;
         const timeoutMs = Number(options.timeoutMs) || 0;
         const controller = timeoutMs && window.AbortController ? new AbortController() : null;
         const timeout = controller
             ? window.setTimeout(() => controller.abort(), timeoutMs)
             : null;
-        const fetchOptions = { ...options, headers };
+        const fetchOptions = { credentials: 'same-origin', ...options, headers };
         delete fetchOptions.timeoutMs;
         if (controller) {
             fetchOptions.signal = controller.signal;
@@ -6092,36 +6307,79 @@
         }
     }
 
+    // Mirrors the Play page's sign-in popup (game.js buildAuthFormMarkup) so the
+    // hub/shop login matches it: ACCOUNT eyebrow, Log In / Register tabs, and a
+    // single primary button. Shared style.css supplies the look; the hub wires
+    // events via IDs/data-attrs (its code is sandboxed, so no inline onclick).
     function authMarkup() {
         if (state.authRegisterStep === 'display-name') {
-            return `<div class="auth-card">
-                <strong>Choose your display name</strong>
-                <span>Confirm how other duelists will see you (${escapeHtml(state.registerDraft.email || '')}).</span>
-                <input class="search-input" id="authName" maxlength="20" placeholder="Display name" autofocus>
-                <button class="primary-btn" id="confirmRegisterBtn" type="button">Confirm</button>
-                <button class="ghost-btn" id="backRegisterBtn" type="button">Back</button>
-            </div>`;
+            return `
+                <div class="welcome-eyebrow">ACCOUNT</div>
+                <h3>Choose your display name</h3>
+                <div class="welcome-auth-meta">${escapeHtml(state.registerDraft.email || '')}</div>
+                <label class="online-field">
+                    <span>Display Name</span>
+                    <input type="text" id="authName" maxlength="20" placeholder="Arena name" autofocus>
+                </label>
+                <div class="welcome-auth-actions">
+                    <button class="btn welcome-auth-submit" id="backRegisterBtn" type="button">Back</button>
+                    <button class="btn btn-primary welcome-auth-submit" id="confirmRegisterBtn" type="button">Confirm</button>
+                </div>
+            `;
         }
-        return `<div class="auth-card">
-            <strong>Sign in to save progression</strong>
-            <span>Starter packs, Siegecoins, Remnants, owned cards, and custom decks require an account. New players start with ${renderCoinAmount(100)}.</span>
-            <input class="search-input" id="authEmail" type="email" placeholder="Email">
-            <input class="search-input" id="authPassword" type="password" placeholder="Password">
-            <button class="primary-btn" id="loginBtn" type="button">Log In</button>
-            <button class="ghost-btn" id="registerBtn" type="button">Register</button>
-        </div>`;
+        const mode = state.authMode === 'register' ? 'register' : 'login';
+        return `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>${mode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+            <div class="welcome-auth-tabs">
+                <button class="welcome-auth-tab${mode === 'login' ? ' active' : ''}" type="button" data-auth-mode="login" aria-selected="${mode === 'login'}">Log In</button>
+                <button class="welcome-auth-tab${mode === 'register' ? ' active' : ''}" type="button" data-auth-mode="register" aria-selected="${mode === 'register'}">Register</button>
+            </div>
+            <label class="online-field">
+                <span>Email</span>
+                <input type="email" id="authEmail" placeholder="you@example.com">
+            </label>
+            <label class="online-field">
+                <span>Password</span>
+                <input type="password" id="authPassword" placeholder="At least 6 characters">
+            </label>
+            <div class="welcome-auth-actions">
+                <button class="btn btn-primary welcome-auth-submit" id="authPrimaryBtn" type="button">${mode === 'login' ? 'Log In' : 'Register'}</button>
+            </div>
+        `;
     }
 
     function openAuth() {
         if (state.profile?.authenticated) return logout();
         state.authOpen = true;
+        state.authMode = 'login';
+        state.authRegisterStep = 'credentials';
+        state.authDraft = { email: '', password: '' };
         renderAuthModal();
     }
 
     function closeAuth() {
         state.authOpen = false;
+        state.authMode = 'login';
         state.authRegisterStep = 'credentials';
         state.registerDraft = { email: '', password: '' };
+        state.authDraft = { email: '', password: '' };
+        renderAuthModal();
+    }
+
+    // Preserve whatever the player has typed when flipping the Log In / Register tab.
+    function captureAuthDraft() {
+        const email = document.getElementById('authEmail');
+        const password = document.getElementById('authPassword');
+        state.authDraft = {
+            email: email ? email.value : (state.authDraft?.email || ''),
+            password: password ? password.value : (state.authDraft?.password || '')
+        };
+    }
+
+    function setAuthMode(mode) {
+        captureAuthDraft();
+        state.authMode = mode === 'register' ? 'register' : 'login';
         renderAuthModal();
     }
 
@@ -6143,13 +6401,24 @@
     }
 
     function bindAuthForms() {
-        document.querySelectorAll('#loginBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('login')));
-        document.querySelectorAll('#registerBtn').forEach(btn => btn.addEventListener('click', () => beginRegisterDisplayName()));
-        document.querySelectorAll('#confirmRegisterBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('register')));
-        document.querySelectorAll('#backRegisterBtn').forEach(btn => btn.addEventListener('click', () => {
+        // Restore typed credentials after a re-render (e.g. switching tab).
+        const draft = state.authDraft || { email: '', password: '' };
+        const emailInput = document.getElementById('authEmail');
+        const passwordInput = document.getElementById('authPassword');
+        if (emailInput && draft.email) emailInput.value = draft.email;
+        if (passwordInput && draft.password) passwordInput.value = draft.password;
+
+        document.querySelectorAll('[data-auth-mode]').forEach(btn =>
+            btn.addEventListener('click', () => setAuthMode(btn.getAttribute('data-auth-mode'))));
+        document.getElementById('authPrimaryBtn')?.addEventListener('click', () => {
+            if (state.authMode === 'register') beginRegisterDisplayName();
+            else submitAuth('login');
+        });
+        document.getElementById('confirmRegisterBtn')?.addEventListener('click', () => submitAuth('register'));
+        document.getElementById('backRegisterBtn')?.addEventListener('click', () => {
             state.authRegisterStep = 'credentials';
             renderAuthModal();
-        }));
+        });
     }
 
     function beginRegisterDisplayName() {
@@ -6178,20 +6447,32 @@
             : { email, password };
         const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) });
         if (data?.error) return alert(data.error);
-        state.token = data.token || '';
+        // Prefer cookie auth in browsers; in a standalone Web App (or when cookies
+        // are blocked) keep the real token + Bearer header so auth survives the
+        // full-page Home <-> Play navigation.
+        state.token = preferredStoredToken(data.token);
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
         saveCachedAuthProfile(data);
         state.progression = data.progression;
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
+        applyProfileArtFromPrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
-        startPresenceHeartbeat();
         state.authRegisterStep = 'credentials';
         state.registerDraft = { email: '', password: '' };
-        await ensurePacksLoaded();
-        render();
+        // Close the login UI instantly, then cover the data load with a random
+        // loading-screen art piece so the player isn't staring at the form.
+        renderAuthModal();
+        const loadingShownAt = showLoadingArtScreen('Loading your Siegelings…');
+        startPresenceHeartbeat();
+        try {
+            await ensurePacksLoaded();
+            render();
+        } finally {
+            hideLoadingArtScreen(loadingShownAt);
+        }
     }
 
     async function logout() {
@@ -6578,6 +6859,8 @@
             avatarMode: settings.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL',
             avatar: settings.avatar || '',
             avatarUrl: settings.avatarUrl || '',
+            profileArtId: settings.profileArtId || '',
+            pageArtId: settings.pageArtId || '',
             playerTitle: settings.playerTitle || '',
             playerTitleId: settings.playerTitleId || settings.playerTitle || '',
             bio: settings.bio || '',
@@ -6614,6 +6897,8 @@
                 avatar: prefs.avatar,
                 avatarUrl: prefs.avatarUrl,
                 favoriteElement: prefs.favoriteElement,
+                profileArtId: prefs.profileArtId,
+                pageArtId: prefs.pageArtId,
                 playerTitle: prefs.playerTitle,
                 playerTitleId: prefs.playerTitleId,
                 bio: prefs.bio,
@@ -7568,7 +7853,7 @@
         };
         const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
         prefs.favoriteElement = favoriteElement;
-        const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
+        const theme = profileThemeFor(prefs);
         const stats = data.stats || {};
         const battles = (data.recentMatches || []).map((row, index) => normalizeBattle(row, favoriteElement, index));
         const record = battleRecord(battles);
@@ -8004,6 +8289,8 @@
         if (event.target.closest('[data-art-clear]')) {
             localStorage.removeItem(PAGE_ART_KEY);
             localStorage.removeItem(PROFILE_ART_KEY);
+            persistArtSelection(PAGE_ART_KEY, '');
+            persistArtSelection(PROFILE_ART_KEY, '');
             applyCustomPageArt();
             renderOptions();
             if (state.route === 'profile') safeRender(renderProfile);

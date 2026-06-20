@@ -184,6 +184,19 @@ body.starter-onboarding-active .hud-fab {
     -webkit-backdrop-filter: blur(5px);
 }
 
+.loading-art-spinner {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 215, 0, 0.22);
+    border-top-color: #ffd700;
+    animation: loadingArtSpin 0.8s linear infinite;
+}
+
+@keyframes loadingArtSpin {
+    to { transform: rotate(360deg); }
+}
+
 .loading-art-label {
     color: #fff7d9;
     font-size: 13px;
@@ -320,7 +333,7 @@ body.starter-onboarding-active .hud-fab {
     z-index: 0;
     border-radius: inherit;
     background:
-        linear-gradient(180deg, rgba(5, 8, 17, 0.25), rgba(5, 8, 17, 0.78)),
+        linear-gradient(180deg, rgba(5, 8, 17, 0.12), rgba(5, 8, 17, 0.5)),
         var(--profile-art, none) center / cover no-repeat;
 }
 
@@ -1093,6 +1106,9 @@ body.starter-onboarding-active .hud-fab {
     max-height: calc(100vh - 104px);
     padding: 14px;
     overflow-y: auto;
+    /* Keep scroll momentum inside the tray so reaching the top/bottom edge
+       doesn't chain the gesture through to the page behind it. */
+    overscroll-behavior: contain;
     transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
@@ -1121,6 +1137,10 @@ body.starter-onboarding-active .hud-fab {
     background: rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
+    /* Swallow touch gestures on the dimmed area so dragging on it can't
+       scroll the page underneath the open tray. */
+    touch-action: none;
+    overscroll-behavior: contain;
 }
 
 .browser-panel {
@@ -6020,10 +6040,14 @@ body.gacha-active {
     padding: 20px;
     border: 1px solid var(--profile-border, rgba(255, 126, 56, 0.55));
     border-radius: 14px;
+    /* Liquid-glass treatment: the themed gradient is translucent and sits over a
+       backdrop blur so any page/profile background art reads through the panel. */
     background:
         radial-gradient(circle at 12% 20%, var(--profile-glow, rgba(255, 106, 42, 0.3)), transparent 34%),
         radial-gradient(circle at 90% 15%, rgba(255, 255, 255, 0.13), transparent 24%),
-        var(--profile-gradient, linear-gradient(135deg, rgba(74, 10, 20, 0.98), rgba(157, 41, 17, 0.82)));
+        var(--profile-gradient, linear-gradient(135deg, rgba(74, 10, 20, 0.6), rgba(157, 41, 17, 0.48)));
+    backdrop-filter: blur(9px) saturate(135%);
+    -webkit-backdrop-filter: blur(9px) saturate(135%);
     box-shadow:
         0 24px 70px rgba(0, 0, 0, 0.42),
         inset 0 1px 0 rgba(255, 255, 255, 0.16),
@@ -6033,7 +6057,7 @@ body.gacha-active {
 .profile-hero-neutral {
     --profile-accent: #b8c0cc;
     --profile-glow: rgba(184, 192, 204, 0.25);
-    --profile-gradient: linear-gradient(135deg, rgba(12, 17, 28, 0.98), rgba(48, 56, 72, 0.84));
+    --profile-gradient: linear-gradient(135deg, rgba(12, 17, 28, 0.6), rgba(48, 56, 72, 0.48));
     --profile-border: rgba(210, 218, 230, 0.45);
 }
 
@@ -6171,12 +6195,12 @@ body.gacha-active {
     flex-direction: column;
     justify-content: flex-end;
     gap: 9px;
-    padding: 14px;
+    padding: 10px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     background: rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .profile-hero-side span {
@@ -6208,9 +6232,9 @@ body.gacha-active {
     padding: 14px;
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 14px;
-    background: rgba(4, 8, 18, 0.5);
-    backdrop-filter: blur(9px);
-    -webkit-backdrop-filter: blur(9px);
+    background: rgba(4, 8, 18, 0.34);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
 }
 
@@ -6218,6 +6242,12 @@ body.gacha-active {
     display: flex;
     flex-direction: column;
     gap: 9px;
+    /* Wrap tightly around the favorite card so the glass is a thin line outside
+       it instead of a full-width panel. */
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    padding: 7px;
 }
 
 /* ── Interactive profile polish ───────────────────────────────────────── */
@@ -6342,9 +6372,11 @@ body.gacha-active {
     border: 1px solid var(--profile-border, rgba(255, 126, 56, 0.4));
     border-radius: 12px;
     background:
-        radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--profile-accent, #ff6a2a) 16%, transparent), transparent 42%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
-        rgba(8, 13, 28, 0.72);
+        radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--profile-accent, #ff6a2a) 14%, transparent), transparent 42%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+        rgba(8, 13, 28, 0.38);
+    backdrop-filter: blur(8px) saturate(125%);
+    -webkit-backdrop-filter: blur(8px) saturate(125%);
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.08),
         0 18px 38px rgba(0, 0, 0, 0.23);
@@ -7708,6 +7740,12 @@ body.gacha-active {
         padding: 10px 10px calc(224px + env(safe-area-inset-bottom, 0px));
         scroll-padding-bottom: calc(224px + env(safe-area-inset-bottom, 0px));
     }
+    /* While the Card View / Filter tray is open, freeze the page scroll so the
+       gesture stays locked to the tray instead of bleeding to the background. */
+    body.tray-open .home-main {
+        overflow: hidden;
+        touch-action: none;
+    }
     /* Mobile HUD docks at the bottom: handle moves to its top edge and the
        chevron points down (collapse downward). With the HUD minimized only
        the FAB remains, so give the freed space back to the page. */
@@ -8197,23 +8235,27 @@ body.gacha-active {
     }
     .gacha-stage {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        /* Fill the leftover height and split it evenly across rows so every card
-           is on screen at once — no horizontal scroll, no offscreen cards. */
+        /* Keep every card at a comfortable, readable size and scroll the grid
+           vertically when a big pull (10/50) has more cards than fit on screen,
+           rather than shrinking them all to cram onto one screen. The header
+           (with Reveal All / Done) stays pinned above this scroll area. */
         align-self: stretch;
-        align-content: center;
-        grid-auto-rows: 1fr;
+        align-content: start;
+        grid-auto-rows: auto;
         min-height: 0;
         gap: 10px;
-        overflow: hidden;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
     .reveal-card {
-        /* Size to the row height (kept to a 5:7 ratio) and never exceed the
-           column width, so the whole pack fits the screen regardless of count. */
-        width: auto;
-        height: 100%;
+        /* Standard 5:7 card sized to its column; the stage scrolls when there
+           are more cards than fit on screen. */
+        width: 100%;
+        height: auto;
         max-width: 100%;
-        max-height: 100%;
-        margin: auto;
+        margin: 0;
         min-height: 0;
     }
     .reveal-card-copy strong {

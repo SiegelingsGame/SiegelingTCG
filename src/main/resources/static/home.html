@@ -11,7 +11,7 @@
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
     <link rel="stylesheet" href="/css/style.css?v=160">
-    <link rel="stylesheet" href="/css/home.css?v=84">
+    <link rel="stylesheet" href="/css/home.css?v=86">
 </head>
 <body>
 <div class="home-shell">
@@ -60,6 +60,7 @@
 
     <div class="loading-art-screen hidden" id="loadingArtScreen" aria-hidden="true">
         <div class="loading-art-frame">
+            <div class="loading-art-spinner" aria-hidden="true"></div>
             <span class="loading-art-label" id="loadingArtLabel">Loading...</span>
             <div class="loading-art-bar"><span></span></div>
             <span class="loading-art-title" id="loadingArtTitle"></span>
@@ -318,13 +319,10 @@
         </div>
     </div>
 
-    <div class="auth-modal hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
-        <div class="auth-modal-panel panel">
-            <div class="section-head">
-                <div><span class="eyebrow">Account</span><h2 id="authModalTitle">Sign in to save progression</h2></div>
-                <button class="ghost-btn" id="closeAuthBtn" type="button">Close</button>
-            </div>
-            <div id="authPanelBody"></div>
+    <div class="auth-popup-overlay hidden" id="authModal" role="dialog" aria-modal="true" aria-label="Account sign in">
+        <div class="auth-popup-modal welcome-auth-card">
+            <button class="match-detail-close auth-popup-close" id="closeAuthBtn" type="button" aria-label="Close sign in">&times;</button>
+            <div class="auth-popup-body" id="authPanelBody"></div>
         </div>
     </div>
 
@@ -366,7 +364,7 @@
 <script src="/js/game.js?v=170"></script>
 <script src="/js/card-binder-visual.js?v=3"></script>
 <script src="/js/achievements.js?v=5"></script>
-<script src="/js/home.js?v=88"></script>
+<script src="/js/home.js?v=90"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

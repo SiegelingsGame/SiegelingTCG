@@ -291,4 +291,9 @@ public class AccountService {
         }
         return trimmed;
     }
+
+    /** Public view of {@link #extractToken} so controllers can refresh the session cookie. */
+    public String extractBearerToken(String authorizationHeader) {
+        return extractToken(authorizationHeader);
+    }
 }
