@@ -290,6 +290,10 @@
         token: initialAuthToken,
         profile: cachedAuthProfile,
         progression: cachedAuthProfile?.progression || null,
+        // True once a profile sync has completed this session (success or not).
+        // Until then, a signed-in player with no cached snapshot shows a loading
+        // screen for cards/decks instead of a misleading empty binder.
+        profileSynced: false,
         options: null,
         packs: [],
         dailyOffers: [],
@@ -1149,6 +1153,7 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            state.profileSynced = true;
             clearCachedAuthProfile();
             stopPresenceHeartbeat();
             notifSnapshot = null;
@@ -1166,6 +1171,9 @@
             return state.profile;
         }
         if (status === 'signed-out') {
+            // The sign-in state is resolved (authoritatively signed out); stop the
+            // cards/decks loading screen so the guest view shows instead.
+            state.profileSynced = true;
             // Do NOT delete the persisted token here. The token is shared with the
             // Play page (play.html/game.js); a transient failure or stale response
             // would otherwise sign the player out everywhere, and revisiting any
@@ -1191,6 +1199,7 @@
         }
         state.profile = data;
         state.progression = data.progression || null;
+        state.profileSynced = true;
         saveCachedAuthProfile(data);
         await loadDailyMissions();
         startPresenceHeartbeat();
@@ -1462,11 +1471,19 @@
         ].join('|');
     }
 
+    // Signed in but the owned-cards/decks snapshot hasn't arrived yet this session
+    // (and nothing was painted from cache). Show a loading screen rather than a
+    // misleading empty binder/deck list.
+    function ownedDataLoading() {
+        return Boolean(state.token) && !state.profileSynced && !state.profile;
+    }
+
     function renderCards() {
         const grid = document.getElementById('allCardGrid');
         if (!grid) return;
-        // Catalog not loaded yet — show the spinner instead of a blank panel.
-        if (!state.options) {
+        // Catalog not loaded yet, or owned cards still loading for a signed-in
+        // player — show the spinner instead of a blank/empty panel.
+        if (!state.options || ownedDataLoading()) {
             grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your card binder…</strong></div>`;
             state._cardsRenderSig = '';
             return;
@@ -2277,6 +2294,13 @@
     function renderDecks() {
         const grid = document.getElementById('deckGrid');
         if (!grid) return;
+        // Catalog or owned decks still loading — show a spinner instead of an
+        // empty grid that would imply the player has no decks.
+        if (!state.options || ownedDataLoading()) {
+            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your decks…</strong></div>`;
+            renderSavedDecks();
+            return;
+        }
         grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
         grid.querySelectorAll('[data-preview-deck]').forEach(tile => {
             tile.addEventListener('click', () => {
@@ -2317,6 +2341,13 @@
         const grid = document.getElementById('customDeckGrid');
         const count = document.getElementById('deckCardCount');
         if (!grid) return;
+        // Signed in but saved decks haven't loaded yet — show a spinner rather
+        // than "No saved custom decks yet", which would be misleading mid-load.
+        if (ownedDataLoading()) {
+            if (count) count.textContent = '';
+            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your saved decks…</strong></div>`;
+            return;
+        }
         const savedDecks = state.profile?.savedDecks || [];
         if (count) count.textContent = `${savedDecks.length} saved`;
         if (!state.profile?.authenticated) {
