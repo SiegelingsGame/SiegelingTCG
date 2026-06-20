@@ -6089,12 +6089,20 @@ function loadCachedAuthProfile() {
 // cached copy. The live in-memory profile keeps its logs, so the match-detail
 // modal still works once the background /api/auth/me refresh lands.
 function slimProfileForCache(profile) {
-    if (!profile || !Array.isArray(profile.matchHistory)) {
+    if (!profile) {
         return profile;
     }
+    // Never persist the bearer token. The httpOnly-cookie migration keeps the
+    // credential out of page-script reach, but the login response body still
+    // carries `token` for legacy clients — strip it so it can't leak into
+    // localStorage via the cached profile.
+    const { token, ...rest } = profile;
+    if (!Array.isArray(rest.matchHistory)) {
+        return rest;
+    }
     return {
-        ...profile,
-        matchHistory: profile.matchHistory.map((entry) => {
+        ...rest,
+        matchHistory: rest.matchHistory.map((entry) => {
             if (!entry || !('gameLog' in entry)) {
                 return entry;
             }
@@ -6193,7 +6201,9 @@ function renderAuthDependentSurfaces() {
 }
 
 async function refreshAuthFromStorage(silent = true) {
-    const stored = loadSavedAuthToken();
+    // Same cookie fallback as init: a live httpOnly session whose localStorage
+    // marker is missing must not be wiped on focus/pageshow/storage.
+    const stored = loadSavedAuthToken() || (hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : '');
     const tokenChanged = stored !== authState.token;
     const profileStale = Boolean(stored) && !authState.profile?.authenticated;
     const loggedOutElsewhere = !stored && Boolean(authState.profile?.authenticated);

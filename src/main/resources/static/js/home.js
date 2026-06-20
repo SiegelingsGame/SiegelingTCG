@@ -193,13 +193,19 @@
     // logs to render, so slim them out, and fall back to a minimal snapshot if even
     // the slimmed copy won't fit.
     function slimProfileForCache(profile) {
-        if (!profile || !Array.isArray(profile.matchHistory)) return profile;
+        if (!profile) return profile;
+        // Never persist the bearer token: the httpOnly-cookie migration keeps the
+        // credential out of page-script reach, but the login response body still
+        // carries `token` for legacy clients — strip it so it can't leak into
+        // localStorage via the cached profile.
+        const { token, ...rest } = profile;
+        if (!Array.isArray(rest.matchHistory)) return rest;
         return {
-            ...profile,
-            matchHistory: profile.matchHistory.map((entry) => {
+            ...rest,
+            matchHistory: rest.matchHistory.map((entry) => {
                 if (!entry || !('gameLog' in entry)) return entry;
-                const { gameLog, ...rest } = entry;
-                return rest;
+                const { gameLog, ...e } = entry;
+                return e;
             })
         };
     }
@@ -1240,6 +1246,11 @@
             stored = localStorage.getItem(AUTH_TOKEN_KEY) || '';
         } catch (e) {
             stored = '';
+        }
+        // Same cookie fallback as init: a live httpOnly session whose localStorage
+        // marker is missing must not be wiped on focus/pageshow/storage.
+        if (!stored && hasReadableAuthCookie()) {
+            stored = COOKIE_SESSION_VALUE;
         }
         const tokenChanged = stored !== state.token;
         const profileStale = Boolean(stored) && !state.profile?.authenticated;
