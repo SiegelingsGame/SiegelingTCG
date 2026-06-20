@@ -325,6 +325,8 @@
         builderVisibleLimit: 0,
         builderRenderTimer: null,
         notifications: [],
+        newCards: new Set(),
+        newCardsSnapshot: null,
         loadingArt: [],
         friendRequestsOpen: false,
         friendMessage: '',
@@ -507,6 +509,81 @@
         state.notifications = [];
         saveNotifications();
         renderNotifications();
+    }
+
+    // ── New-card tags ────────────────────────────────────────────────────
+    // Freshly acquired cards (pack pulls, crafts, daily buys) wear a "New" badge
+    // in the binder until the player opens them. Tracked client-side per account
+    // by diffing owned-card counts against a persisted snapshot, mirroring the
+    // notification feed's diffing approach.
+    let newCardsLoadedKey = '';
+
+    function newCardsStorageKey() {
+        return `sieglingsNewCards:${state.profile?.user?.email || 'anon'}`;
+    }
+
+    function loadNewCards() {
+        newCardsLoadedKey = newCardsStorageKey();
+        state.newCards = new Set();
+        state.newCardsSnapshot = null;
+        try {
+            const raw = JSON.parse(localStorage.getItem(newCardsStorageKey()) || 'null');
+            if (raw && typeof raw === 'object') {
+                state.newCards = new Set(Array.isArray(raw.newIds) ? raw.newIds : []);
+                state.newCardsSnapshot = raw.snapshot && typeof raw.snapshot === 'object' ? raw.snapshot : null;
+            }
+        } catch (error) {
+            state.newCards = new Set();
+            state.newCardsSnapshot = null;
+        }
+    }
+
+    function saveNewCards() {
+        try {
+            localStorage.setItem(newCardsStorageKey(), JSON.stringify({
+                snapshot: state.newCardsSnapshot || {},
+                newIds: Array.from(state.newCards || [])
+            }));
+        } catch (error) {
+            // localStorage full/unavailable — badges still work for this session.
+        }
+    }
+
+    // Diff the current owned-card counts against the last snapshot; any card whose
+    // count went up is flagged "New". The very first run for an account on this
+    // device just records the baseline, so an existing collection is never flagged
+    // wholesale.
+    function detectNewCards() {
+        if (!state.profile?.authenticated) return;
+        if (newCardsLoadedKey !== newCardsStorageKey()) loadNewCards();
+        const owned = state.progression?.ownedCards || {};
+        if (!state.newCardsSnapshot) {
+            state.newCardsSnapshot = { ...owned };
+            saveNewCards();
+            return;
+        }
+        let changed = false;
+        Object.keys(owned).forEach(id => {
+            const prev = Number(state.newCardsSnapshot[id]) || 0;
+            if ((Number(owned[id]) || 0) > prev && !state.newCards.has(id)) {
+                state.newCards.add(id);
+                changed = true;
+            }
+        });
+        state.newCardsSnapshot = { ...owned };
+        saveNewCards();
+        if (changed) state._cardsRenderSig = '';
+    }
+
+    function isNewCard(id) {
+        return Boolean(id && state.newCards && state.newCards.has(id));
+    }
+
+    function markCardViewed(id) {
+        if (!isNewCard(id)) return;
+        state.newCards.delete(id);
+        saveNewCards();
+        state._cardsRenderSig = '';
     }
 
     function renderNotifications() {
@@ -1207,6 +1284,8 @@
         // signed in, then diff the fresh snapshot for new notifications.
         if (notifStorageKey() !== notifLoadedKey) loadNotifications();
         detectNotifications();
+        if (newCardsStorageKey() !== newCardsLoadedKey) loadNewCards();
+        detectNewCards();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
             state.profilePrefs = { ...defaultProfilePrefs(data.user || {}), ...serverPrefs };
@@ -1467,6 +1546,7 @@
             state.sort,
             state.search,
             state.selectedCardId,
+            Array.from(state.newCards || []).sort().join(','),
             cards.map(card => `${card.id}:${ownedCount(card.id)}`).join(',')
         ].join('|');
     }
@@ -1500,6 +1580,7 @@
                 : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
+                markCardViewed(tile.dataset.cardId);
                 openCardTray();
                 renderCards();
                 renderDetail();
@@ -1722,27 +1803,29 @@
     function renderCardTile(card) {
         card = withPlayerHolographic(card);
         const selected = card.id === state.selectedCardId ? ' selected' : '';
+        const newClass = isNewCard(card.id) ? ' is-new' : '';
+        const newBadge = isNewCard(card.id) ? '<span class="card-new-badge" aria-label="New card">New</span>' : '';
         const knightClass = card.type === 'SIEGEKNIGHT' ? ' siegeknight-binder-card' : '';
         const binderVisual = window.SieglingsCardBinderVisual;
         const holoOptions = binderHolographicOptions();
         if (card.type === 'SIEGEKNIGHT') {
-            return `<button class="card-tile binder-card framed-binder-tile knight-binder-tile${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-                ${renderKnightBinderCard(card, { compact: true })}
+            return `<button class="card-tile binder-card framed-binder-tile knight-binder-tile${selected}${newClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${newBadge}${renderKnightBinderCard(card, { compact: true })}
             </button>`;
         }
         if (binderVisual?.usesFullCardArt?.(card)) {
-            return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-                ${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
+            return `<button class="card-tile binder-card framed-binder-tile${selected}${newClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${newBadge}${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
             </button>`;
         }
         if (binderVisual?.usesFramedCardTemplate?.(card)) {
-            return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-                ${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
+            return `<button class="card-tile binder-card framed-binder-tile${selected}${newClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${newBadge}${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
             </button>`;
         }
         const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (binderVisual?.resolveArtModeClass(card) || '');
-        return `<button class="card-tile binder-card${selected}${modeClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-            ${renderBinderCardShell(card)}
+        return `<button class="card-tile binder-card${selected}${newClass}${modeClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+            ${newBadge}${renderBinderCardShell(card)}
         </button>`;
     }
 
@@ -5047,66 +5130,90 @@
         navigateHub('shop', { shopView: 'cardpack' });
         renderPackOpeningPending();
         renderShop();
+
+        // Phase 1 — the network call. fetchJson resolves to {error} for
+        // network/timeout/HTTP failures, but guard against any unexpected throw so
+        // the pending overlay is always torn down.
+        let data;
         try {
-            const data = await fetchJson(endpoint, {
+            data = await fetchJson(endpoint, {
                 method: 'POST',
                 body: JSON.stringify({ packId, count: packCount }),
                 timeoutMs: PACK_OPEN_TIMEOUT_MS
             });
-            if (data?.error) {
-                alert(data.error);
-                return;
+        } catch (error) {
+            data = { error: error?.message || 'Could not open that pack. Please try again.' };
+        }
+
+        // The pull never succeeded on the server, so nothing was charged or
+        // granted — surface the error and let the player retry safely.
+        if (!data || data.error) {
+            state.packOpeningPending = null;
+            hidePackResultDom();
+            renderShop();
+            syncShopPackView();
+            alert(data?.error || 'Could not open that pack. Please try again.');
+            return;
+        }
+
+        // Phase 2 — commit the server result. The cards are already granted and
+        // persisted at this point, so apply progression FIRST. This way a hiccup in
+        // the heavy reveal animation can never lose the cards or, worse, surface a
+        // "could not open" error that tricks the player into paying for the pack
+        // again.
+        state.progression = data.progression;
+        state.packs = data.packs || state.packs;
+        state.dailyOffers = data.dailyOffers || state.dailyOffers;
+        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+        const latest = state.progression?.packHistory?.[0];
+        if (latest) {
+            pushNotification('pack', `Pack opened: ${pack?.name || latest.packId || 'Card pack'}`, `${(latest.cards || []).length} cards added to your binder.`);
+        }
+        if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
+        // Tag the freshly pulled cards as "New" until the player opens them.
+        detectNewCards();
+        state.packOpeningDismissedKey = '';
+        state.packReveal = latest ? {
+            packId: latest.packId,
+            openedAt: latest.openedAt,
+            revealed: new Set(),
+            dissolvedRemnants: new Set(),
+            lastRevealedId: '',
+            previewId: '',
+            sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
+        } : null;
+        if (starterMode) {
+            const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
+            if (serverPrefs) {
+                state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
+                cacheProfilePrefs(state.profilePrefs);
+                applyProfileArtFromPrefs(state.profilePrefs);
+            } else {
+                applyStarterProfileDefaults();
             }
-            state.progression = data.progression;
-            state.packs = data.packs || state.packs;
-            state.dailyOffers = data.dailyOffers || state.dailyOffers;
-            state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
-            const latest = state.progression?.packHistory?.[0];
-            if (latest) {
-                pushNotification('pack', `Pack opened: ${pack?.name || latest.packId || 'Card pack'}`, `${(latest.cards || []).length} cards added to your binder.`);
-            }
-            if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
-            state.packOpeningDismissedKey = '';
-            state.packReveal = latest ? {
-                packId: latest.packId,
-                openedAt: latest.openedAt,
-                revealed: new Set(),
-                dissolvedRemnants: new Set(),
-                lastRevealedId: '',
-                previewId: '',
-                sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
-            } : null;
-            if (starterMode) {
-                const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
-                if (serverPrefs) {
-                    state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
-                    cacheProfilePrefs(state.profilePrefs);
-                    applyProfileArtFromPrefs(state.profilePrefs);
-                } else {
-                    applyStarterProfileDefaults();
-                }
-            }
+        }
+
+        // Phase 3 — the (heavy) reveal animation. If anything here throws, the
+        // cards are already safely in the binder, so don't strand the player on a
+        // half-built overlay: clear it and drop them into the Cards binder where the
+        // new pulls are waiting, tagged "New".
+        try {
             await finishPendingSpears(latest?.cards || []);
             state.packOpeningPending = null;
             renderPackResult();
             render();
-            void loadDailyMissions().then(() => {
-                renderHomeDashboard();
-                renderAchievements();
-                renderProfile();
-            });
-        } catch (error) {
-            alert(error?.message || 'Could not open that pack. Please try again.');
-        } finally {
-            if (state.packOpeningPending?.packId === packId) {
-                state.packOpeningPending = null;
-                hidePackResultDom();
-                renderShop();
-                syncShopPackView();
-            } else {
-                renderShop();
-            }
+        } catch (revealError) {
+            console.error(revealError);
+            state.packOpeningPending = null;
+            hidePackResultDom();
+            render();
+            navigateHub('cards');
         }
+        void loadDailyMissions().then(() => {
+            renderHomeDashboard();
+            renderAchievements();
+            renderProfile();
+        });
     }
 
     async function purchaseDailyOffer(offerId) {
@@ -5120,6 +5227,7 @@
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
         state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+        detectNewCards();
         render();
     }
 
@@ -5788,6 +5896,7 @@
             window.SiegelingsAchievements.incrementStat('crafts', 1);
         }
         state.progression = data.progression;
+        detectNewCards();
         renderCards();
         renderHomeDashboard();
         renderGold();
