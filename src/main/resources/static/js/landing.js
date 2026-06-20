@@ -165,6 +165,17 @@
         }
     }
 
+    // Standalone Web Apps (iOS "Add to Home Screen") don't reliably send the session
+    // cookie across full-page navigations, so keep the real token there for Bearer auth.
+    function isStandalonePWA() {
+        try {
+            return window.navigator.standalone === true
+                || Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        } catch (e) {
+            return false;
+        }
+    }
+
     function bindLoginModal() {
         const modal = document.getElementById('loginModal');
         const trigger = document.getElementById('ctaLogin');
@@ -265,10 +276,13 @@
                     showError((data && data.error) || 'Something went wrong. Please try again.');
                     return;
                 }
-                // Prefer cookie auth: the server set an httpOnly session cookie. Persist
-                // the sentinel (no secret) when the companion cookie confirms cookies
-                // work; otherwise keep the real token for legacy Bearer-header auth.
-                localStorage.setItem(AUTH_TOKEN_KEY, hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : data.token);
+                // Prefer cookie auth in browsers; in a standalone Web App (or when
+                // cookies are blocked) keep the real token for Bearer-header auth so
+                // the session survives the full-page Home <-> Play navigation.
+                localStorage.setItem(
+                    AUTH_TOKEN_KEY,
+                    (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : data.token
+                );
                 window.location.assign(POST_LOGIN_DESTINATION);
             } catch (_networkError) {
                 showError('Network error. Check your connection and try again.');
