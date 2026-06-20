@@ -325,6 +325,11 @@
             "trainerActiveCheckbox",
             "trainerOncePerGameCheckbox",
             "trainerHolographicCheckbox",
+            "trainerArtStage",
+            "trainerArtControls",
+            "trainerArtFileInput",
+            "trainerArtUrlInput",
+            "clearTrainerArtBtn",
             "trainerPassiveNameInput",
             "trainerPassiveDescriptionInput",
             "trainerPassiveTargetTypeSelect",
@@ -845,6 +850,7 @@
         refs.trainerActiveCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("active", Boolean(event.target.checked)));
         refs.trainerOncePerGameCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("oncePerGame", Boolean(event.target.checked)));
         refs.trainerHolographicCheckbox?.addEventListener("change", (event) => updateSelectedTrainerField("holographic", Boolean(event.target.checked)));
+        bindTrainerArtFieldEvents();
 
         bindTrainerAbilityFieldEvents("passive", {
             nameInput: refs.trainerPassiveNameInput,
@@ -3175,6 +3181,8 @@
             targetHelper: refs.trainerActiveTargetHelper,
             effectHelper: refs.trainerActiveEffectHelper
         });
+
+        renderTrainerArtControls(trainer);
     }
 
     function renderTrainerAbilityEditor(kind, ability, refsForAbility) {
@@ -3273,6 +3281,136 @@
         }
         const trainer = getSelectedTrainer();
         refs.trainerJsonPreview.value = trainer ? JSON.stringify(buildExportTrainer(trainer), null, 2) : "";
+    }
+
+    // SiegeKnights reuse the shared card-art fields (cardArtUrl / cardArtMode) and the
+    // generic /api/cards/editor/art upload. In-game they render in FULL_CARD mode — the
+    // uploaded image is a complete, hand-drawn card that replaces the template — so the
+    // editor only offers Default vs Full card art.
+    function bindTrainerArtFieldEvents() {
+        refs.trainerArtControls?.addEventListener("change", (event) => {
+            const modeInput = event.target.closest('input[name="trainerArtMode"]');
+            if (!modeInput) {
+                return;
+            }
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtMode = normalizeCardArtMode(modeInput.value);
+                if (!trainer.cardArtMode) {
+                    trainer.cardArtUrl = "";
+                }
+            });
+        });
+
+        refs.trainerArtUrlInput?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtUrl = String(event.target.value || "").trim();
+                if (trainer.cardArtUrl && !trainer.cardArtMode) {
+                    trainer.cardArtMode = "FULL_CARD";
+                }
+                if (!trainer.cardArtUrl) {
+                    trainer.cardArtMode = "";
+                }
+            });
+        });
+
+        refs.clearTrainerArtBtn?.addEventListener("click", () => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtUrl = "";
+                trainer.cardArtMode = "";
+                trainer.cardArtOffsetX = 0;
+                trainer.cardArtOffsetY = 0;
+                trainer.cardArtScale = 1;
+                trainer.cardArtRotation = 0;
+            });
+            if (refs.trainerArtFileInput) {
+                refs.trainerArtFileInput.value = "";
+            }
+        });
+
+        refs.trainerArtFileInput?.addEventListener("change", async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) {
+                return;
+            }
+            const trainer = getSelectedTrainer();
+            const trainerId = String(trainer?.id || "").trim();
+            if (!trainerId) {
+                setStatus("Set a Siegeknight id before uploading art.", "error");
+                event.target.value = "";
+                renderStatus();
+                return;
+            }
+            if (state.liveEditingEnabled && !state.auth?.canEdit) {
+                setStatus("Sign in under Live Publishing before uploading SiegeKnight art.", "error");
+                event.target.value = "";
+                renderStatus();
+                return;
+            }
+            mutateSelectedTrainer((selected) => {
+                if (!selected.cardArtMode) {
+                    selected.cardArtMode = "FULL_CARD";
+                }
+            });
+            setStatus("Uploading SiegeKnight art...", "warning");
+            renderStatus();
+            try {
+                const payload = await uploadCardArtFile(trainerId, file);
+                const hostedUrl = String(payload?.url || "").trim();
+                if (!hostedUrl) {
+                    throw new Error("Upload finished but the server did not return an image URL.");
+                }
+                mutateSelectedTrainer((selected) => {
+                    selected.cardArtUrl = hostedUrl;
+                    selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "FULL_CARD";
+                });
+                setStatus(
+                    state.liveEditingEnabled
+                        ? `Uploaded art for ${trainerId}. Click Publish Live Changes to apply.`
+                        : `Uploaded art for ${trainerId}. Click Save To Project File to apply.`,
+                    "success"
+                );
+            } catch (error) {
+                setStatus(`${error?.message || "Unable to upload SiegeKnight art."}`, "error");
+            } finally {
+                event.target.value = "";
+                renderAll();
+            }
+        });
+    }
+
+    function renderTrainerArtControls(trainer) {
+        const stage = refs.trainerArtStage;
+        if (!stage) {
+            return;
+        }
+        const url = String(trainer?.cardArtUrl || "").trim();
+        const mode = normalizeCardArtMode(trainer?.cardArtMode);
+
+        const radios = refs.trainerArtControls?.querySelectorAll('input[name="trainerArtMode"]') || [];
+        radios.forEach((radio) => {
+            radio.checked = radio.value === mode;
+        });
+
+        if (refs.trainerArtUrlInput && document.activeElement !== refs.trainerArtUrlInput) {
+            refs.trainerArtUrlInput.value = url;
+        }
+
+        stage.innerHTML = "";
+        const portrait = document.createElement("div");
+        portrait.className = "trainer-art-portrait";
+        if (url) {
+            const img = document.createElement("img");
+            img.className = "trainer-art-full-img";
+            img.alt = "";
+            img.src = url;
+            portrait.appendChild(img);
+        } else {
+            const placeholder = document.createElement("div");
+            placeholder.className = "trainer-art-placeholder";
+            placeholder.textContent = "No custom art yet. Upload a full SiegeKnight card image or paste a URL.";
+            portrait.appendChild(placeholder);
+        }
+        stage.appendChild(portrait);
     }
 
     function renderLiveElementsPanel() {

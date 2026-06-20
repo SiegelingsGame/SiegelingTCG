@@ -16,7 +16,7 @@
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
     <link rel="stylesheet" href="/css/home.css?v=45">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=17">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=18">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -719,6 +719,35 @@
                 </section>
 
                 <section class="form-section">
+                    <h3>Custom Art</h3>
+                    <p class="section-help card-visual-help">Upload a complete, hand-drawn SiegeKnight card (the same way Squire Bob is set up). Choose Full card art so the uploaded image replaces the whole card template in the loadout and collection. Use Upload Image on the live dashboard so art is stored in cloud storage, then Publish from the header to apply globally. Choose Default icon to revert. Use the Holographic foil toggle above for a shine effect.</p>
+                    <div class="trainer-art-stage" id="trainerArtStage">
+                        <div class="validation-empty">Select a SiegeKnight to preview its art.</div>
+                    </div>
+                    <div class="card-art-controls" id="trainerArtControls">
+                        <div class="art-mode-toggle" role="radiogroup" aria-label="SiegeKnight art mode">
+                            <label class="art-mode-option">
+                                <input type="radio" name="trainerArtMode" value="">
+                                <span>Default icon</span>
+                            </label>
+                            <label class="art-mode-option">
+                                <input type="radio" name="trainerArtMode" value="FULL_CARD">
+                                <span>Full card art</span>
+                            </label>
+                        </div>
+                        <div class="inline-actions card-art-actions">
+                            <label class="btn btn-secondary file-btn" for="trainerArtFileInput">Upload Image</label>
+                            <input id="trainerArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
+                            <button class="btn btn-secondary" id="clearTrainerArtBtn" type="button">Clear Art</button>
+                        </div>
+                        <label class="card-art-url-field">
+                            <span>Art URL or path</span>
+                            <input id="trainerArtUrlInput" type="text" autocomplete="off" placeholder="/assets/cards/example.png">
+                        </label>
+                    </div>
+                </section>
+
+                <section class="form-section">
                     <h3>Passive Ability</h3>
                     <div class="form-grid">
                         <label>
@@ -1030,6 +1059,6 @@
 <script src="/js/config.js"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
 <script src="/js/card-binder-visual.js?v=1"></script>
-<script src="/js/card-dashboard.js?v=32"></script>
+<script src="/js/card-dashboard.js?v=33"></script>
 </body>
 </html>
