@@ -329,6 +329,8 @@
         filterTrayOpen: false,
         cardTrayOpen: false,
         authOpen: false,
+        authMode: 'login',
+        authDraft: { email: '', password: '' },
         authRegisterStep: 'credentials',
         registerDraft: { email: '', password: '' },
         profileEditOpen: false,
@@ -1059,6 +1061,10 @@
         });
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
+        // Close when the backdrop (the overlay itself) is tapped, like the Play popup.
+        document.getElementById('authModal')?.addEventListener('click', (event) => {
+            if (event.target === event.currentTarget) closeAuth();
+        });
         document.getElementById('closeDeckPreviewBtn')?.addEventListener('click', closeDeckPreview);
         document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
             if (event.target === event.currentTarget) closeDeckPreview();
@@ -6298,36 +6304,79 @@
         }
     }
 
+    // Mirrors the Play page's sign-in popup (game.js buildAuthFormMarkup) so the
+    // hub/shop login matches it: ACCOUNT eyebrow, Log In / Register tabs, and a
+    // single primary button. Shared style.css supplies the look; the hub wires
+    // events via IDs/data-attrs (its code is sandboxed, so no inline onclick).
     function authMarkup() {
         if (state.authRegisterStep === 'display-name') {
-            return `<div class="auth-card">
-                <strong>Choose your display name</strong>
-                <span>Confirm how other duelists will see you (${escapeHtml(state.registerDraft.email || '')}).</span>
-                <input class="search-input" id="authName" maxlength="20" placeholder="Display name" autofocus>
-                <button class="primary-btn" id="confirmRegisterBtn" type="button">Confirm</button>
-                <button class="ghost-btn" id="backRegisterBtn" type="button">Back</button>
-            </div>`;
+            return `
+                <div class="welcome-eyebrow">ACCOUNT</div>
+                <h3>Choose your display name</h3>
+                <div class="welcome-auth-meta">${escapeHtml(state.registerDraft.email || '')}</div>
+                <label class="online-field">
+                    <span>Display Name</span>
+                    <input type="text" id="authName" maxlength="20" placeholder="Arena name" autofocus>
+                </label>
+                <div class="welcome-auth-actions">
+                    <button class="btn welcome-auth-submit" id="backRegisterBtn" type="button">Back</button>
+                    <button class="btn btn-primary welcome-auth-submit" id="confirmRegisterBtn" type="button">Confirm</button>
+                </div>
+            `;
         }
-        return `<div class="auth-card">
-            <strong>Sign in to save progression</strong>
-            <span>Starter packs, Siegecoins, Remnants, owned cards, and custom decks require an account. New players start with ${renderCoinAmount(100)}.</span>
-            <input class="search-input" id="authEmail" type="email" placeholder="Email">
-            <input class="search-input" id="authPassword" type="password" placeholder="Password">
-            <button class="primary-btn" id="loginBtn" type="button">Log In</button>
-            <button class="ghost-btn" id="registerBtn" type="button">Register</button>
-        </div>`;
+        const mode = state.authMode === 'register' ? 'register' : 'login';
+        return `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>${mode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+            <div class="welcome-auth-tabs">
+                <button class="welcome-auth-tab${mode === 'login' ? ' active' : ''}" type="button" data-auth-mode="login" aria-selected="${mode === 'login'}">Log In</button>
+                <button class="welcome-auth-tab${mode === 'register' ? ' active' : ''}" type="button" data-auth-mode="register" aria-selected="${mode === 'register'}">Register</button>
+            </div>
+            <label class="online-field">
+                <span>Email</span>
+                <input type="email" id="authEmail" placeholder="you@example.com">
+            </label>
+            <label class="online-field">
+                <span>Password</span>
+                <input type="password" id="authPassword" placeholder="At least 6 characters">
+            </label>
+            <div class="welcome-auth-actions">
+                <button class="btn btn-primary welcome-auth-submit" id="authPrimaryBtn" type="button">${mode === 'login' ? 'Log In' : 'Register'}</button>
+            </div>
+        `;
     }
 
     function openAuth() {
         if (state.profile?.authenticated) return logout();
         state.authOpen = true;
+        state.authMode = 'login';
+        state.authRegisterStep = 'credentials';
+        state.authDraft = { email: '', password: '' };
         renderAuthModal();
     }
 
     function closeAuth() {
         state.authOpen = false;
+        state.authMode = 'login';
         state.authRegisterStep = 'credentials';
         state.registerDraft = { email: '', password: '' };
+        state.authDraft = { email: '', password: '' };
+        renderAuthModal();
+    }
+
+    // Preserve whatever the player has typed when flipping the Log In / Register tab.
+    function captureAuthDraft() {
+        const email = document.getElementById('authEmail');
+        const password = document.getElementById('authPassword');
+        state.authDraft = {
+            email: email ? email.value : (state.authDraft?.email || ''),
+            password: password ? password.value : (state.authDraft?.password || '')
+        };
+    }
+
+    function setAuthMode(mode) {
+        captureAuthDraft();
+        state.authMode = mode === 'register' ? 'register' : 'login';
         renderAuthModal();
     }
 
@@ -6349,13 +6398,24 @@
     }
 
     function bindAuthForms() {
-        document.querySelectorAll('#loginBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('login')));
-        document.querySelectorAll('#registerBtn').forEach(btn => btn.addEventListener('click', () => beginRegisterDisplayName()));
-        document.querySelectorAll('#confirmRegisterBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('register')));
-        document.querySelectorAll('#backRegisterBtn').forEach(btn => btn.addEventListener('click', () => {
+        // Restore typed credentials after a re-render (e.g. switching tab).
+        const draft = state.authDraft || { email: '', password: '' };
+        const emailInput = document.getElementById('authEmail');
+        const passwordInput = document.getElementById('authPassword');
+        if (emailInput && draft.email) emailInput.value = draft.email;
+        if (passwordInput && draft.password) passwordInput.value = draft.password;
+
+        document.querySelectorAll('[data-auth-mode]').forEach(btn =>
+            btn.addEventListener('click', () => setAuthMode(btn.getAttribute('data-auth-mode'))));
+        document.getElementById('authPrimaryBtn')?.addEventListener('click', () => {
+            if (state.authMode === 'register') beginRegisterDisplayName();
+            else submitAuth('login');
+        });
+        document.getElementById('confirmRegisterBtn')?.addEventListener('click', () => submitAuth('register'));
+        document.getElementById('backRegisterBtn')?.addEventListener('click', () => {
             state.authRegisterStep = 'credentials';
             renderAuthModal();
-        }));
+        });
     }
 
     function beginRegisterDisplayName() {
