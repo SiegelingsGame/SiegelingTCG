@@ -1983,12 +1983,45 @@ select.search-input { color-scheme: dark; }
 }
 
 .card-tile {
+    position: relative;
     min-height: 318px;
     display: grid;
     grid-template-rows: 1fr auto;
     text-align: left;
     cursor: pointer;
     transition: transform 0.16s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+/* "New" tag on freshly acquired (pulled/crafted/bought) cards, until viewed. */
+.card-new-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 6;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #1a1205;
+    background: linear-gradient(135deg, #ffe27a, #ffb628);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), 0 0 12px rgba(255, 196, 40, 0.55);
+    pointer-events: none;
+    animation: card-new-badge-pulse 1.8s ease-in-out infinite;
+}
+
+.card-tile.is-new {
+    border-color: color-mix(in srgb, #ffc428 55%, rgba(255, 255, 255, 0.18));
+}
+
+@keyframes card-new-badge-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card-new-badge { animation: none; }
 }
 
 .card-tile:hover {
