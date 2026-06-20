@@ -23,6 +23,24 @@
     function isLegacyBearerToken(token) {
         return Boolean(token) && token !== COOKIE_SESSION_VALUE;
     }
+    // True when running as an installed standalone Web App (iOS "Add to Home Screen"
+    // / Android PWA). iOS standalone Web Apps don't reliably send the session cookie
+    // across the full-page navigations this multi-page app uses (Home <-> Play), so
+    // there we keep authenticating with the localStorage Bearer token (which does
+    // persist across those navigations) rather than the cookie-only path.
+    function isStandalonePWA() {
+        try {
+            return window.navigator.standalone === true
+                || Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        } catch (e) {
+            return false;
+        }
+    }
+    // On login, store the cookie sentinel only when cookies are confirmed working AND
+    // we're not a standalone Web App; otherwise keep the real token for Bearer auth.
+    function preferredStoredToken(loginToken) {
+        return (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
+    }
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
     // Bulk pack buy: 10 pulls at a 5% discount. Mirrors PlayerProgressionService.
@@ -193,13 +211,19 @@
     // logs to render, so slim them out, and fall back to a minimal snapshot if even
     // the slimmed copy won't fit.
     function slimProfileForCache(profile) {
-        if (!profile || !Array.isArray(profile.matchHistory)) return profile;
+        if (!profile) return profile;
+        // Never persist the bearer token: the httpOnly-cookie migration keeps the
+        // credential out of page-script reach, but the login response body still
+        // carries `token` for legacy clients — strip it so it can't leak into
+        // localStorage via the cached profile.
+        const { token, ...rest } = profile;
+        if (!Array.isArray(rest.matchHistory)) return rest;
         return {
-            ...profile,
-            matchHistory: profile.matchHistory.map((entry) => {
+            ...rest,
+            matchHistory: rest.matchHistory.map((entry) => {
                 if (!entry || !('gameLog' in entry)) return entry;
-                const { gameLog, ...rest } = entry;
-                return rest;
+                const { gameLog, ...e } = entry;
+                return e;
             })
         };
     }
@@ -1151,10 +1175,11 @@
             notifSnapshot = null;
             return null;
         }
-        // Transparent migration: a legacy token rode in as a Bearer header and the
-        // server has now set the session cookie (confirmed by the readable companion
-        // cookie). Drop the secret from localStorage and keep only the sentinel.
-        if (isLegacyBearerToken(state.token) && hasReadableAuthCookie()) {
+        // Transparent migration (browsers only): a legacy token rode in as a Bearer
+        // header and the server has set the session cookie (confirmed by the readable
+        // companion cookie). Drop the secret and keep only the sentinel. Skip in a
+        // standalone Web App, where the cookie isn't reliably sent across pages.
+        if (isLegacyBearerToken(state.token) && hasReadableAuthCookie() && !isStandalonePWA()) {
             state.token = COOKIE_SESSION_VALUE;
             try { localStorage.setItem(AUTH_TOKEN_KEY, state.token); } catch (e) { /* ignore */ }
         }
@@ -1240,6 +1265,11 @@
             stored = localStorage.getItem(AUTH_TOKEN_KEY) || '';
         } catch (e) {
             stored = '';
+        }
+        // Same cookie fallback as init: a live httpOnly session whose localStorage
+        // marker is missing must not be wiped on focus/pageshow/storage.
+        if (!stored && hasReadableAuthCookie()) {
+            stored = COOKIE_SESSION_VALUE;
         }
         const tokenChanged = stored !== state.token;
         const profileStale = Boolean(stored) && !state.profile?.authenticated;
@@ -6354,10 +6384,10 @@
             : { email, password };
         const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) });
         if (data?.error) return alert(data.error);
-        // Prefer cookie auth: the server set an httpOnly session cookie, so store the
-        // sentinel (no secret in localStorage) once the companion cookie confirms
-        // cookies work here. Otherwise fall back to the real token + Bearer header.
-        state.token = hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : (data.token || '');
+        // Prefer cookie auth in browsers; in a standalone Web App (or when cookies
+        // are blocked) keep the real token + Bearer header so auth survives the
+        // full-page Home <-> Play navigation.
+        state.token = preferredStoredToken(data.token);
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
         saveCachedAuthProfile(data);
