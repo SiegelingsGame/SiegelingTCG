@@ -152,7 +152,18 @@
     // authenticate before the home/cards hub ever loads. The token is stashed
     // under the key home.js + game.js read, so the session carries straight in.
     const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+    // Stored under AUTH_TOKEN_KEY when auth has moved to the httpOnly session cookie
+    // (no secret in localStorage); home.js/game.js treat it as "signed in".
+    const COOKIE_SESSION_VALUE = 'cookie';
     const POST_LOGIN_DESTINATION = '/home';
+
+    function hasReadableAuthCookie() {
+        try {
+            return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+        } catch (e) {
+            return false;
+        }
+    }
 
     function bindLoginModal() {
         const modal = document.getElementById('loginModal');
@@ -244,6 +255,7 @@
             try {
                 const resp = await fetch(`/api/auth/${mode}`, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
@@ -253,7 +265,10 @@
                     showError((data && data.error) || 'Something went wrong. Please try again.');
                     return;
                 }
-                localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+                // Prefer cookie auth: the server set an httpOnly session cookie. Persist
+                // the sentinel (no secret) when the companion cookie confirms cookies
+                // work; otherwise keep the real token for legacy Bearer-header auth.
+                localStorage.setItem(AUTH_TOKEN_KEY, hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : data.token);
                 window.location.assign(POST_LOGIN_DESTINATION);
             } catch (_networkError) {
                 showError('Network error. Check your connection and try again.');

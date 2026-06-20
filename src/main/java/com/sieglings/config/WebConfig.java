@@ -29,6 +29,10 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns(allowedOriginPatterns.toArray(String[]::new))
                 .allowedMethods("GET", "POST", "OPTIONS")
                 .allowedHeaders("*")
+                // Allow the session cookie to ride cross-origin dev requests. Safe
+                // with allowedOriginPatterns (never "*"); same-origin prod is
+                // unaffected.
+                .allowCredentials(true)
                 .maxAge(3600);
     }
 

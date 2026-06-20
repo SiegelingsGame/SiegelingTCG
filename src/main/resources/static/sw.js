@@ -17,7 +17,7 @@
  *
  * Bump CACHE_VERSION to force a clean sweep of every cache on the next visit.
  */
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `siegelings-static-${CACHE_VERSION}`;
 const IMAGE_CACHE = `siegelings-img-${CACHE_VERSION}`;
 const HTML_CACHE = `siegelings-html-${CACHE_VERSION}`;

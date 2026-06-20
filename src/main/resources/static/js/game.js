@@ -97,6 +97,26 @@ const HAND_DOUBLE_TAP_MS = 320;
 let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
+// Sentinel stored under AUTH_TOKEN_STORAGE_KEY once auth has moved to the httpOnly
+// session cookie. It is NOT a credential — the real token lives in the cookie the
+// browser sends automatically — but its presence still drives every "are we signed
+// in?" check and cross-tab storage-event sync exactly as a real token used to.
+const COOKIE_SESSION_VALUE = 'cookie';
+// True when the readable, secret-free `sgl_auth` companion cookie is present. The
+// server sets it alongside the httpOnly session cookie, so this both signals a
+// live session and proves cookies actually round-trip in this environment.
+function hasReadableAuthCookie() {
+    try {
+        return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+    } catch (e) {
+        return false;
+    }
+}
+// Whether the stored token value is a real legacy Bearer token (vs the cookie
+// sentinel). Only legacy tokens are sent as an Authorization header.
+function isLegacyBearerToken(token) {
+    return Boolean(token) && token !== COOKIE_SESSION_VALUE;
+}
 // Last authenticated profile, cached in localStorage and shared with the hub so
 // every page can render the signed-in UI instantly and then revalidate against
 // /api/auth/me in the background instead of blocking on it.
@@ -189,7 +209,10 @@ let authMode = 'login';
 let authRegisterStep = 'credentials';
 let authPopupOpen = false;
 let registerDraft = { email: '', password: '' };
-const initialAuthToken = loadSavedAuthToken();
+// Fall back to the cookie sentinel when an httpOnly session cookie exists but the
+// localStorage marker is missing (e.g. localStorage cleared independently), so a
+// live cookie session is still recognized as signed-in.
+const initialAuthToken = loadSavedAuthToken() || (hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : '');
 // Seed from the cached snapshot so the signed-in UI renders instantly; the
 // background /api/auth/me on init revalidates and refreshes it.
 const initialCachedProfile = initialAuthToken ? loadCachedAuthProfile() : null;
@@ -6250,7 +6273,9 @@ function renderPlayHubAuth() {
 
 function getAuthHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
-    if (authState.token && !headers.Authorization) {
+    // Cookie-mode sessions authenticate via the httpOnly cookie the browser sends
+    // automatically, so only attach a Bearer header for a real legacy token.
+    if (isLegacyBearerToken(authState.token) && !headers.Authorization) {
         headers.Authorization = `Bearer ${authState.token}`;
     }
     return headers;
@@ -6974,7 +6999,11 @@ async function submitAuth(mode) {
         return;
     }
 
-    saveAuthToken(data.token || '');
+    // Prefer cookie auth: the server set an httpOnly session cookie, so persist the
+    // sentinel (no secret in localStorage) once we can confirm the companion cookie
+    // round-tripped. If cookies are blocked in this environment, fall back to storing
+    // the real token and sending it as a Bearer header, so login still works.
+    saveAuthToken(hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : (data.token || ''));
     authState.profile = data;
     authState.profileResolved = true;
     saveCachedAuthProfile(data);
@@ -7041,6 +7070,13 @@ async function syncAuthProfile(silent = false) {
         authState.profileResolved = true;
         clearAuthProfile();
         return false;
+    }
+
+    // Transparent migration: a legacy token rode in as a Bearer header and the
+    // server has now set the session cookie (confirmed by the readable companion
+    // cookie). Drop the secret from localStorage and keep only the sentinel.
+    if (isLegacyBearerToken(authState.token) && hasReadableAuthCookie()) {
+        saveAuthToken(COOKIE_SESSION_VALUE);
     }
 
     authState.profile = data;
@@ -8031,6 +8067,7 @@ async function fetchJson(urlOrUrls, options = {}, timeoutMs = DEFAULT_REQUEST_TI
         const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
         try {
             const resp = await fetch(url, {
+                credentials: 'same-origin',
                 ...options,
                 headers: getAuthHeaders(options.headers || {}),
                 signal: controller.signal
