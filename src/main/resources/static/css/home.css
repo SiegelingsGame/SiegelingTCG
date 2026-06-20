@@ -1106,6 +1106,9 @@ body.starter-onboarding-active .hud-fab {
     max-height: calc(100vh - 104px);
     padding: 14px;
     overflow-y: auto;
+    /* Keep scroll momentum inside the tray so reaching the top/bottom edge
+       doesn't chain the gesture through to the page behind it. */
+    overscroll-behavior: contain;
     transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
@@ -1134,6 +1137,10 @@ body.starter-onboarding-active .hud-fab {
     background: rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
+    /* Swallow touch gestures on the dimmed area so dragging on it can't
+       scroll the page underneath the open tray. */
+    touch-action: none;
+    overscroll-behavior: contain;
 }
 
 .browser-panel {
@@ -7726,6 +7733,12 @@ body.gacha-active {
         box-sizing: border-box;
         padding: 10px 10px calc(224px + env(safe-area-inset-bottom, 0px));
         scroll-padding-bottom: calc(224px + env(safe-area-inset-bottom, 0px));
+    }
+    /* While the Card View / Filter tray is open, freeze the page scroll so the
+       gesture stays locked to the tray instead of bleeding to the background. */
+    body.tray-open .home-main {
+        overflow: hidden;
+        touch-action: none;
     }
     /* Mobile HUD docks at the bottom: handle moves to its top edge and the
        chevron points down (collapse downward). With the HUD minimized only

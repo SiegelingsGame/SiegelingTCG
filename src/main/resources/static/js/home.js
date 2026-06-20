@@ -6133,6 +6133,9 @@
         cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
         const trayOpen = (showFilterHud && filterOpen) || (binder && state.cardTrayOpen);
         backdrop?.classList.toggle('hidden', !trayOpen);
+        // Lock the page scroll behind an open tray so touch gestures stay
+        // confined to the tray instead of scrolling the background.
+        document.body.classList.toggle('tray-open', trayOpen);
     }
 
     async function fetchJson(path, options = {}) {
