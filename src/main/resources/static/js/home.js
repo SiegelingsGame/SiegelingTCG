@@ -43,6 +43,8 @@
     }
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
+    const PACK_OPEN_REQUEST_KEY = 'sieglingsPendingPackOpenRequest';
+    const PACK_OPEN_REQUEST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
     // Bulk pack buy: 10 pulls at a 5% discount. Mirrors PlayerProgressionService.
     const BULK_PACK_COUNT = 10;
     const BULK_PACK_DISCOUNT = 0.05;
@@ -68,7 +70,6 @@
     const PLAYER_NAME_KEY = 'sieglingsPlayerName';
     const SOCIAL_POLL_MS = 6 * 1000;
     const PRESENCE_HEARTBEAT_MS = 45 * 1000;
-    const PACK_OPEN_TIMEOUT_MS = 15000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
     const PACK_CARD_BACK_VERSION = 2;
@@ -5112,6 +5113,72 @@
         return new Promise(resolve => window.setTimeout(resolve, 760));
     }
 
+    function createPackOpenRequestId() {
+        if (window.crypto?.randomUUID) {
+            return window.crypto.randomUUID();
+        }
+        if (window.crypto?.getRandomValues) {
+            const values = new Uint32Array(2);
+            window.crypto.getRandomValues(values);
+            return `pack-open-${Date.now()}-${values[0].toString(36)}${values[1].toString(36)}`;
+        }
+        return `pack-open-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+    }
+
+    function readPackOpenRequest() {
+        try {
+            const request = JSON.parse(localStorage.getItem(PACK_OPEN_REQUEST_KEY) || 'null');
+            if (!request?.requestId || !request.packId || !request.startedAt) {
+                return null;
+            }
+            if (Date.now() - Number(request.startedAt) > PACK_OPEN_REQUEST_MAX_AGE_MS) {
+                localStorage.removeItem(PACK_OPEN_REQUEST_KEY);
+                return null;
+            }
+            return request;
+        } catch (error) {
+            try { localStorage.removeItem(PACK_OPEN_REQUEST_KEY); } catch (_ignored) { /* ignore */ }
+            return null;
+        }
+    }
+
+    function packOpenUserKey() {
+        return state.profile?.user?.id || state.profile?.user?.email || '';
+    }
+
+    function packOpenRequestFor(packId, count) {
+        const safeCount = Math.max(1, Math.min(Number(count) || 1, BULK_PACK_COUNT));
+        const userKey = packOpenUserKey();
+        const pending = readPackOpenRequest();
+        if (pending?.packId === packId && Number(pending.count) === safeCount && pending.userKey === userKey) {
+            return pending;
+        }
+        const request = {
+            requestId: createPackOpenRequestId(),
+            packId,
+            count: safeCount,
+            userKey,
+            startedAt: Date.now()
+        };
+        try {
+            localStorage.setItem(PACK_OPEN_REQUEST_KEY, JSON.stringify(request));
+        } catch (error) {
+            // Idempotency is a safety net; the purchase still works if storage is unavailable.
+        }
+        return request;
+    }
+
+    function clearPackOpenRequest(requestId) {
+        try {
+            const pending = readPackOpenRequest();
+            if (!requestId || pending?.requestId === requestId) {
+                localStorage.removeItem(PACK_OPEN_REQUEST_KEY);
+            }
+        } catch (error) {
+            // ignore
+        }
+    }
+
     async function choosePack(packId, count = 1) {
         if (!state.profile?.authenticated) {
             openAuth();
@@ -5125,6 +5192,7 @@
         const pack = state.packs.find(item => item.id === packId) || null;
         // Starter pulls are always single; bulk only applies to normal shop buys.
         const packCount = starterMode ? 1 : Math.max(1, Math.min(Number(count) || 1, BULK_PACK_COUNT));
+        const packRequest = starterMode ? null : packOpenRequestFor(packId, packCount);
         state.packOpeningPending = { packId, startedAt: Date.now(), element: pack?.elements?.[0] || 'FIRE', name: pack?.name || 'Pack', count: packCount };
         state.packOpeningDismissedKey = '';
         navigateHub('shop', { shopView: 'cardpack' });
@@ -5132,21 +5200,21 @@
         renderShop();
 
         // Phase 1 — the network call. fetchJson resolves to {error} for
-        // network/timeout/HTTP failures, but guard against any unexpected throw so
+        // network/HTTP failures, but guard against any unexpected throw so
         // the pending overlay is always torn down.
         let data;
         try {
             data = await fetchJson(endpoint, {
                 method: 'POST',
-                body: JSON.stringify({ packId, count: packCount }),
-                timeoutMs: PACK_OPEN_TIMEOUT_MS
+                body: JSON.stringify({ packId, count: packCount, requestId: packRequest?.requestId })
             });
         } catch (error) {
             data = { error: error?.message || 'Could not open that pack. Please try again.' };
         }
 
-        // The pull never succeeded on the server, so nothing was charged or
-        // granted — surface the error and let the player retry safely.
+        // Keep the request id after ambiguous failures. If the first POST did commit
+        // but the response was lost, retrying this same pack/count returns that result
+        // instead of charging again.
         if (!data || data.error) {
             state.packOpeningPending = null;
             hidePackResultDom();
@@ -5154,6 +5222,9 @@
             syncShopPackView();
             alert(data?.error || 'Could not open that pack. Please try again.');
             return;
+        }
+        if (packRequest?.requestId) {
+            clearPackOpenRequest(packRequest.requestId);
         }
 
         // Phase 2 — commit the server result. The cards are already granted and

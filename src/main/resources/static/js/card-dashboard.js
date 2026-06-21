@@ -506,10 +506,14 @@
                     throw new Error("Upload finished but the server did not return an image URL.");
                 }
                 clearEphemeralCardArtPreview();
-                mutateSelectedCard((selected) => {
-                    selected.cardArtUrl = hostedUrl;
-                    selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "REPLACE";
-                }, { render: false });
+                const uploadedCard = findCardById(cardId);
+                if (!uploadedCard) {
+                    throw new Error(`Upload finished for ${cardId}, but that card is no longer in the dashboard.`);
+                }
+                uploadedCard.cardArtUrl = hostedUrl;
+                uploadedCard.cardArtMode = normalizeCardArtMode(uploadedCard.cardArtMode) || "REPLACE";
+                state.dirty = true;
+                state.validation = validateDashboard();
                 setStatus(
                     state.liveEditingEnabled
                         ? `Uploaded art for ${cardId}. Adjust scale/placement below, then click Publish Live Changes.`
@@ -3359,10 +3363,14 @@
                 if (!hostedUrl) {
                     throw new Error("Upload finished but the server did not return an image URL.");
                 }
-                mutateSelectedTrainer((selected) => {
-                    selected.cardArtUrl = hostedUrl;
-                    selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "FULL_CARD";
-                });
+                const uploadedTrainer = findTrainerById(trainerId);
+                if (!uploadedTrainer) {
+                    throw new Error(`Upload finished for ${trainerId}, but that SiegeKnight is no longer in the dashboard.`);
+                }
+                uploadedTrainer.cardArtUrl = hostedUrl;
+                uploadedTrainer.cardArtMode = normalizeCardArtMode(uploadedTrainer.cardArtMode) || "FULL_CARD";
+                state.dirty = true;
+                state.validation = validateDashboard();
                 setStatus(
                     state.liveEditingEnabled
                         ? `Uploaded art for ${trainerId}. Click Publish Live Changes to apply.`

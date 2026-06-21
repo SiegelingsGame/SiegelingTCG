@@ -13,6 +13,7 @@ class GameJavaScriptRegressionTest {
 
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
+    private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -58,12 +59,60 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void packOpeningPurchaseDoesNotAbortAfterServerMayHaveCommitted() throws IOException {
+        String choosePack = extractFunction(readHomeScript(), "async function choosePack(packId, count = 1)");
+
+        assertFalse(
+                choosePack.contains("timeoutMs"),
+                "Pack opening is a non-idempotent purchase; client aborts can hide a successful charge and invite retry."
+        );
+        assertTrue(
+                choosePack.contains("packOpenRequestFor(packId, packCount)"),
+                "Shop pack opening should create or reuse an idempotency key before posting."
+        );
+        assertTrue(
+                choosePack.contains("requestId: packRequest?.requestId"),
+                "The idempotency key must be sent to the server with the pack-open request."
+        );
+        assertTrue(
+                choosePack.contains("clearPackOpenRequest(packRequest.requestId)"),
+                "The idempotency key should only be cleared after a confirmed server response."
+        );
+    }
+
+    @Test
+    void dashboardArtUploadsApplyToOriginalSelection() throws IOException {
+        String dashboardScript = readCardDashboardScript();
+
+        assertTrue(
+                dashboardScript.contains("const uploadedCard = findCardById(cardId);"),
+                "Card art upload completion must update the card id captured when the upload started."
+        );
+        assertTrue(
+                dashboardScript.contains("const uploadedTrainer = findTrainerById(trainerId);"),
+                "SiegeKnight art upload completion must update the trainer id captured when the upload started."
+        );
+        assertFalse(
+                dashboardScript.contains("mutateSelectedCard((selected) => {\n                    selected.cardArtUrl = hostedUrl;"),
+                "Card art upload completion must not write the hosted URL onto the current selection."
+        );
+        assertFalse(
+                dashboardScript.contains("mutateSelectedTrainer((selected) => {\n                    selected.cardArtUrl = hostedUrl;"),
+                "SiegeKnight art upload completion must not write the hosted URL onto the current selection."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
     }
 
     private static String readHomeScript() throws IOException {
         return Files.readString(HOME_JS);
+    }
+
+    private static String readCardDashboardScript() throws IOException {
+        return Files.readString(CARD_DASHBOARD_JS);
     }
 
     private static String extractFunction(String source, String signature) {

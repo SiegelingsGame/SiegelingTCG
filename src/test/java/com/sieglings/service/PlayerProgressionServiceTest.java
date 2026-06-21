@@ -196,6 +196,46 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void packOpenRequestIdPreventsSinglePullDoubleChargeOnRetry() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        PlayerProgressionEntity first = service.openPacks(user(), "pack_fire", 1, "request-1");
+        PlayerProgressionEntity retry = service.openPacks(user(), "pack_fire", 1, "request-1");
+
+        assertSame(first, retry);
+        assertEquals(400, retry.getGold());
+        assertEquals(1, retry.getPackHistory().size());
+        assertEquals("request-1", retry.getPackHistory().get(0).get("requestId"));
+        assertEquals(1, store.saveCount);
+    }
+
+    @Test
+    void packOpenRequestIdPreventsBulkPullDoubleChargeOnRetry() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(2000);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        PlayerProgressionEntity first = service.openPacks(user(), "pack_fire", 10, "bulk-request-1");
+        PlayerProgressionEntity retry = service.openPacks(user(), "pack_fire", 10, "bulk-request-1");
+
+        assertSame(first, retry);
+        assertEquals(1050, retry.getGold());
+        assertEquals(1, retry.getPackHistory().size());
+        assertEquals("bulk-request-1", retry.getPackHistory().get(0).get("requestId"));
+        assertEquals(1, store.saveCount);
+    }
+
+    @Test
     void customDeckValidationRequiresThirtyOwnedCopiesAndCapsCopiesAtThree() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
