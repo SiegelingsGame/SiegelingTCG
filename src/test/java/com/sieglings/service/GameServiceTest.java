@@ -1,5 +1,6 @@
 package com.sieglings.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sieglings.model.Ability;
 import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.CardInstance;
@@ -567,6 +568,7 @@ class GameServiceTest {
         setField(gameService, "effectService", effectService);
         setField(gameService, "battleService", new BattleService());
         setField(gameService, "energyService", new EnergyService(new PlacementService()));
+        setField(gameService, "movesPoolService", new MovesPoolService(new ObjectMapper(), null));
 
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
