@@ -159,7 +159,6 @@ class PlayerProgressionServiceTest {
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
         progression.setUserId("player@example.com");
         progression.setStarterPackId("pack_fire");
-        progression.setTrainerLevels(new LinkedHashMap<>(Map.of("trainer01", 1)));
         progression.setGold(500);
         store.saved = progression;
         PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
@@ -202,6 +201,7 @@ class PlayerProgressionServiceTest {
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
         progression.setUserId("player@example.com");
         progression.setStarterPackId("pack_fire");
+        progression.setTrainerLevels(new LinkedHashMap<>(Map.of("trainer01", 1)));
         progression.setGold(500);
         store.saved = progression;
         PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
