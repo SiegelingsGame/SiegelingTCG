@@ -858,6 +858,54 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     flex-shrink: 0;
 }
 
+/* When a SiegeKnight card is shown, the panel stacks the card art on top and
+   drops the text summary below it. */
+.hud-knight-card.has-knight-art {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    align-items: stretch;
+}
+
+.hud-knight-art {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 10px 10px 0 0;
+    background: rgba(255, 255, 255, 0.04);
+    line-height: 0;
+}
+
+.hud-knight-art-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 280px;
+    object-fit: contain;
+}
+
+.hud-knight-art-template {
+    opacity: 0.92;
+}
+
+.hud-knight-art-sigil {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    line-height: 1;
+}
+
+.hud-knight-card.has-knight-art .hud-knight-info {
+    padding: 8px;
+}
+
+.hud-knight-card.has-knight-art .hud-knight-portrait {
+    display: none;
+}
+
 .hud-knight-info {
     flex: 1;
     min-width: 0;
@@ -3557,6 +3605,36 @@ body.battle-phase-active .battlefield::after {
         background: rgba(255, 255, 255, 0.06);
         font-size: 1em;
         flex-shrink: 0;
+    }
+
+    /* SiegeKnight card thumbnail in the stat-sheet knight preview (opens on
+       tapping the health bar). */
+    .m-knight-icon.has-knight-card {
+        position: relative;
+        width: 56px;
+        height: 78px;
+        border-radius: 7px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.05);
+        font-size: 0;
+        padding: 0;
+    }
+
+    .m-knight-icon.has-knight-card .hud-knight-art-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .m-knight-icon.has-knight-card .hud-knight-art-sigil {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        line-height: 1;
     }
 
     .m-knight-name {

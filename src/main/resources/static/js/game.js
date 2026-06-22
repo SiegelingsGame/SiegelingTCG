@@ -10731,20 +10731,67 @@ function updateMobileHudSide(label, playerData, ids) {
     }
 
     const icon = document.getElementById(ids.knightIconId);
-    if (icon) icon.innerHTML = elementEmoji(trainer?.element);
+    if (icon) {
+        if (trainer) {
+            icon.classList.add('has-knight-card');
+            icon.classList.toggle('has-knight-fullart', knightHasFullCardArt(trainer));
+            icon.innerHTML = knightHudCardInnerHtml(trainer);
+        } else {
+            icon.classList.remove('has-knight-card', 'has-knight-fullart');
+            icon.innerHTML = elementEmoji(trainer?.element);
+        }
+    }
 
     renderMobileHudElementDots(ids.dotsId, playerData);
     renderMobileStatElements(ids.statElementsId, playerData);
+}
+
+// True when this SiegeKnight has uploaded full-card art (Pyla / Squire Bob style).
+function knightHasFullCardArt(trainer) {
+    return Boolean(String(trainer?.cardArtUrl || '').trim()
+        && String(trainer?.cardArtMode || '').trim().toUpperCase() === 'FULL_CARD');
+}
+
+// Inner markup for a SiegeKnight card shown in the battle HUD: the hand-drawn
+// full-card art when available, otherwise the default card-front template with
+// the element sigil overlaid so every knight still reads as a card.
+function knightHudCardInnerHtml(trainer) {
+    if (knightHasFullCardArt(trainer)) {
+        const url = String(trainer.cardArtUrl).trim();
+        return `<img class="hud-knight-art-img" src="${escapeHtmlAttribute(url)}" alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight')}" loading="lazy">`;
+    }
+    return `<img class="hud-knight-art-img hud-knight-art-template" src="${SIEGEKNIGHT_CARD_TEMPLATE}" alt="" aria-hidden="true"><span class="hud-knight-art-sigil">${elementEmoji(trainer?.element)}</span>`;
 }
 
 function updateHudRailKnight(prefix, trainer) {
     setTextIfExists(`${prefix}KnightName`, trainer?.name || '-');
     setTextIfExists(`${prefix}KnightElement`, trainer?.element ? formatElementLabel(trainer.element) : '');
     setTrainerAbilityMarkup(`${prefix}KnightAbility`, trainer);
+    const card = document.getElementById(`${prefix}Knight`);
     const portrait = document.getElementById(`${prefix}KnightPortrait`);
-    if (portrait) {
-        portrait.innerHTML = elementEmoji(trainer?.element);
+    if (!card) {
+        if (portrait) portrait.innerHTML = elementEmoji(trainer?.element);
+        return;
     }
+    if (!trainer) {
+        card.classList.remove('has-knight-art');
+        card.querySelector('.hud-knight-art')?.remove();
+        if (portrait) {
+            portrait.style.display = '';
+            portrait.innerHTML = elementEmoji(trainer?.element);
+        }
+        return;
+    }
+    card.classList.add('has-knight-art');
+    card.classList.toggle('has-knight-fullart', knightHasFullCardArt(trainer));
+    let art = card.querySelector('.hud-knight-art');
+    if (!art) {
+        art = document.createElement('div');
+        art.className = 'hud-knight-art';
+        card.insertBefore(art, card.firstChild);
+    }
+    art.innerHTML = knightHudCardInnerHtml(trainer);
+    if (portrait) portrait.style.display = 'none';
 }
 
 /** Full SiegeKnight readout (element + passive + active/ultimate) for the player detail tray. */
