@@ -564,9 +564,15 @@ class GameServiceTest {
     void shieldFromSetupPersistsIntoBattlePhase() throws Exception {
         GameService gameService = new GameService();
         EffectService effectService = new EffectService();
+        PlacementService placementService = new PlacementService();
+        EnergyService energyService = new EnergyService(placementService);
+        BattleService battleService = new BattleService();
+        setField(battleService, "effectService", effectService);
+        setField(battleService, "energyService", energyService);
+        setField(battleService, "movesPoolService", new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null));
         setField(gameService, "effectService", effectService);
-        setField(gameService, "battleService", new BattleService());
-        setField(gameService, "energyService", new EnergyService(new PlacementService()));
+        setField(gameService, "battleService", battleService);
+        setField(gameService, "energyService", energyService);
 
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
