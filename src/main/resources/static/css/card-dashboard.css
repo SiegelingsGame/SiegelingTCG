@@ -1367,7 +1367,7 @@ body.move-picker-open {
     overflow: hidden;
     border: 1px solid var(--line);
     background: #0b1020 center/cover no-repeat;
-    background-image: url('/img/knights/card-back-siegeknight.png');
+    background-image: url('/img/knights/siegeknight-card-template.png');
 }
 
 .trainer-art-portrait .trainer-art-full-img {
@@ -1400,20 +1400,36 @@ body.move-picker-open {
 }
 
 .art-mode-toggle {
-    display: grid;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     gap: 8px;
 }
 
 .art-mode-option {
     display: flex;
+    flex-direction: row;
     align-items: center;
-    gap: 8px;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
     color: var(--text-soft);
     font-size: 0.92rem;
+    cursor: pointer;
 }
 
 .art-mode-option input {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin: 0;
     accent-color: var(--accent);
+}
+
+.art-mode-option span {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .card-art-actions {
