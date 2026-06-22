@@ -2453,17 +2453,11 @@ body.gacha-active {
     width: min(1460px, 100%);
     margin: 0 auto;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: clamp(12px, 1.4vw, 22px);
-    align-items: center;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: clamp(10px, 1.4vw, 22px);
+    align-items: start;
     justify-items: center;
     perspective: 1400px;
-}
-
-@media (max-width: 900px) {
-    .gacha-stage {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
 }
 
 .reveal-card {
@@ -4141,7 +4135,7 @@ body.gacha-active {
         padding: 12px;
     }
     .gacha-stage {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: 10px;
     }
     .reveal-card {

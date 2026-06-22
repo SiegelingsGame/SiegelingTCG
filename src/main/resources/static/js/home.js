@@ -2063,18 +2063,24 @@
         const starterMode = state.progression && !state.progression.starterChosen;
         const endpoint = starterMode ? '/api/player/starter-pack' : '/api/shop/open-pack';
         const data = await fetchJson(endpoint, { method: 'POST', body: JSON.stringify({ packId }) });
-        if (data?.error) return alert(data.error);
+        if (!data) return alert('Could not open this pack. Check your connection and try again.');
+        if (data.error) return alert(data.error);
+        if (!data.progression) return alert('Server did not return progression. Please try again.');
         state.progression = data.progression;
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
         const latest = state.progression?.packHistory?.[0];
-        state.packReveal = latest ? {
+        if (!latest || !Array.isArray(latest.cards) || latest.cards.length === 0) {
+            return alert('Pack opened but no cards were returned. Please try again.');
+        }
+        state.packReveal = {
             packId: latest.packId,
             openedAt: latest.openedAt,
             revealed: new Set(),
             lastRevealedId: '',
-            sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
-        } : null;
+            previewId: '',
+            sparkColor: elementColor(latest.cards[0]?.element || 'FIRE')
+        };
         renderPackResult();
         render();
     }
@@ -2192,12 +2198,36 @@
         if (!latest) return;
         const reveal = ensurePackReveal(latest);
         const index = latest.cards.findIndex((card, cardIndex) => `${card.id || 'card'}-${cardIndex}` === revealId);
-        const card = index >= 0 ? enrichPackCard(latest.cards[index], index) : null;
+        if (index < 0) return;
+        const card = enrichPackCard(latest.cards[index], index);
+
+        if (reveal.revealed.has(revealId)) {
+            reveal.previewId = revealId;
+            reveal.lastRevealedId = '';
+            renderPackResult();
+            return;
+        }
+
         reveal.revealed.add(revealId);
         reveal.lastRevealedId = revealId;
-        reveal.previewId = revealId;
-        reveal.sparkColor = rarityColor(card?.rarity || 'COMMON');
-        renderPackResult();
+        reveal.sparkColor = rarityColor(card.rarity || 'COMMON');
+
+        // Animate the flip + rarity shine in place. Re-rendering the whole stage
+        // would recreate the button already in its revealed state, killing the
+        // CSS flip transition.
+        if (triggerEl) {
+            triggerEl.classList.add('is-revealed', 'is-animating');
+            const opening = triggerEl.closest('.pack-opening');
+            if (opening) {
+                opening.style.setProperty('--spark-glow', reveal.sparkColor);
+                const progress = opening.querySelector('.pack-progress');
+                if (progress) {
+                    progress.textContent = `${reveal.revealed.size}/${latest.cards.length} unsealed`;
+                }
+            }
+        } else {
+            renderPackResult();
+        }
     }
 
     function closePackPreview() {
