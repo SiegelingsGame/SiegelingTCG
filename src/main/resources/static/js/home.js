@@ -68,6 +68,7 @@
     const PLAYER_NAME_KEY = 'sieglingsPlayerName';
     const SOCIAL_POLL_MS = 6 * 1000;
     const PRESENCE_HEARTBEAT_MS = 45 * 1000;
+    const PENDING_PACK_OPEN_REQUEST_KEY = 'sieglingsPendingPackOpenRequest';
     const PACK_OPEN_TIMEOUT_MS = 15000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
@@ -5112,6 +5113,67 @@
         return new Promise(resolve => window.setTimeout(resolve, 760));
     }
 
+    function packOpenRequestStorageKey() {
+        const userId = state.profile?.user?.id || state.profile?.user?.email || 'anonymous';
+        return `${PENDING_PACK_OPEN_REQUEST_KEY}:${userId}`;
+    }
+
+    function createPackOpenRequestId() {
+        try {
+            if (window.crypto?.randomUUID) {
+                return window.crypto.randomUUID();
+            }
+        } catch (error) {
+            // Fall through to the timestamp/random fallback below.
+        }
+        return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    function readPendingPackOpenRequest(packId, count) {
+        try {
+            const raw = localStorage.getItem(packOpenRequestStorageKey());
+            if (!raw) return null;
+            const entry = JSON.parse(raw);
+            if (entry?.packId === packId && Number(entry.count) === Number(count) && entry.requestId) {
+                return entry;
+            }
+        } catch (error) {
+            // Treat malformed or unavailable storage as no pending retry.
+        }
+        return null;
+    }
+
+    function getOrCreatePackOpenRequestId(packId, count) {
+        const pending = readPendingPackOpenRequest(packId, count);
+        if (pending?.requestId) return pending.requestId;
+        const requestId = createPackOpenRequestId();
+        try {
+            localStorage.setItem(packOpenRequestStorageKey(), JSON.stringify({
+                requestId,
+                packId,
+                count,
+                createdAt: Date.now()
+            }));
+        } catch (error) {
+            // Idempotency still works for the current request; persistence is best effort.
+        }
+        return requestId;
+    }
+
+    function clearPackOpenRequestId(requestId) {
+        try {
+            const key = packOpenRequestStorageKey();
+            const raw = localStorage.getItem(key);
+            if (!raw) return;
+            const entry = JSON.parse(raw);
+            if (!requestId || entry?.requestId === requestId) {
+                localStorage.removeItem(key);
+            }
+        } catch (error) {
+            try { localStorage.removeItem(packOpenRequestStorageKey()); } catch (ignored) { /* ignore */ }
+        }
+    }
+
     async function choosePack(packId, count = 1) {
         if (!state.profile?.authenticated) {
             openAuth();
@@ -5125,6 +5187,7 @@
         const pack = state.packs.find(item => item.id === packId) || null;
         // Starter pulls are always single; bulk only applies to normal shop buys.
         const packCount = starterMode ? 1 : Math.max(1, Math.min(Number(count) || 1, BULK_PACK_COUNT));
+        const requestId = starterMode ? null : getOrCreatePackOpenRequestId(packId, packCount);
         state.packOpeningPending = { packId, startedAt: Date.now(), element: pack?.elements?.[0] || 'FIRE', name: pack?.name || 'Pack', count: packCount };
         state.packOpeningDismissedKey = '';
         navigateHub('shop', { shopView: 'cardpack' });
@@ -5138,7 +5201,7 @@
         try {
             data = await fetchJson(endpoint, {
                 method: 'POST',
-                body: JSON.stringify({ packId, count: packCount }),
+                body: JSON.stringify({ packId, count: packCount, requestId }),
                 timeoutMs: PACK_OPEN_TIMEOUT_MS
             });
         } catch (error) {
@@ -5149,6 +5212,7 @@
         // granted — surface the error and let the player retry safely.
         if (!data || data.error) {
             state.packOpeningPending = null;
+            if (!data?.timedOut) clearPackOpenRequestId(requestId);
             hidePackResultDom();
             renderShop();
             syncShopPackView();
@@ -5165,6 +5229,7 @@
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
         state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+        clearPackOpenRequestId(requestId);
         const latest = state.progression?.packHistory?.[0];
         if (latest) {
             pushNotification('pack', `Pack opened: ${pack?.name || latest.packId || 'Card pack'}`, `${(latest.cards || []).length} cards added to your binder.`);
@@ -6319,7 +6384,7 @@
         } catch (error) {
             console.error(error);
             if (error?.name === 'AbortError') {
-                return { error: 'Pack opening is taking too long. Please try again.' };
+                return { error: 'Pack opening is taking too long. Please try again.', timedOut: true };
             }
             return { error: 'Network error. Check your connection and try again.' };
         } finally {
@@ -7812,7 +7877,7 @@
     async function closeHostLobby(lobby) {
         if (!lobby?.roomId) return;
         const headers = { 'Content-Type': 'application/json' };
-        if (state.token) headers.Authorization = `Bearer ${state.token}`;
+        if (isLegacyBearerToken(state.token)) headers.Authorization = `Bearer ${state.token}`;
         if (lobby.playerToken) {
             headers['X-Room-Id'] = lobby.roomId;
             headers['X-Player-Token'] = lobby.playerToken;

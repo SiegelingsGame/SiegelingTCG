@@ -58,6 +58,33 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void shopPackOpeningUsesPersistentIdempotencyKey() throws IOException {
+        String homeScript = readHomeScript();
+        String choosePack = extractFunction(homeScript, "async function choosePack(packId, count = 1)");
+
+        assertTrue(
+                choosePack.contains("getOrCreatePackOpenRequestId(packId, packCount)")
+                        && choosePack.contains("requestId")
+                        && choosePack.contains("!data?.timedOut"),
+                "Pack opening retries after a client timeout must reuse the same request id instead of double-charging."
+        );
+        assertTrue(
+                homeScript.contains("timedOut: true"),
+                "Timed-out pack opens must be distinguishable so the retry id is preserved."
+        );
+    }
+
+    @Test
+    void closeHostLobbyDoesNotSendCookieSentinelAsBearerToken() throws IOException {
+        String closeHostLobby = extractFunction(readHomeScript(), "async function closeHostLobby(lobby)");
+
+        assertTrue(
+                closeHostLobby.contains("isLegacyBearerToken(state.token)"),
+                "Cookie-auth users must rely on the session cookie instead of sending Authorization: Bearer cookie."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
     }

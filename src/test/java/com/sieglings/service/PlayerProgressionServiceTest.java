@@ -39,6 +39,44 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void repeatedPackOpenRequestDoesNotChargeAgain() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.openPacks(user(), "pack_fire", 1, "pack-request-1");
+        service.openPacks(user(), "pack_fire", 1, "pack-request-1");
+
+        assertEquals(400, store.saved.getGold());
+        assertEquals(1, store.saved.getPackHistory().size());
+        assertEquals("pack-request-1", store.saved.getPackHistory().get(0).get("requestId"));
+        assertEquals(1, store.saveCount);
+    }
+
+    @Test
+    void repeatedBulkPackOpenRequestDoesNotChargeAgain() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(2000);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.openPacks(user(), "pack_fire", 10, "bulk-pack-request-1");
+        service.openPacks(user(), "pack_fire", 10, "bulk-pack-request-1");
+
+        assertEquals(1050, store.saved.getGold());
+        assertEquals(1, store.saved.getPackHistory().size());
+        assertEquals("bulk-pack-request-1", store.saved.getPackHistory().get(0).get("requestId"));
+        assertEquals(1, store.saveCount);
+    }
+
+    @Test
     void getOrCreateDoesNotOverwriteExistingProgressionOnRead() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity existing = new PlayerProgressionEntity();

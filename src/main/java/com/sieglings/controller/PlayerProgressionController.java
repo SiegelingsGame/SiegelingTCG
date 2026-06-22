@@ -79,7 +79,12 @@ public class PlayerProgressionController {
                                         @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            PlayerProgressionEntity progression = progressionService.openPacks(user, string(req, "packId"), intValue(req, "count", 1));
+            PlayerProgressionEntity progression = progressionService.openPacks(
+                    user,
+                    string(req, "packId"),
+                    intValue(req, "count", 1),
+                    string(req, "requestId")
+            );
             return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
