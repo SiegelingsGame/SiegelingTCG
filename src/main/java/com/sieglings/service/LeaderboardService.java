@@ -8,8 +8,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -29,6 +32,20 @@ public class LeaderboardService {
     public static final String BOARD_SIEGELINGS_DEFEATED = "siegelingsDefeated";
     public static final String BOARD_PVP_WIN_RATE = "pvpWinRate";
 
+    public static final String PERIOD_DAILY = "daily";
+    public static final String PERIOD_WEEKLY = "weekly";
+    public static final String PERIOD_MONTHLY = "monthly";
+    public static final String PERIOD_YEAR = "year";
+    public static final String PERIOD_ALL_TIME = "allTime";
+
+    private static final List<String> PERIOD_ORDER = List.of(
+            PERIOD_DAILY,
+            PERIOD_WEEKLY,
+            PERIOD_MONTHLY,
+            PERIOD_YEAR,
+            PERIOD_ALL_TIME
+    );
+
     private static final int TOP_N = 10;
 
     @Autowired
@@ -37,7 +54,14 @@ public class LeaderboardService {
     @Value("${app.leaderboard.time-zone:UTC}")
     private String leaderboardTimeZoneId;
 
+    // How long a built snapshot stays fresh before the next read rebuilds it.
+    // Keeps the daily board reflecting matches played today without scanning
+    // Firestore on every request. Set to 0 to disable TTL refresh (cron only).
+    @Value("${app.leaderboard.refresh-ttl-ms:120000}")
+    private long refreshTtlMs;
+
     private final AtomicReference<Map<String, Object>> snapshot = new AtomicReference<>();
+    private volatile Instant lastRefresh;
 
     @PostConstruct
     public void warmOnStartup() {
@@ -58,6 +82,111 @@ public class LeaderboardService {
         Instant now = Instant.now();
         List<MatchHistoryEntity> matches = matchHistoryStore.findAll();
 
+        Map<String, Map<String, List<Map<String, Object>>>> periods = new LinkedHashMap<>();
+        for (String period : PERIOD_ORDER) {
+            List<MatchHistoryEntity> scoped = filterMatchesForPeriod(matches, zone, period, now);
+            periods.put(period, buildBoards(scoped));
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("generatedAt", now.toString());
+        payload.put("timeZone", zone.getId());
+        payload.put("defaultPeriod", PERIOD_DAILY);
+        payload.put("periods", periods);
+        // Backward compatibility: top-level boards mirror the daily period.
+        payload.put("boards", periods.get(PERIOD_DAILY));
+        snapshot.set(payload);
+        lastRefresh = now;
+    }
+
+    public Map<String, Object> getSnapshot() {
+        refreshIfStale(Instant.now());
+        return snapshot.get();
+    }
+
+    private synchronized void refreshIfStale(Instant now) {
+        if (snapshot.get() == null || isStale(lastRefresh, now, refreshTtlMs)) {
+            refreshSnapshot();
+        }
+    }
+
+    static boolean isStale(Instant lastRefresh, Instant now, long ttlMs) {
+        if (lastRefresh == null) {
+            return true;
+        }
+        if (ttlMs <= 0) {
+            return false;
+        }
+        return !now.isBefore(lastRefresh.plusMillis(ttlMs));
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, List<Map<String, Object>>> boardsForPeriod(Map<String, Object> snapshot, String period) {
+        if (snapshot == null) {
+            return Map.of();
+        }
+        String normalized = normalizePeriod(period);
+        Object periodsObj = snapshot.get("periods");
+        if (periodsObj instanceof Map<?, ?> periods) {
+            Object boardsObj = periods.get(normalized);
+            if (boardsObj instanceof Map<?, ?> boards) {
+                return (Map<String, List<Map<String, Object>>>) boards;
+            }
+        }
+        Object legacyBoards = snapshot.get("boards");
+        if (legacyBoards instanceof Map<?, ?> boards) {
+            return (Map<String, List<Map<String, Object>>>) boards;
+        }
+        return Map.of();
+    }
+
+    public static String normalizePeriod(String period) {
+        if (period == null || period.isBlank()) {
+            return PERIOD_DAILY;
+        }
+        String key = period.trim();
+        if ("all".equalsIgnoreCase(key) || "all-time".equalsIgnoreCase(key) || "alltime".equalsIgnoreCase(key)) {
+            return PERIOD_ALL_TIME;
+        }
+        for (String candidate : PERIOD_ORDER) {
+            if (candidate.equalsIgnoreCase(key)) {
+                return candidate;
+            }
+        }
+        return PERIOD_DAILY;
+    }
+
+    static List<MatchHistoryEntity> filterMatchesForPeriod(List<MatchHistoryEntity> matches,
+                                                           ZoneId zone,
+                                                           String period,
+                                                           Instant now) {
+        if (PERIOD_ALL_TIME.equals(period)) {
+            return matches;
+        }
+        Instant start = periodStart(zone, period, now);
+        return matches.stream()
+                .filter(match -> {
+                    Instant finishedAt = match.getFinishedAt();
+                    return finishedAt != null && !finishedAt.isBefore(start);
+                })
+                .toList();
+    }
+
+    static Instant periodStart(ZoneId zone, String period, Instant now) {
+        ZonedDateTime zdt = now.atZone(zone);
+        return switch (period) {
+            case PERIOD_DAILY -> zdt.toLocalDate().atStartOfDay(zone).toInstant();
+            case PERIOD_WEEKLY -> zdt.toLocalDate()
+                    .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                    .atStartOfDay(zone)
+                    .toInstant();
+            case PERIOD_MONTHLY -> zdt.withDayOfMonth(1).toLocalDate().atStartOfDay(zone).toInstant();
+            case PERIOD_YEAR -> zdt.withDayOfYear(1).toLocalDate().atStartOfDay(zone).toInstant();
+            default -> Instant.EPOCH;
+        };
+    }
+
+    private Map<String, List<Map<String, Object>>> buildBoards(List<MatchHistoryEntity> matches) {
         Map<String, List<Map<String, Object>>> boards = new LinkedHashMap<>();
         boards.put(BOARD_WINS, buildCountBoard(matches, m -> "WIN".equalsIgnoreCase(m.getResult()) ? 1L : 0L, false));
         boards.put(BOARD_MATCHES_PLAYED, buildCountBoard(matches, m -> 1L, false));
@@ -65,21 +194,7 @@ public class LeaderboardService {
         boards.put(BOARD_TRAPS_SPRUNG, buildCountBoard(matches, m -> (long) m.getTrapsSprung(), true));
         boards.put(BOARD_SIEGELINGS_DEFEATED, buildCountBoard(matches, m -> (long) m.getSiegelingsDefeated(), true));
         boards.put(BOARD_PVP_WIN_RATE, buildPvpBoard(matches));
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("generatedAt", now.toString());
-        payload.put("timeZone", zone.getId());
-        payload.put("boards", boards);
-        snapshot.set(payload);
-    }
-
-    public Map<String, Object> getSnapshot() {
-        Map<String, Object> current = snapshot.get();
-        if (current == null) {
-            refreshSnapshot();
-            current = snapshot.get();
-        }
-        return current;
+        return boards;
     }
 
     @FunctionalInterface

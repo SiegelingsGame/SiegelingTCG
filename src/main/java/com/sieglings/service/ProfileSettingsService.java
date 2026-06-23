@@ -1,6 +1,9 @@
 package com.sieglings.service;
 
+import com.sieglings.model.Card;
+import com.sieglings.model.enums.CardType;
 import com.sieglings.persistence.entity.AccountUser;
+import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.firestore.AccountUserStore;
 import com.sieglings.persistence.firestore.ProfileSettingsStore;
@@ -9,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -24,6 +28,15 @@ public class ProfileSettingsService {
     @Autowired
     private AccountUserStore userStore;
 
+    @Autowired
+    private PlayerTitleService playerTitleService;
+
+    @Autowired
+    private PlayerProgressionService playerProgressionService;
+
+    @Autowired
+    private CardDefinitionService cardDefinitionService;
+
     public ProfileSettingsEntity getOrCreate(AccountUser user) {
         return settingsStore.findByUserId(user.getId()).orElseGet(() -> defaultsFor(user));
     }
@@ -35,6 +48,7 @@ public class ProfileSettingsService {
 
     public ProfileSettingsEntity save(AccountUser user, Map<String, Object> req) {
         ProfileSettingsEntity settings = getOrCreate(user);
+        PlayerProgressionEntity progression = playerProgressionService.getOrCreate(user);
         if (req.get("displayName") instanceof String displayName && !displayName.isBlank()) {
             String trimmed = trim(displayName, 20);
             settings.setDisplayName(trimmed);
@@ -55,8 +69,22 @@ public class ProfileSettingsService {
             Object favoriteElement = req.get("favoriteElement");
             settings.setFavoriteElement(normalizeElement(favoriteElement == null ? null : String.valueOf(favoriteElement)));
         }
-        if (req.get("playerTitle") instanceof String playerTitle) {
-            settings.setPlayerTitle(trim(playerTitle, 60));
+        if (req.containsKey("profileArtId")) {
+            settings.setProfileArtId(trim(readString(req, "profileArtId"), 120));
+        }
+        if (req.containsKey("pageArtId")) {
+            settings.setPageArtId(trim(readString(req, "pageArtId"), 120));
+        }
+        String requestedTitleId = readString(req, "playerTitleId");
+        if (requestedTitleId.isBlank()) {
+            requestedTitleId = readString(req, "playerTitle");
+        }
+        if (!requestedTitleId.isBlank()) {
+            String titleId = playerTitleService.migrateLegacyTitleId(requestedTitleId, settings.getFavoriteElement());
+            if (!playerTitleService.isTitleUnlocked(user, progression, titleId)) {
+                throw new IllegalArgumentException("That player title is locked.");
+            }
+            settings.setPlayerTitle(titleId);
         }
         if (req.get("bio") instanceof String bio) {
             settings.setBio(trim(bio, 240));
@@ -64,14 +92,23 @@ public class ProfileSettingsService {
         if (req.get("preferredCardBack") instanceof String preferredCardBack) {
             settings.setPreferredCardBack(trim(preferredCardBack, 60));
         }
-        if (req.get("favoriteSiegling") instanceof String favoriteSiegling) {
-            settings.setFavoriteSiegling(trim(favoriteSiegling, 60));
+        String requestedFavoriteId = readString(req, "favoriteSieglingId");
+        if (requestedFavoriteId.isBlank()) {
+            requestedFavoriteId = readString(req, "favoriteSiegling");
+        }
+        if (!requestedFavoriteId.isBlank()) {
+            String cardId = resolveFavoriteSieglingId(requestedFavoriteId, progression);
+            if (cardId.isBlank()) {
+                throw new IllegalArgumentException("Choose a Siegeling you own.");
+            }
+            settings.setFavoriteSiegling(cardId);
         }
         settings.setUpdatedAt(Instant.now());
         return settingsStore.save(settings);
     }
 
     public Map<String, Object> serialize(ProfileSettingsEntity settings, AccountUser user) {
+        PlayerProgressionEntity progression = playerProgressionService.getOrCreate(user);
         Map<String, Object> out = new LinkedHashMap<>();
         String displayName = settings.getDisplayName();
         if (displayName == null || displayName.isBlank()) {
@@ -85,12 +122,87 @@ public class ProfileSettingsService {
         out.put("avatarUrl", settings.getAvatarUrl() == null ? "" : settings.getAvatarUrl());
         out.put("favoriteElement", normalizeElement(settings.getFavoriteElement()));
         out.put("favoriteElementLabel", toProfileElementLabel(settings.getFavoriteElement()));
-        out.put("playerTitle", settings.getPlayerTitle() == null ? "" : settings.getPlayerTitle());
+        out.put("profileArtId", settings.getProfileArtId() == null ? "" : settings.getProfileArtId());
+        out.put("pageArtId", settings.getPageArtId() == null ? "" : settings.getPageArtId());
+
+        String titleId = playerTitleService.migrateLegacyTitleId(settings.getPlayerTitle(), settings.getFavoriteElement());
+        out.put("playerTitleId", titleId);
+        out.put("playerTitle", playerTitleService.labelFor(titleId));
+
         out.put("bio", settings.getBio() == null ? "" : settings.getBio());
         out.put("preferredCardBack", settings.getPreferredCardBack() == null ? "" : settings.getPreferredCardBack());
-        out.put("favoriteSiegling", settings.getFavoriteSiegling() == null ? "" : settings.getFavoriteSiegling());
+
+        String favoriteId = resolveFavoriteSieglingId(settings.getFavoriteSiegling(), progression);
+        out.put("favoriteSieglingId", favoriteId);
+        Card favoriteCard = findSieglingById(favoriteId).orElse(null);
+        out.put("favoriteSiegling", favoriteCard == null ? "" : favoriteCard.getName());
+        if (favoriteCard != null) {
+            out.put("favoriteSieglingCard", serializeFavoriteCard(favoriteCard, progression));
+        }
         out.put("updatedAt", settings.getUpdatedAt() == null ? null : settings.getUpdatedAt().toString());
         return out;
+    }
+
+    private Map<String, Object> serializeFavoriteCard(Card card, PlayerProgressionEntity progression) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", card.getId());
+        out.put("name", card.getName());
+        out.put("type", card.getCardType().name());
+        out.put("element", card.getElement().name());
+        out.put("rarity", card.getRarity().name());
+        out.put("health", card instanceof com.sieglings.model.SieglingCard siegling ? siegling.getHealth() : null);
+        out.put("speed", card instanceof com.sieglings.model.SieglingCard siegling ? siegling.getSpeed() : null);
+        out.put("owned", progression.getOwnedCards().getOrDefault(card.getId(), 0));
+        return out;
+    }
+
+    private String resolveFavoriteSieglingId(String rawValue, PlayerProgressionEntity progression) {
+        String trimmed = rawValue == null ? "" : rawValue.trim();
+        if (trimmed.isBlank()) {
+            return firstOwnedSieglingId(progression);
+        }
+        Optional<Card> byId = findSieglingById(trimmed);
+        if (byId.isPresent() && ownsSiegling(progression, byId.get().getId())) {
+            return byId.get().getId();
+        }
+        Optional<Card> byName = findSieglingByName(trimmed);
+        if (byName.isPresent() && ownsSiegling(progression, byName.get().getId())) {
+            return byName.get().getId();
+        }
+        return "";
+    }
+
+    private String firstOwnedSieglingId(PlayerProgressionEntity progression) {
+        return cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(card -> card.getCardType() == CardType.SIEGLING)
+                .filter(card -> ownsSiegling(progression, card.getId()))
+                .map(Card::getId)
+                .findFirst()
+                .orElse("");
+    }
+
+    private boolean ownsSiegling(PlayerProgressionEntity progression, String cardId) {
+        return progression.getOwnedCards().getOrDefault(cardId, 0) > 0;
+    }
+
+    private Optional<Card> findSieglingById(String cardId) {
+        if (cardId == null || cardId.isBlank()) {
+            return Optional.empty();
+        }
+        return cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(card -> card.getCardType() == CardType.SIEGLING)
+                .filter(card -> card.getId().equalsIgnoreCase(cardId.trim()))
+                .findFirst();
+    }
+
+    private Optional<Card> findSieglingByName(String name) {
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+        return cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(card -> card.getCardType() == CardType.SIEGLING)
+                .filter(card -> card.getName().equalsIgnoreCase(name.trim()))
+                .findFirst();
     }
 
     private ProfileSettingsEntity defaultsFor(AccountUser user) {
@@ -100,12 +212,20 @@ public class ProfileSettingsService {
         settings.setAvatarMode("INITIAL");
         settings.setAvatar(trimAvatar("", user.getDisplayName()));
         settings.setFavoriteElement("FIRE");
-        settings.setPlayerTitle("Ready for the next siege");
+        settings.setPlayerTitle("title_starter_fire");
         settings.setBio("Ready to tune a deck, open a pack, and make the next match count.");
         settings.setPreferredCardBack("Molten Sigil");
-        settings.setFavoriteSiegling("Sundile");
+        settings.setFavoriteSiegling("");
         settings.setUpdatedAt(Instant.now());
         return settings;
+    }
+
+    private String readString(Map<String, Object> req, String key) {
+        if (req == null || !req.containsKey(key)) {
+            return "";
+        }
+        Object value = req.get(key);
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private String normalizeAvatarMode(String mode) {

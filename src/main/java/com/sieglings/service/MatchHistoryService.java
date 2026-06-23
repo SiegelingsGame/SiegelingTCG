@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class MatchHistoryService {
@@ -34,31 +33,38 @@ public class MatchHistoryService {
     }
 
     public void recordCompletedGame(GameState state) {
-        if (state == null || !state.isGameOver() || state.isMatchHistoryRecorded()) {
+        if (state == null || !state.isGameOver()) {
             return;
         }
 
-        recordForSide(state, true);
-        recordForSide(state, false);
-        state.setMatchHistoryRecorded(true);
+        synchronized (state) {
+            if (state.isMatchHistoryRecorded()) {
+                return;
+            }
+            boolean playerRecorded = recordForSide(state, true);
+            boolean enemyRecorded = recordForSide(state, false);
+            if (playerRecorded || enemyRecorded) {
+                state.setMatchHistoryRecorded(true);
+            }
+        }
     }
 
-    private void recordForSide(GameState state, boolean isPlayerSide) {
+    private boolean recordForSide(GameState state, boolean isPlayerSide) {
         Player player = isPlayerSide ? state.getPlayer() : state.getEnemy();
         Player opponent = isPlayerSide ? state.getEnemy() : state.getPlayer();
         if (player.getAccountUserId() == null || player.getAccountUserId().isBlank()) {
             logger.info("Skipping match history for {} side because no account user id is attached.", isPlayerSide ? "player" : "enemy");
-            return;
+            return false;
         }
 
         AccountUser user = accountUserStore.findById(player.getAccountUserId()).orElse(null);
         if (user == null) {
             logger.warn("Skipping match history for missing account user id {}.", player.getAccountUserId());
-            return;
+            return false;
         }
 
         MatchHistoryEntity history = new MatchHistoryEntity();
-        history.setId(UUID.randomUUID().toString());
+        history.setId(state.getMatchHistoryId() + (isPlayerSide ? "-player" : "-enemy"));
         history.setUserId(user.getId());
         history.setUserDisplayName(user.getDisplayName());
         history.setFinishedAt(Instant.now());
@@ -80,6 +86,7 @@ public class MatchHistoryService {
         matchHistoryStore.save(history);
         playerProgressionService.awardMatchGold(history);
         logger.info("Recorded {} match history {} for user {}.", history.getMatchType(), history.getId(), user.getId());
+        return true;
     }
 
     private int totalEnergy(Player player) {

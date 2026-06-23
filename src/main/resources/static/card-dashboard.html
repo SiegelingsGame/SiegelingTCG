@@ -2,21 +2,28 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sieglings Card, Siegeknight, And Deck Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Siegelings Card, Siegeknight, And Deck Dashboard</title>
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
     <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=9">
+    <!-- home.css supplies the binder-card preview component styles; it must load
+         BEFORE card-dashboard.css so the dashboard's own body/.panel/.browser-panel
+         rules stay authoritative. Loading it last leaked home's
+         `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
+         full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
+    <link rel="stylesheet" href="/css/home.css?v=45">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=19">
+    <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
 <div class="dashboard-shell">
     <header class="dashboard-header panel">
         <div class="header-copy">
-            <div class="eyebrow">Sieglings Creator Tool</div>
+            <div class="eyebrow">Siegelings Creator Tool</div>
             <h1>Card, Siegeknight, And Deck Dashboard</h1>
             <p>Load the current live data, edit cards, Siegeknights, and premade decks in structured forms, and export or save JSON without hand-editing every target rule or deck list.</p>
         </div>
@@ -90,9 +97,75 @@
         <div class="status-message" id="statusMessage">Loading the current override file...</div>
     </section>
 
+    <section class="panel loading-art-panel">
+        <h2 style="margin:0 0 4px;font-size:15px;">Loading Screen Art</h2>
+        <p class="section-help" style="margin:0 0 8px;">Upload landscape/portrait art for loading screens, the Art Gallery, and custom backgrounds. Files pairing by name (e.g. piece "ember-hollow" + both orientations) become one gallery entry.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input id="loadingArtPieceId" type="text" placeholder="Piece name (e.g. ember-hollow)" style="min-width:200px;">
+            <select id="loadingArtOrientation">
+                <option value="landscape">Landscape</option>
+                <option value="portrait">Portrait</option>
+            </select>
+            <label class="btn btn-secondary file-btn" for="loadingArtFileInput">Choose Image</label>
+            <input id="loadingArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;">
+            <button class="btn" id="loadingArtUploadBtn" type="button">Upload</button>
+            <span id="loadingArtStatus" class="section-help" style="margin:0;"></span>
+        </div>
+        <div id="loadingArtList" class="section-help" style="margin:8px 0 0;"></div>
+        <script>
+        (function () {
+            var fileInput = document.getElementById('loadingArtFileInput');
+            var status = document.getElementById('loadingArtStatus');
+            function setStatus(msg) { if (status) status.textContent = msg; }
+            function refreshList() {
+                fetch('/api/art/loading').then(function (r) { return r.json(); }).then(function (data) {
+                    var list = document.getElementById('loadingArtList');
+                    if (!list) return;
+                    var art = (data && data.art) || [];
+                    list.textContent = art.length
+                        ? 'Current pieces: ' + art.map(function (p) {
+                            var o = [p.landscape ? 'landscape' : '', p.portrait ? 'portrait' : ''].filter(Boolean).join(' + ');
+                            return p.title + ' (' + o + ')';
+                        }).join(' | ')
+                        : 'No loading art uploaded yet.';
+                }).catch(function () {});
+            }
+            fileInput?.addEventListener('change', function () {
+                setStatus(fileInput.files[0] ? fileInput.files[0].name + ' ready' : '');
+            });
+            document.getElementById('loadingArtUploadBtn')?.addEventListener('click', function () {
+                var pieceId = (document.getElementById('loadingArtPieceId')?.value || '').trim();
+                var file = fileInput?.files?.[0];
+                if (!pieceId) return setStatus('Enter a piece name first.');
+                if (!file) return setStatus('Choose an image file first.');
+                var form = new FormData();
+                form.append('pieceId', pieceId);
+                form.append('orientation', document.getElementById('loadingArtOrientation')?.value || 'landscape');
+                form.append('file', file);
+                var headers = {};
+                try {
+                    var token = localStorage.getItem('sieglingsCardEditorToken');
+                    if (token) headers['X-Card-Editor-Token'] = token;
+                } catch (e) { /* anonymous upload attempt */ }
+                setStatus('Uploading...');
+                fetch('/api/art/loading', { method: 'POST', body: form, headers: headers })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) return setStatus(res.d?.error || 'Upload failed. Sign in under Live Publishing first.');
+                        setStatus('Uploaded ' + res.d.url);
+                        if (fileInput) fileInput.value = '';
+                        refreshList();
+                    })
+                    .catch(function () { setStatus('Upload failed — network error.'); });
+            });
+            refreshList();
+        })();
+        </script>
+    </section>
+
     <section class="dashboard-pages panel">
-        <button class="page-tab active" id="showSieglingsBtn" type="button" data-editor-page="SIEGLING">Siegling Page</button>
-        <button class="page-tab" id="showActionsBtn" type="button" data-editor-page="ACTION">Spell / Trap Page</button>
+        <button class="page-tab active" id="showSieglingsBtn" type="button" data-editor-page="SIEGLING">Siegeling Page</button>
+        <button class="page-tab" id="showActionsBtn" type="button" data-editor-page="ACTION">Strategy / Deception Page</button>
         <button class="page-tab" id="showTrainersBtn" type="button" data-editor-page="TRAINERS">Siegeknights</button>
         <button class="page-tab" id="showDecksBtn" type="button" data-editor-page="DECKS">Premade Decks</button>
         <button class="page-tab" id="showPacksBtn" type="button" data-editor-page="PACKS">Packs</button>
@@ -105,12 +178,12 @@
             <div class="panel-heading">
                 <div>
                     <div class="section-kicker">Browse</div>
-                    <h2 id="browserTitle">Sieglings</h2>
+                    <h2 id="browserTitle">Siegelings</h2>
                 </div>
                 <div class="inline-actions">
-                    <button class="btn btn-secondary" id="newSieglingBtn" type="button">New Siegling</button>
-                    <button class="btn btn-secondary hidden" id="newSpellBtn" type="button">New Spell</button>
-                    <button class="btn btn-secondary hidden" id="newTrapBtn" type="button">New Trap</button>
+                    <button class="btn btn-secondary" id="newSieglingBtn" type="button">New Siegeling</button>
+                    <button class="btn btn-secondary hidden" id="newSpellBtn" type="button">New Strategy</button>
+                    <button class="btn btn-secondary hidden" id="newTrapBtn" type="button">New Deception</button>
                     <button class="btn btn-secondary" id="duplicateCardBtn" type="button">Duplicate</button>
                 </div>
             </div>
@@ -119,8 +192,8 @@
                 <select id="elementFilterSelect"></select>
                 <select class="hidden" id="actionTypeFilterSelect">
                     <option value="ALL">All Action Cards</option>
-                    <option value="SPELL">Spells Only</option>
-                    <option value="TRAP">Traps Only</option>
+                    <option value="SPELL">Strategies Only</option>
+                    <option value="TRAP">Deceptions Only</option>
                 </select>
             </div>
             <div class="card-list" id="cardList"></div>
@@ -198,7 +271,7 @@
                     </section>
 
                     <section class="form-section" id="actionCardSection">
-                        <h3 id="actionCardSectionTitle">Spell Cost And Requirements</h3>
+                        <h3 id="actionCardSectionTitle">Strategy Cost And Requirements</h3>
                         <p class="section-help" id="actionCardHelpText">Choose the play cost, combo gate, or trigger threshold that makes this action card work the way you want.</p>
                         <div class="form-grid">
                             <label id="spellCostElementField">
@@ -218,7 +291,7 @@
                                 <input id="trapBucketAmountInput" type="number" min="0" step="1">
                             </label>
                             <label id="spellRequiredReactionField">
-                                <span>Spell Reaction Requirement</span>
+                                <span>Strategy Reaction Requirement</span>
                                 <select id="cardRequiredReactionSelect"></select>
                             </label>
                             <label id="spellRequiredComboSizeField">
@@ -243,14 +316,14 @@
                         <div class="panel-heading sub-heading">
                             <div>
                                 <div class="section-kicker">Moves pool</div>
-                                <h3>Siegling Moves</h3>
+                                <h3>Siegeling Moves</h3>
                             </div>
                             <div class="inline-actions">
                                 <button class="btn btn-secondary" type="button" id="newMoveBtn">New move</button>
                                 <button class="btn btn-secondary" type="button" id="openMovePickerBtn">Add from pool</button>
                             </div>
                         </div>
-                        <p class="section-help">Up to five move ids per Siegling. Passives apply when the card is on the board; actives (0–6 energy) appear in battle. Define shared moves in the pool; use Copy to fork an existing move. Edit the <strong>Shared Abilities</strong> page to change one definition everywhere it is assigned.</p>
+                        <p class="section-help">Up to five move ids per Siegeling. Passives apply when the card is on the board; actives (0–6 energy) appear in battle. Define shared moves in the pool; use Copy to fork an existing move. Edit the <strong>Shared Abilities</strong> page to change one definition everywhere it is assigned.</p>
                         <div id="sieglingAssignedMoves" class="move-assigned-list"></div>
                         <div id="moveDraftPanelHostSiegling">
                         <div class="form-grid" id="moveDraftPanel" style="display:none;">
@@ -342,6 +415,64 @@
         </section>
 
         <aside class="preview-column">
+            <div class="panel card-visual-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">Preview</div>
+                        <h2>Cards Menu View</h2>
+                    </div>
+                </div>
+                <p class="section-help card-visual-help">Replace art stays inside the icon frame; overlay art can extend across the full card; full card art is already complete and skips the template. Use Upload Image on the live dashboard so art is stored in cloud storage (a https:// URL). Drag replace or overlay art in the preview to reposition it; use the scale and rotation controls below. Publish from the header to apply globally in the game. Choose Default icon to revert. Sign in under Live Publishing before uploading or publishing. Notches always render above custom art.</p>
+                <div class="card-visual-stage" id="cardVisualStage">
+                    <div class="validation-empty">Select a card to preview.</div>
+                </div>
+                <div class="card-art-controls hidden" id="cardArtControls">
+                    <div class="art-mode-toggle" role="radiogroup" aria-label="Card art mode">
+                        <label class="art-mode-option">
+                            <input type="radio" name="cardArtMode" value="">
+                            <span>Default icon</span>
+                        </label>
+                        <label class="art-mode-option">
+                            <input type="radio" name="cardArtMode" value="REPLACE">
+                            <span>Replace art</span>
+                        </label>
+                        <label class="art-mode-option">
+                            <input type="radio" name="cardArtMode" value="OVERLAY">
+                            <span>Overlay art</span>
+                        </label>
+                        <label class="art-mode-option">
+                            <input type="radio" name="cardArtMode" value="FULL_CARD">
+                            <span>Full card</span>
+                        </label>
+                    </div>
+                    <label class="toggle-field card-holographic-toggle">
+                        <input id="cardHolographicCheckbox" type="checkbox">
+                        <span>Holographic foil effect</span>
+                    </label>
+                    <div class="inline-actions card-art-actions">
+                        <label class="btn btn-secondary file-btn" for="cardArtFileInput">Upload Image</label>
+                        <input id="cardArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
+                        <button class="btn btn-secondary" id="clearCardArtBtn" type="button">Clear Art</button>
+                    </div>
+                    <label class="card-art-url-field">
+                        <span>Art URL or path</span>
+                        <input id="cardArtUrlInput" type="text" autocomplete="off" placeholder="/assets/cards/example.png">
+                    </label>
+                    <div class="card-art-transform-controls hidden" id="cardArtTransformControls">
+                        <p class="card-art-transform-help" id="cardArtTransformHelp">Drag the art in the preview above to reposition it.</p>
+                        <label class="card-art-slider-field">
+                            <span>Scale <output id="cardArtScaleValue" for="cardArtScaleInput">1.00</output></span>
+                            <input id="cardArtScaleInput" type="range" min="0.25" max="3" step="0.01" value="1">
+                        </label>
+                        <label class="card-art-slider-field">
+                            <span>Rotation <output id="cardArtRotationValue" for="cardArtRotationInput">0°</output></span>
+                            <input id="cardArtRotationInput" type="range" min="-180" max="180" step="1" value="0">
+                        </label>
+                        <button class="btn btn-secondary" id="resetCardArtTransformBtn" type="button">Reset Transform</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel summary-panel">
                 <div class="panel-heading">
                     <div>
@@ -473,9 +604,9 @@
                     <select id="deckCatalogElementFilterSelect"></select>
                     <select id="deckCatalogTypeFilterSelect">
                         <option value="ALL">All Card Types</option>
-                        <option value="SIEGLING">Sieglings</option>
-                        <option value="SPELL">Spells</option>
-                        <option value="TRAP">Traps</option>
+                        <option value="SIEGLING">Siegelings</option>
+                        <option value="SPELL">Strategies</option>
+                        <option value="TRAP">Deceptions</option>
                     </select>
                 </div>
                 <div class="card-list deck-catalog-list" id="deckCatalogList"></div>
@@ -581,6 +712,39 @@
                         <input id="trainerOncePerGameCheckbox" type="checkbox">
                         <span>Mark the active ability as once per game</span>
                     </label>
+                    <label class="toggle-field">
+                        <input id="trainerHolographicCheckbox" type="checkbox">
+                        <span>Holographic foil effect</span>
+                    </label>
+                </section>
+
+                <section class="form-section">
+                    <h3>Custom Art</h3>
+                    <p class="section-help card-visual-help">Upload a complete, hand-drawn SiegeKnight card (the same way Squire Bob is set up). Choose Full card art so the uploaded image replaces the whole card template in the loadout and collection. Use Upload Image on the live dashboard so art is stored in cloud storage, then Publish from the header to apply globally. Choose Default icon to revert. Use the Holographic foil toggle above for a shine effect.</p>
+                    <div class="trainer-art-stage" id="trainerArtStage">
+                        <div class="validation-empty">Select a SiegeKnight to preview its art.</div>
+                    </div>
+                    <div class="card-art-controls" id="trainerArtControls">
+                        <div class="art-mode-toggle" role="radiogroup" aria-label="SiegeKnight art mode">
+                            <label class="art-mode-option">
+                                <input type="radio" name="trainerArtMode" value="">
+                                <span>Default icon</span>
+                            </label>
+                            <label class="art-mode-option">
+                                <input type="radio" name="trainerArtMode" value="FULL_CARD">
+                                <span>Full card art</span>
+                            </label>
+                        </div>
+                        <div class="inline-actions card-art-actions">
+                            <label class="btn btn-secondary file-btn" for="trainerArtFileInput">Upload Image</label>
+                            <input id="trainerArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
+                            <button class="btn btn-secondary" id="clearTrainerArtBtn" type="button">Clear Art</button>
+                        </div>
+                        <label class="card-art-url-field">
+                            <span>Art URL or path</span>
+                            <input id="trainerArtUrlInput" type="text" autocomplete="off" placeholder="/assets/cards/example.png">
+                        </label>
+                    </div>
                 </section>
 
                 <section class="form-section">
@@ -714,7 +878,7 @@
                     <h2>Live Element Roster</h2>
                 </div>
             </div>
-            <p class="section-help">When an element is off, its Sieglings, spells, traps, matching Siegeknights, and premade decks that use it are hidden from the live game. Publish saves this together with cards, Siegeknights, and decks. At least one element must stay on.</p>
+            <p class="section-help">When an element is off, its Siegelings, spells, traps, matching Siegeknights, and premade decks that use it are hidden from the live game. Publish saves this together with cards, Siegeknights, and decks. At least one element must stay on.</p>
             <div id="liveElementToggles" class="live-element-toggle-grid"></div>
             <div class="panel validation-panel">
                 <div class="panel-heading sub-heading">
@@ -745,7 +909,7 @@
                     <h2>Pack Groups</h2>
                 </div>
             </div>
-            <p class="section-help">Starter and shop packs are generated from live cards by element. Each opened pack contains five cards: 2-3 Sieglings, 1-2 traps, and 1-2 spells from the selected elements.</p>
+            <p class="section-help">Starter and shop packs are generated from live cards by element. Each opened pack contains five cards: 2-3 Siegelings, 1-2 traps, and 1-2 spells from the selected elements.</p>
             <div class="deck-card-list" id="packList"></div>
             <div class="panel preview-panel">
                 <div class="panel-heading sub-heading">
@@ -770,7 +934,7 @@
                     <button class="btn btn-secondary" id="newPoolMoveBtn" type="button">New ability</button>
                 </div>
             </div>
-            <p class="section-help browser-help">These entries power every Siegling move slot. Updating an ability here updates the rules text and effect for every card that references its id.</p>
+            <p class="section-help browser-help">These entries power every Siegeling move slot. Updating an ability here updates the rules text and effect for every card that references its id.</p>
             <div class="browser-filters moves-pool-filters form-grid">
                 <label class="full-width">
                     <span>Search</span>
@@ -833,7 +997,7 @@
             </div>
 
             <div class="empty-state" id="emptyMovesPoolEditorState">
-                Select a shared ability on the left or create a new one. Sieglings only store references by id—edits here apply to every card using that id.
+                Select a shared ability on the left or create a new one. Siegelings only store references by id—edits here apply to every card using that id.
             </div>
 
             <div class="editor-content hidden" id="movesPoolEditorContent">
@@ -894,6 +1058,7 @@
 
 <script src="/js/config.js"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
-<script src="/js/card-dashboard.js?v=23"></script>
+<script src="/js/card-binder-visual.js?v=1"></script>
+<script src="/js/card-dashboard.js?v=33"></script>
 </body>
 </html>

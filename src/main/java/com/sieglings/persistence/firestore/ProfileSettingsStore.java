@@ -42,6 +42,8 @@ public class ProfileSettingsStore {
         payload.put("avatar", settings.getAvatar());
         payload.put("avatarUrl", settings.getAvatarUrl());
         payload.put("favoriteElement", settings.getFavoriteElement());
+        payload.put("profileArtId", settings.getProfileArtId());
+        payload.put("pageArtId", settings.getPageArtId());
         payload.put("playerTitle", settings.getPlayerTitle());
         payload.put("bio", settings.getBio());
         payload.put("preferredCardBack", settings.getPreferredCardBack());
@@ -52,6 +54,17 @@ public class ProfileSettingsStore {
             return settings;
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to save profile settings to Firestore.", ex);
+        }
+    }
+
+    public void deleteByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            doc(userId).delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to delete profile settings from Firestore.", ex);
         }
     }
 
@@ -67,6 +80,8 @@ public class ProfileSettingsStore {
         settings.setAvatar(snapshot.getString("avatar"));
         settings.setAvatarUrl(snapshot.getString("avatarUrl"));
         settings.setFavoriteElement(snapshot.getString("favoriteElement"));
+        settings.setProfileArtId(snapshot.getString("profileArtId"));
+        settings.setPageArtId(snapshot.getString("pageArtId"));
         settings.setPlayerTitle(snapshot.getString("playerTitle"));
         settings.setBio(snapshot.getString("bio"));
         settings.setPreferredCardBack(snapshot.getString("preferredCardBack"));

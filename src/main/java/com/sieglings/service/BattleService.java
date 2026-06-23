@@ -85,7 +85,7 @@ public class BattleService {
             }
 
             if (attacker.isFrozen()) {
-                state.log(attacker.getName() + " is frozen and cannot act!");
+                logStatusLostTurn(state, attacker, StatusEffect.FREEZE);
                 attacker.getStatusEffects().remove(StatusEffect.FREEZE);
                 pauseAfterAction(state);
                 return;
@@ -94,7 +94,12 @@ public class BattleService {
             List<BattleAbilityOption> abilities = getAvailableAbilities(state, attacker);
             boolean hasAffordableAbility = abilities.stream().anyMatch(BattleAbilityOption::isAffordable);
             if (!hasAffordableAbility) {
-                state.log(attacker.getName() + " cannot find an ability it can afford.");
+                StatusEffect lostTurnStatus = lostTurnStatus(attacker);
+                if (lostTurnStatus != null) {
+                    logStatusLostTurn(state, attacker, lostTurnStatus);
+                } else {
+                    state.log(attacker.getName() + " cannot find an ability it can afford.");
+                }
                 pauseAfterAction(state);
                 return;
             }
@@ -104,7 +109,7 @@ public class BattleService {
                 return;
             }
 
-            BattleAbilityOption choice = pickAiAbility(abilities);
+            BattleAbilityOption choice = pickAiAbility(attacker, abilities);
             resolveBattleAction(state, attacker, choice.getIndex(), -1, -1);
             pauseAfterAction(state);
             return;
@@ -171,6 +176,31 @@ public class BattleService {
         state.setBattleActionPausePending(true);
     }
 
+    private StatusEffect lostTurnStatus(CardInstance attacker) {
+        if (attacker == null) {
+            return null;
+        }
+        if (attacker.isFrozen()) {
+            return StatusEffect.FREEZE;
+        }
+        if (attacker.isSpeedZero()) {
+            return StatusEffect.SPEED_ZERO;
+        }
+        return null;
+    }
+
+    private void logStatusLostTurn(GameState state, CardInstance attacker, StatusEffect status) {
+        state.log(attacker.getName() + " is " + lostTurnStatusLabel(status) + " and cannot act!");
+    }
+
+    private String lostTurnStatusLabel(StatusEffect status) {
+        return switch (status) {
+            case FREEZE -> "Frozen";
+            case SPEED_ZERO -> "Stunned";
+            default -> status.name();
+        };
+    }
+
     private void resolveBattleAction(GameState state, CardInstance attacker, int abilityIndex, int targetRow, int targetCol) {
         List<BattleAbilityOption> options = getAvailableAbilities(state, attacker);
         if (abilityIndex < 0 || abilityIndex >= options.size()) {
@@ -216,11 +246,40 @@ public class BattleService {
         updateWinnerFromHealth(state);
     }
 
-    private BattleAbilityOption pickAiAbility(List<BattleAbilityOption> options) {
-        return options.stream()
+    private BattleAbilityOption pickAiAbility(CardInstance attacker, List<BattleAbilityOption> options) {
+        List<BattleAbilityOption> affordable = options.stream()
                 .filter(BattleAbilityOption::isAffordable)
+                .toList();
+        if (affordable.isEmpty()) {
+            return options.get(0);
+        }
+        // A Siegeling at full health gains nothing from healing — if it can deal
+        // damage this turn, prefer an attack over a heal/self-sustain ability.
+        if (isAtFullHealth(attacker)) {
+            List<BattleAbilityOption> damaging = affordable.stream()
+                    .filter(o -> dealsDamage(o.getAbility()))
+                    .toList();
+            if (!damaging.isEmpty()) {
+                return bestScoringAbility(damaging);
+            }
+        }
+        return bestScoringAbility(affordable);
+    }
+
+    private BattleAbilityOption bestScoringAbility(List<BattleAbilityOption> options) {
+        return options.stream()
                 .max(Comparator.comparingInt(o -> o.getRequiredEnergy() * 10 + o.getAbility().getEffectValue()))
                 .orElse(options.get(0));
+    }
+
+    private boolean dealsDamage(Ability ability) {
+        String effectType = ability.getEffectType();
+        return AbilityEffectKeys.DAMAGE.equals(effectType)
+                || AbilityEffectKeys.PLAYER_DAMAGE.equals(effectType);
+    }
+
+    private boolean isAtFullHealth(CardInstance unit) {
+        return unit != null && unit.isAlive() && unit.getCurrentHealth() >= unit.getEffectiveMaxHealth();
     }
 
     private boolean isSelfMoveLink(Ability ability) {

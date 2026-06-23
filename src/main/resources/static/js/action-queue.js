@@ -48,9 +48,11 @@
         HEAL:    'heals',
         SHIELD:  'shields',
         STATUS_APPLY: 'gains',
+        STATUS_SKIP: 'is',
+        MOVE:    'shifts',
         BLOCK:   'blocks',
         EFFECT:  'effect',
-        DESTROY: 'is destroyed',
+        DESTROY: 'was destroyed',
         PHASE:   'phase'
     };
 
@@ -94,6 +96,10 @@
         const k = String(element || '').toUpperCase();
         return ELEMENT_HEX[k] || ELEMENT_HEX.NEUTRAL;
     }
+
+    function attackFxElement(action) {
+        return action?.elementColor || action?.knightElement || 'NEUTRAL';
+    }
     function elementSigil(element) {
         const k = String(element || '').toUpperCase();
         return ELEMENT_SIGIL[k] || ELEMENT_SIGIL.NEUTRAL;
@@ -116,6 +122,17 @@
     }
     function stripLogPrefix(line) {
         return String(line || '').trim().replace(/^\[Turn\s+\d+\s+\w+\]\s*/i, '');
+    }
+    function formatPhaseLabelFallback(phase) {
+        switch (String(phase || '').toUpperCase()) {
+            case 'DRAW': return 'Draw Phase';
+            case 'SETUP': return 'Setup Phase';
+            case 'BATTLE': return 'Battle Phase';
+            case 'MULLIGAN': return 'Opening Hand';
+            default:
+                if (!phase) return 'Phase Shift';
+                return `${String(phase).charAt(0)}${String(phase).slice(1).toLowerCase()} Phase`;
+        }
     }
 
     // ── Toast Renderer ────────────────────────────────────────────────────────
@@ -322,6 +339,228 @@
         });
     }
 
+    function destroyBoardCard(cardEl, elementHexValue, durationMs) {
+        if (!cardEl) return Promise.resolve();
+        cardEl.style.setProperty('--sgl-impact-color', elementHexValue || ELEMENT_HEX.NEUTRAL);
+        cardEl.classList.add('sgl-destroying');
+        const dur = Math.max(180, durationMs || 540);
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const cellEl = cardEl.closest('.board-cell');
+                if (cellEl) {
+                    const rowTag = cellEl.querySelector('.row-tag');
+                    const rowTagHtml = rowTag ? rowTag.outerHTML : '';
+                    cellEl.classList.remove('has-card');
+                    cellEl.innerHTML = rowTagHtml;
+                }
+                resolve();
+            }, dur);
+        });
+    }
+
+    function clearTransientCardClasses(card) {
+        if (!card?.classList) return;
+        card.classList.remove(
+            'sgl-acting',
+            'sgl-acting-attack',
+            'sgl-acting-play',
+            'sgl-impact',
+            'sgl-destroying',
+            'sgl-status-applied'
+        );
+    }
+
+    async function animateBoardMove(queue, action, durationMs) {
+        const source = action?.source;
+        const target = action?.target;
+        if (!source || !target) {
+            queue.revealPendingMove(action?.moveKey);
+            return;
+        }
+
+        const sourceCell = findCellEl(source.isPlayer, source.row, source.col);
+        const targetCell = findCellEl(target.isPlayer, target.row, target.col);
+        const targetCard = targetCell?.querySelector('.board-card');
+        const sourceRect = sourceCell?.getBoundingClientRect();
+        const targetRect = targetCell?.getBoundingClientRect();
+        if (!sourceCell || !targetCell || !targetCard || !sourceRect || !targetRect
+            || sourceRect.width <= 0 || sourceRect.height <= 0
+            || targetRect.width <= 0 || targetRect.height <= 0) {
+            queue.revealPendingMove(action.moveKey);
+            await sleep(120);
+            return;
+        }
+
+        const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+        const dur = prefersReduced ? 140 : Math.max(220, durationMs || 520);
+        const dx = targetRect.left - sourceRect.left;
+        const dy = targetRect.top - sourceRect.top;
+        const scaleX = targetRect.width / sourceRect.width;
+        const scaleY = targetRect.height / sourceRect.height;
+        const elementColor = elementHex(action.elementColor || action.knightElement);
+
+        const clone = targetCard.cloneNode(true);
+        clearTransientCardClasses(clone);
+        clone.classList.add('sgl-shift-card');
+        clone.style.position = 'fixed';
+        clone.style.left = `${sourceRect.left}px`;
+        clone.style.top = `${sourceRect.top}px`;
+        clone.style.width = `${sourceRect.width}px`;
+        clone.style.height = `${sourceRect.height}px`;
+        clone.style.margin = '0';
+        clone.style.pointerEvents = 'none';
+        clone.style.visibility = 'visible';
+        clone.style.opacity = '1';
+        clone.style.zIndex = '560';
+        clone.style.setProperty('--sgl-shift-color', elementColor);
+
+        sourceCell.style.setProperty('--sgl-shift-color', elementColor);
+        targetCell.style.setProperty('--sgl-shift-color', elementColor);
+        sourceCell.classList.add('sgl-move-origin');
+        targetCell.classList.add('sgl-move-destination');
+        targetCard.style.visibility = 'hidden';
+        targetCard.style.opacity = '0';
+        document.body.appendChild(clone);
+
+        if (window.SieglingsFx?.impactAt) {
+            window.SieglingsFx.impactAt(
+                source.isPlayer, source.row, source.col,
+                action.elementColor || action.knightElement
+            );
+        }
+
+        try {
+            if (typeof clone.animate === 'function') {
+                const animation = clone.animate([
+                    {
+                        transform: 'translate(0, 0) scale(0.98)',
+                        opacity: 0.96,
+                        filter: `drop-shadow(0 0 6px ${elementColor})`
+                    },
+                    {
+                        transform: `translate(${dx * 0.55}px, ${dy * 0.55 - 10}px) scale(1.04)`,
+                        opacity: 1,
+                        filter: `drop-shadow(0 0 18px ${elementColor}) brightness(1.18)`,
+                        offset: 0.58
+                    },
+                    {
+                        transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
+                        opacity: 1,
+                        filter: `drop-shadow(0 0 8px ${elementColor})`
+                    }
+                ], {
+                    duration: dur,
+                    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                    fill: 'forwards'
+                });
+                await animation.finished.catch(() => {});
+            } else {
+                clone.style.transition = `transform ${dur}ms cubic-bezier(0.22, 1, 0.36, 1), filter ${dur}ms ease`;
+                requestAnimationFrame(() => {
+                    clone.style.transform = `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`;
+                    clone.style.filter = `drop-shadow(0 0 10px ${elementColor})`;
+                });
+                await sleep(dur);
+            }
+        } finally {
+            if (clone.parentNode) clone.parentNode.removeChild(clone);
+            sourceCell.classList.remove('sgl-move-origin');
+            targetCell.classList.remove('sgl-move-destination');
+            sourceCell.style.removeProperty('--sgl-shift-color');
+            targetCell.style.removeProperty('--sgl-shift-color');
+            queue.revealPendingMove(action.moveKey);
+        }
+
+        if (window.SieglingsFx?.impactAt) {
+            window.SieglingsFx.impactAt(
+                target.isPlayer, target.row, target.col,
+                action.elementColor || action.knightElement
+            );
+        }
+        await sleep(prefersReduced ? 40 : 120);
+    }
+
+    function applyAttackImpactVfx(queue, action, target, elColor) {
+        if (!target) return;
+        const boardCard = queue.getHeldBoardCard(target.isPlayer, target.row, target.col);
+        if (boardCard) {
+            boardCard.style.setProperty('--sgl-impact-color', elColor);
+            boardCard.classList.add('sgl-impact');
+            setTimeout(() => boardCard.classList.remove('sgl-impact'), 360);
+        } else {
+            flashImpact(target.isPlayer, target.row, target.col, elColor);
+        }
+        if (target.amount && window.SieglingsFx?.floatingDamage) {
+            window.SieglingsFx.floatingDamage(
+                target.isPlayer, target.row, target.col,
+                target.amount, attackFxElement(action)
+            );
+        }
+        if (target.shieldBroken > 0) {
+            breakShieldPlates(target.isPlayer, target.row, target.col, target.shieldBroken);
+        }
+        if (target.statuses && target.statuses.length) {
+            for (const status of target.statuses) {
+                applyStatusVisual(target.isPlayer, target.row, target.col, status);
+            }
+            // Reveal the held status badge now that its impact animation lands,
+            // so the badge appears with the hit rather than ahead of it.
+            queue.revealPendingStatusesForTarget(target, target.statuses);
+        }
+    }
+
+    async function playStandardAttackImpact(queue, action, target, elColor, t) {
+        queue.applyPendingImpactHealth(target?.pendingHealthKey);
+        applyAttackImpactVfx(queue, action, target, elColor);
+        if (window.SieglingsFx?.cameraShake) {
+            const shake = Math.min(12, 3 + Math.round((Number(target?.amount) || 0) * 0.6));
+            window.SieglingsFx.cameraShake(shake, t.impactMs);
+        }
+        await sleep(t.impactMs);
+        queue.releasePendingHealth(target?.pendingHealthKey);
+    }
+
+    async function playLethalAttackImpact(queue, action, target, elColor, t) {
+        const pendingKey = target.pendingLethalKey || target.pendingHealthKey;
+        queue.applyLethalImpactHealth(pendingKey, target);
+        applyAttackImpactVfx(queue, action, target, elColor);
+        const boardCard = queue.getHeldBoardCard(target.isPlayer, target.row, target.col);
+        if (window.SieglingsFx?.cameraShake) {
+            const shake = Math.min(12, 3 + Math.round((target.amount || 0) * 0.6));
+            window.SieglingsFx.cameraShake(shake, t.impactMs);
+        }
+        await sleep(t.impactMs);
+        const cardToDestroy = boardCard || findCellEl(target.isPlayer, target.row, target.col)?.querySelector('.board-card');
+        if (cardToDestroy) {
+            await destroyBoardCard(cardToDestroy, elColor, 520);
+        }
+        queue.releasePendingLethalHold(pendingKey);
+    }
+
+    function buildCardDestroyedToast(sourceAction, target) {
+        const ghost = target?.ghostCell || sourceAction?.ghostCell;
+        const name = target?.name || ghost?.name || sourceAction?.actorName || 'Card';
+        const el = normalizeElement(
+            target?.element || ghost?.element || sourceAction?.elementColor || sourceAction?.knightElement
+        );
+        return {
+            kind: 'DESTROY',
+            side: sourceAction?.side || (target?.isPlayer ? 'PLAYER' : 'ENEMY'),
+            actorName: name,
+            targetName: '',
+            label: 'was destroyed',
+            knightElement: sourceAction?.knightElement || el,
+            elementColor: el,
+            portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(el)}</span>`
+        };
+    }
+
+    async function showCardDestroyedToast(queue, sourceAction, target, t) {
+        if (queue.activeToast) queue.activeToast.dismiss();
+        queue.activeToast = queue.toasts.show(buildCardDestroyedToast(sourceAction, target), t.toastDismissMs);
+        await sleep(t.toastEnterMs);
+    }
+
     // Apply a one-shot status-application visual on a board cell. The
     // persistent badge is already rendered by game.js; this just animates
     // the moment of application so the player can see the status land.
@@ -423,6 +662,80 @@
         return overlay;
     }
 
+    // Spawn a crumbling-shield overlay on a board cell: a cracked grey shield
+    // that shatters into fragments raining downward, for shields that expire at
+    // the end of the turn. Fixed-positioned (like spawnHealCross) so a board
+    // re-render can't destroy the animation mid-flight.
+    function spawnShieldCrumble(isPlayer, row, col, shieldCount, durationMs) {
+        const cellEl = findCellEl(isPlayer, row, col);
+        if (!cellEl) return null;
+        const rect = cellEl.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'sgl-shield-crumble';
+        overlay.style.position = 'fixed';
+        overlay.style.left = `${rect.left}px`;
+        overlay.style.top = `${rect.top}px`;
+        overlay.style.width = `${rect.width}px`;
+        overlay.style.height = `${rect.height}px`;
+
+        const shardCount = Math.max(7, Math.min(16, 4 + (Number(shieldCount) || 1) * 3));
+        const shards = [];
+        for (let i = 0; i < shardCount; i++) {
+            const dx = (Math.random() - 0.5) * rect.width * 0.7;
+            const dy = 24 + Math.random() * 42; // fragments fall downward
+            const size = 5 + Math.random() * 6;
+            const rot = (Math.random() - 0.5) * 240;
+            const delay = Math.random() * 200;
+            shards.push(
+                `<span class="sgl-shield-shard"
+                    style="left:50%;top:46%;width:${size}px;height:${size}px;
+                           --s-dx:${dx.toFixed(1)}px;--s-dy:${dy.toFixed(1)}px;
+                           --s-rot:${rot.toFixed(0)}deg;animation-delay:${delay}ms"></span>`
+            );
+        }
+
+        overlay.innerHTML = `
+            <div class="sgl-shield-crumble-glow" aria-hidden="true"></div>
+            <svg class="sgl-shield-crumble-icon" viewBox="0 0 100 100" aria-hidden="true">
+                <defs>
+                    <linearGradient id="sgl-shield-crumble-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#f3f6fa" />
+                        <stop offset="55%" stop-color="#a8b0ba" />
+                        <stop offset="100%" stop-color="#5a6470" />
+                    </linearGradient>
+                </defs>
+                <path d="M50 12 L82 24 L82 50 C 82 70 68 84 50 90 C 32 84 18 70 18 50 L18 24 Z"
+                      fill="url(#sgl-shield-crumble-grad)" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" />
+                <path class="sgl-shield-crack" d="M50 18 L44 44 L57 52 L46 72" fill="none"
+                      stroke="#2b3038" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            ${shards.join('')}
+        `;
+        document.body.appendChild(overlay);
+
+        const reposition = () => {
+            const r = cellEl.getBoundingClientRect();
+            if (!r) return;
+            overlay.style.left = `${r.left}px`;
+            overlay.style.top = `${r.top}px`;
+            overlay.style.width = `${r.width}px`;
+            overlay.style.height = `${r.height}px`;
+        };
+        window.addEventListener('resize', reposition);
+        const scrollHandler = () => reposition();
+        window.addEventListener('scroll', scrollHandler, true);
+
+        const total = Math.max(700, durationMs || 1100);
+        setTimeout(() => {
+            window.removeEventListener('resize', reposition);
+            window.removeEventListener('scroll', scrollHandler, true);
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }, total);
+        return overlay;
+    }
+
     // ── Diff helpers ──────────────────────────────────────────────────────────
     function normalizeElement(element) {
         const v = String(element || '').trim().toUpperCase();
@@ -488,9 +801,20 @@
     }
     function parseEvolutionFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(?:(.+?)\s+)?evolved\s+(.+?)\s+into\s+(.+?)[.!]?$/i);
+        // Server logs "<base> evolved to <evolved>!" (older builds: "evolved into").
+        const m = text.match(/^(.+?)\s+evolved\s+(?:in)?to\s+(.+?)[.!]?$/i);
         if (!m) return null;
-        return { actor: (m[1] || '').trim(), from: m[2].trim(), to: m[3].trim() };
+        return { from: m[1].trim(), to: m[2].trim() };
+    }
+    function parseClaimFromLog(line) {
+        const text = stripLogPrefix(line);
+        const m = text.match(/^(.+?)\s+claims\s+(.+?)\s+and\s+gains\s+1\s+temporary\s+([a-z]+)\s+energy[.!]?$/i);
+        if (!m) return null;
+        return {
+            actor: m[1].trim(),
+            name: m[2].trim(),
+            element: normalizeElement(m[3])
+        };
     }
     function diffPlacements(prev, next, isPlayer) {
         const out = [];
@@ -509,6 +833,40 @@
                     }
                 }
             }
+        }
+        return out;
+    }
+    function diffMoves(prev, next, isPlayer) {
+        const out = [];
+        if (!prev || !next) return out;
+        const prevById = new Map();
+        const nextById = new Map();
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const p = prev[r]?.[c];
+                const n = next[r]?.[c];
+                const pid = String(p?.instanceId || '');
+                const nid = String(n?.instanceId || '');
+                if (pid) prevById.set(pid, { row: r, col: c, cell: p });
+                if (nid) nextById.set(nid, { row: r, col: c, cell: n });
+            }
+        }
+        for (const [id, from] of prevById.entries()) {
+            const to = nextById.get(id);
+            if (!to) continue;
+            if (from.row === to.row && from.col === to.col) continue;
+            out.push({
+                isPlayer,
+                fromRow: from.row,
+                fromCol: from.col,
+                toRow: to.row,
+                toCol: to.col,
+                previousCell: from.cell,
+                cell: to.cell,
+                instanceId: id,
+                name: to.cell?.name || from.cell?.name || '',
+                element: normalizeElement(to.cell?.element || from.cell?.element)
+            });
         }
         return out;
     }
@@ -534,7 +892,14 @@
                         amount: nextHp - prevHp,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
-                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
+                        instanceId: String(n.instanceId || p.instanceId || n.id || p.id || ''),
+                        prevHp,
+                        nextHp,
+                        prevShield,
+                        nextShield,
+                        prevMaxHp: p.maxHp,
+                        nextMaxHp: n.maxHp,
+                        printedHealth: n.printedHealth ?? p.printedHealth
                     });
                 }
             }
@@ -602,7 +967,31 @@
             for (let c = 0; c < 3; c++) {
                 const p = prev[r]?.[c];
                 const n = next[r]?.[c];
-                if (!p || !n) continue;
+                if (!p) continue;
+                if (!n) {
+                    const prevHp = Math.max(0, Number(p.hp) || 0);
+                    const prevShield = Math.max(0, Number(p.shieldHp ?? 0) || 0);
+                    if (prevHp <= 0 && prevShield <= 0) continue;
+                    out.push({
+                        isPlayer, row: r, col: c,
+                        amount: prevHp + prevShield,
+                        shieldBroken: prevShield,
+                        hpLoss: prevHp,
+                        shieldFullyBroken: prevShield > 0,
+                        element: normalizeElement(p.element),
+                        name: p.name || '',
+                        instanceId: String(p.instanceId || p.id || ''),
+                        prevHp,
+                        nextHp: 0,
+                        prevShield,
+                        nextShield: 0,
+                        prevMaxHp: p.maxHp,
+                        nextMaxHp: p.maxHp,
+                        printedHealth: p.printedHealth,
+                        lethalRemoval: true
+                    });
+                    continue;
+                }
                 const same = (p.instanceId && n.instanceId && p.instanceId === n.instanceId)
                     || (p.id && n.id && p.id === n.id)
                     || (String(p.name || '') === String(n.name || '') && p.name);
@@ -677,6 +1066,19 @@
         return null;
     }
 
+    function parseStatusSkipFromLog(line) {
+        const text = stripLogPrefix(line);
+        const m = text.match(/^(.+?)\s+is\s+(frozen|stunned)(?:\s+and\s+cannot\s+act)?[!.]?$/i);
+        if (!m) return null;
+        const word = m[2].trim().toLowerCase();
+        const status = word === 'frozen' ? 'FREEZE' : 'SPEED_ZERO';
+        return {
+            actor: m[1].trim(),
+            status,
+            label: formatStatusLabel(status)
+        };
+    }
+
     // "Fireball deals 5 damage to Sleaf" → { abilityOrSource, amount, target }
     // Server lines look like "Embers deals 3 damage to Pylme (HP: 10)" — the
     // trailing "(HP: N)" is informational and must not become part of the
@@ -687,6 +1089,17 @@
         if (!m) return null;
         return {
             abilityOrSource: m[1].trim(),
+            amount: parseInt(m[2], 10),
+            target: m[3].trim()
+        };
+    }
+
+    function parseSiegeBountyFromLog(line) {
+        const text = stripLogPrefix(line);
+        const m = text.match(/^(.+?)'s\s+bounty\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?[.!]?$/i);
+        if (!m) return null;
+        return {
+            source: m[1].trim(),
             amount: parseInt(m[2], 10),
             target: m[3].trim()
         };
@@ -814,11 +1227,23 @@
             // the player can't see new cards appear before earlier battle
             // animations finish.
             this.pendingPlacements = new Map();
+            this.pendingMoves = new Map();
             // Map<key, { isPlayer, row, col, displayHp, finalHp, maxHp, element }>
             // Board renders receive the server's post-damage state immediately;
             // these entries keep that resolved HP visible while the matching
             // attack animation finishes.
             this.pendingHealthChanges = new Map();
+            // Map<P|E, { isPlayer, displayHealth, finalHealth, maxHealth }>
+            // Direct player HP drops are held at the old number until the
+            // health-bar projectile lands, matching board-card damage pacing.
+            this.pendingDirectHealthChanges = new Map();
+            // Map<key, { isPlayer, row, col, status }> — status badges (Freeze,
+            // Weak, Damage Boost, etc.) that the server already reports but whose
+            // animation hasn't played yet. The matching badge is held hidden
+            // until the STATUS_APPLY / ATTACK action lands its effect, so the
+            // player sees the status arrive with the animation rather than before.
+            this.pendingStatusChanges = new Map();
+            this.pendingLethalHolds = new Map();
             this._pendingSyncScheduled = false;
             this._loadSpeed();
             this._installPlacementObserver();
@@ -838,9 +1263,12 @@
             try { localStorage.setItem(SPEED_STORAGE_KEY, this.speed); } catch (_) {}
             const btn = document.getElementById('sglSpeedToggle');
             if (btn) {
-                btn.classList.toggle('fast', this.speed === 'fast');
-                btn.textContent = this.speed === 'fast' ? '⏩ Fast' : '▶ Normal';
-                btn.title = `Playback speed: ${this.speed === 'fast' ? 'Fast (40%)' : 'Normal'} — click to toggle`;
+                const isFast = this.speed === 'fast';
+                btn.classList.toggle('fast', isFast);
+                btn.textContent = isFast ? '\u23E9' : '\u25B6';
+                const label = isFast ? 'Fast' : 'Normal';
+                btn.title = `Playback speed: ${label}${isFast ? ' (40%)' : ''} — click to toggle`;
+                btn.setAttribute('aria-label', `Animation speed: ${label}`);
             }
         }
         isProcessing() { return this.processing; }
@@ -848,10 +1276,17 @@
             this.queue = [];
             if (this.activeToast) { this.activeToast.dismiss(); this.activeToast = null; }
             this.toasts.clear();
+            if (typeof window.hidePhaseTransitionBanner === 'function') {
+                window.hidePhaseTransitionBanner();
+            }
             this.processing = false;
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
+            this.revealAllPendingMoves();
             this.settleAllPendingHealth();
+            this.settleAllPendingDirectHealth();
+            this.settleAllPendingStatuses();
+            this.releaseAllPendingLethalHolds();
         }
 
         // ── Pending-placement registry ────────────────────────────────────
@@ -885,12 +1320,42 @@
                 this.revealPendingPlacement(key);
             }
         }
+        _moveKey(isPlayer, fromRow, fromCol, toRow, toCol, instanceId) {
+            return `${isPlayer ? 'P' : 'E'}:${fromRow}:${fromCol}->${toRow}:${toCol}:${instanceId || ''}`;
+        }
+        registerPendingMove(isPlayer, fromRow, fromCol, toRow, toCol, cell) {
+            const id = String(cell?.instanceId || cell?.id || '');
+            const key = this._moveKey(isPlayer, fromRow, fromCol, toRow, toCol, id);
+            this.pendingMoves.set(key, { isPlayer, fromRow, fromCol, toRow, toCol, instanceId: id });
+            this.schedulePendingSync();
+            return key;
+        }
+        revealPendingMove(key) {
+            const entry = this.pendingMoves.get(key);
+            if (!entry) return null;
+            this.pendingMoves.delete(key);
+            const cellEl = findCellEl(entry.isPlayer, entry.toRow, entry.toCol);
+            const card = cellEl?.querySelector('.board-card');
+            if (card) {
+                card.style.removeProperty('visibility');
+                card.style.removeProperty('opacity');
+            }
+            return cellEl;
+        }
+        revealAllPendingMoves() {
+            for (const key of Array.from(this.pendingMoves.keys())) {
+                this.revealPendingMove(key);
+            }
+        }
         schedulePendingSync() {
             if (this._pendingSyncScheduled) return;
             this._pendingSyncScheduled = true;
             requestAnimationFrame(() => {
                 this._pendingSyncScheduled = false;
                 this.syncPendingPlacements();
+                this.syncPendingMoves();
+                this.syncPendingDirectHealth();
+                this.syncPendingLethalHolds();
             });
         }
         syncPendingPlacements() {
@@ -900,6 +1365,16 @@
             // state change and would strip any classes we added previously.
             for (const entry of this.pendingPlacements.values()) {
                 const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+                const card = cellEl?.querySelector('.board-card');
+                if (card && card.style.visibility !== 'hidden') {
+                    card.style.visibility = 'hidden';
+                    card.style.opacity = '0';
+                }
+            }
+        }
+        syncPendingMoves() {
+            for (const entry of this.pendingMoves.values()) {
+                const cellEl = findCellEl(entry.isPlayer, entry.toRow, entry.toCol);
                 const card = cellEl?.querySelector('.board-card');
                 if (card && card.style.visibility !== 'hidden') {
                     card.style.visibility = 'hidden';
@@ -930,15 +1405,21 @@
                 if (num) num.textContent = `+${totalShield}`;
             }
             const hpBar = card.querySelector('.hp-bar');
-            const plates = hpBar?.querySelector('.shield-plates');
+            let plates = hpBar?.querySelector('.shield-plates');
             if (!hpBar) return;
             if (intactShield <= 0) {
                 hpBar.classList.remove('is-shielded');
                 plates?.remove();
+                card.classList.remove('has-shield');
                 return;
             }
             hpBar.classList.add('is-shielded');
-            if (!plates) return;
+            card.classList.add('has-shield');
+            if (!plates) {
+                plates = document.createElement('div');
+                plates.className = 'shield-plates';
+                hpBar.insertBefore(plates, hpBar.firstChild);
+            }
             plates.dataset.shield = String(intactShield);
             const current = plates.querySelectorAll('.shield-plate').length;
             if (current === intactShield) return;
@@ -946,6 +1427,19 @@
                 { length: intactShield },
                 (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
             ).join('');
+        }
+        resyncShieldFromState(isPlayer, row, col) {
+            const getter = window.SieglingsBoardCellState?.getCell;
+            const cell = getter ? getter(isPlayer, row, col) : null;
+            const shieldHp = Math.max(0, Number(cell?.shieldHp) || 0);
+            const cellEl = findCellEl(isPlayer, row, col);
+            const card = cellEl?.querySelector('.board-card');
+            if (!card) return shieldHp;
+            this.syncShieldVisualsToHealth(card, {
+                displayShield: shieldHp,
+                maxHp: cell?.maxHp
+            }, shieldHp);
+            return shieldHp;
         }
         applyHealthToDom(entry, hp, maxHp) {
             if (!entry) return;
@@ -959,16 +1453,44 @@
             const barHp = resolvedHp;
             const pct = barMax > 0 ? Math.max(0, Math.min(100, (barHp / barMax) * 100)) : 0;
             const fill = card.querySelector('.hp-fill');
-            if (fill) fill.style.width = `${pct}%`;
+            const damaged = resolvedMax > 0 && resolvedHp < resolvedMax;
+            if (fill) {
+                fill.style.width = `${pct}%`;
+                // Re-key the colour tier so the bar's hue tracks the new
+                // remaining-HP percentage during the SAME width transition the
+                // damage just triggered. Without this the fill keeps the tier
+                // class it was first rendered with and only recolours on a later
+                // full re-render — visibly lagging behind the bar shrink.
+                const tierClass = (typeof hpFillTierClass === 'function')
+                    ? hpFillTierClass(pct).trim()
+                    : '';
+                fill.classList.remove('hp-fill-high', 'hp-fill-mid', 'hp-fill-low', 'hp-fill-critical');
+                if (tierClass) fill.classList.add(tierClass);
+            }
+            const hpPill = card.querySelector('.card-stat-pill-hp');
+            if (hpPill) {
+                hpPill.textContent = `HP: ${Math.max(0, resolvedHp)}`;
+                hpPill.classList.toggle('is-damaged', damaged);
+            }
             const hpStat = card.querySelector('.stat-hp');
-            if (hpStat) hpStat.innerHTML = this.renderHealthInner(entry, resolvedHp, resolvedMax);
+            if (hpStat) {
+                hpStat.innerHTML = this.renderHealthInner(entry, resolvedHp, resolvedMax);
+                hpStat.classList.toggle('is-damaged', damaged);
+            }
             this.syncShieldVisualsToHealth(card, entry, resolvedShield);
         }
         registerPendingHealth(target) {
-            if (!target || target.destroysTarget) return null;
+            if (!target) return null;
+            if (target.destroysTarget && target.ghostCell) {
+                return this.registerPendingLethalHold(target);
+            }
             const prevHp = Number(target.prevHp);
             const nextHp = Number(target.nextHp);
-            if (!Number.isFinite(prevHp) || !Number.isFinite(nextHp) || nextHp >= prevHp) {
+            const prevShield = Math.max(0, Number(target.prevShield) || 0);
+            const nextShield = Math.max(0, Number(target.nextShield) || 0);
+            const hpDropped = Number.isFinite(prevHp) && Number.isFinite(nextHp) && nextHp < prevHp;
+            const shieldDropped = nextShield < prevShield;
+            if (!hpDropped && !shieldDropped) {
                 return null;
             }
             const id = String(target.instanceId || '');
@@ -981,10 +1503,44 @@
                 row: target.row,
                 col: target.col,
                 instanceId: id,
-                displayHp: nextHp,
+                displayHp: hpDropped ? prevHp : nextHp,
+                finalHp: Number.isFinite(nextHp) ? nextHp : prevHp,
+                displayShield: prevShield,
+                finalShield: nextShield,
+                maxHp,
+                printedHealth: target.printedHealth,
+                element: target.element
+            });
+            return key;
+        }
+        // Register a heal whose displayed HP should be HELD at the pre-heal
+        // value until its animation lands. Mirrors registerPendingHealth (used
+        // for damage), but keeps the OLD hp/shield on screen (displayHp =
+        // prevHp) and commits to the new values on release, so the bar visibly
+        // rises during the heal cross instead of jumping ahead of it.
+        registerPendingHeal(target) {
+            if (!target) return null;
+            const prevHp = Number(target.prevHp);
+            const nextHp = Number(target.nextHp);
+            if (!Number.isFinite(prevHp) || !Number.isFinite(nextHp)) {
+                return null;
+            }
+            const id = String(target.instanceId || '');
+            const key = this._healthKey(target.isPlayer, target.row, target.col, id);
+            const maxHp = Number.isFinite(Number(target.nextMaxHp))
+                ? Number(target.nextMaxHp)
+                : Number(target.prevMaxHp);
+            const prevShield = Number.isFinite(Number(target.prevShield)) ? Number(target.prevShield) : 0;
+            const nextShield = Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0;
+            this.pendingHealthChanges.set(key, {
+                isPlayer: target.isPlayer,
+                row: target.row,
+                col: target.col,
+                instanceId: id,
+                displayHp: prevHp,
                 finalHp: nextHp,
-                displayShield: Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0,
-                finalShield: Number.isFinite(Number(target.nextShield)) ? Number(target.nextShield) : 0,
+                displayShield: prevShield,
+                finalShield: nextShield,
                 maxHp,
                 printedHealth: target.printedHealth,
                 element: target.element
@@ -992,12 +1548,97 @@
             this.syncPendingHealth();
             return key;
         }
+        applyPendingImpactHealth(key) {
+            if (!key) return;
+            const entry = this.pendingHealthChanges.get(key);
+            if (!entry) return;
+            entry.displayHp = entry.finalHp;
+            entry.displayShield = entry.finalShield;
+            this.applyHealthToDom(entry, entry.displayHp, entry.maxHp);
+        }
+        applyPendingImpactHealthForTargets(targets) {
+            for (const target of targets || []) {
+                this.applyPendingImpactHealth(target?.pendingHealthKey);
+            }
+        }
+        registerPendingLethalHold(target) {
+            const cell = target.ghostCell;
+            if (!cell) return null;
+            const id = String(target.instanceId || cell.instanceId || cell.id || '');
+            const key = this._healthKey(target.isPlayer, target.row, target.col, id);
+            const prevHp = Number.isFinite(Number(target.prevHp))
+                ? Number(target.prevHp)
+                : Number(cell.hp ?? 0);
+            const maxHp = Number.isFinite(Number(target.prevMaxHp))
+                ? Number(target.prevMaxHp)
+                : Number(cell.maxHp ?? prevHp);
+            const prevShield = Number.isFinite(Number(target.prevShield))
+                ? Number(target.prevShield)
+                : Math.max(0, Number(cell.shieldHp ?? 0) || 0);
+            this.pendingLethalHolds.set(key, {
+                isPlayer: target.isPlayer,
+                row: target.row,
+                col: target.col,
+                instanceId: id,
+                cell: { ...cell },
+                displayHp: Math.max(0, prevHp),
+                finalHp: 0,
+                displayShield: prevShield,
+                finalShield: 0,
+                maxHp,
+                printedHealth: target.printedHealth ?? cell.printedHealth,
+                element: target.element || cell.element
+            });
+            this.schedulePendingSync();
+            return key;
+        }
+        getHeldBoardCard(isPlayer, row, col) {
+            const cellEl = findCellEl(isPlayer, row, col);
+            return cellEl?.querySelector('.board-card') || null;
+        }
+        applyLethalImpactHealth(key, target) {
+            const entry = key ? this.pendingLethalHolds.get(key) : null;
+            if (entry) {
+                entry.displayHp = entry.finalHp;
+                entry.displayShield = entry.finalShield;
+                this.syncPendingLethalHolds();
+                return;
+            }
+            this.releasePendingHealth(target?.pendingHealthKey);
+        }
+        releasePendingLethalHold(key) {
+            if (!key) return;
+            const entry = this.pendingLethalHolds.get(key);
+            if (!entry) return;
+            this.pendingLethalHolds.delete(key);
+            if (typeof window.SieglingsBoardHold?.unmountHeldBoardCell === 'function') {
+                const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+                if (cellEl) window.SieglingsBoardHold.unmountHeldBoardCell(cellEl);
+            }
+        }
+        releaseAllPendingLethalHolds() {
+            for (const key of Array.from(this.pendingLethalHolds.keys())) {
+                this.releasePendingLethalHold(key);
+            }
+        }
+        syncPendingLethalHolds() {
+            if (!this.pendingLethalHolds.size) return;
+            if (typeof window.SieglingsBoardHold?.syncHeldCards !== 'function') return;
+            window.SieglingsBoardHold.syncHeldCards(this.pendingLethalHolds);
+            for (const entry of this.pendingLethalHolds.values()) {
+                this.applyHealthToDom(entry, entry.displayHp, entry.maxHp);
+            }
+        }
         releasePendingHealth(key) {
             if (!key) return;
             const entry = this.pendingHealthChanges.get(key);
             if (!entry) return;
+            if (entry.displayHp !== entry.finalHp || entry.displayShield !== entry.finalShield) {
+                entry.displayHp = entry.finalHp;
+                entry.displayShield = entry.finalShield;
+                this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+            }
             this.pendingHealthChanges.delete(key);
-            this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
         }
         releasePendingHealthForTargets(targets) {
             for (const target of targets || []) {
@@ -1005,14 +1646,142 @@
             }
         }
         settleAllPendingHealth() {
-            for (const [key, entry] of Array.from(this.pendingHealthChanges.entries())) {
-                this.pendingHealthChanges.delete(key);
-                this.applyHealthToDom(entry, entry.finalHp, entry.maxHp);
+            for (const key of Array.from(this.pendingHealthChanges.keys())) {
+                this.applyPendingImpactHealth(key);
+                this.releasePendingHealth(key);
             }
         }
         syncPendingHealth() {
             for (const entry of this.pendingHealthChanges.values()) {
                 this.applyHealthToDom(entry, entry.displayHp, entry.maxHp);
+            }
+        }
+
+        _directHealthKey(isPlayer) {
+            return isPlayer ? 'P' : 'E';
+        }
+        registerPendingDirectHealth(target) {
+            if (!target) return null;
+            const prevHealth = Number(target.prevHealth);
+            const nextHealth = Number(target.nextHealth);
+            if (!Number.isFinite(prevHealth) || !Number.isFinite(nextHealth) || nextHealth >= prevHealth) {
+                return null;
+            }
+            const key = this._directHealthKey(!!target.isPlayer);
+            this.pendingDirectHealthChanges.set(key, {
+                isPlayer: !!target.isPlayer,
+                displayHealth: prevHealth,
+                finalHealth: nextHealth,
+                maxHealth: Number.isFinite(Number(target.maxHealth)) ? Number(target.maxHealth) : 50
+            });
+            this.syncPendingDirectHealth();
+            return key;
+        }
+        getDisplayedHealth(isPlayer, fallbackHealth) {
+            const entry = this.pendingDirectHealthChanges.get(this._directHealthKey(!!isPlayer));
+            if (entry) return entry.displayHealth;
+            const value = Number(fallbackHealth);
+            return Number.isFinite(value) ? value : 0;
+        }
+        applyDirectHealthToDom(entry, health) {
+            if (!entry) return;
+            const isPlayer = !!entry.isPlayer;
+            const safeHealth = Math.max(0, Number.isFinite(Number(health)) ? Number(health) : 0);
+            const maxHealth = Math.max(1, Number.isFinite(Number(entry.maxHealth)) ? Number(entry.maxHealth) : 50);
+            const pct = Math.max(0, Math.min(100, Math.round((safeHealth / maxHealth) * 100)));
+            const textIds = isPlayer
+                ? ['playerHealth', 'railPlayerHealth']
+                : ['enemyHealth', 'railEnemyHealth'];
+            for (const id of textIds) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = String(safeHealth);
+            }
+            const fillIds = isPlayer
+                ? ['railPlayerHpBar', 'mobilePlayerHpBar', 'safeHpFillPlayer']
+                : ['railEnemyHpBar', 'mobileEnemyHpBar', 'safeHpFillEnemy'];
+            for (const id of fillIds) {
+                const fill = document.getElementById(id);
+                if (fill) fill.style.width = `${pct}%`;
+            }
+            const safeFill = document.getElementById(isPlayer ? 'safeHpFillPlayer' : 'safeHpFillEnemy');
+            const safeHalf = safeFill?.closest('.safe-hp-half');
+            if (safeHalf) safeHalf.classList.toggle('danger', pct > 0 && pct <= 30);
+        }
+        syncPendingDirectHealth() {
+            for (const entry of this.pendingDirectHealthChanges.values()) {
+                this.applyDirectHealthToDom(entry, entry.displayHealth);
+            }
+        }
+        applyPendingDirectHealth(key) {
+            if (!key) return;
+            const entry = this.pendingDirectHealthChanges.get(key);
+            if (!entry) return;
+            entry.displayHealth = entry.finalHealth;
+            this.applyDirectHealthToDom(entry, entry.finalHealth);
+        }
+        releasePendingDirectHealth(key) {
+            if (!key) return;
+            this.applyPendingDirectHealth(key);
+            this.pendingDirectHealthChanges.delete(key);
+        }
+        settleAllPendingDirectHealth() {
+            for (const key of Array.from(this.pendingDirectHealthChanges.keys())) {
+                this.releasePendingDirectHealth(key);
+            }
+        }
+
+        // ── Pending-status registry ───────────────────────────────────────
+        _statusKey(isPlayer, row, col, status) {
+            return `${isPlayer ? 'P' : 'E'}:${row}:${col}:${String(status || '').toUpperCase()}`;
+        }
+        _setStatusBadgeHidden(entry, hidden) {
+            const cellEl = findCellEl(entry.isPlayer, entry.row, entry.col);
+            const card = cellEl?.querySelector('.board-card');
+            if (!card) return;
+            const badge = card.querySelector(
+                `.status-icons .sb-badge[data-status="${entry.status}"]`
+            );
+            if (!badge) return;
+            if (hidden) {
+                // visibility (not display) keeps the badge's slot so the card
+                // doesn't reflow when the icon pops in with its animation.
+                badge.style.visibility = 'hidden';
+                badge.style.opacity = '0';
+            } else {
+                badge.style.removeProperty('visibility');
+                badge.style.removeProperty('opacity');
+            }
+        }
+        registerPendingStatus(isPlayer, row, col, status) {
+            const norm = String(status || '').toUpperCase();
+            if (!norm) return null;
+            const key = this._statusKey(isPlayer, row, col, norm);
+            this.pendingStatusChanges.set(key, { isPlayer, row, col, status: norm });
+            this.syncPendingStatuses();
+            return key;
+        }
+        revealPendingStatus(isPlayer, row, col, status) {
+            const key = this._statusKey(isPlayer, row, col, status);
+            const entry = this.pendingStatusChanges.get(key);
+            if (!entry) return;
+            this.pendingStatusChanges.delete(key);
+            this._setStatusBadgeHidden(entry, false);
+        }
+        revealPendingStatusesForTarget(target, statuses) {
+            if (!target || !Array.isArray(statuses)) return;
+            for (const status of statuses) {
+                this.revealPendingStatus(target.isPlayer, target.row, target.col, status);
+            }
+        }
+        settleAllPendingStatuses() {
+            for (const [key, entry] of Array.from(this.pendingStatusChanges.entries())) {
+                this.pendingStatusChanges.delete(key);
+                this._setStatusBadgeHidden(entry, false);
+            }
+        }
+        syncPendingStatuses() {
+            for (const entry of this.pendingStatusChanges.values()) {
+                this._setStatusBadgeHidden(entry, true);
             }
         }
         _installPlacementObserver() {
@@ -1040,11 +1809,13 @@
                 ? [
                     '#hudRailPlayer .hud-hp-row',
                     '.mobile-hud-player',
+                    '.safe-hp-player',
                     '.tb-hp-player'
                 ]
                 : [
                     '#hudRailEnemy .hud-hp-row',
                     '.mobile-hud-enemy',
+                    '.safe-hp-enemy',
                     '.tb-hp-enemy'
                 ];
             const candidates = selectors
@@ -1072,6 +1843,36 @@
             el.style.setProperty('--sgl-hp-impact', elementHexValue || ELEMENT_HEX.NEUTRAL);
             el.classList.add('sgl-hp-impact');
             setTimeout(() => el.classList.remove('sgl-hp-impact'), 720);
+        }
+        _fractureHealthBar(isPlayer, elementHexValue) {
+            const el = this._getHealthBarEl(isPlayer);
+            if (!el) return;
+            const crackColor = elementHexValue || ELEMENT_HEX.NEUTRAL;
+            el.style.setProperty('--sgl-siege-crack', crackColor);
+            el.classList.remove('sgl-health-fracture');
+            el.querySelectorAll(':scope > .sgl-health-cracks').forEach((node) => node.remove());
+
+            const overlay = document.createElement('span');
+            overlay.className = 'sgl-health-cracks';
+            overlay.setAttribute('aria-hidden', 'true');
+            const cracks = [
+                ['16%', '44%', '44px', '-18deg'],
+                ['30%', '24%', '54px', '36deg'],
+                ['45%', '52%', '66px', '-7deg'],
+                ['58%', '31%', '46px', '54deg'],
+                ['70%', '57%', '58px', '-34deg'],
+                ['81%', '38%', '38px', '20deg']
+            ];
+            overlay.innerHTML = cracks.map(([left, top, width, rotate], index) =>
+                `<span style="left:${left};top:${top};width:${width};transform:rotate(${rotate});animation-delay:${index * 28}ms"></span>`
+            ).join('');
+            el.appendChild(overlay);
+            void el.offsetWidth;
+            el.classList.add('sgl-health-fracture');
+            setTimeout(() => {
+                el.classList.remove('sgl-health-fracture');
+                overlay.remove();
+            }, 920);
         }
 
         // Where to launch a "sourceless" projectile from when we can't
@@ -1121,6 +1922,31 @@
             const playerName   = nextState.playerName || prevState.playerName || 'Player';
             const enemyName    = nextState.enemyName  || prevState.enemyName  || 'Opponent';
             const newLogs      = getNewLogEntries(prevState, nextState);
+            const claimLogs    = newLogs.map(parseClaimFromLog).filter(Boolean);
+            const isClaimRemoval = (entry) => claimLogs.some((claim) =>
+                namesMatch(claim.name, entry.name)
+                && (!claim.element || claim.element === normalizeElement(entry.cell?.element || entry.element))
+            );
+            const siegeBountyLogs = newLogs.map(parseSiegeBountyFromLog).filter(Boolean);
+            const findSiegeBountyHit = (targetNames, amount) => {
+                if (!amount || !siegeBountyLogs.length) return null;
+                const names = (targetNames || []).filter(Boolean);
+                const matches = siegeBountyLogs.filter((entry) =>
+                    entry.amount > 0
+                    && (!names.length || names.some((name) => namesMatch(entry.target, name)))
+                );
+                const exact = matches.find((entry) => entry.amount === amount);
+                if (exact) return exact;
+                const total = matches.reduce((sum, entry) => sum + entry.amount, 0);
+                if (total === amount) {
+                    return {
+                        source: matches.map((entry) => entry.source).filter(Boolean).join(', '),
+                        amount: total,
+                        target: matches[0]?.target || ''
+                    };
+                }
+                return null;
+            };
 
             // A state diff can span a whole battle resolution + the next phase's
             // placements (e.g. player commits attack → server resolves battle →
@@ -1147,6 +1973,18 @@
             // Collect placements and damage now but enqueue them in the right
             // order at the end of this method.
             const evolutionLogs = newLogs.map(parseEvolutionFromLog).filter(Boolean);
+            const movesOnPlayer = diffMoves(prevPlayer, nextPlayer, true);
+            const movesOnEnemy  = diffMoves(prevEnemy,  nextEnemy,  false);
+            const isMoveOrigin = (entry, moves) => moves.some((move) =>
+                move.fromRow === entry.row
+                && move.fromCol === entry.col
+                && (!entry.instanceId || !move.instanceId || move.instanceId === entry.instanceId)
+            );
+            const isMoveDestination = (entry, moves) => moves.some((move) =>
+                move.toRow === entry.row
+                && move.toCol === entry.col
+                && (!entry.cell?.instanceId || !move.instanceId || move.instanceId === String(entry.cell.instanceId))
+            );
             const tagEvolutionPlacements = (placements, prevBoard) => placements.map((p) => {
                 const previousCell = prevBoard?.[p.row]?.[p.col];
                 if (!previousCell) return p;
@@ -1155,12 +1993,45 @@
                 );
                 return loggedEvolution ? { ...p, evolutionFrom: previousCell } : p;
             });
-            const newPlayerPlacements = tagEvolutionPlacements(diffPlacements(prevPlayer, nextPlayer, true), prevPlayer);
-            const newEnemyPlacements  = tagEvolutionPlacements(diffPlacements(prevEnemy,  nextEnemy,  false), prevEnemy);
+            const newPlayerPlacements = tagEvolutionPlacements(diffPlacements(prevPlayer, nextPlayer, true), prevPlayer)
+                .filter((p) => !isMoveDestination(p, movesOnPlayer));
+            const newEnemyPlacements  = tagEvolutionPlacements(diffPlacements(prevEnemy,  nextEnemy,  false), prevEnemy)
+                .filter((p) => !isMoveDestination(p, movesOnEnemy));
 
             // Damage events (attacks / abilities that hit)
-            const damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true);
-            const damageOnEnemy  = diffDamage(prevEnemy,  nextEnemy,  false);
+            let damageOnPlayer = diffDamage(prevPlayer, nextPlayer, true)
+                .filter((t) => !isClaimRemoval(t))
+                .filter((t) => !isMoveOrigin(t, movesOnPlayer));
+            let damageOnEnemy  = diffDamage(prevEnemy,  nextEnemy,  false)
+                .filter((t) => !isClaimRemoval(t))
+                .filter((t) => !isMoveOrigin(t, movesOnEnemy));
+
+            // Shields granted during the turn evaporate in the server's
+            // end-of-turn cleanup (clearTempEffects), surfacing in the diff as a
+            // shield-only drop to zero with no HP loss. The damage diff would
+            // otherwise read that as an attack that "broke" the shield and fire a
+            // phantom projectile at the card. When it lands together with the
+            // battle ending (BATTLE -> DRAW), treat it as natural expiry and play a
+            // crumble animation instead. Do NOT treat SETUP -> BATTLE this way —
+            // shields cast during setup must persist into the battle phase.
+            const shieldExpiryOnPlayer = [];
+            const shieldExpiryOnEnemy = [];
+            const shieldsExpireThisStep = phaseChanged
+                && prevState.currentPhase === 'BATTLE'
+                && nextState.currentPhase === 'DRAW';
+            if (shieldsExpireThisStep) {
+                const splitShieldExpiry = (damageList, expiryOut) => {
+                    for (let i = damageList.length - 1; i >= 0; i--) {
+                        const d = damageList[i];
+                        if (Number(d.hpLoss) === 0 && Number(d.shieldBroken) > 0 && Number(d.nextShield) === 0) {
+                            expiryOut.push(d);
+                            damageList.splice(i, 1);
+                        }
+                    }
+                };
+                splitShieldExpiry(damageOnPlayer, shieldExpiryOnPlayer);
+                splitShieldExpiry(damageOnEnemy, shieldExpiryOnEnemy);
+            }
 
             // Destruction events (cards that no longer exist). Paired with attacks
             // below so the killed card stays visible until the projectile lands.
@@ -1171,9 +2042,13 @@
                 && namesMatch(p.evolutionFrom.name, d.name)
             );
             const destructionsOnPlayer = diffDestructions(prevPlayer, nextPlayer, true)
-                .filter((d) => !isEvolutionDestruction(d, newPlayerPlacements));
+                .filter((d) => !isClaimRemoval(d))
+                .filter((d) => !isEvolutionDestruction(d, newPlayerPlacements))
+                .filter((d) => !isMoveOrigin(d, movesOnPlayer));
             const destructionsOnEnemy  = diffDestructions(prevEnemy,  nextEnemy,  false)
-                .filter((d) => !isEvolutionDestruction(d, newEnemyPlacements));
+                .filter((d) => !isClaimRemoval(d))
+                .filter((d) => !isEvolutionDestruction(d, newEnemyPlacements))
+                .filter((d) => !isMoveOrigin(d, movesOnEnemy));
             const matchDestruction = (list, t) => {
                 const idx = list.findIndex((d) =>
                     d.row === t.row && d.col === t.col
@@ -1214,9 +2089,11 @@
             // Battle-phase pacing: damage, destruction and ability animations
             // fire back-to-back as one solid block.
             const BATTLE_GAP_MS  = 220;
-            const PHASE_GAP_MS   = 360;
+            const PHASE_GAP_MS   = this.speed === 'fast' ? 200 : 420;
+            const PHASE_BANNER_MS = this.speed === 'fast' ? 1100 : 2000;
             const FIRST_PLAY_GAP = this.speed === 'fast' ? 120 : 360;
             const NEXT_PLAY_GAP  = this.speed === 'fast' ? 80 : 160;
+            const ENEMY_PLACEMENT_MS = this.speed === 'fast' ? 420 : 1000;
             let phaseTransitionQueued = false;
 
             // Multi-target label helper. Server damage events from the same
@@ -1245,6 +2122,10 @@
                 this._placementInProgress = true;
                 const placementIsPlayer = side === 'PLAYER';
                 const isEvolution = Boolean(p.evolutionFrom);
+                const placementKey = this.registerPendingPlacement(
+                    placementIsPlayer, p.row, p.col, p.cell
+                );
+                const enemyPaced = side === 'ENEMY';
                 this.enqueueAction({
                     kind: 'PLAY',
                     side,
@@ -1255,22 +2136,23 @@
                     elementColor: normalizeElement(p.cell.element) || knight,
                     source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
                     portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
-                    gapAfterMs: isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP
+                    placementKey,
+                    minActionMs: enemyPaced ? ENEMY_PLACEMENT_MS : null,
+                    gapAfterMs: enemyPaced
+                        ? 0
+                        : (isFirst ? FIRST_PLAY_GAP : NEXT_PLAY_GAP)
                 });
             };
 
             const enqueuePhaseTransitionAction = () => {
                 if (!phaseChanged || phaseTransitionQueued) return;
                 phaseTransitionQueued = true;
-                const phaseLabel = String(nextState.currentPhase).charAt(0)
-                    + String(nextState.currentPhase).slice(1).toLowerCase();
                 this.enqueueAction({
                     kind: 'PHASE',
+                    phase: nextState.currentPhase,
+                    activeSide: nextState.activeSide || 'PLAYER',
                     side: nextState.activeSide || 'PLAYER',
-                    actorName: `${phaseLabel} Phase`,
-                    knightElement: nextState.activeSide === 'ENEMY' ? enemyKnight : playerKnight,
-                    elementColor: 'NEUTRAL',
-                    holdMs: this.timings().toastDismissMs,
+                    holdMs: PHASE_BANNER_MS,
                     gapAfterMs: PHASE_GAP_MS
                 });
             };
@@ -1312,6 +2194,9 @@
                         printedHealth: t.printedHealth
                     };
                     targetEntry.pendingHealthKey = this.registerPendingHealth(targetEntry);
+                    if (targetEntry.destroysTarget) {
+                        targetEntry.pendingLethalKey = targetEntry.pendingHealthKey;
+                    }
                     const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || sideKnight;
                     const key = srcRef
                         ? `S:${srcRef.row}:${srcRef.col}:${srcRef.cell?.instanceId || srcRef.cell?.id || ''}`
@@ -1334,6 +2219,10 @@
             // the status landing.
             const newStatusesOnEnemy  = diffStatuses(prevEnemy,  nextEnemy,  false);
             const newStatusesOnPlayer = diffStatuses(prevPlayer, nextPlayer, true);
+            // Hold each newly-applied status badge hidden until its action plays
+            // so the icon appears with the landing animation, not before it.
+            for (const s of newStatusesOnEnemy)  this.registerPendingStatus(s.isPlayer, s.row, s.col, s.status);
+            for (const s of newStatusesOnPlayer) this.registerPendingStatus(s.isPlayer, s.row, s.col, s.status);
             const mergeStatusInto = (groups, statusList, resolveSource, sideKnight, defenderIsPlayer) => {
                 for (const s of statusList) {
                     let merged = false;
@@ -1463,6 +2352,7 @@
                         destroysTarget: t.destroysTarget,
                         ghostCell: t.ghostCell,
                         pendingHealthKey: t.pendingHealthKey,
+                        pendingLethalKey: t.pendingLethalKey,
                         statuses: t.statuses && t.statuses.length ? t.statuses.slice() : null,
                         gapAfterMs: BATTLE_GAP_MS
                     });
@@ -1495,6 +2385,7 @@
                         destroysTarget: tt.destroysTarget,
                         ghostCell: tt.ghostCell,
                         pendingHealthKey: tt.pendingHealthKey,
+                        pendingLethalKey: tt.pendingLethalKey,
                         statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null
                     })),
                     gapAfterMs: BATTLE_GAP_MS
@@ -1503,6 +2394,35 @@
 
             for (const group of playerGroups.values()) enqueueAttackGroup(group, 'PLAYER', playerKnight, playerName, 'enemies');
             for (const group of enemyGroups.values())  enqueueAttackGroup(group, 'ENEMY',  enemyKnight,  enemyName,  'allies');
+
+            const enqueueMove = (move, side, knight) => {
+                const el = normalizeElement(move.cell?.element || move.previousCell?.element) || knight;
+                const rowName = ROW_LABELS[move.toRow] || 'Row';
+                const moveKey = this.registerPendingMove(
+                    move.isPlayer,
+                    move.fromRow,
+                    move.fromCol,
+                    move.toRow,
+                    move.toCol,
+                    move.cell || move.previousCell
+                );
+                if (move.name) enqueuedAttackerNames.add(move.name);
+                this.enqueueAction({
+                    kind: 'MOVE',
+                    side,
+                    actorName: move.name || 'Card',
+                    label: 'shifts to',
+                    targetName: `${rowName} row, col ${move.toCol}`,
+                    knightElement: knight,
+                    elementColor: el,
+                    source: { isPlayer: move.isPlayer, row: move.fromRow, col: move.fromCol },
+                    target: { isPlayer: move.isPlayer, row: move.toRow, col: move.toCol, element: el },
+                    moveKey,
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            };
+            for (const move of movesOnPlayer) enqueueMove(move, 'PLAYER', playerKnight);
+            for (const move of movesOnEnemy)  enqueueMove(move, 'ENEMY',  enemyKnight);
 
             // Unpaired destructions (e.g. effect damage, end-of-turn cleanup) →
             // standalone DESTROY action that shows a ghost + fade-out.
@@ -1523,6 +2443,39 @@
             };
             for (const d of destructionsOnPlayer) queueDestruction(d, 'ENEMY', enemyKnight);
             for (const d of destructionsOnEnemy)  queueDestruction(d, 'PLAYER', playerKnight);
+
+            // Status-caused lost turns are log-only state changes, so surface
+            // them as a short toast + pulse on the skipped card.
+            for (const line of newLogs) {
+                const parsed = parseStatusSkipFromLog(line);
+                if (!parsed) continue;
+                const playerHit = findCellByName(nextPlayer, parsed.actor) || findCellByName(prevPlayer, parsed.actor);
+                const enemyHit = findCellByName(nextEnemy, parsed.actor) || findCellByName(prevEnemy, parsed.actor);
+                const hit = playerHit
+                    ? { ...playerHit, isPlayer: true }
+                    : enemyHit
+                        ? { ...enemyHit, isPlayer: false }
+                        : null;
+                if (!hit) continue;
+                const knight = hit.isPlayer ? playerKnight : enemyKnight;
+                const statusEl = statusProfile(parsed.status).element;
+                this.enqueueAction({
+                    kind: 'STATUS_SKIP',
+                    side: hit.isPlayer ? 'PLAYER' : 'ENEMY',
+                    actorName: parsed.actor,
+                    targetName: parsed.label,
+                    knightElement: knight,
+                    elementColor: statusEl,
+                    target: {
+                        isPlayer: hit.isPlayer,
+                        row: hit.row,
+                        col: hit.col,
+                        element: normalizeElement(hit.cell?.element) || statusEl
+                    },
+                    statuses: [parsed.status],
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            }
 
             // Ability/use lines from the log → ABILITY toasts (skip ones already
             // covered by a queued ATTACK from the same attacker).
@@ -1567,6 +2520,23 @@
                 const side = healerRef ? (healerRef.isPlayer ? 'PLAYER' : 'ENEMY')
                                        : (targetIsPlayer ? 'PLAYER' : 'ENEMY');
                 const knight = side === 'PLAYER' ? playerKnight : enemyKnight;
+                // Hold the target's HP at its pre-heal value until the heal
+                // animation lands, so the green "+N" and the rising bar play
+                // together rather than the number being updated up front.
+                const pendingHealthKey = this.registerPendingHeal({
+                    isPlayer: h.isPlayer,
+                    row: h.row,
+                    col: h.col,
+                    instanceId: h.instanceId,
+                    prevHp: h.prevHp,
+                    nextHp: h.nextHp,
+                    prevShield: h.prevShield,
+                    nextShield: h.nextShield,
+                    prevMaxHp: h.prevMaxHp,
+                    nextMaxHp: h.nextMaxHp,
+                    printedHealth: h.printedHealth,
+                    element: h.element
+                });
                 this.enqueueAction({
                     kind: 'HEAL',
                     side,
@@ -1580,6 +2550,7 @@
                         ? { isPlayer: healerRef.isPlayer, row: healerRef.row, col: healerRef.col }
                         : null,
                     target: { isPlayer: h.isPlayer, row: h.row, col: h.col, element: ownerKnight },
+                    pendingHealthKey,
                     gapAfterMs: BATTLE_GAP_MS
                 });
             };
@@ -1604,6 +2575,35 @@
             for (const h of healingOnEnemy)  queueHeal(h);
             for (const h of shieldsOnPlayer) queueShield(h);
             for (const h of shieldsOnEnemy)  queueShield(h);
+
+            // Expiring shields crumble away together at the end of the turn —
+            // one action animating every dissipating shield simultaneously,
+            // queued just before the phase transition.
+            const expiryTargets = [];
+            const pushExpiry = (list, ownerKnight) => {
+                for (const d of list) {
+                    expiryTargets.push({
+                        isPlayer: d.isPlayer,
+                        row: d.row,
+                        col: d.col,
+                        element: normalizeElement(d.element) || ownerKnight,
+                        shieldBroken: Number(d.shieldBroken) || 1,
+                        name: d.name
+                    });
+                }
+            };
+            pushExpiry(shieldExpiryOnPlayer, playerKnight);
+            pushExpiry(shieldExpiryOnEnemy, enemyKnight);
+            if (expiryTargets.length) {
+                this.enqueueAction({
+                    kind: 'SHIELD_EXPIRE',
+                    side: 'PLAYER',
+                    knightElement: 'METAL',
+                    elementColor: 'METAL',
+                    targets: expiryTargets,
+                    gapAfterMs: BATTLE_GAP_MS
+                });
+            }
 
             // Phase change toast — appended AFTER the just-ended phase's
             // animations and BEFORE the new phase's placements, so the toast
@@ -1630,6 +2630,17 @@
 
             if (Number.isFinite(prevEnemyHp) && Number.isFinite(nextEnemyHp) && nextEnemyHp < prevEnemyHp) {
                 const dmg = prevEnemyHp - nextEnemyHp;
+                const siegeHit = findSiegeBountyHit([
+                    enemyName,
+                    nextState.enemy?.name,
+                    prevState.enemy?.name
+                ], dmg);
+                const pendingDirectHealthKey = this.registerPendingDirectHealth({
+                    isPlayer: false,
+                    prevHealth: prevEnemyHp,
+                    nextHealth: nextEnemyHp,
+                    maxHealth: 50
+                });
                 const srcRef = (() => {
                     const pending = prevState.pendingBattle;
                     if (pending) {
@@ -1642,30 +2653,47 @@
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side: 'PLAYER',
-                    actorName: srcRef?.cell?.name || srcRef?.pending?.name || playerName,
+                    actorName: siegeHit?.source ? `${siegeHit.source}'s bounty` : (srcRef?.cell?.name || srcRef?.pending?.name || playerName),
                     targetName: enemyName,
                     amount: dmg,
+                    label: siegeHit ? 'Siege damage' : undefined,
+                    siegeDamage: Boolean(siegeHit),
                     knightElement: playerKnight,
-                    elementColor: srcElement,
-                    source: srcRef ? { isPlayer: true, row: srcRef.row, col: srcRef.col } : null,
-                    target: { healthBar: true, isPlayer: false, element: srcElement },
+                    elementColor: siegeHit ? enemyKnight : srcElement,
+                    source: (!siegeHit && srcRef) ? { isPlayer: true, row: srcRef.row, col: srcRef.col } : null,
+                    target: { healthBar: true, isPlayer: false, element: siegeHit ? enemyKnight : srcElement, pendingDirectHealthKey },
+                    pendingDirectHealthKey,
                     gapAfterMs: BATTLE_GAP_MS
                 });
             }
             if (Number.isFinite(prevPlayerHp) && Number.isFinite(nextPlayerHp) && nextPlayerHp < prevPlayerHp) {
                 const dmg = prevPlayerHp - nextPlayerHp;
+                const siegeHit = findSiegeBountyHit([
+                    playerName,
+                    nextState.player?.name,
+                    prevState.player?.name
+                ], dmg);
+                const pendingDirectHealthKey = this.registerPendingDirectHealth({
+                    isPlayer: true,
+                    prevHealth: prevPlayerHp,
+                    nextHealth: nextPlayerHp,
+                    maxHealth: 50
+                });
                 const srcRef = findCellOnBoard(prevEnemy, () => true);
                 const srcElement = normalizeElement(srcRef?.cell?.element) || enemyKnight;
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side: 'ENEMY',
-                    actorName: srcRef?.cell?.name || enemyName,
+                    actorName: siegeHit?.source ? `${siegeHit.source}'s bounty` : (srcRef?.cell?.name || enemyName),
                     targetName: playerName,
                     amount: dmg,
+                    label: siegeHit ? 'Siege damage' : undefined,
+                    siegeDamage: Boolean(siegeHit),
                     knightElement: enemyKnight,
-                    elementColor: srcElement,
-                    source: srcRef ? { isPlayer: false, row: srcRef.row, col: srcRef.col } : null,
-                    target: { healthBar: true, isPlayer: true, element: srcElement },
+                    elementColor: siegeHit ? playerKnight : srcElement,
+                    source: (!siegeHit && srcRef) ? { isPlayer: false, row: srcRef.row, col: srcRef.col } : null,
+                    target: { healthBar: true, isPlayer: true, element: siegeHit ? playerKnight : srcElement, pendingDirectHealthKey },
+                    pendingDirectHealthKey,
                     gapAfterMs: BATTLE_GAP_MS
                 });
             }
@@ -1718,8 +2746,13 @@
                 this.processing = false;
                 if (this.opponentThinking) this.markOpponentThinking(false);
                 // Defensive: never leave a card permanently hidden because no
-                // PLAY action was queued for it.
+                // PLAY action was queued for it, and never leave a heal/status
+                // held back because its action was dropped or unmatched.
                 this.revealAllPendingPlacements();
+                this.revealAllPendingMoves();
+                this.settleAllPendingHealth();
+                this.settleAllPendingDirectHealth();
+                this.settleAllPendingStatuses();
                 if (typeof window.scheduleBattleAutoAdvance === 'function') {
                     window.scheduleBattleAutoAdvance();
                 }
@@ -1728,6 +2761,7 @@
 
         async _playAction(action) {
             const t = this.timings();
+            const startedAt = Date.now();
             const knight = elementHex(action.knightElement);
             const elColor = elementHex(action.elementColor || action.knightElement);
 
@@ -1735,16 +2769,62 @@
             // the case where game.js's render rebuilt the cell DOM while we
             // were processing a previous action.
             this.syncPendingPlacements();
+            this.syncPendingStatuses();
+            this.syncPendingMoves();
+            this.syncPendingHealth();
+            this.syncPendingDirectHealth();
+            this.syncPendingLethalHolds();
+
+            const deferAttackToast = action.kind === 'ATTACK' && !action.target?.healthBar && (
+                (action.source && action.target)
+                || (action.source && Array.isArray(action.targets) && action.targets.length > 0)
+                || (action.target && (action.destroysTarget && action.ghostCell))
+                || (Array.isArray(action.targets) && action.targets.some((tgt) => tgt.destroysTarget && tgt.ghostCell))
+            );
+            const deferEarlyToast = deferAttackToast || action.kind === 'DESTROY';
 
             if (action.kind === 'PHASE') {
-                this.activeToast = this.toasts.show({
-                    ...action,
-                    label: '',
-                    actorName: action.actorName,
-                    targetName: ''
-                }, t.toastDismissMs);
+                if (this.activeToast) {
+                    this.activeToast.dismiss();
+                    this.activeToast = null;
+                }
+                const holdMs = action.holdMs || 2000;
+                if (typeof window.showPhaseTransitionBanner === 'function' && action.phase) {
+                    await window.showPhaseTransitionBanner(
+                        action.phase,
+                        action.activeSide,
+                        holdMs
+                    );
+                } else {
+                    const phaseLabel = formatPhaseLabelFallback(action.phase);
+                    this.activeToast = this.toasts.show({
+                        ...action,
+                        label: '',
+                        actorName: phaseLabel,
+                        targetName: ''
+                    }, holdMs);
+                    await sleep(t.toastEnterMs);
+                }
                 const phaseGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
-                await sleep(t.toastEnterMs + phaseGap);
+                await sleep(phaseGap);
+                return;
+            }
+
+            // Shields expiring at end of turn — chip away any plates still on
+            // screen and play a crumbling-shield burst on each affected cell, all
+            // at once. Handled before the pulse/toast preamble: there's no
+            // attacker and no toast, the shield simply dissipates.
+            if (action.kind === 'SHIELD_EXPIRE' && Array.isArray(action.targets) && action.targets.length) {
+                for (const tgt of action.targets) {
+                    breakShieldPlates(tgt.isPlayer, tgt.row, tgt.col, tgt.shieldBroken || 99);
+                    spawnShieldCrumble(tgt.isPlayer, tgt.row, tgt.col, tgt.shieldBroken || 1, 1000);
+                }
+                await sleep(Math.max(t.impactMs, 360));
+                for (const tgt of action.targets) {
+                    this.resyncShieldFromState(tgt.isPlayer, tgt.row, tgt.col);
+                }
+                const expiryGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(expiryGap);
                 return;
             }
 
@@ -1768,86 +2848,75 @@
             }
             await sleep(Math.round(t.highlightMs * 0.45));
 
-            // 2. Show toast
-            if (this.activeToast) this.activeToast.dismiss();
-            this.activeToast = this.toasts.show(action, t.toastDismissMs);
-            await sleep(t.toastEnterMs);
+            // 2. Show toast (lethal kills and standalone destroys announce after VFX)
+            if (!deferEarlyToast) {
+                if (this.activeToast) this.activeToast.dismiss();
+                this.activeToast = this.toasts.show(action, t.toastDismissMs);
+                await sleep(t.toastEnterMs);
+            }
+
+            const showDeferredAttackToast = async () => {
+                if (!deferAttackToast) return;
+                if (this.activeToast) this.activeToast.dismiss();
+                this.activeToast = this.toasts.show(action, t.toastDismissMs);
+                await sleep(t.toastEnterMs);
+            };
+
+            const showDeferredDestroyToast = async (targetLike) => {
+                await showCardDestroyedToast(this, action, targetLike || action, t);
+            };
 
             // 2a. Multi-target ATTACK — all projectiles fire simultaneously
             // (no stagger). One coordinated impact + camera shake + per-target
             // damage floater after the projectile duration.
             if (action.kind === 'ATTACK' && Array.isArray(action.targets) && action.targets.length > 1
                 && action.source && window.SieglingsFx?.attackCell) {
-                const ghosts = [];
-                for (const tgt of action.targets) {
-                    if (tgt.destroysTarget && tgt.ghostCell) {
-                        const g = spawnGhost(
-                            tgt.isPlayer, tgt.row, tgt.col,
-                            tgt.ghostCell, knight, elementHex(tgt.element)
-                        );
-                        if (g) ghosts.push({ ghost: g, target: tgt });
-                    }
-                }
+                this.syncPendingLethalHolds();
                 for (const tgt of action.targets) {
                     window.SieglingsFx.attackCell(
                         action.source.isPlayer, action.source.row, action.source.col,
                         tgt.isPlayer, tgt.row, tgt.col,
-                        tgt.element || action.elementColor || action.knightElement,
+                        attackFxElement(action),
                         { duration: t.projectileMs }
                     );
                 }
                 await sleep(t.projectileMs);
 
-                this.releasePendingHealthForTargets(action.targets);
-                for (const tgt of action.targets) {
-                    const ghostEntry = ghosts.find((g) => g.target === tgt);
-                    const tgtColor = elementHex(tgt.element || action.elementColor || action.knightElement);
-                    if (ghostEntry) {
-                        ghostEntry.ghost.classList.add('sgl-ghost-impact');
-                        setTimeout(() => ghostEntry.ghost.classList.remove('sgl-ghost-impact'), 320);
-                    } else {
-                        flashImpact(tgt.isPlayer, tgt.row, tgt.col, tgtColor);
-                    }
-                    if (tgt.amount && window.SieglingsFx?.floatingDamage) {
-                        window.SieglingsFx.floatingDamage(
-                            tgt.isPlayer, tgt.row, tgt.col,
-                            tgt.amount,
-                            tgt.element || action.elementColor || action.knightElement
-                        );
-                    }
-                    if (tgt.shieldBroken > 0) {
-                        breakShieldPlates(tgt.isPlayer, tgt.row, tgt.col, tgt.shieldBroken);
-                    }
-                    if (tgt.statuses && tgt.statuses.length) {
-                        for (const status of tgt.statuses) {
-                            applyStatusVisual(tgt.isPlayer, tgt.row, tgt.col, status);
-                        }
-                    }
+                const lethalTargets = action.targets.filter((tgt) => tgt.destroysTarget && tgt.ghostCell);
+                const survivingTargets = action.targets.filter((tgt) => !tgt.destroysTarget || !tgt.ghostCell);
+                const casterFxColor = elementHex(attackFxElement(action));
+                this.applyPendingImpactHealthForTargets(survivingTargets);
+                for (const tgt of survivingTargets) {
+                    applyAttackImpactVfx(this, action, tgt, casterFxColor);
                 }
-                if (window.SieglingsFx?.cameraShake) {
+                if (window.SieglingsFx?.cameraShake && action.targets.length) {
                     const shake = Math.min(16, 6 + Math.round((action.amount || 0) * 0.35));
                     window.SieglingsFx.cameraShake(shake, t.impactMs);
                 }
-                await sleep(t.impactMs);
-
-                if (ghosts.length) {
-                    await Promise.all(ghosts.map(
-                        (g) => destroyGhost(g.ghost, elementHex(g.target.element), 520)
-                    ));
+                if (survivingTargets.length) {
+                    await sleep(t.impactMs);
+                    this.releasePendingHealthForTargets(survivingTargets);
+                }
+                for (const tgt of lethalTargets) {
+                    await playLethalAttackImpact(this, action, tgt, casterFxColor, t);
+                }
+                if (!survivingTargets.length && !lethalTargets.length) {
+                    await sleep(t.impactMs);
+                }
+                await showDeferredAttackToast();
+                for (const tgt of lethalTargets) {
+                    await showDeferredDestroyToast(tgt);
                 }
                 const multiGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(multiGap);
                 return;
             }
 
-            // 2a-status. STATUS_APPLY — status-only events (aura debuffs,
-            // boost auras) that the queue used to mis-classify as attacks.
-            // Fires a short projectile from the caster (if one was
-            // identified) and lands the status-specific overlay on the
-            // target. Never shows the "X attacks Y" verb, never spawns a
-            // damage floater.
-            if (action.kind === 'STATUS_APPLY' && action.target) {
-                if (action.source && window.SieglingsFx?.attackCell) {
+            // 2a-status. STATUS_APPLY / STATUS_SKIP — status-only events
+            // that should read as status feedback rather than attacks.
+            if ((action.kind === 'STATUS_APPLY' || action.kind === 'STATUS_SKIP') && action.target) {
+                const isSkip = action.kind === 'STATUS_SKIP';
+                if (!isSkip && action.source && window.SieglingsFx?.attackCell) {
                     window.SieglingsFx.attackCell(
                         action.source.isPlayer, action.source.row, action.source.col,
                         action.target.isPlayer, action.target.row, action.target.col,
@@ -1856,6 +2925,17 @@
                     );
                     await sleep(t.projectileMs);
                 }
+                if (isSkip) {
+                    pulseCard(
+                        action.target.isPlayer,
+                        action.target.row,
+                        action.target.col,
+                        knight,
+                        elColor,
+                        action.kind,
+                        t.highlightMs + t.impactMs
+                    );
+                }
                 if (action.statuses && action.statuses.length) {
                     for (const status of action.statuses) {
                         applyStatusVisual(
@@ -1863,6 +2943,7 @@
                             status
                         );
                     }
+                    this.revealPendingStatusesForTarget(action.target, action.statuses);
                 }
                 await sleep(t.impactMs);
                 const statusGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
@@ -1897,6 +2978,9 @@
                         );
                     }
                 }
+                // Now that the cross + "+N" are on screen, raise the bar to its
+                // post-heal value so the heal visibly resolves with the effect.
+                this.releasePendingHealth(action.pendingHealthKey);
                 await sleep(t.impactMs);
                 const healGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(healGap);
@@ -1918,9 +3002,17 @@
                         '#a8b0ba', 30
                     );
                 }
+                this.resyncShieldFromState(action.target.isPlayer, action.target.row, action.target.col);
                 await sleep(t.impactMs);
                 const shieldGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(shieldGap);
+                return;
+            }
+
+            if (action.kind === 'MOVE' && action.source && action.target) {
+                await animateBoardMove(this, action, this.speed === 'fast' ? 260 : 620);
+                const moveGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(moveGap);
                 return;
             }
 
@@ -1935,7 +3027,12 @@
                         { duration: t.projectileMs }
                     );
                     await sleep(t.projectileMs);
+                    const directHealthKey = action.pendingDirectHealthKey || action.target?.pendingDirectHealthKey;
+                    this.applyPendingDirectHealth(directHealthKey);
                     this._flashHealthBar(action.target.isPlayer, elColor);
+                    if (action.siegeDamage) {
+                        this._fractureHealthBar(action.target.isPlayer, elColor);
+                    }
                     if (window.SieglingsFx?.impactAtPoint) {
                         window.SieglingsFx.impactAtPoint(
                             barCenter.x, barCenter.y,
@@ -1953,6 +3050,7 @@
                         window.SieglingsFx.cameraShake(shake, t.impactMs);
                     }
                     await sleep(t.impactMs);
+                    this.releasePendingDirectHealth(directHealthKey);
                     const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                     await sleep(gap);
                     return;
@@ -1963,15 +3061,9 @@
             const fireProjectile = action.kind === 'ATTACK' && action.source && action.target
                 && !action.target.healthBar && window.SieglingsFx?.attackCell;
             if (fireProjectile) {
-                // If this hit destroys the target, materialize a ghost copy so
-                // the now-empty cell still has something to be hit by the
-                // projectile + impact animation.
-                let ghost = null;
-                if (action.destroysTarget && action.ghostCell) {
-                    ghost = spawnGhost(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.ghostCell, knight, elColor
-                    );
+                const isLethalKill = action.destroysTarget && action.ghostCell;
+                if (isLethalKill) {
+                    this.syncPendingLethalHolds();
                 }
 
                 window.SieglingsFx.attackCell(
@@ -1986,44 +3078,46 @@
                 );
                 await sleep(t.projectileMs);
 
-                this.releasePendingHealth(action.pendingHealthKey);
-                // 4. Impact: hit flash on target + floating damage + screen shake
-                if (ghost) {
-                    ghost.style.setProperty('--sgl-impact-color', elColor);
-                    ghost.classList.add('sgl-ghost-impact');
-                    setTimeout(() => ghost.classList.remove('sgl-ghost-impact'), 320);
-                } else if (action.target) {
-                    flashImpact(action.target.isPlayer, action.target.row, action.target.col, elColor);
-                }
-                if (action.amount && window.SieglingsFx?.floatingDamage) {
-                    window.SieglingsFx.floatingDamage(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.amount, action.elementColor || action.knightElement
-                    );
-                }
-                if (action.shieldBroken > 0) {
-                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
-                }
-                if (action.statuses && action.statuses.length) {
-                    for (const status of action.statuses) {
-                        applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, status);
-                    }
-                }
-                if (window.SieglingsFx?.cameraShake) {
-                    const shake = Math.min(12, 3 + Math.round((action.amount || 0) * 0.6));
-                    window.SieglingsFx.cameraShake(shake, t.impactMs);
-                }
-                await sleep(t.impactMs);
-
-                if (ghost) {
-                    // Destruction animation, then remove the ghost.
-                    await destroyGhost(ghost, elColor, 520);
+                if (isLethalKill) {
+                    const lethalTarget = {
+                        isPlayer: action.target.isPlayer,
+                        row: action.target.row,
+                        col: action.target.col,
+                        name: action.targetName || action.ghostCell?.name,
+                        ghostCell: action.ghostCell,
+                        amount: action.amount,
+                        shieldBroken: action.shieldBroken,
+                        element: action.target.element,
+                        pendingLethalKey: action.pendingLethalKey || action.pendingHealthKey,
+                        pendingHealthKey: action.pendingHealthKey,
+                        statuses: action.statuses
+                    };
+                    await playLethalAttackImpact(this, action, lethalTarget, elColor, t);
+                    await showDeferredAttackToast();
+                    await showDeferredDestroyToast(lethalTarget);
+                } else {
+                    const standardTarget = {
+                        isPlayer: action.target.isPlayer,
+                        row: action.target.row,
+                        col: action.target.col,
+                        amount: action.amount,
+                        shieldBroken: action.shieldBroken,
+                        statuses: action.statuses,
+                        pendingHealthKey: action.pendingHealthKey
+                    };
+                    await playStandardAttackImpact(this, action, standardTarget, elColor, t);
+                    await showDeferredAttackToast();
                 }
             } else if (action.kind === 'ATTACK' && action.target?.healthBar) {
                 // Sourceless health-bar damage — still flash the bar so the
                 // player registers the hit.
                 const barCenter = this._getHealthBarCenter(action.target.isPlayer);
+                const directHealthKey = action.pendingDirectHealthKey || action.target?.pendingDirectHealthKey;
+                this.applyPendingDirectHealth(directHealthKey);
                 this._flashHealthBar(action.target.isPlayer, elColor);
+                if (action.siegeDamage) {
+                    this._fractureHealthBar(action.target.isPlayer, elColor);
+                }
                 if (barCenter && window.SieglingsFx?.impactAtPoint) {
                     window.SieglingsFx.impactAtPoint(
                         barCenter.x, barCenter.y,
@@ -2041,22 +3135,14 @@
                     window.SieglingsFx.cameraShake(shake, t.impactMs);
                 }
                 await sleep(t.impactMs);
+                this.releasePendingDirectHealth(directHealthKey);
                 const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(gap);
                 return;
             } else if (action.kind === 'ATTACK' && action.target) {
-                // Damage event without an identified source (effect tick,
-                // AI attack whose log shape the parser didn't recognize, etc.).
-                // We still fire a projectile from a fallback origin on the
-                // attacker's side so the user sees the element-colored
-                // particle trail flying across the board, and follow up with
-                // the usual impact + ghost + floater.
-                let ghost = null;
-                if (action.destroysTarget && action.ghostCell) {
-                    ghost = spawnGhost(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.ghostCell, knight, elColor
-                    );
+                const isLethalKill = action.destroysTarget && action.ghostCell;
+                if (isLethalKill) {
+                    this.syncPendingLethalHolds();
                 }
                 const targetCellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
                 if (targetCellEl && window.SieglingsFx?.attackBetween) {
@@ -2070,38 +3156,36 @@
                     );
                     await sleep(t.projectileMs);
                 }
-                if (window.SieglingsFx?.impactAt) {
-                    window.SieglingsFx.impactAt(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.elementColor || action.knightElement
-                    );
-                }
-                if (ghost) {
-                    ghost.classList.add('sgl-ghost-impact');
-                    setTimeout(() => ghost.classList.remove('sgl-ghost-impact'), 320);
+                if (isLethalKill) {
+                    const lethalTarget = {
+                        isPlayer: action.target.isPlayer,
+                        row: action.target.row,
+                        col: action.target.col,
+                        name: action.targetName || action.ghostCell?.name,
+                        ghostCell: action.ghostCell,
+                        amount: action.amount,
+                        shieldBroken: action.shieldBroken,
+                        element: action.target.element,
+                        pendingLethalKey: action.pendingLethalKey || action.pendingHealthKey,
+                        pendingHealthKey: action.pendingHealthKey,
+                        statuses: action.statuses
+                    };
+                    await playLethalAttackImpact(this, action, lethalTarget, elColor, t);
+                    await showDeferredAttackToast();
+                    await showDeferredDestroyToast(lethalTarget);
                 } else {
-                    flashImpact(action.target.isPlayer, action.target.row, action.target.col, elColor);
+                    const standardTarget = {
+                        isPlayer: action.target.isPlayer,
+                        row: action.target.row,
+                        col: action.target.col,
+                        amount: action.amount,
+                        shieldBroken: action.shieldBroken,
+                        statuses: action.statuses,
+                        pendingHealthKey: action.pendingHealthKey
+                    };
+                    await playStandardAttackImpact(this, action, standardTarget, elColor, t);
+                    await showDeferredAttackToast();
                 }
-                if (action.amount && window.SieglingsFx?.floatingDamage) {
-                    window.SieglingsFx.floatingDamage(
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        action.amount, action.elementColor || action.knightElement
-                    );
-                }
-                if (action.shieldBroken > 0) {
-                    breakShieldPlates(action.target.isPlayer, action.target.row, action.target.col, action.shieldBroken);
-                }
-                if (action.statuses && action.statuses.length) {
-                    for (const status of action.statuses) {
-                        applyStatusVisual(action.target.isPlayer, action.target.row, action.target.col, status);
-                    }
-                }
-                if (window.SieglingsFx?.cameraShake) {
-                    const shake = Math.min(10, 3 + Math.round((action.amount || 0) * 0.5));
-                    window.SieglingsFx.cameraShake(shake, t.impactMs);
-                }
-                await sleep(t.impactMs);
-                if (ghost) await destroyGhost(ghost, elColor, 520);
             } else if (action.kind === 'DESTROY' && action.target && action.ghostCell) {
                 // Standalone destruction (no projectile / no attacker we can locate).
                 const ghost = spawnGhost(
@@ -2116,6 +3200,14 @@
                 }
                 await sleep(Math.round(t.impactMs * 0.6));
                 await destroyGhost(ghost, elColor, 520);
+                await showDeferredDestroyToast({
+                    isPlayer: action.target.isPlayer,
+                    row: action.target.row,
+                    col: action.target.col,
+                    name: action.actorName,
+                    ghostCell: action.ghostCell,
+                    element: action.target.element
+                });
             } else if (action.kind === 'ABILITY' && action.source) {
                 // Ability without explicit target → small impact ring on caster
                 if (window.SieglingsFx?.impactAt) {
@@ -2140,6 +3232,11 @@
             // 5. Inter-action gap. Each action may carry its own
             // gapAfterMs (battle actions tight, placements long, phase
             // transitions medium); fall back to the speed-tier default.
+            if (action.minActionMs) {
+                const elapsed = Date.now() - startedAt;
+                const remaining = action.minActionMs - elapsed;
+                if (remaining > 0) await sleep(remaining);
+            }
             const gap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
             await sleep(gap);
         }
@@ -2147,16 +3244,15 @@
 
     // ── Speed toggle UI ───────────────────────────────────────────────────────
     function ensureSpeedToggle(queue) {
-        if (document.getElementById('sglSpeedToggle')) return;
-        const btn = document.createElement('button');
-        btn.id = 'sglSpeedToggle';
-        btn.type = 'button';
-        btn.className = 'sgl-speed-toggle';
-        btn.addEventListener('click', () => {
-            queue.setSpeed(queue.getSpeed() === 'fast' ? 'normal' : 'fast');
-        });
-        document.body.appendChild(btn);
-        queue.setSpeed(queue.getSpeed()); // initialize label
+        const btn = document.getElementById('sglSpeedToggle');
+        if (!btn) return;
+        if (!btn.dataset.speedBound) {
+            btn.addEventListener('click', () => {
+                queue.setSpeed(queue.getSpeed() === 'fast' ? 'normal' : 'fast');
+            });
+            btn.dataset.speedBound = '1';
+        }
+        queue.setSpeed(queue.getSpeed());
     }
 
     // ── Bootstrap ─────────────────────────────────────────────────────────────
@@ -2169,7 +3265,10 @@
         clear: () => queue.clear(),
         isProcessing: () => queue.isProcessing(),
         markOpponentThinking: (a, s) => queue.markOpponentThinking(a, s),
-        syncPendingPlacements: () => queue.syncPendingPlacements()
+        syncPendingPlacements: () => queue.syncPendingPlacements(),
+        syncPendingDirectHealth: () => queue.syncPendingDirectHealth(),
+        getDisplayedHealth: (isPlayer, fallbackHealth) => queue.getDisplayedHealth(isPlayer, fallbackHealth),
+        showToast: (toast, holdMs) => queue.toasts.show(toast, holdMs)
     };
 
     // Wrap game.js's global render() so we can hide pending placements in
@@ -2184,7 +3283,11 @@
         window.render = function () {
             const result = orig.apply(this, arguments);
             try { queue.syncPendingPlacements(); } catch (_) {}
+            try { queue.syncPendingMoves(); } catch (_) {}
             try { queue.syncPendingHealth(); } catch (_) {}
+            try { queue.syncPendingDirectHealth(); } catch (_) {}
+            try { queue.syncPendingStatuses(); } catch (_) {}
+            try { queue.syncPendingLethalHolds(); } catch (_) {}
             return result;
         };
         window.__sglRenderHookInstalled = true;

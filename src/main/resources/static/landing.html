@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/landing.css?v=17">
+    <link rel="stylesheet" href="/css/landing.css?v=20">
 </head>
 <body class="landing-body">
 
@@ -57,9 +57,9 @@
                 <span class="cta-glow" aria-hidden="true"></span>
                 <span class="cta-label">Play Now</span>
             </a>
-            <a class="cta cta-login" href="/login" id="ctaLogin">
+            <button class="cta cta-login cta-pop" type="button" id="ctaLogin" aria-haspopup="dialog" aria-controls="loginModal">
                 <span class="cta-label">Log In</span>
-            </a>
+            </button>
             <button class="cta cta-ghost" type="button" id="ctaTrailer">
                 <span class="cta-label">Watch Trailer</span>
             </button>
@@ -145,6 +145,19 @@
     </div>
 </template>
 
+<!-- ── Login modal (the in-game auth UI, surfaced before the hub loads) ──── -->
+<div class="login-modal hidden" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
+    <div class="login-modal-backdrop" data-close-login></div>
+    <div class="login-modal-inner">
+        <button class="login-close" type="button" aria-label="Close login" data-close-login>×</button>
+        <div class="login-modal-head">
+            <span class="login-eyebrow">Account</span>
+            <h2 class="login-modal-title" id="loginModalTitle">Sign in to save progression</h2>
+        </div>
+        <div class="login-card" id="loginCardBody"><!-- rendered by landing.js --></div>
+    </div>
+</div>
+
 <!-- ── Trailer modal (placeholder) ──────────────────────────────────────── -->
 <div class="trailer-modal hidden" id="trailerModal" role="dialog" aria-modal="true" aria-labelledby="trailerModalTitle">
     <div class="trailer-modal-backdrop" data-close-trailer></div>
@@ -157,6 +170,16 @@
 </div>
 
 <script src="/js/landing-particles.js?v=5"></script>
-<script src="/js/landing.js?v=15"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
+<script src="/js/landing.js?v=18"></script>
+<script type="module" src="/js/legendary-viewport.js?v=18"></script>
+<script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

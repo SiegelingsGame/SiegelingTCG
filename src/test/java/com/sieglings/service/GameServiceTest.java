@@ -560,6 +560,53 @@ class GameServiceTest {
         assertFalse(enemyFrozen.getStatusEffects().contains(StatusEffect.FREEZE), "Opponent Sieglings should thaw after battle ends.");
     }
 
+    @Test
+    void shieldFromSetupPersistsIntoBattlePhase() throws Exception {
+        GameService gameService = new GameService();
+        EffectService effectService = new EffectService();
+        PlacementService placementService = new PlacementService();
+        EnergyService energyService = new EnergyService(placementService);
+        BattleService battleService = new BattleService();
+        setField(battleService, "effectService", effectService);
+        setField(battleService, "energyService", energyService);
+        setField(battleService, "movesPoolService", new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null));
+        setField(gameService, "effectService", effectService);
+        setField(gameService, "battleService", battleService);
+        setField(gameService, "energyService", energyService);
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        SieglingCard card = new SieglingCard("guard", "Guard", Element.EARTH, Rarity.COMMON, 12, 4, List.of(), Row.FRONT);
+        CardInstance ally = new CardInstance(card, 1, 1, true);
+        state.setAt(true, 1, 1, ally);
+
+        Ability shield = new Ability(
+                "Stone Ward",
+                "Grant 2 Shield",
+                TargetType.SINGLE_ALLY,
+                null,
+                0,
+                AbilityEffectKeys.SHIELD,
+                2,
+                false
+        );
+        effectService.resolveAbility(state, shield, null, true, 1, 1);
+
+        assertEquals(2, ally.getTemporaryShield(), "Shield should be applied during setup.");
+
+        Method startBattlePhase = GameService.class.getDeclaredMethod("startBattlePhase", GameState.class);
+        startBattlePhase.setAccessible(true);
+        startBattlePhase.invoke(gameService, state);
+
+        assertEquals(Phase.BATTLE, state.getCurrentPhase());
+        CardInstance onBoard = state.getAt(true, 1, 1);
+        assertEquals(2, onBoard.getTemporaryShield(), "Shield should persist when battle phase begins.");
+    }
+
     private void setField(Object target, String fieldName, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);

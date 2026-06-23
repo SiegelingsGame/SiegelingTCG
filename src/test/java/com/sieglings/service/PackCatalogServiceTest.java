@@ -4,6 +4,7 @@ import com.sieglings.model.Ability;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
+import com.sieglings.model.TrainerCard;
 import com.sieglings.model.TrapCard;
 import com.sieglings.model.enums.CardType;
 import com.sieglings.model.enums.Element;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,8 +26,7 @@ class PackCatalogServiceTest {
 
     @Test
     void packOpeningBuildsFiveCardsWithRequiredTypeMix() throws Exception {
-        PackCatalogService service = new PackCatalogService();
-        setField(service, "cardDefinitionService", new FakeCardDefinitionService());
+        PackCatalogService service = createService(new FireOnlyCardDefinitions());
 
         PackCatalogService.PackOpenResult result = service.openPack("pack_fire", true);
 
@@ -37,27 +38,142 @@ class PackCatalogServiceTest {
         assertTrue(counts.getOrDefault(CardType.SPELL, 0L) >= 1);
     }
 
-    private void setField(Object target, String name, Object value) throws Exception {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
+    @Test
+    void siegeKnightCachePackAlwaysIncludesABonusKnight() throws Exception {
+        PackCatalogService service = createService(new FireKnightCardDefinitions());
+
+        PackCatalogService.PackOpenResult result = service.openPack(PackCatalogService.SIEGEKNIGHT_PACK_ID, false);
+
+        assertEquals(5, result.cards().size());
+        assertTrue(result.bonusTrainer() != null, "SiegeKnight Cache should always include a knight");
+        assertEquals(Element.FIRE, result.bonusTrainer().getElement());
     }
 
-    private static class FakeCardDefinitionService extends CardDefinitionService {
+    @Test
+    void shopPacksCanDropNeutralSupportCards() throws Exception {
+        PackCatalogService service = createService();
+
+        PackCatalogService.PackOpenResult result = service.openPack("pack_fire", false);
+
+        assertEquals(5, result.cards().size());
+        assertTrue(result.cards().stream().anyMatch(card -> card.getElement() == Element.NEUTRAL));
+    }
+
+    @Test
+    void starterOnlyPackPoolsStayElementLocked() throws Exception {
+        PackCatalogService service = createService();
+        PackCatalogService.PackDefinition firePack = service.findPack("pack_fire").orElseThrow();
+
+        List<Card> pool = service.cardPoolForPack(firePack, false);
+
+        assertTrue(pool.stream().noneMatch(card -> card.getElement() == Element.NEUTRAL));
+    }
+
+    @Test
+    void bonusTrainerCandidatesIncludeNeutralKnightsBesideElementKnights() throws Exception {
+        PackCatalogService service = createService();
+        PackCatalogService.PackDefinition firePack = service.findPack("pack_fire").orElseThrow();
+
+        Set<String> candidateIds = service.bonusTrainerCandidates(firePack).stream()
+                .map(TrainerCard::getId)
+                .collect(Collectors.toSet());
+
+        assertTrue(candidateIds.contains("trainer-fire"));
+        assertTrue(candidateIds.contains("trainer-neutral"));
+    }
+
+    private PackCatalogService createService() throws Exception {
+        return createService(new NeutralDropCardDefinitions());
+    }
+
+    private PackCatalogService createService(CardDefinitionService cardDefinitionService) throws Exception {
+        PackCatalogService service = new PackCatalogService();
+        Field field = PackCatalogService.class.getDeclaredField("cardDefinitionService");
+        field.setAccessible(true);
+        field.set(service, cardDefinitionService);
+        return service;
+    }
+
+    private static class FireOnlyCardDefinitions extends CardDefinitionService {
         @Override
         public List<String> getActiveLiveElementNames() {
-            return List.of("FIRE");
+            return List.of(Element.FIRE.name());
         }
 
         @Override
         public List<Card> getDeckBuilderCatalog() {
             return List.of(
-                    new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
-                    new SieglingCard("dracoil", "Dracoil", Element.FIRE, Rarity.RARE, 8, 3, List.of(), Row.FRONT),
-                    new SieglingCard("pylook", "Pylook", Element.FIRE, Rarity.COMMON, 5, 4, List.of(), Row.FRONT),
-                    new SpellCard("spark", "Spark", Element.FIRE, Rarity.COMMON, 1, Ability.damage("Spark", "", TargetType.SINGLE_ENEMY, null, 1, 1)),
-                    new TrapCard("flaretrap", "Flare Trap", Element.FIRE, Rarity.COMMON, Element.FIRE, 2, Ability.damage("Flare", "", TargetType.SINGLE_ENEMY, null, 1, 1))
+                    fireSiegling("fire-a", Row.FRONT),
+                    fireSiegling("fire-b", Row.MIDDLE),
+                    fireSiegling("fire-c", Row.BACK),
+                    new SpellCard("fire-spell", "Fire Spell", Element.FIRE, Rarity.COMMON, 1,
+                            Ability.damage("Spark", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 1, 1)),
+                    new TrapCard("fire-trap", "Fire Trap", Element.FIRE, Rarity.COMMON, Element.FIRE, 1,
+                            Ability.damage("Snare", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 1, 1))
             );
+        }
+
+        @Override
+        public List<TrainerCard> getTrainerOptions() {
+            return List.of();
+        }
+
+        protected SieglingCard fireSiegling(String id, Row row) {
+            return new SieglingCard(id, "Fire Unit", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), row);
+        }
+    }
+
+    private static class NeutralDropCardDefinitions extends FireOnlyCardDefinitions {
+        @Override
+        public List<Card> getDeckBuilderCatalog() {
+            return List.of(
+                    fireSiegling("fire-a", Row.FRONT),
+                    fireSiegling("fire-b", Row.MIDDLE),
+                    neutralSpell("neutral-spell-a"),
+                    neutralSpell("neutral-spell-b"),
+                    new TrapCard("neutral-trap", "Neutral Trap", Element.NEUTRAL, Rarity.COMMON, Element.NEUTRAL, 1,
+                            Ability.damage("Snare", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 1, 1))
+            );
+        }
+
+        @Override
+        public List<TrainerCard> getTrainerOptions() {
+            return List.of(
+                    trainer("trainer-fire", Element.FIRE),
+                    trainer("trainer-neutral", Element.NEUTRAL)
+            );
+        }
+
+        private SpellCard neutralSpell(String id) {
+            return new SpellCard(id, "Neutral Spell", Element.NEUTRAL, Rarity.COMMON, 1,
+                    Ability.damage("Spark", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 1, 1));
+        }
+
+        private TrainerCard trainer(String id, Element element) {
+            return new TrainerCard(
+                    id,
+                    element == Element.NEUTRAL ? "Neutral Knight" : "Fire Knight",
+                    element,
+                    Rarity.RARE,
+                    Ability.passive("Banner", "Allies gain +1", "damage_boost", 1),
+                    Ability.damage("Strike", "Deal 2 damage", TargetType.SINGLE_ENEMY, null, 1, 2),
+                    false
+            );
+        }
+    }
+
+    private static class FireKnightCardDefinitions extends FireOnlyCardDefinitions {
+        @Override
+        public List<TrainerCard> getTrainerOptions() {
+            return List.of(new TrainerCard(
+                    "trainer-fire",
+                    "Fire Knight",
+                    Element.FIRE,
+                    Rarity.RARE,
+                    Ability.passive("Banner", "Allies gain +1", "damage_boost", 1),
+                    Ability.damage("Strike", "Deal 2 damage", TargetType.SINGLE_ENEMY, null, 1, 2),
+                    false
+            ));
         }
     }
 }

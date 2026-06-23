@@ -31,10 +31,10 @@
     }
 
     const FEATURED_SIEGELINGS = [
-        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png'  },
-        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png'   },
-        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png'  },
-        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png' },
+        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png',  model: '/assets/models/Model_Pylord.fbx' },
+        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png',   model: '/assets/models/Model_Glaciemperor.fbx' },
+        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png',  model: '/assets/models/Aerovane.fbx' },
+        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png', model: '/assets/models/Model_Gymstone.fbx' },
     ];
 
     const FLAVOR_LINES = [
@@ -51,20 +51,31 @@
         if (!grid) return;
         const html = FEATURED_SIEGELINGS.map((s) => {
             const elKey = String(s.element).toLowerCase();
-            return `
-                <article class="creature-card" data-element="${elKey}"
-                         style="--creature-color: var(--element-${elKey}); --creature-glow: var(--element-${elKey}-glow, rgba(255,255,255,0.4))">
-                    <div class="creature-portrait" aria-hidden="true">
+            const hasModel = Boolean(s.model);
+            const portrait = hasModel
+                ? `<div class="creature-portrait creature-model-viewport" data-model-viewport data-active-element="${elKey}" aria-hidden="true">
+                        <canvas aria-label="Animated ${escapeAttr(s.name)} model viewport"></canvas>
+                        <img class="creature-model-poster" src="${escapeAttr(s.art)}" alt="" loading="lazy">
+                        <div class="legendary-loading">Summoning model</div>
+                   </div>`
+                : `<div class="creature-portrait" aria-hidden="true">
                         <img src="${escapeAttr(s.art)}" alt="" loading="lazy">
-                    </div>
+                   </div>`;
+            return `
+                <button class="creature-card" type="button" data-element="${elKey}"
+                         data-name="${escapeAttr(s.name)}" data-art="${escapeAttr(s.art)}" data-model="${escapeAttr(s.model || '')}"
+                         aria-label="Show ${escapeAttr(s.name)} in the legendary viewport"
+                         style="--creature-color: var(--element-${elKey}); --creature-glow: var(--element-${elKey}-glow, rgba(255,255,255,0.4))">
+                    ${portrait}
                     <div class="creature-name">${escapeHtml(s.name)}</div>
                     <div class="creature-card-footer">
                         <span class="creature-element">${s.element}</span>
                     </div>
-                </article>
+                </button>
             `;
         }).join('');
         grid.innerHTML = html;
+        document.dispatchEvent(new CustomEvent('sieglings:legendary-grid-rendered'));
     }
 
     function escapeHtml(value) {
@@ -131,6 +142,174 @@
         modal.querySelectorAll('[data-close-trailer]').forEach((el) => {
             el.addEventListener('click', close);
         });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
+        });
+    }
+
+    // ── Login modal (mirrors the in-game auth UI) ─────────────────────────
+    // Surfaces the same Sign in / Register flow the game uses, so players can
+    // authenticate before the home/cards hub ever loads. The token is stashed
+    // under the key home.js + game.js read, so the session carries straight in.
+    const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+    // Stored under AUTH_TOKEN_KEY when auth has moved to the httpOnly session cookie
+    // (no secret in localStorage); home.js/game.js treat it as "signed in".
+    const COOKIE_SESSION_VALUE = 'cookie';
+    const POST_LOGIN_DESTINATION = '/home';
+
+    function hasReadableAuthCookie() {
+        try {
+            return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // Standalone Web Apps (iOS "Add to Home Screen") don't reliably send the session
+    // cookie across full-page navigations, so keep the real token there for Bearer auth.
+    function isStandalonePWA() {
+        try {
+            return window.navigator.standalone === true
+                || Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function bindLoginModal() {
+        const modal = document.getElementById('loginModal');
+        const trigger = document.getElementById('ctaLogin');
+        const body = document.getElementById('loginCardBody');
+        if (!modal || !trigger || !body) return;
+
+        let step = 'credentials';            // 'credentials' | 'display-name'
+        let draft = { email: '', password: '' };
+        let busy = false;
+
+        function open() {
+            step = 'credentials';
+            draft = { email: '', password: '' };
+            render();
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            window.setTimeout(() => body.querySelector('input')?.focus(), 30);
+        }
+        function close() {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        function render() {
+            body.innerHTML = step === 'display-name' ? displayNameMarkup() : credentialsMarkup();
+            bindCard();
+        }
+
+        function credentialsMarkup() {
+            return `
+                <strong>Sign in to save progression</strong>
+                <span>Starter packs, Siegecoins, Remnants, owned cards, and custom decks require an account. New players start with 100 Siegecoins.</span>
+                <input class="login-input" id="loginEmail" type="email" autocomplete="email" placeholder="Email" value="${escapeAttr(draft.email)}">
+                <input class="login-input" id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" value="${escapeAttr(draft.password)}">
+                <p class="login-error" id="loginError" role="alert"></p>
+                <button class="login-btn login-btn-primary" id="loginSubmitBtn" type="button">Log In</button>
+                <button class="login-btn login-btn-ghost" id="loginRegisterBtn" type="button">Register</button>`;
+        }
+
+        function displayNameMarkup() {
+            return `
+                <strong>Choose your display name</strong>
+                <span>Confirm how other duelists will see you (${escapeHtml(draft.email)}).</span>
+                <input class="login-input" id="loginName" maxlength="20" placeholder="Display name" autofocus>
+                <p class="login-error" id="loginError" role="alert"></p>
+                <button class="login-btn login-btn-primary" id="loginConfirmBtn" type="button">Confirm</button>
+                <button class="login-btn login-btn-ghost" id="loginBackBtn" type="button">Back</button>`;
+        }
+
+        function showError(message) {
+            const el = body.querySelector('#loginError');
+            if (el) el.textContent = message || '';
+        }
+
+        function readCredentials() {
+            return {
+                email: (body.querySelector('#loginEmail')?.value || '').trim(),
+                password: body.querySelector('#loginPassword')?.value || ''
+            };
+        }
+
+        function beginRegister() {
+            const { email, password } = readCredentials();
+            if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
+                return showError('Enter a valid email address.');
+            }
+            if (!password || password.length < 6) {
+                return showError('Passwords must be at least 6 characters.');
+            }
+            draft = { email, password };
+            step = 'display-name';
+            render();
+            window.setTimeout(() => body.querySelector('#loginName')?.focus(), 30);
+        }
+
+        async function submit(mode) {
+            if (busy) return;
+            const payload = mode === 'register'
+                ? { email: draft.email, password: draft.password, displayName: (body.querySelector('#loginName')?.value || '').trim() }
+                : readCredentials();
+            if (mode === 'login' && (!payload.email || !payload.password)) {
+                return showError('Enter your email and password.');
+            }
+            busy = true;
+            const submitBtn = body.querySelector('#loginSubmitBtn, #loginConfirmBtn');
+            const originalLabel = submitBtn ? submitBtn.textContent : '';
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Please wait…'; }
+            try {
+                const resp = await fetch(`/api/auth/${mode}`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                let data = null;
+                try { data = await resp.json(); } catch (_ignored) { /* non-JSON */ }
+                if (!resp.ok || !data || data.error || !data.token) {
+                    showError((data && data.error) || 'Something went wrong. Please try again.');
+                    return;
+                }
+                // Prefer cookie auth in browsers; in a standalone Web App (or when
+                // cookies are blocked) keep the real token for Bearer-header auth so
+                // the session survives the full-page Home <-> Play navigation.
+                localStorage.setItem(
+                    AUTH_TOKEN_KEY,
+                    (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : data.token
+                );
+                window.location.assign(POST_LOGIN_DESTINATION);
+            } catch (_networkError) {
+                showError('Network error. Check your connection and try again.');
+            } finally {
+                busy = false;
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalLabel; }
+            }
+        }
+
+        function bindCard() {
+            body.querySelector('#loginSubmitBtn')?.addEventListener('click', () => submit('login'));
+            body.querySelector('#loginRegisterBtn')?.addEventListener('click', beginRegister);
+            body.querySelector('#loginConfirmBtn')?.addEventListener('click', () => submit('register'));
+            body.querySelector('#loginBackBtn')?.addEventListener('click', () => {
+                step = 'credentials';
+                render();
+            });
+            body.querySelector('#loginPassword')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submit('login');
+            });
+            body.querySelector('#loginName')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submit('register');
+            });
+        }
+
+        trigger.addEventListener('click', open);
+        modal.querySelectorAll('[data-close-login]').forEach((el) => el.addEventListener('click', close));
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
         });
@@ -239,10 +418,37 @@
         }
     }
 
+    // ── Play Now → Prepare for Battle ─────────────────────────────────────
+    // Route Play Now straight to the loadout ("Prepare for Battle") screen
+    // instead of the play page's welcome overlay. Writing the same hub handoff
+    // the in-app Start Match uses lets the play page skip the welcome and drop
+    // players — guests included — onto premade decks and the common SiegeKnight
+    // roster. The anchor's href="/play" still performs the navigation.
+    const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
+
+    function bindPlayNow() {
+        const trigger = document.getElementById('ctaPlay');
+        if (!trigger) return;
+        trigger.addEventListener('click', () => {
+            try {
+                localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
+                    createdAt: Date.now(),
+                    mode: 'solo',
+                    directLoadout: true
+                }));
+            } catch (e) {
+                /* If storage is unavailable, navigation still proceeds and the
+                   play page simply shows its welcome overlay as before. */
+            }
+        });
+    }
+
     function init() {
         renderCreatureGrid();
         bindParallax();
         bindTrailerModal();
+        bindLoginModal();
+        bindPlayNow();
         setFooterYear();
         bindSiegelingsColorWave();
         window.addEventListener('resize', fitHeroTagline);

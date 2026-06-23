@@ -1,12 +1,15 @@
 package com.sieglings.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Phase;
+import com.sieglings.model.enums.Rarity;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Complete game state for a single match.
@@ -53,7 +56,12 @@ public class GameState {
     private boolean enemyMulliganPending = false;
     private boolean playerMulliganUsed = false;
     private boolean enemyMulliganUsed = false;
+    private String matchHistoryId = UUID.randomUUID().toString();
     private boolean matchHistoryRecorded = false;
+    /** NORMAL or FORFEIT when the match ends. */
+    private String endReason = "NORMAL";
+    /** Display name of the player who forfeited, if any. */
+    private String forfeitedBy;
 
     private List<String> gameLog = new ArrayList<>();
 
@@ -111,19 +119,45 @@ public class GameState {
         for (int r = 0; r < 3; r++) {
             for (int c = 0; c < 3; c++) {
                 if (playerBoard[r][c] != null && !playerBoard[r][c].isAlive()) {
-                    player.getDiscard().add(playerBoard[r][c].getCard());
-                    log(playerBoard[r][c].getName() + " was defeated!");
+                    CardInstance defeated = playerBoard[r][c];
+                    player.getDiscard().add(defeated.getCard());
+                    log(defeated.getName() + " was defeated!");
+                    applyDefeatBounty(defeated, player);
                     enemy.addOpponentSieglingsDefeatedThisMatch(1);
                     playerBoard[r][c] = null;
                 }
                 if (enemyBoard[r][c] != null && !enemyBoard[r][c].isAlive()) {
-                    enemy.getDiscard().add(enemyBoard[r][c].getCard());
-                    log(enemyBoard[r][c].getName() + " was defeated!");
+                    CardInstance defeated = enemyBoard[r][c];
+                    enemy.getDiscard().add(defeated.getCard());
+                    log(defeated.getName() + " was defeated!");
+                    applyDefeatBounty(defeated, enemy);
                     player.addOpponentSieglingsDefeatedThisMatch(1);
                     enemyBoard[r][c] = null;
                 }
             }
         }
+    }
+
+    private void applyDefeatBounty(CardInstance defeated, Player owner) {
+        if (defeated == null || owner == null) {
+            return;
+        }
+        int bounty = defeatBounty(defeated.getCard() != null ? defeated.getCard().getRarity() : null);
+        owner.takeDirectDamage(bounty);
+        log(defeated.getName() + "'s bounty deals " + bounty + " damage to " + owner.getName() + "!");
+    }
+
+    private int defeatBounty(Rarity rarity) {
+        if (rarity == null) {
+            return 5;
+        }
+        return switch (rarity) {
+            case COMMON -> 5;
+            case UNCOMMON -> 6;
+            case RARE -> 7;
+            case EPIC -> 8;
+            case LEGENDARY -> 10;
+        };
     }
 
     public CardInstance findByInstanceId(String instanceId) {
@@ -293,6 +327,17 @@ public class GameState {
     public boolean isEnemyMulliganPending() { return enemyMulliganPending; }
     public boolean isPlayerMulliganUsed() { return playerMulliganUsed; }
     public boolean isEnemyMulliganUsed() { return enemyMulliganUsed; }
+    @JsonIgnore
+    public String getMatchHistoryId() {
+        if (matchHistoryId == null || matchHistoryId.isBlank()) {
+            matchHistoryId = UUID.randomUUID().toString();
+        }
+        return matchHistoryId;
+    }
     public boolean isMatchHistoryRecorded() { return matchHistoryRecorded; }
     public void setMatchHistoryRecorded(boolean matchHistoryRecorded) { this.matchHistoryRecorded = matchHistoryRecorded; }
+    public String getEndReason() { return endReason; }
+    public void setEndReason(String endReason) { this.endReason = endReason; }
+    public String getForfeitedBy() { return forfeitedBy; }
+    public void setForfeitedBy(String forfeitedBy) { this.forfeitedBy = forfeitedBy; }
 }

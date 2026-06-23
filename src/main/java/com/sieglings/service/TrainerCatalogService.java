@@ -95,6 +95,12 @@ public class TrainerCatalogService {
                         Ability.passiveRow("Vanguard Drill", "Front Row allies gain +1 attack damage", "damage_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
                         Ability.damage("Kindle Shot", "Deal 2 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 2),
                         false),
+                fullCardDefinition("squire-bob", "Squire Bob", Element.FIRE, Rarity.UNCOMMON, "SiegeSquire",
+                        Ability.passiveRow("Shield Practice", "Front Row allies gain +1 max Health", "health_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
+                        Ability.heal("Pep Talk", "Heal 1 ally for 2", TargetType.SINGLE_ALLY, null, 1, 2),
+                        false,
+                        "/img/knights/squire-bob-full-card.png",
+                        true),
                 definition("trainer02", "Flame Tactician", Element.FIRE, Rarity.RARE, "SiegeKnight",
                         Ability.passive("Battle Focus", "All Fire allies gain +1 attack damage", "damage_boost", 1),
                         new Ability("Ignite", "Grant +2 attack damage to 1 ally this turn", TargetType.SINGLE_ALLY, null, 1, "damage_boost", 2, false),
@@ -109,7 +115,7 @@ public class TrainerCatalogService {
                         new Ability("Mend Wall", "Grant +1 max Health to 1 ally", TargetType.SINGLE_ALLY, null, 1, "health_boost", 1, false),
                         false),
                 definition("trainer05", "Stone Warden", Element.EARTH, Rarity.RARE, "SiegeKnight",
-                        Ability.passive("Roots of Resolve", "All Earth allies gain +1 max Health", "health_boost", 1),
+                        Ability.passiveConnectedAlliesHealthBoost("Linked Bulwark", "Connected allies gain +1 max Health", 1),
                         Ability.heal("Earthen Shelter", "Heal 1 ally for 4", TargetType.SINGLE_ALLY, null, 1, 4),
                         false),
                 definition("trainer13", "Mountain Regent", Element.EARTH, Rarity.LEGENDARY, "SiegeLord",
@@ -396,7 +402,14 @@ public class TrainerCatalogService {
                         definition.active() == null || definition.active(),
                         definition.oncePerGame() != null && definition.oncePerGame(),
                         normalizeAbilityDefinition(definition.passiveAbility(), true),
-                        normalizeAbilityDefinition(definition.activeAbility(), false)
+                        normalizeAbilityDefinition(definition.activeAbility(), false),
+                        normalizeText(definition.cardArtUrl()),
+                        normalizeCardArtMode(definition.cardArtMode()),
+                        definition.cardArtOffsetX(),
+                        definition.cardArtOffsetY(),
+                        definition.cardArtScale(),
+                        definition.cardArtRotation(),
+                        definition.holographic()
                 ))
                 .toList();
     }
@@ -462,7 +475,37 @@ public class TrainerCatalogService {
                 true,
                 oncePerGame,
                 toAbilityDefinition(passiveAbility),
-                toAbilityDefinition(activeAbility)
+                toAbilityDefinition(activeAbility),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static TrainerDefinition fullCardDefinition(String id, String name, Element element, Rarity rarity, String tier,
+                                                        Ability passiveAbility, Ability activeAbility, boolean oncePerGame,
+                                                        String cardArtUrl, boolean holographic) {
+        return new TrainerDefinition(
+                id,
+                name,
+                element,
+                rarity,
+                tier,
+                true,
+                oncePerGame,
+                toAbilityDefinition(passiveAbility),
+                toAbilityDefinition(activeAbility),
+                cardArtUrl,
+                "FULL_CARD",
+                null,
+                null,
+                null,
+                null,
+                holographic
         );
     }
 
@@ -503,6 +546,18 @@ public class TrainerCatalogService {
         return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
+    private String normalizeCardArtMode(String value) {
+        String normalized = normalizeText(value);
+        if (normalized == null) {
+            return null;
+        }
+        String mode = normalized.toUpperCase(Locale.ROOT);
+        return switch (mode) {
+            case "REPLACE", "OVERLAY", "FULL_CARD" -> mode;
+            default -> null;
+        };
+    }
+
     record TrainerFile(List<TrainerDefinition> trainers) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -515,6 +570,21 @@ public class TrainerCatalogService {
             Boolean active,
             Boolean oncePerGame,
             ManualSieglingCatalog.ManualAbilityDefinition passiveAbility,
-            ManualSieglingCatalog.ManualAbilityDefinition activeAbility
-    ) {}
+            ManualSieglingCatalog.ManualAbilityDefinition activeAbility,
+            String cardArtUrl,
+            String cardArtMode,
+            Double cardArtOffsetX,
+            Double cardArtOffsetY,
+            Double cardArtScale,
+            Double cardArtRotation,
+            Boolean holographic
+    ) {
+        public TrainerDefinition(String id, String name, Element element, Rarity rarity, String tier,
+                                 Boolean active, Boolean oncePerGame,
+                                 ManualSieglingCatalog.ManualAbilityDefinition passiveAbility,
+                                 ManualSieglingCatalog.ManualAbilityDefinition activeAbility) {
+            this(id, name, element, rarity, tier, active, oncePerGame, passiveAbility, activeAbility,
+                    null, null, null, null, null, null, null);
+        }
+    }
 }

@@ -1,14 +1,19 @@
 package com.sieglings.controller;
 
+import com.sieglings.config.SessionCookieService;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
+import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.entity.SavedDeckEntity;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
 import com.sieglings.service.PlayerProgressionService;
 import com.sieglings.service.ProfileSettingsService;
+import com.sieglings.service.FriendRequestService;
+import com.sieglings.service.PresenceService;
 import com.sieglings.service.SavedDeckService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +26,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @RestController
 public class AuthController {
@@ -48,14 +57,36 @@ public class AuthController {
     @Autowired
     private ProfileSettingsService profileSettingsService;
 
+    @Autowired
+    private FriendRequestService friendRequestService;
+
+    @Autowired
+    private PresenceService presenceService;
+
+    @Autowired
+    private SessionCookieService sessionCookieService;
+
+    // Bounded pool for fanning out the independent Firestore reads that make up a
+    // profile response. Daemon threads so it never blocks JVM shutdown. Every task
+    // submitted here is a leaf — it never waits on another pooled task — so the
+    // pool cannot deadlock on itself; the only blocking join runs on the request
+    // thread.
+    private final ExecutorService authProfileExecutor =
+            Executors.newFixedThreadPool(16, runnable -> {
+                Thread thread = new Thread(runnable, "auth-profile-loader");
+                thread.setDaemon(true);
+                return thread;
+            });
+
     @PostMapping("/api/auth/register")
-    public Map<String, Object> register(@RequestBody Map<String, Object> req) {
+    public Map<String, Object> register(@RequestBody Map<String, Object> req, HttpServletResponse response) {
         try {
             AccountService.SessionView session = accountService.register(
                     (String) req.get("email"),
                     (String) req.get("password"),
                     (String) req.get("displayName")
             );
+            sessionCookieService.setSession(response, session.token());
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
@@ -66,12 +97,13 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/login")
-    public Map<String, Object> login(@RequestBody Map<String, Object> req) {
+    public Map<String, Object> login(@RequestBody Map<String, Object> req, HttpServletResponse response) {
         try {
             AccountService.SessionView session = accountService.login(
                     (String) req.get("email"),
                     (String) req.get("password")
             );
+            sessionCookieService.setSession(response, session.token());
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
@@ -82,13 +114,14 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/reset-password")
-    public Map<String, Object> resetPassword(@RequestBody Map<String, Object> req) {
+    public Map<String, Object> resetPassword(@RequestBody Map<String, Object> req, HttpServletResponse response) {
         try {
             AccountService.SessionView session = accountService.resetPassword(
                     (String) req.get("email"),
                     (String) req.get("resetCode"),
                     (String) req.get("password")
             );
+            sessionCookieService.setSession(response, session.token());
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
@@ -99,17 +132,46 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/logout")
-    public Map<String, Object> logout(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+    public Map<String, Object> logout(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                      HttpServletResponse response) {
+        AccountUser user = accountService.findUser(authorizationHeader);
+        if (user != null) {
+            presenceService.markOffline(user);
+        }
         accountService.logout(authorizationHeader);
+        sessionCookieService.clearSession(response);
         return Map.of("ok", true, "authenticated", false);
     }
 
+    @PostMapping("/api/auth/delete-account")
+    public Map<String, Object> deleteAccount(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                             @RequestBody Map<String, Object> req,
+                                             HttpServletResponse response) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            accountService.deleteAccount(user, (String) req.get("confirmationText"));
+            sessionCookieService.clearSession(response);
+            return Map.of("ok", true, "authenticated", false);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        } catch (RuntimeException ex) {
+            log.error("Account deletion failed unexpectedly", ex);
+            return Map.of("error", UNAVAILABLE_MESSAGE);
+        }
+    }
+
     @GetMapping("/api/auth/me")
-    public Map<String, Object> me(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+    public Map<String, Object> me(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                  HttpServletResponse response) {
         AccountUser user = accountService.findUser(authorizationHeader);
         if (user == null) {
             return Map.of("authenticated", false);
         }
+        // Refresh the cookie on every authenticated check: this transparently
+        // upgrades legacy clients that still authenticate via the Bearer header
+        // (the filter resolves either source) to cookie auth, and slides the
+        // 30-day expiry forward on activity.
+        sessionCookieService.setSession(response, accountService.extractBearerToken(authorizationHeader));
         return buildProfileResponse(user, null);
     }
 
@@ -148,11 +210,35 @@ public class AuthController {
     }
 
     @PostMapping("/api/profile/friends")
-    public Map<String, Object> addFriend(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
-                                         @RequestBody Map<String, Object> req) {
+    public Map<String, Object> sendFriendRequest(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                                   @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            AccountUser updated = accountService.addFriend(user, (String) req.get("email"));
+            AccountUser updated = accountService.sendFriendRequest(user, (String) req.get("email"));
+            return buildProfileResponse(updated, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/profile/friends/accept")
+    public Map<String, Object> acceptFriendRequest(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                                   @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            AccountUser updated = accountService.acceptFriendRequest(user, (String) req.get("fromUserId"));
+            return buildProfileResponse(updated, null);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/profile/friends/deny")
+    public Map<String, Object> denyFriendRequest(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                                 @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            AccountUser updated = accountService.denyFriendRequest(user, (String) req.get("fromUserId"));
             return buildProfileResponse(updated, null);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
@@ -172,6 +258,26 @@ public class AuthController {
     }
 
     private Map<String, Object> buildProfileResponse(AccountUser user, String token) {
+        // Kick off the independent profile lookups concurrently. Each is its own
+        // Firestore read (or set of reads) with no ordering dependency on the
+        // others, so fanning them out turns ~a dozen sequential round trips into
+        // roughly the cost of the slowest one. Every task swallows its own failure
+        // and falls back to an empty/absent value, so one slow or erroring lookup
+        // can't fail the whole response.
+        CompletableFuture<List<Map<String, Object>>> friendsF = loadFriendsAsync(user);
+        CompletableFuture<List<Map<String, Object>>> incomingF =
+                CompletableFuture.supplyAsync(() -> loadIncomingFriendRequests(user), authProfileExecutor);
+        CompletableFuture<List<Map<String, Object>>> outgoingF =
+                CompletableFuture.supplyAsync(() -> loadOutgoingFriendRequests(user), authProfileExecutor);
+        CompletableFuture<List<Map<String, Object>>> decksF =
+                CompletableFuture.supplyAsync(() -> loadSavedDecks(user), authProfileExecutor);
+        CompletableFuture<List<Map<String, Object>>> historyF =
+                CompletableFuture.supplyAsync(() -> loadMatchHistory(user), authProfileExecutor);
+        CompletableFuture<Object> progressionF =
+                CompletableFuture.supplyAsync(() -> loadProgression(user), authProfileExecutor);
+        CompletableFuture<Object> settingsF =
+                CompletableFuture.supplyAsync(() -> loadProfileSettings(user), authProfileExecutor);
+
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("authenticated", true);
         if (token != null) {
@@ -182,41 +288,110 @@ public class AuthController {
                 "email", user.getEmail(),
                 "displayName", user.getDisplayName()
         ));
-        response.put("friends", loadFriends(user));
-        response.put("savedDecks", loadSavedDecks(user));
-        response.put("matchHistory", loadMatchHistory(user));
-        if (playerProgressionService != null) {
-            try {
-                response.put("progression", playerProgressionService.serialize(playerProgressionService.getOrCreate(user)));
-            } catch (RuntimeException ex) {
-                log.warn("Unable to load progression for authenticated user {}", user.getId(), ex);
-            }
+        response.put("friends", friendsF.join());
+        response.put("incomingFriendRequests", incomingF.join());
+        response.put("outgoingFriendRequests", outgoingF.join());
+        response.put("savedDecks", decksF.join());
+        response.put("matchHistory", historyF.join());
+        Object progression = progressionF.join();
+        if (progression != null) {
+            response.put("progression", progression);
         }
-        if (profileSettingsService != null) {
-            try {
-                profileSettingsService.findSerializedIfPresent(user)
-                        .ifPresent(settings -> response.put("profileSettings", settings));
-            } catch (RuntimeException ex) {
-                log.warn("Unable to load profile settings for authenticated user {}", user.getId(), ex);
-            }
+        Object profileSettings = settingsF.join();
+        if (profileSettings != null) {
+            response.put("profileSettings", profileSettings);
         }
         return response;
     }
 
-    private List<Map<String, Object>> loadFriends(AccountUser user) {
-        return (user.getFriendEmails() == null ? List.<String>of() : user.getFriendEmails()).stream()
-                .map(email -> {
-                    Map<String, Object> friend = new LinkedHashMap<>();
-                    friend.put("email", email);
-                    try {
-                        AccountUser friendUser = accountService.findByEmail(email);
-                        friend.put("displayName", friendUser == null ? email : friendUser.getDisplayName());
-                    } catch (RuntimeException ex) {
-                        friend.put("displayName", email);
-                    }
-                    return friend;
-                })
+    private Object loadProgression(AccountUser user) {
+        if (playerProgressionService == null) {
+            return null;
+        }
+        try {
+            return playerProgressionService.serialize(playerProgressionService.getOrCreate(user), user);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load progression for authenticated user {}", user.getId(), ex);
+            return null;
+        }
+    }
+
+    private Object loadProfileSettings(AccountUser user) {
+        if (profileSettingsService == null) {
+            return null;
+        }
+        try {
+            return profileSettingsService.findSerializedIfPresent(user).orElse(null);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load profile settings for authenticated user {}", user.getId(), ex);
+            return null;
+        }
+    }
+
+    private List<Map<String, Object>> loadIncomingFriendRequests(AccountUser user) {
+        if (friendRequestService == null) {
+            return List.of();
+        }
+        try {
+            return friendRequestService.listIncoming(user);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load incoming friend requests for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> loadOutgoingFriendRequests(AccountUser user) {
+        if (friendRequestService == null) {
+            return List.of();
+        }
+        try {
+            return friendRequestService.listOutgoing(user);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load outgoing friend requests for authenticated user {}", user.getId(), ex);
+            return List.of();
+        }
+    }
+
+    // Each friend requires its own Firestore reads (the friend's user record plus
+    // their profile settings), so resolve them as concurrent leaf tasks rather
+    // than looping sequentially. allOf + join completes without blocking a pool
+    // thread, so this composes safely with the other parallel profile lookups.
+    private CompletableFuture<List<Map<String, Object>>> loadFriendsAsync(AccountUser user) {
+        List<String> emails = user.getFriendEmails() == null ? List.of() : user.getFriendEmails();
+        List<CompletableFuture<Map<String, Object>>> futures = emails.stream()
+                .map(email -> CompletableFuture.supplyAsync(() -> loadFriendEntry(user, email), authProfileExecutor))
                 .toList();
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenApply(ignored -> futures.stream()
+                        .map(CompletableFuture::join)
+                        .filter(Objects::nonNull)
+                        .toList());
+    }
+
+    private Map<String, Object> loadFriendEntry(AccountUser user, String email) {
+        try {
+            AccountUser friendUser = accountService.findByEmail(email);
+            if (friendUser == null || !FriendRequestService.areMutualFriends(user, friendUser)) {
+                return null;
+            }
+            Map<String, Object> friend = new LinkedHashMap<>();
+            friend.put("email", email);
+            friend.put("userId", friendUser.getId());
+            String displayName = friendUser.getDisplayName();
+            if (profileSettingsService != null) {
+                ProfileSettingsEntity settings = profileSettingsService.getOrCreate(friendUser);
+                String settingsName = settings.getDisplayName();
+                if (settingsName != null && !settingsName.isBlank()) {
+                    displayName = settingsName;
+                }
+            }
+            friend.put("displayName", displayName);
+            friend.put("mutual", true);
+            return friend;
+        } catch (RuntimeException ex) {
+            log.warn("Unable to load friend {} for user {}", email, user.getId(), ex);
+            return null;
+        }
     }
 
     private List<Map<String, Object>> loadSavedDecks(AccountUser user) {

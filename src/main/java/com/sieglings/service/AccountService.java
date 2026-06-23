@@ -4,6 +4,14 @@ import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.AuthSession;
 import com.sieglings.persistence.firestore.AccountUserStore;
 import com.sieglings.persistence.firestore.AuthSessionStore;
+import com.sieglings.persistence.firestore.DailyMissionProgressStore;
+import com.sieglings.persistence.firestore.DirectMessageStore;
+import com.sieglings.persistence.firestore.FriendRequestStore;
+import com.sieglings.persistence.firestore.MatchHistoryStore;
+import com.sieglings.persistence.firestore.PlayerProgressionStore;
+import com.sieglings.persistence.firestore.ProfileSettingsStore;
+import com.sieglings.persistence.firestore.SavedDeckStore;
+import com.sieglings.persistence.firestore.UserPresenceStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -13,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -28,6 +37,33 @@ public class AccountService {
 
     @Autowired
     private AuthSessionStore sessionStore;
+
+    @Autowired
+    private FriendRequestService friendRequestService;
+
+    @Autowired
+    private SavedDeckStore savedDeckStore;
+
+    @Autowired
+    private MatchHistoryStore matchHistoryStore;
+
+    @Autowired
+    private PlayerProgressionStore playerProgressionStore;
+
+    @Autowired
+    private ProfileSettingsStore profileSettingsStore;
+
+    @Autowired
+    private UserPresenceStore userPresenceStore;
+
+    @Autowired
+    private DailyMissionProgressStore dailyMissionProgressStore;
+
+    @Autowired
+    private FriendRequestStore friendRequestStore;
+
+    @Autowired
+    private DirectMessageStore directMessageStore;
 
     @Value("${app.auth.password-reset-code:}")
     private String passwordResetCode;
@@ -116,22 +152,58 @@ public class AccountService {
         sessionStore.deleteById(token);
     }
 
-    public AccountUser addFriend(AccountUser user, String email) {
+    /**
+     * Permanently removes the account and every record tied to it. Requires the caller to type
+     * {@code DELETE} exactly, so an accidental click can never wipe a player's data.
+     */
+    public void deleteAccount(AccountUser user, String confirmationText) {
         if (user == null) {
-            throw new IllegalArgumentException("Sign in to add friends.");
+            throw new IllegalArgumentException("Sign in to delete your account.");
         }
-        String normalizedEmail = normalizeEmail(email);
-        if (normalizedEmail.equals(user.getEmail())) {
-            throw new IllegalArgumentException("You cannot add yourself.");
-        }
-        if (userStore.findById(normalizedEmail).isEmpty()) {
-            throw new IllegalArgumentException("No account exists for that email.");
+        if (!"DELETE".equals(confirmationText == null ? "" : confirmationText.trim())) {
+            throw new IllegalArgumentException("Type DELETE to confirm account deletion.");
         }
 
-        LinkedHashSet<String> friends = new LinkedHashSet<>(user.getFriendEmails());
-        friends.add(normalizedEmail);
-        user.setFriendEmails(friends.stream().toList());
-        userStore.save(user);
+        String userId = user.getId();
+
+        // Detach from each friend so we don't leave dangling references in their friend lists.
+        List<String> friendEmails = user.getFriendEmails() == null ? List.of() : user.getFriendEmails();
+        for (String friendEmail : new LinkedHashSet<>(friendEmails)) {
+            AccountUser peer = userStore.findById(friendEmail).orElse(null);
+            if (peer == null) {
+                continue;
+            }
+            LinkedHashSet<String> peerFriends = new LinkedHashSet<>(peer.getFriendEmails());
+            if (peerFriends.remove(userId)) {
+                peer.setFriendEmails(peerFriends.stream().toList());
+                userStore.save(peer);
+            }
+        }
+
+        // Remove all associated records, then the account document itself.
+        friendRequestStore.deleteByUserId(userId);
+        directMessageStore.deleteByUserId(userId);
+        savedDeckStore.deleteByUserId(userId);
+        matchHistoryStore.deleteByUserId(userId);
+        playerProgressionStore.deleteByUserId(userId);
+        profileSettingsStore.deleteByUserId(userId);
+        dailyMissionProgressStore.deleteByUserId(userId);
+        userPresenceStore.deleteByUserId(userId);
+        sessionStore.deleteByUserId(userId);
+        userStore.deleteById(userId);
+    }
+
+    public AccountUser sendFriendRequest(AccountUser user, String email) {
+        friendRequestService.sendRequest(user, email);
+        return userStore.findById(user.getId()).orElse(user);
+    }
+
+    public AccountUser acceptFriendRequest(AccountUser user, String fromUserId) {
+        return friendRequestService.acceptRequest(user, fromUserId);
+    }
+
+    public AccountUser denyFriendRequest(AccountUser user, String fromUserId) {
+        friendRequestService.denyRequest(user, fromUserId);
         return user;
     }
 
@@ -144,11 +216,27 @@ public class AccountService {
         friends.remove(normalizedEmail);
         user.setFriendEmails(friends.stream().toList());
         userStore.save(user);
+
+        AccountUser peer = userStore.findById(normalizedEmail).orElse(null);
+        if (peer != null) {
+            LinkedHashSet<String> peerFriends = new LinkedHashSet<>(peer.getFriendEmails());
+            peerFriends.remove(user.getId());
+            peer.setFriendEmails(peerFriends.stream().toList());
+            userStore.save(peer);
+        }
         return user;
     }
 
     public AccountUser findByEmail(String email) {
         return userStore.findById(normalizeEmail(email)).orElse(null);
+    }
+
+    /** Resolve a user directly by their account id (e.g. the id stored on a game's Player). */
+    public AccountUser findById(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        return userStore.findById(id).orElse(null);
     }
 
     private SessionView createSession(AccountUser user) {
@@ -202,5 +290,10 @@ public class AccountService {
             return trimmed.substring(7).trim();
         }
         return trimmed;
+    }
+
+    /** Public view of {@link #extractToken} so controllers can refresh the session cookie. */
+    public String extractBearerToken(String authorizationHeader) {
+        return extractToken(authorizationHeader);
     }
 }

@@ -7,6 +7,7 @@ import com.sieglings.persistence.entity.UserPresenceEntity;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.PresenceService;
 import com.sieglings.service.ProfileSettingsService;
+import com.sieglings.service.FriendRequestService;
 import com.sieglings.service.PublicProfileService;
 import com.sieglings.service.SocialMessagingService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
@@ -25,6 +28,8 @@ import java.util.Map;
 
 @RestController
 public class SocialController {
+
+    private static final Logger log = LoggerFactory.getLogger(SocialController.class);
 
     @Autowired
     private AccountService accountService;
@@ -81,6 +86,17 @@ public class SocialController {
         }
     }
 
+    @PostMapping("/api/social/presence/offline")
+    public Map<String, Object> markOffline(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            presenceService.markOffline(user);
+            return Map.of("ok", true);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @GetMapping("/api/social/presence")
     public Map<String, Object> listFriendPresence(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         try {
@@ -97,6 +113,7 @@ public class SocialController {
                 UserPresenceEntity presence = presenceService.listFriendPresence(List.of(friendId)).stream().findFirst().orElse(null);
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("userId", friend.getId());
+                row.put("email", friend.getEmail() == null ? friend.getId() : friend.getEmail());
                 row.put("displayName", settings.getDisplayName() == null || settings.getDisplayName().isBlank()
                         ? friend.getDisplayName()
                         : settings.getDisplayName());
@@ -128,6 +145,9 @@ public class SocialController {
             return Map.of("threads", messagingService.listThreads(user));
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
+        } catch (RuntimeException ex) {
+            log.error("Unable to list message threads for user", ex);
+            return Map.of("error", "Messages are temporarily unavailable. Please try again.");
         }
     }
 
@@ -139,6 +159,9 @@ public class SocialController {
             return Map.of("messages", messagingService.listConversation(user, peerId, null));
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
+        } catch (RuntimeException ex) {
+            log.error("Unable to load conversation with {}", peerId, ex);
+            return Map.of("error", "Could not load this chat. Please try again.");
         }
     }
 
@@ -155,6 +178,9 @@ public class SocialController {
             return Map.of("message", messagingService.serializeMessageForViewer(message, user.getId()));
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
+        } catch (RuntimeException ex) {
+            log.error("Unable to send direct message", ex);
+            return Map.of("error", "Could not send that message. Please try again.");
         }
     }
 }

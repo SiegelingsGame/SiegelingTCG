@@ -45,10 +45,16 @@ public class PlayerProgressionStore {
         payload.put("gold", progression.getGold());
         payload.put("remnants", progression.getRemnants());
         payload.put("ownedCards", progression.getOwnedCards());
+        payload.put("trainerLevels", progression.getTrainerLevels());
+        payload.put("trainerPoints", progression.getTrainerPoints());
         payload.put("starterPackId", progression.getStarterPackId());
+        payload.put("tutorialCompleted", progression.isTutorialCompleted());
         payload.put("rewardedMatchIds", progression.getRewardedMatchIds());
         payload.put("purchasedDeckIds", progression.getPurchasedDeckIds());
         payload.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
+        payload.put("purchasedTitleIds", progression.getPurchasedTitleIds());
+        payload.put("craftCount", progression.getCraftCount());
+        payload.put("holographicCardIds", progression.getHolographicCardIds());
         payload.put("packHistory", progression.getPackHistory());
         payload.put("soloWinStreak", progression.getSoloWinStreak());
         payload.put("onlineWinStreak", progression.getOnlineWinStreak());
@@ -58,6 +64,17 @@ public class PlayerProgressionStore {
             return progression;
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to save player progression to Firestore.", ex);
+        }
+    }
+
+    public void deleteByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            doc(userId).delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to delete player progression from Firestore.", ex);
         }
     }
 
@@ -74,10 +91,17 @@ public class PlayerProgressionStore {
         Long remnants = snapshot.getLong("remnants");
         progression.setRemnants(remnants == null ? 0 : remnants.intValue());
         progression.setOwnedCards(readIntMap(snapshot.get("ownedCards")));
+        progression.setTrainerLevels(readIntMap(snapshot.get("trainerLevels")));
+        progression.setTrainerPoints(readIntMap(snapshot.get("trainerPoints")));
         progression.setStarterPackId(snapshot.getString("starterPackId"));
+        progression.setTutorialCompleted(Boolean.TRUE.equals(snapshot.getBoolean("tutorialCompleted")));
         progression.setRewardedMatchIds(readStringList(snapshot.get("rewardedMatchIds")));
         progression.setPurchasedDeckIds(readStringList(snapshot.get("purchasedDeckIds")));
         progression.setPurchasedDailyOfferIds(readStringList(snapshot.get("purchasedDailyOfferIds")));
+        progression.setPurchasedTitleIds(readStringList(snapshot.get("purchasedTitleIds")));
+        Long craftCount = snapshot.getLong("craftCount");
+        progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());
+        progression.setHolographicCardIds(readStringList(snapshot.get("holographicCardIds")));
         Long soloWinStreak = snapshot.getLong("soloWinStreak");
         Long onlineWinStreak = snapshot.getLong("onlineWinStreak");
         progression.setSoloWinStreak(soloWinStreak == null ? 0 : soloWinStreak.intValue());
