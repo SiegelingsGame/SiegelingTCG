@@ -8569,12 +8569,40 @@
         const form = event.target.closest('#optionsAdminForm');
         if (!form) return;
         event.preventDefault();
-        const pass = document.getElementById('optionsAdminPassword')?.value || '';
-        if (pass === 'Aviators4!') {
-            window.location.href = '/card-dashboard.html';
-        } else {
-            const err = document.getElementById('optionsAdminError');
+        unlockAdminDashboard();
+    }
+
+    async function unlockAdminDashboard() {
+        const passwordInput = document.getElementById('optionsAdminPassword');
+        const submitBtn = document.querySelector('#optionsAdminForm button[type="submit"]');
+        const err = document.getElementById('optionsAdminError');
+        const pass = passwordInput?.value || '';
+        if (err) err.textContent = '';
+        if (pass !== 'Aviators4!') {
             if (err) err.textContent = 'Incorrect password.';
+            return;
+        }
+        // Visible feedback while we probe the dashboard and hand off — without
+        // it the form sits inert on a slow connection and looks broken.
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.dataset.originalLabel = submitBtn.textContent;
+            submitBtn.textContent = 'Unlocking...';
+        }
+        if (passwordInput) passwordInput.disabled = true;
+        const dashboardUrl = '/card-dashboard.html';
+        try {
+            const probe = await fetch(dashboardUrl, { method: 'HEAD', cache: 'no-store' });
+            if (!probe.ok) throw new Error(`HTTP ${probe.status}`);
+            window.location.href = dashboardUrl;
+        } catch (probeError) {
+            console.error(probeError);
+            if (err) err.textContent = `Could not reach the dashboard (${probeError?.message || 'unknown error'}). Please try again.`;
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = submitBtn.dataset.originalLabel || 'Unlock Dashboard';
+            }
+            if (passwordInput) passwordInput.disabled = false;
         }
     }
 

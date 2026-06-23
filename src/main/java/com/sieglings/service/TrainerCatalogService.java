@@ -95,7 +95,7 @@ public class TrainerCatalogService {
                         Ability.passiveRow("Vanguard Drill", "Front Row allies gain +1 attack damage", "damage_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
                         Ability.damage("Kindle Shot", "Deal 2 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 2),
                         false),
-                fullCardDefinition("squire-bob", "Squire Bob", Element.FIRE, Rarity.UNCOMMON, "SiegeSquire",
+                fullCardDefinition("squire-bob", "Squire Bob", Element.NEUTRAL, Rarity.UNCOMMON, "SiegeSquire",
                         Ability.passiveRow("Shield Practice", "Front Row allies gain +1 max Health", "health_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
                         Ability.heal("Pep Talk", "Heal 1 ally for 2", TargetType.SINGLE_ALLY, null, 1, 2),
                         false,
