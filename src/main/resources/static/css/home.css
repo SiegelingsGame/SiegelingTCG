@@ -8268,27 +8268,37 @@ body.gacha-active {
     }
     .gacha-stage {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        /* Keep every card at a comfortable, readable size and scroll the grid
-           vertically when a big pull (10/50) has more cards than fit on screen,
-           rather than shrinking them all to cram onto one screen. The header
-           (with Reveal All / Done) stays pinned above this scroll area. */
+        /* Fill the leftover height and split it evenly across rows so a normal
+           pack pull (5 cards in a 2-2-1 grid) all fits on screen at once -
+           no scroll, no offscreen cards. */
         align-self: stretch;
-        align-content: start;
-        grid-auto-rows: auto;
+        align-content: center;
+        grid-auto-rows: 1fr;
         min-height: 0;
         gap: 10px;
+        overflow: hidden;
+    }
+    /* Bulk pulls (10x / 50 cards): keep each row at roughly the same height as
+       a 5-card row would be (~1/3 of the stage area) and let the user scroll
+       through the rest. The row height is approximated from viewport units so
+       the first three rows fill the screen the same way the 5-card layout
+       does. */
+    .gacha-stage.is-bulk {
+        align-content: start;
+        grid-auto-rows: calc((100dvh - 250px) / 3);
         overflow-y: auto;
         overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
         padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
     .reveal-card {
-        /* Standard 5:7 card sized to its column; the stage scrolls when there
-           are more cards than fit on screen. */
-        width: 100%;
-        height: auto;
+        /* Size to the row height (kept to a 5:7 ratio) and never exceed the
+           column width, so the whole pack fits the screen regardless of count. */
+        width: auto;
+        height: 100%;
         max-width: 100%;
-        margin: 0;
+        max-height: 100%;
+        margin: auto;
         min-height: 0;
     }
     .reveal-card-copy strong {
