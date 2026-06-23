@@ -69,6 +69,7 @@
     const SOCIAL_POLL_MS = 6 * 1000;
     const PRESENCE_HEARTBEAT_MS = 45 * 1000;
     const PENDING_PACK_OPEN_REQUEST_KEY = 'sieglingsPendingPackOpenRequest';
+    const MAX_PENDING_PACK_OPEN_REQUESTS = 20;
     const PACK_OPEN_TIMEOUT_MS = 15000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
@@ -5129,16 +5130,68 @@
         return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     }
 
-    function readPendingPackOpenRequest(packId, count) {
+    function packOpenRequestEntryKey(packId, count) {
+        return `${String(packId)}:${Number(count) || 1}`;
+    }
+
+    function normalizePackOpenRequestEntry(entry) {
+        if (!entry?.requestId || !entry.packId) return null;
+        return {
+            requestId: String(entry.requestId),
+            packId: String(entry.packId),
+            count: Number(entry.count) || 1,
+            createdAt: Number(entry.createdAt) || 0
+        };
+    }
+
+    function readPendingPackOpenRequests() {
         try {
             const raw = localStorage.getItem(packOpenRequestStorageKey());
-            if (!raw) return null;
-            const entry = JSON.parse(raw);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            const entries = Array.isArray(parsed?.requests)
+                ? parsed.requests
+                : (Array.isArray(parsed) ? parsed : (parsed?.requestId ? [parsed] : []));
+            return entries
+                .map(normalizePackOpenRequestEntry)
+                .filter(Boolean);
+        } catch (error) {
+            // Treat malformed or unavailable storage as no pending retry.
+            return [];
+        }
+    }
+
+    function writePendingPackOpenRequests(entries) {
+        try {
+            const seen = new Set();
+            const normalized = [];
+            for (const entry of entries || []) {
+                const next = normalizePackOpenRequestEntry(entry);
+                if (!next) continue;
+                const key = packOpenRequestEntryKey(next.packId, next.count);
+                if (seen.has(key)) continue;
+                seen.add(key);
+                normalized.push(next);
+            }
+            normalized.sort((left, right) => (right.createdAt || 0) - (left.createdAt || 0));
+            const trimmed = normalized.slice(0, MAX_PENDING_PACK_OPEN_REQUESTS);
+            const key = packOpenRequestStorageKey();
+            if (trimmed.length) {
+                localStorage.setItem(key, JSON.stringify({ requests: trimmed }));
+            } else {
+                localStorage.removeItem(key);
+            }
+        } catch (error) {
+            // Idempotency persistence is best effort; the in-flight request still carries its id.
+        }
+    }
+
+    function readPendingPackOpenRequest(packId, count) {
+        const entries = readPendingPackOpenRequests();
+        for (const entry of entries) {
             if (entry?.packId === packId && Number(entry.count) === Number(count) && entry.requestId) {
                 return entry;
             }
-        } catch (error) {
-            // Treat malformed or unavailable storage as no pending retry.
         }
         return null;
     }
@@ -5147,31 +5200,23 @@
         const pending = readPendingPackOpenRequest(packId, count);
         if (pending?.requestId) return pending.requestId;
         const requestId = createPackOpenRequestId();
-        try {
-            localStorage.setItem(packOpenRequestStorageKey(), JSON.stringify({
+        writePendingPackOpenRequests([
+            {
                 requestId,
                 packId,
                 count,
                 createdAt: Date.now()
-            }));
-        } catch (error) {
-            // Idempotency still works for the current request; persistence is best effort.
-        }
+            },
+            ...readPendingPackOpenRequests()
+        ]);
         return requestId;
     }
 
     function clearPackOpenRequestId(requestId) {
-        try {
-            const key = packOpenRequestStorageKey();
-            const raw = localStorage.getItem(key);
-            if (!raw) return;
-            const entry = JSON.parse(raw);
-            if (!requestId || entry?.requestId === requestId) {
-                localStorage.removeItem(key);
-            }
-        } catch (error) {
-            try { localStorage.removeItem(packOpenRequestStorageKey()); } catch (ignored) { /* ignore */ }
-        }
+        if (!requestId) return;
+        const remaining = readPendingPackOpenRequests()
+            .filter(entry => entry.requestId !== requestId);
+        writePendingPackOpenRequests(remaining);
     }
 
     async function choosePack(packId, count = 1) {
@@ -5208,11 +5253,10 @@
             data = { error: error?.message || 'Could not open that pack. Please try again.' };
         }
 
-        // The pull never succeeded on the server, so nothing was charged or
-        // granted — surface the error and let the player retry safely.
+        // The server may have charged and granted before the response was lost.
+        // Keep the request id so a retry can be deduped server-side.
         if (!data || data.error) {
             state.packOpeningPending = null;
-            if (!data?.timedOut) clearPackOpenRequestId(requestId);
             hidePackResultDom();
             renderShop();
             syncShopPackView();
