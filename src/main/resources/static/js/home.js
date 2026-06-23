@@ -5418,7 +5418,7 @@
                 </div>
             </div>
             <canvas class="gacha-particles" aria-hidden="true"></canvas>
-            <div class="gacha-stage">
+            <div class="gacha-stage${cards.length > 5 ? ' is-bulk' : ''}">
                 ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), latest.packId, index)).join('')}
             </div>
             ${previewCard ? renderRevealPreview(previewCard) : ''}
