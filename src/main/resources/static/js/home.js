@@ -306,6 +306,7 @@
         elementFilter: 'ALL',
         typeFilter: 'ALL',
         rarityFilter: 'ALL',
+        finishFilter: 'ALL',
         energyCostFilter: 'ALL',
         showUnowned: false,
         sort: 'owned-desc',
@@ -1526,6 +1527,17 @@
             renderFilters();
             renderCards();
         }, formatEnergyCostFilter);
+        renderFilter('finishFilters', ['ALL', 'HOLOGRAPHIC', 'STANDARD'], state.finishFilter, (value) => {
+            state.finishFilter = value;
+            renderFilters();
+            renderCards();
+        }, formatFinishFilter);
+    }
+
+    function formatFinishFilter(value) {
+        if (value === 'HOLOGRAPHIC') return 'Holographic';
+        if (value === 'STANDARD') return 'Standard';
+        return 'All';
     }
 
     function renderFilter(id, values, active, onPick, formatter = format) {
@@ -1545,10 +1557,12 @@
             state.typeFilter,
             state.rarityFilter,
             state.energyCostFilter,
+            state.finishFilter,
             state.sort,
             state.search,
             state.selectedCardId,
             Array.from(state.newCards || []).sort().join(','),
+            (state.progression?.holographicCards || []).join(','),
             cards.map(card => `${card.id}:${ownedCount(card.id)}`).join(',')
         ].join('|');
     }
@@ -1690,6 +1704,7 @@
             if (state.typeFilter !== 'ALL' && card.type !== state.typeFilter) return false;
             if (state.rarityFilter !== 'ALL' && card.rarity !== state.rarityFilter) return false;
             if (!matchesEnergyCostFilter(card)) return false;
+            if (!matchesFinishFilter(card)) return false;
             if (state.search) {
                 const text = `${JSON.stringify(card)} ${creatureDescriptionFor(card)}`.toLowerCase();
                 if (!text.includes(state.search)) return false;
@@ -6850,6 +6865,12 @@
         if (filter === 'FREE') return cost === 0;
         if (filter === '5+') return cost >= 5;
         return cost === Number(filter);
+    }
+    function matchesFinishFilter(card) {
+        const filter = state.finishFilter;
+        if (filter === 'ALL') return true;
+        const holo = cardShowsPlayerHolographic(card);
+        return filter === 'HOLOGRAPHIC' ? holo : !holo;
     }
     function formatEnergyCostFilter(value) {
         if (value === 'ALL') return 'All Costs';
