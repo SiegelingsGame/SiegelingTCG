@@ -306,6 +306,7 @@
         elementFilter: 'ALL',
         typeFilter: 'ALL',
         rarityFilter: 'ALL',
+        finishFilter: 'ALL',
         energyCostFilter: 'ALL',
         showUnowned: false,
         sort: 'owned-desc',
@@ -339,6 +340,7 @@
         authMode: 'login',
         authDraft: { email: '', password: '' },
         authRegisterStep: 'credentials',
+        authLoading: false,
         registerDraft: { email: '', password: '' },
         profileEditOpen: false,
         activeAchievementId: '',
@@ -1525,6 +1527,17 @@
             renderFilters();
             renderCards();
         }, formatEnergyCostFilter);
+        renderFilter('finishFilters', ['ALL', 'HOLOGRAPHIC', 'STANDARD'], state.finishFilter, (value) => {
+            state.finishFilter = value;
+            renderFilters();
+            renderCards();
+        }, formatFinishFilter);
+    }
+
+    function formatFinishFilter(value) {
+        if (value === 'HOLOGRAPHIC') return 'Holographic';
+        if (value === 'STANDARD') return 'Standard';
+        return 'All';
     }
 
     function renderFilter(id, values, active, onPick, formatter = format) {
@@ -1544,10 +1557,12 @@
             state.typeFilter,
             state.rarityFilter,
             state.energyCostFilter,
+            state.finishFilter,
             state.sort,
             state.search,
             state.selectedCardId,
             Array.from(state.newCards || []).sort().join(','),
+            (state.progression?.holographicCards || []).join(','),
             cards.map(card => `${card.id}:${ownedCount(card.id)}`).join(',')
         ].join('|');
     }
@@ -1689,6 +1704,7 @@
             if (state.typeFilter !== 'ALL' && card.type !== state.typeFilter) return false;
             if (state.rarityFilter !== 'ALL' && card.rarity !== state.rarityFilter) return false;
             if (!matchesEnergyCostFilter(card)) return false;
+            if (!matchesFinishFilter(card)) return false;
             if (state.search) {
                 const text = `${JSON.stringify(card)} ${creatureDescriptionFor(card)}`.toLowerCase();
                 if (!text.includes(state.search)) return false;
@@ -6517,6 +6533,8 @@
     // single primary button. Shared style.css supplies the look; the hub wires
     // events via IDs/data-attrs (its code is sandboxed, so no inline onclick).
     function authMarkup() {
+        const loading = !!state.authLoading;
+        const disabledAttr = loading ? ' disabled' : '';
         if (state.authRegisterStep === 'display-name') {
             return `
                 <div class="welcome-eyebrow">ACCOUNT</div>
@@ -6524,11 +6542,11 @@
                 <div class="welcome-auth-meta">${escapeHtml(state.registerDraft.email || '')}</div>
                 <label class="online-field">
                     <span>Display Name</span>
-                    <input type="text" id="authName" maxlength="20" placeholder="Arena name" autofocus>
+                    <input type="text" id="authName" maxlength="20" placeholder="Arena name"${disabledAttr} autofocus>
                 </label>
                 <div class="welcome-auth-actions">
-                    <button class="btn welcome-auth-submit" id="backRegisterBtn" type="button">Back</button>
-                    <button class="btn btn-primary welcome-auth-submit" id="confirmRegisterBtn" type="button">Confirm</button>
+                    <button class="btn welcome-auth-submit" id="backRegisterBtn" type="button"${disabledAttr}>Back</button>
+                    <button class="btn btn-primary welcome-auth-submit" id="confirmRegisterBtn" type="button"${disabledAttr}>${loading ? 'Working...' : 'Confirm'}</button>
                 </div>
             `;
         }
@@ -6537,19 +6555,19 @@
             <div class="welcome-eyebrow">ACCOUNT</div>
             <h3>${mode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
             <div class="welcome-auth-tabs">
-                <button class="welcome-auth-tab${mode === 'login' ? ' active' : ''}" type="button" data-auth-mode="login" aria-selected="${mode === 'login'}">Log In</button>
-                <button class="welcome-auth-tab${mode === 'register' ? ' active' : ''}" type="button" data-auth-mode="register" aria-selected="${mode === 'register'}">Register</button>
+                <button class="welcome-auth-tab${mode === 'login' ? ' active' : ''}" type="button" data-auth-mode="login" aria-selected="${mode === 'login'}"${disabledAttr}>Log In</button>
+                <button class="welcome-auth-tab${mode === 'register' ? ' active' : ''}" type="button" data-auth-mode="register" aria-selected="${mode === 'register'}"${disabledAttr}>Register</button>
             </div>
             <label class="online-field">
                 <span>Email</span>
-                <input type="email" id="authEmail" placeholder="you@example.com">
+                <input type="email" id="authEmail" placeholder="you@example.com"${disabledAttr}>
             </label>
             <label class="online-field">
                 <span>Password</span>
-                <input type="password" id="authPassword" placeholder="At least 6 characters">
+                <input type="password" id="authPassword" placeholder="At least 6 characters"${disabledAttr}>
             </label>
             <div class="welcome-auth-actions">
-                <button class="btn btn-primary welcome-auth-submit" id="authPrimaryBtn" type="button">${mode === 'login' ? 'Log In' : 'Register'}</button>
+                <button class="btn btn-primary welcome-auth-submit" id="authPrimaryBtn" type="button"${disabledAttr}>${loading ? 'Working...' : (mode === 'login' ? 'Log In' : 'Register')}</button>
             </div>
         `;
     }
@@ -6560,6 +6578,7 @@
         state.authMode = 'login';
         state.authRegisterStep = 'credentials';
         state.authDraft = { email: '', password: '' };
+        state.authLoading = false;
         renderAuthModal();
     }
 
@@ -6569,6 +6588,7 @@
         state.authRegisterStep = 'credentials';
         state.registerDraft = { email: '', password: '' };
         state.authDraft = { email: '', password: '' };
+        state.authLoading = false;
         renderAuthModal();
     }
 
@@ -6643,6 +6663,7 @@
     }
 
     async function submitAuth(mode) {
+        if (state.authLoading) return;
         const onRegisterNameStep = mode === 'register' && state.authRegisterStep === 'display-name';
         const email = onRegisterNameStep ? state.registerDraft.email : (document.getElementById('authEmail')?.value || '');
         const password = onRegisterNameStep ? state.registerDraft.password : (document.getElementById('authPassword')?.value || '');
@@ -6650,8 +6671,18 @@
         const body = mode === 'register'
             ? { email, password, displayName }
             : { email, password };
+        // Persist what the user typed so the inputs aren't cleared when the modal
+        // re-renders into its "Working..." state.
+        if (!onRegisterNameStep) state.authDraft = { email, password };
+        state.authLoading = true;
+        renderAuthModal();
         const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) });
-        if (data?.error) return alert(data.error);
+        if (data?.error) {
+            state.authLoading = false;
+            renderAuthModal();
+            return alert(data.error);
+        }
+        state.authLoading = false;
         // Prefer cookie auth in browsers; in a standalone Web App (or when cookies
         // are blocked) keep the real token + Bearer header so auth survives the
         // full-page Home <-> Play navigation.
@@ -6834,6 +6865,12 @@
         if (filter === 'FREE') return cost === 0;
         if (filter === '5+') return cost >= 5;
         return cost === Number(filter);
+    }
+    function matchesFinishFilter(card) {
+        const filter = state.finishFilter;
+        if (filter === 'ALL') return true;
+        const holo = cardShowsPlayerHolographic(card);
+        return filter === 'HOLOGRAPHIC' ? holo : !holo;
     }
     function formatEnergyCostFilter(value) {
         if (value === 'ALL') return 'All Costs';
