@@ -2145,6 +2145,59 @@ body.card-drag-active #playerGrid {
     color: #ffffff;
 }
 
+/* Claim control inside the card preview for battle-tested Siegelings. */
+.selected-claim-control {
+    margin-top: 10px;
+    display: grid;
+    gap: 8px;
+}
+.selected-claim-note {
+    font-size: 0.85em;
+    line-height: 1.35;
+    color: #c8ffe0;
+}
+.selected-claim-badge {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.82em;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #092018;
+    background: rgba(123, 255, 180, 0.95);
+    box-shadow: 0 0 6px rgba(123, 255, 180, 0.5);
+}
+.selected-claim-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.92em;
+    font-weight: 700;
+    cursor: pointer;
+    color: #07211a;
+    background: rgba(123, 255, 180, 0.95);
+    border: 1px solid rgba(123, 255, 180, 0.95);
+    transition: filter 0.15s ease;
+}
+.selected-claim-btn:hover {
+    filter: brightness(1.08);
+}
+.selected-claim-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 /* ============================================================
    LEGACY COMPAT — hide old layout elements, keep styles
    ============================================================ */

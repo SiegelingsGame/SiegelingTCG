@@ -5178,6 +5178,7 @@ function renderDesktopCardPreviewPanel() {
         html += '</div>';
     }
     html += `<div class="desktop-preview-note">${escapeHtml(getDesktopPreviewNote(focusedCard, lockReason))}</div>`;
+    html += renderPreviewClaimControl(focusedCard);
     html += '</div>';
     html += '</div>';
 
@@ -14105,6 +14106,7 @@ function updateSelectedInfo(card, msg) {
             const phases = Number(card.battlePhasesSeen || 0);
             html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
             html += renderBoardCardBuffsList(card);
+            html += renderPreviewClaimControl(card);
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`
@@ -14288,6 +14290,42 @@ function isClaimableBoardCell(cell, isPlayer) {
         && !targetMode
         && Number(cell.battlePhasesSeen || 0) > 0
     );
+}
+
+// Locate the previewed Siegeling on the player's board so the card preview can
+// surface a Claim control. Returns the {row, col} only when the cell is one of
+// our own battle-tested Siegelings eligible to claim this setup turn.
+function getClaimablePreviewPosition(card) {
+    if (!card?.instanceId || !Array.isArray(gameState?.playerBoard)) {
+        return null;
+    }
+    for (let row = 0; row < 3; row += 1) {
+        for (let col = 0; col < 3; col += 1) {
+            const cell = gameState.playerBoard?.[row]?.[col];
+            if (cell && cell.instanceId === card.instanceId && isClaimableBoardCell(cell, true)) {
+                return { row, col };
+            }
+        }
+    }
+    return null;
+}
+
+// Claimable badge + Claim button shown inside the card preview. The button
+// opens the existing claim popup, which carries the second-step confirmation.
+function renderPreviewClaimControl(card) {
+    const pos = getClaimablePreviewPosition(card);
+    if (!pos) {
+        return '';
+    }
+    const elementLabel = card.element ? formatElementLabel(card.element) : 'its element';
+    const name = card.name || 'Siegeling';
+    let html = '<div class="selected-claim-control">';
+    html += `<div class="selected-claim-note"><span class="selected-claim-badge">Claimable</span>Battle-tested — claim it to gain 1 temporary ${escapeHtml(elementLabel)} energy this setup turn.</div>`;
+    html += `<button type="button" class="selected-claim-btn" onclick="openClaimPopup(${pos.row}, ${pos.col})" aria-label="Claim ${escapeHtmlAttribute(name)}">`;
+    html += '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.4 1.2v13.6M3.4 2.2h8.7L10.4 5.4l1.7 3.2H3.4"/></svg>';
+    html += `<span>Claim ${escapeHtml(name)}</span></button>`;
+    html += '</div>';
+    return html;
 }
 
 function positionTooltip(event, tt) {
