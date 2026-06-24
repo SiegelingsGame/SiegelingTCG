@@ -1156,6 +1156,53 @@ function escapeHtmlAttribute(value) {
         .replace(/>/g, '&gt;');
 }
 
+// ── WebP delivery (self-contained; the battle page does not load
+// card-binder-visual.js). Every local raster card asset has a .webp twin;
+// prefer it when supported and fall back to the original on any load error.
+let __sgWebpSupport = null;
+function sgWebpSupported() {
+    if (__sgWebpSupport !== null) {
+        return __sgWebpSupport;
+    }
+    try {
+        const c = document.createElement('canvas');
+        __sgWebpSupport = !!(c.getContext && c.getContext('2d'))
+            && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+    } catch (e) {
+        __sgWebpSupport = false;
+    }
+    return __sgWebpSupport;
+}
+function sgPreferWebp(url) {
+    const u = String(url || '');
+    if (!u || !sgWebpSupported()) {
+        return u;
+    }
+    return u.replace(/^(\/(?:img|assets)\/[^?#]+)\.(png|jpe?g)(\?[^#]*)?$/i, '$1.webp$3');
+}
+if (typeof window !== 'undefined' && !window.sgWebpFallback) {
+    window.sgWebpFallback = function (img) {
+        if (!img) {
+            return;
+        }
+        const fallback = img.getAttribute('data-img-fallback');
+        img.onerror = null;
+        if (fallback && img.getAttribute('src') !== fallback) {
+            img.setAttribute('src', fallback);
+        }
+    };
+}
+
+// Builds `src` (+ WebP fallback) attributes for a local raster art URL.
+function webpImgAttrs(url) {
+    const original = String(url || '');
+    const preferred = sgPreferWebp(original);
+    if (preferred === original) {
+        return `src="${escapeHtmlAttribute(original)}"`;
+    }
+    return `src="${escapeHtmlAttribute(preferred)}" data-img-fallback="${escapeHtmlAttribute(original)}" onerror="sgWebpFallback(this)"`;
+}
+
 function escapeHtml(value) {
     return String(value || '')
         .replace(/&/g, '&amp;')
@@ -1237,7 +1284,7 @@ function renderCardArt(card, variant, fallbackLabel = '') {
             ? ` card-art-crop-${artMeta.crop}`
             : '';
         const styleAttr = artMeta.transformStyle ? ` style="${escapeHtmlAttribute(artMeta.transformStyle)}"` : '';
-        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${escapeHtmlAttribute(artMeta.url)}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"${styleAttr}></div>`;
+        return `<div class="card-art card-art-${variant}${cropClass}"><img ${webpImgAttrs(artMeta.url)} alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
@@ -9073,7 +9120,7 @@ function renderLoadoutOptions() {
             return `<button type="button" class="knight-card knight-full-card-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
-                <img src="${escapeHtmlAttribute(fullCardArtUrl)}" alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy">
+                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy">
                 ${holoOverlay}
                 ${knightCardBody}
             </button>`;
@@ -10759,9 +10806,9 @@ function knightHasFullCardArt(trainer) {
 function knightHudCardInnerHtml(trainer) {
     if (knightHasFullCardArt(trainer)) {
         const url = String(trainer.cardArtUrl).trim();
-        return `<img class="hud-knight-art-img" src="${escapeHtmlAttribute(url)}" alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight')}" loading="lazy">`;
+        return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight')}" loading="lazy">`;
     }
-    return `<img class="hud-knight-art-img hud-knight-art-template" src="${SIEGEKNIGHT_CARD_TEMPLATE}" alt="" aria-hidden="true"><span class="hud-knight-art-sigil">${elementEmoji(trainer?.element)}</span>`;
+    return `<img class="hud-knight-art-img hud-knight-art-template" ${webpImgAttrs(SIEGEKNIGHT_CARD_TEMPLATE)} alt="" aria-hidden="true"><span class="hud-knight-art-sigil">${elementEmoji(trainer?.element)}</span>`;
 }
 
 function updateHudRailKnight(prefix, trainer) {
