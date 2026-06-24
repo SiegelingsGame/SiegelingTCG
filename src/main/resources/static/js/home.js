@@ -1796,7 +1796,7 @@
             const holoClass = card.holographic ? ' is-holographic' : '';
             const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
             return `<div class="knight-card knight-full-card-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
-                <img src="${escapeAttr(fullCardArtUrl)}" alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy">
+                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy">
                 ${holoOverlay}
                 <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
             </div>`;
@@ -7075,7 +7075,7 @@
         const url = resolveCardArtUrl(card);
         if (url) {
             const name = card?.name || 'Card';
-            return `<img class="element-icon-art" src="${escapeAttr(url)}" alt="${escapeAttr(name)} art" loading="lazy">`;
+            return `<img class="element-icon-art" ${webpImgAttrs(url)} alt="${escapeAttr(name)} art" loading="lazy">`;
         }
         return renderElementIcon(card?.element);
     }
@@ -7137,6 +7137,19 @@
         return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     }
     function escapeAttr(value) { return escapeHtml(value); }
+
+    // Prefer the .webp twin of a local raster art URL (WebP-capable browsers),
+    // reverting to the original on any load error. See card-binder-visual.js.
+    function webpImgAttrs(url) {
+        const original = String(url || '');
+        const preferred = window.SieglingsCardBinderVisual?.preferWebp
+            ? window.SieglingsCardBinderVisual.preferWebp(original)
+            : original;
+        if (preferred === original) {
+            return `src="${escapeAttr(original)}"`;
+        }
+        return `src="${escapeAttr(preferred)}" data-img-fallback="${escapeAttr(original)}" onerror="sgWebpFallback(this)"`;
+    }
 
     function applyProfileSettingsFromServer(settings) {
         if (!settings) return null;

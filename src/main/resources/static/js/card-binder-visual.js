@@ -117,7 +117,12 @@
 
     function renderCustomArtImage(className, artUrl, card) {
         const style = buildArtTransformStyle(card);
-        return `<img class="${className}" src="${escapeAttr(artUrl)}" alt=""${style ? ` style="${style}"` : ''}>`;
+        const original = String(artUrl || '');
+        const preferred = preferWebp(original);
+        const fallbackAttrs = preferred !== original
+            ? ` data-img-fallback="${escapeAttr(original)}" onerror="sgWebpFallback(this)"`
+            : '';
+        return `<img class="${className}" src="${escapeAttr(preferred)}" alt=""${style ? ` style="${style}"` : ''}${fallbackAttrs}>`;
     }
 
     function fullCardArtUrl(card) {
@@ -378,6 +383,46 @@
         return `<div class="binder-card card-visual-preview${extraClass}${modeClass}${holographicClass(card, options)}" style="--el:${elementColor(element)}">${shell}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
     }
 
+    // ── WebP delivery ──────────────────────────────────────────────
+    // Every local raster card asset has a .webp twin (committed + on Storage).
+    // preferWebp() swaps the extension when the browser supports WebP; the
+    // <img onerror> handler falls back to the original file if a .webp is ever
+    // missing, so this can never leave a broken image.
+    let __webpSupport = null;
+    function webpSupported() {
+        if (__webpSupport !== null) {
+            return __webpSupport;
+        }
+        try {
+            const c = document.createElement('canvas');
+            __webpSupport = !!(c.getContext && c.getContext('2d'))
+                && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+        } catch (e) {
+            __webpSupport = false;
+        }
+        return __webpSupport;
+    }
+
+    function preferWebp(url) {
+        const u = String(url || '');
+        if (!u || !webpSupported()) {
+            return u;
+        }
+        return u.replace(/^(\/(?:img|assets)\/[^?#]+)\.(png|jpe?g)(\?[^#]*)?$/i, '$1.webp$3');
+    }
+
+    // onerror handler: revert a failed .webp <img> to its original source once.
+    window.sgWebpFallback = function (img) {
+        if (!img) {
+            return;
+        }
+        const fallback = img.getAttribute('data-img-fallback');
+        img.onerror = null;
+        if (fallback && img.getAttribute('src') !== fallback) {
+            img.setAttribute('src', fallback);
+        }
+    };
+
     window.SieglingsCardBinderVisual = {
         renderBinderCardPreview,
         renderBinderCardTile,
@@ -393,6 +438,8 @@
         normalizeArtMode,
         normalizeArtTransform,
         buildArtTransformStyle,
-        resolveArtModeClass
+        resolveArtModeClass,
+        preferWebp,
+        webpSupported
     };
 })();
