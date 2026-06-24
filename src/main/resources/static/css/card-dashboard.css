@@ -1375,8 +1375,55 @@ body.move-picker-open {
     inset: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    /* Match the in-game loadout/collection render (object-fit: fill) so the
+       preview is WYSIWYG and any stretching is visible here. */
+    object-fit: fill;
     object-position: center;
+}
+
+.trainer-art-meta {
+    margin: 6px auto 0;
+    max-width: 320px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--text-dim, #9aa3b2);
+    text-align: center;
+}
+
+.trainer-art-meta[data-tone="warn"] {
+    color: #e6ab48;
+}
+
+.trainer-art-meta[data-tone="ok"] {
+    color: #5fcf86;
+}
+
+.trainer-art-status {
+    font-size: 0.82rem;
+    line-height: 1.4;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-soft);
+}
+
+.trainer-art-status[data-tone="success"] {
+    border-color: rgba(95, 207, 134, 0.5);
+    color: #8be0a6;
+    background: rgba(95, 207, 134, 0.08);
+}
+
+.trainer-art-status[data-tone="warning"] {
+    border-color: rgba(224, 162, 58, 0.5);
+    color: #e8c07a;
+    background: rgba(224, 162, 58, 0.08);
+}
+
+.trainer-art-status[data-tone="error"] {
+    border-color: rgba(255, 107, 107, 0.5);
+    color: #ff9b9b;
+    background: rgba(255, 90, 90, 0.08);
 }
 
 .trainer-art-placeholder {

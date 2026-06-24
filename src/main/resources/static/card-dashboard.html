@@ -16,7 +16,7 @@
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
     <link rel="stylesheet" href="/css/home.css?v=45">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=19">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=20">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -720,10 +720,11 @@
 
                 <section class="form-section">
                     <h3>Custom Art</h3>
-                    <p class="section-help card-visual-help">Upload a complete, hand-drawn SiegeKnight card (the same way Squire Bob is set up). Choose Full card art so the uploaded image replaces the whole card template in the loadout and collection. Use Upload Image on the live dashboard so art is stored in cloud storage, then Publish from the header to apply globally. Choose Default icon to revert. Use the Holographic foil toggle above for a shine effect.</p>
+                    <p class="section-help card-visual-help">Give this SiegeKnight a complete, hand-drawn card (the same way Squire Bob is set up). Pick <strong>Full card art</strong>, then either paste a hosted path into <strong>Art URL or path</strong> (e.g. <code>/img/knights/aldera-full-card.png</code>) or use <strong>Upload Image</strong>. The preview below shows exactly how the card renders in-game — match the source to a 5:7 (portrait) shape so it isn't stretched. Then <strong>Publish Live Changes</strong> from the header. Choose Default icon to revert.</p>
                     <div class="trainer-art-stage" id="trainerArtStage">
                         <div class="validation-empty">Select a SiegeKnight to preview its art.</div>
                     </div>
+                    <div class="trainer-art-meta" id="trainerArtMeta"></div>
                     <div class="card-art-controls" id="trainerArtControls">
                         <div class="art-mode-toggle" role="radiogroup" aria-label="SiegeKnight art mode">
                             <label class="art-mode-option">
@@ -740,9 +741,10 @@
                             <input id="trainerArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
                             <button class="btn btn-secondary" id="clearTrainerArtBtn" type="button">Clear Art</button>
                         </div>
+                        <div class="trainer-art-status" id="trainerArtStatus" role="status" aria-live="polite"></div>
                         <label class="card-art-url-field">
                             <span>Art URL or path</span>
-                            <input id="trainerArtUrlInput" type="text" autocomplete="off" placeholder="/assets/cards/example.png">
+                            <input id="trainerArtUrlInput" type="text" autocomplete="off" placeholder="/img/knights/example-full-card.png">
                         </label>
                     </div>
                 </section>
@@ -1059,6 +1061,6 @@
 <script src="/js/config.js"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
 <script src="/js/card-binder-visual.js?v=1"></script>
-<script src="/js/card-dashboard.js?v=33"></script>
+<script src="/js/card-dashboard.js?v=34"></script>
 </body>
 </html>
