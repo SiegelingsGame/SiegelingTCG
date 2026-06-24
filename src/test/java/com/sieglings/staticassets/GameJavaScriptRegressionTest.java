@@ -62,16 +62,24 @@ class GameJavaScriptRegressionTest {
     void shopPackOpeningUsesPersistentIdempotencyKey() throws IOException {
         String homeScript = readHomeScript();
         String choosePack = extractFunction(homeScript, "async function choosePack(packId, count = 1)");
+        String getOrCreateRequestId = extractFunction(homeScript, "function getOrCreatePackOpenRequestId(packId, count)");
 
         assertTrue(
                 choosePack.contains("getOrCreatePackOpenRequestId(packId, packCount)")
-                        && choosePack.contains("requestId")
-                        && choosePack.contains("!data?.timedOut"),
-                "Pack opening retries after a client timeout must reuse the same request id instead of double-charging."
+                        && choosePack.contains("requestId"),
+                "Shop pack opens must send a persistent request id so retries can be deduped."
+        );
+        assertFalse(
+                choosePack.contains("if (!data?.timedOut) clearPackOpenRequestId(requestId);"),
+                "Ambiguous pack-open failures must preserve the request id; the server may have charged before the response was lost."
         );
         assertTrue(
                 homeScript.contains("timedOut: true"),
                 "Timed-out pack opens must be distinguishable so the retry id is preserved."
+        );
+        assertTrue(
+                getOrCreateRequestId.contains("...readPendingPackOpenRequests()"),
+                "Creating one pending pack open must not overwrite unrelated pack/count retries."
         );
     }
 
