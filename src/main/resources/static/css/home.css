@@ -8291,6 +8291,24 @@ body.gacha-active {
         -webkit-overflow-scrolling: touch;
         padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
+    /* Bulk-pull crash mitigation. With 50 cards on iOS Safari the per-card
+       blurred halo (.reveal-card::before is `filter: blur(...)` + an infinite
+       animation) plus the secondary halo (::after) plus the heavy card-back
+       background-image piled enough GPU/Jetsam memory to reload the tab
+       mid-scroll. Skip painting off-screen cards, hold the glow static, and
+       drop the secondary halo so the bulk grid stays under iOS's budget. */
+    .gacha-stage.is-bulk .reveal-card {
+        content-visibility: auto;
+        contain-intrinsic-size: 200px 280px;
+        contain: layout style paint;
+    }
+    .gacha-stage.is-bulk .reveal-card::before {
+        animation: none;
+        opacity: 0.28;
+    }
+    .gacha-stage.is-bulk .reveal-card::after {
+        display: none;
+    }
     .reveal-card {
         /* Size to the row height (kept to a 5:7 ratio) and never exceed the
            column width, so the whole pack fits the screen regardless of count. */
