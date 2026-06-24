@@ -326,6 +326,8 @@
             "trainerOncePerGameCheckbox",
             "trainerHolographicCheckbox",
             "trainerArtStage",
+            "trainerArtMeta",
+            "trainerArtStatus",
             "trainerArtControls",
             "trainerArtFileInput",
             "trainerArtUrlInput",
@@ -3287,6 +3289,18 @@
     // generic /api/cards/editor/art upload. In-game they render in FULL_CARD mode — the
     // uploaded image is a complete, hand-drawn card that replaces the template — so the
     // editor only offers Default vs Full card art.
+    // Inline status shown inside the Custom Art panel so feedback is visible on
+    // mobile (the global status bar lives at the top of the page, off-screen here).
+    function setTrainerArtStatus(message, tone) {
+        const el = refs.trainerArtStatus;
+        if (!el) {
+            return;
+        }
+        el.textContent = message || "";
+        el.classList.toggle("hidden", !message);
+        el.dataset.tone = message ? (tone || "info") : "";
+    }
+
     function bindTrainerArtFieldEvents() {
         refs.trainerArtControls?.addEventListener("change", (event) => {
             const modeInput = event.target.closest('input[name="trainerArtMode"]');
@@ -3325,6 +3339,7 @@
             if (refs.trainerArtFileInput) {
                 refs.trainerArtFileInput.value = "";
             }
+            setTrainerArtStatus("");
         });
 
         refs.trainerArtFileInput?.addEventListener("change", async (event) => {
@@ -3336,12 +3351,14 @@
             const trainerId = String(trainer?.id || "").trim();
             if (!trainerId) {
                 setStatus("Set a Siegeknight id before uploading art.", "error");
+                setTrainerArtStatus("Set a Siegeknight ID (in Identity, above) before uploading art.", "error");
                 event.target.value = "";
                 renderStatus();
                 return;
             }
             if (state.liveEditingEnabled && !state.auth?.canEdit) {
                 setStatus("Sign in under Live Publishing before uploading SiegeKnight art.", "error");
+                setTrainerArtStatus("Sign in under Live Publishing (top of page) before uploading art.", "error");
                 event.target.value = "";
                 renderStatus();
                 return;
@@ -3352,6 +3369,7 @@
                 }
             });
             setStatus("Uploading SiegeKnight art...", "warning");
+            setTrainerArtStatus("Uploading art…", "warning");
             renderStatus();
             try {
                 const payload = await uploadCardArtFile(trainerId, file);
@@ -3363,19 +3381,35 @@
                     selected.cardArtUrl = hostedUrl;
                     selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "FULL_CARD";
                 });
-                setStatus(
-                    state.liveEditingEnabled
-                        ? `Uploaded art for ${trainerId}. Click Publish Live Changes to apply.`
-                        : `Uploaded art for ${trainerId}. Click Save To Project File to apply.`,
-                    "success"
-                );
+                const applyMsg = state.liveEditingEnabled
+                    ? `Uploaded ✓ — now click Publish Live Changes to apply.`
+                    : `Uploaded ✓ — now click Save To Project File to apply.`;
+                setStatus(`Uploaded art for ${trainerId}. ${applyMsg}`, "success");
+                setTrainerArtStatus(applyMsg, "success");
             } catch (error) {
-                setStatus(`${error?.message || "Unable to upload SiegeKnight art."}`, "error");
+                const detail = error?.message || "Unable to upload SiegeKnight art.";
+                setStatus(detail, "error");
+                // Image upload needs a Firebase Storage bucket. If it's unavailable,
+                // pasting a hosted /img/knights/... path is the reliable path.
+                setTrainerArtStatus(
+                    `Upload failed: ${detail} You can instead paste a hosted path (e.g. /img/knights/${trainerId}-full-card.png) into Art URL below.`,
+                    "error"
+                );
             } finally {
                 event.target.value = "";
                 renderAll();
             }
         });
+    }
+
+    function setTrainerArtMeta(message, tone) {
+        const el = refs.trainerArtMeta;
+        if (!el) {
+            return;
+        }
+        el.textContent = message || "";
+        el.classList.toggle("hidden", !message);
+        el.dataset.tone = message ? (tone || "info") : "";
     }
 
     function renderTrainerArtControls(trainer) {
@@ -3385,6 +3419,12 @@
         }
         const url = String(trainer?.cardArtUrl || "").trim();
         const mode = normalizeCardArtMode(trainer?.cardArtMode);
+
+        // Clear stale upload feedback when switching between SiegeKnights.
+        if (state._lastArtTrainerId !== trainer?.id) {
+            state._lastArtTrainerId = trainer?.id;
+            setTrainerArtStatus("");
+        }
 
         const radios = refs.trainerArtControls?.querySelectorAll('input[name="trainerArtMode"]') || [];
         radios.forEach((radio) => {
@@ -3402,12 +3442,33 @@
             const img = document.createElement("img");
             img.className = "trainer-art-full-img";
             img.alt = "";
+            img.onload = () => {
+                const w = img.naturalWidth;
+                const h = img.naturalHeight;
+                if (!w || !h) {
+                    setTrainerArtMeta("");
+                    return;
+                }
+                const ratio = w / h;
+                const goodFit = ratio >= 0.66 && ratio <= 0.77; // ~5:7 portrait
+                setTrainerArtMeta(
+                    goodFit
+                        ? `${w}×${h} · good 5:7 fit — renders without stretching.`
+                        : `${w}×${h} · ${ratio > 5 / 7 ? "too wide" : "too tall"} for a 5:7 card, so it will be stretched to fit. Crop the source to a portrait 5:7 shape for best results.`,
+                    goodFit ? "ok" : "warn"
+                );
+            };
+            img.onerror = () => {
+                setTrainerArtMeta("Could not load this image — check the URL/path is hosted and correct.", "warn");
+                setTrainerArtStatus("Preview could not load that image. Use a hosted https:// URL or a deployed /img/... path.", "error");
+            };
             img.src = url;
             portrait.appendChild(img);
         } else {
+            setTrainerArtMeta("");
             const placeholder = document.createElement("div");
             placeholder.className = "trainer-art-placeholder";
-            placeholder.textContent = "No custom art yet. Upload a full SiegeKnight card image or paste a URL.";
+            placeholder.textContent = "No custom art yet. Upload a full SiegeKnight card image or paste a hosted URL/path.";
             portrait.appendChild(placeholder);
         }
         stage.appendChild(portrait);
