@@ -18,6 +18,7 @@ public class PlayerProgressionEntity {
     private List<String> rewardedMatchIds = new ArrayList<>();
     private List<String> purchasedDeckIds = new ArrayList<>();
     private List<String> purchasedDailyOfferIds = new ArrayList<>();
+    private List<String> completedPackOpenRequestIds = new ArrayList<>();
     private List<Map<String, Object>> packHistory = new ArrayList<>();
     private int soloWinStreak;
     private int onlineWinStreak;
@@ -61,6 +62,10 @@ public class PlayerProgressionEntity {
     public List<String> getPurchasedDailyOfferIds() { return purchasedDailyOfferIds; }
     public void setPurchasedDailyOfferIds(List<String> purchasedDailyOfferIds) {
         this.purchasedDailyOfferIds = purchasedDailyOfferIds == null ? new ArrayList<>() : new ArrayList<>(purchasedDailyOfferIds);
+    }
+    public List<String> getCompletedPackOpenRequestIds() { return completedPackOpenRequestIds; }
+    public void setCompletedPackOpenRequestIds(List<String> completedPackOpenRequestIds) {
+        this.completedPackOpenRequestIds = completedPackOpenRequestIds == null ? new ArrayList<>() : new ArrayList<>(completedPackOpenRequestIds);
     }
     public List<Map<String, Object>> getPackHistory() { return packHistory; }
     public void setPackHistory(List<Map<String, Object>> packHistory) {

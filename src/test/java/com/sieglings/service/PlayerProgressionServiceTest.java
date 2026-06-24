@@ -79,6 +79,31 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void repeatedPackOpenRequestDoesNotChargeAgainAfterHistoryEviction() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(3000);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.openPacks(user(), "pack_fire", 1, "timed-out-request");
+        for (int i = 0; i < 20; i++) {
+            service.openPacks(user(), "pack_fire", 1, "later-request-" + i);
+        }
+        int goldAfterLaterRequests = store.saved.getGold();
+        int savesBeforeRetry = store.saveCount;
+
+        service.openPacks(user(), "pack_fire", 1, "timed-out-request");
+
+        assertEquals(20, store.saved.getPackHistory().size());
+        assertEquals(goldAfterLaterRequests, store.saved.getGold());
+        assertTrue(store.saved.getCompletedPackOpenRequestIds().contains("timed-out-request"));
+        assertEquals(savesBeforeRetry, store.saveCount);
+    }
+
+    @Test
     void getOrCreateDoesNotOverwriteExistingProgressionOnRead() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity existing = new PlayerProgressionEntity();
@@ -101,11 +126,16 @@ class PlayerProgressionServiceTest {
         AccountUser user = user();
 
         PlayerProgressionEntity progression = service.chooseStarterPack(user, "pack_fire");
+        int savesAfterFirstChoice = store.saveCount;
 
         assertEquals("pack_fire", progression.getStarterPackId());
         assertEquals(5, progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum());
         assertEquals(PlayerProgressionService.PACK_OPEN_REMNANTS, progression.getRemnants());
-        assertThrows(IllegalArgumentException.class, () -> service.chooseStarterPack(user, "pack_fire"));
+        PlayerProgressionEntity retry = service.chooseStarterPack(user, "pack_fire");
+        assertSame(progression, retry);
+        assertEquals(savesAfterFirstChoice, store.saveCount);
+        assertEquals(5, progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum());
+        assertThrows(IllegalArgumentException.class, () -> service.chooseStarterPack(user, "pack_water"));
     }
 
     @Test
