@@ -35,6 +35,7 @@ public class PlayerProgressionService {
     public static final int SOLO_WIN_REMNANTS = 20;
     public static final int ONLINE_WIN_REMNANTS = 30;
     private static final int PACK_OPEN_LOCK_STRIPES = 64;
+    private static final int COMPLETED_PACK_OPEN_REQUEST_LIMIT = 500;
 
     // SiegeKnight leveling / combining (tunable balance knobs).
     public static final int TRAINER_MAX_LEVEL = 5;
@@ -132,6 +133,9 @@ public class PlayerProgressionService {
     public PlayerProgressionEntity chooseStarterPack(AccountUser user, String packId) {
         PlayerProgressionEntity progression = getOrCreate(user);
         if (progression.getStarterPackId() != null && !progression.getStarterPackId().isBlank()) {
+            if (progression.getStarterPackId().equals(packId)) {
+                return progression;
+            }
             throw new IllegalArgumentException("Starter pack has already been chosen.");
         }
         PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
@@ -820,11 +824,30 @@ public class PlayerProgressionService {
     }
 
     private boolean hasCompletedPackOpenRequest(PlayerProgressionEntity progression, String requestId) {
-        if (requestId == null || progression == null || progression.getPackHistory() == null) {
+        if (requestId == null || progression == null) {
             return false;
         }
-        return progression.getPackHistory().stream()
+        if (progression.getCompletedPackOpenRequestIds().contains(requestId)) {
+            return true;
+        }
+        return progression.getPackHistory() != null && progression.getPackHistory().stream()
                 .anyMatch(entry -> entry != null && requestId.equals(entry.get("requestId")));
+    }
+
+    private void recordCompletedPackOpenRequest(PlayerProgressionEntity progression, String requestId) {
+        if (progression == null || requestId == null || requestId.isBlank()) {
+            return;
+        }
+        List<String> completed = new ArrayList<>();
+        completed.add(requestId);
+        for (String existing : progression.getCompletedPackOpenRequestIds()) {
+            if (existing != null && !existing.isBlank() && !existing.equals(requestId)) {
+                completed.add(existing);
+            }
+        }
+        progression.setCompletedPackOpenRequestIds(completed.stream()
+                .limit(COMPLETED_PACK_OPEN_REQUEST_LIMIT)
+                .toList());
     }
 
     /** Records pack-dropped holographic finishes on the player's collection. */
@@ -857,6 +880,7 @@ public class PlayerProgressionService {
         entry.put("price", price);
         if (requestId != null) {
             entry.put("requestId", requestId);
+            recordCompletedPackOpenRequest(progression, requestId);
         }
         entry.put("openedAt", Instant.now().toString());
         int remnantsFromDuplicates = outcomes.stream().mapToInt(CardGrantOutcome::remnantsAwarded).sum();

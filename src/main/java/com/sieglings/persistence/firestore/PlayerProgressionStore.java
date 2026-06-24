@@ -52,6 +52,7 @@ public class PlayerProgressionStore {
         payload.put("rewardedMatchIds", progression.getRewardedMatchIds());
         payload.put("purchasedDeckIds", progression.getPurchasedDeckIds());
         payload.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
+        payload.put("completedPackOpenRequestIds", progression.getCompletedPackOpenRequestIds());
         payload.put("purchasedTitleIds", progression.getPurchasedTitleIds());
         payload.put("craftCount", progression.getCraftCount());
         payload.put("holographicCardIds", progression.getHolographicCardIds());
@@ -124,8 +125,41 @@ public class PlayerProgressionStore {
         } else {
             progression.setPackHistory(List.of());
         }
+        progression.setCompletedPackOpenRequestIds(mergeCompletedPackOpenRequestIds(
+                readStringList(snapshot.get("completedPackOpenRequestIds")),
+                progression.getPackHistory()
+        ));
         progression.setUpdatedAt(readInstant(snapshot, "updatedAt"));
         return progression;
+    }
+
+    private List<String> mergeCompletedPackOpenRequestIds(List<String> storedIds, List<Map<String, Object>> packHistory) {
+        List<String> out = new ArrayList<>();
+        addRequestIds(out, storedIds);
+        if (packHistory != null) {
+            for (Map<String, Object> entry : packHistory) {
+                if (entry != null) {
+                    addRequestId(out, entry.get("requestId"));
+                }
+            }
+        }
+        return out;
+    }
+
+    private void addRequestIds(List<String> target, List<String> requestIds) {
+        if (requestIds == null) {
+            return;
+        }
+        for (String requestId : requestIds) {
+            addRequestId(target, requestId);
+        }
+    }
+
+    private void addRequestId(List<String> target, Object rawRequestId) {
+        if (!(rawRequestId instanceof String requestId) || requestId.isBlank() || target.contains(requestId)) {
+            return;
+        }
+        target.add(requestId);
     }
 
     private Map<String, Integer> readIntMap(Object raw) {
