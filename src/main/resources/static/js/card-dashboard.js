@@ -514,7 +514,7 @@
                     throw new Error("Upload finished but the server did not return an image URL.");
                 }
                 clearEphemeralCardArtPreview();
-                mutateSelectedCard((selected) => {
+                mutateCardById(cardId, (selected) => {
                     selected.cardArtUrl = hostedUrl;
                     selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "REPLACE";
                 }, { render: false });
@@ -1316,6 +1316,20 @@
         }
     }
 
+    function mutateCardById(cardId, mutator, options = {}) {
+        const card = findCardById(cardId);
+        if (!card) {
+            return;
+        }
+        mutator(card);
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        if (options.render !== false) {
+            renderAll();
+        }
+    }
+
     function updateSelectedCardArtTransform(mutator) {
         const card = getSelectedCard();
         if (!card) {
@@ -1408,6 +1422,20 @@
         state.validation = validateDashboard();
         setStatus("You have unsaved changes in the dashboard.", "warning");
         renderAll();
+    }
+
+    function mutateTrainerById(trainerId, mutator, options = {}) {
+        const trainer = findTrainerById(trainerId);
+        if (!trainer) {
+            return;
+        }
+        mutator(trainer);
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        if (options.render !== false) {
+            renderAll();
+        }
     }
 
     function mutateSelectedTrainerAbility(kind, mutator) {
@@ -3404,10 +3432,10 @@
                 if (!hostedUrl) {
                     throw new Error("Upload finished but the server did not return an image URL.");
                 }
-                mutateSelectedTrainer((selected) => {
+                mutateTrainerById(trainerId, (selected) => {
                     selected.cardArtUrl = hostedUrl;
                     selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "FULL_CARD";
-                });
+                }, { render: false });
                 const applyMsg = state.liveEditingEnabled
                     ? `Uploaded ✓ — now click Publish Live Changes to apply.`
                     : `Uploaded ✓ — now click Save To Project File to apply.`;
