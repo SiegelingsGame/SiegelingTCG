@@ -1193,6 +1193,28 @@ if (typeof window !== 'undefined' && !window.sgWebpFallback) {
     };
 }
 
+// CSS transform for a SiegeKnight full-card image, from the dashboard crop/scale
+// controls (translate px + scale + rotate). Default (0,0,1,0) → no transform, so
+// existing 5:7 cards are unchanged.
+function knightArtTransformStyle(trainer) {
+    const x = Number(trainer?.cardArtOffsetX);
+    const y = Number(trainer?.cardArtOffsetY);
+    const scaleN = Number(trainer?.cardArtScale);
+    const rotN = Number(trainer?.cardArtRotation);
+    const tx = Number.isFinite(x) ? x : 0;
+    const ty = Number.isFinite(y) ? y : 0;
+    const scale = Number.isFinite(scaleN) ? Math.min(3, Math.max(0.25, scaleN)) : 1;
+    const rot = Number.isFinite(rotN) ? Math.min(180, Math.max(-180, rotN)) : 0;
+    if (!tx && !ty && scale === 1 && !rot) {
+        return '';
+    }
+    return `transform:translate(${tx}px,${ty}px) scale(${scale}) rotate(${rot}deg);transform-origin:center center;`;
+}
+function knightArtStyleAttr(trainer) {
+    const style = knightArtTransformStyle(trainer);
+    return style ? ` style="${escapeHtmlAttribute(style)}"` : '';
+}
+
 // Builds `src` (+ WebP fallback) attributes for a local raster art URL.
 function webpImgAttrs(url) {
     const original = String(url || '');
@@ -9120,7 +9142,7 @@ function renderLoadoutOptions() {
             return `<button type="button" class="knight-card knight-full-card-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
-                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy">
+                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy"${knightArtStyleAttr(trainer)}>
                 ${holoOverlay}
                 ${knightCardBody}
             </button>`;
@@ -10805,6 +10827,9 @@ function knightHasFullCardArt(trainer) {
 // the element sigil overlaid so every knight still reads as a card.
 function knightHudCardInnerHtml(trainer) {
     if (knightHasFullCardArt(trainer)) {
+        // The HUD shows the full card at natural aspect (no fixed 5:7 frame), so the
+        // dashboard crop/scale transform — tuned for the framed loadout/binder — is
+        // intentionally not applied here.
         const url = String(trainer.cardArtUrl).trim();
         return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight')}" loading="lazy">`;
     }

@@ -1375,10 +1375,16 @@ body.move-picker-open {
     inset: 0;
     width: 100%;
     height: 100%;
-    /* Match the in-game loadout/collection render (object-fit: fill) so the
-       preview is WYSIWYG and any stretching is visible here. */
-    object-fit: fill;
+    /* Match the in-game loadout/collection render (object-fit: cover) so the
+       preview is WYSIWYG; the crop/scale transform is applied inline. */
+    object-fit: cover;
     object-position: center;
+    cursor: grab;
+    touch-action: none;
+}
+
+.trainer-art-portrait.is-art-dragging .trainer-art-full-img {
+    cursor: grabbing;
 }
 
 .trainer-art-meta {
