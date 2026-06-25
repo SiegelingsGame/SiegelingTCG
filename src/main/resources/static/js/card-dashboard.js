@@ -3457,6 +3457,10 @@
                         : `${w}×${h} · ${ratio > 5 / 7 ? "too wide" : "too tall"} for a 5:7 card, so it will be stretched to fit. Crop the source to a portrait 5:7 shape for best results.`,
                     goodFit ? "ok" : "warn"
                 );
+                // Clear any stale "could not load" error now that a good image rendered.
+                if (refs.trainerArtStatus?.dataset.tone === "error") {
+                    setTrainerArtStatus("");
+                }
             };
             img.onerror = () => {
                 setTrainerArtMeta("Could not load this image — check the URL/path is hosted and correct.", "warn");
