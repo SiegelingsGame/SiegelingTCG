@@ -9,7 +9,13 @@ const multer = require('multer');
 const { onRequest } = require('firebase-functions/v2/https');
 const { buildMetadata } = require('./editorMetadata');
 
-admin.initializeApp();
+// The default Storage bucket resolves to the legacy `<project>.appspot.com`
+// name, which does not exist for this project — its bucket is the newer
+// `<project>.firebasestorage.app`. Without this, every card/SiegeKnight art
+// upload fails server-side. An env override keeps other environments flexible.
+admin.initializeApp({
+  storageBucket: process.env.STORAGE_BUCKET || 'siegelingstcgtesting.firebasestorage.app'
+});
 
 const CARD_ART_UPLOAD = multer({
   storage: multer.memoryStorage(),

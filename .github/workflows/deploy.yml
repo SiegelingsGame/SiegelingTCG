@@ -64,4 +64,24 @@ jobs:
         run: npm --prefix functions run manifest
 
       - name: Deploy Firebase Hosting And Functions
-        run: firebase deploy --only functions:api,hosting --project siegelingstcgtesting
+        # `firebase deploy` occasionally fails at startup with a transient
+        # "Failed to authenticate" while picking up the GitHub Actions ADC
+        # credentials. Retry a few times so a one-off auth hiccup doesn't fail
+        # the whole deploy (re-running deploy is idempotent).
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::firebase deploy (attempt $attempt/3)"
+            if firebase deploy --only functions:api,hosting --project siegelingstcgtesting; then
+              echo "::endgroup::"
+              echo "Firebase deploy succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "Attempt $attempt failed."
+            if [ "$attempt" -lt 3 ]; then
+              echo "Retrying in 20s..."
+              sleep 20
+            fi
+          done
+          echo "Firebase deploy failed after 3 attempts."
+          exit 1
