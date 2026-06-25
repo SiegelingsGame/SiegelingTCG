@@ -332,6 +332,12 @@
             "trainerArtFileInput",
             "trainerArtUrlInput",
             "clearTrainerArtBtn",
+            "trainerArtTransformControls",
+            "trainerArtScaleInput",
+            "trainerArtScaleValue",
+            "trainerArtRotationInput",
+            "trainerArtRotationValue",
+            "resetTrainerArtTransformBtn",
             "trainerPassiveNameInput",
             "trainerPassiveDescriptionInput",
             "trainerPassiveTargetTypeSelect",
@@ -3342,6 +3348,27 @@
             setTrainerArtStatus("");
         });
 
+        refs.trainerArtScaleInput?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtScale = clampCardArtScale(event.target.value);
+            });
+        });
+
+        refs.trainerArtRotationInput?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtRotation = clampCardArtRotation(event.target.value);
+            });
+        });
+
+        refs.resetTrainerArtTransformBtn?.addEventListener("click", () => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtOffsetX = 0;
+                trainer.cardArtOffsetY = 0;
+                trainer.cardArtScale = 1;
+                trainer.cardArtRotation = 0;
+            });
+        });
+
         refs.trainerArtFileInput?.addEventListener("change", async (event) => {
             const file = event.target.files?.[0];
             if (!file) {
@@ -3412,6 +3439,73 @@
         el.dataset.tone = message ? (tone || "info") : "";
     }
 
+    let trainerArtDragController = null;
+
+    function teardownTrainerArtDrag() {
+        trainerArtDragController?.abort();
+        trainerArtDragController = null;
+    }
+
+    // Drag the preview art to reposition it (updates cardArtOffsetX/Y in px),
+    // mirroring the creature card-art crop interaction.
+    function setupTrainerArtDrag(trainer, img, portrait) {
+        if (!img || !hasCustomCardArt(trainer)) {
+            return;
+        }
+        trainerArtDragController = new AbortController();
+        const { signal } = trainerArtDragController;
+        let drag = null;
+        const finish = (event) => {
+            if (!drag) {
+                return;
+            }
+            portrait.classList.remove("is-art-dragging");
+            if (img.hasPointerCapture?.(event.pointerId)) {
+                img.releasePointerCapture(event.pointerId);
+            }
+            const nx = drag.ox + (event.clientX - drag.cx);
+            const ny = drag.oy + (event.clientY - drag.cy);
+            drag = null;
+            mutateSelectedTrainer((t) => {
+                t.cardArtOffsetX = nx;
+                t.cardArtOffsetY = ny;
+            });
+        };
+        img.addEventListener("pointerdown", (event) => {
+            if (event.button !== 0) {
+                return;
+            }
+            event.preventDefault();
+            drag = {
+                cx: event.clientX,
+                cy: event.clientY,
+                ox: toNumber(trainer.cardArtOffsetX, 0),
+                oy: toNumber(trainer.cardArtOffsetY, 0)
+            };
+            portrait.classList.add("is-art-dragging");
+            img.setPointerCapture?.(event.pointerId);
+        }, { signal });
+        img.addEventListener("pointermove", (event) => {
+            if (!drag) {
+                return;
+            }
+            event.preventDefault();
+            const preview = {
+                ...trainer,
+                cardArtOffsetX: drag.ox + (event.clientX - drag.cx),
+                cardArtOffsetY: drag.oy + (event.clientY - drag.cy)
+            };
+            const style = buildCardArtTransformStyle(preview);
+            if (style) {
+                img.setAttribute("style", style);
+            } else {
+                img.removeAttribute("style");
+            }
+        }, { signal });
+        img.addEventListener("pointerup", finish, { signal });
+        img.addEventListener("pointercancel", finish, { signal });
+    }
+
     function renderTrainerArtControls(trainer) {
         const stage = refs.trainerArtStage;
         if (!stage) {
@@ -3419,6 +3513,7 @@
         }
         const url = String(trainer?.cardArtUrl || "").trim();
         const mode = normalizeCardArtMode(trainer?.cardArtMode);
+        const hasArt = Boolean(url && mode);
 
         // Clear stale upload feedback when switching between SiegeKnights.
         if (state._lastArtTrainerId !== trainer?.id) {
@@ -3435,6 +3530,26 @@
             refs.trainerArtUrlInput.value = url;
         }
 
+        // Crop & scale controls (only meaningful once there's art).
+        refs.trainerArtTransformControls?.classList.toggle("hidden", !hasArt);
+        if (hasArt) {
+            const scale = clampCardArtScale(trainer?.cardArtScale ?? 1);
+            const rotation = clampCardArtRotation(trainer?.cardArtRotation ?? 0);
+            if (refs.trainerArtScaleInput && document.activeElement !== refs.trainerArtScaleInput) {
+                refs.trainerArtScaleInput.value = String(scale);
+            }
+            if (refs.trainerArtRotationInput && document.activeElement !== refs.trainerArtRotationInput) {
+                refs.trainerArtRotationInput.value = String(rotation);
+            }
+            if (refs.trainerArtScaleValue) {
+                refs.trainerArtScaleValue.textContent = formatCardArtScaleValue(scale);
+            }
+            if (refs.trainerArtRotationValue) {
+                refs.trainerArtRotationValue.textContent = formatCardArtRotationValue(rotation);
+            }
+        }
+
+        teardownTrainerArtDrag();
         stage.innerHTML = "";
         const portrait = document.createElement("div");
         portrait.className = "trainer-art-portrait";
@@ -3442,6 +3557,10 @@
             const img = document.createElement("img");
             img.className = "trainer-art-full-img";
             img.alt = "";
+            const transformStyle = buildCardArtTransformStyle(trainer);
+            if (transformStyle) {
+                img.setAttribute("style", transformStyle);
+            }
             img.onload = () => {
                 const w = img.naturalWidth;
                 const h = img.naturalHeight;
@@ -3453,8 +3572,8 @@
                 const goodFit = ratio >= 0.66 && ratio <= 0.77; // ~5:7 portrait
                 setTrainerArtMeta(
                     goodFit
-                        ? `${w}×${h} · good 5:7 fit — renders without stretching.`
-                        : `${w}×${h} · ${ratio > 5 / 7 ? "too wide" : "too tall"} for a 5:7 card, so it will be stretched to fit. Crop the source to a portrait 5:7 shape for best results.`,
+                        ? `${w}×${h} · good 5:7 fit — fills the card with no cropping.`
+                        : `${w}×${h} · ${ratio > 5 / 7 ? "wider" : "taller"} than a 5:7 card, so it's cropped to fit. Drag the art and use Scale below to frame it.`,
                     goodFit ? "ok" : "warn"
                 );
                 // Clear any stale "could not load" error now that a good image rendered.
@@ -3468,6 +3587,7 @@
             };
             img.src = url;
             portrait.appendChild(img);
+            setupTrainerArtDrag(trainer, img, portrait);
         } else {
             setTrainerArtMeta("");
             const placeholder = document.createElement("div");

@@ -10695,7 +10695,9 @@ body.placement-active .board-cell.legal {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: fill;
+    /* cover (not fill) so non-5:7 uploads crop cleanly; a 5:7 source fills
+       exactly. Scale/position come from the dashboard crop controls. */
+    object-fit: cover;
 }
 
 .knight-card.has-knight-back::before,

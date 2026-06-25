@@ -1795,8 +1795,10 @@
         if (fullCardArtUrl) {
             const holoClass = card.holographic ? ' is-holographic' : '';
             const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+            const cropStyle = window.SieglingsCardBinderVisual?.buildArtTransformStyle?.(card) || '';
+            const cropAttr = cropStyle ? ` style="${escapeAttr(cropStyle)}"` : '';
             return `<div class="knight-card knight-full-card-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
-                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy">
+                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy"${cropAttr}>
                 ${holoOverlay}
                 <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
             </div>`;
