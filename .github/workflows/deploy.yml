@@ -64,13 +64,24 @@ jobs:
         run: npm --prefix functions run manifest
 
       - name: Deploy Firebase Hosting And Functions
-        # `firebase deploy` occasionally fails at startup with a transient
-        # "Failed to authenticate" while picking up the GitHub Actions ADC
-        # credentials. Retry a few times so a one-off auth hiccup doesn't fail
-        # the whole deploy (re-running deploy is idempotent).
+        # `firebase deploy` intermittently fails at startup with a transient
+        # "Failed to authenticate" — the Authenticate step writes valid ADC
+        # credentials, but firebase-tools' OAuth token exchange flakes for a
+        # job's window (confirmed: same CLI version, one run failed and a re-run
+        # 17 min later succeeded). Retry with escalating backoff so a flake
+        # window (which can last a few minutes) is outlasted within one job.
+        # Deploy is idempotent, so retries are safe.
         run: |
-          for attempt in 1 2 3; do
-            echo "::group::firebase deploy (attempt $attempt/3)"
+          firebase --version || true
+          backoffs="20 40 60 90 120"
+          attempt=0
+          for wait in 0 $backoffs; do
+            if [ "$wait" -gt 0 ]; then
+              echo "Retrying in ${wait}s..."
+              sleep "$wait"
+            fi
+            attempt=$((attempt + 1))
+            echo "::group::firebase deploy (attempt $attempt)"
             if firebase deploy --only functions:api,hosting --project siegelingstcgtesting; then
               echo "::endgroup::"
               echo "Firebase deploy succeeded on attempt $attempt."
@@ -78,10 +89,6 @@ jobs:
             fi
             echo "::endgroup::"
             echo "Attempt $attempt failed."
-            if [ "$attempt" -lt 3 ]; then
-              echo "Retrying in 20s..."
-              sleep 20
-            fi
           done
-          echo "Firebase deploy failed after 3 attempts."
+          echo "Firebase deploy failed after $attempt attempts."
           exit 1
