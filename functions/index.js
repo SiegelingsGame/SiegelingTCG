@@ -58,6 +58,50 @@ const AUTH = {
   sessionTtlDays: 30
 };
 
+// Squire Bob ships as a built-in neutral SiegeSquire, but the stored
+// `appConfig/trainerCards` document predates him, so he is absent from
+// Firestore. The Java backend injects him as a fallback when missing
+// (CardDefinitionService#loadTrainerDefinitions); mirror that here so the
+// dashboard editor surfaces the card too.
+const DEFAULT_SQUIRE_BOB_TRAINER = {
+  id: 'squire-bob',
+  name: 'Squire Bob',
+  element: 'NEUTRAL',
+  rarity: 'UNCOMMON',
+  tier: 'SiegeSquire',
+  active: true,
+  oncePerGame: false,
+  passiveAbility: {
+    name: 'Shield Practice',
+    description: 'Front Row allies gain +1 max Health',
+    targetType: 'ROW_ALLIES',
+    targetRow: 'FRONT',
+    targetCount: 0,
+    effectType: 'health_boost',
+    effectValue: 1,
+    passive: true
+  },
+  activeAbility: {
+    name: 'Pep Talk',
+    description: 'Heal 1 ally for 2',
+    targetType: 'SINGLE_ALLY',
+    targetRow: null,
+    targetCount: 1,
+    effectType: 'heal',
+    effectValue: 2,
+    passive: false
+  },
+  cardArtUrl: '/img/knights/squire-bob-full-card.png',
+  cardArtMode: 'FULL_CARD',
+  holographic: true
+};
+
+function withSquireBobFallback(trainers) {
+  const list = safeArray(trainers);
+  const hasSquireBob = list.some((trainer) => normalizeLower(trainer?.id) === 'squire-bob');
+  return hasSquireBob ? list : [...list, DEFAULT_SQUIRE_BOB_TRAINER];
+}
+
 app.get('/api/cards/editor', async (req, res) => {
   try {
     const [cardsSnapshot, decksSnapshot, trainersSnapshot, liveSnapshot] = await Promise.all([
@@ -68,12 +112,13 @@ app.get('/api/cards/editor', async (req, res) => {
     ]);
     const auth = await describeAuth(readEditorToken(req));
     const updatedMeta = latestUpdateMeta([cardsSnapshot, decksSnapshot, trainersSnapshot, liveSnapshot]);
+    const trainers = withSquireBobFallback(trainersSnapshot.data.trainers);
     res.json({
       data: {
         cards: safeArray(cardsSnapshot.data.cards),
         moves: safeArray(cardsSnapshot.data.moves),
         decks: safeArray(decksSnapshot.data.decks),
-        trainers: safeArray(trainersSnapshot.data.trainers),
+        trainers,
         liveElements: {
           elements: safeArray(liveSnapshot.data.elements)
         }
@@ -87,7 +132,7 @@ app.get('/api/cards/editor', async (req, res) => {
       firestoreAvailable: true,
       firestoreError: '',
       auth,
-      metadata: buildMetadata(safeArray(trainersSnapshot.data.trainers))
+      metadata: buildMetadata(trainers)
     });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Unable to load editor state.' });
@@ -869,5 +914,7 @@ exports._private = {
   validateCardArtFields,
   normalizeCardArtId,
   resolveCardArtExtension,
-  buildCardArtPublicUrl
+  buildCardArtPublicUrl,
+  withSquireBobFallback,
+  DEFAULT_SQUIRE_BOB_TRAINER
 };
