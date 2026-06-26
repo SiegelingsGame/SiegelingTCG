@@ -63,17 +63,29 @@ jobs:
       - name: Generate Functions Manifest
         run: npm --prefix functions run manifest
 
+      - name: Write Firebase service account credentials
+        # firebase-tools (v15) does not honor the credential file that
+        # google-github-actions/auth exports — it ignores ADC and fails with
+        # "Failed to authenticate, have you run firebase login?" (see
+        # firebase/firebase-tools#10726). gcloud accepts that file, which is why
+        # the Cloud Run job authenticates fine. Write the raw service-account
+        # key to its own file and point firebase-tools straight at it below.
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
       - name: Deploy Firebase Hosting And Functions
-        # `firebase deploy` intermittently fails at startup with a transient
-        # "Failed to authenticate" — the Authenticate step writes valid ADC
-        # credentials, but firebase-tools' OAuth token exchange flakes for a
-        # job's window (confirmed: same CLI version, one run failed and a re-run
-        # 17 min later succeeded). Retry with escalating backoff so a flake
-        # window (which can last a few minutes) is outlasted within one job.
-        # Deploy is idempotent, so retries are safe.
+        # Point firebase-tools at the raw service-account key (a format it can
+        # authenticate with), overriding the ADC file for this step only. Retry
+        # a couple of times to ride out genuinely transient network/API errors;
+        # deploy is idempotent so retries are safe.
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
           firebase --version || true
-          backoffs="20 40 60 90 120"
+          backoffs="20 40 60"
           attempt=0
           for wait in 0 $backoffs; do
             if [ "$wait" -gt 0 ]; then
