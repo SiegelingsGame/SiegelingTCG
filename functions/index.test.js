@@ -70,6 +70,32 @@ test('normalizes card art ids and extensions for uploads', () => {
   );
 });
 
+test('injects the Squire Bob fallback trainer when Firestore omits him', () => {
+  const stored = [{
+    id: 'warden',
+    name: 'Warden',
+    element: 'EARTH',
+    rarity: 'COMMON',
+    tier: 'SiegeKnight',
+    active: true
+  }];
+  const result = _private.withSquireBobFallback(stored);
+  assert.equal(result.length, 2);
+  assert.equal(result[result.length - 1].id, 'squire-bob');
+  assert.equal(result[result.length - 1].element, 'NEUTRAL');
+
+  // Handles a missing/non-array trainers field too.
+  const fromEmpty = _private.withSquireBobFallback(undefined);
+  assert.deepEqual(fromEmpty, [_private.DEFAULT_SQUIRE_BOB_TRAINER]);
+});
+
+test('does not duplicate Squire Bob when Firestore already stores him', () => {
+  const stored = [{ id: 'Squire-Bob', name: 'Squire Bob (edited)', element: 'NEUTRAL', tier: 'SiegeSquire' }];
+  const result = _private.withSquireBobFallback(stored);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].name, 'Squire Bob (edited)');
+});
+
 test('rejects embedded card art data urls during publish validation', () => {
   const bundle = validBundle();
   bundle.cards[0].cardArtUrl = 'data:image/png;base64,abc';
