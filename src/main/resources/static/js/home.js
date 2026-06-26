@@ -127,6 +127,9 @@
         ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
     };
     const RARITY_ORDER = { COMMON: 1, UNCOMMON: 2, RARE: 3, EPIC: 4, LEGENDARY: 5 };
+    // Collection "Sort" dropdown fields (see filteredCards). Each comparator is
+    // written ascending; the direction toggle negates it for descending.
+    const TYPE_ORDER = { SIEGLING: 0, SIEGEKNIGHT: 1, SPELL: 2, TRAP: 3 };
     const REMNANT_CRAFT_COSTS = { COMMON: 500, UNCOMMON: 1000, RARE: 2000, EPIC: 4000, LEGENDARY: 8000 };
     const DUPLICATE_REMNANT_PREVIEW = { COMMON: 100, UNCOMMON: 200, RARE: 400, EPIC: 800, LEGENDARY: 1600 };
     const RARITY_COLORS = {
@@ -310,7 +313,8 @@
         finishFilter: 'ALL',
         energyCostFilter: 'ALL',
         showUnowned: false,
-        sort: 'owned-desc',
+        sortField: 'owned',
+        sortDir: 'desc',
         roomSearch: '',
         roomFormatFilter: 'ALL',
         roomElementFilter: 'ALL',
@@ -1056,9 +1060,15 @@
             renderCards();
         });
         document.getElementById('cardSortSelect')?.addEventListener('change', (event) => {
-            state.sort = event.target.value;
+            state.sortField = event.target.value;
             renderCards();
         });
+        document.getElementById('cardSortDirToggle')?.addEventListener('click', () => {
+            state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+            updateSortDirToggle();
+            renderCards();
+        });
+        updateSortDirToggle();
         document.getElementById('showUnownedToggle')?.addEventListener('click', () => {
             state.showUnowned = !state.showUnowned;
             renderFilters();
@@ -1559,7 +1569,8 @@
             state.rarityFilter,
             state.energyCostFilter,
             state.finishFilter,
-            state.sort,
+            state.sortField,
+            state.sortDir,
             state.search,
             state.selectedCardId,
             Array.from(state.newCards || []).sort().join(','),
@@ -1712,14 +1723,59 @@
             }
             return true;
         });
+        const dir = state.sortDir === 'asc' ? 1 : -1;
+        const acquiredOrder = acquiredOrderIndex();
+        const elementOrder = elementOrderIndex();
+        const compareField = (a, b) => {
+            switch (state.sortField) {
+                case 'name': return a.name.localeCompare(b.name);
+                case 'type': return (TYPE_ORDER[a.type] ?? 99) - (TYPE_ORDER[b.type] ?? 99);
+                case 'cost': return cardEnergyCost(a) - cardEnergyCost(b);
+                case 'element': return elementOrder(a) - elementOrder(b);
+                case 'acquired': return acquiredOrder(a.id) - acquiredOrder(b.id);
+                case 'rarity': return (RARITY_ORDER[a.rarity] || 0) - (RARITY_ORDER[b.rarity] || 0);
+                case 'speed': return (a.speed || 0) - (b.speed || 0);
+                case 'health': return (a.health || 0) - (b.health || 0);
+                case 'owned':
+                default: return ownedCount(a.id) - ownedCount(b.id);
+            }
+        };
         return cards.sort((a, b) => {
-            if (state.sort === 'name-asc') return a.name.localeCompare(b.name);
-            if (state.sort === 'speed-desc') return (b.speed || 0) - (a.speed || 0);
-            if (state.sort === 'health-desc') return (b.health || 0) - (a.health || 0);
-            if (state.sort === 'cost-asc') return cardEnergyCost(a) - cardEnergyCost(b) || a.name.localeCompare(b.name);
-            if (state.sort === 'rarity-desc') return (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0);
-            return ownedCount(b.id) - ownedCount(a.id) || a.name.localeCompare(b.name);
+            const primary = compareField(a, b);
+            if (primary !== 0) return dir * primary;
+            // Stable, predictable tiebreaker regardless of direction.
+            return a.name.localeCompare(b.name);
         });
+    }
+
+    // Acquisition order proxy: ownedCards is a server-side LinkedHashMap, so its
+    // key order reflects first-acquired order. Unowned cards sort to the end.
+    function acquiredOrderIndex() {
+        const owned = state.progression?.ownedCards || {};
+        const order = new Map();
+        Object.keys(owned).forEach((id, index) => order.set(String(id).toLowerCase(), index));
+        return (id) => {
+            const value = order.get(String(id || '').toLowerCase());
+            return value === undefined ? Number.MAX_SAFE_INTEGER : value;
+        };
+    }
+
+    function updateSortDirToggle() {
+        const btn = document.getElementById('cardSortDirToggle');
+        if (!btn) return;
+        const ascending = state.sortDir === 'asc';
+        btn.textContent = ascending ? 'Ascending ↑' : 'Descending ↓';
+        btn.setAttribute('aria-pressed', ascending ? 'true' : 'false');
+    }
+
+    // Element order follows the filter-chip ordering (live elements first).
+    function elementOrderIndex() {
+        const order = new Map();
+        elementFilterValues().filter(value => value !== 'ALL').forEach((element, index) => order.set(element, index));
+        return (card) => {
+            const value = order.get(card?.element);
+            return value === undefined ? Number.MAX_SAFE_INTEGER : value;
+        };
     }
 
     function renderBinderCardShell(card, options = {}) {
