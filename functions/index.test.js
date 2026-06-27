@@ -70,6 +70,62 @@ test('normalizes card art ids and extensions for uploads', () => {
   );
 });
 
+test('normalizes loading art uploads for stable Storage object paths', () => {
+  assert.equal(_private.normalizeLoadingArtPieceId(' Ember Hollow Landscape! '), 'ember-hollow');
+  assert.throws(() => _private.normalizeLoadingArtPieceId('   '), /Give the art piece a name/);
+  assert.equal(_private.normalizeLoadingArtOrientation(' Portrait '), 'portrait');
+  assert.throws(() => _private.normalizeLoadingArtOrientation('square'), /landscape or portrait/);
+  assert.equal(
+    _private.resolveLoadingArtExtension({ originalname: 'piece.JPEG', mimetype: 'image/jpeg' }),
+    'jpg'
+  );
+  assert.equal(
+    _private.resolveLoadingArtExtension({ originalname: 'piece.bin', mimetype: 'image/webp' }),
+    'webp'
+  );
+  assert.throws(
+    () => _private.resolveLoadingArtExtension({ originalname: 'piece.svg', mimetype: 'image/svg+xml' }),
+    /Loading art must/
+  );
+});
+
+test('groups loading art Storage objects into gallery entries', () => {
+  const grouped = _private.groupLoadingArtEntries([
+    {
+      filename: 'ember-hollow-landscape.png',
+      url: _private.buildStoragePublicUrl('example.firebasestorage.app', 'img/art/loading/ember-hollow-landscape.png', 'land-token')
+    },
+    {
+      filename: 'ember-hollow-portrait.webp',
+      url: _private.buildStoragePublicUrl('example.firebasestorage.app', 'img/art/loading/ember-hollow-portrait.webp', 'port-token')
+    },
+    {
+      filename: 'bad.txt',
+      url: 'https://example.invalid/bad.txt'
+    }
+  ]);
+
+  assert.deepEqual(grouped, [{
+    id: 'ember-hollow',
+    title: 'Ember Hollow',
+    landscape: 'https://firebasestorage.googleapis.com/v0/b/example.firebasestorage.app/o/img%2Fart%2Floading%2Fember-hollow-landscape.png?alt=media&token=land-token',
+    portrait: 'https://firebasestorage.googleapis.com/v0/b/example.firebasestorage.app/o/img%2Fart%2Floading%2Fember-hollow-portrait.webp?alt=media&token=port-token'
+  }]);
+});
+
+test('only accepts top-level loading art Storage objects', () => {
+  assert.equal(
+    _private.loadingArtFilenameFromObjectPath('img/art/loading/ember-hollow-landscape.png'),
+    'ember-hollow-landscape.png'
+  );
+  assert.equal(_private.loadingArtFilenameFromObjectPath('img/art/loading/nested/file.png'), null);
+  assert.equal(_private.loadingArtFilenameFromObjectPath('assets/cards/sundile.png'), null);
+  assert.deepEqual(
+    _private.parseLoadingArtFilename('apple-grove-portrait.webp'),
+    { id: 'apple-grove', orientation: 'portrait' }
+  );
+});
+
 test('injects the Squire Bob fallback trainer when Firestore omits him', () => {
   const stored = [{
     id: 'warden',

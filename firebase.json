@@ -83,6 +83,20 @@
         "destination": "/play.html"
       },
       {
+        "source": "/api/art/loading",
+        "function": {
+          "functionId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/art/loading/**",
+        "function": {
+          "functionId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/cards/editor",
         "function": {
           "functionId": "api",

@@ -21,6 +21,10 @@ const CARD_ART_UPLOAD = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 4 * 1024 * 1024, files: 1 }
 });
+const LOADING_ART_UPLOAD = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024, files: 1 }
+});
 const CARD_ART_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg']);
 const CARD_ART_CONTENT_TYPES = new Map([
   ['image/png', 'png'],
@@ -29,6 +33,9 @@ const CARD_ART_CONTENT_TYPES = new Map([
   ['image/gif', 'gif'],
   ['image/svg+xml', 'svg']
 ]);
+const LOADING_ART_PREFIX = 'img/art/loading/';
+const LOADING_ART_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
+const LOADING_ART_ORIENTATIONS = new Set(['landscape', 'portrait']);
 
 const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || 'siegedb';
 const db = getFirestore(FIRESTORE_DATABASE_ID);
@@ -261,6 +268,49 @@ app.post('/api/cards/editor/art', CARD_ART_UPLOAD.single('file'), async (req, re
   } catch (error) {
     const status = error.statusCode || (String(error.message || '').includes('Sign in') ? 400 : 500);
     res.status(status).json({ error: error.message || 'Unable to upload card art.' });
+  }
+});
+
+app.get('/api/art/loading', async (req, res) => {
+  try {
+    res.json({ art: await listLoadingArtFromStorage() });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Unable to list loading art.' });
+  }
+});
+
+app.post('/api/art/loading', LOADING_ART_UPLOAD.single('file'), async (req, res) => {
+  try {
+    await requireEditor(readEditorToken(req));
+    const pieceId = normalizeLoadingArtPieceId(req.body?.pieceId);
+    const orientation = normalizeLoadingArtOrientation(req.body?.orientation);
+    const file = req.file;
+    if (!file || !file.buffer?.length) {
+      throw badRequest('Choose an image file to upload.');
+    }
+    const extension = resolveLoadingArtExtension(file);
+    const objectPath = `${LOADING_ART_PREFIX}${pieceId}-${orientation}.${extension}`;
+    const bucket = admin.storage().bucket();
+    const objectRef = bucket.file(objectPath);
+    const downloadToken = crypto.randomUUID();
+
+    await deleteLoadingArtVariants(bucket, pieceId, orientation, objectPath);
+    await objectRef.save(file.buffer, {
+      resumable: false,
+      metadata: {
+        contentType: file.mimetype || `image/${extension === 'jpg' ? 'jpeg' : extension}`,
+        cacheControl: 'public,max-age=31536000,immutable',
+        metadata: {
+          firebaseStorageDownloadTokens: downloadToken
+        }
+      }
+    });
+    await objectRef.makePublic().catch(() => {});
+    const url = buildStoragePublicUrl(bucket.name, objectPath, downloadToken);
+    res.json({ ok: true, url, art: await listLoadingArtFromStorage(bucket) });
+  } catch (error) {
+    const status = error.statusCode || (String(error.message || '').includes('Sign in') ? 400 : 500);
+    res.status(status).json({ error: error.message || 'Unable to upload loading art.' });
   }
 });
 
@@ -898,6 +948,133 @@ function resolveCardArtExtension(file) {
 }
 
 function buildCardArtPublicUrl(bucketName, objectPath, downloadToken) {
+  return buildStoragePublicUrl(bucketName, objectPath, downloadToken);
+}
+
+function normalizeLoadingArtPieceId(pieceId) {
+  let normalized = String(pieceId || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9_-]+/g, '');
+  normalized = normalized.replace(/-(landscape|portrait)$/g, '');
+  if (!normalized) {
+    throw badRequest('Give the art piece a name (letters, numbers, dashes).');
+  }
+  return normalized;
+}
+
+function normalizeLoadingArtOrientation(orientation) {
+  const normalized = String(orientation || '').trim().toLowerCase();
+  if (!LOADING_ART_ORIENTATIONS.has(normalized)) {
+    throw badRequest('Orientation must be landscape or portrait.');
+  }
+  return normalized;
+}
+
+function resolveLoadingArtExtension(file) {
+  const originalName = String(file?.originalname || '');
+  const dotIndex = originalName.lastIndexOf('.');
+  if (dotIndex >= 0 && dotIndex < originalName.length - 1) {
+    const extension = originalName.slice(dotIndex + 1).trim().toLowerCase();
+    if (LOADING_ART_EXTENSIONS.has(extension)) {
+      return extension === 'jpeg' ? 'jpg' : extension;
+    }
+  }
+  const fromContentType = CARD_ART_CONTENT_TYPES.get(String(file?.mimetype || '').toLowerCase());
+  if (fromContentType && LOADING_ART_EXTENSIONS.has(fromContentType)) {
+    return fromContentType;
+  }
+  throw badRequest('Loading art must be a png, jpg, webp, or gif image.');
+}
+
+async function deleteLoadingArtVariants(bucket, pieceId, orientation, keepObjectPath) {
+  const prefix = `${LOADING_ART_PREFIX}${pieceId}-${orientation}.`;
+  const [files] = await bucket.getFiles({ prefix });
+  await Promise.all(files
+    .filter((file) => file.name !== keepObjectPath)
+    .map((file) => file.delete({ ignoreNotFound: true }).catch(() => {})));
+}
+
+async function listLoadingArtFromStorage(bucket = admin.storage().bucket()) {
+  const [files] = await bucket.getFiles({ prefix: LOADING_ART_PREFIX });
+  const entries = await Promise.all(files
+    .filter((file) => loadingArtFilenameFromObjectPath(file.name))
+    .map(async (file) => ({
+      filename: loadingArtFilenameFromObjectPath(file.name),
+      url: await buildStorageFilePublicUrl(bucket.name, file)
+    })));
+  return groupLoadingArtEntries(entries);
+}
+
+function groupLoadingArtEntries(entries) {
+  const pieces = new Map();
+  for (const entry of [...entries].sort((a, b) => String(a.filename).localeCompare(String(b.filename)))) {
+    const parsed = parseLoadingArtFilename(entry.filename);
+    if (!parsed) {
+      continue;
+    }
+    const key = parsed.id.toLowerCase();
+    const piece = pieces.get(key) || {
+      id: parsed.id,
+      title: titleFromLoadingArtId(parsed.id)
+    };
+    piece[parsed.orientation] = entry.url;
+    pieces.set(key, piece);
+  }
+  return [...pieces.values()];
+}
+
+function parseLoadingArtFilename(filename) {
+  const value = String(filename || '');
+  const dotIndex = value.lastIndexOf('.');
+  if (dotIndex <= 0 || dotIndex >= value.length - 1) {
+    return null;
+  }
+  const extension = value.slice(dotIndex + 1).toLowerCase();
+  if (!LOADING_ART_EXTENSIONS.has(extension)) {
+    return null;
+  }
+  const base = value.slice(0, dotIndex);
+  const lowerBase = base.toLowerCase();
+  if (lowerBase.endsWith('-portrait')) {
+    return { id: base.slice(0, -'-portrait'.length), orientation: 'portrait' };
+  }
+  if (lowerBase.endsWith('-landscape')) {
+    return { id: base.slice(0, -'-landscape'.length), orientation: 'landscape' };
+  }
+  return { id: base, orientation: 'landscape' };
+}
+
+function loadingArtFilenameFromObjectPath(objectPath) {
+  const value = String(objectPath || '');
+  if (!value.startsWith(LOADING_ART_PREFIX) || value.length <= LOADING_ART_PREFIX.length) {
+    return null;
+  }
+  const filename = value.slice(LOADING_ART_PREFIX.length);
+  return filename.includes('/') ? null : filename;
+}
+
+function titleFromLoadingArtId(id) {
+  return String(id || '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ') || 'Untitled';
+}
+
+async function buildStorageFilePublicUrl(bucketName, file) {
+  const [metadata] = await file.getMetadata().catch(() => [{}]);
+  const tokens = String(metadata?.metadata?.firebaseStorageDownloadTokens || '')
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean);
+  return buildStoragePublicUrl(bucketName, file.name, tokens[0]);
+}
+
+function buildStoragePublicUrl(bucketName, objectPath, downloadToken) {
   if (downloadToken) {
     const encodedPath = encodeURIComponent(objectPath);
     return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${downloadToken}`;
@@ -915,6 +1092,13 @@ exports._private = {
   normalizeCardArtId,
   resolveCardArtExtension,
   buildCardArtPublicUrl,
+  normalizeLoadingArtPieceId,
+  normalizeLoadingArtOrientation,
+  resolveLoadingArtExtension,
+  groupLoadingArtEntries,
+  parseLoadingArtFilename,
+  loadingArtFilenameFromObjectPath,
+  buildStoragePublicUrl,
   withSquireBobFallback,
   DEFAULT_SQUIRE_BOB_TRAINER
 };
