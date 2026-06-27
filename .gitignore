@@ -24,3 +24,6 @@ application-local.properties
 # Project-specific key filename (matches CardOverrideStorageService default)
 siegelingstcgtesting-*.json
 functions/functions.yaml
+
+# Firebase deploy hash-cache (local artifact; committing it breaks incremental hosting deploys)
+.firebase/
