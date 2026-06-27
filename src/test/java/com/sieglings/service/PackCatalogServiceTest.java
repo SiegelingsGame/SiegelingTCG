@@ -39,6 +39,20 @@ class PackCatalogServiceTest {
     }
 
     @Test
+    void dailyOffersAlwaysIncludeAKnightStrategyAndDeception() throws Exception {
+        PackCatalogService service = createService(new NeutralDropCardDefinitions());
+
+        List<PackCatalogService.DailyCardOffer> offers = service.listDailyOffers();
+
+        assertEquals(5, offers.size());
+        Map<CardType, Long> counts = offers.stream()
+                .collect(Collectors.groupingBy(offer -> offer.card().getCardType(), Collectors.counting()));
+        assertTrue(counts.getOrDefault(CardType.TRAINER, 0L) >= 1, "daily rotation needs a SiegeKnight");
+        assertTrue(counts.getOrDefault(CardType.SPELL, 0L) >= 1, "daily rotation needs a Strategy");
+        assertTrue(counts.getOrDefault(CardType.TRAP, 0L) >= 1, "daily rotation needs a Deception");
+    }
+
+    @Test
     void siegeKnightCachePackAlwaysIncludesABonusKnight() throws Exception {
         PackCatalogService service = createService(new FireKnightCardDefinitions());
 
