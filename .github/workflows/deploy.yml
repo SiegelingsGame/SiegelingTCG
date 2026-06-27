@@ -76,11 +76,15 @@ jobs:
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
 
-      - name: Deploy Firebase Hosting And Functions
+      - name: Deploy Firebase Hosting
+        # Hosting is deployed on its own so a functions deploy failure can never
+        # block the hosting release. A stuck functions:api operation returning
+        # HTTP 409 previously aborted the combined deploy before hosting was
+        # released, leaving the site serving stale content despite a "success".
         # Point firebase-tools at the raw service-account key (a format it can
         # authenticate with), overriding the ADC file for this step only. Retry
-        # a couple of times to ride out genuinely transient network/API errors;
-        # deploy is idempotent so retries are safe.
+        # to ride out genuinely transient network/API errors; deploy is
+        # idempotent so retries are safe.
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
@@ -93,14 +97,42 @@ jobs:
               sleep "$wait"
             fi
             attempt=$((attempt + 1))
-            echo "::group::firebase deploy (attempt $attempt)"
-            if firebase deploy --only functions:api,hosting --project siegelingstcgtesting; then
+            echo "::group::firebase deploy hosting (attempt $attempt)"
+            if firebase deploy --only hosting --project siegelingstcgtesting; then
               echo "::endgroup::"
-              echo "Firebase deploy succeeded on attempt $attempt."
+              echo "Firebase hosting deploy succeeded on attempt $attempt."
               exit 0
             fi
             echo "::endgroup::"
             echo "Attempt $attempt failed."
           done
-          echo "Firebase deploy failed after $attempt attempts."
+          echo "Firebase hosting deploy failed after $attempt attempts."
+          exit 1
+
+      - name: Deploy Firebase Functions
+        # Functions deploy is best-effort: a stuck function operation (HTTP 409)
+        # must not fail the pipeline or block the hosting release above. Marked
+        # continue-on-error and surfaced as a warning so it stays visible.
+        continue-on-error: true
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          backoffs="20 40 60"
+          attempt=0
+          for wait in 0 $backoffs; do
+            if [ "$wait" -gt 0 ]; then
+              echo "Retrying in ${wait}s..."
+              sleep "$wait"
+            fi
+            attempt=$((attempt + 1))
+            echo "::group::firebase deploy functions (attempt $attempt)"
+            if firebase deploy --only functions:api --project siegelingstcgtesting; then
+              echo "::endgroup::"
+              echo "Firebase functions deploy succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "Attempt $attempt failed."
+          done
+          echo "::warning::Firebase functions deploy failed after $attempt attempts (hosting was still released)."
           exit 1
