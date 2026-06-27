@@ -199,13 +199,17 @@
         <div class="filter-label">Collection</div>
         <button class="ghost-btn filter-toggle" id="showUnownedToggle" type="button" aria-pressed="false">Show unowned</button>
         <select class="search-input" id="cardSortSelect">
-            <option value="owned-desc">Sort: Owned first</option>
-            <option value="name-asc">Sort: Name</option>
-            <option value="speed-desc">Sort: Speed high</option>
-            <option value="health-desc">Sort: Health high</option>
-            <option value="cost-asc">Sort: Cost low</option>
-            <option value="rarity-desc">Sort: Rarity high</option>
+            <option value="owned">Sort: Owned</option>
+            <option value="name">Sort: Alphabetical</option>
+            <option value="type">Sort: Type</option>
+            <option value="cost">Sort: Cost</option>
+            <option value="element">Sort: Element</option>
+            <option value="acquired">Sort: Acquired date</option>
+            <option value="rarity">Sort: Rarity</option>
+            <option value="speed">Sort: Speed</option>
+            <option value="health">Sort: Health</option>
         </select>
+        <button class="ghost-btn filter-toggle" id="cardSortDirToggle" type="button" aria-pressed="false">Descending ↓</button>
         <div class="unlock-card" id="customUnlockCard"></div>
     </aside>
     <aside class="filter-panel panel hud-tray filter-tray lobby-filter-tray is-closed" id="lobbyFilterTray" aria-hidden="true">
