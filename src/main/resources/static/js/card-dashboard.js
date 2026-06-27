@@ -121,8 +121,10 @@
             "showPacksBtn",
             "showLiveElementsBtn",
             "showMovesPoolBtn",
+            "showLoadingArtBtn",
             "cardWorkspace",
             "movesPoolWorkspace",
+            "loadingArtWorkspace",
             "deckWorkspace",
             "packWorkspace",
             "packList",
@@ -386,6 +388,7 @@
         refs.showPacksBtn.addEventListener("click", () => setEditorPage("PACKS"));
         refs.showLiveElementsBtn.addEventListener("click", () => setEditorPage("LIVE_ELEMENTS"));
         refs.showMovesPoolBtn.addEventListener("click", () => setEditorPage("MOVES_POOL"));
+        refs.showLoadingArtBtn.addEventListener("click", () => setEditorPage("LOADING_ART"));
         refs.liveElementsWorkspace.addEventListener("change", (event) => {
             const input = event.target.closest("input[data-live-element-index]");
             if (!input || input.type !== "checkbox") {
@@ -2159,6 +2162,8 @@
             state.editorPage = "TRAINERS";
         } else if (page === "LIVE_ELEMENTS") {
             state.editorPage = "LIVE_ELEMENTS";
+        } else if (page === "LOADING_ART") {
+            state.editorPage = "LOADING_ART";
         } else if (page === "MOVES_POOL") {
             const prev = state.editorPage;
             state.editorPage = "MOVES_POOL";
@@ -2351,12 +2356,13 @@
         renderAuth();
         renderStatus();
         renderFilterOptions();
-        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "PACKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL");
+        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "PACKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL" || state.editorPage === "LOADING_ART");
         refs.movesPoolWorkspace.classList.toggle("hidden", state.editorPage !== "MOVES_POOL");
         refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
         refs.packWorkspace.classList.toggle("hidden", state.editorPage !== "PACKS");
         refs.trainerWorkspace.classList.toggle("hidden", state.editorPage !== "TRAINERS");
         refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
+        refs.loadingArtWorkspace.classList.toggle("hidden", state.editorPage !== "LOADING_ART");
         if (state.editorPage === "MOVES_POOL") {
             mountMoveDraftPanel(refs.moveDraftPanelHostPool);
             renderMovesPoolBrowser();
@@ -2439,7 +2445,9 @@
                     ? `${state.liveElements.filter((row) => row.active !== false).length} active element${state.liveElements.filter((row) => row.active !== false).length === 1 ? "" : "s"}`
                     : (state.editorPage === "MOVES_POOL"
                         ? `${state.movesPool.length} shared abilit${state.movesPool.length === 1 ? "y" : "ies"}`
-                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`))));
+                    : (state.editorPage === "LOADING_ART"
+                        ? "Loading screen art"
+                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`)))));
         refs.filePathLabel.textContent = buildStatusPathText();
         refs.statusMessage.textContent = state.status.message;
 
@@ -2497,6 +2505,7 @@
         refs.showPacksBtn.classList.toggle("active", state.editorPage === "PACKS");
         refs.showLiveElementsBtn.classList.toggle("active", state.editorPage === "LIVE_ELEMENTS");
         refs.showMovesPoolBtn.classList.toggle("active", state.editorPage === "MOVES_POOL");
+        refs.showLoadingArtBtn.classList.toggle("active", state.editorPage === "LOADING_ART");
         if (state.editorPage === "LIVE_ELEMENTS") {
             refs.browserTitle.textContent = "Live Elements";
         }
