@@ -1076,6 +1076,12 @@ textarea {
     margin: 0 auto;
 }
 
+.loading-art-panel {
+    grid-column: 1 / -1;
+    max-width: 920px;
+    margin: 0 auto;
+}
+
 .live-element-toggle-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
