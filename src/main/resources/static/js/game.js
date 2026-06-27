@@ -5440,7 +5440,7 @@ function scheduleSiegeKnightCardFit() {
 }
 
 function fitSiegeKnightCardText(root = document) {
-    root.querySelectorAll('.knight-card.has-knight-back .knight-card-body').forEach((body) => {
+    root.querySelectorAll('.knight-card.has-knight-back .knight-card-body, .knight-card.knight-full-card-art .knight-card-body').forEach((body) => {
         const card = body.closest('.knight-card');
         if (!card || !body.clientHeight || !body.clientWidth) {
             return;

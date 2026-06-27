@@ -239,11 +239,12 @@ public class PackCatalogService {
                 .toList();
         String date = java.time.LocalDate.now(java.time.ZoneId.systemDefault()).toString();
         List<DailyCardOffer> offers = new ArrayList<>();
-        // Guarantee one of every card type, then a fifth slot of a random type
-        // (stable for the day) so the rotation always covers the full roster.
-        CardType[] everyType = { CardType.TRAINER, CardType.SIEGLING, CardType.SPELL, CardType.TRAP };
-        List<CardType> slots = new ArrayList<>(List.of(everyType));
-        slots.add(everyType[Math.floorMod((date + ":extra").hashCode(), everyType.length)]);
+        // Every daily rotation always offers a SiegeKnight (trainer), a
+        // Strategy (spell), and a Deception (trap); the remaining two slots are
+        // Sieglings so the creature roster headlines the shop.
+        List<CardType> slots = new ArrayList<>(List.of(
+                CardType.TRAINER, CardType.SPELL, CardType.TRAP,
+                CardType.SIEGLING, CardType.SIEGLING));
         Set<String> selectedCardIds = new HashSet<>();
         for (int i = 0; i < slots.size(); i++) {
             CardType type = slots.get(i);

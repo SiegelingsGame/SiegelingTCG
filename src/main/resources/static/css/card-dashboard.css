@@ -1542,6 +1542,18 @@ body.move-picker-open {
     font-variant-numeric: tabular-nums;
 }
 
+.card-art-slider-field .card-art-number-input {
+    width: 72px;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--field-bg);
+    color: var(--text-main);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
 .card-art-slider-field input[type="range"] {
     width: 100%;
     accent-color: var(--accent);

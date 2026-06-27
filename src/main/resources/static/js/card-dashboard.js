@@ -276,9 +276,9 @@
             "cardArtTransformControls",
             "cardArtTransformHelp",
             "cardArtScaleInput",
-            "cardArtScaleValue",
+            "cardArtScaleNumber",
             "cardArtRotationInput",
-            "cardArtRotationValue",
+            "cardArtRotationNumber",
             "resetCardArtTransformBtn",
             "cardHolographicCheckbox",
             "cardSummary",
@@ -334,9 +334,9 @@
             "clearTrainerArtBtn",
             "trainerArtTransformControls",
             "trainerArtScaleInput",
-            "trainerArtScaleValue",
+            "trainerArtScaleNumber",
             "trainerArtRotationInput",
-            "trainerArtRotationValue",
+            "trainerArtRotationNumber",
             "resetTrainerArtTransformBtn",
             "trainerPassiveNameInput",
             "trainerPassiveDescriptionInput",
@@ -558,6 +558,26 @@
             updateSelectedCardArtTransform((card) => {
                 card.cardArtRotation = clampCardArtRotation(event.target.value);
             });
+        });
+
+        refs.cardArtScaleNumber?.addEventListener("input", (event) => {
+            updateSelectedCardArtTransform((card) => {
+                card.cardArtScale = clampCardArtScale(event.target.value);
+            });
+        });
+
+        refs.cardArtScaleNumber?.addEventListener("change", (event) => {
+            event.target.value = formatCardArtScaleValue(event.target.value);
+        });
+
+        refs.cardArtRotationNumber?.addEventListener("input", (event) => {
+            updateSelectedCardArtTransform((card) => {
+                card.cardArtRotation = clampCardArtRotation(event.target.value);
+            });
+        });
+
+        refs.cardArtRotationNumber?.addEventListener("change", (event) => {
+            event.target.value = String(Math.round(clampCardArtRotation(event.target.value)));
         });
 
         refs.resetCardArtTransformBtn?.addEventListener("click", () => {
@@ -1655,10 +1675,6 @@
         return clampCardArtScale(scale).toFixed(2);
     }
 
-    function formatCardArtRotationValue(rotation) {
-        return `${Math.round(clampCardArtRotation(rotation))}°`;
-    }
-
     function buildCardArtTransformStyle(card) {
         return window.SieglingsCardBinderVisual?.buildArtTransformStyle(card) || "";
     }
@@ -1781,11 +1797,11 @@
         if (refs.cardArtRotationInput && document.activeElement !== refs.cardArtRotationInput) {
             refs.cardArtRotationInput.value = String(rotation);
         }
-        if (refs.cardArtScaleValue) {
-            refs.cardArtScaleValue.textContent = formatCardArtScaleValue(scale);
+        if (refs.cardArtScaleNumber && document.activeElement !== refs.cardArtScaleNumber) {
+            refs.cardArtScaleNumber.value = formatCardArtScaleValue(scale);
         }
-        if (refs.cardArtRotationValue) {
-            refs.cardArtRotationValue.textContent = formatCardArtRotationValue(rotation);
+        if (refs.cardArtRotationNumber && document.activeElement !== refs.cardArtRotationNumber) {
+            refs.cardArtRotationNumber.value = String(Math.round(rotation));
         }
         if (refs.cardArtTransformHelp) {
             const mode = normalizeCardArtMode(card?.cardArtMode);
@@ -3360,6 +3376,26 @@
             });
         });
 
+        refs.trainerArtScaleNumber?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtScale = clampCardArtScale(event.target.value);
+            });
+        });
+
+        refs.trainerArtScaleNumber?.addEventListener("change", (event) => {
+            event.target.value = formatCardArtScaleValue(event.target.value);
+        });
+
+        refs.trainerArtRotationNumber?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtRotation = clampCardArtRotation(event.target.value);
+            });
+        });
+
+        refs.trainerArtRotationNumber?.addEventListener("change", (event) => {
+            event.target.value = String(Math.round(clampCardArtRotation(event.target.value)));
+        });
+
         refs.resetTrainerArtTransformBtn?.addEventListener("click", () => {
             mutateSelectedTrainer((trainer) => {
                 trainer.cardArtOffsetX = 0;
@@ -3541,11 +3577,11 @@
             if (refs.trainerArtRotationInput && document.activeElement !== refs.trainerArtRotationInput) {
                 refs.trainerArtRotationInput.value = String(rotation);
             }
-            if (refs.trainerArtScaleValue) {
-                refs.trainerArtScaleValue.textContent = formatCardArtScaleValue(scale);
+            if (refs.trainerArtScaleNumber && document.activeElement !== refs.trainerArtScaleNumber) {
+                refs.trainerArtScaleNumber.value = formatCardArtScaleValue(scale);
             }
-            if (refs.trainerArtRotationValue) {
-                refs.trainerArtRotationValue.textContent = formatCardArtRotationValue(rotation);
+            if (refs.trainerArtRotationNumber && document.activeElement !== refs.trainerArtRotationNumber) {
+                refs.trainerArtRotationNumber.value = String(Math.round(rotation));
             }
         }
 
