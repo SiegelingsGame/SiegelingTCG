@@ -16,7 +16,7 @@
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
     <link rel="stylesheet" href="/css/home.css?v=45">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=21">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=22">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -461,11 +461,11 @@
                     <div class="card-art-transform-controls hidden" id="cardArtTransformControls">
                         <p class="card-art-transform-help" id="cardArtTransformHelp">Drag the art in the preview above to reposition it.</p>
                         <label class="card-art-slider-field">
-                            <span>Scale <output id="cardArtScaleValue" for="cardArtScaleInput">1.00</output></span>
+                            <span>Scale <input id="cardArtScaleNumber" class="card-art-number-input" type="number" min="0.25" max="3" step="0.01" value="1.00" inputmode="decimal" aria-label="Scale"></span>
                             <input id="cardArtScaleInput" type="range" min="0.25" max="3" step="0.01" value="1">
                         </label>
                         <label class="card-art-slider-field">
-                            <span>Rotation <output id="cardArtRotationValue" for="cardArtRotationInput">0°</output></span>
+                            <span>Rotation (°) <input id="cardArtRotationNumber" class="card-art-number-input" type="number" min="-180" max="180" step="1" value="0" inputmode="numeric" aria-label="Rotation in degrees"></span>
                             <input id="cardArtRotationInput" type="range" min="-180" max="180" step="1" value="0">
                         </label>
                         <button class="btn btn-secondary" id="resetCardArtTransformBtn" type="button">Reset Transform</button>
@@ -749,11 +749,11 @@
                         <div class="card-art-transform-controls hidden" id="trainerArtTransformControls">
                             <p class="card-art-transform-help">Crop &amp; scale: drag the art in the preview to reposition it, then use the sliders. The preview shows exactly how it renders on the card.</p>
                             <label class="card-art-slider-field">
-                                <span>Scale <output id="trainerArtScaleValue" for="trainerArtScaleInput">1.00</output></span>
+                                <span>Scale <input id="trainerArtScaleNumber" class="card-art-number-input" type="number" min="0.25" max="3" step="0.01" value="1.00" inputmode="decimal" aria-label="Scale"></span>
                                 <input id="trainerArtScaleInput" type="range" min="0.25" max="3" step="0.01" value="1">
                             </label>
                             <label class="card-art-slider-field">
-                                <span>Rotation <output id="trainerArtRotationValue" for="trainerArtRotationInput">0°</output></span>
+                                <span>Rotation (°) <input id="trainerArtRotationNumber" class="card-art-number-input" type="number" min="-180" max="180" step="1" value="0" inputmode="numeric" aria-label="Rotation in degrees"></span>
                                 <input id="trainerArtRotationInput" type="range" min="-180" max="180" step="1" value="0">
                             </label>
                             <button class="btn btn-secondary" id="resetTrainerArtTransformBtn" type="button">Reset Crop</button>
@@ -1073,6 +1073,6 @@
 <script src="/js/config.js"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
 <script src="/js/card-binder-visual.js?v=2"></script>
-<script src="/js/card-dashboard.js?v=36"></script>
+<script src="/js/card-dashboard.js?v=37"></script>
 </body>
 </html>
