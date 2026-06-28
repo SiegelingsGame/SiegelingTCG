@@ -98,12 +98,25 @@ jobs:
             fi
             attempt=$((attempt + 1))
             echo "::group::firebase deploy hosting (attempt $attempt)"
-            if firebase deploy --only hosting --project siegelingstcgtesting; then
-              echo "::endgroup::"
+            set +e
+            output="$(firebase deploy --only hosting --project siegelingstcgtesting 2>&1)"
+            code=$?
+            set -e
+            echo "$output"
+            echo "::endgroup::"
+            if [ "$code" -eq 0 ]; then
               echo "Firebase hosting deploy succeeded on attempt $attempt."
               exit 0
             fi
-            echo "::endgroup::"
+            # A commit that touches only functions/** leaves the hosting content
+            # byte-identical to the live version. Firebase then rejects the
+            # release with HTTP 400 "is the current active version". There is
+            # nothing to release — treat it as a successful no-op so it does not
+            # abort the job before the functions deploy below.
+            if printf '%s' "$output" | grep -q "is the current active version"; then
+              echo "Hosting content unchanged (version already live). Treating as success."
+              exit 0
+            fi
             echo "Attempt $attempt failed."
           done
           echo "Firebase hosting deploy failed after $attempt attempts."
@@ -113,6 +126,10 @@ jobs:
         # Functions deploy is best-effort: a stuck function operation (HTTP 409)
         # must not fail the pipeline or block the hosting release above. Marked
         # continue-on-error and surfaced as a warning so it stays visible.
+        # `if: !cancelled()` makes this run even when the hosting step above
+        # failed (e.g. a hosting no-op or transient error) so a functions-only
+        # change can still ship — hosting and functions are independent.
+        if: ${{ !cancelled() }}
         continue-on-error: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
