@@ -10705,6 +10705,40 @@ body.placement-active .board-cell.legal {
     display: none;
 }
 
+/* Overlay art: the uploaded image is the character illustration only. It sits
+   behind the shared SiegeKnight template (.knight-card-template, z-index 3),
+   showing through the fully transparent art window and dimmed through the
+   semi-transparent description box. The frame, shield and description box stay
+   pixel-identical card to card because they come from the template, not the
+   upload. The art layer fills the whole inner frame (top of the window down
+   through the description box to the inner bottom border) so it also shows
+   behind the caption. Overlay cards also carry .knight-full-card-art so they
+   inherit the body/name/meta/ability text styling and base box geometry. */
+.knight-card.knight-overlay-art .knight-overlay-art-window {
+    position: absolute;
+    z-index: 1;
+    left: 8.8%;
+    right: 8.6%;
+    top: 5.7%;
+    bottom: 7.1%;
+    overflow: hidden;
+    border-radius: 0;
+}
+
+.knight-card.knight-overlay-art .knight-overlay-art-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* cover so non-5:7 uploads crop cleanly into the window; the dashboard
+       crop controls supply scale/position via an inline transform. */
+    object-fit: cover;
+    object-position: center;
+}
+
+.knight-card.knight-overlay-art .knight-shield-element .deck-sigil {
+    opacity: 0;
+}
+
 .knight-card.has-knight-back .knight-card-portrait {
     position: absolute;
     z-index: 1;

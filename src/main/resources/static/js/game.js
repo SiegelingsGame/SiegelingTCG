@@ -9147,6 +9147,24 @@ function renderLoadoutOptions() {
                 ${knightCardBody}
             </button>`;
         }
+        const overlayMode = String(trainer.cardArtMode || '').trim().toUpperCase() === 'OVERLAY';
+        if (fullCardArtUrl && overlayMode) {
+            // Character art behind the shared template frame: window stays
+            // transparent, description box dims the art, shield/border stay fixed.
+            // Built inline (no card-binder-visual dependency) since play.html
+            // does not load that module.
+            const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
+            const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+                ${topRibbon}
+                ${levelBadge}
+                <div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(fullCardArtUrl)} alt="" loading="lazy"${knightArtStyleAttr(trainer)}></div>
+                <div class="knight-card-template" aria-hidden="true"></div>
+                <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
+                ${holoOverlay}
+                ${knightCardBody}
+            </button>`;
+        }
         return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
             ${topRibbon}
             ${levelBadge}

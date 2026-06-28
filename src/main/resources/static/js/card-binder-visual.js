@@ -134,6 +134,30 @@
         return Boolean(fullCardArtUrl(card));
     }
 
+    // Overlay art for SiegeKnights: the upload is the character illustration
+    // only, composited behind the shared template frame (transparent art
+    // window + semi-transparent description box + opaque shield/border) so the
+    // frame and caption box stay identical across every card.
+    function knightOverlayArtUrl(card) {
+        const artUrl = String(card?.cardArtUrl || '').trim();
+        return artUrl && normalizeArtMode(card?.cardArtMode) === 'OVERLAY' ? artUrl : '';
+    }
+
+    function usesKnightOverlayArt(card) {
+        return normalizeCardType(card) === 'SIEGEKNIGHT' && Boolean(knightOverlayArtUrl(card));
+    }
+
+    function renderKnightOverlayArtWindow(card) {
+        const artUrl = knightOverlayArtUrl(card);
+        if (!artUrl) return '';
+        const style = buildArtTransformStyle(card);
+        const preferred = preferWebp(artUrl);
+        const fallbackAttrs = preferred !== artUrl
+            ? ` data-img-fallback="${escapeAttr(artUrl)}" onerror="sgWebpFallback(this)"`
+            : '';
+        return `<div class="knight-overlay-art-window"><img class="knight-overlay-art-img" src="${escapeAttr(preferred)}" alt=""${style ? ` style="${style}"` : ''}${fallbackAttrs}></div>`;
+    }
+
     function isHolographic(card, options = {}) {
         if (card?.holographic === true) {
             return true;
@@ -433,6 +457,9 @@
         elementColor,
         usesFramedCardTemplate,
         usesFullCardArt,
+        usesKnightOverlayArt,
+        knightOverlayArtUrl,
+        renderKnightOverlayArtWindow,
         isHolographic,
         holographicClass,
         normalizeArtMode,

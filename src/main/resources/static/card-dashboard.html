@@ -16,7 +16,7 @@
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
     <link rel="stylesheet" href="/css/home.css?v=45">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=22">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=23">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -655,7 +655,7 @@
 
                 <section class="form-section">
                     <h3>Custom Art</h3>
-                    <p class="section-help card-visual-help">Give this SiegeKnight a complete, hand-drawn card (the same way Squire Bob is set up). Pick <strong>Full card art</strong>, then either paste a hosted path into <strong>Art URL or path</strong> (e.g. <code>/img/knights/aldera-full-card.png</code>) or use <strong>Upload Image</strong>. The preview below shows exactly how the card renders in-game. Any aspect works — drag the art and use the Scale slider to crop &amp; frame it into the 5:7 card. Then <strong>Publish Live Changes</strong> from the header. Choose Default icon to revert.</p>
+                    <p class="section-help card-visual-help">Two ways to give this SiegeKnight art. <strong>Overlay art (keep frame)</strong> — recommended for consistency — keeps the shared card frame, shield and description box and drops your <em>character illustration only</em> behind them, so every card's frame and caption box stay identical (the art shows through the window and dimmed behind the description box). <strong>Full card art</strong> replaces the whole template with a complete, hand-drawn card (the way Squire Bob is set up). For either, paste a hosted path into <strong>Art URL or path</strong> (e.g. <code>/img/knights/aldera-full-card.png</code>) or use <strong>Upload Image</strong>. The preview below shows exactly how it renders in-game. Any aspect works — drag the art and use the Scale slider to crop &amp; frame it into the 5:7 card. Then <strong>Publish Live Changes</strong> from the header. Choose Default icon to revert.</p>
                     <div class="trainer-art-stage" id="trainerArtStage">
                         <div class="validation-empty">Select a SiegeKnight to preview its art.</div>
                     </div>
@@ -665,6 +665,10 @@
                             <label class="art-mode-option">
                                 <input type="radio" name="trainerArtMode" value="">
                                 <span>Default icon</span>
+                            </label>
+                            <label class="art-mode-option">
+                                <input type="radio" name="trainerArtMode" value="OVERLAY">
+                                <span>Overlay art (keep frame)</span>
                             </label>
                             <label class="art-mode-option">
                                 <input type="radio" name="trainerArtMode" value="FULL_CARD">
@@ -1080,7 +1084,7 @@
 
 <script src="/js/config.js"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
-<script src="/js/card-binder-visual.js?v=2"></script>
-<script src="/js/card-dashboard.js?v=37"></script>
+<script src="/js/card-binder-visual.js?v=3"></script>
+<script src="/js/card-dashboard.js?v=38"></script>
 </body>
 </html>

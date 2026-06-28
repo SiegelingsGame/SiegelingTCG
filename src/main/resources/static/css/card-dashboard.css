@@ -1393,6 +1393,35 @@ body.move-picker-open {
     cursor: grabbing;
 }
 
+/* Overlay-art preview: the upload is character art only, inset behind the
+   template frame (drawn on top) so the preview is WYSIWYG with the in-game
+   render — art fills the window and shows dimmed through the description box. */
+.trainer-art-portrait.is-overlay {
+    aspect-ratio: 639 / 919;
+    background-image: none;
+    background: #15171d;
+}
+
+.trainer-art-portrait.is-overlay .trainer-art-full-img {
+    left: 8.8%;
+    right: 8.6%;
+    top: 5.7%;
+    bottom: 7.1%;
+    width: auto;
+    height: auto;
+    z-index: 1;
+}
+
+.trainer-art-portrait.is-overlay .trainer-art-template {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background-image: url('/img/knights/siegeknight-card-template.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}
+
 .trainer-art-meta {
     margin: 6px auto 0;
     max-width: 320px;
