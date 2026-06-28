@@ -334,7 +334,10 @@ public class LoadingArtStorageService {
 
     static String firstDownloadToken(Map<String, String> metadata) {
         String tokens = metadata == null ? "" : metadata.get("firebaseStorageDownloadTokens");
-        return Arrays.stream(String.valueOf(tokens).split(","))
+        if (tokens == null) {
+            return "";
+        }
+        return Arrays.stream(tokens.split(","))
                 .map(String::trim)
                 .filter(token -> !token.isBlank())
                 .findFirst()
