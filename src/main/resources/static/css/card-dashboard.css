@@ -1402,13 +1402,17 @@ body.move-picker-open {
     background: #15171d;
 }
 
-.trainer-art-portrait.is-overlay .trainer-art-full-img {
+/* The art fills this inset window (a block element, so left/right/top/bottom
+   size it correctly) and is clipped to it — an <img> sized directly by inset
+   falls back to its intrinsic size and bleeds past the frame. Matches the
+   in-game .knight-overlay-art-window geometry. */
+.trainer-art-portrait.is-overlay .trainer-art-overlay-window {
+    position: absolute;
     left: 8.8%;
     right: 8.6%;
     top: 5.7%;
     bottom: 7.1%;
-    width: auto;
-    height: auto;
+    overflow: hidden;
     z-index: 1;
 }
 
