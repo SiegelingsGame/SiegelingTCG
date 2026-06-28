@@ -3624,8 +3624,9 @@
 
         teardownTrainerArtDrag();
         stage.innerHTML = "";
+        const isOverlay = mode === "OVERLAY";
         const portrait = document.createElement("div");
-        portrait.className = "trainer-art-portrait";
+        portrait.className = isOverlay ? "trainer-art-portrait is-overlay" : "trainer-art-portrait";
         if (url) {
             const img = document.createElement("img");
             img.className = "trainer-art-full-img";
@@ -3643,10 +3644,11 @@
                 }
                 const ratio = w / h;
                 const goodFit = ratio >= 0.66 && ratio <= 0.77; // ~5:7 portrait
+                const target = isOverlay ? "art window" : "card";
                 setTrainerArtMeta(
                     goodFit
-                        ? `${w}×${h} · good 5:7 fit — fills the card with no cropping.`
-                        : `${w}×${h} · ${ratio > 5 / 7 ? "wider" : "taller"} than a 5:7 card, so it's cropped to fit. Drag the art and use Scale below to frame it.`,
+                        ? `${w}×${h} · good 5:7 fit — fills the ${target} with no cropping.`
+                        : `${w}×${h} · ${ratio > 5 / 7 ? "wider" : "taller"} than a 5:7 ${target}, so it's cropped to fit. Drag the art and use Scale below to frame it.`,
                     goodFit ? "ok" : "warn"
                 );
                 // Clear any stale "could not load" error now that a good image rendered.
@@ -3660,6 +3662,14 @@
             };
             img.src = url;
             portrait.appendChild(img);
+            if (isOverlay) {
+                // Frame drawn on top of the art so the preview matches the
+                // in-game overlay render (transparent window + caption box).
+                const template = document.createElement("div");
+                template.className = "trainer-art-template";
+                template.setAttribute("aria-hidden", "true");
+                portrait.appendChild(template);
+            }
             setupTrainerArtDrag(trainer, img, portrait);
         } else {
             setTrainerArtMeta("");
