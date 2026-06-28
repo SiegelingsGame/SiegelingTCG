@@ -3661,14 +3661,20 @@
                 setTrainerArtStatus("Preview could not load that image. Use a hosted https:// URL or a deployed /img/... path.", "error");
             };
             img.src = url;
-            portrait.appendChild(img);
             if (isOverlay) {
-                // Frame drawn on top of the art so the preview matches the
-                // in-game overlay render (transparent window + caption box).
+                // Art fills an inset window that clips it to the frame, then the
+                // template is drawn on top — matching the in-game overlay render
+                // (transparent window + caption box, nothing outside the border).
+                const window_ = document.createElement("div");
+                window_.className = "trainer-art-overlay-window";
+                window_.appendChild(img);
+                portrait.appendChild(window_);
                 const template = document.createElement("div");
                 template.className = "trainer-art-template";
                 template.setAttribute("aria-hidden", "true");
                 portrait.appendChild(template);
+            } else {
+                portrait.appendChild(img);
             }
             setupTrainerArtDrag(trainer, img, portrait);
         } else {
