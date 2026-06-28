@@ -20,7 +20,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -52,7 +51,8 @@ public class ArtGalleryController {
     @GetMapping("/api/art/loading")
     public Map<String, Object> listLoadingArt() {
         Map<String, Map<String, Object>> pieces = new TreeMap<>();
-        for (String filename : collectArtFilenames()) {
+        for (Map.Entry<String, String> artEntry : collectArtUrlsByFilename().entrySet()) {
+            String filename = artEntry.getKey();
             int dot = filename.lastIndexOf('.');
             if (dot <= 0) {
                 continue;
@@ -78,7 +78,7 @@ public class ArtGalleryController {
                 entry.put("title", titleFromId(pieceId));
                 return entry;
             });
-            piece.put(orientation, "/img/art/loading/" + filename);
+            piece.put(orientation, artEntry.getValue());
         }
         return Map.of("art", new ArrayList<>(pieces.values()));
     }
@@ -113,19 +113,19 @@ public class ArtGalleryController {
     }
 
     /**
-     * Art can live in the packaged classpath (committed files) or in the
-     * runtime upload directory (dashboard uploads before the next build);
-     * both locations are served from /img/art/loading.
+     * Art can live in the packaged classpath, local runtime upload directory,
+     * or Firebase Storage. Storage entries override same-named static files so
+     * hosted uploads return durable, Hosting-visible URLs.
      */
-    private Set<String> collectArtFilenames() {
-        Set<String> filenames = new LinkedHashSet<>();
+    private Map<String, String> collectArtUrlsByFilename() {
+        Map<String, String> urlsByFilename = new TreeMap<>();
         try {
             Resource[] resources = new PathMatchingResourcePatternResolver()
                     .getResources("classpath*:/static/img/art/loading/*.*");
             for (Resource resource : resources) {
                 String filename = resource.getFilename();
                 if (filename != null) {
-                    filenames.add(filename);
+                    urlsByFilename.put(filename, "/img/art/loading/" + filename);
                 }
             }
         } catch (Exception ex) {
@@ -136,12 +136,13 @@ public class ArtGalleryController {
             try (Stream<Path> files = Files.list(uploadDir)) {
                 files.filter(Files::isRegularFile)
                         .map(path -> path.getFileName().toString())
-                        .forEach(filenames::add);
+                        .forEach(filename -> urlsByFilename.put(filename, "/img/art/loading/" + filename));
             } catch (Exception ex) {
                 // Ignore and serve what the classpath provided.
             }
         }
-        return filenames;
+        urlsByFilename.putAll(loadingArtStorageService.listHostedArtUrls());
+        return urlsByFilename;
     }
 
     private String titleFromId(String id) {
