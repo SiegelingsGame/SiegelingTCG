@@ -5,7 +5,7 @@ const admin = require('firebase-admin');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const bcrypt = require('bcryptjs');
 const express = require('express');
-const multer = require('multer');
+const Busboy = require('busboy');
 const { onRequest } = require('firebase-functions/v2/https');
 const { buildMetadata } = require('./editorMetadata');
 
@@ -17,10 +17,7 @@ admin.initializeApp({
   storageBucket: process.env.STORAGE_BUCKET || 'siegelingstcgtesting.firebasestorage.app'
 });
 
-const CARD_ART_UPLOAD = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 4 * 1024 * 1024, files: 1 }
-});
+const CARD_ART_MAX_BYTES = 4 * 1024 * 1024;
 const CARD_ART_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg']);
 const CARD_ART_CONTENT_TYPES = new Map([
   ['image/png', 'png'],
@@ -232,11 +229,15 @@ app.post('/api/cards/editor/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/cards/editor/art', CARD_ART_UPLOAD.single('file'), async (req, res) => {
+app.post('/api/cards/editor/art', async (req, res) => {
   try {
     await requireEditor(readEditorToken(req));
-    const cardId = normalizeCardArtId(req.body?.cardId);
-    const file = req.file;
+    // Firebase Functions (gen2) buffer the request body into `req.rawBody`
+    // before Express runs, so streaming parsers like multer never receive the
+    // multipart data and the upload 500s. Parse the buffered body with busboy
+    // directly instead. See parseCardArtUpload.
+    const { fields, file } = await parseCardArtUpload(req);
+    const cardId = normalizeCardArtId(fields.cardId);
     if (!file || !file.buffer?.length) {
       throw badRequest('Choose an image file to upload.');
     }
@@ -897,6 +898,94 @@ function resolveCardArtExtension(file) {
   throw badRequest('Unsupported image type. Use PNG, JPEG, WebP, GIF, or SVG.');
 }
 
+// Parse a multipart/form-data card-art upload. Cloud Functions (gen2) consume
+// the request stream before Express middleware runs and expose the body as
+// `req.rawBody`, so we feed that buffer to busboy rather than piping the
+// request. Returns the parsed text fields plus a multer-compatible file object
+// ({ buffer, originalname, mimetype }) so the rest of the handler and the
+// resolveCardArtExtension helper stay unchanged.
+function parseCardArtUpload(req) {
+  return new Promise((resolve, reject) => {
+    const contentType = String(req.headers?.['content-type'] || '');
+    if (!contentType.toLowerCase().includes('multipart/form-data')) {
+      reject(badRequest('Card art upload must be sent as multipart/form-data.'));
+      return;
+    }
+
+    let busboy;
+    try {
+      busboy = Busboy({
+        headers: req.headers,
+        limits: { fileSize: CARD_ART_MAX_BYTES, files: 1, fields: 16 }
+      });
+    } catch (error) {
+      reject(badRequest('Could not read the uploaded form data.'));
+      return;
+    }
+
+    const fields = {};
+    const chunks = [];
+    let fileInfo = null;
+    let fileTooLarge = false;
+    let settled = false;
+
+    const fail = (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(error);
+    };
+
+    busboy.on('field', (name, value) => {
+      fields[name] = value;
+    });
+
+    busboy.on('file', (name, stream, info) => {
+      // Only the first "file" field is meaningful; drain any extras.
+      if (name !== 'file' || fileInfo) {
+        stream.resume();
+        return;
+      }
+      fileInfo = info;
+      stream.on('data', (chunk) => chunks.push(chunk));
+      stream.on('limit', () => {
+        fileTooLarge = true;
+        stream.resume();
+      });
+      stream.on('error', fail);
+    });
+
+    busboy.on('error', fail);
+    busboy.on('close', () => {
+      if (settled) {
+        return;
+      }
+      if (fileTooLarge) {
+        fail(badRequest('That image is too large. Use an image under 4 MB.'));
+        return;
+      }
+      settled = true;
+      resolve({
+        fields,
+        file: fileInfo
+          ? {
+              buffer: Buffer.concat(chunks),
+              originalname: fileInfo.filename || '',
+              mimetype: fileInfo.mimeType || fileInfo.mimetype || ''
+            }
+          : null
+      });
+    });
+
+    if (req.rawBody) {
+      busboy.end(req.rawBody);
+    } else {
+      req.pipe(busboy);
+    }
+  });
+}
+
 function buildCardArtPublicUrl(bucketName, objectPath, downloadToken) {
   if (downloadToken) {
     const encodedPath = encodeURIComponent(objectPath);
@@ -914,6 +1003,7 @@ exports._private = {
   validateCardArtFields,
   normalizeCardArtId,
   resolveCardArtExtension,
+  parseCardArtUpload,
   buildCardArtPublicUrl,
   withSquireBobFallback,
   DEFAULT_SQUIRE_BOB_TRAINER

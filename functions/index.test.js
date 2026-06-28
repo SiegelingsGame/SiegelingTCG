@@ -70,6 +70,39 @@ test('normalizes card art ids and extensions for uploads', () => {
   );
 });
 
+test('parses multipart card-art uploads from a buffered Cloud Functions body', async () => {
+  // Firebase Functions (gen2) hand Express the body as `req.rawBody` after the
+  // stream is already consumed, which is what broke the old multer-based
+  // upload. Feeding that buffer to the busboy parser must still yield the
+  // fields and file bytes.
+  const boundary = '----cardArtTestBoundary';
+  const fileBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
+  const rawBody = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="cardId"\r\n\r\ntrainer10\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="art.png"\r\nContent-Type: image/png\r\n\r\n`),
+    fileBytes,
+    Buffer.from(`\r\n--${boundary}--\r\n`)
+  ]);
+  const req = {
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    rawBody
+  };
+
+  const { fields, file } = await _private.parseCardArtUpload(req);
+  assert.equal(fields.cardId, 'trainer10');
+  assert.equal(file.originalname, 'art.png');
+  assert.equal(file.mimetype, 'image/png');
+  assert.deepEqual(file.buffer, fileBytes);
+  assert.equal(_private.resolveCardArtExtension(file), 'png');
+});
+
+test('rejects non-multipart card-art uploads', async () => {
+  await assert.rejects(
+    () => _private.parseCardArtUpload({ headers: { 'content-type': 'application/json' }, rawBody: Buffer.from('{}') }),
+    /multipart\/form-data/
+  );
+});
+
 test('injects the Squire Bob fallback trainer when Firestore omits him', () => {
   const stored = [{
     id: 'warden',
