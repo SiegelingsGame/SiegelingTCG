@@ -13,6 +13,7 @@ class GameJavaScriptRegressionTest {
 
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
+    private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -90,6 +91,28 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 closeHostLobby.contains("isLegacyBearerToken(state.token)"),
                 "Cookie-auth users must rely on the session cookie instead of sending Authorization: Bearer cookie."
+        );
+    }
+
+    @Test
+    void dashboardArtUploadsApplyToCapturedCatalogEntry() throws IOException {
+        String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
+
+        assertTrue(
+                dashboardScript.contains("mutateCardById(cardId, (selected) =>"),
+                "Card art upload completions must update the card id captured when the upload started."
+        );
+        assertTrue(
+                dashboardScript.contains("mutateTrainerById(trainerId, (selected) =>"),
+                "SiegeKnight art upload completions must update the trainer id captured when the upload started."
+        );
+        assertFalse(
+                dashboardScript.contains("mutateSelectedCard((selected) => {\n                    selected.cardArtUrl = hostedUrl;"),
+                "Card art upload completions must not write to whichever card is selected when the request finishes."
+        );
+        assertFalse(
+                dashboardScript.contains("mutateSelectedTrainer((selected) => {\n                    selected.cardArtUrl = hostedUrl;"),
+                "SiegeKnight art upload completions must not write to whichever trainer is selected when the request finishes."
         );
     }
 
