@@ -160,10 +160,8 @@
             "authSessionPanel",
             "authSessionText",
             "logoutBtn",
-            "sourcePill",
             "dirtyPill",
             "cardCountPill",
-            "filePathLabel",
             "statusMessage",
             "emptyEditorState",
             "cardEditorContent",
@@ -2444,8 +2442,10 @@
         }
 
         if (auth.authenticated) {
-            refs.authSummaryText.textContent = "This dashboard is connected to the live Firestore card store. Changes you publish here become the source for the live game.";
-            refs.authSessionText.textContent = `Signed in as ${auth.displayName || auth.email || "editor"}${state.updatedBy ? `. Last live publish: ${state.updatedBy}${state.updatedAt ? ` on ${formatTimestamp(state.updatedAt)}` : ""}.` : "."}`;
+            refs.authSummaryText.textContent = "Changes you publish here go live in the game.";
+            refs.authSessionText.textContent = state.updatedBy
+                ? `Last publish: ${state.updatedBy}${state.updatedAt ? ` on ${formatTimestamp(state.updatedAt)}` : ""}.`
+                : "";
             refs.authSessionPanel.classList.remove("hidden");
             return;
         }
@@ -2461,7 +2461,6 @@
     }
 
     function renderStatus() {
-        refs.sourcePill.textContent = formatSourceLabel();
         refs.dirtyPill.textContent = state.dirty ? "Unsaved changes" : "Saved";
         refs.cardCountPill.textContent = state.editorPage === "DECKS"
             ? `${state.decks.length} preset deck${state.decks.length === 1 ? "" : "s"}`
@@ -2476,18 +2475,17 @@
                     : (state.editorPage === "LOADING_ART"
                         ? "Loading screen art"
                         : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`)))));
-        refs.filePathLabel.textContent = buildStatusPathText();
         refs.statusMessage.textContent = state.status.message;
 
-        refs.sourcePill.className = "status-pill";
         refs.dirtyPill.className = `status-pill ${state.dirty ? "is-dirty" : "is-success"}`;
         refs.cardCountPill.className = `status-pill ${state.validation.some((issue) => issue.severity === "error") ? "is-error" : "is-success"}`;
+        refs.statusMessage.className = "status-message";
         if (state.status.tone === "error") {
-            refs.sourcePill.classList.add("is-error");
+            refs.statusMessage.classList.add("tone-error");
         } else if (state.status.tone === "warning") {
-            refs.sourcePill.classList.add("is-warning");
+            refs.statusMessage.classList.add("tone-warning");
         } else if (state.status.tone === "success") {
-            refs.sourcePill.classList.add("is-success");
+            refs.statusMessage.classList.add("tone-success");
         }
     }
 
@@ -4694,33 +4692,7 @@
     }
 
     function buildLoadedMessage() {
-        return state.liveEditingEnabled
-            ? "Loaded the live Firestore card, Siegeknight, premade deck, live element roster, and shared abilities into the dashboard."
-            : "Loaded the current card, Siegeknight, premade deck, live element roster, and shared abilities into the dashboard.";
-    }
-
-    function buildStatusPathText() {
-        if (!state.filePath) {
-            return state.liveEditingEnabled ? "No Firestore document path is available." : "No project file path available.";
-        }
-        const updatedSuffix = state.updatedBy
-            ? ` Last update: ${state.updatedBy}${state.updatedAt ? ` on ${formatTimestamp(state.updatedAt)}` : ""}.`
-            : "";
-        const prefix = state.liveEditingEnabled ? "Live source" : "Editing";
-        return `${prefix}: ${state.filePath}${updatedSuffix}`;
-    }
-
-    function formatSourceLabel() {
-        switch (state.source) {
-            case "FIRESTORE":
-                return "Live Firestore";
-            case "PROJECT_FILE":
-                return "Project file";
-            case "CLASSPATH_RESOURCE":
-                return "Bundled fallback";
-            default:
-                return "Loading...";
-        }
+        return state.liveEditingEnabled ? "Loaded live data." : "Loaded local data.";
     }
 
     function apiUrl(path) {

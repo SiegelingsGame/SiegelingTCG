@@ -412,6 +412,18 @@ input[type="file"] {
     min-height: 1.2em;
 }
 
+.status-message.tone-error {
+    color: #ffd0c8;
+}
+
+.status-message.tone-warning {
+    color: #ffe2ae;
+}
+
+.status-message.tone-success {
+    color: #d4f3d4;
+}
+
 .workspace-grid {
     display: grid;
     grid-template-columns: 320px minmax(0, 1.45fr) minmax(320px, 0.95fr);
