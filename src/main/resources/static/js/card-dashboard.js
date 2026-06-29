@@ -1709,8 +1709,20 @@
     }
 
     function getCardArtDragTargets(card) {
+        const stage = refs.cardVisualStage;
+        if (!stage) {
+            return { artFrame: null, artImg: null };
+        }
+        // Framed Siegelings render through the showcase (.hand-card with the art
+        // in .card-art img), not the legacy binder shell. Live drag/scale must
+        // target whichever the current preview actually produced, or the slider
+        // appears to do nothing.
+        const showcaseImg = stage.querySelector(".card-art img");
+        if (showcaseImg) {
+            return { artFrame: showcaseImg.closest(".card-art") || stage, artImg: showcaseImg };
+        }
         const mode = normalizeCardArtMode(card?.cardArtMode);
-        const previewCard = refs.cardVisualStage?.querySelector(".binder-card");
+        const previewCard = stage.querySelector(".binder-card");
         if (!previewCard) {
             return { artFrame: null, artImg: null };
         }
@@ -2878,7 +2890,7 @@
         if (getEphemeralCardArtPreviewUrl(card.id)) {
             return;
         }
-        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card, .binder-full-card-art img");
+        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card, .binder-full-card-art img, .card-art img");
         if (!artImg) {
             return;
         }
