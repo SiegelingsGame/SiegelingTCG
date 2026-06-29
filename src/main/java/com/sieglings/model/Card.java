@@ -26,6 +26,10 @@ public abstract class Card {
     /** Custom art transform within the binder art frame (pixels / scale / degrees). */
     private Double cardArtOffsetX;
     private Double cardArtOffsetY;
+    /** Card-relative offsets (percent of the art element). Preferred over the pixel
+     *  offsets above so a dragged position holds the same relative spot at any card size. */
+    private Double cardArtOffsetXPct;
+    private Double cardArtOffsetYPct;
     private Double cardArtScale;
     private Double cardArtRotation;
     /** When true, the card renders with a rainbow foil shimmer in binder and loadout views. */
@@ -65,6 +69,10 @@ public abstract class Card {
     public void setCardArtOffsetX(Double cardArtOffsetX) { this.cardArtOffsetX = cardArtOffsetX; }
     public Double getCardArtOffsetY() { return cardArtOffsetY; }
     public void setCardArtOffsetY(Double cardArtOffsetY) { this.cardArtOffsetY = cardArtOffsetY; }
+    public Double getCardArtOffsetXPct() { return cardArtOffsetXPct; }
+    public void setCardArtOffsetXPct(Double cardArtOffsetXPct) { this.cardArtOffsetXPct = cardArtOffsetXPct; }
+    public Double getCardArtOffsetYPct() { return cardArtOffsetYPct; }
+    public void setCardArtOffsetYPct(Double cardArtOffsetYPct) { this.cardArtOffsetYPct = cardArtOffsetYPct; }
     public Double getCardArtScale() { return cardArtScale; }
     public void setCardArtScale(Double cardArtScale) { this.cardArtScale = cardArtScale; }
     public Double getCardArtRotation() { return cardArtRotation; }

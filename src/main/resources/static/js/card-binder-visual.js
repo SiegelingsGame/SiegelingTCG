@@ -97,11 +97,19 @@
     function normalizeArtTransform(card) {
         const x = Number(card?.cardArtOffsetX);
         const y = Number(card?.cardArtOffsetY);
+        // Percentage offsets (fraction of the art element) are card-relative, so a
+        // dragged position holds the same relative spot at any card size. They take
+        // precedence over the legacy pixel offsets, which shift differently per card
+        // size. Older cards (no *Pct fields) keep their pixel behavior.
+        const xPct = Number(card?.cardArtOffsetXPct);
+        const yPct = Number(card?.cardArtOffsetYPct);
         const scale = Number(card?.cardArtScale);
         const rotation = Number(card?.cardArtRotation);
         return {
             x: Number.isFinite(x) ? x : 0,
             y: Number.isFinite(y) ? y : 0,
+            xPct: Number.isFinite(xPct) ? clampNumber(xPct, -200, 200) : null,
+            yPct: Number.isFinite(yPct) ? clampNumber(yPct, -200, 200) : null,
             scale: Number.isFinite(scale) ? clampNumber(scale, 0.25, 3) : 1,
             rotation: Number.isFinite(rotation) ? clampNumber(rotation, -180, 180) : 0
         };
@@ -109,10 +117,16 @@
 
     function buildArtTransformStyle(card) {
         const transform = normalizeArtTransform(card);
-        if (!transform.x && !transform.y && transform.scale === 1 && !transform.rotation) {
+        const usePct = transform.xPct !== null || transform.yPct !== null;
+        const tx = usePct ? `${transform.xPct || 0}%` : `${transform.x}px`;
+        const ty = usePct ? `${transform.yPct || 0}%` : `${transform.y}px`;
+        const noOffset = usePct
+            ? (!transform.xPct && !transform.yPct)
+            : (!transform.x && !transform.y);
+        if (noOffset && transform.scale === 1 && !transform.rotation) {
             return '';
         }
-        return `transform:translate(${transform.x}px,${transform.y}px) scale(${transform.scale}) rotate(${transform.rotation}deg);transform-origin:center center;`;
+        return `transform:translate(${tx},${ty}) scale(${transform.scale}) rotate(${transform.rotation}deg);transform-origin:center center;`;
     }
 
     function renderCustomArtImage(className, artUrl, card) {

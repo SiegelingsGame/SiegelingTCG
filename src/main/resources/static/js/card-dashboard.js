@@ -1681,6 +1681,8 @@
         return {
             cardArtOffsetX: toNumber(card?.cardArtOffsetX, 0),
             cardArtOffsetY: toNumber(card?.cardArtOffsetY, 0),
+            cardArtOffsetXPct: toNumber(card?.cardArtOffsetXPct, 0),
+            cardArtOffsetYPct: toNumber(card?.cardArtOffsetYPct, 0),
             cardArtScale: clampCardArtScale(card?.cardArtScale ?? 1),
             cardArtRotation: clampCardArtRotation(card?.cardArtRotation ?? 0)
         };
@@ -1689,6 +1691,8 @@
     function resetCardArtTransform(card) {
         card.cardArtOffsetX = 0;
         card.cardArtOffsetY = 0;
+        card.cardArtOffsetXPct = 0;
+        card.cardArtOffsetYPct = 0;
         card.cardArtScale = 1;
         card.cardArtRotation = 0;
     }
@@ -1777,6 +1781,17 @@
         const { signal } = cardArtDragAbortController;
         let dragState = null;
 
+        // Offsets are stored as a percentage of the art element so a dragged
+        // position holds the same relative spot at any card size. Convert the
+        // screen-pixel drag delta into a percentage using the element's laid-out
+        // size; legacy pixel offsets are converted to percent on first drag.
+        const pctDelta = (deltaPx, sizePx) => (sizePx > 0 ? (deltaPx / sizePx) * 100 : 0);
+        const startPct = (pctVal, pxVal, sizePx) => {
+            if (Number.isFinite(Number(pctVal))) return Number(pctVal);
+            const px = toNumber(pxVal, 0);
+            return px && sizePx > 0 ? (px / sizePx) * 100 : 0;
+        };
+
         const finishDrag = (event) => {
             if (!dragState) {
                 return;
@@ -1785,12 +1800,16 @@
             if (artImg.hasPointerCapture?.(event.pointerId)) {
                 artImg.releasePointerCapture(event.pointerId);
             }
-            const nextX = dragState.startOffsetX + (event.clientX - dragState.startClientX);
-            const nextY = dragState.startOffsetY + (event.clientY - dragState.startClientY);
+            const nextXPct = dragState.startXPct + pctDelta(event.clientX - dragState.startClientX, dragState.imgW);
+            const nextYPct = dragState.startYPct + pctDelta(event.clientY - dragState.startClientY, dragState.imgH);
             dragState = null;
             mutateSelectedCard((selectedCard) => {
-                selectedCard.cardArtOffsetX = nextX;
-                selectedCard.cardArtOffsetY = nextY;
+                selectedCard.cardArtOffsetXPct = nextXPct;
+                selectedCard.cardArtOffsetYPct = nextYPct;
+                // Drop the legacy pixel offset so the (now card-relative) percent
+                // offset is authoritative.
+                selectedCard.cardArtOffsetX = 0;
+                selectedCard.cardArtOffsetY = 0;
             });
         };
 
@@ -1799,11 +1818,15 @@
                 return;
             }
             event.preventDefault();
+            const imgW = artImg.offsetWidth || artImg.getBoundingClientRect().width || 1;
+            const imgH = artImg.offsetHeight || artImg.getBoundingClientRect().height || 1;
             dragState = {
                 startClientX: event.clientX,
                 startClientY: event.clientY,
-                startOffsetX: toNumber(card.cardArtOffsetX, 0),
-                startOffsetY: toNumber(card.cardArtOffsetY, 0)
+                imgW,
+                imgH,
+                startXPct: startPct(card.cardArtOffsetXPct, card.cardArtOffsetX, imgW),
+                startYPct: startPct(card.cardArtOffsetYPct, card.cardArtOffsetY, imgH)
             };
             artFrame.classList.add("is-art-dragging");
             artImg.setPointerCapture?.(event.pointerId);
@@ -1816,8 +1839,10 @@
             event.preventDefault();
             const previewCard = {
                 ...card,
-                cardArtOffsetX: dragState.startOffsetX + (event.clientX - dragState.startClientX),
-                cardArtOffsetY: dragState.startOffsetY + (event.clientY - dragState.startClientY)
+                cardArtOffsetX: 0,
+                cardArtOffsetY: 0,
+                cardArtOffsetXPct: dragState.startXPct + pctDelta(event.clientX - dragState.startClientX, dragState.imgW),
+                cardArtOffsetYPct: dragState.startYPct + pctDelta(event.clientY - dragState.startClientY, dragState.imgH)
             };
             applyCardArtTransformToPreview(previewCard);
         }, { signal });
@@ -1876,12 +1901,20 @@
             exported.cardArtMode = normalizeCardArtMode(card?.cardArtMode) || "REPLACE";
             const offsetX = toNumber(card.cardArtOffsetX, 0);
             const offsetY = toNumber(card.cardArtOffsetY, 0);
+            const offsetXPct = toNumber(card.cardArtOffsetXPct, 0);
+            const offsetYPct = toNumber(card.cardArtOffsetYPct, 0);
             const scale = clampCardArtScale(card.cardArtScale ?? 1);
             const rotation = clampCardArtRotation(card.cardArtRotation ?? 0);
-            if (offsetX !== 0) {
+            // Card-relative percent offsets (preferred) supersede the legacy pixel
+            // offsets; only emit pixels when no percent offset is set.
+            if (offsetXPct !== 0) {
+                exported.cardArtOffsetXPct = offsetXPct;
+            } else if (offsetX !== 0) {
                 exported.cardArtOffsetX = offsetX;
             }
-            if (offsetY !== 0) {
+            if (offsetYPct !== 0) {
+                exported.cardArtOffsetYPct = offsetYPct;
+            } else if (offsetY !== 0) {
                 exported.cardArtOffsetY = offsetY;
             }
             if (scale !== 1) {
@@ -3405,6 +3438,8 @@
                 trainer.cardArtMode = "";
                 trainer.cardArtOffsetX = 0;
                 trainer.cardArtOffsetY = 0;
+                trainer.cardArtOffsetXPct = 0;
+                trainer.cardArtOffsetYPct = 0;
                 trainer.cardArtScale = 1;
                 trainer.cardArtRotation = 0;
             });
@@ -3450,6 +3485,8 @@
             mutateSelectedTrainer((trainer) => {
                 trainer.cardArtOffsetX = 0;
                 trainer.cardArtOffsetY = 0;
+                trainer.cardArtOffsetXPct = 0;
+                trainer.cardArtOffsetYPct = 0;
                 trainer.cardArtScale = 1;
                 trainer.cardArtRotation = 0;
             });
@@ -3532,8 +3569,9 @@
         trainerArtDragController = null;
     }
 
-    // Drag the preview art to reposition it (updates cardArtOffsetX/Y in px),
-    // mirroring the creature card-art crop interaction.
+    // Drag the preview art to reposition it. Offsets are stored as a percentage
+    // of the art element so the position holds the same relative spot at any card
+    // size, mirroring the creature card-art crop interaction.
     function setupTrainerArtDrag(trainer, img, portrait) {
         if (!img || !hasCustomCardArt(trainer)) {
             return;
@@ -3541,6 +3579,12 @@
         trainerArtDragController = new AbortController();
         const { signal } = trainerArtDragController;
         let drag = null;
+        const pctDelta = (deltaPx, sizePx) => (sizePx > 0 ? (deltaPx / sizePx) * 100 : 0);
+        const startPct = (pctVal, pxVal, sizePx) => {
+            if (Number.isFinite(Number(pctVal))) return Number(pctVal);
+            const px = toNumber(pxVal, 0);
+            return px && sizePx > 0 ? (px / sizePx) * 100 : 0;
+        };
         const finish = (event) => {
             if (!drag) {
                 return;
@@ -3549,12 +3593,14 @@
             if (img.hasPointerCapture?.(event.pointerId)) {
                 img.releasePointerCapture(event.pointerId);
             }
-            const nx = drag.ox + (event.clientX - drag.cx);
-            const ny = drag.oy + (event.clientY - drag.cy);
+            const nxPct = drag.oxPct + pctDelta(event.clientX - drag.cx, drag.w);
+            const nyPct = drag.oyPct + pctDelta(event.clientY - drag.cy, drag.h);
             drag = null;
             mutateSelectedTrainer((t) => {
-                t.cardArtOffsetX = nx;
-                t.cardArtOffsetY = ny;
+                t.cardArtOffsetXPct = nxPct;
+                t.cardArtOffsetYPct = nyPct;
+                t.cardArtOffsetX = 0;
+                t.cardArtOffsetY = 0;
             });
         };
         img.addEventListener("pointerdown", (event) => {
@@ -3562,11 +3608,15 @@
                 return;
             }
             event.preventDefault();
+            const w = img.offsetWidth || img.getBoundingClientRect().width || 1;
+            const h = img.offsetHeight || img.getBoundingClientRect().height || 1;
             drag = {
                 cx: event.clientX,
                 cy: event.clientY,
-                ox: toNumber(trainer.cardArtOffsetX, 0),
-                oy: toNumber(trainer.cardArtOffsetY, 0)
+                w,
+                h,
+                oxPct: startPct(trainer.cardArtOffsetXPct, trainer.cardArtOffsetX, w),
+                oyPct: startPct(trainer.cardArtOffsetYPct, trainer.cardArtOffsetY, h)
             };
             portrait.classList.add("is-art-dragging");
             img.setPointerCapture?.(event.pointerId);
@@ -3578,8 +3628,10 @@
             event.preventDefault();
             const preview = {
                 ...trainer,
-                cardArtOffsetX: drag.ox + (event.clientX - drag.cx),
-                cardArtOffsetY: drag.oy + (event.clientY - drag.cy)
+                cardArtOffsetX: 0,
+                cardArtOffsetY: 0,
+                cardArtOffsetXPct: drag.oxPct + pctDelta(event.clientX - drag.cx, drag.w),
+                cardArtOffsetYPct: drag.oyPct + pctDelta(event.clientY - drag.cy, drag.h)
             };
             const style = buildCardArtTransformStyle(preview);
             if (style) {
