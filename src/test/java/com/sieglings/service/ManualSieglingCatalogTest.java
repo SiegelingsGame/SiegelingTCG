@@ -73,6 +73,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -161,6 +163,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -219,6 +223,8 @@ class ManualSieglingCatalogTest {
                 "EARTH+FIRE",
                 null,
                 List.of(),
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -288,6 +294,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -334,6 +342,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 List.of(),
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -400,6 +410,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -452,6 +464,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -496,6 +510,8 @@ class ManualSieglingCatalogTest {
                 "REPLACE",
                 12.5,
                 -8.0,
+                null,
+                null,
                 1.35,
                 -15.0,
                 null
@@ -519,6 +535,28 @@ class ManualSieglingCatalogTest {
         assertEquals(-8.0, exported.cardArtOffsetY());
         assertEquals(1.35, exported.cardArtScale());
         assertEquals(-15.0, exported.cardArtRotation());
+    }
+
+    @Test
+    void copyRetainsCardArtTransform() {
+        // Regression: the deck-builder catalog runs every card through copy().
+        // copy() previously dropped scale/offsets, so published art rendered at
+        // scale 1.0 in the binder even though Firestore held the tuned values.
+        SieglingCard card = new SieglingCard("raydile", "Raydile", Element.FIRE, Rarity.UNCOMMON,
+                15, 8, List.of(), Row.FRONT);
+        card.setCardArtUrl("https://example.com/raydile.png");
+        card.setCardArtMode("OVERLAY");
+        card.setCardArtOffsetXPct(1.25);
+        card.setCardArtOffsetYPct(18.0);
+        card.setCardArtScale(1.82);
+        card.setCardArtRotation(0.0);
+
+        SieglingCard copy = card.copy();
+        assertEquals("https://example.com/raydile.png", copy.getCardArtUrl());
+        assertEquals("OVERLAY", copy.getCardArtMode());
+        assertEquals(1.25, copy.getCardArtOffsetXPct());
+        assertEquals(18.0, copy.getCardArtOffsetYPct());
+        assertEquals(1.82, copy.getCardArtScale());
     }
 
     @Test
@@ -602,6 +640,8 @@ class ManualSieglingCatalogTest {
                 null,
                 "data:image/png;base64,abc",
                 "REPLACE",
+                null,
+                null,
                 null,
                 null,
                 null,

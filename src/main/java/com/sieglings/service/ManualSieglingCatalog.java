@@ -270,6 +270,12 @@ final class ManualSieglingCatalog {
         if (definition.cardArtOffsetY() != null) {
             card.setCardArtOffsetY(definition.cardArtOffsetY());
         }
+        if (definition.cardArtOffsetXPct() != null) {
+            card.setCardArtOffsetXPct(definition.cardArtOffsetXPct());
+        }
+        if (definition.cardArtOffsetYPct() != null) {
+            card.setCardArtOffsetYPct(definition.cardArtOffsetYPct());
+        }
         if (definition.cardArtScale() != null) {
             card.setCardArtScale(definition.cardArtScale());
         }
@@ -654,6 +660,8 @@ final class ManualSieglingCatalog {
                     card.getCardArtMode(),
                     card.getCardArtOffsetX(),
                     card.getCardArtOffsetY(),
+                    card.getCardArtOffsetXPct(),
+                    card.getCardArtOffsetYPct(),
                     card.getCardArtScale(),
                     card.getCardArtRotation(),
                     card.isHolographic()
@@ -686,6 +694,8 @@ final class ManualSieglingCatalog {
                     spell.getCardArtMode(),
                     spell.getCardArtOffsetX(),
                     spell.getCardArtOffsetY(),
+                    spell.getCardArtOffsetXPct(),
+                    spell.getCardArtOffsetYPct(),
                     spell.getCardArtScale(),
                     spell.getCardArtRotation(),
                     spell.isHolographic()
@@ -718,6 +728,8 @@ final class ManualSieglingCatalog {
                     trap.getCardArtMode(),
                     trap.getCardArtOffsetX(),
                     trap.getCardArtOffsetY(),
+                    trap.getCardArtOffsetXPct(),
+                    trap.getCardArtOffsetYPct(),
                     trap.getCardArtScale(),
                     trap.getCardArtRotation(),
                     trap.isHolographic()
@@ -802,6 +814,8 @@ final class ManualSieglingCatalog {
             String cardArtMode,
             Double cardArtOffsetX,
             Double cardArtOffsetY,
+            Double cardArtOffsetXPct,
+            Double cardArtOffsetYPct,
             Double cardArtScale,
             Double cardArtRotation,
             Boolean holographic
