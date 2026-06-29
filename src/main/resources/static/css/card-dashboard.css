@@ -42,6 +42,10 @@
 
 html,
 body {
+    /* style.css (loaded for the card preview's .hand-card/.element-frame
+       styles) sets the game's flex/100dvh/overflow:hidden body layout; the
+       dashboard is a normal scrolling document, so restore block flow here. */
+    display: block;
     height: auto;
     min-height: 100%;
     overflow-x: hidden;
