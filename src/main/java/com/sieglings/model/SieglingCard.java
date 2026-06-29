@@ -46,6 +46,12 @@ public class SieglingCard extends Card {
         c.setEvolvesFromName(evolvesFromName);
         c.setCardArtUrl(getCardArtUrl());
         c.setCardArtMode(getCardArtMode());
+        c.setCardArtOffsetX(getCardArtOffsetX());
+        c.setCardArtOffsetY(getCardArtOffsetY());
+        c.setCardArtOffsetXPct(getCardArtOffsetXPct());
+        c.setCardArtOffsetYPct(getCardArtOffsetYPct());
+        c.setCardArtScale(getCardArtScale());
+        c.setCardArtRotation(getCardArtRotation());
         c.setHolographic(isHolographic());
         return c;
     }
