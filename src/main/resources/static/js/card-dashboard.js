@@ -1364,7 +1364,10 @@
         syncCardArtTransformControls(card);
         renderPreview();
         renderValidation();
-        renderChrome();
+        // renderChrome() never existed — it threw a ReferenceError here on every
+        // scale/rotate/drag, aborting the rest of the update. renderButtons()
+        // refreshes the save/dirty chrome, which is what just changed.
+        renderButtons();
         renderStatus();
     }
 
