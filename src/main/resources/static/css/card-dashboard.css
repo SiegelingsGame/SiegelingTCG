@@ -1362,6 +1362,25 @@ body.move-picker-open {
     object-position: center;
 }
 
+/* Framed Siegelings render through the showcase (.card-art img), not the binder
+   shell. Make that art draggable in the editor — without touch-action: none a
+   finger drag just scrolls the page, so the overlay can't be repositioned on a
+   phone. */
+.card-visual-stage .card-art {
+    pointer-events: auto;
+}
+
+.card-visual-stage .card-art img {
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;
+}
+
+.card-visual-stage .card-art.is-art-dragging,
+.card-visual-stage .card-art.is-art-dragging img {
+    cursor: grabbing;
+}
+
 .card-visual-stage .binder-card.art-mode-overlay.is-art-dragging .binder-card-overlay-art-card {
     cursor: grabbing;
 }
