@@ -1405,6 +1405,10 @@ public class GameController {
                 if (ci.getCard().isHolographic()) {
                     m.put("holographic", true);
                 }
+                // Carry the source card's custom/overlay art (+ its scale/offset
+                // transform) onto the board cell so placed Siegelings render the
+                // same art the binder and hand show, instead of the default scene.
+                appendCardArt(m, ci.getCard());
                 List<Ability> visibleBoardAbilities = visibleSieglingAbilities(ci.getCard());
                 if (!visibleBoardAbilities.isEmpty()) {
                     m.put("abilities", visibleBoardAbilities.stream()
