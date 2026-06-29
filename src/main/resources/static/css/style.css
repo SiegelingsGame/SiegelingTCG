@@ -12538,6 +12538,26 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     width: auto;
 }
 
+/* Element-frame (painted background) cards pin the art to the frame's scene
+   opening with the SAME absolute window the editor preview uses, instead of the
+   flex 3/2 window above. Without this the binder/in-game art window is a
+   different size+shape than the editor's, so the same cardArtScale renders at a
+   different apparent size — overlay art tuned in the dashboard looked right
+   there but wrong in the binder. Keeping one window everywhere makes the scale
+   proportional to card size on every surface. */
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-selected {
+    position: absolute;
+    left: 9.8%;
+    top: 10%;
+    width: 80.4%;
+    height: 58.7%;
+    aspect-ratio: auto;
+    flex: none;
+    min-height: 0;
+    padding: 0;
+}
+
 .mulligan-card-slot .hand-card.mulligan-showcase .card-art-fallback span {
     font-size: 0.62em;
 }
