@@ -399,6 +399,21 @@
         document.body.classList.toggle('hud-minimized', minimized);
         document.getElementById('hudFab')?.classList.toggle('hidden', !minimized);
         localStorage.setItem('sieglingsHudMinimized', minimized ? '1' : '0');
+        measureBottomHud();
+    }
+
+    // Expose the docked bottom HUD's height as a CSS variable so the Card View
+    // / Filter trays can anchor their bottom edge right above its top (the
+    // yellow accent line) instead of guessing with a fixed offset. The HUD
+    // height shifts with the route (different action buttons) and when the HUD
+    // is minimized, so this re-runs on those changes plus resize/orientation.
+    function measureBottomHud() {
+        const nav = document.querySelector('.home-nav');
+        if (!nav) return;
+        const height = Math.round(nav.getBoundingClientRect().height);
+        if (height > 0) {
+            document.documentElement.style.setProperty('--bottom-hud-height', `${height}px`);
+        }
     }
 
     function openFriendsModal() {
@@ -1010,6 +1025,10 @@
         };
         window.addEventListener('orientationchange', handleOrientationArtChange);
         window.matchMedia?.('(orientation: portrait)')?.addEventListener?.('change', handleOrientationArtChange);
+        // Keep the docked-HUD height measurement current for the tray anchor.
+        window.addEventListener('resize', measureBottomHud);
+        window.addEventListener('orientationchange', measureBottomHud);
+        measureBottomHud();
         // Only show the top loading bar when there's nothing cached to paint yet;
         // otherwise the page is already populated and the refresh is silent.
         setHubLoading(!state.options);
@@ -6515,6 +6534,9 @@
         // Lock the page scroll behind an open tray so touch gestures stay
         // confined to the tray instead of scrolling the background.
         document.body.classList.toggle('tray-open', trayOpen);
+        // The action buttons differ per route, so the docked HUD height can
+        // change here — keep the tray anchor measurement in sync.
+        measureBottomHud();
     }
 
     async function fetchJson(path, options = {}) {
