@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -24,6 +25,39 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ManualSieglingCatalogTest {
+
+    @Test
+    void deletingASieglingFromOverridesKeepsItOutOfTheRoster() {
+        List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+
+        // The dashboard publishes the full roster; deleting a card drops it from the
+        // exported definitions. The deleted card must not fall back to its generated seed.
+        List<ManualSieglingCatalog.ManualSieglingDefinition> definitions =
+                ManualSieglingCatalog.buildOverrideFile(generated).cards().stream()
+                        .filter(def -> !"emberpup".equalsIgnoreCase(def.id())
+                                && !"hotdog".equalsIgnoreCase(def.id()))
+                        .toList();
+
+        List<String> ids = ManualSieglingCatalog.applyOverrides(Element.FIRE, generated, definitions, pool)
+                .stream().map(SieglingCard::getId).toList();
+
+        assertFalse(ids.contains("emberpup"), "deleted card emberpup should not reappear");
+        assertFalse(ids.contains("hotdog"), "deleted card hotdog should not reappear");
+        assertTrue(ids.contains("firsky"), "surviving cards should remain");
+    }
+
+    @Test
+    void emptyOverridesFallBackToTheGeneratedRoster() {
+        List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+
+        List<String> ids = ManualSieglingCatalog.applyOverrides(Element.FIRE, generated, List.of(), pool)
+                .stream().map(SieglingCard::getId).sorted().toList();
+        List<String> generatedIds = generated.stream().map(SieglingCard::getId).sorted().toList();
+
+        assertEquals(generatedIds, ids);
+    }
 
     @Test
     void manualDefinitionsCanOverrideGeneratedSieglingFields() {
