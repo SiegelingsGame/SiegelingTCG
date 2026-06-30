@@ -1210,6 +1210,9 @@ public class GameController {
         m.put("type", card.getCardType().name());
         m.put("element", card.getElement().name());
         m.put("rarity", card.getRarity().name());
+        if (card.getDescription() != null && !card.getDescription().isBlank()) {
+            m.put("description", card.getDescription());
+        }
 
         if (card.getCostElement() != null) {
             m.put("costElement", card.getCostElement().name());

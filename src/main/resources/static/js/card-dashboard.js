@@ -45,6 +45,7 @@
 
     const state = {
         metadata: null,
+        creatureDescriptions: {},
         cards: [],
         decks: [],
         packs: [],
@@ -104,7 +105,67 @@
         cacheRefs();
         bindEvents();
         renderAll();
+        loadCreatureDescriptions();
         loadCurrentData();
+    }
+
+    // Flavor text currently lives in the static binder asset. Load it so the
+    // dashboard can *display* a card's existing description for editing; once an
+    // admin saves an edit it rides through the override catalog (card.description).
+    async function loadCreatureDescriptions() {
+        try {
+            const response = await fetch("/assets/creature-descriptions.json", { cache: "no-cache" });
+            if (!response.ok) {
+                return;
+            }
+            const entries = await response.json();
+            state.creatureDescriptions = indexCreatureDescriptions(entries);
+            if (state.selectedCardId) {
+                renderCardEditorIfActive();
+            }
+        } catch (error) {
+            /* Non-fatal: the field still works, it just won't pre-fill legacy flavor text. */
+        }
+    }
+
+    function indexCreatureDescriptions(entries) {
+        const list = Array.isArray(entries) ? entries : [];
+        return list.reduce((out, item) => {
+            const description = String(item?.description || "").trim();
+            if (!description) {
+                return out;
+            }
+            [item.id, item.name, item.displayName].forEach((key) => {
+                const normalized = normalizeCreatureKey(key);
+                if (normalized) {
+                    out[normalized] = description;
+                }
+            });
+            return out;
+        }, {});
+    }
+
+    function normalizeCreatureKey(value) {
+        return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    }
+
+    function staticCreatureDescription(card) {
+        const lookup = state.creatureDescriptions || {};
+        return lookup[normalizeCreatureKey(card?.id)] || lookup[normalizeCreatureKey(card?.name)] || "";
+    }
+
+    // The catalog description (a published edit) wins; otherwise fall back to the
+    // legacy static flavor text so existing descriptions are visible/editable.
+    function descriptionForDisplay(card) {
+        const own = String(card?.description || "").trim();
+        return own || staticCreatureDescription(card);
+    }
+
+    function renderCardEditorIfActive() {
+        const card = getSelectedCard();
+        if (card) {
+            setInputValue(refs.cardDescriptionInput, descriptionForDisplay(card));
+        }
     }
 
     function cacheRefs() {
@@ -168,6 +229,7 @@
             "cardIdInput",
             "cardTypeSelect",
             "cardNameInput",
+            "cardDescriptionInput",
             "cardElementSelect",
             "cardRaritySelect",
             "sieglingStatsSection",
@@ -729,6 +791,7 @@
         refs.cardIdInput.addEventListener("input", (event) => updateSelectedCardField("id", event.target.value));
         refs.cardTypeSelect.addEventListener("change", (event) => changeSelectedCardType(event.target.value));
         refs.cardNameInput.addEventListener("input", (event) => onCardNameChanged(event.target.value));
+        refs.cardDescriptionInput.addEventListener("input", (event) => updateSelectedCardField("description", event.target.value));
         refs.cardElementSelect.addEventListener("change", (event) => {
             mutateSelectedCard((card) => {
                 card.element = event.target.value;
@@ -1927,6 +1990,10 @@
         if (card?.holographic === true) {
             exported.holographic = true;
         }
+        const description = String(card?.description || "").trim();
+        if (description) {
+            exported.description = description;
+        }
         return exported;
     }
 
@@ -1944,6 +2011,7 @@
                 cardType,
                 id: String(card?.id || ""),
                 name: String(card?.name || ""),
+                description: String(card?.description || ""),
                 element: baseElement,
                 rarity: card?.rarity || firstMetaValue("rarities", "COMMON"),
                 health: toNumber(card?.health, 10),
@@ -1970,6 +2038,7 @@
             cardType,
             id: String(card?.id || ""),
             name: String(card?.name || ""),
+            description: String(card?.description || ""),
             element: baseElement,
             rarity: card?.rarity || firstMetaValue("rarities", "COMMON"),
             health: toNumber(card?.health, 10),
@@ -2636,6 +2705,7 @@
 
         setInputValue(refs.cardIdInput, card.id);
         setInputValue(refs.cardNameInput, card.name);
+        setInputValue(refs.cardDescriptionInput, descriptionForDisplay(card));
         refs.cardIdInput.dataset.autoId = computeAutoCardId(card, card.name);
         setInputValue(refs.cardHealthInput, card.health);
         setInputValue(refs.cardSpeedInput, card.speed);
@@ -2855,6 +2925,7 @@
         const preview = {
             ...card,
             type: card.cardType,
+            description: descriptionForDisplay(card),
             abilities: card.cardType === "SIEGLING" ? [] : (card.abilities || [])
         };
         if (ephemeralArtUrl) {

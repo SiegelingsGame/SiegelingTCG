@@ -6936,9 +6936,11 @@
     }
     function creatureDescriptionFor(card) {
         const descriptions = state.creatureDescriptions || {};
-        return polishFlavorText(descriptions[normalizeCreatureKey(card?.id)]
+        // A description published from the card dashboard (card.description) is
+        // authoritative; fall back to the static flavor-text asset otherwise.
+        return polishFlavorText(String(card?.description || '').trim()
+            || descriptions[normalizeCreatureKey(card?.id)]
             || descriptions[normalizeCreatureKey(card?.name)]
-            || String(card?.description || '').trim()
             || 'Description coming soon.');
     }
     function polishFlavorText(value) {

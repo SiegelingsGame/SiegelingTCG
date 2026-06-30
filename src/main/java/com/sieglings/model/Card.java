@@ -14,6 +14,8 @@ public abstract class Card {
     private Element element;
     private Rarity rarity;
     private Ability ability;
+    /** Flavor text shown on the card binder / preview. Editable from the card dashboard. */
+    private String description;
 
     // Energy cost to play
     private Element costElement;
@@ -57,6 +59,8 @@ public abstract class Card {
     public void setRarity(Rarity rarity) { this.rarity = rarity; }
     public Ability getAbility() { return ability; }
     public void setAbility(Ability ability) { this.ability = ability; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
     public Element getCostElement() { return costElement; }
     public void setCostElement(Element costElement) { this.costElement = costElement; }
     public int getCostAmount() { return costAmount; }

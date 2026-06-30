@@ -60,6 +60,25 @@ class ManualSieglingCatalogTest {
     }
 
     @Test
+    void publishedDescriptionFlowsThroughOverrides() {
+        List<SieglingCard> source = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
+        source.stream().filter(c -> c.getId().equals("emberpup")).findFirst().orElseThrow()
+                .setDescription("A fiery pup that scorches the earth.");
+
+        // The dashboard exports the edited roster; the description rides along in the
+        // override definitions and is restored onto a fresh generated base.
+        List<ManualSieglingCatalog.ManualSieglingDefinition> definitions =
+                ManualSieglingCatalog.buildOverrideFile(source).cards();
+
+        List<SieglingCard> fresh = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+        SieglingCard restored = ManualSieglingCatalog.applyOverrides(Element.FIRE, fresh, definitions, pool)
+                .stream().filter(c -> c.getId().equals("emberpup")).findFirst().orElseThrow();
+
+        assertEquals("A fiery pup that scorches the earth.", restored.getDescription());
+    }
+
+    @Test
     void manualDefinitionsCanOverrideGeneratedSieglingFields() {
         List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.ELECTRIC);
 
@@ -94,6 +113,7 @@ class ManualSieglingCatalogTest {
                         1,
                         null
                 ),
+                null,
                 null,
                 null,
                 null,
@@ -199,6 +219,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -257,6 +278,7 @@ class ManualSieglingCatalogTest {
                 "EARTH+FIRE",
                 null,
                 List.of(),
+                null,
                 null,
                 null,
                 null,
@@ -330,6 +352,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -376,6 +399,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 List.of(),
+                null,
                 null,
                 null,
                 null,
@@ -446,6 +470,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -492,6 +517,7 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 List.of(),
+                null,
                 null,
                 null,
                 null,
@@ -548,6 +574,7 @@ class ManualSieglingCatalogTest {
                 null,
                 1.35,
                 -15.0,
+                null,
                 null
         );
 
@@ -674,6 +701,7 @@ class ManualSieglingCatalogTest {
                 null,
                 "data:image/png;base64,abc",
                 "REPLACE",
+                null,
                 null,
                 null,
                 null,

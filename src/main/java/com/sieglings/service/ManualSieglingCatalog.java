@@ -295,6 +295,9 @@ final class ManualSieglingCatalog {
         if (definition.holographic() != null) {
             card.setHolographic(definition.holographic());
         }
+        if (definition.description() != null) {
+            card.setDescription(normalizeBlank(definition.description()));
+        }
     }
 
     private static void applySieglingMoveDefinition(SieglingCard card, String id,
@@ -674,7 +677,8 @@ final class ManualSieglingCatalog {
                     card.getCardArtOffsetYPct(),
                     card.getCardArtScale(),
                     card.getCardArtRotation(),
-                    card.isHolographic()
+                    card.isHolographic(),
+                    normalizeBlank(card.getDescription())
             );
         }
         if (card instanceof SpellCard spell) {
@@ -708,7 +712,8 @@ final class ManualSieglingCatalog {
                     spell.getCardArtOffsetYPct(),
                     spell.getCardArtScale(),
                     spell.getCardArtRotation(),
-                    spell.isHolographic()
+                    spell.isHolographic(),
+                    normalizeBlank(spell.getDescription())
             );
         }
         if (card instanceof TrapCard trap) {
@@ -742,7 +747,8 @@ final class ManualSieglingCatalog {
                     trap.getCardArtOffsetYPct(),
                     trap.getCardArtScale(),
                     trap.getCardArtRotation(),
-                    trap.isHolographic()
+                    trap.isHolographic(),
+                    normalizeBlank(trap.getDescription())
             );
         }
         throw new IllegalStateException("Unsupported card type for override export: " + card.getClass().getSimpleName());
@@ -828,7 +834,8 @@ final class ManualSieglingCatalog {
             Double cardArtOffsetYPct,
             Double cardArtScale,
             Double cardArtRotation,
-            Boolean holographic
+            Boolean holographic,
+            String description
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
