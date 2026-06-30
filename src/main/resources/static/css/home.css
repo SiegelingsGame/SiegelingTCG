@@ -377,15 +377,23 @@ body.card-fullscreen-open {
 .card-fullscreen-card {
     display: grid;
     place-items: center;
-    width: min(92vw, 460px);
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
     overflow: auto;
     overscroll-behavior: contain;
 }
 
+/* Zoomed-in card: fill the screen, bounded by 92% width and by the available
+   height via the 5/7 card aspect so the whole card always fits. The
+   max-width/min-width reset defeats the inherited .hand-card 156px cap; a
+   definite vw width (not a percentage) avoids the centered-grid track
+   collapse. */
 .card-fullscreen-card .detail-card-preview,
 .card-fullscreen-card .knight-detail-preview {
-    width: 100%;
+    width: 92vw; /* fallback if dvh/calc below is unsupported */
+    width: min(92vw, calc((100dvh - 150px) * 5 / 7));
+    max-width: none;
+    min-width: 0;
     margin: 0 auto;
     pointer-events: none;
 }
@@ -395,7 +403,7 @@ body.card-fullscreen-open {
 }
 
 .card-fullscreen-card .detail-card-preview .binder-card-art {
-    height: clamp(240px, 52vh, 420px);
+    height: clamp(280px, 60vh, 520px);
 }
 
 /* Player-selected art behind the profile hero card. */
@@ -2798,9 +2806,20 @@ select.search-input { color-scheme: dark; }
     pointer-events: none;
 }
 
-/* Card View tray renders the card 50% larger than the deck-builder preview. */
+/* Card View tray renders the card larger than the deck-builder preview.
+   max-width/min-width reset defeats the .hand-card 156px cap that the framed
+   showcase card otherwise inherits. */
 .detail-panel .detail-card-preview {
-    width: min(100%, 450px);
+    width: min(100%, 240px);
+    max-width: none;
+    min-width: 0;
+}
+
+/* A content-sized (auto) grid track collapses width:min(100%,…) to the card's
+   min-content. Give the wrap a definite 1fr track so the width actually
+   applies and the card can grow. */
+.detail-panel .detail-card-preview-wrap {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .deck-builder-preview-card .detail-card-preview {
@@ -7918,10 +7937,14 @@ body.gacha-active {
     .detail-panel {
         top: auto;
         right: 10px;
-        bottom: calc(170px + env(safe-area-inset-bottom, 0px));
+        /* Sit 8px above the docked HUD's top (the yellow accent line). The HUD
+           height is measured into --bottom-hud-height by JS; 170px is a safe
+           fallback before the first measurement. */
+        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
         left: 10px;
         width: auto;
-        max-height: calc(100vh - 204px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100vh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
+        max-height: calc(100dvh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
         transform: translateY(0);
         background:
             linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
@@ -7932,12 +7955,12 @@ body.gacha-active {
             0 -10px 44px rgba(0, 0, 0, 0.6),
             0 0 0 1px rgba(255, 255, 255, 0.06);
     }
-    /* Card View tray: pin it just above the bottom HUD and cap the top so the
-       (now larger) card never pushes the close button off the top of the
-       screen — the panel scrolls internally instead. */
+    /* Card View tray: pin it just above the bottom HUD's yellow line and cap
+       the top so the larger card never pushes the close button off the top of
+       the screen — the panel scrolls internally instead. */
     .detail-panel {
         top: calc(env(safe-area-inset-top, 0px) + 64px);
-        bottom: calc(170px + env(safe-area-inset-bottom, 0px));
+        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
         max-height: none;
     }
     .tray-backdrop {
