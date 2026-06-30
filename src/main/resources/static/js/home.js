@@ -1153,6 +1153,18 @@
         // by delegation rather than per render.
         document.addEventListener('click', (event) => {
             if (event.target.closest('[data-tray-close]')) closeTrays();
+            if (event.target.closest('[data-card-fullscreen]')) openCardFullscreen();
+        });
+        // Keyboard activation for the (non-button) card preview trigger.
+        document.addEventListener('keydown', (event) => {
+            if ((event.key === 'Enter' || event.key === ' ') && event.target.closest('[data-card-fullscreen]')) {
+                event.preventDefault();
+                openCardFullscreen();
+            }
+        });
+        document.getElementById('cardFullscreenBack')?.addEventListener('click', closeCardFullscreen);
+        document.getElementById('cardFullscreen')?.addEventListener('click', (event) => {
+            if (event.target === event.currentTarget) closeCardFullscreen();
         });
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
@@ -1168,6 +1180,7 @@
         document.querySelectorAll('[data-match-review-close]').forEach(btn => btn.addEventListener('click', closeMatchReview));
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
+                closeCardFullscreen();
                 closeDeckPreview();
                 closeMatchReview();
                 closeAchievementDetail();
@@ -1914,6 +1927,43 @@
         </button>`;
     }
 
+    // Shared card art markup for the Card View tray and its full-screen
+    // takeover so both surfaces render an identical card.
+    function renderDetailCardPreviewMarkup(card, extraPreviewClass = '') {
+        const previewClass = `detail-card-preview${extraPreviewClass ? ` ${extraPreviewClass}` : ''}`;
+        if (card.type === 'SIEGEKNIGHT') {
+            return `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`;
+        }
+        return window.SieglingsCardBinderVisual?.renderBinderCardPreview
+            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
+                ownedOverride: ownedCount(card.id),
+                previewClass,
+                descriptionText: shopCardDescriptionFor(card),
+                ...binderHolographicOptions()
+            })
+            : `<div class="binder-card ${previewClass}" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+    }
+
+    // Full-screen card takeover: tapping the card in the Card View tray blows
+    // the art up to fill the screen; the back arrow returns to the tray.
+    function openCardFullscreen() {
+        const overlay = document.getElementById('cardFullscreen');
+        const body = document.getElementById('cardFullscreenBody');
+        let card = selectedCard();
+        if (!overlay || !body || !card) return;
+        card = withPlayerHolographic(card);
+        body.innerHTML = renderDetailCardPreviewMarkup(card, 'card-fullscreen-preview');
+        overlay.classList.remove('hidden');
+        document.body.classList.add('card-fullscreen-open');
+        window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
+    }
+
+    function closeCardFullscreen() {
+        document.getElementById('cardFullscreen')?.classList.add('hidden');
+        document.body.classList.remove('card-fullscreen-open');
+    }
+
     function renderDetail() {
         const panel = document.getElementById('detailPanel');
         let card = selectedCard();
@@ -1960,19 +2010,10 @@
             && state.profile?.authenticated
             && state.progression?.starterChosen
             && (state.progression?.gold || 0) >= nextXpCost;
-        const cardPreview = isSiegeknight
-            ? `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`
-            : window.SieglingsCardBinderVisual?.renderBinderCardPreview
-            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
-                ownedOverride: ownedCount(card.id),
-                previewClass: 'detail-card-preview',
-                descriptionText: shopCardDescriptionFor(card),
-                ...binderHolographicOptions()
-            })
-            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+        const cardPreview = renderDetailCardPreviewMarkup(card);
         panel.innerHTML = `
             <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
-            <div class="detail-card-preview-wrap">${cardPreview}</div>
+            <div class="detail-card-preview-wrap" data-card-fullscreen role="button" tabindex="0" aria-label="View card full screen" title="Tap to view full screen">${cardPreview}</div>
             ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
                 ${renderActiveNotchChips(card.notches)}
             </div>
