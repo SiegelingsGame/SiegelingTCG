@@ -91,6 +91,7 @@
         firestoreError: "",
         updatedBy: "",
         updatedAt: "",
+        catalogVersion: 0,
         auth: { ...DEFAULT_AUTH },
         status: { ...DEFAULT_STATUS },
         ephemeralCardArtPreview: null
@@ -4376,6 +4377,7 @@
 
     function buildExportData() {
         return {
+            catalogVersion: state.catalogVersion,
             cards: state.cards.map((card) => buildExportCard(card)),
             moves: state.movesPool.map((m) => buildExportMove(m)),
             decks: state.decks.map((deck) => buildExportDeck(deck)),
@@ -4725,6 +4727,7 @@
         state.firestoreError = payload.firestoreError || "";
         state.updatedBy = payload.updatedBy || "";
         state.updatedAt = payload.updatedAt || "";
+        state.catalogVersion = Number(payload.catalogVersion) || 0;
         state.auth = {
             ...DEFAULT_AUTH,
             ...(payload.auth || {}),

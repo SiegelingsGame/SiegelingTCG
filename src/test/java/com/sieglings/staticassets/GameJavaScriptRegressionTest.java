@@ -116,6 +116,26 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void dashboardPublishesLoadedCatalogVersion() throws IOException {
+        String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
+        String applyServerPayload = extractFunction(dashboardScript, "function applyServerPayload(payload)");
+        String buildExportData = extractFunction(dashboardScript, "function buildExportData()");
+
+        assertTrue(
+                dashboardScript.contains("catalogVersion: 0"),
+                "Dashboard state should track the loaded catalog revision."
+        );
+        assertTrue(
+                applyServerPayload.contains("state.catalogVersion = Number(payload.catalogVersion) || 0;"),
+                "Dashboard loads must remember the server catalog revision."
+        );
+        assertTrue(
+                buildExportData.contains("catalogVersion: state.catalogVersion"),
+                "Live publish payloads must include their base catalog revision to prevent stale full-snapshot overwrites."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
     }
