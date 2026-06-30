@@ -10074,7 +10074,41 @@ function toggleMulliganCard(index) {
     } else {
         mulliganSelectedIndices.add(index);
     }
-    renderMulliganOverlay();
+    // Update only the selection state in place. Re-rendering the whole overlay
+    // would rebuild each card's markup, forcing its overlay-art <img> to reload
+    // and blink. The hand itself hasn't changed, so just toggle the highlight,
+    // redraw badge, and button label.
+    updateMulliganSelectionUI();
+}
+
+function updateMulliganSelectionUI() {
+    const preview = document.getElementById('mulliganHandPreview');
+    if (preview) {
+        preview.querySelectorAll('.mulligan-card-slot').forEach((slot) => {
+            const index = Number(slot.dataset.index);
+            const isSelected = mulliganSelectedIndices.has(index);
+            slot.classList.toggle('is-selected', isSelected);
+            if (slot.getAttribute('role') === 'button') {
+                slot.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+            }
+            let badge = slot.querySelector('.mulligan-redraw-badge');
+            if (isSelected && !badge) {
+                badge = document.createElement('div');
+                badge.className = 'mulligan-redraw-badge';
+                badge.setAttribute('aria-hidden', 'true');
+                badge.textContent = 'Redraw';
+                slot.insertBefore(badge, slot.firstChild);
+            } else if (!isSelected && badge) {
+                badge.remove();
+            }
+        });
+    }
+    const redrawBtn = document.getElementById('btnMulliganRedraw');
+    if (redrawBtn && gameState?.mulligan?.youPending) {
+        const n = mulliganSelectedIndices.size;
+        redrawBtn.disabled = n === 0;
+        redrawBtn.textContent = n === 0 ? 'Redraw selected' : `Redraw ${n} card${n === 1 ? '' : 's'}`;
+    }
 }
 
 function submitMulliganKeep() {
