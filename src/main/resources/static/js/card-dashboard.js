@@ -966,7 +966,6 @@
 
     async function saveToProjectFile() {
         const errors = state.validation.filter((issue) => issue.severity === "error");
-        const alerts = state.validation.filter((issue) => issue.severity === "warn");
         const verb = state.liveEditingEnabled ? "publish live changes" : "save to the project file";
 
         if (!state.liveEditingEnabled && errors.length > 0) {
@@ -976,9 +975,10 @@
             return;
         }
 
-        const blockers = state.liveEditingEnabled
-            ? state.validation.filter((issue) => issue.severity === "error" || issue.severity === "warn")
-            : alerts;
+        // Only errors gate a publish/save (the confirm + type-PUBLISH double-check).
+        // Warnings are surfaced in the validation box but never block or require
+        // extra confirmation.
+        const blockers = errors;
         if (blockers.length > 0) {
             const summary = blockers
                 .slice(0, 5)
@@ -4367,7 +4367,7 @@
                 return;
             }
             if (!liveNames.has(trainer.element)) {
-                issues.push(issue("error", `Active Siegeknight '${trainer.id.trim() || trainer.name}' uses element ${trainer.element}, which is off in Live Elements.`, "trainers"));
+                issues.push(issue("warn", `Active Siegeknight '${trainer.id.trim() || trainer.name}' uses element ${trainer.element}, which is off in Live Elements.`, "trainers"));
             }
         });
 
