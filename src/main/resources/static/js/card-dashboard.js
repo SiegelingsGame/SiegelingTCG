@@ -2815,11 +2815,11 @@
     function renderNotches(card) {
         refs.notchGrid.innerHTML = NOTCH_LAYOUT.map((direction) => {
             if (direction === "CENTER") {
-                return `<div class="notch-center">Card</div>`;
+                return `<div class="notch-center notch-cell-CENTER">C</div>`;
             }
             const activeNotch = card.notches.find((notch) => notch.direction === direction);
             return `
-                <button class="notch-button${activeNotch ? " active" : ""}" type="button" data-notch-direction="${direction}">
+                <button class="notch-button notch-cell-${direction}${activeNotch ? " active" : ""}" type="button" data-notch-direction="${direction}">
                     ${escapeHtml(shortDirection(direction))}
                 </button>
             `;

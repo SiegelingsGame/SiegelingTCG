@@ -741,8 +741,21 @@ textarea {
     width: min(290px, 100%);
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
     gap: 8px;
 }
+
+/* Pin every cell to its true position so the layout can never reflow,
+   even if a notch is missing. The center reserves the "C" slot. */
+.notch-cell-TOP_LEFT { grid-area: 1 / 1; }
+.notch-cell-TOP { grid-area: 1 / 2; }
+.notch-cell-TOP_RIGHT { grid-area: 1 / 3; }
+.notch-cell-LEFT { grid-area: 2 / 1; }
+.notch-cell-CENTER { grid-area: 2 / 2; }
+.notch-cell-RIGHT { grid-area: 2 / 3; }
+.notch-cell-BOTTOM_LEFT { grid-area: 3 / 1; }
+.notch-cell-BOTTOM { grid-area: 3 / 2; }
+.notch-cell-BOTTOM_RIGHT { grid-area: 3 / 3; }
 
 .notch-button,
 .notch-center {
