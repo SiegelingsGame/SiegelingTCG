@@ -325,6 +325,79 @@ body.starter-onboarding-active .hud-fab {
     text-transform: uppercase;
 }
 
+/* Full-screen card takeover opened by tapping the Card View card. */
+.card-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 3300;
+    display: grid;
+    place-items: center;
+    padding:
+        calc(env(safe-area-inset-top, 0px) + 72px)
+        20px
+        calc(env(safe-area-inset-bottom, 0px) + 24px);
+    background: radial-gradient(120% 120% at 50% 18%, rgba(16, 22, 44, 0.92), rgba(3, 6, 14, 0.97));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.card-fullscreen.hidden {
+    display: none;
+}
+
+body.card-fullscreen-open {
+    overflow: hidden;
+}
+
+.card-fullscreen-back {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    left: 16px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px 9px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(10, 16, 32, 0.9);
+    color: #fff7d9;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: .02em;
+    cursor: pointer;
+}
+
+.card-fullscreen-back:hover {
+    border-color: rgba(255, 215, 0, 0.62);
+    color: #ffe9a0;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.card-fullscreen-card {
+    display: grid;
+    place-items: center;
+    width: min(92vw, 460px);
+    max-height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.card-fullscreen-card .detail-card-preview,
+.card-fullscreen-card .knight-detail-preview {
+    width: 100%;
+    margin: 0 auto;
+    pointer-events: none;
+}
+
+.card-fullscreen-card .detail-card-preview .binder-card-shell {
+    min-height: 0;
+}
+
+.card-fullscreen-card .detail-card-preview .binder-card-art {
+    height: clamp(240px, 52vh, 420px);
+}
+
 /* Player-selected art behind the profile hero card. */
 .profile-hero.has-art::before {
     content: "";
@@ -1119,7 +1192,7 @@ body.starter-onboarding-active .hud-fab {
 
 .detail-panel {
     right: 18px;
-    width: min(410px, calc(100vw - 36px));
+    width: min(480px, calc(100vw - 36px));
 }
 
 .hud-tray.is-closed {
@@ -2721,9 +2794,17 @@ select.search-input { color-scheme: dark; }
 
 .detail-panel .detail-card-preview,
 .deck-builder-preview-card .detail-card-preview {
-    width: min(100%, 300px);
     margin: 0 auto;
     pointer-events: none;
+}
+
+/* Card View tray renders the card 50% larger than the deck-builder preview. */
+.detail-panel .detail-card-preview {
+    width: min(100%, 450px);
+}
+
+.deck-builder-preview-card .detail-card-preview {
+    width: min(100%, 300px);
 }
 
 .detail-panel .detail-card-preview .binder-card-shell,
@@ -2731,9 +2812,17 @@ select.search-input { color-scheme: dark; }
     min-height: 0;
 }
 
-.detail-panel .detail-card-preview .binder-card-art,
+.detail-panel .detail-card-preview .binder-card-art {
+    height: clamp(192px, 54vw, 252px);
+}
+
 .deck-builder-preview-card .detail-card-preview .binder-card-art {
     height: clamp(128px, 36vw, 168px);
+}
+
+/* The card art doubles as the trigger for the full-screen takeover. */
+.detail-panel .detail-card-preview-wrap {
+    cursor: zoom-in;
 }
 
 .detail-panel .detail-card-preview .binder-card-description,
@@ -7842,6 +7931,14 @@ body.gacha-active {
         box-shadow:
             0 -10px 44px rgba(0, 0, 0, 0.6),
             0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+    /* Card View tray: pin it just above the bottom HUD and cap the top so the
+       (now larger) card never pushes the close button off the top of the
+       screen — the panel scrolls internally instead. */
+    .detail-panel {
+        top: calc(env(safe-area-inset-top, 0px) + 64px);
+        bottom: calc(170px + env(safe-area-inset-bottom, 0px));
+        max-height: none;
     }
     .tray-backdrop {
         background: rgba(0, 0, 0, 0.55);
