@@ -1,0 +1,37 @@
+package com.sieglings.adventure;
+
+/**
+ * Shared enums for the Siege roguelike mode. Kept as package-private top-level
+ * types in one file to avoid sprawl; all Siege classes live in this package.
+ */
+
+/** Which team a combatant fights for. */
+enum Side { PLAYER, ENEMY }
+
+/** What a card / enemy ability does when resolved. */
+enum Effect {
+    DAMAGE,     // deal value damage (through shield first)
+    HEAL,       // restore value HP up to max
+    SHIELD,     // grant value temporary shield HP
+    BUFF_ATK,   // grant target +value flat attack for the battle
+    BUFF_SPD,   // grant target +value speed for the battle
+    SLOW        // delay the target's next turn (freeze / speed_zero flavored)
+}
+
+/** Who a card / enemy ability can be aimed at. */
+enum TargetKind {
+    ENEMY_SINGLE,
+    ALL_ENEMIES,
+    ALLY_SINGLE,
+    ALLY_ALL,
+    SELF
+}
+
+/** Map node categories for a Siege run. */
+enum NodeType { BATTLE, ELITE, REST, TREASURE, BOSS }
+
+/** Battle turn phase driving what the client may submit. */
+enum BattlePhase { PLAYER_INPUT, ENEMY_RESOLVING, WON, LOST }
+
+/** Overall run lifecycle state. */
+enum RunStatus { ACTIVE, WON, LOST }

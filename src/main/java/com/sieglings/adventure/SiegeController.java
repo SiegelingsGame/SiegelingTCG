@@ -1,0 +1,85 @@
+package com.sieglings.adventure;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * REST API for the Siege roguelike mode. All gameplay logic lives in
+ * {@link SiegeService} / {@link SiegeCombatEngine}; this controller only shuttles
+ * JSON. Runs are addressed by an opaque {@code token} the client stores locally.
+ */
+@RestController
+public class SiegeController {
+
+    @Autowired
+    private SiegeService siege;
+
+    /** Selectable Siegelings + SiegeKnights for the team-select screen. */
+    @GetMapping("/api/siege/roster")
+    public Map<String, Object> roster() {
+        return siege.roster();
+    }
+
+    /** Start a new expedition: body { knightId, sieglingIds:[...] }. */
+    @PostMapping("/api/siege/run/new")
+    public Map<String, Object> newRun(@RequestBody Map<String, Object> body) {
+        String knightId = str(body.get("knightId"));
+        List<String> sieglingIds = toStringList(body.get("sieglingIds"));
+        return siege.newRun(knightId, sieglingIds);
+    }
+
+    @GetMapping("/api/siege/state")
+    public Map<String, Object> state(@RequestParam("token") String token) {
+        return siege.state(token);
+    }
+
+    /** Enter the current map node (start a battle or resolve a rest/treasure node). */
+    @PostMapping("/api/siege/node/enter")
+    public Map<String, Object> enterNode(@RequestBody Map<String, Object> body) {
+        return siege.enterNode(str(body.get("token")));
+    }
+
+    /** Play a card: body { token, cardId, targetId? }. */
+    @PostMapping("/api/siege/battle/play")
+    public Map<String, Object> play(@RequestBody Map<String, Object> body) {
+        return siege.playCard(str(body.get("token")), str(body.get("cardId")), str(body.get("targetId")));
+    }
+
+    @PostMapping("/api/siege/battle/end-turn")
+    public Map<String, Object> endTurn(@RequestBody Map<String, Object> body) {
+        return siege.endTurn(str(body.get("token")));
+    }
+
+    /** Apply a finished battle's outcome and advance the map / end the run. */
+    @PostMapping("/api/siege/continue")
+    public Map<String, Object> continueRun(@RequestBody Map<String, Object> body) {
+        return siege.continueRun(str(body.get("token")));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
+    }
+
+    private static String str(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> toStringList(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        return List.of();
+    }
+}
