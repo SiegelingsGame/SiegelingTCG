@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Siege — Siegelings Roguelike</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/css/adventure.css?v=1">
+</head>
+<body>
+<div class="siege-app" id="siegeApp">
+
+  <!-- Top bar -->
+  <header class="siege-topbar">
+    <a class="siege-back" href="/play" title="Back to Play">◄ Play</a>
+    <div class="siege-title">SIEGE <span>Roguelike Expedition</span></div>
+    <button class="siege-abandon hidden" id="abandonBtn" type="button">Abandon Run</button>
+  </header>
+
+  <!-- Loading -->
+  <div class="siege-screen" id="loadingScreen">
+    <div class="siege-spinner"></div>
+    <p>Preparing the expedition…</p>
+  </div>
+
+  <!-- Team select -->
+  <section class="siege-screen hidden" id="setupScreen">
+    <h1>Assemble your warband</h1>
+    <p class="siege-sub">Pick a <strong>SiegeKnight</strong> to lead and <strong>three Siegelings</strong>. Each Siegeling's moves become cards in your deck.</p>
+
+    <div class="setup-block">
+      <h2>SiegeKnight <span class="req" id="knightReq">— choose 1</span></h2>
+      <div class="knight-grid" id="knightGrid"></div>
+    </div>
+
+    <div class="setup-block">
+      <h2>Siegelings <span class="req" id="partyReq">— choose 3</span></h2>
+      <div class="filter-row" id="elementFilter"></div>
+      <div class="siegeling-grid" id="sieglingGrid"></div>
+    </div>
+
+    <div class="setup-footer">
+      <div class="setup-summary" id="setupSummary">Select a knight and 3 Siegelings.</div>
+      <button class="siege-btn primary" id="startRunBtn" type="button" disabled>Begin Expedition</button>
+    </div>
+  </section>
+
+  <!-- Map -->
+  <section class="siege-screen hidden" id="mapScreen">
+    <div class="party-strip" id="partyStrip"></div>
+    <div class="map-reward" id="mapReward"></div>
+    <h1 class="map-heading">The Expedition</h1>
+    <div class="map-track" id="mapTrack"></div>
+    <div class="map-actions">
+      <button class="siege-btn primary" id="enterNodeBtn" type="button">Enter Node</button>
+    </div>
+  </section>
+
+  <!-- Battle -->
+  <section class="siege-screen battle hidden" id="battleScreen">
+    <div class="battle-top">
+      <div class="initiative-bar" id="initiativeBar"></div>
+    </div>
+    <div class="enemy-row" id="enemyRow"></div>
+    <div class="battle-mid">
+      <div class="battle-log" id="battleLog"></div>
+    </div>
+    <div class="ally-row" id="allyRow"></div>
+    <div class="battle-hud">
+      <div class="ap-display" id="apDisplay"></div>
+      <div class="deck-counts" id="deckCounts"></div>
+      <button class="siege-btn" id="endTurnBtn" type="button">End Turn</button>
+    </div>
+    <div class="hand-row" id="handRow"></div>
+    <div class="battle-hint" id="battleHint"></div>
+  </section>
+
+  <!-- Result -->
+  <section class="siege-screen hidden" id="resultScreen">
+    <h1 id="resultTitle"></h1>
+    <p class="siege-sub" id="resultText"></p>
+    <button class="siege-btn primary" id="resultBtn" type="button">Continue</button>
+  </section>
+
+  <div class="siege-toast hidden" id="siegeToast"></div>
+</div>
+<script src="/js/adventure.js?v=1"></script>
+</body>
+</html>
