@@ -13,6 +13,7 @@ class GameJavaScriptRegressionTest {
 
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
+    private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
     private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
 
     @Test
@@ -81,6 +82,24 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 getOrCreateRequestId.contains("...readPendingPackOpenRequests()"),
                 "Creating one pending pack open must not overwrite unrelated pack/count retries."
+        );
+    }
+
+    @Test
+    void shopCardPreviewHasModalShellForRenderedDetails() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+
+        assertTrue(
+                extractFunction(homeScript, "function renderShopCardPreviewModal()").contains("shopCardPreviewModal")
+                        && homeMarkup.contains("id=\"shopCardPreviewModal\"")
+                        && homeMarkup.contains("id=\"shopCardPreviewBody\""),
+                "Shop Card View must include the modal and body nodes that renderShopCardPreviewModal() updates."
+        );
+        assertTrue(
+                homeMarkup.contains("data-shop-card-preview-backdrop")
+                        && homeMarkup.contains("data-close-shop-card-preview"),
+                "Shop card preview modal must keep backdrop and close-button hooks so users can dismiss it."
         );
     }
 
