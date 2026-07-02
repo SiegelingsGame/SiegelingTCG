@@ -19,6 +19,8 @@ class SiegeRun {
     private Element knightElement;
     private AbilitySpec knightActive;
     private String knightPassiveDesc;
+    /** The Knight on the battlefield — persistent HP; the run is lost if it falls. */
+    private Combatant knightUnit;
 
     /** Persistent party — HP carries between battles. Cloned into each battle. */
     private final List<Combatant> party = new ArrayList<>();
@@ -51,6 +53,8 @@ class SiegeRun {
     void setKnightActive(AbilitySpec knightActive) { this.knightActive = knightActive; }
     String getKnightPassiveDesc() { return knightPassiveDesc; }
     void setKnightPassiveDesc(String knightPassiveDesc) { this.knightPassiveDesc = knightPassiveDesc; }
+    Combatant getKnightUnit() { return knightUnit; }
+    void setKnightUnit(Combatant knightUnit) { this.knightUnit = knightUnit; }
 
     List<Combatant> getParty() { return party; }
     List<SiegeCard> getDeckTemplates() { return deckTemplates; }

@@ -3,12 +3,18 @@ package com.sieglings.adventure;
 import com.sieglings.model.enums.Element;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * A living participant in a Siege battle — one of the player's Siegelings or an
- * enemy creature. Player Siegelings act through the shared hand/action-point
- * economy; enemies act through their own {@link #abilities}.
+ * A living participant in a Siege battle — one of the player's Siegelings, the
+ * SiegeKnight, or an enemy creature. Player Siegelings act through the shared
+ * hand/action-point economy; enemies act through their own {@link #abilities}.
+ *
+ * <p>Player Siegelings stand on numbered positions (notches). Enemy attacks
+ * are aimed at positions, not units — whoever stands on the targeted notch
+ * when the blow lands takes the hit, so swapping positions dodges telegraphs.
  */
 class Combatant {
     private final String id;
@@ -16,19 +22,31 @@ class Combatant {
     private final Element element;
     private final Side side;
     private final String artUrl;      // optional card art for the client
+    private final boolean knight;     // the SiegeKnight: no notch, hit only when exposed
 
     private int maxHp;
     private int hp;
     private int shield;
-    private int speed;                // effective speed (base + buffs)
+    private int speed;                // base speed before status modifiers
     private final int baseSpeed;
     private int attackBuff;           // flat bonus added to this unit's damage
-    private double initiative;        // ATB accumulator; unit acts when it crosses the threshold
+    private int position = -1;        // notch index for player Siegelings; -1 for others
 
-    /** Enemy-only: 1–3 abilities chosen by simple AI. Empty for player Siegelings. */
+    /** Active elemental statuses → rounds remaining (BURN uses a battle-long duration). */
+    private final Map<StatusKind, Integer> statuses = new EnumMap<>(StatusKind.class);
+
+    /** Enemy-only: 1–3 abilities chosen by simple AI. Empty for player units. */
     private final List<AbilitySpec> abilities = new ArrayList<>();
+    /** Enemy-only: the pre-declared next action shown to the player as a telegraph. */
+    private AbilitySpec intent;
+    /** Enemy-only: the notch the intent is aimed at (-1 = all notches / the knight). */
+    private int intentPosition = -1;
 
     Combatant(String id, String name, Element element, Side side, int maxHp, int speed, String artUrl) {
+        this(id, name, element, side, maxHp, speed, artUrl, false);
+    }
+
+    Combatant(String id, String name, Element element, Side side, int maxHp, int speed, String artUrl, boolean knight) {
         this.id = id;
         this.name = name;
         this.element = element;
@@ -38,6 +56,7 @@ class Combatant {
         this.speed = Math.max(1, speed);
         this.baseSpeed = this.speed;
         this.artUrl = artUrl;
+        this.knight = knight;
     }
 
     String getId() { return id; }
@@ -45,6 +64,7 @@ class Combatant {
     Element getElement() { return element; }
     Side getSide() { return side; }
     String getArtUrl() { return artUrl; }
+    boolean isKnight() { return knight; }
 
     int getMaxHp() { return maxHp; }
     void setMaxHp(int maxHp) { this.maxHp = Math.max(1, maxHp); }
@@ -57,11 +77,41 @@ class Combatant {
     int getBaseSpeed() { return baseSpeed; }
     int getAttackBuff() { return attackBuff; }
     void addAttackBuff(int amount) { this.attackBuff = Math.max(0, this.attackBuff + amount); }
-    double getInitiative() { return initiative; }
-    void setInitiative(double initiative) { this.initiative = initiative; }
-    void addInitiative(double amount) { this.initiative += amount; }
+    int getPosition() { return position; }
+    void setPosition(int position) { this.position = position; }
 
     List<AbilitySpec> getAbilities() { return abilities; }
+    AbilitySpec getIntent() { return intent; }
+    void setIntent(AbilitySpec intent) { this.intent = intent; }
+    int getIntentPosition() { return intentPosition; }
+    void setIntentPosition(int intentPosition) { this.intentPosition = intentPosition; }
+
+    // ---- statuses ---------------------------------------------------------
+
+    Map<StatusKind, Integer> getStatuses() { return statuses; }
+
+    boolean has(StatusKind kind) { return statuses.getOrDefault(kind, 0) > 0; }
+
+    void applyStatus(StatusKind kind, int rounds) {
+        statuses.merge(kind, rounds, Math::max);
+    }
+
+    void clearStatus(StatusKind kind) { statuses.remove(kind); }
+
+    void clearStatuses() { statuses.clear(); }
+
+    /** Decrements every status by one round, dropping the expired ones. */
+    void tickStatuses() {
+        statuses.replaceAll((k, v) -> v - 1);
+        statuses.values().removeIf(v -> v <= 0);
+    }
+
+    /** Speed after status modifiers (Slow: −2). Only living, unstunned units contribute. */
+    int effectiveSpeed() {
+        int s = speed;
+        if (has(StatusKind.SLOW)) s -= 2;
+        return Math.max(0, s);
+    }
 
     boolean isAlive() { return hp > 0; }
 

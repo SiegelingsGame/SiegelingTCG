@@ -139,10 +139,29 @@ button{font-family:inherit;}
 
 /* ---------- Battle stage ---------- */
 .siege-screen.battle{padding-top:6px;}
-.initiative-bar{display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:8px; min-height:26px;}
-.init-pip{font-size:11px; padding:3px 9px; border-radius:14px; border:1px solid var(--el); color:var(--el); background:rgba(0,0,0,.2); white-space:nowrap;}
-.init-pip.enemy{opacity:.85;}
-.init-label{font-size:11px; color:var(--faint); margin-right:2px;}
+.battle-top{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+.initiative-bar{display:flex; gap:6px; align-items:center; flex-wrap:wrap; min-height:26px;}
+.round-chip{font-size:11px; font-weight:800; letter-spacing:.6px; padding:3px 10px; border-radius:14px; border:1px solid var(--border); color:var(--text); background:rgba(0,0,0,.25);}
+.speed-chip{font-size:11px; padding:3px 10px; border-radius:14px; border:1px solid var(--border); color:var(--dim); background:rgba(0,0,0,.2); white-space:nowrap;}
+.speed-chip.you{color:var(--good); border-color:rgba(126,231,135,.45);}
+.speed-chip.them{color:var(--bad); border-color:rgba(255,110,110,.45);}
+.sweep-chip{font-size:11px; padding:3px 10px; border-radius:14px; border:1px solid rgba(255,80,60,.6); color:#ff8a6a; background:rgba(255,80,60,.1); animation:threatpulse 1s ease-in-out infinite;}
+
+/* SiegeKnight plate: HP + Ultimate Charge */
+.knight-plate{position:relative; min-width:190px; background:rgba(12,16,23,.85); border:1px solid var(--border); border-left:4px solid var(--el); border-radius:10px; padding:6px 10px 7px;}
+.knight-plate.dead{opacity:.4; filter:grayscale(.8);}
+.knight-plate .kp-head{display:flex; justify-content:space-between; gap:8px; font-size:12px;}
+.knight-plate .kp-name{font-weight:750; white-space:nowrap;}
+.knight-plate .kp-hp{color:var(--dim);}
+.knight-plate .kp-hpbar{height:6px; border-radius:3px; background:#0c1017; margin-top:4px; overflow:hidden;}
+.knight-plate .kp-hpfill{height:100%; background:linear-gradient(90deg,var(--good),#4fbf67); transition:width .35s;}
+.knight-plate .kp-chargebar{position:relative; height:12px; border-radius:6px; background:#0c1017; margin-top:4px; overflow:hidden; border:1px solid rgba(255,230,60,.25);}
+.knight-plate .kp-chargefill{height:100%; background:linear-gradient(90deg,#8a6d1a,#ffe63c); transition:width .35s;}
+.knight-plate .kp-chargetext{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.8);}
+.knight-plate.kp-pulse{box-shadow:0 0 14px rgba(255,80,60,.55);}
+.siege-btn.ult{border-color:#ffe63c; color:#ffe63c; font-weight:800;}
+.siege-btn.ult:not(:disabled){background:linear-gradient(135deg,#8a6d1a,#c9a922); color:#fff; animation:ultglow 1.2s ease-in-out infinite; cursor:pointer;}
+@keyframes ultglow{50%{box-shadow:0 0 18px rgba(255,230,60,.8);}}
 
 .battle-stage{
   position:relative; border-radius:16px; overflow:hidden;
@@ -212,6 +231,12 @@ button{font-family:inherit;}
 .sprite.hurt .sp-art{animation:hitshake .45s ease-in-out; filter:drop-shadow(0 0 12px rgba(255,80,60,.8));}
 @keyframes hitshake{0%,100%{transform:translateX(0);}20%{transform:translateX(-7px);}40%{transform:translateX(6px);}60%{transform:translateX(-4px);}80%{transform:translateX(3px);}}
 .sprite.healed .sp-art{filter:drop-shadow(0 0 14px rgba(126,231,135,.85));}
+.sprite.shielded .sp-art{filter:drop-shadow(0 0 14px rgba(62,166,255,.85));}
+.sprite.statused .sp-art{filter:drop-shadow(0 0 14px rgba(200,150,255,.85));}
+.sprite.acting .sp-art{animation:lunge .5s ease-in-out;}
+@keyframes lunge{35%{transform:translateY(6px) scale(1.06);}65%{transform:translateY(-4px) scale(1.02);}}
+.sprite.swapping .sp-art{animation:swapflip .5s ease-in-out;}
+@keyframes swapflip{50%{transform:translateY(-14px) scaleX(-1);}}
 .sp-float{
   position:absolute; left:50%; top:6px; transform:translateX(-50%);
   font-weight:900; font-size:20px; pointer-events:none; z-index:5;
@@ -219,7 +244,71 @@ button{font-family:inherit;}
 }
 .sp-float.dmg{color:#ff8a6a;}
 .sp-float.heal{color:var(--good);}
+.sp-float.shield{color:var(--shield); font-size:16px;}
+.sp-float.status{color:#c896ff; font-size:14px; white-space:nowrap;}
 @keyframes floatup{to{transform:translate(-50%,-30px); opacity:0;}}
+
+/* status chips on the name plate */
+.sprite .sp-status{font-size:10px;}
+
+/* enemy intent telegraph (what it will do next, and to whom) */
+.sprite .sp-intent{
+  position:absolute; top:-22px; left:50%; transform:translateX(-50%);
+  font-size:9.5px; font-weight:700; color:#ffb4a0; white-space:nowrap;
+  background:rgba(30,12,10,.85); border:1px solid rgba(255,110,110,.5);
+  border-radius:9px; padding:2px 8px; z-index:4; pointer-events:none;
+  max-width:220px; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* threatened notch: red target marker under the Siegeling standing on it */
+.sprite.threatened .sp-shadow{
+  background:radial-gradient(ellipse, rgba(255,60,40,.85), transparent 72%);
+  animation:threatpulse 1s ease-in-out infinite;
+}
+.sprite .sp-target-ring{
+  position:absolute; left:50%; bottom:8px; transform:translateX(-50%);
+  width:74%; height:20px; border:2px solid rgba(255,60,40,.85); border-radius:50%;
+  pointer-events:none; z-index:0; animation:threatpulse 1s ease-in-out infinite;
+  box-shadow:0 0 12px rgba(255,60,40,.5), inset 0 0 10px rgba(255,60,40,.3);
+}
+.sprite .sp-target-x{
+  position:absolute; left:50%; top:-16px; transform:translateX(-50%);
+  color:#ff503c; font-size:12px; text-shadow:0 0 6px rgba(255,60,40,.9);
+}
+@keyframes threatpulse{50%{opacity:.45;}}
+
+/* notch number badge */
+.sprite .sp-notch{
+  position:absolute; left:50%; bottom:-14px; transform:translateX(-50%);
+  font-size:9px; font-weight:800; color:var(--faint);
+  border:1px solid var(--border); border-radius:8px; padding:0 6px;
+  background:rgba(12,16,23,.8);
+}
+
+/* action banner (whose move is resolving) */
+.action-banner{
+  position:absolute; top:42%; left:50%; transform:translate(-50%,-50%) scale(.9);
+  z-index:8; pointer-events:none; opacity:0;
+  background:rgba(10,13,20,.9); border:1px solid var(--border); border-radius:12px;
+  padding:8px 18px; font-size:14px; font-weight:800; letter-spacing:.4px;
+  box-shadow:0 8px 26px rgba(0,0,0,.55); transition:opacity .18s ease, transform .18s ease;
+  max-width:86%; text-align:center;
+}
+.action-banner.show{opacity:1; transform:translate(-50%,-50%) scale(1);}
+.action-banner.you{color:var(--accent-2);}
+.action-banner.them{color:#ff8a6a;}
+
+/* projectiles */
+.projectile{
+  position:absolute; width:18px; height:18px; border-radius:50%;
+  transform:translate(-50%,-50%); z-index:7; pointer-events:none;
+}
+.impact-burst{
+  position:absolute; width:64px; height:64px; border-radius:50%;
+  transform:translate(-50%,-50%); z-index:6; pointer-events:none;
+  animation:burst .4s ease-out forwards;
+}
+@keyframes burst{from{opacity:.9; transform:translate(-50%,-50%) scale(.3);}to{opacity:0; transform:translate(-50%,-50%) scale(1.4);}}
 
 /* log ticker */
 .battle-log{
@@ -256,6 +345,8 @@ button{font-family:inherit;}
 .playcard.unplayable{opacity:.4; cursor:not-allowed;}
 .playcard.selected{outline:2px solid var(--accent); transform:rotate(0deg) translateY(-18px) scale(1.06); z-index:7;}
 .playcard .pc-cost{position:absolute; top:-9px; left:-9px; width:26px;height:26px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ffc37a, var(--accent)); color:#1a1206; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.5); z-index:2;}
+.playcard .pc-cost.free{background:radial-gradient(circle at 35% 30%, #b7f0c0, var(--good)); color:#0c2412;}
+.playcard .pc-status{font-size:10px; color:#c896ff; margin-top:3px; font-weight:650;}
 .playcard .pc-name{font-weight:700; font-size:12.5px; line-height:1.2;}
 .playcard .pc-owner{font-size:10px; color:var(--faint); margin-top:2px;}
 .playcard .pc-eff{font-size:11px; margin-top:6px; font-weight:650;}
