@@ -1,6 +1,9 @@
-/* Siege — Siegelings roguelike client.
+/* Siege — Siegelings Adventure roguelike client.
  * Talks to /api/siege/**. All rules run server-side; this file renders state
- * and submits actions. Run is addressed by an opaque token kept in localStorage. */
+ * and submits actions. Run is addressed by an opaque token in localStorage.
+ *
+ * Screens: setup (warband select) → branching map (SVG DAG) → battle stage
+ * (overlay-art character sprites + fanned card hand) → reward picks → result. */
 (function () {
   'use strict';
 
@@ -13,7 +16,8 @@
     elementFilter: 'ALL',
     selectedCardId: null,
     selectedCardNeedsTarget: false,
-    busy: false
+    busy: false,
+    prevUnits: {}       // combatant id -> {hp, alive} for hit/heal animation diffs
   };
 
   var EL_ICON = {
@@ -21,6 +25,7 @@
     ELECTRIC: '⚡', METAL: '⚙️', UNDEAD: '💀', PSYCHIC: '🔮', POISON: '☠️', LIGHT: '✨', NEUTRAL: '◇'
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BOSS: '👑' };
+  var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BOSS: '#ff9a3c' };
 
   // ---- API -----------------------------------------------------------
   function api(path, opts) {
@@ -54,7 +59,7 @@
   function icon(element) { return EL_ICON[element] || '◇'; }
 
   function showScreen(id) {
-    ['loadingScreen', 'setupScreen', 'mapScreen', 'battleScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'setupScreen', 'mapScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
   }
@@ -89,8 +94,8 @@
 
   function wireStaticButtons() {
     $('startRunBtn').addEventListener('click', startRun);
-    $('enterNodeBtn').addEventListener('click', enterNode);
     $('endTurnBtn').addEventListener('click', endTurn);
+    $('rewardSkipBtn').addEventListener('click', function () { chooseReward('skip'); });
     $('resultBtn').addEventListener('click', function () { setToken(null); location.href = '/play'; });
     $('abandonBtn').addEventListener('click', function () {
       if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
@@ -182,7 +187,7 @@
   function startRun() {
     if (state.busy) return; state.busy = true;
     api('/api/siege/run/new', { method: 'POST', body: { knightId: state.knightId, sieglingIds: state.party } })
-      .then(function (run) { setToken(run.token); state.run = run; renderRun(); })
+      .then(function (run) { setToken(run.token); state.run = run; state.prevUnits = {}; renderRun(); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -194,33 +199,131 @@
     $('abandonBtn').classList.toggle('hidden', run.status !== 'ACTIVE');
     if (run.status === 'WON' || run.status === 'LOST') { renderResult(); return; }
     if (run.battle) { renderBattle(); return; }
+    if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
     renderMap();
   }
 
-  // ---- map -----------------------------------------------------------
+  // ---- branching map (SVG DAG, boss at the top) ------------------------
+  var MAP = { colGap: 96, rowGap: 104, pad: 56, r: 24 };
+
   function renderMap() {
     showScreen('mapScreen');
     var run = state.run;
     renderPartyStrip($('partyStrip'), run.party);
     $('mapReward').textContent = run.lastReward || '';
+    $('mapDeckCount').textContent = '🃏 Deck: ' + (run.deckSize || '—') + ' cards';
+    $('mapHint').textContent = run.currentNodeId < 0 ? 'Choose where the expedition begins' : 'Choose your path';
 
-    var track = $('mapTrack'); track.innerHTML = '';
-    run.map.forEach(function (n) {
-      var node = el('div', 'map-node type-' + n.type + (n.cleared ? ' cleared' : '') + (n.current ? ' current' : ''));
-      node.innerHTML = '<div class="nicon">' + (NODE_ICON[n.type] || '•') + '</div>' +
-        '<div class="ntype">' + prettyType(n.type) + '</div>' +
-        '<div class="nlabel">' + esc(n.label) + '</div>';
-      track.appendChild(node);
+    var nodes = run.map || [];
+    var rows = 1 + Math.max.apply(null, nodes.map(function (n) { return n.row; }));
+    var byId = {};
+    nodes.forEach(function (n) { byId[n.id] = n; });
+
+    // Center each row horizontally within the widest row.
+    var rowCounts = {};
+    nodes.forEach(function (n) { rowCounts[n.row] = (rowCounts[n.row] || 0) + 1; });
+    var maxCount = Math.max.apply(null, Object.keys(rowCounts).map(function (k) { return rowCounts[k]; }));
+    var width = MAP.pad * 2 + (maxCount - 1) * MAP.colGap;
+    var height = MAP.pad * 2 + (rows - 1) * MAP.rowGap;
+
+    function pos(n) {
+      var count = rowCounts[n.row];
+      var x = MAP.pad + ((maxCount - count) / 2 + n.col) * MAP.colGap;
+      var y = height - MAP.pad - n.row * MAP.rowGap; // row 0 at the bottom, boss on top
+      return { x: x, y: y };
+    }
+
+    var svg = $('mapSvg');
+    svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+    svg.setAttribute('width', width);
+    svg.setAttribute('height', height);
+    svg.innerHTML = '';
+    var NS = 'http://www.w3.org/2000/svg';
+
+    // edges first (under the nodes)
+    nodes.forEach(function (n) {
+      var from = pos(n);
+      (n.next || []).forEach(function (toId) {
+        var to = pos(byId[toId]);
+        var path = document.createElementNS(NS, 'path');
+        var midY = (from.y + to.y) / 2;
+        path.setAttribute('d', 'M' + from.x + ' ' + from.y + ' C ' + from.x + ' ' + midY + ', ' + to.x + ' ' + midY + ', ' + to.x + ' ' + to.y);
+        var walked = n.cleared && (byId[toId].current || byId[toId].cleared);
+        var open = n.current && byId[toId].reachable;
+        path.setAttribute('class', 'map-edge' + (walked ? ' walked' : '') + (open ? ' open' : ''));
+        svg.appendChild(path);
+      });
     });
 
-    var cur = run.map[run.currentIndex];
-    var btn = $('enterNodeBtn');
-    btn.textContent = cur ? ('Enter: ' + prettyType(cur.type)) : 'Continue';
-    btn.disabled = false;
+    // nodes
+    nodes.forEach(function (n) {
+      var p = pos(n);
+      var g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'map-node-g' +
+        (n.cleared ? ' cleared' : '') +
+        (n.current ? ' current' : '') +
+        (n.reachable ? ' reachable' : '') +
+        ' type-' + n.type);
+      g.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
+
+      if (n.reachable) {
+        var halo = document.createElementNS(NS, 'circle');
+        halo.setAttribute('r', MAP.r + 8);
+        halo.setAttribute('class', 'map-halo');
+        g.appendChild(halo);
+      }
+
+      var circle = document.createElementNS(NS, 'circle');
+      circle.setAttribute('r', n.type === 'BOSS' ? MAP.r + 6 : MAP.r);
+      circle.setAttribute('class', 'map-circle');
+      circle.setAttribute('style', '--node-tint:' + (NODE_TINT[n.type] || '#8fa3bf'));
+      g.appendChild(circle);
+
+      var glyph = document.createElementNS(NS, 'text');
+      glyph.setAttribute('class', 'map-glyph');
+      glyph.setAttribute('text-anchor', 'middle');
+      glyph.setAttribute('dominant-baseline', 'central');
+      glyph.setAttribute('y', '1');
+      glyph.textContent = NODE_ICON[n.type] || '•';
+      g.appendChild(glyph);
+
+      var label = document.createElementNS(NS, 'text');
+      label.setAttribute('class', 'map-label');
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('y', MAP.r + 18);
+      label.textContent = n.label;
+      g.appendChild(label);
+
+      if (n.cleared) {
+        var check = document.createElementNS(NS, 'text');
+        check.setAttribute('class', 'map-check');
+        check.setAttribute('text-anchor', 'middle');
+        check.setAttribute('y', -MAP.r - 6);
+        check.textContent = '✓';
+        g.appendChild(check);
+      }
+
+      if (n.reachable) {
+        g.addEventListener('click', function () { travelTo(n.id); });
+      }
+      svg.appendChild(g);
+    });
+
+    // Keep the action in view: scroll to the current position (or the start).
+    var scroll = $('mapScroll');
+    var focus = nodes.find(function (n) { return n.current; });
+    var focusY = focus ? pos(focus).y : height;
+    setTimeout(function () {
+      scroll.scrollTop = Math.max(0, focusY - scroll.clientHeight * 0.6);
+    }, 30);
   }
 
-  function prettyType(t) {
-    return { BATTLE: 'Skirmish', ELITE: 'Elite', REST: 'Rest', TREASURE: 'Treasure', BOSS: 'Boss' }[t] || t;
+  function travelTo(nodeId) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/node/enter', { method: 'POST', body: { token: token(), nodeId: nodeId } })
+      .then(function (run) { state.run = run; state.prevUnits = {}; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
   }
 
   function renderPartyStrip(host, party) {
@@ -242,16 +345,7 @@
     });
   }
 
-  function enterNode() {
-    if (state.busy) return; state.busy = true;
-    $('enterNodeBtn').disabled = true;
-    api('/api/siege/node/enter', { method: 'POST', body: { token: token() } })
-      .then(function (run) { state.run = run; renderRun(); })
-      .catch(function (e) { toast(e.message); $('enterNodeBtn').disabled = false; })
-      .then(function () { state.busy = false; });
-  }
-
-  // ---- battle --------------------------------------------------------
+  // ---- battle stage ----------------------------------------------------
   function renderBattle() {
     showScreen('battleScreen');
     var b = state.run.battle;
@@ -267,12 +361,16 @@
       ib.appendChild(pip);
     });
 
-    renderUnitRow($('enemyRow'), b.enemies, 'enemy', b);
-    renderUnitRow($('allyRow'), b.allies, 'ally', b);
+    renderSpriteLine($('enemyRow'), b.enemies, 'enemy', b);
+    renderSpriteLine($('allyRow'), b.allies, 'ally', b);
 
-    // log
+    // damage/heal reactions from the previous state snapshot
+    animateDiffs(b);
+    snapshotUnits(b);
+
+    // log ticker
     var log = $('battleLog'); log.innerHTML = '';
-    (b.log || []).slice().reverse().forEach(function (line) { if (line) log.appendChild(el('div', 'lg', esc(line))); });
+    (b.log || []).slice(-3).reverse().forEach(function (line) { if (line) log.appendChild(el('div', 'lg', esc(line))); });
 
     // hud
     var ap = $('apDisplay'); ap.innerHTML = '<span class="ap-label">Actions</span>';
@@ -289,53 +387,79 @@
     updateHint(b, over);
   }
 
-  function renderUnitRow(host, units, side, b) {
+  function renderSpriteLine(host, units, side, b) {
     host.innerHTML = '';
-    units.forEach(function (u) {
-      var unit = el('div', 'unit ' + side + ' ' + elClass(u.element) +
+    units.forEach(function (u, idx) {
+      var sp = el('div', 'sprite ' + side + ' ' + elClass(u.element) +
         (u.alive ? '' : ' dead') + (u.id === b.leadId ? ' lead' : ''));
-      unit.dataset.id = u.id; unit.dataset.side = u.side;
+      sp.dataset.id = u.id; sp.dataset.side = u.side;
+      sp.style.setProperty('--idle-delay', (idx * 0.45) + 's');
       var pct = Math.max(0, Math.round(100 * u.hp / Math.max(1, u.maxHp)));
-      var ab = (side === 'enemy' && u.abilities && u.abilities.length)
-        ? '<div class="uabilities">Moves: ' + esc(u.abilities.join(', ')) + '</div>' : '';
-      var shield = u.shield > 0 ? '<span class="ushield">🛡 ' + u.shield + '</span>' : '';
-      var buff = u.attackBuff > 0 ? '<span class="ubuff" title="Attack boost">⚔ +' + u.attackBuff + '</span>' : '';
-      unit.innerHTML = artLayer(u) +
-        '<div class="uname"><span>' + esc(u.name) + '</span><span class="uel">' + icon(u.element) + '</span></div>' +
-        '<div class="uhpbar"><div class="uhpfill" style="width:' + pct + '%"></div></div>' +
-        '<div class="uhptext"><span>' + u.hp + ' / ' + u.maxHp + '</span>' + shield + '</div>' +
-        '<div class="uhptext"><span>⚡ ' + u.speed + '</span>' + buff + '</div>' + ab;
-      unit.addEventListener('click', function () { onUnitClick(u); });
-      host.appendChild(unit);
+      var shield = u.shield > 0 ? '<span class="sp-shield">🛡' + u.shield + '</span>' : '';
+      var buff = u.attackBuff > 0 ? '<span class="sp-buff">⚔+' + u.attackBuff + '</span>' : '';
+      var body = u.artUrl
+        ? '<div class="sp-art"><img src="' + encodeURI(u.artUrl) + '" alt="" draggable="false"></div>'
+        : '<div class="sp-art sp-art-fallback"><span>' + icon(u.element) + '</span></div>';
+      sp.innerHTML =
+        '<div class="sp-plate">' +
+          '<div class="sp-name">' + esc(u.name) + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
+          '<div class="sp-hpbar"><div class="sp-hpfill" style="width:' + pct + '%"></div></div>' +
+          '<div class="sp-tags"><span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + '</div>' +
+        '</div>' +
+        body +
+        '<div class="sp-shadow"></div>';
+      sp.addEventListener('click', function () { onUnitClick(u); });
+      host.appendChild(sp);
     });
   }
 
-  // Backgroundless Siegeling cutout shown inside the unit/party box. Falls back
-  // to the element icon watermark when a creature has no uploaded card art.
-  function artLayer(u) {
-    if (u.artUrl) {
-      return '<div class="uart" style="background-image:url(\'' + encodeURI(u.artUrl) + '\')"></div>';
-    }
-    return '<div class="uart uart-fallback">' + icon(u.element) + '</div>';
+  function snapshotUnits(b) {
+    var snap = {};
+    b.allies.concat(b.enemies).forEach(function (u) { snap[u.id] = { hp: u.hp, alive: u.alive }; });
+    state.prevUnits = snap;
   }
 
+  function animateDiffs(b) {
+    var prev = state.prevUnits || {};
+    b.allies.concat(b.enemies).forEach(function (u) {
+      var before = prev[u.id];
+      if (!before) return;
+      var node = document.querySelector('.sprite[data-id="' + u.id + '"]');
+      if (!node) return;
+      if (u.hp < before.hp) {
+        node.classList.add('hurt');
+        var amt = el('div', 'sp-float dmg', '-' + (before.hp - u.hp));
+        node.appendChild(amt);
+        setTimeout(function () { node.classList.remove('hurt'); amt.remove(); }, 900);
+      } else if (u.hp > before.hp) {
+        node.classList.add('healed');
+        var plus = el('div', 'sp-float heal', '+' + (u.hp - before.hp));
+        node.appendChild(plus);
+        setTimeout(function () { node.classList.remove('healed'); plus.remove(); }, 900);
+      }
+    });
+  }
+
+  // ---- hand ------------------------------------------------------------
   function renderHand(b, over) {
     var hand = $('handRow'); hand.innerHTML = '';
     if (over) {
-      var box = el('div', '', '<div style="text-align:center;width:100%">' +
-        '<div style="font-size:22px;font-weight:800;color:' + (b.phase === 'WON' ? 'var(--good)' : 'var(--bad)') + '">' +
-        (b.phase === 'WON' ? 'Victory!' : 'Defeat') + '</div></div>');
-      var cont = el('button', 'siege-btn primary', b.phase === 'WON' ? 'Claim & Continue' : 'End Expedition');
-      cont.style.marginTop = '10px';
+      var wrap = el('div', 'battle-endwrap');
+      wrap.appendChild(el('div', 'battle-endtitle ' + (b.phase === 'WON' ? 'win' : 'lose'),
+        b.phase === 'WON' ? 'Victory!' : 'Defeat'));
+      var cont = el('button', 'siege-btn primary', b.phase === 'WON' ? 'Claim Rewards' : 'End Expedition');
       cont.addEventListener('click', continueRun);
-      var wrap = el('div', ''); wrap.style.width = '100%'; wrap.style.textAlign = 'center';
-      wrap.appendChild(box); wrap.appendChild(cont);
+      wrap.appendChild(cont);
       hand.appendChild(wrap);
       return;
     }
-    b.hand.forEach(function (card) {
+    var n = b.hand.length;
+    b.hand.forEach(function (card, i) {
       var effCls = effectClass(card.effect);
+      var mid = (n - 1) / 2;
       var c = el('div', 'playcard ' + elClass(card.element) + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : ''));
+      c.style.setProperty('--fan-rot', ((i - mid) * 4) + 'deg');
+      c.style.setProperty('--fan-y', (Math.abs(i - mid) * 7) + 'px');
       c.innerHTML = '<div class="pc-cost">' + card.actionCost + '</div>' +
         '<div class="pc-name">' + esc(card.name) + '</div>' +
         '<div class="pc-owner">' + icon(card.element) + ' ' + esc(card.ownerName) + '</div>' +
@@ -362,7 +486,7 @@
       }
       case 'HEAL': return '➕ Heal ' + card.value + (card.target === 'ALLY_ALL' ? ' (all)' : '');
       case 'SHIELD': return '🛡 Shield ' + card.value + (card.target === 'ALLY_ALL' ? ' (all)' : '');
-      case 'BUFF_ATK': return '↑ +' + card.value + ' attack';
+      case 'BUFF_ATK': return '↑ +' + card.value + ' attack (party)';
       case 'BUFF_SPD': return '↑ +' + card.value + ' speed';
       case 'SLOW': return '❄ Slow enemies';
       default: return card.effect;
@@ -410,7 +534,7 @@
 
   function highlightTargets(card) {
     var wantsEnemy = card.target === 'ENEMY_SINGLE';
-    Array.prototype.forEach.call(document.querySelectorAll('.unit'), function (node) {
+    Array.prototype.forEach.call(document.querySelectorAll('.sprite'), function (node) {
       var isEnemy = node.dataset.side === 'ENEMY';
       var alive = !node.classList.contains('dead');
       node.classList.toggle('targetable', alive && (wantsEnemy ? isEnemy : !isEnemy));
@@ -420,24 +544,61 @@
   function playCard(cardId, targetId) {
     if (state.busy) return; state.busy = true;
     api('/api/siege/battle/play', { method: 'POST', body: { token: token(), cardId: cardId, targetId: targetId } })
-      .then(function (run) { state.run = run; state.selectedCardId = null; state.selectedCardNeedsTarget = false; if (run.battle && run.battle.error) toast(run.battle.error); if (run.error) toast(run.error); renderRun(); })
+      .then(function (run) { state.run = run; state.selectedCardId = null; state.selectedCardNeedsTarget = false; if (run.error) toast(run.error); renderRun(); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
 
   function endTurn() {
     if (state.busy) return; state.busy = true;
-    clearSel();
+    state.selectedCardId = null; state.selectedCardNeedsTarget = false;
     api('/api/siege/battle/end-turn', { method: 'POST', body: { token: token() } })
       .then(function (run) { state.run = run; renderRun(); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
-  function clearSel() { state.selectedCardId = null; state.selectedCardNeedsTarget = false; }
 
   function continueRun() {
     if (state.busy) return; state.busy = true;
     api('/api/siege/continue', { method: 'POST', body: { token: token() } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  // ---- rewards ----------------------------------------------------------
+  var REWARD_ICON = { CARD: '🃏', UPGRADE: '⬆️', RECRUIT: '🐾' };
+
+  function renderRewards() {
+    showScreen('rewardScreen');
+    var grid = $('rewardGrid'); grid.innerHTML = '';
+    (state.run.pendingRewards || []).forEach(function (opt) {
+      var c = el('div', 'reward-card ' + elClass(opt.element) + ' kind-' + opt.kind);
+      var art = opt.artUrl
+        ? '<div class="reward-art" style="background-image:url(\'' + encodeURI(opt.artUrl) + '\')"></div>'
+        : '<div class="reward-glyph">' + (REWARD_ICON[opt.kind] || '🎁') + '</div>';
+      var meta = '';
+      if (opt.kind === 'CARD' && opt.cardEffect) {
+        meta = '<div class="reward-cardmeta">' + icon(opt.element) + ' ' + esc(opt.cardEffect) + ' · power ' + opt.cardValue + ' · ' + opt.cardCost + ' AP</div>';
+      }
+      c.innerHTML =
+        '<div class="reward-kind">' + esc(kindLabel(opt.kind)) + '</div>' +
+        art +
+        '<div class="reward-title">' + esc(opt.title) + '</div>' +
+        meta +
+        '<div class="reward-desc">' + esc(opt.desc) + '</div>';
+      c.addEventListener('click', function () { chooseReward(opt.id); });
+      grid.appendChild(c);
+    });
+  }
+
+  function kindLabel(kind) {
+    return { CARD: 'New Card', UPGRADE: 'Upgrade', RECRUIT: 'Recruit' }[kind] || 'Reward';
+  }
+
+  function chooseReward(optionId) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/reward/choose', { method: 'POST', body: { token: token(), optionId: optionId } })
       .then(function (run) { state.run = run; renderRun(); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });

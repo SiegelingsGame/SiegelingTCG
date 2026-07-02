@@ -43,10 +43,22 @@ public class SiegeController {
         return siege.state(token);
     }
 
-    /** Enter the current map node (start a battle or resolve a rest/treasure node). */
+    /** Travel to a reachable map node: body { token, nodeId }. */
     @PostMapping("/api/siege/node/enter")
     public Map<String, Object> enterNode(@RequestBody Map<String, Object> body) {
-        return siege.enterNode(str(body.get("token")));
+        int nodeId;
+        try {
+            nodeId = Integer.parseInt(String.valueOf(body.get("nodeId")));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("nodeId is required.");
+        }
+        return siege.enterNode(str(body.get("token")), nodeId);
+    }
+
+    /** Pick a post-battle reward: body { token, optionId } ("skip" to decline). */
+    @PostMapping("/api/siege/reward/choose")
+    public Map<String, Object> chooseReward(@RequestBody Map<String, Object> body) {
+        return siege.chooseReward(str(body.get("token")), str(body.get("optionId")));
     }
 
     /** Play a card: body { token, cardId, targetId? }. */

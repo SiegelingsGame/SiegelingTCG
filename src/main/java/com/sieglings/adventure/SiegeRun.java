@@ -26,11 +26,14 @@ class SiegeRun {
     private final List<SiegeCard> deckTemplates = new ArrayList<>();
 
     private final List<SiegeNode> map = new ArrayList<>();
-    private int currentIndex;
+    /** Id of the node the party currently occupies; -1 before the first move. */
+    private int currentNodeId = -1;
     private RunStatus status = RunStatus.ACTIVE;
 
     private SiegeBattle battle;
     private String lastReward = "";
+    /** Post-battle reward choices awaiting the player's pick (empty when none). */
+    private final List<RewardOption> pendingRewards = new ArrayList<>();
 
     SiegeRun(String token) {
         this.token = token;
@@ -53,8 +56,8 @@ class SiegeRun {
     List<SiegeCard> getDeckTemplates() { return deckTemplates; }
     List<SiegeNode> getMap() { return map; }
 
-    int getCurrentIndex() { return currentIndex; }
-    void setCurrentIndex(int currentIndex) { this.currentIndex = currentIndex; }
+    int getCurrentNodeId() { return currentNodeId; }
+    void setCurrentNodeId(int currentNodeId) { this.currentNodeId = currentNodeId; }
     RunStatus getStatus() { return status; }
     void setStatus(RunStatus status) { this.status = status; }
 
@@ -62,9 +65,32 @@ class SiegeRun {
     void setBattle(SiegeBattle battle) { this.battle = battle; }
     String getLastReward() { return lastReward; }
     void setLastReward(String lastReward) { this.lastReward = lastReward == null ? "" : lastReward; }
+    List<RewardOption> getPendingRewards() { return pendingRewards; }
 
     SiegeNode currentNode() {
-        return currentIndex >= 0 && currentIndex < map.size() ? map.get(currentIndex) : null;
+        return nodeById(currentNodeId);
+    }
+
+    SiegeNode nodeById(int id) {
+        for (SiegeNode n : map) {
+            if (n.getId() == id) return n;
+        }
+        return null;
+    }
+
+    /** Node ids the party may travel to next (row-0 nodes before the first move). */
+    List<Integer> reachableNodeIds() {
+        List<Integer> out = new ArrayList<>();
+        if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()) return out;
+        SiegeNode current = currentNode();
+        if (current == null) {
+            for (SiegeNode n : map) {
+                if (n.getRow() == 0) out.add(n.getId());
+            }
+        } else {
+            out.addAll(current.getNext());
+        }
+        return out;
     }
 
     boolean partyAlive() {
