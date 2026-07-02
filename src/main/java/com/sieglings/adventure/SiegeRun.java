@@ -53,6 +53,13 @@ class SiegeRun {
     private int cacheGold;
     private int cacheDigs;
 
+    // Broker stall state (recruit or swap Siegelings for gold).
+    private boolean inBroker;
+    private final List<CampOption> brokerOptions = new ArrayList<>();
+
+    /** Whether the run's last idle checkpoint reached persistent storage. */
+    private boolean checkpointSaved;
+
     SiegeRun(String token) {
         this.token = token;
     }
@@ -108,6 +115,13 @@ class SiegeRun {
     int getCacheDigs() { return cacheDigs; }
     void setCacheDigs(int cacheDigs) { this.cacheDigs = cacheDigs; }
 
+    boolean isInBroker() { return inBroker; }
+    void setInBroker(boolean inBroker) { this.inBroker = inBroker; }
+    List<CampOption> getBrokerOptions() { return brokerOptions; }
+
+    boolean isCheckpointSaved() { return checkpointSaved; }
+    void setCheckpointSaved(boolean checkpointSaved) { this.checkpointSaved = checkpointSaved; }
+
 
     SiegeNode currentNode() {
         return nodeById(currentNodeId);
@@ -124,7 +138,7 @@ class SiegeRun {
     List<Integer> reachableNodeIds() {
         List<Integer> out = new ArrayList<>();
         if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()
-                || inCamp || inCache) return out;
+                || inCamp || inCache || inBroker) return out;
         SiegeNode current = currentNode();
         if (current == null) {
             for (SiegeNode n : map) {

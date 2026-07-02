@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=8">
+<link rel="stylesheet" href="/css/adventure.css?v=9">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -98,7 +98,7 @@
     </div>
   </section>
 
-  <!-- Battle -->
+  <!-- Battle (HUD pinned at the bottom, close to the thumbs) -->
   <section class="siege-screen battle hidden" id="battleScreen">
     <div class="battle-top">
       <div class="knight-plate hidden" id="knightPlate"></div>
@@ -110,15 +110,35 @@
       <div class="foe-line" id="enemyRow"></div>
       <div class="ally-line" id="allyRow"></div>
     </div>
-    <div class="battle-log" id="battleLog"></div>
-    <div class="battle-hud">
+    <button class="battle-log" id="battleLog" type="button" title="Tap to open the turn ledger"></button>
+    <div class="ledger-panel hidden" id="ledgerPanel">
+      <div class="ledger-head"><span>Turn ledger</span><button class="unit-modal-close" id="ledgerClose" type="button">✕</button></div>
+      <div class="ledger-body" id="ledgerBody"></div>
+    </div>
+    <div class="battle-hint" id="battleHint"></div>
+    <div class="hand-fan" id="handRow"></div>
+    <div class="battle-hud" id="battleHud">
       <div class="ap-display" id="apDisplay"></div>
       <div class="deck-counts" id="deckCounts"></div>
       <button class="siege-btn ult hidden" id="knightUltBtn" type="button">⚡ Ultimate</button>
       <button class="siege-btn" id="endTurnBtn" type="button">End Turn</button>
     </div>
-    <div class="hand-fan" id="handRow"></div>
-    <div class="battle-hint" id="battleHint"></div>
+  </section>
+
+  <!-- Broker stall (recruit or swap Siegelings) -->
+  <section class="siege-screen hidden" id="brokerScreen">
+    <div class="camp-scene broker-scene">
+      <div class="camp-sky"></div>
+      <div class="broker-npc">🐾</div>
+      <div class="camp-tent">🏪</div>
+    </div>
+    <h1 class="camp-title">Siegeling Broker</h1>
+    <p class="siege-sub">New Siegelings for hire — recruit into an open slot, or swap one of yours for fresh blood.</p>
+    <div class="camp-meta"><span class="gold-chip" id="brokerGold">🪙 0</span><span id="brokerReward" class="camp-reward"></span></div>
+    <div class="camp-grid" id="brokerGrid"></div>
+    <div class="camp-actions">
+      <button class="siege-btn primary" id="brokerLeaveBtn" type="button">Move On ▸</button>
+    </div>
   </section>
 
   <!-- Rewards -->
@@ -148,6 +168,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=8"></script>
+<script src="/js/adventure.js?v=9"></script>
 </body>
 </html>

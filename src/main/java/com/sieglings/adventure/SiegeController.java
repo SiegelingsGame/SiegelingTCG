@@ -79,6 +79,19 @@ public class SiegeController {
         return siege.cacheDig(str(body.get("token")));
     }
 
+    /** Broker stall: hire an offered Siegeling, optionally swapping out a member:
+     *  body { token, optionId, replaceId? }. */
+    @PostMapping("/api/siege/broker/hire")
+    public Map<String, Object> brokerHire(@RequestBody Map<String, Object> body) {
+        return siege.brokerHire(str(body.get("token")), str(body.get("optionId")), str(body.get("replaceId")));
+    }
+
+    /** Leave the broker stall: body { token }. */
+    @PostMapping("/api/siege/broker/leave")
+    public Map<String, Object> brokerLeave(@RequestBody Map<String, Object> body) {
+        return siege.brokerLeave(str(body.get("token")));
+    }
+
     /** Cache minigame: bank the loot and move on: body { token }. */
     @PostMapping("/api/siege/cache/take")
     public Map<String, Object> cacheTake(@RequestBody Map<String, Object> body) {

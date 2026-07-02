@@ -63,6 +63,7 @@ public class SiegeCombatEngine {
             ally.setSpeed(ally.getBaseSpeed());
             ally.addAttackBuff(-ally.getAttackBuff());
             ally.clearStatuses();
+            ally.setApSpent(0);
             ally.setPosition(pos++);
             if (knight != null && passive != null) {
                 switch (passive) {
@@ -202,9 +203,14 @@ public class SiegeCombatEngine {
                 .max(Comparator.comparingInt(Combatant::effectiveSpeed)).orElse(null);
         battle.setLeadId(lead == null ? null : lead.getId());
 
-        // Draw 1 card at the start of every turn after the first (hand cap 8).
-        if (battle.getRoundNumber() > 1 && battle.getHand().size() < SiegeBattle.HAND_MAX) {
-            draw(battle, 1, rng);
+        // A fresh full hand every turn (the opening hand carries its guarantees).
+        if (battle.getRoundNumber() > 1) {
+            int before = battle.getHand().size();
+            draw(battle, SiegeBattle.HAND_START - before, rng);
+            int drawn = battle.getHand().size() - before;
+            if (drawn > 0) {
+                battle.event("draw", "count", drawn);
+            }
         }
         battle.log("— Your turn · " + ap + " AP —");
     }
@@ -214,10 +220,14 @@ public class SiegeCombatEngine {
             if (battle.getHand().size() >= SiegeBattle.HAND_MAX) return;
             if (battle.getDeck().isEmpty()) {
                 if (battle.getDiscard().isEmpty()) return;
-                // Internal decks are permanent: played cards reshuffle back in.
+                // Internal decks are permanent: the discard folds back into the
+                // deck and is shuffled — surfaced to the client as an animation.
+                int folded = battle.getDiscard().size();
                 battle.getDeck().addAll(battle.getDiscard());
                 battle.getDiscard().clear();
                 Collections.shuffle(battle.getDeck(), rng);
+                battle.event("reshuffle", "count", folded);
+                battle.log("♻ The discard pile shuffles back into the deck (" + folded + " cards).");
             }
             battle.getHand().add(battle.getDeck().remove(battle.getDeck().size() - 1));
         }
@@ -258,6 +268,12 @@ public class SiegeCombatEngine {
         }
 
         if (spec.effect() == Effect.EVOLVE) {
+            // The evolution gauge must be filled first: 5 AP spent on this
+            // Siegeling's own moves this battle.
+            if (attacker.getApSpent() < SiegeBattle.EVOLVE_GAUGE) {
+                return PlayResult.fail(attacker.getName() + " must spend " + SiegeBattle.EVOLVE_GAUGE
+                        + " AP of moves before evolving (" + attacker.getApSpent() + "/" + SiegeBattle.EVOLVE_GAUGE + ").");
+            }
             PlayResult evolved = playEvolution(run, battle, attacker, spec, rng);
             if (!evolved.ok) return evolved;
             battle.getHand().remove(card);
@@ -279,6 +295,21 @@ public class SiegeCombatEngine {
         battle.getHand().remove(card);
         battle.getDiscard().add(card);
         battle.setActionPoints(battle.getActionPoints() - spec.actionCost());
+
+        String targetNames = targets.stream().map(Combatant::getName).distinct()
+                .reduce((a, b2) -> a + ", " + b2).orElse("");
+        battle.turnEntry("you", attacker.getName(), spec.name(), spec.actionCost(),
+                spec.name() + " → " + targetNames);
+
+        // Playing a Siegeling's own move fills its evolution gauge.
+        if (!card.getOwnerId().startsWith(KNIGHT_OWNER_PREFIX) && !attacker.isKnight()) {
+            boolean wasReady = attacker.getApSpent() >= SiegeBattle.EVOLVE_GAUGE;
+            attacker.addApSpent(spec.actionCost());
+            if (!wasReady && attacker.getApSpent() >= SiegeBattle.EVOLVE_GAUGE) {
+                battle.event("gaugeReady", "targetId", attacker.getId());
+                battle.log(attacker.getName() + "'s evolution gauge is full!");
+            }
+        }
 
         // Knight cards feed the Knight's Ultimate.
         if (card.getOwnerId().startsWith(KNIGHT_OWNER_PREFIX)) {
@@ -323,6 +354,8 @@ public class SiegeCombatEngine {
                 "to", evolved.getName(), "element",
                 evolved.getElement() == null ? null : evolved.getElement().name());
         battle.log("🌟 " + member.getName() + " evolves into " + evolved.getName() + "!");
+        battle.turnEntry("you", member.getName(), spec.name(), spec.actionCost(),
+                member.getName() + " evolves into " + evolved.getName());
 
         // The new stage's moves join the battle deck…
         int added = content.addNewStageCards(evo, evolved.getId(), battle.getDeck());
@@ -363,6 +396,8 @@ public class SiegeCombatEngine {
         battle.event("ultimate", "sourceId", knight.getId(), "name", run.getKnightName() + "'s Ultimate",
                 "element", knight.getElement() == null ? null : knight.getElement().name());
         battle.log("⚡ " + run.getKnightName() + " unleashes the Knight Ultimate!");
+        battle.turnEntry("you", run.getKnightName(), "Knight Ultimate", 0,
+                "Ultimate unleashed (" + KNIGHT_ULT_DAMAGE + " dmg to all enemies)");
 
         StatusKind status = SiegeContentService.statusFor(knight.getElement());
         for (Combatant foe : new ArrayList<>(battle.living(Side.ENEMY))) {
@@ -385,14 +420,25 @@ public class SiegeCombatEngine {
         SiegeBattle battle = run.getBattle();
         if (battle == null || battle.getPhase() != BattlePhase.PLAYER_INPUT) return;
 
-        // Unused AP converts directly into Knight Ultimate Charge.
+        // Unused AP converts directly into Knight Ultimate Charge — surfaced as
+        // its own event so the client can show the pips flowing to the Knight.
         int leftover = battle.getActionPoints();
         if (leftover > 0) {
             battle.addKnightCharge(leftover);
             battle.log("Unused AP → +" + leftover + " Knight Charge (" + battle.getKnightCharge() + ").");
-            battle.event("charge", "amount", leftover, "total", battle.getKnightCharge());
+            battle.event("apCharge", "amount", leftover, "total", battle.getKnightCharge());
+            battle.turnEntry("you", run.getKnightName(), null, -1,
+                    "Unused AP → +" + leftover + " Ultimate Charge (" + battle.getKnightCharge() + "/" + SiegeBattle.KNIGHT_ULT_COST + ")");
         }
         battle.setActionPoints(0);
+
+        // All remaining cards are discarded; a fresh hand comes next turn.
+        if (!battle.getHand().isEmpty()) {
+            int discarded = battle.getHand().size();
+            battle.getDiscard().addAll(battle.getHand());
+            battle.getHand().clear();
+            battle.event("discardHand", "count", discarded);
+        }
 
         // A stunned Siegeling has now skipped its action.
         for (Combatant ally : battle.living(Side.PLAYER)) {
@@ -574,6 +620,7 @@ public class SiegeCombatEngine {
                 foe.clearStatus(StatusKind.STUN);
                 battle.event("stunned", "sourceId", foe.getId());
                 battle.log(foe.getName() + " is stunned and skips its action.");
+                battle.turnEntry("foe", foe.getName(), null, -1, "Stunned — skips its action");
                 continue;
             }
             AbilitySpec choice = foe.getIntent() != null ? foe.getIntent() : pickEnemyAbility(foe, rng);
@@ -591,6 +638,12 @@ public class SiegeCombatEngine {
         battle.event("enemyAct", "sourceId", foe.getId(), "name", choice.name(),
                 "element", foe.getElement() == null ? null : foe.getElement().name(),
                 "effect", choice.effect().name(), "position", targetPos);
+        Combatant marked = battle.atPosition(targetPos);
+        battle.turnEntry("foe", foe.getName(), choice.name(), -1,
+                choice.name() + (choice.effect() == Effect.DAMAGE
+                        ? (choice.target() == TargetKind.ALL_ENEMIES ? " → the whole line"
+                        : " → " + (marked != null ? marked.getName() : "notch " + (targetPos + 1)))
+                        : ""));
 
         switch (choice.effect()) {
             case HEAL -> {

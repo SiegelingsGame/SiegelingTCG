@@ -210,6 +210,40 @@ win counts:
 - Team select still offers stage-1 Siegelings only; the "EVO ↑" tag now means
   "its Evolution card joins your battle deck."
 
+## v7 — Thumb HUD, evolution gauge, fresh hands, ledger, brokers, checkpoints
+
+- **HUD at the bottom**: the battle controls (AP pips, deck counts, Ultimate,
+  End Turn) sit below the hand, pinned to the bottom edge on mobile
+  (safe-area aware) — right under the thumbs.
+- **Evolution gauge**: each Siegeling must spend **5 AP of its own moves**
+  before its Evolution card unlocks (`SiegeBattle.EVOLVE_GAUGE`). Gold gauge
+  bars live on the nameplate and on the locked Evolution card itself; a
+  "gauge full" flash fires the moment it's ready. The gauge resets per stage.
+- **Fresh hand every turn**: at end of turn the whole hand is discarded (cards
+  visibly fly off); at the start of every turn a full 6-card hand is dealt
+  (staggered deal-in animation). When the deck runs dry the discard folds back
+  in and shuffles — shown as swirling card-backs with a ♻ banner. Enemy
+  stats were tuned up to match the stronger card economy.
+- **Unused AP → Ultimate, visibly**: leftover AP pips fly from the HUD into
+  the Knight's charge bar at end of turn (`apCharge` event).
+- **Expandable turn ledger**: the log strip is now a button; tapping opens a
+  bottom-sheet ledger of every action grouped by round — actor, the card
+  behind it (🃏 chip), its AP cost, and what it did. Server keeps a structured
+  `turnLog` alongside the prose log.
+- **Tap any unit for details**: tapping a sprite with no card selected opens
+  the detail popup — allies show their cards, gauge, and what they evolve
+  into; **enemies show their full ability specs** and current intent.
+- **Broker map nodes** (🐾): a dedicated stop distinct from camps, guaranteed
+  once per map plus random spawns. The stall offers three Siegelings — hire
+  into an open slot (40g) or **swap** one of yours out (20g; the released
+  member's cards leave the deck). Card-transform animation when a Siegeling's
+  hand upgrades after evolving.
+- **Checkpoints**: run state persists to Firestore (`siegeCheckpoints`,
+  `SiegeCheckpointStore`) at every safe map state — never mid-battle. Coming
+  back later (even across a server restart/deploy) resumes from the map at the
+  last checkpoint; the map shows a 💾 chip when saved. Fail-soft when
+  Firestore is unavailable (runs stay in-memory as before).
+
 ## Known limitations / next steps
 
 - Runs are in-memory only (not yet persisted to Firestore) — a server restart drops an
