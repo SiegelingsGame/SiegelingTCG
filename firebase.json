@@ -92,6 +92,10 @@
         "destination": "/play.html"
       },
       {
+        "source": "/siege",
+        "destination": "/adventure.html"
+      },
+      {
         "source": "/api/cards/editor",
         "function": {
           "functionId": "api",
