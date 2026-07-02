@@ -67,13 +67,31 @@ Combat runs entirely in a new module with **one touch** to shared code (the `/si
 route in `WebConfig` and the Siege button link in `play.html`) — standard Battle mode is
 untouched, so Siege can be removed by reverting this package and those two lines.
 
-## Known v1 limitations / next steps
+## v2 — Adventure vertical slice (branching map, rewards, battle stage)
+
+The second milestone upgraded the mode into the full prototype loop:
+
+- **Branching DAG map** (Slay-the-Spire style): 8 rows, 2–4 nodes per row,
+  non-crossing forward edges, guaranteed rest row before the Siegelord. Travel is
+  by node choice (`/api/siege/node/enter` takes a `nodeId`, validated against the
+  current node's edges). Rendered client-side as a scrollable SVG with walked /
+  open path highlighting.
+- **Post-battle rewards** (`/api/siege/reward/choose`): every non-boss battle win
+  offers a choice — two new cards (drawn from the full moves pool, bound to a
+  living Siegeling), plus an upgrade of an existing deck card; elite wins offer a
+  **recruit** (a new Siegeling joins the warband, up to 4) instead of the upgrade.
+  Skipping is allowed.
+- **Battle stage presentation**: the overlay card-art cutouts now stand on a
+  perspective battlefield as character sprites (idle bob, hit shake, floating
+  damage/heal numbers, defeat pose), with name-plates carrying HP/shield/buff.
+  The hand is a fanned card arc at the bottom of the screen.
+
+## Known limitations / next steps
 
 - Runs are in-memory only (not yet persisted to Firestore) — a server restart drops an
   active run, exactly like base solo games. Firestore persistence (`AdventureRunStore`) is
   the natural next milestone.
-- Map is a fixed linear sequence; branching DAG generation from the proposal is not yet in.
-- No relics, events, recruitment, card rewards, meta-progression payouts, or seeded runs
-  yet — these are the Phase 2–3 items from `03-technical-plan.md`, now easy to layer on top
-  of the working combat core.
-- Difficulty is a first tuning pass; numbers live in `SiegeContentService` for iteration.
+- No relics, random events, merchants, seeded runs, or meta-progression payouts yet —
+  Phase 2–3 items from `03-technical-plan.md`, layered on the working loop.
+- Difficulty is a first tuning pass; numbers live in `SiegeContentService` for iteration
+  (a naive greedy bot wins ≈25–30% of runs; thoughtful play should do noticeably better).

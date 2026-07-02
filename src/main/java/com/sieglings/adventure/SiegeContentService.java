@@ -237,17 +237,82 @@ public class SiegeContentService {
 
     // ---- Map ------------------------------------------------------------
 
+    static final int MAP_ROWS = 8;
+
+    /**
+     * Generates a Slay-the-Spire-style branching DAG: {@value #MAP_ROWS} rows,
+     * 2–4 nodes per middle row, non-crossing forward edges, a rest row before
+     * the final Siegelord node. Every node is reachable and every path reaches
+     * the boss.
+     */
     List<SiegeNode> generateMap(Random rng) {
-        // Fixed, readable v1 progression: a short expedition ending in a boss.
-        NodeType[] plan = {
-                NodeType.BATTLE, NodeType.BATTLE, NodeType.TREASURE, NodeType.ELITE,
-                NodeType.REST, NodeType.BATTLE, NodeType.BOSS
-        };
+        int[] counts = new int[MAP_ROWS];
+        counts[0] = 2 + rng.nextInt(2);                 // 2–3 starting paths
+        counts[MAP_ROWS - 1] = 1;                       // the Siegelord
+        counts[MAP_ROWS - 2] = 2;                       // rest row before the boss
+        for (int r = 1; r < MAP_ROWS - 2; r++) {
+            counts[r] = 2 + rng.nextInt(3);             // 2–4
+        }
+
         List<SiegeNode> nodes = new ArrayList<>();
-        for (int i = 0; i < plan.length; i++) {
-            nodes.add(new SiegeNode(i, plan[i], labelFor(plan[i])));
+        int nextId = 0;
+        int[][] rowIds = new int[MAP_ROWS][];
+        for (int r = 0; r < MAP_ROWS; r++) {
+            rowIds[r] = new int[counts[r]];
+            for (int c = 0; c < counts[r]; c++) {
+                NodeType type = nodeTypeFor(r, c, counts[r], rng);
+                SiegeNode node = new SiegeNode(nextId, r, c, type, labelFor(type));
+                rowIds[r][c] = nextId;
+                nodes.add(node);
+                nextId++;
+            }
+        }
+
+        // Forward edges. Mapping each node onto the next row's index space keeps
+        // the paths monotonic (non-crossing) so the map reads cleanly.
+        for (int r = 0; r < MAP_ROWS - 1; r++) {
+            int a = counts[r], b = counts[r + 1];
+            boolean[] hasIncoming = new boolean[b];
+            for (int i = 0; i < a; i++) {
+                SiegeNode from = nodes.get(rowIds[r][i]);
+                int base = a == 1 ? (b - 1) / 2 : (int) Math.round(i * (double) (b - 1) / (a - 1));
+                from.getNext().add(rowIds[r + 1][base]);
+                hasIncoming[base] = true;
+                // Occasionally branch to a neighbor for route choice.
+                if (b > 1 && rng.nextInt(100) < 45) {
+                    int alt = base + (base == b - 1 ? -1 : (base == 0 ? 1 : (rng.nextBoolean() ? 1 : -1)));
+                    if (alt >= 0 && alt < b && !from.getNext().contains(rowIds[r + 1][alt])) {
+                        from.getNext().add(rowIds[r + 1][alt]);
+                        hasIncoming[alt] = true;
+                    }
+                }
+            }
+            // Guarantee every next-row node is reachable.
+            for (int j = 0; j < b; j++) {
+                if (!hasIncoming[j]) {
+                    int i = a == 1 ? 0 : (int) Math.round(j * (double) (a - 1) / Math.max(1, b - 1));
+                    SiegeNode from = nodes.get(rowIds[r][i]);
+                    if (!from.getNext().contains(rowIds[r + 1][j])) {
+                        from.getNext().add(rowIds[r + 1][j]);
+                    }
+                }
+            }
         }
         return nodes;
+    }
+
+    private NodeType nodeTypeFor(int row, int col, int rowCount, Random rng) {
+        if (row == 0) return NodeType.BATTLE;
+        if (row == MAP_ROWS - 1) return NodeType.BOSS;
+        if (row == MAP_ROWS - 2) return NodeType.REST;
+        // Guaranteed variety anchors: a cache early, an elite mid-run.
+        if (row == 2 && col == rowCount - 1) return NodeType.TREASURE;
+        if (row == 4 && col == 0) return NodeType.ELITE;
+        int roll = rng.nextInt(100);
+        if (row >= 3 && roll < 18) return NodeType.ELITE;
+        if (roll < 34) return NodeType.TREASURE;
+        if (roll < 48) return NodeType.REST;
+        return NodeType.BATTLE;
     }
 
     private String labelFor(NodeType type) {
@@ -276,6 +341,44 @@ public class SiegeContentService {
     }
 
     int partySize() { return PARTY_SIZE; }
+
+    int partyMax() { return 4; }
+
+    // ---- Rewards ---------------------------------------------------------
+
+    /** Random playable move specs drawn from the full moves pool for card rewards. */
+    List<AbilitySpec> randomCardRewards(int count, Random rng) {
+        List<Move> pool = new ArrayList<>();
+        for (Move move : movesPool.allMovesSorted()) {
+            if (move == null || move.isPassive() || move.targetType() == TargetType.PASSIVE) continue;
+            pool.add(move);
+        }
+        List<AbilitySpec> out = new ArrayList<>();
+        while (out.size() < count && !pool.isEmpty()) {
+            Move pick = pool.remove(rng.nextInt(pool.size()));
+            out.add(toSpec(pick));
+        }
+        return out;
+    }
+
+    /** A strengthened copy of a card spec: +2 power, or cheaper for utility cards. */
+    AbilitySpec upgradeSpec(AbilitySpec spec) {
+        boolean scaling = spec.effect() == Effect.DAMAGE || spec.effect() == Effect.HEAL || spec.effect() == Effect.SHIELD;
+        int value = scaling ? spec.value() + 2 : spec.value() + 1;
+        int cost = scaling ? spec.actionCost() : Math.max(1, spec.actionCost() - 1);
+        return new AbilitySpec(spec.id(), spec.name() + " +", spec.element(),
+                spec.effect(), value, spec.target(), cost, spec.description());
+    }
+
+    /** A random selectable Siegeling not already in the warband, if any. */
+    Optional<SieglingCard> randomRecruit(List<String> excludedNames, Random rng) {
+        List<SieglingCard> pool = new ArrayList<>();
+        for (SieglingCard s : selectableSieglings()) {
+            if (!excludedNames.contains(s.getName())) pool.add(s);
+        }
+        if (pool.isEmpty()) return Optional.empty();
+        return Optional.of(pool.get(rng.nextInt(pool.size())));
+    }
 
     // ---- Weakness chart -------------------------------------------------
 

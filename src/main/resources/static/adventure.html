@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Siege — Siegelings Roguelike</title>
+<title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=3">
+<link rel="stylesheet" href="/css/adventure.css?v=4">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -13,7 +13,7 @@
   <!-- Top bar -->
   <header class="siege-topbar">
     <a class="siege-back" href="/play" title="Back to Play">◄ Play</a>
-    <div class="siege-title">SIEGE <span>Roguelike Expedition</span></div>
+    <div class="siege-title">SIEGE <span>Adventure Expedition</span></div>
     <button class="siege-abandon hidden" id="abandonBtn" type="button">Abandon Run</button>
   </header>
 
@@ -49,10 +49,9 @@
   <section class="siege-screen hidden" id="mapScreen">
     <div class="party-strip" id="partyStrip"></div>
     <div class="map-reward" id="mapReward"></div>
-    <h1 class="map-heading">The Expedition</h1>
-    <div class="map-track" id="mapTrack"></div>
-    <div class="map-actions">
-      <button class="siege-btn primary" id="enterNodeBtn" type="button">Enter Node</button>
+    <div class="map-meta"><span id="mapDeckCount"></span><span class="map-hint" id="mapHint">Choose your path</span></div>
+    <div class="map-scroll" id="mapScroll">
+      <svg id="mapSvg" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
   </section>
 
@@ -61,18 +60,29 @@
     <div class="battle-top">
       <div class="initiative-bar" id="initiativeBar"></div>
     </div>
-    <div class="enemy-row" id="enemyRow"></div>
-    <div class="battle-mid">
-      <div class="battle-log" id="battleLog"></div>
+    <div class="battle-stage" id="battleStage">
+      <div class="stage-ground"></div>
+      <div class="foe-line" id="enemyRow"></div>
+      <div class="ally-line" id="allyRow"></div>
     </div>
-    <div class="ally-row" id="allyRow"></div>
+    <div class="battle-log" id="battleLog"></div>
     <div class="battle-hud">
       <div class="ap-display" id="apDisplay"></div>
       <div class="deck-counts" id="deckCounts"></div>
       <button class="siege-btn" id="endTurnBtn" type="button">End Turn</button>
     </div>
-    <div class="hand-row" id="handRow"></div>
+    <div class="hand-fan" id="handRow"></div>
     <div class="battle-hint" id="battleHint"></div>
+  </section>
+
+  <!-- Rewards -->
+  <section class="siege-screen hidden" id="rewardScreen">
+    <h1 class="reward-heading">Victory!</h1>
+    <p class="siege-sub">Choose one reward to strengthen the run.</p>
+    <div class="reward-grid" id="rewardGrid"></div>
+    <div class="reward-actions">
+      <button class="siege-btn" id="rewardSkipBtn" type="button">Skip Reward</button>
+    </div>
   </section>
 
   <!-- Result -->
@@ -84,6 +94,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=3"></script>
+<script src="/js/adventure.js?v=4"></script>
 </body>
 </html>

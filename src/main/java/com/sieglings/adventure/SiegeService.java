@@ -128,17 +128,24 @@ public class SiegeService {
                 .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
     }
 
-    /** Enters the current map node: starts a battle or resolves a non-battle node. */
-    Map<String, Object> enterNode(String token) {
+    /** Travels to a reachable map node: starts a battle or resolves a rest/treasure stop. */
+    Map<String, Object> enterNode(String token, int nodeId) {
         SiegeRun run = require(token);
         if (run.getStatus() != RunStatus.ACTIVE) return serialize(run);
-        SiegeNode node = run.currentNode();
-        if (node == null) return serialize(run);
         if (run.getBattle() != null && !run.getBattle().isOver()) return serialize(run); // battle already live
+        if (!run.getPendingRewards().isEmpty()) {
+            throw new IllegalArgumentException("Choose a reward before moving on.");
+        }
+        if (!run.reachableNodeIds().contains(nodeId)) {
+            throw new IllegalArgumentException("That node is not on a path you can reach.");
+        }
+        SiegeNode node = run.nodeById(nodeId);
+        run.setCurrentNodeId(nodeId);
+        run.setLastReward("");
 
         if (node.isBattle()) {
             List<Element> palette = elementPaletteFor(run);
-            List<Combatant> enemies = content.generateEnemies(node.getType(), node.getIndex(), rng, palette);
+            List<Combatant> enemies = content.generateEnemies(node.getType(), node.getRow() + 1, rng, palette);
             engine.startBattle(run, node.getType(), enemies, rng);
         } else {
             resolveNonBattleNode(run, node);
@@ -169,10 +176,9 @@ public class SiegeService {
             default -> run.setLastReward("");
         }
         node.setCleared(true);
-        advanceMap(run);
     }
 
-    /** Applies battle outcome and advances the map; called by the client after a battle ends. */
+    /** Applies battle outcome; a win off the boss row queues reward choices. */
     Map<String, Object> continueRun(String token) {
         SiegeRun run = require(token);
         SiegeBattle battle = run.getBattle();
@@ -185,13 +191,14 @@ public class SiegeService {
                 if (ally.isAlive()) ally.heal((int) Math.round(ally.getMaxHp() * 0.12));
             }
             boolean wasBoss = node != null && node.getType() == NodeType.BOSS;
+            boolean wasElite = node != null && node.getType() == NodeType.ELITE;
             run.setBattle(null);
             if (wasBoss) {
                 run.setStatus(RunStatus.WON);
                 run.setLastReward("The Siegelord is defeated — the expedition is won!");
             } else {
-                run.setLastReward("Victory! The party presses on.");
-                advanceMap(run);
+                run.setLastReward("Victory! Choose your spoils.");
+                generateRewards(run, wasElite);
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
             run.setStatus(RunStatus.LOST);
@@ -199,6 +206,104 @@ public class SiegeService {
             run.setLastReward("The warband has fallen. The expedition ends here.");
         }
         return serialize(run);
+    }
+
+    // ---- Rewards ----------------------------------------------------------
+
+    private void generateRewards(SiegeRun run, boolean elite) {
+        run.getPendingRewards().clear();
+        int optId = 0;
+
+        // Two new-card offers, each bound to a random living Siegeling.
+        List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
+        if (living.isEmpty()) return;
+        for (AbilitySpec spec : content.randomCardRewards(2, rng)) {
+            Combatant owner = living.get(rng.nextInt(living.size()));
+            run.getPendingRewards().add(RewardOption.card(
+                    "r" + (optId++),
+                    spec.name(),
+                    spec.description() + " · learned by " + owner.getName(),
+                    spec.element(), spec, owner.getId()));
+        }
+
+        // Elite wins can recruit a new Siegeling (until the warband is full);
+        // otherwise offer an upgrade to a random existing card.
+        boolean offerRecruit = elite && run.getParty().size() < content.partyMax();
+        if (offerRecruit) {
+            List<String> names = run.getParty().stream().map(Combatant::getName).toList();
+            var recruit = content.randomRecruit(names, rng);
+            if (recruit.isPresent()) {
+                var s = recruit.get();
+                run.getPendingRewards().add(RewardOption.recruit(
+                        "r" + (optId++),
+                        s.getName() + " joins!",
+                        s.getName() + " (" + s.getElement().name() + ") joins the warband with its moves.",
+                        s.getElement(), s.getCardArtUrl(), s.getId()));
+                return;
+            }
+        }
+        if (!run.getDeckTemplates().isEmpty()) {
+            int idx = rng.nextInt(run.getDeckTemplates().size());
+            SiegeCard target = run.getDeckTemplates().get(idx);
+            AbilitySpec upgraded = content.upgradeSpec(target.getSpec());
+            run.getPendingRewards().add(RewardOption.upgrade(
+                    "r" + (optId++),
+                    "Upgrade " + target.getSpec().name(),
+                    target.getSpec().name() + " becomes " + upgraded.name() + " ("
+                            + describeUpgrade(target.getSpec(), upgraded) + ").",
+                    target.getSpec().element(), idx));
+        }
+    }
+
+    private String describeUpgrade(AbilitySpec from, AbilitySpec to) {
+        if (to.value() != from.value() && to.actionCost() != from.actionCost()) {
+            return from.value() + "→" + to.value() + " power, " + from.actionCost() + "→" + to.actionCost() + " actions";
+        }
+        if (to.value() != from.value()) return from.value() + "→" + to.value() + " power";
+        return from.actionCost() + "→" + to.actionCost() + " actions";
+    }
+
+    /** Applies the chosen reward ("skip" forfeits the choice). */
+    Map<String, Object> chooseReward(String token, String optionId) {
+        SiegeRun run = require(token);
+        if (run.getPendingRewards().isEmpty()) return serialize(run);
+        if (!"skip".equalsIgnoreCase(String.valueOf(optionId))) {
+            RewardOption pick = run.getPendingRewards().stream()
+                    .filter(o -> o.id().equals(optionId)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown reward option."));
+            applyReward(run, pick);
+        } else {
+            run.setLastReward("The party pressed on without spoils.");
+        }
+        run.getPendingRewards().clear();
+        return serialize(run);
+    }
+
+    private void applyReward(SiegeRun run, RewardOption pick) {
+        switch (pick.kind()) {
+            case "CARD" -> {
+                run.getDeckTemplates().add(new SiegeCard(
+                        "reward-" + pick.id() + "-" + run.getDeckTemplates().size(),
+                        pick.ownerId(), pick.cardSpec()));
+                run.setLastReward("Added " + pick.cardSpec().name() + " to the deck.");
+            }
+            case "UPGRADE" -> {
+                int idx = pick.templateIndex();
+                if (idx >= 0 && idx < run.getDeckTemplates().size()) {
+                    SiegeCard old = run.getDeckTemplates().get(idx);
+                    AbilitySpec upgraded = content.upgradeSpec(old.getSpec());
+                    run.getDeckTemplates().set(idx, new SiegeCard(old.getInstanceId(), old.getOwnerId(), upgraded));
+                    run.setLastReward(old.getSpec().name() + " was upgraded to " + upgraded.name() + ".");
+                }
+            }
+            case "RECRUIT" -> content.findSiegling(pick.sieglingId()).ifPresent(s -> {
+                Combatant member = content.toPartyCombatant(s, run.getParty().size());
+                run.getParty().add(member);
+                run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+                run.setLastReward(s.getName() + " joined the warband!");
+            });
+            default -> { }
+        }
     }
 
     Map<String, Object> playCard(String token, String cardInstanceId, String targetId) {
@@ -215,12 +320,6 @@ public class SiegeService {
         return serialize(run);
     }
 
-    private void advanceMap(SiegeRun run) {
-        if (run.getCurrentIndex() < run.getMap().size() - 1) {
-            run.setCurrentIndex(run.getCurrentIndex() + 1);
-        }
-    }
-
     private List<Element> elementPaletteFor(SiegeRun run) {
         // Bias enemies toward elements that counter the party for a bit of tension,
         // but fall back to the live palette so content stays valid.
@@ -233,8 +332,9 @@ public class SiegeService {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("token", run.getToken());
         m.put("status", run.getStatus().name());
-        m.put("currentIndex", run.getCurrentIndex());
+        m.put("currentNodeId", run.getCurrentNodeId());
         m.put("lastReward", run.getLastReward());
+        m.put("deckSize", run.getDeckTemplates().size());
 
         Map<String, Object> knight = new LinkedHashMap<>();
         knight.put("name", run.getKnightName());
@@ -247,17 +347,41 @@ public class SiegeService {
         for (Combatant c : run.getParty()) party.add(serializeCombatant(c, false));
         m.put("party", party);
 
+        List<Integer> reachable = run.reachableNodeIds();
         List<Map<String, Object>> map = new ArrayList<>();
         for (SiegeNode node : run.getMap()) {
             Map<String, Object> n = new LinkedHashMap<>();
-            n.put("index", node.getIndex());
+            n.put("id", node.getId());
+            n.put("row", node.getRow());
+            n.put("col", node.getCol());
             n.put("type", node.getType().name());
             n.put("label", node.getLabel());
             n.put("cleared", node.isCleared());
-            n.put("current", node.getIndex() == run.getCurrentIndex());
+            n.put("current", node.getId() == run.getCurrentNodeId());
+            n.put("reachable", reachable.contains(node.getId()));
+            n.put("next", new ArrayList<>(node.getNext()));
             map.add(n);
         }
         m.put("map", map);
+
+        List<Map<String, Object>> rewards = new ArrayList<>();
+        for (RewardOption option : run.getPendingRewards()) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("id", option.id());
+            r.put("kind", option.kind());
+            r.put("title", option.title());
+            r.put("desc", option.desc());
+            r.put("element", option.element() == null ? null : option.element().name());
+            r.put("artUrl", option.artUrl());
+            if (option.cardSpec() != null) {
+                r.put("cardEffect", option.cardSpec().effect().name());
+                r.put("cardValue", option.cardSpec().value());
+                r.put("cardCost", option.cardSpec().actionCost());
+                r.put("cardTarget", option.cardSpec().target().name());
+            }
+            rewards.add(r);
+        }
+        m.put("pendingRewards", rewards);
 
         SiegeBattle battle = run.getBattle();
         m.put("battle", battle == null ? null : serializeBattle(run, battle));
