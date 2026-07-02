@@ -289,6 +289,9 @@ public class SiegeService {
 
         List<Map<String, Object>> hand = new ArrayList<>();
         boolean playerTurn = battle.getPhase() == BattlePhase.PLAYER_INPUT;
+        // The damage boost is party-wide, so every living Siegeling shares the
+        // same bonus; surface it on damage cards so the boosted number is visible.
+        int partyAttackBuff = battle.living(Side.PLAYER).stream().mapToInt(Combatant::getAttackBuff).max().orElse(0);
         for (SiegeCard card : battle.getHand()) {
             AbilitySpec spec = card.getSpec();
             Combatant owner = battle.findCombatant(card.getOwnerId());
@@ -302,6 +305,9 @@ public class SiegeService {
             h.put("element", spec.element().name());
             h.put("effect", spec.effect().name());
             h.put("value", spec.value());
+            if (spec.effect() == Effect.DAMAGE) {
+                h.put("boostedValue", spec.value() + partyAttackBuff);
+            }
             h.put("target", spec.target().name());
             h.put("actionCost", spec.actionCost());
             h.put("description", spec.description());
@@ -340,6 +346,7 @@ public class SiegeService {
         m.put("maxHp", c.getMaxHp());
         m.put("shield", c.getShield());
         m.put("speed", c.getSpeed());
+        m.put("attackBuff", c.getAttackBuff());
         m.put("alive", c.isAlive());
         m.put("artUrl", c.getArtUrl());
         if (includeAbilities) {
