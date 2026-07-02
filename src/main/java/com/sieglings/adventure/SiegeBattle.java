@@ -22,6 +22,8 @@ class SiegeBattle {
     static final int HAND_START = 6;
     static final int HAND_MAX = 8;
     static final int KNIGHT_ULT_COST = 20;
+    /** AP a Siegeling must spend on its own moves before its Evolution card unlocks. */
+    static final int EVOLVE_GAUGE = 5;
     /** Rounds a fresh Burn lasts — effectively "until the battle ends". */
     static final int BURN_ROUNDS = 99;
     static final int SLOW_ROUNDS = 2;
@@ -33,6 +35,8 @@ class SiegeBattle {
     private final List<SiegeCard> discard = new ArrayList<>();
     private final List<String> log = new ArrayList<>();
     private final List<Map<String, Object>> events = new ArrayList<>();
+    /** Structured turn ledger: every action with the card behind it, grouped by round. */
+    private final List<Map<String, Object>> turnLog = new ArrayList<>();
 
     private BattlePhase phase = BattlePhase.PLAYER_INPUT;
     private int actionPoints = ACTIONS_PER_TURN;
@@ -78,6 +82,23 @@ class SiegeBattle {
         log.add(message);
         if (log.size() > 60) {
             log.remove(0);
+        }
+    }
+
+    List<Map<String, Object>> getTurnLog() { return turnLog; }
+
+    /** Records a ledger step: who acted, with which card, and what happened. */
+    void turnEntry(String side, String actor, String card, int cost, String text) {
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("round", roundNumber);
+        e.put("side", side);        // "you" | "foe" | "sys"
+        e.put("actor", actor);
+        e.put("card", card);        // card/ability name, or null for system steps
+        e.put("cost", cost);        // AP cost, -1 when not applicable
+        e.put("text", text);
+        turnLog.add(e);
+        if (turnLog.size() > 120) {
+            turnLog.remove(0);
         }
     }
 

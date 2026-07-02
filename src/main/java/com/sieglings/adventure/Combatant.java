@@ -34,6 +34,8 @@ class Combatant {
     private String sourceCardId;      // catalog card this unit was built from (evolution lookups)
     /** Battle-scoped: the form this unit evolved from (evolution reverts after battle). */
     private Combatant evolvedFrom;
+    /** Battle-scoped evolution gauge: AP spent on this unit's own moves. */
+    private int apSpent;
 
     /** Active elemental statuses → rounds remaining (BURN uses a battle-long duration). */
     private final Map<StatusKind, Integer> statuses = new EnumMap<>(StatusKind.class);
@@ -86,6 +88,9 @@ class Combatant {
     void setSourceCardId(String sourceCardId) { this.sourceCardId = sourceCardId; }
     Combatant getEvolvedFrom() { return evolvedFrom; }
     void setEvolvedFrom(Combatant evolvedFrom) { this.evolvedFrom = evolvedFrom; }
+    int getApSpent() { return apSpent; }
+    void setApSpent(int apSpent) { this.apSpent = Math.max(0, apSpent); }
+    void addApSpent(int amount) { setApSpent(apSpent + amount); }
 
     List<AbilitySpec> getAbilities() { return abilities; }
     AbilitySpec getIntent() { return intent; }

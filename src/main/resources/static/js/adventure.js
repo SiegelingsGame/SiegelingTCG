@@ -40,8 +40,8 @@
     STUN: { icon: '💫', label: 'Stun' },
     SHOCK: { icon: '⚡', label: 'Shock' }
   };
-  var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BOSS: '👑' };
-  var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BOSS: '#ff9a3c' };
+  var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', BOSS: '👑' };
+  var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
   var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', BROKER: '🐾' };
   var PASSIVE_META = {
     SHIELD: { icon: '🛡', name: 'Bulwark' },
@@ -89,7 +89,7 @@
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
-    ['loadingScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
   }
@@ -134,6 +134,9 @@
     $('campLeaveBtn').addEventListener('click', campLeave);
     $('cacheDigBtn').addEventListener('click', cacheDig);
     $('cacheTakeBtn').addEventListener('click', cacheTake);
+    $('brokerLeaveBtn').addEventListener('click', brokerLeave);
+    $('battleLog').addEventListener('click', function () { toggleLedger(true); });
+    $('ledgerClose').addEventListener('click', function () { toggleLedger(false); });
     $('unitModalClose').addEventListener('click', closeUnitModal);
     $('unitModal').addEventListener('click', function (e) { if (e.target === $('unitModal')) closeUnitModal(); });
     $('abandonBtn').addEventListener('click', function () {
@@ -305,6 +308,7 @@
     if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
     if (run.camp) { renderCamp(); return; }
     if (run.cache) { renderCache(); return; }
+    if (run.broker) { renderBroker(); return; }
     renderMap();
   }
 
@@ -330,7 +334,7 @@
     $('mapGold').textContent = '🪙 ' + (run.gold || 0);
     $('mapReward').textContent = run.lastReward || '';
     $('mapReward').classList.toggle('hidden', !run.lastReward);
-    $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—');
+    $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');
     $('mapHint').textContent = run.currentNodeId < 0 ? 'Choose where to begin' : 'Choose your path';
 
     var nodes = run.map || [];
@@ -570,6 +574,79 @@
       .then(function () { state.busy = false; });
   }
 
+  // ---- broker stall (recruit or swap Siegelings) --------------------------
+  function renderBroker() {
+    showScreen('brokerScreen');
+    var run = state.run;
+    var b = run.broker;
+    $('brokerGold').textContent = '🪙 ' + (run.gold || 0);
+    $('brokerReward').textContent = run.lastReward || '';
+
+    var grid = $('brokerGrid'); grid.innerHTML = '';
+    (b.offers || []).forEach(function (offer) {
+      var c = el('div', 'camp-card broker-offer ' + elClass(offer.element) + (offer.used ? ' used' : ''));
+      var art = offer.artUrl
+        ? '<div class="camp-art" style="background-image:url(\'' + artCss(offer.artUrl) + '\')"></div>'
+        : '<div class="camp-glyph">' + icon(offer.element) + '</div>';
+      var stats = offer.hp != null ? '<div class="camp-card-desc">❤ ' + offer.hp + ' · ⚡ ' + offer.speed +
+        (offer.evolves ? ' · <span class="evo-tag">EVO ↑</span>' : '') + '</div>' : '';
+      c.innerHTML =
+        '<div class="camp-card-head"><button class="info-btn broker-info" type="button">ⓘ</button>' +
+        (offer.used ? '<span class="camp-used">✓ hired</span>' : '') + '</div>' +
+        art +
+        '<div class="camp-card-title">' + esc(offer.name) + '</div>' +
+        stats +
+        (offer.used ? '' :
+          '<div class="broker-actions">' +
+          '<button class="siege-btn broker-btn hire" type="button"' +
+            ((run.gold >= b.hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + b.hireCost + '</button>' +
+          '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= b.swapCost ? '' : ' disabled') + '>Swap 🪙' + b.swapCost + '</button>' +
+          '</div><div class="broker-swap-row hidden"></div>');
+      c.querySelector('.broker-info').addEventListener('click', function (e) {
+        e.stopPropagation();
+        showUnitModal({
+          name: offer.name, element: offer.element, artUrl: offer.artUrl,
+          subtitle: '❤ ' + offer.hp + ' · ⚡ ' + offer.speed + (offer.evolves ? ' · Evolution card in battle deck' : ''),
+          cards: offer.moves || []
+        });
+      });
+      if (!offer.used) {
+        var hireBtn = c.querySelector('.broker-btn.hire');
+        var swapBtn = c.querySelector('.broker-btn.swap');
+        var swapRow = c.querySelector('.broker-swap-row');
+        hireBtn.addEventListener('click', function () { brokerHire(offer.id, null); });
+        swapBtn.addEventListener('click', function () {
+          // Pick which party member is released in the trade.
+          swapRow.classList.toggle('hidden');
+          if (!swapRow.childNodes.length) {
+            (run.party || []).forEach(function (p) {
+              var pb = el('button', 'siege-btn broker-member ' + elClass(p.element), '⇄ ' + esc(p.name));
+              pb.addEventListener('click', function () { brokerHire(offer.id, p.id); });
+              swapRow.appendChild(pb);
+            });
+          }
+        });
+      }
+      grid.appendChild(c);
+    });
+  }
+
+  function brokerHire(optionId, replaceId) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/broker/hire', { method: 'POST', body: { token: token(), optionId: optionId, replaceId: replaceId } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  function brokerLeave() {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/broker/leave', { method: 'POST', body: { token: token() } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
   // ---- battle stage ----------------------------------------------------
   function renderBattle() {
     showScreen('battleScreen');
@@ -581,16 +658,18 @@
     renderSpriteLine($('enemyRow'), b.enemies, 'enemy', b);
     renderSpriteLine($('allyRow'), b.allies, 'ally', b);
 
-    // log ticker
+    // log ticker (tap to expand the full turn ledger)
     var log = $('battleLog'); log.innerHTML = '';
     (b.log || []).slice(-2).reverse().forEach(function (line) { if (line) log.appendChild(el('div', 'lg', esc(line))); });
+    log.appendChild(el('div', 'lg-more', '☰ ledger'));
+    if (!$('ledgerPanel').classList.contains('hidden')) renderLedger(b);
 
     // hud
     var ap = $('apDisplay'); ap.innerHTML = '<span class="ap-label">AP</span>';
     for (var i = 0; i < (b.maxActionPoints || 5); i++) {
       ap.appendChild(el('span', 'ap-pip' + (i < b.actionPoints ? ' full' : '')));
     }
-    $('deckCounts').textContent = '🃏' + b.deckCount + ' · ✋' + b.hand.length + '/' + (b.handMax || 8);
+    $('deckCounts').textContent = '🃏' + b.deckCount + ' · ✋' + b.hand.length + ' · 🗑' + b.discardCount;
 
     var over = b.phase === 'WON' || b.phase === 'LOST';
     $('endTurnBtn').classList.toggle('hidden', over);
@@ -598,6 +677,34 @@
 
     renderHand(b, over);
     updateHint(b, over);
+  }
+
+  // ---- expandable turn ledger --------------------------------------------
+  function toggleLedger(open) {
+    var panel = $('ledgerPanel');
+    panel.classList.toggle('hidden', !open);
+    if (open && state.run && state.run.battle) renderLedger(state.run.battle);
+  }
+
+  /** Every action of the battle, grouped by round, with the card behind it. */
+  function renderLedger(b) {
+    var body = $('ledgerBody'); body.innerHTML = '';
+    var entries = b.turnLog || [];
+    if (!entries.length) { body.appendChild(el('div', 'ledger-empty', 'No actions yet.')); return; }
+    var lastRound = null;
+    entries.forEach(function (e) {
+      if (e.round !== lastRound) {
+        lastRound = e.round;
+        body.appendChild(el('div', 'ledger-round', '— Round ' + e.round + ' —'));
+      }
+      var costChip = e.cost >= 0 ? '<span class="ledger-cost">' + e.cost + ' AP</span>' : '';
+      var cardChip = e.card ? '<span class="ledger-card">🃏 ' + esc(e.card) + '</span>' : '';
+      var row = el('div', 'ledger-row ' + (e.side || 'sys'),
+        '<span class="ledger-actor">' + esc(e.actor || '') + '</span>' + cardChip + costChip +
+        '<span class="ledger-text">' + esc(e.text || '') + '</span>');
+      body.appendChild(row);
+    });
+    body.scrollTop = body.scrollHeight;
   }
 
   function renderKnightPlate(b) {
@@ -683,11 +790,21 @@
         intentLine = '<div class="sp-intent-line">' + intentLabel(u.intent, b) + '</div>';
       }
       var notch = side === 'ally' && u.position >= 0 ? '<div class="sp-notch">' + (u.position + 1) + '</div>' : '';
+      // Evolution gauge: fills as this Siegeling spends AP on its own moves.
+      var gaugeLine = '';
+      if (side === 'ally' && u.alive && u.hasEvolution) {
+        gaugeLine = u.evoReady
+          ? '<div class="sp-gauge ready" title="Evolution ready!">🌟 EVO READY</div>'
+          : '<div class="sp-gauge" title="Evolution gauge: spend ' + u.evoGaugeMax + ' AP of its moves">' +
+            '<div class="sp-gaugefill" style="width:' + Math.round(100 * u.evoGauge / Math.max(1, u.evoGaugeMax)) + '%"></div>' +
+            '<span class="sp-gaugetext">🌟 ' + u.evoGauge + '/' + u.evoGaugeMax + '</span></div>';
+      }
       sp.innerHTML =
         '<div class="sp-plate">' +
           '<div class="sp-name">' + esc(u.name) + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
           '<div class="sp-hpbar"><div class="sp-hpfill" style="width:' + pct + '%"></div></div>' +
           '<div class="sp-tags"><span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + statusChips + '</div>' +
+          gaugeLine +
           intentLine +
         '</div>' +
         body +
@@ -783,7 +900,26 @@
         showBanner('🌟 ' + ev.from + ' evolves into ' + ev.to + '!', 'you', ev.element);
         flashSprite(ev.targetId, 'evolving');
         floatText(ev.targetId, '🌟 EVOLVED!', 'status');
+        transformHandCards(ev.targetId);
         return 1000;
+      case 'gaugeReady':
+        flashSprite(ev.targetId, 'evolving');
+        floatText(ev.targetId, '🌟 Gauge full!', 'status');
+        return 500;
+      case 'discardHand':
+        discardHandAnimation();
+        return 520;
+      case 'reshuffle':
+        showBanner('♻ ' + ev.count + ' cards shuffle back into the deck', 'you');
+        reshuffleAnimation(ev.count);
+        return 900;
+      case 'draw':
+        state.dealAnimation = true;
+        return 120;
+      case 'apCharge':
+        showBanner('Unused AP → +' + ev.amount + ' Ultimate Charge', 'you');
+        apChargeAnimation(ev.amount);
+        return 750;
       case 'whiff':
         showBanner(nameOf(ev.sourceId) + '\'s ' + ev.name + ' hits empty ground!', 'them');
         return 620;
@@ -862,6 +998,62 @@
     }
   }
 
+  /** The evolved Siegeling's cards flip and upgrade in the hand. */
+  function transformHandCards(ownerId) {
+    Array.prototype.forEach.call(document.querySelectorAll('.playcard[data-owner="' + ownerId + '"]'), function (node, i) {
+      setTimeout(function () { node.classList.add('card-transform'); }, i * 90);
+      setTimeout(function () { node.classList.remove('card-transform'); }, 900 + i * 90);
+    });
+  }
+
+  /** The hand flies off to the discard pile at end of turn. */
+  function discardHandAnimation() {
+    Array.prototype.forEach.call(document.querySelectorAll('#handRow .playcard'), function (node, i) {
+      setTimeout(function () { node.classList.add('card-discard'); }, i * 45);
+    });
+  }
+
+  /** The discard pile riffles back into the deck. */
+  function reshuffleAnimation(count) {
+    var stage = $('battleStage');
+    if (!stage) return;
+    var n = Math.min(count || 5, 7);
+    for (var i = 0; i < n; i++) {
+      var cardBack = el('div', 'shuffle-card', '🂠');
+      cardBack.style.setProperty('--shuffle-i', i);
+      stage.appendChild(cardBack);
+      (function (node) { setTimeout(function () { node.remove(); }, 950); })(cardBack);
+    }
+  }
+
+  /** Leftover AP pips fly from the HUD into the Knight's charge bar. */
+  function apChargeAnimation(amount) {
+    var apHost = $('apDisplay'), plate = $('knightPlate');
+    if (!apHost || !plate || plate.classList.contains('hidden')) return;
+    var from = apHost.getBoundingClientRect(), to = plate.getBoundingClientRect();
+    var n = Math.min(amount || 1, 5);
+    for (var i = 0; i < n; i++) {
+      (function (i) {
+        setTimeout(function () {
+          var orb = el('div', 'ap-orb');
+          orb.style.left = (from.left + from.width / 2) + 'px';
+          orb.style.top = (from.top + from.height / 2) + 'px';
+          document.body.appendChild(orb);
+          var anim = orb.animate([
+            { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
+            { transform: 'translate(calc(-50% + ' + (to.left + to.width / 2 - from.left - from.width / 2) + 'px), calc(-50% + ' +
+              (to.top + to.height - 8 - from.top - from.height / 2) + 'px)) scale(.55)', opacity: .9 }
+          ], { duration: 480, easing: 'cubic-bezier(.3,.7,.4,1)' });
+          anim.onfinish = function () {
+            orb.remove();
+            plate.classList.add('kp-charge-pop');
+            setTimeout(function () { plate.classList.remove('kp-charge-pop'); }, 260);
+          };
+        }, i * 110);
+      })(i);
+    }
+  }
+
   /** Element-colored orb that flies from the source sprite to the target. */
   function fireProjectile(stage, sourceId, targetId, element, onArrive) {
     var src = spriteOf(sourceId), dst = spriteOf(targetId);
@@ -905,22 +1097,33 @@
       return;
     }
     var n = b.hand.length;
+    var deal = state.dealAnimation;
+    state.dealAnimation = false;
     b.hand.forEach(function (card, i) {
       var effCls = effectClass(card.effect);
       var mid = (n - 1) / 2;
-      var c = el('div', 'playcard ' + elClass(card.element) + (card.effect === 'EVOLVE' ? ' evo-card' : '') + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : ''));
+      var c = el('div', 'playcard ' + elClass(card.element) + (card.effect === 'EVOLVE' ? ' evo-card' : '') + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : '') + (deal ? ' dealt' : ''));
+      c.dataset.owner = card.ownerId;
       c.style.setProperty('--fan-rot', ((i - mid) * 4) + 'deg');
       c.style.setProperty('--fan-y', (Math.abs(i - mid) * 7) + 'px');
+      if (deal) c.style.setProperty('--deal-i', i);
       var statusLine = '';
       if (card.status && card.statusChance) {
         var meta = STATUS_META[card.status] || { icon: '', label: card.status };
         statusLine = '<div class="pc-status">' + meta.icon + ' ' + card.statusChance + '% ' + meta.label + '</div>';
       }
+      // A locked evolution card shows its gauge instead of the description.
+      var gaugeLine = '';
+      if (card.effect === 'EVOLVE' && card.gauge != null && card.gauge < card.gaugeMax) {
+        gaugeLine = '<div class="pc-gauge"><div class="pc-gaugefill" style="width:' +
+          Math.round(100 * card.gauge / Math.max(1, card.gaugeMax)) + '%"></div>' +
+          '<span>🌟 ' + card.gauge + '/' + card.gaugeMax + ' AP</span></div>';
+      }
       c.innerHTML = '<div class="pc-cost' + (card.actionCost === 0 ? ' free' : '') + '">' + card.actionCost + '</div>' +
         '<div class="pc-name">' + esc(card.name) + '</div>' +
         '<div class="pc-owner">' + icon(card.element) + ' ' + esc(card.ownerName) + '</div>' +
         '<div class="pc-eff ' + effCls + '">' + effectLabel(card) + '</div>' +
-        statusLine +
+        statusLine + gaugeLine +
         '<div class="pc-desc">' + esc(card.description || '') + '</div>';
       c.addEventListener('click', function () { onCardClick(card); });
       hand.appendChild(c);
@@ -965,12 +1168,43 @@
   }
 
   function onUnitClick(u) {
-    if (!state.selectedCardId || !state.selectedCardNeedsTarget || state.busy) return;
+    if (state.busy) return;
+    // No card waiting for a target → open this unit's detail popup instead.
+    if (!state.selectedCardId || !state.selectedCardNeedsTarget) {
+      showBattleUnitDetails(u);
+      return;
+    }
     var card = currentCard();
     if (!card) return;
     var wantsEnemy = card.target === 'ENEMY_SINGLE';
     if (wantsEnemy && u.side === 'ENEMY' && u.alive) { playCard(card.instanceId, u.id); }
     else if (!wantsEnemy && u.side === 'PLAYER' && u.alive) { playCard(card.instanceId, u.id); }
+  }
+
+  /** Cards, abilities, and evolution info for any battlefield unit (allies AND enemies). */
+  function showBattleUnitDetails(u) {
+    var run = state.run;
+    if (u.side === 'ENEMY') {
+      var intentNote = u.intent ? ' · Next: ' + u.intent.name : '';
+      showUnitModal({
+        name: u.name, element: u.element, artUrl: u.artUrl,
+        subtitle: 'Enemy · HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + intentNote,
+        cards: u.abilities || []
+      });
+      return;
+    }
+    var member = (run.party || []).find(function (p) { return p.id === u.id; });
+    var evoNote = '';
+    if (u.hasEvolution) {
+      var target = member && member.evolvesTo ? ' → ' + member.evolvesTo : '';
+      evoNote = u.evoReady ? ' · 🌟 Evolution ready' + target
+        : ' · 🌟 Gauge ' + u.evoGauge + '/' + u.evoGaugeMax + target;
+    }
+    showUnitModal({
+      name: u.name, element: u.element, artUrl: u.artUrl,
+      subtitle: 'HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + evoNote,
+      cards: member ? (member.cards || []) : []
+    });
   }
 
   function currentCard() {

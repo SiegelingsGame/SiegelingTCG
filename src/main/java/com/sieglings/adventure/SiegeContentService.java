@@ -83,7 +83,8 @@ public class SiegeContentService {
         int cost = stage >= 3 ? 3 : 2;
         return new AbilitySpec("evo:" + evo.getId(), "Evolve: " + evo.getName(), evo.getElement(),
                 Effect.EVOLVE, 0, TargetKind.SELF, cost,
-                ownerName + " evolves into " + evo.getName() + " for the rest of the battle.");
+                ownerName + " evolves into " + evo.getName() + " for the rest of the battle. Unlocks after "
+                        + ownerName + " spends " + SiegeBattle.EVOLVE_GAUGE + " AP of its own moves.");
     }
 
     /**
@@ -370,7 +371,9 @@ public class SiegeContentService {
 
         for (int i = 0; i < count; i++) {
             Element element = palette.get(rng.nextInt(palette.size()));
-            int hp = (int) Math.round((22 + floor * 6 + rng.nextInt(8)) * hpMul);
+            // Tuned up for the fresh-hand-per-turn economy (a full 6 cards every
+            // turn hits much harder than the old draw-1 flow).
+            int hp = (int) Math.round((30 + floor * 9 + rng.nextInt(10)) * hpMul);
             int speed = 6 + rng.nextInt(8) + (type == NodeType.BOSS ? 2 : 0);
             String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
             String name = type == NodeType.BOSS
@@ -386,7 +389,7 @@ public class SiegeContentService {
 
     private List<AbilitySpec> enemyAbilities(Element element, int floor, int count, double dmgMul, Random rng) {
         List<AbilitySpec> abilities = new ArrayList<>();
-        int dmg = (int) Math.round((4 + (int) (floor * 0.7) + rng.nextInt(3)) * dmgMul);
+        int dmg = (int) Math.round((5 + (int) (floor * 0.9) + rng.nextInt(3)) * dmgMul);
         abilities.add(new AbilitySpec("ea-strike", "Strike", element, Effect.DAMAGE, dmg,
                 TargetKind.ENEMY_SINGLE, 0, "Deals " + dmg + " damage to one Siegeling."));
         if (count >= 2) {
@@ -477,13 +480,15 @@ public class SiegeContentService {
         if (row == 0) return NodeType.BATTLE;
         if (row == MAP_ROWS - 1) return NodeType.BOSS;
         if (row == MAP_ROWS - 2) return NodeType.REST;
-        // Guaranteed variety anchors: a cache early, an elite mid-run.
+        // Guaranteed variety anchors: a cache early, a broker and an elite mid-run.
         if (row == 2 && col == rowCount - 1) return NodeType.TREASURE;
+        if (row == 3 && col == 0) return NodeType.BROKER;
         if (row == 4 && col == 0) return NodeType.ELITE;
         int roll = rng.nextInt(100);
-        if (row >= 3 && roll < 18) return NodeType.ELITE;
-        if (roll < 34) return NodeType.TREASURE;
-        if (roll < 48) return NodeType.REST;
+        if (row >= 3 && roll < 16) return NodeType.ELITE;
+        if (roll < 30) return NodeType.TREASURE;
+        if (roll < 42) return NodeType.REST;
+        if (row >= 2 && roll < 52) return NodeType.BROKER;
         return NodeType.BATTLE;
     }
 
@@ -493,6 +498,7 @@ public class SiegeContentService {
             case ELITE -> "Elite Siege";
             case REST -> "Rest Camp";
             case TREASURE -> "Cache";
+            case BROKER -> "Broker";
             case BOSS -> "Siegelord";
         };
     }
@@ -551,6 +557,19 @@ public class SiegeContentService {
         }
         if (pool.isEmpty()) return Optional.empty();
         return Optional.of(pool.get(rng.nextInt(pool.size())));
+    }
+
+    /** Up to {@code count} distinct recruits for a broker stall. */
+    List<SieglingCard> randomRecruits(int count, List<String> excludedNames, Random rng) {
+        List<SieglingCard> pool = new ArrayList<>();
+        for (SieglingCard s : selectableSieglings()) {
+            if (!excludedNames.contains(s.getName())) pool.add(s);
+        }
+        List<SieglingCard> out = new ArrayList<>();
+        while (out.size() < count && !pool.isEmpty()) {
+            out.add(pool.remove(rng.nextInt(pool.size())));
+        }
+        return out;
     }
 
 }
