@@ -43,6 +43,13 @@
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BOSS: '#ff9a3c' };
   var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', BROKER: '🐾' };
+  var PASSIVE_META = {
+    SHIELD: { icon: '🛡', name: 'Bulwark' },
+    ATTACK: { icon: '⚔', name: 'Warlord' },
+    SPEED: { icon: '⚡', name: 'Vanguard' },
+    HEALTH: { icon: '❤', name: 'Warden' },
+    LOOT: { icon: '🪙', name: 'Quartermaster' }
+  };
 
   // ---- API -----------------------------------------------------------
   function api(path, opts) {
@@ -166,11 +173,15 @@
     r.knights.forEach(function (k) {
       var c = el('div', 'knight-card ' + elClass(k.element) + (k.id === state.knightId ? ' sel' : ''));
       var summary = specSummary(k.active);
+      var pm = PASSIVE_META[k.passiveKind];
+      var passiveChip = pm
+        ? '<span class="kpassive-chip pk-' + k.passiveKind + '">' + pm.icon + ' ' + esc(k.passiveName || pm.name) + '</span>'
+        : '';
       c.innerHTML = '<div class="kname">' + icon(k.element) + ' ' + esc(k.name) + '</div>' +
         '<div class="kability"><span class="kability-name">' + esc(k.activeName) + '</span>' +
         (summary ? ' <span class="kability-sum">' + summary + '</span>' : '') + '</div>' +
         (k.activeDesc ? '<div class="kdesc">' + esc(k.activeDesc) + '</div>' : '') +
-        '<div class="kpassive">' + esc(k.passive || '') + '</div>';
+        '<div class="kpassive">' + passiveChip + ' ' + esc(k.passive || '') + '</div>';
       c.addEventListener('click', function () {
         state.knightId = k.id;
         renderKnightStep();

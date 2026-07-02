@@ -164,6 +164,31 @@ these need stage data on `SieglingCard` first. Deck size is party-driven
   single phone screen; enemy intent telegraphs moved inside nameplates so they
   can no longer clip off the stage.
 
+## v5 — Varied knight leadership passives
+
+Previously every SiegeKnight granted the same battle-start +4 shield. Each
+knight now leads with **one of five distinct passives**, chosen deterministically
+from a stable hash of its id so the roster spreads across all kinds:
+
+| Passive | Name | Effect |
+|---|---|---|
+| SHIELD | Bulwark | party begins each battle with +4 shield |
+| ATTACK | Warlord | party begins each battle with +2 attack |
+| SPEED | Vanguard | party begins each battle with +2 speed |
+| HEALTH | Warden | every Siegeling has +8 max HP all expedition |
+| LOOT | Quartermaster | +40% gold from spoils and caches |
+
+SHIELD/ATTACK/SPEED are applied in `SiegeCombatEngine.startBattle` (after the
+per-battle reset); HEALTH is baked into each member's max HP at join time
+(party build, recruits, and brokers all route through `applyJoinBonus`); LOOT
+runs through a central `earnGold` helper on battle-win and cache-bank payouts.
+The setup screen shows a colored passive chip (🛡 Bulwark / ⚔ Warlord /
+⚡ Vanguard / ❤ Warden / 🪙 Quartermaster) alongside the description.
+
+Verified with the bot: all five kinds present across the roster; SHIELD/ATTACK/
+SPEED confirmed on the party's opening battle state; HEALTH confirmed on party
+max HP before any battle; LOOT confirmed by extra gold banked from a cache.
+
 ## Known limitations / next steps
 
 - Runs are in-memory only (not yet persisted to Firestore) — a server restart drops an
