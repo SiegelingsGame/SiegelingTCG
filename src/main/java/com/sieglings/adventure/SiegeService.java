@@ -60,15 +60,20 @@ public class SiegeService {
             m.put("speed", Math.max(4, s.getSpeed()));
             m.put("moveCount", content.moveCount(s));
             m.put("artUrl", s.getCardArtUrl());
+            m.put("evolves", content.evolutionOf(s.getId()).isPresent());
+            m.put("moves", serializeSpecs(content.moveSpecs(s)));
             sieglings.add(m);
         }
         List<Map<String, Object>> knights = new ArrayList<>();
         for (TrainerCard k : content.selectableKnights()) {
+            AbilitySpec active = content.knightActiveSpec(k);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", k.getId());
             m.put("name", k.getName());
             m.put("element", k.getElement().name());
             m.put("activeName", k.getActiveAbility() == null ? "Rally" : k.getActiveAbility().getName());
+            m.put("activeDesc", active.description());
+            m.put("active", serializeSpec(active));
             m.put("passive", content.knightPassiveDescription(k));
             knights.add(m);
         }
@@ -148,15 +153,69 @@ public class SiegeService {
             List<Element> palette = elementPaletteFor(run);
             List<Combatant> enemies = content.generateEnemies(node.getType(), node.getRow() + 1, rng, palette);
             engine.startBattle(run, node.getType(), enemies, rng);
+        } else if (node.getType() == NodeType.REST) {
+            openCamp(run);
+        } else if (node.getType() == NodeType.TREASURE) {
+            openCache(run);
         } else {
-            resolveNonBattleNode(run, node);
+            node.setCleared(true);
         }
         return serialize(run);
     }
 
-    private void resolveNonBattleNode(SiegeRun run, SiegeNode node) {
-        switch (node.getType()) {
-            case REST -> {
+    // ---- Rest Camp (interactive stop: fire, trader, broker) ---------------
+
+    /** Sets up camp: resting is free; a trader and/or Siegeling broker may be there. */
+    private void openCamp(SiegeRun run) {
+        run.setInCamp(true);
+        run.getCampOptions().clear();
+        int oid = 0;
+        run.getCampOptions().add(CampOption.rest("c" + (oid++)));
+
+        boolean trader = rng.nextInt(100) < 65;
+        boolean broker = rng.nextInt(100) < 45 && run.getParty().size() < content.partyMax();
+
+        if (trader) {
+            List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
+            if (!living.isEmpty()) {
+                for (AbilitySpec spec : content.randomCardRewards(2, rng)) {
+                    Combatant owner = living.get(rng.nextInt(living.size()));
+                    run.getCampOptions().add(CampOption.shopCard("c" + (oid++), spec, owner.getId(), owner.getName(), 25));
+                }
+            }
+            run.getCampOptions().add(CampOption.shopHeal("c" + (oid++), 15));
+            if (!run.getDeckTemplates().isEmpty()) {
+                int idx = rng.nextInt(run.getDeckTemplates().size());
+                AbilitySpec spec = run.getDeckTemplates().get(idx).getSpec();
+                run.getCampOptions().add(CampOption.shopUpgrade("c" + (oid++), spec.name(), spec.element(), idx, 20));
+            }
+        }
+        if (broker) {
+            List<String> names = run.getParty().stream().map(Combatant::getName).toList();
+            String brokerId = "c" + oid;
+            content.randomRecruit(names, rng).ifPresent(s ->
+                    run.getCampOptions().add(CampOption.broker(brokerId, s.getName(), s.getElement(),
+                            s.getCardArtUrl(), s.getId(), 45)));
+        }
+
+        run.setCampNote(trader && broker ? "A wandering trader and a Siegeling broker share your fire tonight."
+                : trader ? "A wandering trader has set up shop by the fire."
+                : broker ? "A Siegeling broker warms their hands at your fire."
+                : "A quiet night. The fire crackles; the warband rests easy.");
+    }
+
+    /** Uses one camp interaction (each option once; goods cost gold). */
+    Map<String, Object> campChoose(String token, String optionId) {
+        SiegeRun run = require(token);
+        if (!run.isInCamp()) throw new IllegalArgumentException("The party is not camped.");
+        CampOption pick = run.getCampOptions().stream()
+                .filter(o -> o.id.equals(optionId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown camp option."));
+        if (pick.used) throw new IllegalArgumentException("Already used this stop.");
+        if (run.getGold() < pick.cost) throw new IllegalArgumentException("Not enough gold.");
+
+        switch (pick.kind) {
+            case "REST" -> {
                 int healed = 0;
                 for (Combatant ally : run.getParty()) {
                     if (ally.isAlive()) {
@@ -165,18 +224,139 @@ public class SiegeService {
                         healed += ally.getHp() - before;
                     }
                 }
-                run.setLastReward("Rest Camp: the party recovers " + healed + " HP.");
-            }
-            case TREASURE -> {
-                for (Combatant ally : run.getParty()) {
-                    if (ally.isAlive()) ally.setMaxHp(ally.getMaxHp() + 4);
-                    ally.heal(4);
+                if (run.getKnightUnit() != null && run.getKnightUnit().isAlive()) {
+                    int before = run.getKnightUnit().getHp();
+                    run.getKnightUnit().setHp(before + (int) Math.round(run.getKnightUnit().getMaxHp() * 0.4));
+                    healed += run.getKnightUnit().getHp() - before;
                 }
-                run.setLastReward("Cache: each Siegeling gains +4 max HP.");
+                run.setLastReward("The party rests: +" + healed + " HP.");
             }
-            default -> run.setLastReward("");
+            case "SHOP_HEAL" -> {
+                run.addGold(-pick.cost);
+                int healed = 0;
+                for (Combatant ally : run.getParty()) {
+                    if (ally.isAlive()) {
+                        int before = ally.getHp();
+                        ally.setHp(before + (int) Math.round(ally.getMaxHp() * 0.25));
+                        healed += ally.getHp() - before;
+                    }
+                }
+                run.setLastReward("Hot stew! The party recovers " + healed + " HP.");
+            }
+            case "SHOP_CARD" -> {
+                run.addGold(-pick.cost);
+                run.getDeckTemplates().add(new SiegeCard(
+                        "camp-" + pick.id + "-" + run.getDeckTemplates().size(), pick.ownerId, pick.cardSpec));
+                run.setLastReward("Bought " + pick.cardSpec.name() + " for the deck.");
+            }
+            case "SHOP_UPGRADE" -> {
+                run.addGold(-pick.cost);
+                int idx = pick.templateIndex;
+                if (idx >= 0 && idx < run.getDeckTemplates().size()) {
+                    SiegeCard old = run.getDeckTemplates().get(idx);
+                    AbilitySpec upgraded = content.upgradeSpec(old.getSpec());
+                    run.getDeckTemplates().set(idx, new SiegeCard(old.getInstanceId(), old.getOwnerId(), upgraded));
+                    run.setLastReward(old.getSpec().name() + " was honed into " + upgraded.name() + ".");
+                }
+            }
+            case "BROKER" -> {
+                run.addGold(-pick.cost);
+                content.findSiegling(pick.sieglingId).ifPresent(s -> {
+                    Combatant member = content.toPartyCombatant(s, run.getParty().size());
+                    member.setPosition(run.getParty().size());
+                    run.getParty().add(member);
+                    run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+                    run.setLastReward(s.getName() + " joined the warband!");
+                });
+            }
+            default -> { }
         }
-        node.setCleared(true);
+        pick.used = true;
+        return serialize(run);
+    }
+
+    /** Breaks camp: the stop is spent and the map opens up again. */
+    Map<String, Object> campLeave(String token) {
+        SiegeRun run = require(token);
+        if (!run.isInCamp()) return serialize(run);
+        run.setInCamp(false);
+        run.getCampOptions().clear();
+        SiegeNode node = run.currentNode();
+        if (node != null) node.setCleared(true);
+        return serialize(run);
+    }
+
+    // ---- Cache dig minigame (press your luck) ------------------------------
+
+    private static final int CACHE_MAX_DIGS = 4;
+
+    private void openCache(SiegeRun run) {
+        run.setInCache(true);
+        run.setCacheDigs(0);
+        run.setCacheGold(6 + rng.nextInt(6));
+        run.setLastReward("");
+    }
+
+    private int cacheBustChance(SiegeRun run) {
+        return Math.min(85, 15 + run.getCacheDigs() * 20);
+    }
+
+    /** Digs deeper: more loot, or the cache collapses and unbanked gold is lost. */
+    Map<String, Object> cacheDig(String token) {
+        SiegeRun run = require(token);
+        if (!run.isInCache()) throw new IllegalArgumentException("No cache to dig.");
+        int bust = cacheBustChance(run);
+        if (rng.nextInt(100) < bust) {
+            run.setInCache(false);
+            run.setCacheGold(0);
+            SiegeNode node = run.currentNode();
+            if (node != null) node.setCleared(true);
+            run.setLastReward("The cache collapses! The unbanked loot is buried…");
+            return serialize(run);
+        }
+        run.setCacheDigs(run.getCacheDigs() + 1);
+        int roll = rng.nextInt(100);
+        if (roll < 60) {
+            int found = 8 + rng.nextInt(8);
+            run.setCacheGold(run.getCacheGold() + found);
+            run.setLastReward("Dug up " + found + " gold — bank it or dig deeper?");
+        } else if (roll < 85) {
+            List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
+            if (!living.isEmpty()) {
+                Combatant lucky = living.get(rng.nextInt(living.size()));
+                lucky.setMaxHp(lucky.getMaxHp() + 3);
+                lucky.heal(3);
+                run.setLastReward("An ancient tonic! " + lucky.getName() + " gains +3 max HP (kept even on a bust).");
+            }
+        } else {
+            List<AbilitySpec> finds = content.randomCardRewards(1, rng);
+            List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
+            if (!finds.isEmpty() && !living.isEmpty()) {
+                Combatant owner = living.get(rng.nextInt(living.size()));
+                run.getDeckTemplates().add(new SiegeCard(
+                        "cache-" + run.getDeckTemplates().size(), owner.getId(), finds.get(0)));
+                run.setLastReward("A buried technique! " + owner.getName() + " learns " + finds.get(0).name() + " (kept even on a bust).");
+            }
+        }
+        // The floor gives way after enough digging: bank automatically.
+        if (run.getCacheDigs() >= CACHE_MAX_DIGS) {
+            return cacheTake(token);
+        }
+        return serialize(run);
+    }
+
+    /** Banks the loot and seals the cache. */
+    Map<String, Object> cacheTake(String token) {
+        SiegeRun run = require(token);
+        if (!run.isInCache()) return serialize(run);
+        int loot = run.getCacheGold();
+        run.addGold(loot);
+        run.setInCache(false);
+        run.setCacheGold(0);
+        SiegeNode node = run.currentNode();
+        if (node != null) node.setCleared(true);
+        run.setLastReward("Banked " + loot + " gold from the cache.");
+        return serialize(run);
     }
 
     /** Applies battle outcome; a win off the boss row queues reward choices. */
@@ -194,11 +374,18 @@ public class SiegeService {
             boolean wasBoss = node != null && node.getType() == NodeType.BOSS;
             boolean wasElite = node != null && node.getType() == NodeType.ELITE;
             run.setBattle(null);
+
+            // Spoils: gold scales with how deep the fight was; elites pay more.
+            int floor = node == null ? 1 : node.getRow() + 1;
+            int gold = 10 + floor * 2 + (wasElite ? 10 : 0) + rng.nextInt(5);
+            run.addGold(gold);
+
+            String evolveNote = wasBoss ? "" : maybeEvolveParty(run);
             if (wasBoss) {
                 run.setStatus(RunStatus.WON);
                 run.setLastReward("The Siegelord is defeated — the expedition is won!");
             } else {
-                run.setLastReward("Victory! Choose your spoils.");
+                run.setLastReward("Victory! +" + gold + " gold." + evolveNote + " Choose your spoils.");
                 generateRewards(run, wasElite);
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
@@ -207,6 +394,32 @@ public class SiegeService {
             run.setLastReward("The warband has fallen. The expedition ends here.");
         }
         return serialize(run);
+    }
+
+    // ---- Evolution ---------------------------------------------------------
+
+    /**
+     * Evolutions are never picked — they arrive on their own. Every second
+     * battle a Siegeling survives, it evolves into its next stage (if the
+     * catalog has one), keeping its cards and gaining the new stage's moves.
+     */
+    private String maybeEvolveParty(SiegeRun run) {
+        StringBuilder note = new StringBuilder();
+        for (int i = 0; i < run.getParty().size(); i++) {
+            Combatant member = run.getParty().get(i);
+            if (!member.isAlive()) continue;
+            int wins = run.getWinsByMember().merge(member.getId(), 1, Integer::sum);
+            if (wins < 2) continue;
+            var evo = content.evolutionOf(member.getSourceCardId());
+            if (evo.isEmpty()) continue;
+            run.getWinsByMember().put(member.getId(), 0);
+            Combatant evolved = content.evolve(member, evo.get());
+            run.getParty().set(i, evolved);
+            int newCards = content.addNewStageCards(evo.get(), evolved.getId(), run.getDeckTemplates());
+            note.append(" 🌟 ").append(member.getName()).append(" evolved into ").append(evolved.getName())
+                    .append(newCards > 0 ? " and learned " + newCards + " new move" + (newCards == 1 ? "" : "s") + "!" : "!");
+        }
+        return note.toString();
     }
 
     // ---- Rewards ----------------------------------------------------------
@@ -338,6 +551,29 @@ public class SiegeService {
 
     // ---- Serialization --------------------------------------------------
 
+    /** Compact JSON for a list of ability specs (detail modals / shop cards). */
+    private List<Map<String, Object>> serializeSpecs(List<AbilitySpec> specs) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (AbilitySpec spec : specs) out.add(serializeSpec(spec));
+        return out;
+    }
+
+    private Map<String, Object> serializeSpec(AbilitySpec spec) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("name", spec.name());
+        s.put("element", spec.element() == null ? null : spec.element().name());
+        s.put("effect", spec.effect().name());
+        s.put("value", spec.value());
+        s.put("actionCost", spec.actionCost());
+        s.put("target", spec.target().name());
+        s.put("description", spec.description());
+        if (spec.status() != null && spec.statusChance() > 0) {
+            s.put("status", spec.status().name());
+            s.put("statusChance", spec.statusChance());
+        }
+        return s;
+    }
+
     private Map<String, Object> serialize(SiegeRun run) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("token", run.getToken());
@@ -345,12 +581,51 @@ public class SiegeService {
         m.put("currentNodeId", run.getCurrentNodeId());
         m.put("lastReward", run.getLastReward());
         m.put("deckSize", run.getDeckTemplates().size());
+        m.put("gold", run.getGold());
+
+        // Interactive camp stop (rest / trader / broker).
+        if (run.isInCamp()) {
+            Map<String, Object> camp = new LinkedHashMap<>();
+            camp.put("note", run.getCampNote());
+            List<Map<String, Object>> options = new ArrayList<>();
+            for (CampOption o : run.getCampOptions()) {
+                Map<String, Object> om = new LinkedHashMap<>();
+                om.put("id", o.id);
+                om.put("kind", o.kind);
+                om.put("title", o.title);
+                om.put("desc", o.desc);
+                om.put("cost", o.cost);
+                om.put("element", o.element == null ? null : o.element.name());
+                om.put("artUrl", o.artUrl);
+                om.put("used", o.used);
+                om.put("affordable", run.getGold() >= o.cost);
+                if (o.cardSpec != null) om.put("card", serializeSpec(o.cardSpec));
+                options.add(om);
+            }
+            camp.put("options", options);
+            m.put("camp", camp);
+        } else {
+            m.put("camp", null);
+        }
+
+        // Cache dig minigame.
+        if (run.isInCache()) {
+            Map<String, Object> cache = new LinkedHashMap<>();
+            cache.put("loot", run.getCacheGold());
+            cache.put("digs", run.getCacheDigs());
+            cache.put("maxDigs", 4);
+            cache.put("bustChance", Math.min(85, 15 + run.getCacheDigs() * 20));
+            m.put("cache", cache);
+        } else {
+            m.put("cache", null);
+        }
 
         Map<String, Object> knight = new LinkedHashMap<>();
         knight.put("name", run.getKnightName());
         knight.put("element", run.getKnightElement() == null ? null : run.getKnightElement().name());
         knight.put("passive", run.getKnightPassiveDesc());
         knight.put("active", run.getKnightActive() == null ? null : run.getKnightActive().name());
+        knight.put("activeSpec", run.getKnightActive() == null ? null : serializeSpec(run.getKnightActive()));
         if (run.getKnightUnit() != null) {
             knight.put("hp", run.getKnightUnit().getHp());
             knight.put("maxHp", run.getKnightUnit().getMaxHp());
@@ -359,7 +634,16 @@ public class SiegeService {
         m.put("knight", knight);
 
         List<Map<String, Object>> party = new ArrayList<>();
-        for (Combatant c : run.getParty()) party.add(serializeCombatant(c, false));
+        for (Combatant c : run.getParty()) {
+            Map<String, Object> pm = serializeCombatant(c, false);
+            // This member's cards in the shared deck — powers the detail modal.
+            List<AbilitySpec> cards = new ArrayList<>();
+            for (SiegeCard card : run.getDeckTemplates()) {
+                if (card.getOwnerId().equals(c.getId())) cards.add(card.getSpec());
+            }
+            pm.put("cards", serializeSpecs(cards));
+            party.add(pm);
+        }
         m.put("party", party);
 
         List<Integer> reachable = run.reachableNodeIds();

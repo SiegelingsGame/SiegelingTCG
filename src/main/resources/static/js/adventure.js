@@ -2,13 +2,13 @@
  * Talks to /api/siege/**. All rules run server-side; this file renders state
  * and submits actions. Run is addressed by an opaque token in localStorage.
  *
- * Screens: setup (warband select) → branching map (SVG DAG) → battle stage
- * (overlay-art character sprites + fanned card hand) → reward picks → result.
+ * Screens: setup (paged: knight → warband) → branching map (SVG DAG) →
+ * battle stage / interactive rest camp / cache dig minigame → rewards → result.
  *
- * Battles are round-based (team Speed decides who acts first). The server
- * streams presentation events (attacks, statuses, KOs) that this client plays
- * back as projectiles and action moments before rendering the final state.
- * Enemy attacks telegraph the notch they target — shown as red markers. */
+ * Battles are round-based (team Speed decides who acts first — shown as a
+ * race track). The server streams presentation events that this client plays
+ * back as projectiles and action moments. Enemy attacks telegraph the notch
+ * they target: red markers on threatened spaces. */
 (function () {
   'use strict';
 
@@ -19,6 +19,7 @@
     knightId: null,
     party: [],          // selected siegeling ids (max 3)
     elementFilter: 'ALL',
+    setupStep: 'knight',
     selectedCardId: null,
     selectedCardNeedsTarget: false,
     busy: false
@@ -41,6 +42,7 @@
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BOSS: '#ff9a3c' };
+  var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', BROKER: '🐾' };
 
   // ---- API -----------------------------------------------------------
   function api(path, opts) {
@@ -80,7 +82,7 @@
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
-    ['loadingScreen', 'setupScreen', 'mapScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
   }
@@ -109,45 +111,79 @@
     showScreen('loadingScreen');
     api('/api/siege/roster').then(function (data) {
       state.roster = data;
+      state.setupStep = 'knight';
       renderSetup();
     }).catch(function (e) { toast(e.message); });
   }
 
   function wireStaticButtons() {
+    $('knightNextBtn').addEventListener('click', function () { state.setupStep = 'party'; renderSetup(); });
+    $('partyBackBtn').addEventListener('click', function () { state.setupStep = 'knight'; renderSetup(); });
     $('startRunBtn').addEventListener('click', startRun);
     $('endTurnBtn').addEventListener('click', endTurn);
     $('knightUltBtn').addEventListener('click', useUltimate);
     $('rewardSkipBtn').addEventListener('click', function () { chooseReward('skip'); });
     $('resultBtn').addEventListener('click', function () { setToken(null); location.href = '/play'; });
+    $('campLeaveBtn').addEventListener('click', campLeave);
+    $('cacheDigBtn').addEventListener('click', cacheDig);
+    $('cacheTakeBtn').addEventListener('click', cacheTake);
+    $('unitModalClose').addEventListener('click', closeUnitModal);
+    $('unitModal').addEventListener('click', function (e) { if (e.target === $('unitModal')) closeUnitModal(); });
     $('abandonBtn').addEventListener('click', function () {
       if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
     });
   }
 
-  // ---- team select ---------------------------------------------------
+  // ---- team select (paged: knight → warband) ---------------------------
   function renderSetup() {
     showScreen('setupScreen');
     $('abandonBtn').classList.add('hidden');
-    var r = state.roster;
-    $('partyReq').textContent = '— choose ' + (r.partySize || 3);
+    var onKnight = state.setupStep === 'knight';
+    $('setupStepKnight').classList.toggle('hidden', !onKnight);
+    $('setupStepParty').classList.toggle('hidden', onKnight);
+    $('stepDotKnight').className = 'setup-step' + (onKnight ? ' active' : ' done');
+    $('stepDotParty').className = 'setup-step' + (onKnight ? '' : ' active');
+    if (onKnight) renderKnightStep(); else renderPartyStep();
+  }
 
-    // knights
+  function specSummary(spec) {
+    if (!spec) return '';
+    switch (spec.effect) {
+      case 'DAMAGE': return '⚔ ' + spec.value + ' dmg · ' + spec.actionCost + ' AP';
+      case 'HEAL': return '➕ heal ' + spec.value + ' · ' + spec.actionCost + ' AP';
+      case 'SHIELD': return '🛡 shield ' + spec.value + ' · ' + spec.actionCost + ' AP';
+      case 'BUFF_ATK': return '↑ +' + spec.value + ' attack · ' + spec.actionCost + ' AP';
+      case 'BUFF_SPD': return '↑ +' + spec.value + ' speed · ' + spec.actionCost + ' AP';
+      case 'SLOW': return '❄ slow · ' + spec.actionCost + ' AP';
+      case 'SWAP': return '⇄ swap notches · ' + spec.actionCost + ' AP';
+      default: return spec.effect;
+    }
+  }
+
+  function renderKnightStep() {
+    var r = state.roster;
     var kg = $('knightGrid'); kg.innerHTML = '';
     r.knights.forEach(function (k) {
-      var c = el('div', 'knight-card ' + elClass(k.element));
+      var c = el('div', 'knight-card ' + elClass(k.element) + (k.id === state.knightId ? ' sel' : ''));
+      var summary = specSummary(k.active);
       c.innerHTML = '<div class="kname">' + icon(k.element) + ' ' + esc(k.name) + '</div>' +
-        '<div class="kmeta">' + esc(k.element) + ' · Active: ' + esc(k.activeName) + '</div>' +
+        '<div class="kability"><span class="kability-name">' + esc(k.activeName) + '</span>' +
+        (summary ? ' <span class="kability-sum">' + summary + '</span>' : '') + '</div>' +
+        (k.activeDesc ? '<div class="kdesc">' + esc(k.activeDesc) + '</div>' : '') +
         '<div class="kpassive">' + esc(k.passive || '') + '</div>';
       c.addEventListener('click', function () {
         state.knightId = k.id;
-        Array.prototype.forEach.call(kg.children, function (n) { n.classList.remove('sel'); });
-        c.classList.add('sel');
-        refreshSetupFooter();
+        renderKnightStep();
       });
       kg.appendChild(c);
     });
+    var kn = r.knights.find(function (k) { return k.id === state.knightId; });
+    $('knightNextBtn').disabled = !kn;
+    $('knightSummary').textContent = kn ? (kn.name + ' — ' + kn.activeName) : 'Select a SiegeKnight.';
+  }
 
-    // element filter
+  function renderPartyStep() {
+    var r = state.roster;
     var elements = ['ALL'];
     r.sieglings.forEach(function (s) { if (elements.indexOf(s.element) < 0) elements.push(s.element); });
     var fr = $('elementFilter'); fr.innerHTML = '';
@@ -156,7 +192,6 @@
       chip.addEventListener('click', function () { state.elementFilter = elm; renderSieglingGrid(); Array.prototype.forEach.call(fr.children, function (n) { n.classList.remove('active'); }); chip.classList.add('active'); });
       fr.appendChild(chip);
     });
-
     renderSieglingGrid();
     refreshSetupFooter();
   }
@@ -173,11 +208,20 @@
         : '<div class="sart sart-fallback">' + icon(s.element) + '</div>';
       c.innerHTML =
         (picked >= 0 ? '<div class="selorder">' + (picked + 1) + '</div>' : '') +
+        '<button class="info-btn" type="button" title="View cards">ⓘ</button>' +
         art +
-        '<div class="sname">' + esc(s.name) + '</div>' +
+        '<div class="sname">' + esc(s.name) + (s.evolves ? ' <span class="evo-tag" title="Evolves automatically as it wins battles">EVO ↑</span>' : '') + '</div>' +
         '<div class="schip">' + icon(s.element) + ' ' + esc(s.element) + '</div>' +
         '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>';
       c.addEventListener('click', function () { toggleSiegling(s.id); });
+      c.querySelector('.info-btn').addEventListener('click', function (e) {
+        e.stopPropagation();
+        showUnitModal({
+          name: s.name, element: s.element, artUrl: s.artUrl,
+          subtitle: '❤ ' + s.hp + ' · ⚡ ' + s.speed + (s.evolves ? ' · Evolves with battle wins' : ''),
+          cards: s.moves || []
+        });
+      });
       grid.appendChild(c);
     });
   }
@@ -201,9 +245,7 @@
       var s = state.roster.sieglings.find(function (x) { return x.id === id; });
       return s ? s.name : id;
     });
-    var kn = state.roster.knights.find(function (k) { return k.id === state.knightId; });
-    $('setupSummary').textContent = (kn ? ('Knight: ' + kn.name + '  ·  ') : 'Choose a knight  ·  ') +
-      'Party (' + state.party.length + '/' + need + '): ' + (names.join(', ') || '—');
+    $('setupSummary').textContent = 'Warband (' + state.party.length + '/' + need + '): ' + (names.join(', ') || '—');
   }
 
   function startRun() {
@@ -214,6 +256,33 @@
       .then(function () { state.busy = false; });
   }
 
+  // ---- unit detail modal (cards + abilities) ---------------------------
+  function showUnitModal(u) {
+    var body = $('unitModalBody');
+    var art = u.artUrl
+      ? '<div class="um-art" style="background-image:url(\'' + artCss(u.artUrl) + '\')"></div>'
+      : '<div class="um-art um-art-fallback">' + icon(u.element) + '</div>';
+    var cards = (u.cards || []).map(function (spec) {
+      var status = spec.status && spec.statusChance
+        ? '<span class="um-status">' + (STATUS_META[spec.status] || {}).icon + ' ' + spec.statusChance + '% ' + (STATUS_META[spec.status] || {}).label + '</span>'
+        : '';
+      return '<div class="um-card ' + elClass(spec.element) + '">' +
+        '<span class="um-cost">' + spec.actionCost + '</span>' +
+        '<div class="um-card-main"><div class="um-card-name">' + icon(spec.element) + ' ' + esc(spec.name) + '</div>' +
+        '<div class="um-card-eff">' + specSummary(spec) + ' ' + status + '</div>' +
+        (spec.description ? '<div class="um-card-desc">' + esc(spec.description) + '</div>' : '') +
+        '</div></div>';
+    }).join('');
+    body.innerHTML =
+      '<div class="um-head ' + elClass(u.element) + '">' + art +
+      '<div><div class="um-name">' + icon(u.element) + ' ' + esc(u.name) + '</div>' +
+      (u.subtitle ? '<div class="um-sub">' + esc(u.subtitle) + '</div>' : '') + '</div></div>' +
+      '<div class="um-cards-title">' + (u.cards && u.cards.length ? 'Cards & abilities' : 'No cards') + '</div>' +
+      '<div class="um-cards">' + cards + '</div>';
+    $('unitModal').classList.remove('hidden');
+  }
+  function closeUnitModal() { $('unitModal').classList.add('hidden'); }
+
   // ---- run router ----------------------------------------------------
   function renderRun() {
     var run = state.run;
@@ -222,6 +291,8 @@
     if (run.battle) { renderBattle(); return; }
     if (run.status === 'WON' || run.status === 'LOST') { renderResult(); return; }
     if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
+    if (run.camp) { renderCamp(); return; }
+    if (run.cache) { renderCache(); return; }
     renderMap();
   }
 
@@ -244,9 +315,11 @@
     showScreen('mapScreen');
     var run = state.run;
     renderPartyStrip($('partyStrip'), run.party, run.knight);
+    $('mapGold').textContent = '🪙 ' + (run.gold || 0);
     $('mapReward').textContent = run.lastReward || '';
-    $('mapDeckCount').textContent = '🃏 Deck: ' + (run.deckSize || '—') + ' cards';
-    $('mapHint').textContent = run.currentNodeId < 0 ? 'Choose where the expedition begins' : 'Choose your path';
+    $('mapReward').classList.toggle('hidden', !run.lastReward);
+    $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—');
+    $('mapHint').textContent = run.currentNodeId < 0 ? 'Choose where to begin' : 'Choose your path';
 
     var nodes = run.map || [];
     var rows = 1 + Math.max.apply(null, nodes.map(function (n) { return n.row; }));
@@ -360,6 +433,7 @@
       .then(function () { state.busy = false; });
   }
 
+  /** Compact party chips (tap to inspect cards & abilities). */
   function renderPartyStrip(host, party, knight) {
     host.innerHTML = '';
     if (knight && knight.hp != null) {
@@ -367,10 +441,17 @@
       var kpct = Math.max(0, Math.round(100 * knight.hp / Math.max(1, knight.maxHp)));
       kchip.innerHTML = '<div class="pthumb pthumb-fallback">🛡️</div>' +
         '<div class="pbody">' +
-        '<div class="pname">' + icon(knight.element) + ' ' + esc(knight.name) + '</div>' +
+        '<div class="pname">' + esc(knight.name) + '</div>' +
         '<div class="phpbar"><div class="phpfill" style="width:' + kpct + '%"></div></div>' +
-        '<div class="phptext">Knight HP ' + knight.hp + ' / ' + knight.maxHp + '</div>' +
+        '<div class="phptext">' + knight.hp + '/' + knight.maxHp + '</div>' +
         '</div>';
+      kchip.addEventListener('click', function () {
+        showUnitModal({
+          name: knight.name, element: knight.element, artUrl: knight.artUrl,
+          subtitle: 'SiegeKnight · HP ' + knight.hp + '/' + knight.maxHp + ' · ' + (knight.passive || ''),
+          cards: knight.activeSpec ? [knight.activeSpec] : []
+        });
+      });
       host.appendChild(kchip);
     }
     party.forEach(function (p) {
@@ -379,15 +460,102 @@
       var thumb = p.artUrl
         ? '<div class="pthumb" style="background-image:url(\'' + artCss(p.artUrl) + '\')"></div>'
         : '<div class="pthumb pthumb-fallback">' + icon(p.element) + '</div>';
-      var buff = p.attackBuff > 0 ? '  ·  <span class="pbuff">⚔ +' + p.attackBuff + '</span>' : '';
       chip.innerHTML = thumb +
         '<div class="pbody">' +
-        '<div class="pname">' + icon(p.element) + ' ' + esc(p.name) + '</div>' +
+        '<div class="pname">' + esc(p.name) + ' <span class="pinfo">ⓘ</span></div>' +
         '<div class="phpbar"><div class="phpfill" style="width:' + pct + '%"></div></div>' +
-        '<div class="phptext">HP ' + p.hp + ' / ' + p.maxHp + '  ·  ⚡' + p.speed + buff + '</div>' +
+        '<div class="phptext">' + p.hp + '/' + p.maxHp + ' · ⚡' + p.speed + '</div>' +
         '</div>';
+      chip.addEventListener('click', function () {
+        showUnitModal({
+          name: p.name, element: p.element, artUrl: p.artUrl,
+          subtitle: 'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+          cards: p.cards || []
+        });
+      });
       host.appendChild(chip);
     });
+  }
+
+  // ---- rest camp (interactive stop) -------------------------------------
+  function renderCamp() {
+    showScreen('campScreen');
+    var run = state.run;
+    $('campNote').textContent = run.camp.note || '';
+    $('campGold').textContent = '🪙 ' + (run.gold || 0);
+    $('campReward').textContent = run.lastReward || '';
+
+    // party silhouettes around the fire
+    var cp = $('campParty'); cp.innerHTML = '';
+    (run.party || []).forEach(function (p, i) {
+      if (!p.alive) return;
+      var fig = p.artUrl
+        ? el('div', 'camp-fig', '<img src="' + artAttr(p.artUrl) + '" alt="">')
+        : el('div', 'camp-fig camp-fig-fallback', icon(p.element));
+      fig.style.setProperty('--fig-i', i);
+      cp.appendChild(fig);
+    });
+
+    var grid = $('campGrid'); grid.innerHTML = '';
+    (run.camp.options || []).forEach(function (opt) {
+      var canUse = !opt.used && opt.affordable;
+      var c = el('div', 'camp-card ' + elClass(opt.element) + ' kind-' + opt.kind + (opt.used ? ' used' : '') + (canUse ? '' : ' locked'));
+      var art = opt.artUrl
+        ? '<div class="camp-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
+        : '<div class="camp-glyph">' + (CAMP_ICON[opt.kind] || '🎁') + '</div>';
+      var costChip = opt.cost > 0 ? '<span class="camp-cost' + (opt.affordable ? '' : ' broke') + '">🪙 ' + opt.cost + '</span>' : '<span class="camp-cost free">FREE</span>';
+      c.innerHTML =
+        '<div class="camp-card-head">' + costChip + (opt.used ? '<span class="camp-used">✓ used</span>' : '') + '</div>' +
+        art +
+        '<div class="camp-card-title">' + esc(opt.title) + '</div>' +
+        '<div class="camp-card-desc">' + esc(opt.desc) + '</div>';
+      if (canUse) c.addEventListener('click', function () { campChoose(opt.id); });
+      grid.appendChild(c);
+    });
+  }
+
+  function campChoose(optionId) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/camp/choose', { method: 'POST', body: { token: token(), optionId: optionId } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  function campLeave() {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/camp/leave', { method: 'POST', body: { token: token() } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  // ---- cache dig minigame -----------------------------------------------
+  function renderCache() {
+    showScreen('cacheScreen');
+    var run = state.run;
+    var c = run.cache;
+    $('cacheLoot').innerHTML = 'Unbanked loot: <strong>🪙 ' + c.loot + '</strong> · Wallet: 🪙 ' + (run.gold || 0);
+    $('cacheRiskFill').style.width = c.bustChance + '%';
+    $('cacheRiskText').textContent = 'Collapse risk: ' + c.bustChance + '% · Dig ' + c.digs + '/' + c.maxDigs;
+    $('cacheReward').textContent = run.lastReward || '';
+    $('cacheChest').textContent = c.digs === 0 ? '🪙' : (c.digs >= 3 ? '💎' : '💰');
+  }
+
+  function cacheDig() {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/cache/dig', { method: 'POST', body: { token: token() } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  function cacheTake() {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/cache/take', { method: 'POST', body: { token: token() } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
   }
 
   // ---- battle stage ----------------------------------------------------
@@ -396,29 +564,21 @@
     var b = state.run.battle;
     if (!b) { renderMap(); return; }
 
-    // round + speed readout
-    var ib = $('initiativeBar'); ib.innerHTML = '';
-    ib.appendChild(el('span', 'round-chip', 'Round ' + b.roundNumber));
-    ib.appendChild(el('span', 'speed-chip' + (b.playerActsFirst ? ' you' : ' them'),
-      '⚡ ' + b.playerSpeed + ' vs ' + b.enemySpeed + ' · ' + (b.playerActsFirst ? 'You act first' : 'Enemy acts first')));
-    if (b.sweepIncoming) {
-      ib.appendChild(el('span', 'sweep-chip', '⚠ Sweep incoming — every notch is threatened'));
-    }
-
     renderKnightPlate(b);
+    renderSpeedTrack(b);
     renderSpriteLine($('enemyRow'), b.enemies, 'enemy', b);
     renderSpriteLine($('allyRow'), b.allies, 'ally', b);
 
     // log ticker
     var log = $('battleLog'); log.innerHTML = '';
-    (b.log || []).slice(-3).reverse().forEach(function (line) { if (line) log.appendChild(el('div', 'lg', esc(line))); });
+    (b.log || []).slice(-2).reverse().forEach(function (line) { if (line) log.appendChild(el('div', 'lg', esc(line))); });
 
     // hud
     var ap = $('apDisplay'); ap.innerHTML = '<span class="ap-label">AP</span>';
     for (var i = 0; i < (b.maxActionPoints || 5); i++) {
       ap.appendChild(el('span', 'ap-pip' + (i < b.actionPoints ? ' full' : '')));
     }
-    $('deckCounts').textContent = 'Deck ' + b.deckCount + ' · Hand ' + b.hand.length + '/' + (b.handMax || 8) + ' · Discard ' + b.discardCount;
+    $('deckCounts').textContent = '🃏' + b.deckCount + ' · ✋' + b.hand.length + '/' + (b.handMax || 8);
 
     var over = b.phase === 'WON' || b.phase === 'LOST';
     $('endTurnBtn').classList.toggle('hidden', over);
@@ -445,7 +605,42 @@
     var ult = $('knightUltBtn');
     ult.classList.toggle('hidden', b.phase === 'WON' || b.phase === 'LOST');
     ult.disabled = !(k.ultReady && b.phase === 'PLAYER_INPUT');
-    ult.textContent = k.ultReady ? '⚡ ULTIMATE' : '⚡ Ult ' + k.charge + '/' + k.ultCost;
+    ult.textContent = k.ultReady ? '⚡ ULT!' : '⚡' + k.charge + '/' + k.ultCost;
+  }
+
+  /** Speed race track: both teams' units race along a line; leader acts first. */
+  function renderSpeedTrack(b) {
+    var host = $('speedTrack'); host.innerHTML = '';
+    var max = Math.max(b.playerSpeed || 0, b.enemySpeed || 0, 1);
+    host.appendChild(el('div', 'track-round', 'R' + b.roundNumber));
+
+    var lanes = el('div', 'track-lanes');
+    [{ side: 'you', label: 'YOU', total: b.playerSpeed, units: b.allies, first: b.playerActsFirst },
+     { side: 'them', label: 'FOE', total: b.enemySpeed, units: b.enemies, first: !b.playerActsFirst }]
+      .forEach(function (lane) {
+        var row = el('div', 'track-lane ' + lane.side + (lane.first ? ' leads' : ''));
+        var bar = el('div', 'lane-bar');
+        var fillPct = Math.round(100 * lane.total / max);
+        bar.appendChild(el('div', 'lane-fill', ''));
+        bar.lastChild.style.width = fillPct + '%';
+        // runners: each living unit at its cumulative speed position
+        var cum = 0;
+        (lane.units || []).forEach(function (u) {
+          if (!u.alive) return;
+          cum += (u.effectiveSpeed != null ? u.effectiveSpeed : u.speed) || 0;
+          var runner = el('span', 'lane-runner ' + elClass(u.element), icon(u.element));
+          runner.style.left = 'calc(' + Math.round(100 * cum / max) + '% - 8px)';
+          runner.title = u.name + ' ⚡' + (u.effectiveSpeed != null ? u.effectiveSpeed : u.speed);
+          bar.appendChild(runner);
+        });
+        if (lane.first) bar.appendChild(el('span', 'lane-flag', '🏁'));
+        row.appendChild(el('span', 'lane-label', lane.label + ' <b>' + lane.total + '</b>'));
+        row.appendChild(bar);
+        lanes.appendChild(row);
+      });
+    host.appendChild(lanes);
+    host.appendChild(el('div', 'track-first ' + (b.playerActsFirst ? 'you' : 'them'),
+      b.playerActsFirst ? 'You act first' : 'Enemy first'));
   }
 
   function renderSpriteLine(host, units, side, b) {
@@ -470,17 +665,18 @@
         ? '<div class="sp-art"><img src="' + artAttr(u.artUrl) + '" alt="" draggable="false" ' +
           'onerror="this.parentNode.className=\'sp-art sp-art-fallback\';this.outerHTML=\'<span>' + icon(u.element) + '</span>\'"></div>'
         : '<div class="sp-art sp-art-fallback"><span>' + icon(u.element) + '</span></div>';
-      var intent = '';
+      // Intent lives inside the plate so it can never clip off-screen.
+      var intentLine = '';
       if (side === 'enemy' && u.alive && u.intent) {
-        intent = '<div class="sp-intent">' + intentLabel(u.intent, b) + '</div>';
+        intentLine = '<div class="sp-intent-line">' + intentLabel(u.intent, b) + '</div>';
       }
       var notch = side === 'ally' && u.position >= 0 ? '<div class="sp-notch">' + (u.position + 1) + '</div>' : '';
       sp.innerHTML =
-        intent +
         '<div class="sp-plate">' +
           '<div class="sp-name">' + esc(u.name) + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
           '<div class="sp-hpbar"><div class="sp-hpfill" style="width:' + pct + '%"></div></div>' +
           '<div class="sp-tags"><span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + statusChips + '</div>' +
+          intentLine +
         '</div>' +
         body +
         (isThreatened ? '<div class="sp-target-ring"><span class="sp-target-x">▼</span></div>' : '') +
@@ -495,11 +691,11 @@
     if (intent.effect === 'HEAL') return '💚 ' + esc(intent.name);
     if (intent.effect === 'SHIELD') return '🛡 ' + esc(intent.name);
     if (intent.effect !== 'DAMAGE') return esc(intent.name);
-    if (intent.sweep) return '⚔ ' + esc(intent.name) + ' ' + intent.value + ' → ALL';
+    if (intent.sweep) return '⚔' + intent.value + ' → ALL';
     var mark = null;
     (b.allies || []).forEach(function (a) { if (a.alive && a.position === intent.position) mark = a; });
     var who = mark ? esc(mark.name) : (intent.position >= 0 ? 'notch ' + (intent.position + 1) : 'the Knight');
-    return '⚔ ' + esc(intent.name) + ' ' + intent.value + ' → ' + who;
+    return '⚔' + intent.value + ' → ' + who;
   }
 
   // ---- event playback (projectiles + action moments) --------------------
@@ -828,6 +1024,7 @@
 
   function renderRewards() {
     showScreen('rewardScreen');
+    $('rewardSub').textContent = state.run.lastReward || 'Choose one reward to strengthen the run.';
     var grid = $('rewardGrid'); grid.innerHTML = '';
     (state.run.pendingRewards || []).forEach(function (opt) {
       var c = el('div', 'reward-card ' + elClass(opt.element) + ' kind-' + opt.kind);

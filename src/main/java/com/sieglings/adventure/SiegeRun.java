@@ -3,7 +3,9 @@ package com.sieglings.adventure;
 import com.sieglings.model.enums.Element;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A single Siege roguelike run: the chosen SiegeKnight + three Siegelings, the
@@ -36,6 +38,22 @@ class SiegeRun {
     private String lastReward = "";
     /** Post-battle reward choices awaiting the player's pick (empty when none). */
     private final List<RewardOption> pendingRewards = new ArrayList<>();
+
+    /** Gold earned from battles and caches, spent at camp traders/brokers. */
+    private int gold;
+
+    // Interactive Rest Camp state (NPC options; empty when not camping).
+    private boolean inCamp;
+    private final List<CampOption> campOptions = new ArrayList<>();
+    private String campNote = "";
+
+    // Cache dig minigame state (press your luck; bank or bust).
+    private boolean inCache;
+    private int cacheGold;
+    private int cacheDigs;
+
+    /** Battle wins per party member id — drives automatic evolution. */
+    private final Map<String, Integer> winsByMember = new HashMap<>();
 
     SiegeRun(String token) {
         this.token = token;
@@ -71,6 +89,25 @@ class SiegeRun {
     void setLastReward(String lastReward) { this.lastReward = lastReward == null ? "" : lastReward; }
     List<RewardOption> getPendingRewards() { return pendingRewards; }
 
+    int getGold() { return gold; }
+    void setGold(int gold) { this.gold = Math.max(0, gold); }
+    void addGold(int amount) { setGold(gold + amount); }
+
+    boolean isInCamp() { return inCamp; }
+    void setInCamp(boolean inCamp) { this.inCamp = inCamp; }
+    List<CampOption> getCampOptions() { return campOptions; }
+    String getCampNote() { return campNote; }
+    void setCampNote(String campNote) { this.campNote = campNote == null ? "" : campNote; }
+
+    boolean isInCache() { return inCache; }
+    void setInCache(boolean inCache) { this.inCache = inCache; }
+    int getCacheGold() { return cacheGold; }
+    void setCacheGold(int cacheGold) { this.cacheGold = Math.max(0, cacheGold); }
+    int getCacheDigs() { return cacheDigs; }
+    void setCacheDigs(int cacheDigs) { this.cacheDigs = cacheDigs; }
+
+    Map<String, Integer> getWinsByMember() { return winsByMember; }
+
     SiegeNode currentNode() {
         return nodeById(currentNodeId);
     }
@@ -85,7 +122,8 @@ class SiegeRun {
     /** Node ids the party may travel to next (row-0 nodes before the first move). */
     List<Integer> reachableNodeIds() {
         List<Integer> out = new ArrayList<>();
-        if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()) return out;
+        if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()
+                || inCamp || inCache) return out;
         SiegeNode current = currentNode();
         if (current == null) {
             for (SiegeNode n : map) {

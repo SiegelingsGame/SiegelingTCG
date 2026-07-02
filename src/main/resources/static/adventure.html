@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=5">
+<link rel="stylesheet" href="/css/adventure.css?v=6">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -23,43 +23,86 @@
     <p>Preparing the expedition…</p>
   </div>
 
-  <!-- Team select -->
+  <!-- Team select: page 1 (knight) → page 2 (warband) -->
   <section class="siege-screen hidden" id="setupScreen">
-    <h1>Assemble your warband</h1>
-    <p class="siege-sub">Pick a <strong>SiegeKnight</strong> to lead and <strong>three Siegelings</strong>. Each Siegeling's moves become cards in your deck.</p>
-
-    <div class="setup-block">
-      <h2>SiegeKnight <span class="req" id="knightReq">— choose 1</span></h2>
-      <div class="knight-grid" id="knightGrid"></div>
+    <div class="setup-steps">
+      <span class="setup-step" id="stepDotKnight">1 · SiegeKnight</span>
+      <span class="setup-step" id="stepDotParty">2 · Warband</span>
     </div>
 
-    <div class="setup-block">
-      <h2>Siegelings <span class="req" id="partyReq">— choose 3</span></h2>
+    <div id="setupStepKnight">
+      <h1>Choose your SiegeKnight</h1>
+      <p class="siege-sub">Each knight brings a <strong>unique ability</strong> from its dashboard card into the deck — and its Ultimate to the field.</p>
+      <div class="knight-grid" id="knightGrid"></div>
+      <div class="setup-footer">
+        <div class="setup-summary" id="knightSummary">Select a SiegeKnight.</div>
+        <button class="siege-btn primary" id="knightNextBtn" type="button" disabled>Approve Knight ▸</button>
+      </div>
+    </div>
+
+    <div id="setupStepParty" class="hidden">
+      <h1>Assemble the warband</h1>
+      <p class="siege-sub">Pick <strong>three stage-1 Siegelings</strong>. Their moves become your deck — and they'll <strong>evolve on their own</strong> as they win battles. Tap ⓘ to inspect cards.</p>
       <div class="filter-row" id="elementFilter"></div>
       <div class="siegeling-grid" id="sieglingGrid"></div>
-    </div>
-
-    <div class="setup-footer">
-      <div class="setup-summary" id="setupSummary">Select a knight and 3 Siegelings.</div>
-      <button class="siege-btn primary" id="startRunBtn" type="button" disabled>Begin Expedition</button>
+      <div class="setup-footer">
+        <button class="siege-btn" id="partyBackBtn" type="button">◂ Knight</button>
+        <div class="setup-summary" id="setupSummary">Pick 3 Siegelings.</div>
+        <button class="siege-btn primary" id="startRunBtn" type="button" disabled>Begin Expedition</button>
+      </div>
     </div>
   </section>
 
   <!-- Map -->
   <section class="siege-screen hidden" id="mapScreen">
     <div class="party-strip" id="partyStrip"></div>
+    <div class="map-meta">
+      <span class="gold-chip" id="mapGold">🪙 0</span>
+      <span id="mapDeckCount"></span>
+      <span class="map-hint" id="mapHint">Choose your path</span>
+    </div>
     <div class="map-reward" id="mapReward"></div>
-    <div class="map-meta"><span id="mapDeckCount"></span><span class="map-hint" id="mapHint">Choose your path</span></div>
     <div class="map-scroll" id="mapScroll">
       <svg id="mapSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </section>
+
+  <!-- Rest Camp (interactive stop) -->
+  <section class="siege-screen hidden" id="campScreen">
+    <div class="camp-scene">
+      <div class="camp-sky"></div>
+      <div class="camp-fire">🔥</div>
+      <div class="camp-tent">⛺</div>
+      <div class="camp-party" id="campParty"></div>
+    </div>
+    <h1 class="camp-title">Rest Camp</h1>
+    <p class="siege-sub" id="campNote"></p>
+    <div class="camp-meta"><span class="gold-chip" id="campGold">🪙 0</span><span id="campReward" class="camp-reward"></span></div>
+    <div class="camp-grid" id="campGrid"></div>
+    <div class="camp-actions">
+      <button class="siege-btn primary" id="campLeaveBtn" type="button">Break Camp ▸</button>
+    </div>
+  </section>
+
+  <!-- Cache dig minigame -->
+  <section class="siege-screen hidden" id="cacheScreen">
+    <div class="cache-scene"><span class="cache-chest" id="cacheChest">🪙</span></div>
+    <h1 class="camp-title">Buried Cache</h1>
+    <p class="siege-sub">Dig for loot — but every dig risks a collapse that buries the unbanked gold.</p>
+    <div class="cache-loot" id="cacheLoot"></div>
+    <div class="cache-risk"><div class="cache-riskbar"><div class="cache-riskfill" id="cacheRiskFill"></div></div><span id="cacheRiskText"></span></div>
+    <div class="camp-meta"><span id="cacheReward" class="camp-reward"></span></div>
+    <div class="camp-actions">
+      <button class="siege-btn" id="cacheDigBtn" type="button">⛏ Dig Deeper</button>
+      <button class="siege-btn primary" id="cacheTakeBtn" type="button">Bank the Loot ▸</button>
     </div>
   </section>
 
   <!-- Battle -->
   <section class="siege-screen battle hidden" id="battleScreen">
     <div class="battle-top">
-      <div class="initiative-bar" id="initiativeBar"></div>
       <div class="knight-plate hidden" id="knightPlate"></div>
+      <div class="speed-track" id="speedTrack"></div>
     </div>
     <div class="battle-stage" id="battleStage">
       <div class="stage-ground"></div>
@@ -81,7 +124,7 @@
   <!-- Rewards -->
   <section class="siege-screen hidden" id="rewardScreen">
     <h1 class="reward-heading">Victory!</h1>
-    <p class="siege-sub">Choose one reward to strengthen the run.</p>
+    <p class="siege-sub" id="rewardSub">Choose one reward to strengthen the run.</p>
     <div class="reward-grid" id="rewardGrid"></div>
     <div class="reward-actions">
       <button class="siege-btn" id="rewardSkipBtn" type="button">Skip Reward</button>
@@ -95,8 +138,16 @@
     <button class="siege-btn primary" id="resultBtn" type="button">Continue</button>
   </section>
 
+  <!-- Unit detail modal (cards + abilities) -->
+  <div class="unit-modal hidden" id="unitModal">
+    <div class="unit-modal-card" id="unitModalCard">
+      <button class="unit-modal-close" id="unitModalClose" type="button">✕</button>
+      <div id="unitModalBody"></div>
+    </div>
+  </div>
+
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=5"></script>
+<script src="/js/adventure.js?v=6"></script>
 </body>
 </html>

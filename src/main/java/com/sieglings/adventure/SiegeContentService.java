@@ -37,14 +37,60 @@ public class SiegeContentService {
 
     // ---- Roster ---------------------------------------------------------
 
+    /**
+     * Stage-1 Siegelings only — evolutions cannot be picked directly; they
+     * arrive automatically mid-run once their base form earns enough wins.
+     */
     List<SieglingCard> selectableSieglings() {
         List<SieglingCard> out = new ArrayList<>();
         for (Card card : cardDefs.getDeckBuilderCatalog()) {
-            if (card instanceof SieglingCard s && !playableMoves(s).isEmpty()) {
+            if (card instanceof SieglingCard s && !s.isEvolutionCard() && !playableMoves(s).isEmpty()) {
                 out.add(s);
             }
         }
         return out;
+    }
+
+    /** The next evolution stage of a catalog card, if any (with usable moves). */
+    Optional<SieglingCard> evolutionOf(String cardId) {
+        if (cardId == null) return Optional.empty();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (card instanceof SieglingCard s && cardId.equals(s.getEvolvesFromId())
+                    && !playableMoves(s).isEmpty()) {
+                return Optional.of(s);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Evolves a party member in place: same combatant id (so its deck cards
+     * stay owned), new name/element/art, bigger HP pool, an evolution surge
+     * of healing. Positions carry over.
+     */
+    Combatant evolve(Combatant member, SieglingCard evo) {
+        int maxHp = Math.max(member.getMaxHp() + 6, 18 + evo.getHealth() * 4);
+        Combatant e = new Combatant(member.getId(), evo.getName(), evo.getElement(), Side.PLAYER,
+                maxHp, Math.max(4, evo.getSpeed()), evo.getCardArtUrl());
+        e.setSourceCardId(evo.getId());
+        e.setPosition(member.getPosition());
+        e.setHp(Math.min(maxHp, member.getHp() + (int) Math.round(maxHp * 0.3)));
+        return e;
+    }
+
+    /** Adds the new stage's moves (ones the owner doesn't already know) to the deck. */
+    int addNewStageCards(SieglingCard evo, String ownerId, List<SiegeCard> deck) {
+        int added = 0;
+        for (Move move : playableMoves(evo)) {
+            AbilitySpec spec = toSpec(move);
+            boolean known = deck.stream().anyMatch(c ->
+                    c.getOwnerId().equals(ownerId) && c.getSpec().id().equals(spec.id()));
+            if (!known) {
+                deck.add(new SiegeCard(ownerId + "-evo-" + spec.id(), ownerId, spec));
+                added++;
+            }
+        }
+        return added;
     }
 
     List<TrainerCard> selectableKnights() {
@@ -76,13 +122,24 @@ public class SiegeContentService {
         return playableMoves(s).size();
     }
 
+    /** Combat specs for a Siegeling's moves — powers the "view cards" detail modal. */
+    List<AbilitySpec> moveSpecs(SieglingCard s) {
+        List<AbilitySpec> out = new ArrayList<>();
+        for (Move move : playableMoves(s)) {
+            out.add(toSpec(move));
+        }
+        return out;
+    }
+
     // ---- Party + deck construction -------------------------------------
 
     Combatant toPartyCombatant(SieglingCard s, int slot) {
         // Give Siegelings a chunkier HP pool so battles last a few turns.
         int hp = 18 + s.getHealth() * 4;
         String id = "ally-" + slot + "-" + s.getId();
-        return new Combatant(id, s.getName(), s.getElement(), Side.PLAYER, hp, Math.max(4, s.getSpeed()), s.getCardArtUrl());
+        Combatant c = new Combatant(id, s.getName(), s.getElement(), Side.PLAYER, hp, Math.max(4, s.getSpeed()), s.getCardArtUrl());
+        c.setSourceCardId(s.getId());
+        return c;
     }
 
     /** The SiegeKnight as a battlefield unit: stands behind the line, no notch. */
@@ -130,15 +187,22 @@ public class SiegeContentService {
         return cards;
     }
 
+    /**
+     * The knight's unique deck card, built from its dashboard active ability —
+     * effect, value, and target all come from the dashboard definition, and a
+     * damaging ability carries the knight element's status rider.
+     */
     AbilitySpec knightActiveSpec(TrainerCard knight) {
         String kid = "knight-" + knight.getId();
         if (knight.getActiveAbility() != null) {
             var a = knight.getActiveAbility();
             Effect effect = effectFor(a.getEffectType());
-            TargetKind target = targetFor(a.getTargetType());
+            TargetKind target = effect == Effect.SWAP ? TargetKind.ALLY_SINGLE : targetFor(a.getTargetType());
             int value = Math.max(3, a.getEffectValue() + 2);
+            StatusKind status = effect == Effect.DAMAGE ? statusFor(knight.getElement()) : null;
             return new AbilitySpec(kid, knight.getName() + ": " + a.getName(), knight.getElement(),
-                    effect, value, target, 2, a.getDescription() == null ? "" : a.getDescription());
+                    effect, value, target, 2, a.getDescription() == null ? "" : a.getDescription(),
+                    status, status == null ? 0 : 30);
         }
         // Fallback knight card: a rallying strike.
         return new AbilitySpec(kid, knight.getName() + ": Rally", knight.getElement(),
