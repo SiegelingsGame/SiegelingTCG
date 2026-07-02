@@ -407,12 +407,11 @@ public class SiegeService {
             int base = 10 + floor * 2 + (wasElite ? 10 : 0) + rng.nextInt(5);
             int gold = earnGold(run, base);
 
-            String evolveNote = wasBoss ? "" : maybeEvolveParty(run);
             if (wasBoss) {
                 run.setStatus(RunStatus.WON);
                 run.setLastReward("The Siegelord is defeated — the expedition is won!");
             } else {
-                run.setLastReward("Victory! +" + gold + " gold." + evolveNote + " Choose your spoils.");
+                run.setLastReward("Victory! +" + gold + " gold. Choose your spoils.");
                 generateRewards(run, wasElite);
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
@@ -421,32 +420,6 @@ public class SiegeService {
             run.setLastReward("The warband has fallen. The expedition ends here.");
         }
         return serialize(run);
-    }
-
-    // ---- Evolution ---------------------------------------------------------
-
-    /**
-     * Evolutions are never picked — they arrive on their own. Every second
-     * battle a Siegeling survives, it evolves into its next stage (if the
-     * catalog has one), keeping its cards and gaining the new stage's moves.
-     */
-    private String maybeEvolveParty(SiegeRun run) {
-        StringBuilder note = new StringBuilder();
-        for (int i = 0; i < run.getParty().size(); i++) {
-            Combatant member = run.getParty().get(i);
-            if (!member.isAlive()) continue;
-            int wins = run.getWinsByMember().merge(member.getId(), 1, Integer::sum);
-            if (wins < 2) continue;
-            var evo = content.evolutionOf(member.getSourceCardId());
-            if (evo.isEmpty()) continue;
-            run.getWinsByMember().put(member.getId(), 0);
-            Combatant evolved = content.evolve(member, evo.get());
-            run.getParty().set(i, evolved);
-            int newCards = content.addNewStageCards(evo.get(), evolved.getId(), run.getDeckTemplates());
-            note.append(" 🌟 ").append(member.getName()).append(" evolved into ").append(evolved.getName())
-                    .append(newCards > 0 ? " and learned " + newCards + " new move" + (newCards == 1 ? "" : "s") + "!" : "!");
-        }
-        return note.toString();
     }
 
     // ---- Rewards ----------------------------------------------------------

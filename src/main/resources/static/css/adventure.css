@@ -331,6 +331,8 @@ button{font-family:inherit;}
 @keyframes lunge{35%{transform:translateY(6px) scale(1.06);}65%{transform:translateY(-4px) scale(1.02);}}
 .sprite.swapping .sp-art{animation:swapflip .5s ease-in-out;}
 @keyframes swapflip{50%{transform:translateY(-14px) scaleX(-1);}}
+.sprite.evolving .sp-art{animation:evolveburst .9s ease-in-out; filter:drop-shadow(0 0 22px rgba(255,208,102,1)) brightness(1.6);}
+@keyframes evolveburst{0%{transform:scale(1);}40%{transform:scale(.85); filter:brightness(3);}70%{transform:scale(1.18);}100%{transform:scale(1);}}
 .sp-float{
   position:absolute; left:50%; top:6px; transform:translateX(-50%);
   font-weight:900; font-size:20px; pointer-events:none; z-index:5;
@@ -443,6 +445,9 @@ button{font-family:inherit;}
 .playcard .pc-owner{font-size:10px; color:var(--faint); margin-top:2px;}
 .playcard .pc-eff{font-size:11px; margin-top:6px; font-weight:650;}
 .playcard .pc-eff.dmg{color:#ff8a6a;} .playcard .pc-eff.heal{color:var(--good);} .playcard .pc-eff.buff{color:var(--accent-2);} .playcard .pc-eff.shield{color:var(--shield);}
+.playcard .pc-eff.evo{color:#ffd066;}
+/* Evolution cards glow gold so they stand out in the fan */
+.playcard.evo-card{border-top-color:#ffd066; box-shadow:0 6px 16px rgba(0,0,0,.35), 0 0 12px rgba(255,208,102,.35);}
 .playcard .pc-eff .pc-boost{color:var(--good); font-weight:800;}
 .playcard .pc-eff s{opacity:.55; font-weight:500; margin-left:2px;}
 .playcard .pc-desc{font-size:10px; color:var(--faint); margin-top:4px; line-height:1.3; max-height:40px; overflow:hidden;}

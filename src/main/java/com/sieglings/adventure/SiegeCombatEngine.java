@@ -1,5 +1,7 @@
 package com.sieglings.adventure;
 
+import com.sieglings.model.SieglingCard;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -33,6 +35,9 @@ import java.util.Random;
  */
 @Service
 public class SiegeCombatEngine {
+
+    @Autowired
+    private SiegeContentService content;
 
     static final String KNIGHT_OWNER_PREFIX = "knight-";
     /** Damage the Knight suffers whenever one of the Siegelings is knocked out. */
@@ -83,6 +88,13 @@ public class SiegeCombatEngine {
         int n = 0;
         for (SiegeCard template : run.getDeckTemplates()) {
             battle.getDeck().add(new SiegeCard("c" + (n++), template.getOwnerId(), template.getSpec()));
+        }
+        // Each member with a next stage gets its Evolution card in the deck —
+        // evolution happens in battle by drawing and playing it (2 AP).
+        for (Combatant ally : battle.living(Side.PLAYER)) {
+            content.evolutionOf(ally.getSourceCardId()).ifPresent(evo ->
+                    battle.getDeck().add(new SiegeCard("evo-" + ally.getId(), ally.getId(),
+                            content.evolveCardSpec(ally.getName(), evo, 2))));
         }
         Collections.shuffle(battle.getDeck(), rng);
 
@@ -245,6 +257,19 @@ public class SiegeCombatEngine {
             return PlayResult.fail("Not enough action points.");
         }
 
+        if (spec.effect() == Effect.EVOLVE) {
+            PlayResult evolved = playEvolution(run, battle, attacker, spec, rng);
+            if (!evolved.ok) return evolved;
+            battle.getHand().remove(card);
+            // Evolution cards are consumed for the battle — they do not reshuffle.
+            battle.setActionPoints(battle.getActionPoints() - spec.actionCost());
+            if (checkEnd(run)) return PlayResult.okay();
+            if (battle.getActionPoints() <= 0 && !hasPlayableFreeCard(battle)) {
+                endPlayerTurn(run, rng);
+            }
+            return PlayResult.okay();
+        }
+
         List<Combatant> targets = resolveTargets(battle, spec, attacker, targetId);
         if (targets.isEmpty()) return PlayResult.fail("No valid target.");
 
@@ -265,6 +290,52 @@ public class SiegeCombatEngine {
         if (battle.getActionPoints() <= 0 && !hasPlayableFreeCard(battle)) {
             endPlayerTurn(run, rng);
         }
+        return PlayResult.okay();
+    }
+
+    /**
+     * Plays an evolution card: transforms the owner into the next stage for the
+     * remainder of the battle (new art/stats + a heal surge; shield and attack
+     * buffs carry over; statuses are cleansed), shuffles the new stage's moves
+     * into the deck, and — if a further stage exists — unlocks its Evolution
+     * card (3 AP) to draw.
+     */
+    private PlayResult playEvolution(SiegeRun run, SiegeBattle battle, Combatant member, AbilitySpec spec, Random rng) {
+        if (member.getSide() != Side.PLAYER || member.isKnight()) {
+            return PlayResult.fail("Only a Siegeling can evolve.");
+        }
+        String evoId = spec.id().startsWith("evo:") ? spec.id().substring(4) : spec.id();
+        SieglingCard evo = content.findAnySiegling(evoId).orElse(null);
+        if (evo == null) return PlayResult.fail("That evolution no longer exists.");
+
+        Combatant evolved = content.evolve(member, evo);
+        evolved.setEvolvedFrom(member);
+        evolved.setShield(member.getShield());
+        evolved.addAttackBuff(member.getAttackBuff());
+
+        // Same combatant id, so deck ownership and the sprite carry straight over.
+        int bi = battle.getCombatants().indexOf(member);
+        if (bi >= 0) battle.getCombatants().set(bi, evolved);
+        int pi = run.getParty().indexOf(member);
+        if (pi >= 0) run.getParty().set(pi, evolved);
+
+        battle.event("evolve", "targetId", evolved.getId(), "from", member.getName(),
+                "to", evolved.getName(), "element",
+                evolved.getElement() == null ? null : evolved.getElement().name());
+        battle.log("🌟 " + member.getName() + " evolves into " + evolved.getName() + "!");
+
+        // The new stage's moves join the battle deck…
+        int added = content.addNewStageCards(evo, evolved.getId(), battle.getDeck());
+        if (added > 0) {
+            battle.log(evolved.getName() + "'s new move" + (added == 1 ? " is" : "s are") + " shuffled into the deck.");
+        }
+        // …and evolving unlocks the next stage's Evolution card, if one exists.
+        content.evolutionOf(evo.getId()).ifPresent(next -> {
+            battle.getDeck().add(new SiegeCard("evo-" + evolved.getId() + "-3", evolved.getId(),
+                    content.evolveCardSpec(evolved.getName(), next, 3)));
+            battle.log("The path to " + next.getName() + " opens — its Evolution card joins the deck.");
+        });
+        Collections.shuffle(battle.getDeck(), rng);
         return PlayResult.okay();
     }
 
@@ -676,6 +747,21 @@ public class SiegeCombatEngine {
     }
 
     private void clearBattleBuffs(SiegeRun run) {
+        // Evolution is permanent only for the battle: members return to their
+        // base form afterwards, carrying the damage they took home.
+        for (int i = 0; i < run.getParty().size(); i++) {
+            Combatant member = run.getParty().get(i);
+            Combatant root = member;
+            while (root.getEvolvedFrom() != null) {
+                root = root.getEvolvedFrom();
+            }
+            if (root != member) {
+                root.setHp(Math.min(root.getMaxHp(), member.getHp()));
+                root.setPosition(member.getPosition());
+                member.setEvolvedFrom(null);
+                run.getParty().set(i, root);
+            }
+        }
         for (Combatant ally : run.getParty()) {
             ally.setShield(0);
             ally.setSpeed(ally.getBaseSpeed());

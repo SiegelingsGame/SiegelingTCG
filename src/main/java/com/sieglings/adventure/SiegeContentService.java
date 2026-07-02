@@ -63,6 +63,29 @@ public class SiegeContentService {
         return Optional.empty();
     }
 
+    /** Full-catalog lookup that, unlike {@link #findSiegling}, includes evolution stages. */
+    Optional<SieglingCard> findAnySiegling(String id) {
+        if (id == null) return Optional.empty();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (card instanceof SieglingCard s && id.equals(s.getId())) {
+                return Optional.of(s);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The evolution card itself: playing it evolves the owner into {@code evo}
+     * for the remainder of the battle. Stage 2 costs 2 AP, stage 3 costs 3 AP
+     * (per the battle rules); the spec id carries the target catalog card id.
+     */
+    AbilitySpec evolveCardSpec(String ownerName, SieglingCard evo, int stage) {
+        int cost = stage >= 3 ? 3 : 2;
+        return new AbilitySpec("evo:" + evo.getId(), "Evolve: " + evo.getName(), evo.getElement(),
+                Effect.EVOLVE, 0, TargetKind.SELF, cost,
+                ownerName + " evolves into " + evo.getName() + " for the rest of the battle.");
+    }
+
     /**
      * Evolves a party member in place: same combatant id (so its deck cards
      * stay owned), new name/element/art, bigger HP pool, an evolution surge
@@ -277,7 +300,7 @@ public class SiegeContentService {
             case HEAL, SHIELD -> base + 3;
             case BUFF_ATK, BUFF_SPD -> Math.max(1, base);
             case SLOW -> Math.max(1, base);
-            case SWAP -> 0;
+            case SWAP, EVOLVE -> 0;
         };
     }
 

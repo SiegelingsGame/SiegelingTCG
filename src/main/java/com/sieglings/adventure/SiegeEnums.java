@@ -16,7 +16,8 @@ enum Effect {
     BUFF_ATK,   // grant target +value flat attack for the battle
     BUFF_SPD,   // grant target +value speed for the battle
     SLOW,       // apply the Slow status (freeze / speed_zero flavored)
-    SWAP        // move to a new notch: swap positions with another Siegeling
+    SWAP,       // move to a new notch: swap positions with another Siegeling
+    EVOLVE      // evolution card: transform the owner into its next stage (this battle)
 }
 
 /**
