@@ -42,6 +42,14 @@ enum TargetKind {
 /** Map node categories for a Siege run. */
 enum NodeType { BATTLE, ELITE, REST, TREASURE, BOSS }
 
+/**
+ * A SiegeKnight's run-long leadership passive — every knight grants a different
+ * one instead of the same +shield. SHIELD/ATTACK/SPEED apply at the start of
+ * each battle; HEALTH raises every Siegeling's max HP for the whole run; LOOT
+ * boosts gold earned from spoils and caches.
+ */
+enum KnightPassive { SHIELD, ATTACK, SPEED, HEALTH, LOOT }
+
 /** Battle turn phase driving what the client may submit. */
 enum BattlePhase { PLAYER_INPUT, ENEMY_RESOLVING, WON, LOST }
 

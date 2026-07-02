@@ -47,18 +47,28 @@ public class SiegeCombatEngine {
     void startBattle(SiegeRun run, NodeType type, List<Combatant> enemies, Random rng) {
         SiegeBattle battle = new SiegeBattle(type);
 
-        // Reset persistent party members for a fresh battle (HP carries over).
-        int shield = run.getKnightUnit() == null ? 0 : 4;
+        // Reset persistent party members for a fresh battle (HP carries over),
+        // then apply the knight's leadership passive (varies per knight).
+        Combatant knight = run.getKnightUnit();
+        KnightPassive passive = run.getKnightPassive();
+        int pv = run.getKnightPassiveValue();
         int pos = 0;
         for (Combatant ally : run.getParty()) {
-            ally.setShield(shield);
+            ally.setShield(0);
             ally.setSpeed(ally.getBaseSpeed());
             ally.addAttackBuff(-ally.getAttackBuff());
             ally.clearStatuses();
             ally.setPosition(pos++);
+            if (knight != null && passive != null) {
+                switch (passive) {
+                    case SHIELD -> ally.setShield(pv);
+                    case ATTACK -> ally.addAttackBuff(pv);
+                    case SPEED -> ally.setSpeed(ally.getBaseSpeed() + pv);
+                    default -> { } // HEALTH is baked into max HP; LOOT affects gold only
+                }
+            }
             battle.getCombatants().add(ally);
         }
-        Combatant knight = run.getKnightUnit();
         if (knight != null) {
             knight.setShield(0);
             knight.clearStatuses();
@@ -77,8 +87,9 @@ public class SiegeCombatEngine {
         Collections.shuffle(battle.getDeck(), rng);
 
         battle.log(typeBanner(type));
-        if (shield > 0) {
-            battle.log(run.getKnightName() + "'s command grants the party +" + shield + " shield.");
+        String passiveBanner = battleStartPassiveBanner(run, passive, pv);
+        if (passiveBanner != null) {
+            battle.log(passiveBanner);
         }
         run.setBattle(battle);
 
@@ -674,6 +685,19 @@ public class SiegeCombatEngine {
         if (run.getKnightUnit() != null) {
             run.getKnightUnit().clearStatuses();
         }
+    }
+
+    /** Combat-log line announcing the knight's battle-start passive, if any. */
+    private String battleStartPassiveBanner(SiegeRun run, KnightPassive passive, int pv) {
+        if (run.getKnightUnit() == null || passive == null) return null;
+        String lead = run.getKnightName() + "'s command ";
+        return switch (passive) {
+            case SHIELD -> lead + "grants the party +" + pv + " shield.";
+            case ATTACK -> lead + "rallies the party for +" + pv + " attack.";
+            case SPEED -> lead + "quickens the party by +" + pv + " speed.";
+            case HEALTH -> null; // reflected in each Siegeling's raised max HP
+            case LOOT -> null;   // reflected in richer spoils
+        };
     }
 
     private String typeBanner(NodeType type) {

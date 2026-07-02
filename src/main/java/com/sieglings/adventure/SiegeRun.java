@@ -21,6 +21,9 @@ class SiegeRun {
     private Element knightElement;
     private AbilitySpec knightActive;
     private String knightPassiveDesc;
+    /** The knight's run-long leadership passive and its magnitude. */
+    private KnightPassive knightPassive = KnightPassive.SHIELD;
+    private int knightPassiveValue;
     /** The Knight on the battlefield — persistent HP; the run is lost if it falls. */
     private Combatant knightUnit;
 
@@ -71,6 +74,10 @@ class SiegeRun {
     void setKnightActive(AbilitySpec knightActive) { this.knightActive = knightActive; }
     String getKnightPassiveDesc() { return knightPassiveDesc; }
     void setKnightPassiveDesc(String knightPassiveDesc) { this.knightPassiveDesc = knightPassiveDesc; }
+    KnightPassive getKnightPassive() { return knightPassive; }
+    void setKnightPassive(KnightPassive knightPassive) { this.knightPassive = knightPassive; }
+    int getKnightPassiveValue() { return knightPassiveValue; }
+    void setKnightPassiveValue(int knightPassiveValue) { this.knightPassiveValue = knightPassiveValue; }
     Combatant getKnightUnit() { return knightUnit; }
     void setKnightUnit(Combatant knightUnit) { this.knightUnit = knightUnit; }
 

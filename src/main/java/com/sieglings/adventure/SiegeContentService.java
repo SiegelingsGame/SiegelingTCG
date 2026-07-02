@@ -209,13 +209,49 @@ public class SiegeContentService {
                 Effect.BUFF_ATK, 2, TargetKind.ALLY_ALL, 2, "All Siegelings gain +2 attack this battle.");
     }
 
-    String knightPassiveDescription(TrainerCard knight) {
-        return knight.getName() + " leads the warband — the party begins each battle with +"
-                + knightPassiveShield(knight) + " shield.";
+    /**
+     * Each knight leads with a different passive, chosen deterministically from
+     * a stable hash of its id so the roster spreads across all five kinds.
+     */
+    KnightPassive knightPassiveKind(TrainerCard knight) {
+        String id = knight.getId() == null ? knight.getName() : knight.getId();
+        int h = 0;
+        for (int i = 0; i < id.length(); i++) h = h * 31 + id.charAt(i);
+        KnightPassive[] all = KnightPassive.values();
+        return all[Math.floorMod(h, all.length)];
     }
 
-    int knightPassiveShield(TrainerCard knight) {
-        return 4;
+    int knightPassiveValue(KnightPassive kind) {
+        return switch (kind) {
+            case SHIELD -> 4;   // +4 shield to each Siegeling at battle start
+            case ATTACK -> 2;   // +2 attack to the party at battle start
+            case SPEED -> 2;    // +2 speed to each Siegeling at battle start
+            case HEALTH -> 8;   // +8 max HP to each Siegeling all expedition
+            case LOOT -> 40;    // +40% gold from spoils and caches
+        };
+    }
+
+    String knightPassiveName(KnightPassive kind) {
+        return switch (kind) {
+            case SHIELD -> "Bulwark";
+            case ATTACK -> "Warlord";
+            case SPEED -> "Vanguard";
+            case HEALTH -> "Warden";
+            case LOOT -> "Quartermaster";
+        };
+    }
+
+    String knightPassiveDescription(TrainerCard knight) {
+        KnightPassive kind = knightPassiveKind(knight);
+        int v = knightPassiveValue(kind);
+        String lead = knight.getName() + " leads the warband — ";
+        return lead + switch (kind) {
+            case SHIELD -> "Bulwark: the party begins each battle with +" + v + " shield.";
+            case ATTACK -> "Warlord: the party begins each battle with +" + v + " attack.";
+            case SPEED -> "Vanguard: the party begins each battle with +" + v + " speed.";
+            case HEALTH -> "Warden: every Siegeling has +" + v + " max HP all expedition.";
+            case LOOT -> "Quartermaster: +" + v + "% gold from spoils and caches.";
+        };
     }
 
     // ---- Move -> combat spec -------------------------------------------

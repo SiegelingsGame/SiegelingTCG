@@ -64,6 +64,12 @@ button{font-family:inherit;}
 .knight-card .kability-name{color:var(--accent); font-weight:750;}
 .knight-card .kability-sum{color:var(--el); font-weight:650; font-size:11px;}
 .knight-card .kdesc{font-size:11px; color:var(--dim); margin-top:3px; line-height:1.35;}
+.knight-card .kpassive-chip{display:inline-block; font-size:9.5px; font-weight:800; letter-spacing:.4px; border-radius:8px; padding:1px 7px; margin-right:4px; vertical-align:middle;}
+.kpassive-chip.pk-SHIELD{color:var(--shield); border:1px solid rgba(62,166,255,.45); background:rgba(62,166,255,.08);}
+.kpassive-chip.pk-ATTACK{color:#ff8a6a; border:1px solid rgba(255,110,80,.45); background:rgba(255,110,80,.08);}
+.kpassive-chip.pk-SPEED{color:#ffe63c; border:1px solid rgba(255,230,60,.45); background:rgba(255,230,60,.08);}
+.kpassive-chip.pk-HEALTH{color:var(--good); border:1px solid rgba(126,231,135,.45); background:rgba(126,231,135,.08);}
+.kpassive-chip.pk-LOOT{color:#ffd066; border:1px solid rgba(255,208,102,.45); background:rgba(255,208,102,.08);}
 .info-btn{position:absolute; top:6px; left:6px; z-index:3; width:22px;height:22px; border-radius:50%; border:1px solid var(--border); background:rgba(12,16,23,.8); color:var(--accent-2); font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
 .info-btn:hover{border-color:var(--accent-2);}
 .evo-tag{font-size:8.5px; font-weight:800; letter-spacing:.5px; color:#ffd066; border:1px solid rgba(255,208,102,.5); border-radius:8px; padding:0 5px; vertical-align:middle;}

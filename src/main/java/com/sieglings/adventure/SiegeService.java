@@ -74,7 +74,11 @@ public class SiegeService {
             m.put("activeName", k.getActiveAbility() == null ? "Rally" : k.getActiveAbility().getName());
             m.put("activeDesc", active.description());
             m.put("active", serializeSpec(active));
+            KnightPassive passive = content.knightPassiveKind(k);
             m.put("passive", content.knightPassiveDescription(k));
+            m.put("passiveKind", passive.name());
+            m.put("passiveName", content.knightPassiveName(passive));
+            m.put("passiveValue", content.knightPassiveValue(passive));
             knights.add(m);
         }
         resp.put("sieglings", sieglings);
@@ -101,6 +105,9 @@ public class SiegeService {
         run.setKnightElement(knight.getElement());
         run.setKnightActive(content.knightActiveSpec(knight));
         run.setKnightPassiveDesc(content.knightPassiveDescription(knight));
+        KnightPassive passive = content.knightPassiveKind(knight);
+        run.setKnightPassive(passive);
+        run.setKnightPassiveValue(content.knightPassiveValue(passive));
         run.setKnightUnit(content.toKnightCombatant(knight));
 
         int slot = 0;
@@ -108,6 +115,7 @@ public class SiegeService {
             SieglingCard s = content.findSiegling(id)
                     .orElseThrow(() -> new IllegalArgumentException("Unknown Siegeling: " + id));
             Combatant member = content.toPartyCombatant(s, slot);
+            applyJoinBonus(run, member);
             run.getParty().add(member);
             run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
             slot++;
@@ -120,6 +128,25 @@ public class SiegeService {
         run.getMap().addAll(content.generateMap(rng));
         runs.put(token, new Session(run));
         return serialize(run);
+    }
+
+    /** Applies the knight's HEALTH passive to a member as it joins the warband. */
+    private void applyJoinBonus(SiegeRun run, Combatant member) {
+        if (run.getKnightPassive() == KnightPassive.HEALTH) {
+            int v = run.getKnightPassiveValue();
+            member.setMaxHp(member.getMaxHp() + v);
+            member.heal(v);
+        }
+    }
+
+    /** Credits gold, applying the knight's LOOT passive; returns the amount added. */
+    private int earnGold(SiegeRun run, int base) {
+        int amount = base;
+        if (run.getKnightPassive() == KnightPassive.LOOT) {
+            amount = base + Math.round(base * run.getKnightPassiveValue() / 100f);
+        }
+        run.addGold(amount);
+        return amount;
     }
 
     Optional<SiegeRun> lookup(String token) {
@@ -264,6 +291,7 @@ public class SiegeService {
                 content.findSiegling(pick.sieglingId).ifPresent(s -> {
                     Combatant member = content.toPartyCombatant(s, run.getParty().size());
                     member.setPosition(run.getParty().size());
+                    applyJoinBonus(run, member);
                     run.getParty().add(member);
                     run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
                     run.setLastReward(s.getName() + " joined the warband!");
@@ -349,13 +377,12 @@ public class SiegeService {
     Map<String, Object> cacheTake(String token) {
         SiegeRun run = require(token);
         if (!run.isInCache()) return serialize(run);
-        int loot = run.getCacheGold();
-        run.addGold(loot);
+        int banked = earnGold(run, run.getCacheGold());
         run.setInCache(false);
         run.setCacheGold(0);
         SiegeNode node = run.currentNode();
         if (node != null) node.setCleared(true);
-        run.setLastReward("Banked " + loot + " gold from the cache.");
+        run.setLastReward("Banked " + banked + " gold from the cache.");
         return serialize(run);
     }
 
@@ -377,8 +404,8 @@ public class SiegeService {
 
             // Spoils: gold scales with how deep the fight was; elites pay more.
             int floor = node == null ? 1 : node.getRow() + 1;
-            int gold = 10 + floor * 2 + (wasElite ? 10 : 0) + rng.nextInt(5);
-            run.addGold(gold);
+            int base = 10 + floor * 2 + (wasElite ? 10 : 0) + rng.nextInt(5);
+            int gold = earnGold(run, base);
 
             String evolveNote = wasBoss ? "" : maybeEvolveParty(run);
             if (wasBoss) {
@@ -512,6 +539,8 @@ public class SiegeService {
             }
             case "RECRUIT" -> content.findSiegling(pick.sieglingId()).ifPresent(s -> {
                 Combatant member = content.toPartyCombatant(s, run.getParty().size());
+                member.setPosition(run.getParty().size());
+                applyJoinBonus(run, member);
                 run.getParty().add(member);
                 run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
                 run.setLastReward(s.getName() + " joined the warband!");
@@ -624,6 +653,8 @@ public class SiegeService {
         knight.put("name", run.getKnightName());
         knight.put("element", run.getKnightElement() == null ? null : run.getKnightElement().name());
         knight.put("passive", run.getKnightPassiveDesc());
+        knight.put("passiveKind", run.getKnightPassive() == null ? null : run.getKnightPassive().name());
+        knight.put("passiveName", run.getKnightPassive() == null ? null : content.knightPassiveName(run.getKnightPassive()));
         knight.put("active", run.getKnightActive() == null ? null : run.getKnightActive().name());
         knight.put("activeSpec", run.getKnightActive() == null ? null : serializeSpec(run.getKnightActive()));
         if (run.getKnightUnit() != null) {
