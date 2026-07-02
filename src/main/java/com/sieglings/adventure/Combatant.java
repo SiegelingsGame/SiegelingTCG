@@ -32,6 +32,8 @@ class Combatant {
     private int attackBuff;           // flat bonus added to this unit's damage
     private int position = -1;        // notch index for player Siegelings; -1 for others
     private String sourceCardId;      // catalog card this unit was built from (evolution lookups)
+    /** Battle-scoped: the form this unit evolved from (evolution reverts after battle). */
+    private Combatant evolvedFrom;
 
     /** Active elemental statuses → rounds remaining (BURN uses a battle-long duration). */
     private final Map<StatusKind, Integer> statuses = new EnumMap<>(StatusKind.class);
@@ -82,6 +84,8 @@ class Combatant {
     void setPosition(int position) { this.position = position; }
     String getSourceCardId() { return sourceCardId; }
     void setSourceCardId(String sourceCardId) { this.sourceCardId = sourceCardId; }
+    Combatant getEvolvedFrom() { return evolvedFrom; }
+    void setEvolvedFrom(Combatant evolvedFrom) { this.evolvedFrom = evolvedFrom; }
 
     List<AbilitySpec> getAbilities() { return abilities; }
     AbilitySpec getIntent() { return intent; }

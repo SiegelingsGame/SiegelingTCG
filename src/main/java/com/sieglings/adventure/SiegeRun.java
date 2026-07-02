@@ -3,9 +3,7 @@ package com.sieglings.adventure;
 import com.sieglings.model.enums.Element;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A single Siege roguelike run: the chosen SiegeKnight + three Siegelings, the
@@ -54,9 +52,6 @@ class SiegeRun {
     private boolean inCache;
     private int cacheGold;
     private int cacheDigs;
-
-    /** Battle wins per party member id — drives automatic evolution. */
-    private final Map<String, Integer> winsByMember = new HashMap<>();
 
     SiegeRun(String token) {
         this.token = token;
@@ -113,7 +108,6 @@ class SiegeRun {
     int getCacheDigs() { return cacheDigs; }
     void setCacheDigs(int cacheDigs) { this.cacheDigs = cacheDigs; }
 
-    Map<String, Integer> getWinsByMember() { return winsByMember; }
 
     SiegeNode currentNode() {
         return nodeById(currentNodeId);

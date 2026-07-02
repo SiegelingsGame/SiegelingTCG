@@ -189,6 +189,27 @@ Verified with the bot: all five kinds present across the roster; SHIELD/ATTACK/
 SPEED confirmed on the party's opening battle state; HEALTH confirmed on party
 max HP before any battle; LOOT confirmed by extra gold banked from a cache.
 
+## v6 — In-battle evolution cards (replaces auto-evolution)
+
+Evolution now follows the battle rules spec instead of firing automatically on
+win counts:
+
+- **Evolution requires playing the Evolution card.** Each battle, every party
+  member with a next catalog stage gets one Evolution card shuffled into the
+  battle deck (drawn like any other card, gold-glowing in the hand).
+- **Costs**: stage 2 evolution = 2 AP; stage 3 evolution = 3 AP.
+- **Playing it** transforms the owner mid-battle: new name/element/art, bigger
+  HP pool with a heal surge, shield and attack buffs carry over, statuses are
+  cleansed, and the new stage's moves are shuffled into the deck. The card is
+  consumed (it never reshuffles).
+- **Chained unlock**: evolving to stage 2 immediately shuffles the stage-3
+  Evolution card (3 AP) into the deck, if that stage exists.
+- **Permanent for the remainder of the battle**: when the battle ends the
+  member reverts to its base form, carrying the damage it took home (a death
+  while evolved is still a death). The next battle deals a fresh Evolution card.
+- Team select still offers stage-1 Siegelings only; the "EVO ↑" tag now means
+  "its Evolution card joins your battle deck."
+
 ## Known limitations / next steps
 
 - Runs are in-memory only (not yet persisted to Firestore) — a server restart drops an

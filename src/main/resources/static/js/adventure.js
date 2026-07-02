@@ -163,6 +163,7 @@
       case 'BUFF_SPD': return '↑ +' + spec.value + ' speed · ' + spec.actionCost + ' AP';
       case 'SLOW': return '❄ slow · ' + spec.actionCost + ' AP';
       case 'SWAP': return '⇄ swap notches · ' + spec.actionCost + ' AP';
+      case 'EVOLVE': return '🌟 evolve · ' + spec.actionCost + ' AP';
       default: return spec.effect;
     }
   }
@@ -221,7 +222,7 @@
         (picked >= 0 ? '<div class="selorder">' + (picked + 1) + '</div>' : '') +
         '<button class="info-btn" type="button" title="View cards">ⓘ</button>' +
         art +
-        '<div class="sname">' + esc(s.name) + (s.evolves ? ' <span class="evo-tag" title="Evolves automatically as it wins battles">EVO ↑</span>' : '') + '</div>' +
+        '<div class="sname">' + esc(s.name) + (s.evolves ? ' <span class="evo-tag" title="Its Evolution card joins your battle deck — play it for 2 AP to evolve">EVO ↑</span>' : '') + '</div>' +
         '<div class="schip">' + icon(s.element) + ' ' + esc(s.element) + '</div>' +
         '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>';
       c.addEventListener('click', function () { toggleSiegling(s.id); });
@@ -229,7 +230,7 @@
         e.stopPropagation();
         showUnitModal({
           name: s.name, element: s.element, artUrl: s.artUrl,
-          subtitle: '❤ ' + s.hp + ' · ⚡ ' + s.speed + (s.evolves ? ' · Evolves with battle wins' : ''),
+          subtitle: '❤ ' + s.hp + ' · ⚡ ' + s.speed + (s.evolves ? ' · Evolution card in battle deck (2 AP)' : ''),
           cards: s.moves || []
         });
       });
@@ -778,6 +779,11 @@
         flashSprite(ev.bId, 'swapping');
         showBanner(nameOf(ev.aId) + ' ⇄ ' + nameOf(ev.bId) + ' swap notches', 'you');
         return 550;
+      case 'evolve':
+        showBanner('🌟 ' + ev.from + ' evolves into ' + ev.to + '!', 'you', ev.element);
+        flashSprite(ev.targetId, 'evolving');
+        floatText(ev.targetId, '🌟 EVOLVED!', 'status');
+        return 1000;
       case 'whiff':
         showBanner(nameOf(ev.sourceId) + '\'s ' + ev.name + ' hits empty ground!', 'them');
         return 620;
@@ -902,7 +908,7 @@
     b.hand.forEach(function (card, i) {
       var effCls = effectClass(card.effect);
       var mid = (n - 1) / 2;
-      var c = el('div', 'playcard ' + elClass(card.element) + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : ''));
+      var c = el('div', 'playcard ' + elClass(card.element) + (card.effect === 'EVOLVE' ? ' evo-card' : '') + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : ''));
       c.style.setProperty('--fan-rot', ((i - mid) * 4) + 'deg');
       c.style.setProperty('--fan-y', (Math.abs(i - mid) * 7) + 'px');
       var statusLine = '';
@@ -925,6 +931,7 @@
     if (effect === 'DAMAGE') return 'dmg';
     if (effect === 'HEAL') return 'heal';
     if (effect === 'SHIELD') return 'shield';
+    if (effect === 'EVOLVE') return 'evo';
     return 'buff';
   }
   function effectLabel(card) {
@@ -941,6 +948,7 @@
       case 'BUFF_SPD': return '↑ +' + card.value + ' speed';
       case 'SLOW': return '❄ Slow enemies';
       case 'SWAP': return '⇄ Swap notches';
+      case 'EVOLVE': return '🌟 Evolve!';
       default: return card.effect;
     }
   }
