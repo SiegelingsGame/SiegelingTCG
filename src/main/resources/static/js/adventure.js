@@ -141,8 +141,12 @@
     }).forEach(function (s) {
       var picked = state.party.indexOf(s.id);
       var c = el('div', 'sgl-card ' + elClass(s.element) + (picked >= 0 ? ' sel' : ''));
+      var art = s.artUrl
+        ? '<div class="sart" style="background-image:url(\'' + encodeURI(s.artUrl) + '\')"></div>'
+        : '<div class="sart sart-fallback">' + icon(s.element) + '</div>';
       c.innerHTML =
         (picked >= 0 ? '<div class="selorder">' + (picked + 1) + '</div>' : '') +
+        art +
         '<div class="sname">' + esc(s.name) + '</div>' +
         '<div class="schip">' + icon(s.element) + ' ' + esc(s.element) + '</div>' +
         '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>';

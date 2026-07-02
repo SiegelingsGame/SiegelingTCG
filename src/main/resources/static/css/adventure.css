@@ -74,10 +74,12 @@ button{font-family:inherit;}
 .siegeling-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px;}
 .sgl-card{
   background:var(--panel); border:1px solid var(--border); border-top:3px solid var(--el);
-  border-radius:10px; padding:10px 12px; cursor:pointer; position:relative;
+  border-radius:10px; padding:10px 12px; cursor:pointer; position:relative; overflow:hidden;
 }
 .sgl-card:hover{border-color:var(--el);}
 .sgl-card.sel{outline:2px solid var(--accent); background:var(--panel-2);}
+.sgl-card .sart{height:104px; margin:-2px -6px 6px; border-radius:8px; background-size:contain; background-position:center bottom; background-repeat:no-repeat; background-color:rgba(0,0,0,.14);}
+.sgl-card .sart-fallback{display:flex; align-items:flex-end; justify-content:center; padding-bottom:8px; font-size:52px; color:var(--el); opacity:.4;}
 .sgl-card .sname{font-weight:650; font-size:14px;}
 .sgl-card .schip{display:inline-block; font-size:10px; color:var(--el); border:1px solid var(--el); border-radius:10px; padding:1px 7px; margin-top:4px;}
 .sgl-card .sstats{font-size:12px; color:var(--dim); margin-top:6px; display:flex; gap:10px;}
