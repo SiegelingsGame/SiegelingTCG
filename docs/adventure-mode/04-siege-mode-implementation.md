@@ -129,6 +129,41 @@ per-Siegeling (stage 3) Ultimates — the Siege roster is currently flat, so
 these need stage data on `SieglingCard` first. Deck size is party-driven
 (roguelike deck-building) rather than the fixed 24 of the PvP spec.
 
+## v4 — Living expedition (camps, brokers, caches, evolution, paged setup)
+
+- **Gold economy**: battle wins pay gold (deeper floors and elites pay more);
+  caches pay it out; camp traders and brokers charge it. Shown as 🪙 chips on
+  the map, camp, and cache screens.
+- **Interactive Rest Camps** (CZN-style stops): entering a Rest node sets up
+  camp — a campfire scene with the party's cutouts. Resting (40% heal, knight
+  included) is always free; a **wandering trader** (65%) sells two move cards,
+  hot stew (25% heal), and a card upgrade; a **Siegeling broker** (45%) offers
+  a recruit for hire. Each option once per stop; "Break Camp" moves on.
+  Endpoints: `camp/choose`, `camp/leave`.
+- **Cache dig minigame** (press your luck): a starting find, then each "Dig
+  Deeper" risks collapse (15% → 35% → 55% → 75%): a bust buries the unbanked
+  gold. Digs can also find tonics (+3 max HP, kept on bust) and buried move
+  cards. "Bank the Loot" seals the cache. Endpoints: `cache/dig`, `cache/take`.
+- **Automatic evolution**: team select offers **stage-1 Siegelings only**
+  (evolution cards are filtered out and tagged "EVO ↑"). Every second battle a
+  Siegeling survives, it evolves into its next catalog stage — same deck cards,
+  new art/element/stats, an evolution heal surge, and the new stage's moves
+  join the deck.
+- **Unique knight abilities**: each SiegeKnight's deck card is built from its
+  dashboard active ability (effect/value/target), now with its element's status
+  rider; the setup page shows the ability name, numbers, and description.
+- **Paged team select**: step 1 pick a SiegeKnight → approve; step 2 pick the
+  warband → begin, with step chips and slide-in transitions.
+- **Unit inspection**: ⓘ on setup cards and tapping party chips opens a modal
+  listing the unit's cards/abilities (cost, effect, status chance, description).
+- **Speed race track**: the battle header shows both teams racing along lanes —
+  each living unit an element marker at its cumulative Speed, the leading side
+  carrying the 🏁 — replacing the plain speed chips.
+- **Mobile fit**: the battle screen (knight plate, track, stage, log, HUD,
+  hand) and the map (compact scrollable party strip + gold + DAG) each fit a
+  single phone screen; enemy intent telegraphs moved inside nameplates so they
+  can no longer clip off the stage.
+
 ## Known limitations / next steps
 
 - Runs are in-memory only (not yet persisted to Firestore) — a server restart drops an

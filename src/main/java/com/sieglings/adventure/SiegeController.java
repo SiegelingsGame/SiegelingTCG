@@ -61,6 +61,30 @@ public class SiegeController {
         return siege.chooseReward(str(body.get("token")), str(body.get("optionId")));
     }
 
+    /** Use one Rest Camp interaction (rest / trader goods / broker): body { token, optionId }. */
+    @PostMapping("/api/siege/camp/choose")
+    public Map<String, Object> campChoose(@RequestBody Map<String, Object> body) {
+        return siege.campChoose(str(body.get("token")), str(body.get("optionId")));
+    }
+
+    /** Break camp and open the map back up: body { token }. */
+    @PostMapping("/api/siege/camp/leave")
+    public Map<String, Object> campLeave(@RequestBody Map<String, Object> body) {
+        return siege.campLeave(str(body.get("token")));
+    }
+
+    /** Cache minigame: dig deeper (press your luck): body { token }. */
+    @PostMapping("/api/siege/cache/dig")
+    public Map<String, Object> cacheDig(@RequestBody Map<String, Object> body) {
+        return siege.cacheDig(str(body.get("token")));
+    }
+
+    /** Cache minigame: bank the loot and move on: body { token }. */
+    @PostMapping("/api/siege/cache/take")
+    public Map<String, Object> cacheTake(@RequestBody Map<String, Object> body) {
+        return siege.cacheTake(str(body.get("token")));
+    }
+
     /** Play a card: body { token, cardId, targetId? }. */
     @PostMapping("/api/siege/battle/play")
     public Map<String, Object> play(@RequestBody Map<String, Object> body) {
