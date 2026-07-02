@@ -86,6 +86,49 @@ The second milestone upgraded the mode into the full prototype loop:
   damage/heal numbers, defeat pose), with name-plates carrying HP/shield/buff.
   The hand is a fanned card arc at the bottom of the screen.
 
+## v3 — Battle rules spec (rounds, statuses, the Knight, telegraphs)
+
+The third milestone replaced the ATB timeline with the designed battle rules and
+made enemy turns watchable:
+
+- **Team Speed rounds**: each round sums the Speeds of the living active
+  Siegelings vs the enemy team; the faster side acts first (recomputed every
+  round, ties are a coin flip). The round/speed readout sits above the stage.
+- **Elements = status effects only** (the weakness chart is gone; damage is
+  exactly the number written on the card, plus explicit attack buffs):
+  Fire → **Burn** (1 damage end of each round), Ice → **Slow** (−2 Speed for
+  2 rounds), Earth → **Stun** (skip next action), Sky (Wind/Electric) →
+  **Shock** (−1 AP next turn / weakened enemy blow). Application chances are
+  written on each card (20–40% by AP cost); enemies apply theirs at 20%.
+- **5 shared AP per turn**; 0-AP cards exist. **Hand**: opening 6 with
+  guarantees (1 Knight card + 1 card from each active Siegeling), draw 1 per
+  turn, max 8, unplayed cards persist; internal decks are permanent (discard
+  reshuffles back in).
+- **The SiegeKnight fights**: a 40-HP unit behind the line. A Siegeling KO
+  wounds it for 5; with no Siegelings left enemies strike it directly; the
+  battle is lost when the Knight falls. **Knight Ultimate** (not a card, 0 AP,
+  20 Charge): +1 Charge per turn, +1 per Knight card played, +1 per unused AP;
+  fires a heavy elemental sweep with a guaranteed status.
+- **Positions & telegraphs**: Siegelings stand on numbered notches. Enemies
+  pre-declare next round's ability *and targeted notch* (intent chips over each
+  enemy; red target rings on threatened notches; sweep warnings). The blow
+  resolves against whoever stands there — `move_link` ("move to a new notch")
+  cards swap two Siegelings, so tanks can eat telegraphed hits (a vacated notch
+  makes the attack whiff).
+- **Watchable battles**: the server streams presentation events (card plays,
+  enemy actions, hits, statuses, KOs, burns, charge gains, round banners) that
+  the client plays back sequentially — element-colored projectiles with impact
+  bursts, action banners, shake/glow reactions — before rendering final state.
+- **Art fix**: battle/setup/reward art was double-encoded by `encodeURI`
+  (Firebase Storage URLs contain `%2F`), breaking every sprite in production;
+  URLs are now HTML/CSS-escaped only, with an elemental-silhouette `onerror`
+  fallback. Enemy names are themed to their element so silhouettes match.
+
+Not yet implemented from the battle spec: evolution cards / stages and
+per-Siegeling (stage 3) Ultimates — the Siege roster is currently flat, so
+these need stage data on `SieglingCard` first. Deck size is party-driven
+(roguelike deck-building) rather than the fixed 24 of the PvP spec.
+
 ## Known limitations / next steps
 
 - Runs are in-memory only (not yet persisted to Firestore) — a server restart drops an

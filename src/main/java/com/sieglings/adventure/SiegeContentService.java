@@ -12,18 +12,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
-import java.util.Set;
 
 /**
  * Builds all Siege content from the existing card catalog: the selectable
  * Siegeling / SiegeKnight roster, the combat cards derived from each Siegeling's
- * moves, procedural enemies, and the run map. Also owns the element-weakness
- * chart used for combat damage.
+ * moves, procedural enemies, and the run map. Elements carry no strengths or
+ * weaknesses — they only provide status effects (see {@link #statusFor}).
  */
 @Service
 public class SiegeContentService {
@@ -87,6 +85,39 @@ public class SiegeContentService {
         return new Combatant(id, s.getName(), s.getElement(), Side.PLAYER, hp, Math.max(4, s.getSpeed()), s.getCardArtUrl());
     }
 
+    /** The SiegeKnight as a battlefield unit: stands behind the line, no notch. */
+    Combatant toKnightCombatant(TrainerCard knight) {
+        return new Combatant("knight-unit", knight.getName(), knight.getElement(),
+                Side.PLAYER, 40, 5, knight.getCardArtUrl(), true);
+    }
+
+    /**
+     * Element → status mapping. Elements do NOT have rock-paper-scissors
+     * strengths or weaknesses; they only provide these status effects:
+     * Fire→Burn, Ice→Slow, Earth→Stun, Sky (Wind/Electric)→Shock.
+     */
+    static StatusKind statusFor(Element element) {
+        if (element == null) return null;
+        return switch (element) {
+            case FIRE -> StatusKind.BURN;
+            case ICE -> StatusKind.SLOW;
+            case EARTH -> StatusKind.STUN;
+            case WIND, ELECTRIC -> StatusKind.SHOCK;
+            default -> null;
+        };
+    }
+
+    /** Status application chance written on a damage card, by its AP cost. */
+    static int statusChanceFor(StatusKind status, int actionCost) {
+        if (status == null) return 0;
+        return switch (actionCost) {
+            case 0 -> 20;
+            case 1 -> 25;
+            case 2 -> 30;
+            default -> 40;
+        };
+    }
+
     List<SiegeCard> deckCardsFor(SieglingCard s, String ownerId) {
         List<SiegeCard> cards = new ArrayList<>();
         int n = 0;
@@ -127,11 +158,14 @@ public class SiegeContentService {
 
     private AbilitySpec toSpec(Move move) {
         Effect effect = effectFor(move.effectType());
-        TargetKind target = targetFor(move.targetType());
+        // A notch-move card targets the ally it trades places with.
+        TargetKind target = effect == Effect.SWAP ? TargetKind.ALLY_SINGLE : targetFor(move.targetType());
         int value = combatValue(move, effect);
         int actionCost = actionCostFor(move.energyCost());
+        StatusKind status = effect == Effect.DAMAGE ? statusFor(move.element()) : null;
         return new AbilitySpec(move.id(), move.name(), move.element(), effect, value, target, actionCost,
-                move.description() == null ? "" : move.description());
+                move.description() == null ? "" : move.description(),
+                status, statusChanceFor(status, actionCost));
     }
 
     private int combatValue(Move move, Effect effect) {
@@ -143,11 +177,13 @@ public class SiegeContentService {
             case HEAL, SHIELD -> base + 3;
             case BUFF_ATK, BUFF_SPD -> Math.max(1, base);
             case SLOW -> Math.max(1, base);
+            case SWAP -> 0;
         };
     }
 
     private int actionCostFor(int energyCost) {
-        if (energyCost <= 1) return 1;
+        if (energyCost <= 0) return 0;
+        if (energyCost == 1) return 1;
         if (energyCost <= 3) return 2;
         return 3;
     }
@@ -159,6 +195,7 @@ public class SiegeContentService {
         if (key.contains("damage_boost")) return Effect.BUFF_ATK;
         if (key.contains("speed_boost")) return Effect.BUFF_SPD;
         if (key.contains("freeze") || key.contains("speed_zero")) return Effect.SLOW;
+        if (key.contains("move_link") || key.contains("notch")) return Effect.SWAP;
         return Effect.DAMAGE;
     }
 
@@ -175,10 +212,21 @@ public class SiegeContentService {
 
     // ---- Enemies --------------------------------------------------------
 
-    private static final String[] ENEMY_NAMES = {
-            "Rift Crawler", "Gloom Maw", "Cinder Husk", "Bramble Fiend", "Frost Shade",
-            "Static Wisp", "Iron Golem", "Bog Lurker", "Ash Revenant", "Mire Beast"
-    };
+    /** Enemy names themed to their element so the silhouette matches the label. */
+    private static final Map<Element, String[]> ENEMY_NAMES_BY_ELEMENT = Map.ofEntries(
+            Map.entry(Element.FIRE, new String[] { "Cinder Husk", "Ash Revenant", "Ember Fiend" }),
+            Map.entry(Element.WATER, new String[] { "Bog Lurker", "Mire Beast", "Tide Creeper" }),
+            Map.entry(Element.EARTH, new String[] { "Iron Golem", "Stone Shambler", "Crag Brute" }),
+            Map.entry(Element.WIND, new String[] { "Gale Shrike", "Squall Wisp", "Zephyr Fiend" }),
+            Map.entry(Element.ICE, new String[] { "Frost Shade", "Rime Stalker", "Glacier Maw" }),
+            Map.entry(Element.ELECTRIC, new String[] { "Static Wisp", "Volt Fiend", "Storm Crawler" }),
+            Map.entry(Element.SHADOW, new String[] { "Gloom Maw", "Umbral Stalker", "Dusk Wraith" }),
+            Map.entry(Element.METAL, new String[] { "Scrap Golem", "Gear Fiend", "Rust Hulk" }),
+            Map.entry(Element.UNDEAD, new String[] { "Grave Husk", "Bone Revenant", "Crypt Shade" }),
+            Map.entry(Element.PSYCHIC, new String[] { "Mind Leech", "Dream Wisp", "Rift Crawler" }),
+            Map.entry(Element.POISON, new String[] { "Venom Creeper", "Blight Fiend", "Spore Beast" }),
+            Map.entry(Element.LIGHT, new String[] { "Radiant Shade", "Gleam Wisp", "Halo Fiend" }));
+    private static final String[] ENEMY_NAMES_FALLBACK = { "Rift Crawler", "Gloom Maw", "Mire Beast" };
     private static final String[] BOSS_NAMES = { "Siegelord Vareth", "The Hollow Warden", "Umbral Titan" };
 
     List<Combatant> generateEnemies(NodeType type, int floor, Random rng, List<Element> palette) {
@@ -201,9 +249,10 @@ public class SiegeContentService {
             Element element = palette.get(rng.nextInt(palette.size()));
             int hp = (int) Math.round((22 + floor * 6 + rng.nextInt(8)) * hpMul);
             int speed = 6 + rng.nextInt(8) + (type == NodeType.BOSS ? 2 : 0);
+            String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
             String name = type == NodeType.BOSS
                     ? BOSS_NAMES[Math.floorMod(floor, BOSS_NAMES.length)]
-                    : ENEMY_NAMES[rng.nextInt(ENEMY_NAMES.length)];
+                    : names[rng.nextInt(names.length)];
             String id = "foe-" + floor + "-" + i;
             Combatant foe = new Combatant(id, name, element, Side.ENEMY, hp, speed, null);
             foe.getAbilities().addAll(enemyAbilities(element, floor, abilityCount, dmgMul, rng));
@@ -365,9 +414,10 @@ public class SiegeContentService {
     AbilitySpec upgradeSpec(AbilitySpec spec) {
         boolean scaling = spec.effect() == Effect.DAMAGE || spec.effect() == Effect.HEAL || spec.effect() == Effect.SHIELD;
         int value = scaling ? spec.value() + 2 : spec.value() + 1;
-        int cost = scaling ? spec.actionCost() : Math.max(1, spec.actionCost() - 1);
+        int cost = scaling ? spec.actionCost() : Math.max(0, spec.actionCost() - 1);
         return new AbilitySpec(spec.id(), spec.name() + " +", spec.element(),
-                spec.effect(), value, spec.target(), cost, spec.description());
+                spec.effect(), value, spec.target(), cost, spec.description(),
+                spec.status(), spec.statusChance());
     }
 
     /** A random selectable Siegeling not already in the warband, if any. */
@@ -380,31 +430,4 @@ public class SiegeContentService {
         return Optional.of(pool.get(rng.nextInt(pool.size())));
     }
 
-    // ---- Weakness chart -------------------------------------------------
-
-    private static final Map<Element, Set<Element>> STRONG_AGAINST = new LinkedHashMap<>();
-    static {
-        STRONG_AGAINST.put(Element.FIRE, Set.of(Element.ICE, Element.METAL));
-        STRONG_AGAINST.put(Element.ICE, Set.of(Element.WIND));
-        STRONG_AGAINST.put(Element.WIND, Set.of(Element.EARTH));
-        STRONG_AGAINST.put(Element.EARTH, Set.of(Element.FIRE, Element.ELECTRIC));
-        STRONG_AGAINST.put(Element.WATER, Set.of(Element.FIRE, Element.ICE));
-        STRONG_AGAINST.put(Element.METAL, Set.of(Element.EARTH, Element.WIND));
-        STRONG_AGAINST.put(Element.ELECTRIC, Set.of(Element.WIND, Element.WATER));
-        STRONG_AGAINST.put(Element.POISON, Set.of(Element.ICE, Element.EARTH));
-        STRONG_AGAINST.put(Element.SHADOW, Set.of(Element.PSYCHIC));
-        STRONG_AGAINST.put(Element.PSYCHIC, Set.of(Element.LIGHT));
-        STRONG_AGAINST.put(Element.LIGHT, Set.of(Element.UNDEAD, Element.SHADOW));
-        STRONG_AGAINST.put(Element.UNDEAD, Set.of(Element.SHADOW));
-    }
-
-    /** Damage multiplier for an attacker element hitting a defender element. */
-    double weaknessMultiplier(Element attacker, Element defender) {
-        if (attacker == null || defender == null) return 1.0;
-        Set<Element> strong = STRONG_AGAINST.get(attacker);
-        if (strong != null && strong.contains(defender)) return 1.3;
-        Set<Element> reverse = STRONG_AGAINST.get(defender);
-        if (reverse != null && reverse.contains(attacker)) return 0.8;
-        return 1.0;
-    }
 }

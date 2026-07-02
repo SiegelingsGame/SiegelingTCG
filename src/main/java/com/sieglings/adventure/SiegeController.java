@@ -72,6 +72,12 @@ public class SiegeController {
         return siege.endTurn(str(body.get("token")));
     }
 
+    /** Fire the SiegeKnight Ultimate (not a card, 0 AP, needs full Charge): body { token }. */
+    @PostMapping("/api/siege/battle/ultimate")
+    public Map<String, Object> knightUltimate(@RequestBody Map<String, Object> body) {
+        return siege.knightUltimate(str(body.get("token")));
+    }
+
     /** Apply a finished battle's outcome and advance the map / end the run. */
     @PostMapping("/api/siege/continue")
     public Map<String, Object> continueRun(@RequestBody Map<String, Object> body) {

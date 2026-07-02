@@ -96,6 +96,7 @@ public class SiegeService {
         run.setKnightElement(knight.getElement());
         run.setKnightActive(content.knightActiveSpec(knight));
         run.setKnightPassiveDesc(content.knightPassiveDescription(knight));
+        run.setKnightUnit(content.toKnightCombatant(knight));
 
         int slot = 0;
         for (String id : sieglingIds) {
@@ -320,6 +321,15 @@ public class SiegeService {
         return serialize(run);
     }
 
+    /** Fires the Knight Ultimate (not a card; 0 AP; needs 20 Charge). */
+    Map<String, Object> knightUltimate(String token) {
+        SiegeRun run = require(token);
+        SiegeCombatEngine.PlayResult result = engine.useKnightUltimate(run, rng);
+        Map<String, Object> out = serialize(run);
+        if (!result.ok && result.message != null) out.put("error", result.message);
+        return out;
+    }
+
     private List<Element> elementPaletteFor(SiegeRun run) {
         // Bias enemies toward elements that counter the party for a bit of tension,
         // but fall back to the live palette so content stays valid.
@@ -341,6 +351,11 @@ public class SiegeService {
         knight.put("element", run.getKnightElement() == null ? null : run.getKnightElement().name());
         knight.put("passive", run.getKnightPassiveDesc());
         knight.put("active", run.getKnightActive() == null ? null : run.getKnightActive().name());
+        if (run.getKnightUnit() != null) {
+            knight.put("hp", run.getKnightUnit().getHp());
+            knight.put("maxHp", run.getKnightUnit().getMaxHp());
+            knight.put("artUrl", run.getKnightUnit().getArtUrl());
+        }
         m.put("knight", knight);
 
         List<Map<String, Object>> party = new ArrayList<>();
@@ -391,25 +406,65 @@ public class SiegeService {
     private Map<String, Object> serializeBattle(SiegeRun run, SiegeBattle battle) {
         Map<String, Object> b = new LinkedHashMap<>();
         b.put("phase", battle.getPhase().name());
-        b.put("turnNumber", battle.getTurnNumber());
+        b.put("roundNumber", battle.getRoundNumber());
+        b.put("playerActsFirst", battle.isPlayerActsFirst());
+        b.put("playerSpeed", battle.getPlayerSpeed());
+        b.put("enemySpeed", battle.getEnemySpeed());
         b.put("actionPoints", battle.getActionPoints());
         b.put("maxActionPoints", SiegeBattle.ACTIONS_PER_TURN);
+        b.put("handMax", SiegeBattle.HAND_MAX);
         b.put("leadId", battle.getLeadId());
         b.put("nodeType", battle.getNodeType().name());
         b.put("deckCount", battle.getDeck().size());
         b.put("discardCount", battle.getDiscard().size());
         b.put("log", new ArrayList<>(battle.getLog()));
 
+        // The Knight: HP, Ultimate Charge, and readiness for the HUD.
+        Combatant knightUnit = battle.knight();
+        Map<String, Object> knight = new LinkedHashMap<>();
+        knight.put("name", run.getKnightName());
+        knight.put("element", run.getKnightElement() == null ? null : run.getKnightElement().name());
+        if (knightUnit != null) {
+            knight.put("id", knightUnit.getId());
+            knight.put("hp", knightUnit.getHp());
+            knight.put("maxHp", knightUnit.getMaxHp());
+            knight.put("artUrl", knightUnit.getArtUrl());
+        }
+        knight.put("charge", battle.getKnightCharge());
+        knight.put("ultCost", SiegeBattle.KNIGHT_ULT_COST);
+        knight.put("ultReady", knightUnit != null && knightUnit.isAlive()
+                && battle.getKnightCharge() >= SiegeBattle.KNIGHT_ULT_COST);
+        b.put("knight", knight);
+
         List<Map<String, Object>> allies = new ArrayList<>();
         List<Map<String, Object>> foes = new ArrayList<>();
-        // Initiative-order preview for the UI.
         for (Combatant c : battle.getCombatants()) {
+            if (c.isKnight()) continue;
             Map<String, Object> cm = serializeCombatant(c, c.getSide() == Side.ENEMY);
             if (c.getSide() == Side.PLAYER) allies.add(cm); else foes.add(cm);
         }
+        // Present the line in notch order so positions read left → right.
+        allies.sort((x, y) -> Integer.compare((int) x.getOrDefault("position", 0), (int) y.getOrDefault("position", 0)));
         b.put("allies", allies);
         b.put("enemies", foes);
-        b.put("order", initiativeOrder(battle));
+
+        // Which notches are threatened by telegraphed enemy attacks.
+        List<Integer> targetedPositions = new ArrayList<>();
+        boolean sweepIncoming = false;
+        for (Combatant foe : battle.living(Side.ENEMY)) {
+            AbilitySpec intent = foe.getIntent();
+            if (intent == null || intent.effect() != Effect.DAMAGE) continue;
+            if (intent.target() == TargetKind.ALL_ENEMIES) sweepIncoming = true;
+            else if (foe.getIntentPosition() >= 0 && !targetedPositions.contains(foe.getIntentPosition())) {
+                targetedPositions.add(foe.getIntentPosition());
+            }
+        }
+        b.put("targetedPositions", targetedPositions);
+        b.put("sweepIncoming", sweepIncoming);
+
+        // Presentation events since the last response, for client playback.
+        b.put("events", new ArrayList<>(battle.getEvents()));
+        battle.getEvents().clear();
 
         List<Map<String, Object>> hand = new ArrayList<>();
         boolean playerTurn = battle.getPhase() == BattlePhase.PLAYER_INPUT;
@@ -419,9 +474,11 @@ public class SiegeService {
         for (SiegeCard card : battle.getHand()) {
             AbilitySpec spec = card.getSpec();
             Combatant owner = battle.findCombatant(card.getOwnerId());
-            boolean ownerAlive = card.getOwnerId().startsWith(SiegeCombatEngine.KNIGHT_OWNER_PREFIX)
-                    ? !battle.living(Side.PLAYER).isEmpty()
+            boolean knightCard = card.getOwnerId().startsWith(SiegeCombatEngine.KNIGHT_OWNER_PREFIX);
+            boolean ownerAlive = knightCard
+                    ? (knightUnit != null ? knightUnit.isAlive() : !battle.living(Side.PLAYER).isEmpty())
                     : owner != null && owner.isAlive();
+            boolean ownerReady = knightCard || owner == null || !owner.has(StatusKind.STUN);
             boolean affordable = battle.getActionPoints() >= spec.actionCost();
             Map<String, Object> h = new LinkedHashMap<>();
             h.put("instanceId", card.getInstanceId());
@@ -435,29 +492,18 @@ public class SiegeService {
             h.put("target", spec.target().name());
             h.put("actionCost", spec.actionCost());
             h.put("description", spec.description());
+            if (spec.status() != null && spec.statusChance() > 0) {
+                h.put("status", spec.status().name());
+                h.put("statusChance", spec.statusChance());
+            }
             h.put("ownerId", card.getOwnerId());
-            h.put("ownerName", card.getOwnerId().startsWith(SiegeCombatEngine.KNIGHT_OWNER_PREFIX)
-                    ? run.getKnightName() : (owner == null ? "" : owner.getName()));
+            h.put("ownerName", knightCard ? run.getKnightName() : (owner == null ? "" : owner.getName()));
             h.put("needsTarget", spec.needsExplicitTarget());
-            h.put("playable", playerTurn && ownerAlive && affordable);
+            h.put("playable", playerTurn && ownerAlive && ownerReady && affordable);
             hand.add(h);
         }
         b.put("hand", hand);
         return b;
-    }
-
-    private List<String> initiativeOrder(SiegeBattle battle) {
-        // Rough next-to-act ordering by how close each unit is to the threshold.
-        List<Combatant> living = new ArrayList<>();
-        for (Combatant c : battle.getCombatants()) if (c.isAlive()) living.add(c);
-        living.sort((a, b) -> {
-            double ra = (SiegeBattle.READY_THRESHOLD - a.getInitiative()) / Math.max(1, a.getSpeed());
-            double rb = (SiegeBattle.READY_THRESHOLD - b.getInitiative()) / Math.max(1, b.getSpeed());
-            return Double.compare(ra, rb);
-        });
-        List<String> order = new ArrayList<>();
-        for (Combatant c : living) order.add(c.getId());
-        return order;
     }
 
     private Map<String, Object> serializeCombatant(Combatant c, boolean includeAbilities) {
@@ -470,13 +516,28 @@ public class SiegeService {
         m.put("maxHp", c.getMaxHp());
         m.put("shield", c.getShield());
         m.put("speed", c.getSpeed());
+        m.put("effectiveSpeed", c.effectiveSpeed());
         m.put("attackBuff", c.getAttackBuff());
         m.put("alive", c.isAlive());
         m.put("artUrl", c.getArtUrl());
+        m.put("position", c.getPosition());
+        List<String> statuses = new ArrayList<>();
+        for (StatusKind s : c.getStatuses().keySet()) statuses.add(s.name());
+        m.put("statuses", statuses);
         if (includeAbilities) {
             List<String> names = new ArrayList<>();
             for (AbilitySpec a : c.getAbilities()) names.add(a.name());
             m.put("abilities", names);
+            AbilitySpec intent = c.getIntent();
+            if (intent != null) {
+                Map<String, Object> im = new LinkedHashMap<>();
+                im.put("name", intent.name());
+                im.put("effect", intent.effect().name());
+                im.put("value", intent.value());
+                im.put("sweep", intent.target() == TargetKind.ALL_ENEMIES);
+                im.put("position", c.getIntentPosition());
+                m.put("intent", im);
+            }
         }
         return m;
     }

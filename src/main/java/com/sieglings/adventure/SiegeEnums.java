@@ -15,7 +15,19 @@ enum Effect {
     SHIELD,     // grant value temporary shield HP
     BUFF_ATK,   // grant target +value flat attack for the battle
     BUFF_SPD,   // grant target +value speed for the battle
-    SLOW        // delay the target's next turn (freeze / speed_zero flavored)
+    SLOW,       // apply the Slow status (freeze / speed_zero flavored)
+    SWAP        // move to a new notch: swap positions with another Siegeling
+}
+
+/**
+ * Elemental status effects. Elements have no rock-paper-scissors weakness
+ * chart — they only carry these statuses, applied by chance written on cards.
+ */
+enum StatusKind {
+    BURN,   // Fire:  1 damage at the end of each round
+    SLOW,   // Ice:   -2 Speed for 2 rounds
+    STUN,   // Earth: skip the next action
+    SHOCK   // Sky:   party loses 1 AP next turn / enemy's next hit is weakened
 }
 
 /** Who a card / enemy ability can be aimed at. */

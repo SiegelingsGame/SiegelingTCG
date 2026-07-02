@@ -3,7 +3,12 @@
  * and submits actions. Run is addressed by an opaque token in localStorage.
  *
  * Screens: setup (warband select) → branching map (SVG DAG) → battle stage
- * (overlay-art character sprites + fanned card hand) → reward picks → result. */
+ * (overlay-art character sprites + fanned card hand) → reward picks → result.
+ *
+ * Battles are round-based (team Speed decides who acts first). The server
+ * streams presentation events (attacks, statuses, KOs) that this client plays
+ * back as projectiles and action moments before rendering the final state.
+ * Enemy attacks telegraph the notch they target — shown as red markers. */
 (function () {
   'use strict';
 
@@ -16,13 +21,23 @@
     elementFilter: 'ALL',
     selectedCardId: null,
     selectedCardNeedsTarget: false,
-    busy: false,
-    prevUnits: {}       // combatant id -> {hp, alive} for hit/heal animation diffs
+    busy: false
   };
 
   var EL_ICON = {
     FIRE: '🔥', WATER: '💧', EARTH: '🪨', WIND: '🌪️', ICE: '❄️', SHADOW: '🌑',
     ELECTRIC: '⚡', METAL: '⚙️', UNDEAD: '💀', PSYCHIC: '🔮', POISON: '☠️', LIGHT: '✨', NEUTRAL: '◇'
+  };
+  var EL_COLOR = {
+    FIRE: '#ff501e', WATER: '#3296ff', EARTH: '#b48c50', WIND: '#96ffb4', ICE: '#76e6ff',
+    SHADOW: '#9a63d6', ELECTRIC: '#ffe63c', METAL: '#a0aab4', UNDEAD: '#8c78a0',
+    PSYCHIC: '#c896ff', POISON: '#78dc50', LIGHT: '#fff0b0', NEUTRAL: '#95a5a6'
+  };
+  var STATUS_META = {
+    BURN: { icon: '🔥', label: 'Burn' },
+    SLOW: { icon: '❄️', label: 'Slow' },
+    STUN: { icon: '💫', label: 'Stun' },
+    SHOCK: { icon: '⚡', label: 'Shock' }
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BOSS: '#ff9a3c' };
@@ -55,8 +70,14 @@
     return e;
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  /* Art URLs may already be percent-encoded (Firebase Storage object paths use
+   * %2F). encodeURI would double-encode the % and 404 the image, so only
+   * HTML/CSS-escape them. */
+  function artAttr(url) { return esc(url); }
+  function artCss(url) { return esc(String(url == null ? '' : url).replace(/'/g, '%27').replace(/\)/g, '%29')); }
   function elClass(element) { return 'el-' + (element || 'NEUTRAL'); }
   function icon(element) { return EL_ICON[element] || '◇'; }
+  function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
     ['loadingScreen', 'setupScreen', 'mapScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
@@ -95,6 +116,7 @@
   function wireStaticButtons() {
     $('startRunBtn').addEventListener('click', startRun);
     $('endTurnBtn').addEventListener('click', endTurn);
+    $('knightUltBtn').addEventListener('click', useUltimate);
     $('rewardSkipBtn').addEventListener('click', function () { chooseReward('skip'); });
     $('resultBtn').addEventListener('click', function () { setToken(null); location.href = '/play'; });
     $('abandonBtn').addEventListener('click', function () {
@@ -147,7 +169,7 @@
       var picked = state.party.indexOf(s.id);
       var c = el('div', 'sgl-card ' + elClass(s.element) + (picked >= 0 ? ' sel' : ''));
       var art = s.artUrl
-        ? '<div class="sart" style="background-image:url(\'' + encodeURI(s.artUrl) + '\')"></div>'
+        ? '<div class="sart" style="background-image:url(\'' + artCss(s.artUrl) + '\')"></div>'
         : '<div class="sart sart-fallback">' + icon(s.element) + '</div>';
       c.innerHTML =
         (picked >= 0 ? '<div class="selorder">' + (picked + 1) + '</div>' : '') +
@@ -187,7 +209,7 @@
   function startRun() {
     if (state.busy) return; state.busy = true;
     api('/api/siege/run/new', { method: 'POST', body: { knightId: state.knightId, sieglingIds: state.party } })
-      .then(function (run) { setToken(run.token); state.run = run; state.prevUnits = {}; renderRun(); })
+      .then(function (run) { setToken(run.token); applyRun(run); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -197,10 +219,22 @@
     var run = state.run;
     if (!run) { loadRoster(); return; }
     $('abandonBtn').classList.toggle('hidden', run.status !== 'ACTIVE');
-    if (run.status === 'WON' || run.status === 'LOST') { renderResult(); return; }
     if (run.battle) { renderBattle(); return; }
+    if (run.status === 'WON' || run.status === 'LOST') { renderResult(); return; }
     if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
     renderMap();
+  }
+
+  /** Applies a fresh server state: plays pending battle events first, then renders. */
+  function applyRun(run) {
+    var events = run && run.battle && run.battle.events ? run.battle.events : [];
+    var hadBattleDom = state.run && state.run.battle && !$('battleScreen').classList.contains('hidden');
+    state.run = run;
+    if (events.length && hadBattleDom) {
+      playEvents(events, function () { renderRun(); });
+    } else {
+      renderRun();
+    }
   }
 
   // ---- branching map (SVG DAG, boss at the top) ------------------------
@@ -209,7 +243,7 @@
   function renderMap() {
     showScreen('mapScreen');
     var run = state.run;
-    renderPartyStrip($('partyStrip'), run.party);
+    renderPartyStrip($('partyStrip'), run.party, run.knight);
     $('mapReward').textContent = run.lastReward || '';
     $('mapDeckCount').textContent = '🃏 Deck: ' + (run.deckSize || '—') + ' cards';
     $('mapHint').textContent = run.currentNodeId < 0 ? 'Choose where the expedition begins' : 'Choose your path';
@@ -321,18 +355,29 @@
   function travelTo(nodeId) {
     if (state.busy) return; state.busy = true;
     api('/api/siege/node/enter', { method: 'POST', body: { token: token(), nodeId: nodeId } })
-      .then(function (run) { state.run = run; state.prevUnits = {}; renderRun(); })
+      .then(function (run) { state.run = run; renderRun(); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
 
-  function renderPartyStrip(host, party) {
+  function renderPartyStrip(host, party, knight) {
     host.innerHTML = '';
+    if (knight && knight.hp != null) {
+      var kchip = el('div', 'party-chip knight-chip ' + elClass(knight.element));
+      var kpct = Math.max(0, Math.round(100 * knight.hp / Math.max(1, knight.maxHp)));
+      kchip.innerHTML = '<div class="pthumb pthumb-fallback">🛡️</div>' +
+        '<div class="pbody">' +
+        '<div class="pname">' + icon(knight.element) + ' ' + esc(knight.name) + '</div>' +
+        '<div class="phpbar"><div class="phpfill" style="width:' + kpct + '%"></div></div>' +
+        '<div class="phptext">Knight HP ' + knight.hp + ' / ' + knight.maxHp + '</div>' +
+        '</div>';
+      host.appendChild(kchip);
+    }
     party.forEach(function (p) {
       var chip = el('div', 'party-chip ' + elClass(p.element) + (p.alive ? '' : ' dead'));
       var pct = Math.max(0, Math.round(100 * p.hp / Math.max(1, p.maxHp)));
       var thumb = p.artUrl
-        ? '<div class="pthumb" style="background-image:url(\'' + encodeURI(p.artUrl) + '\')"></div>'
+        ? '<div class="pthumb" style="background-image:url(\'' + artCss(p.artUrl) + '\')"></div>'
         : '<div class="pthumb pthumb-fallback">' + icon(p.element) + '</div>';
       var buff = p.attackBuff > 0 ? '  ·  <span class="pbuff">⚔ +' + p.attackBuff + '</span>' : '';
       chip.innerHTML = thumb +
@@ -351,33 +396,29 @@
     var b = state.run.battle;
     if (!b) { renderMap(); return; }
 
-    // initiative order
-    var ib = $('initiativeBar'); ib.innerHTML = '<span class="init-label">Next up:</span>';
-    var byId = {};
-    b.allies.concat(b.enemies).forEach(function (c) { byId[c.id] = c; });
-    (b.order || []).slice(0, 8).forEach(function (id) {
-      var c = byId[id]; if (!c) return;
-      var pip = el('span', 'init-pip ' + elClass(c.element) + (c.side === 'ENEMY' ? ' enemy' : ''), icon(c.element) + ' ' + esc(c.name));
-      ib.appendChild(pip);
-    });
+    // round + speed readout
+    var ib = $('initiativeBar'); ib.innerHTML = '';
+    ib.appendChild(el('span', 'round-chip', 'Round ' + b.roundNumber));
+    ib.appendChild(el('span', 'speed-chip' + (b.playerActsFirst ? ' you' : ' them'),
+      '⚡ ' + b.playerSpeed + ' vs ' + b.enemySpeed + ' · ' + (b.playerActsFirst ? 'You act first' : 'Enemy acts first')));
+    if (b.sweepIncoming) {
+      ib.appendChild(el('span', 'sweep-chip', '⚠ Sweep incoming — every notch is threatened'));
+    }
 
+    renderKnightPlate(b);
     renderSpriteLine($('enemyRow'), b.enemies, 'enemy', b);
     renderSpriteLine($('allyRow'), b.allies, 'ally', b);
-
-    // damage/heal reactions from the previous state snapshot
-    animateDiffs(b);
-    snapshotUnits(b);
 
     // log ticker
     var log = $('battleLog'); log.innerHTML = '';
     (b.log || []).slice(-3).reverse().forEach(function (line) { if (line) log.appendChild(el('div', 'lg', esc(line))); });
 
     // hud
-    var ap = $('apDisplay'); ap.innerHTML = '<span class="ap-label">Actions</span>';
-    for (var i = 0; i < (b.maxActionPoints || 3); i++) {
+    var ap = $('apDisplay'); ap.innerHTML = '<span class="ap-label">AP</span>';
+    for (var i = 0; i < (b.maxActionPoints || 5); i++) {
       ap.appendChild(el('span', 'ap-pip' + (i < b.actionPoints ? ' full' : '')));
     }
-    $('deckCounts').textContent = 'Deck ' + b.deckCount + ' · Discard ' + b.discardCount;
+    $('deckCounts').textContent = 'Deck ' + b.deckCount + ' · Hand ' + b.hand.length + '/' + (b.handMax || 8) + ' · Discard ' + b.discardCount;
 
     var over = b.phase === 'WON' || b.phase === 'LOST';
     $('endTurnBtn').classList.toggle('hidden', over);
@@ -387,57 +428,254 @@
     updateHint(b, over);
   }
 
+  function renderKnightPlate(b) {
+    var host = $('knightPlate');
+    var k = b.knight;
+    if (!k || k.hp == null) { host.classList.add('hidden'); return; }
+    host.classList.remove('hidden');
+    host.className = 'knight-plate ' + elClass(k.element) + (k.hp <= 0 ? ' dead' : '');
+    var pct = Math.max(0, Math.round(100 * k.hp / Math.max(1, k.maxHp)));
+    var chargePct = Math.min(100, Math.round(100 * k.charge / Math.max(1, k.ultCost)));
+    host.innerHTML =
+      '<div class="kp-head"><span class="kp-name">🛡️ ' + esc(k.name) + '</span>' +
+      '<span class="kp-hp">' + k.hp + '/' + k.maxHp + '</span></div>' +
+      '<div class="kp-hpbar"><div class="kp-hpfill" style="width:' + pct + '%"></div></div>' +
+      '<div class="kp-chargebar" title="Knight Ultimate Charge"><div class="kp-chargefill" style="width:' + chargePct + '%"></div>' +
+      '<span class="kp-chargetext">⚡ ' + k.charge + '/' + k.ultCost + '</span></div>';
+    var ult = $('knightUltBtn');
+    ult.classList.toggle('hidden', b.phase === 'WON' || b.phase === 'LOST');
+    ult.disabled = !(k.ultReady && b.phase === 'PLAYER_INPUT');
+    ult.textContent = k.ultReady ? '⚡ ULTIMATE' : '⚡ Ult ' + k.charge + '/' + k.ultCost;
+  }
+
   function renderSpriteLine(host, units, side, b) {
     host.innerHTML = '';
+    var targeted = b.targetedPositions || [];
     units.forEach(function (u, idx) {
+      var isThreatened = side === 'ally' && u.alive &&
+        (targeted.indexOf(u.position) >= 0 || b.sweepIncoming);
       var sp = el('div', 'sprite ' + side + ' ' + elClass(u.element) +
-        (u.alive ? '' : ' dead') + (u.id === b.leadId ? ' lead' : ''));
+        (u.alive ? '' : ' dead') + (u.id === b.leadId ? ' lead' : '') +
+        (isThreatened ? ' threatened' : ''));
       sp.dataset.id = u.id; sp.dataset.side = u.side;
       sp.style.setProperty('--idle-delay', (idx * 0.45) + 's');
       var pct = Math.max(0, Math.round(100 * u.hp / Math.max(1, u.maxHp)));
       var shield = u.shield > 0 ? '<span class="sp-shield">🛡' + u.shield + '</span>' : '';
       var buff = u.attackBuff > 0 ? '<span class="sp-buff">⚔+' + u.attackBuff + '</span>' : '';
+      var statusChips = (u.statuses || []).map(function (s) {
+        var meta = STATUS_META[s];
+        return meta ? '<span class="sp-status st-' + s + '" title="' + meta.label + '">' + meta.icon + '</span>' : '';
+      }).join('');
       var body = u.artUrl
-        ? '<div class="sp-art"><img src="' + encodeURI(u.artUrl) + '" alt="" draggable="false"></div>'
+        ? '<div class="sp-art"><img src="' + artAttr(u.artUrl) + '" alt="" draggable="false" ' +
+          'onerror="this.parentNode.className=\'sp-art sp-art-fallback\';this.outerHTML=\'<span>' + icon(u.element) + '</span>\'"></div>'
         : '<div class="sp-art sp-art-fallback"><span>' + icon(u.element) + '</span></div>';
+      var intent = '';
+      if (side === 'enemy' && u.alive && u.intent) {
+        intent = '<div class="sp-intent">' + intentLabel(u.intent, b) + '</div>';
+      }
+      var notch = side === 'ally' && u.position >= 0 ? '<div class="sp-notch">' + (u.position + 1) + '</div>' : '';
       sp.innerHTML =
+        intent +
         '<div class="sp-plate">' +
           '<div class="sp-name">' + esc(u.name) + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
           '<div class="sp-hpbar"><div class="sp-hpfill" style="width:' + pct + '%"></div></div>' +
-          '<div class="sp-tags"><span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + '</div>' +
+          '<div class="sp-tags"><span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + statusChips + '</div>' +
         '</div>' +
         body +
-        '<div class="sp-shadow"></div>';
+        (isThreatened ? '<div class="sp-target-ring"><span class="sp-target-x">▼</span></div>' : '') +
+        '<div class="sp-shadow"></div>' +
+        notch;
       sp.addEventListener('click', function () { onUnitClick(u); });
       host.appendChild(sp);
     });
   }
 
-  function snapshotUnits(b) {
-    var snap = {};
-    b.allies.concat(b.enemies).forEach(function (u) { snap[u.id] = { hp: u.hp, alive: u.alive }; });
-    state.prevUnits = snap;
+  function intentLabel(intent, b) {
+    if (intent.effect === 'HEAL') return '💚 ' + esc(intent.name);
+    if (intent.effect === 'SHIELD') return '🛡 ' + esc(intent.name);
+    if (intent.effect !== 'DAMAGE') return esc(intent.name);
+    if (intent.sweep) return '⚔ ' + esc(intent.name) + ' ' + intent.value + ' → ALL';
+    var mark = null;
+    (b.allies || []).forEach(function (a) { if (a.alive && a.position === intent.position) mark = a; });
+    var who = mark ? esc(mark.name) : (intent.position >= 0 ? 'notch ' + (intent.position + 1) : 'the Knight');
+    return '⚔ ' + esc(intent.name) + ' ' + intent.value + ' → ' + who;
   }
 
-  function animateDiffs(b) {
-    var prev = state.prevUnits || {};
-    b.allies.concat(b.enemies).forEach(function (u) {
-      var before = prev[u.id];
-      if (!before) return;
-      var node = document.querySelector('.sprite[data-id="' + u.id + '"]');
-      if (!node) return;
-      if (u.hp < before.hp) {
-        node.classList.add('hurt');
-        var amt = el('div', 'sp-float dmg', '-' + (before.hp - u.hp));
-        node.appendChild(amt);
-        setTimeout(function () { node.classList.remove('hurt'); amt.remove(); }, 900);
-      } else if (u.hp > before.hp) {
-        node.classList.add('healed');
-        var plus = el('div', 'sp-float heal', '+' + (u.hp - before.hp));
-        node.appendChild(plus);
-        setTimeout(function () { node.classList.remove('healed'); plus.remove(); }, 900);
+  // ---- event playback (projectiles + action moments) --------------------
+  function playEvents(events, done) {
+    state.busy = true;
+    var stage = $('battleStage');
+    // Compress long sequences so playback stays snappy.
+    var scale = events.length > 10 ? 10 / events.length : 1;
+    var i = 0;
+
+    function step() {
+      if (i >= events.length) {
+        hideBanner();
+        state.busy = false;
+        done();
+        return;
       }
-    });
+      var ev = events[i++];
+      var wait = playEvent(ev, stage) * scale;
+      setTimeout(step, Math.max(60, wait));
+    }
+    step();
+  }
+
+  function playEvent(ev, stage) {
+    switch (ev.type) {
+      case 'round':
+        showBanner('Round ' + ev.round + ' — ⚡' + ev.playerSpeed + ' vs ' + ev.enemySpeed +
+          ' — ' + (ev.playerFirst ? 'You act first' : 'Enemy acts first'), ev.playerFirst ? 'you' : 'them');
+        return 950;
+      case 'card':
+        showBanner(nameOf(ev.sourceId) + ' uses ' + ev.name, 'you', ev.element);
+        return 550;
+      case 'enemyAct':
+        showBanner(nameOf(ev.sourceId) + ' uses ' + ev.name, 'them', ev.element);
+        flashSprite(ev.sourceId, 'acting');
+        return 700;
+      case 'ultimate':
+        showBanner('⚡ ' + ev.name + '!', 'you', ev.element);
+        return 800;
+      case 'hit':
+        fireProjectile(stage, ev.sourceId, ev.targetId, ev.element, function () {
+          impact(ev.targetId, ev.amount, ev.ko);
+        });
+        return 720;
+      case 'burn':
+        flashSprite(ev.targetId, 'hurt');
+        floatText(ev.targetId, '-' + ev.amount + ' 🔥', 'dmg');
+        return 420;
+      case 'heal':
+        flashSprite(ev.targetId, 'healed');
+        floatText(ev.targetId, '+' + ev.amount, 'heal');
+        return 420;
+      case 'shield':
+        flashSprite(ev.targetId, 'shielded');
+        floatText(ev.targetId, '🛡+' + ev.amount, 'shield');
+        return 400;
+      case 'buff':
+        showBanner(ev.kind === 'atk' ? 'The party gains +' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
+        return 480;
+      case 'status': {
+        var meta = STATUS_META[ev.status] || { icon: '', label: ev.status };
+        flashSprite(ev.targetId, 'statused');
+        floatText(ev.targetId, meta.icon + ' ' + meta.label + '!', 'status');
+        return 480;
+      }
+      case 'swap':
+        flashSprite(ev.aId, 'swapping');
+        flashSprite(ev.bId, 'swapping');
+        showBanner(nameOf(ev.aId) + ' ⇄ ' + nameOf(ev.bId) + ' swap notches', 'you');
+        return 550;
+      case 'whiff':
+        showBanner(nameOf(ev.sourceId) + '\'s ' + ev.name + ' hits empty ground!', 'them');
+        return 620;
+      case 'stunned':
+        flashSprite(ev.sourceId, 'statused');
+        floatText(ev.sourceId, '💫 Stunned!', 'status');
+        return 480;
+      case 'knightHit':
+        floatKnight('-' + ev.amount);
+        return 450;
+      case 'charge':
+        floatKnight('+' + ev.amount + ' ⚡');
+        return 260;
+      default:
+        return 60;
+    }
+  }
+
+  function nameOf(id) {
+    var b = state.run && state.run.battle;
+    if (!b) return '';
+    var all = (b.allies || []).concat(b.enemies || []);
+    for (var i = 0; i < all.length; i++) { if (all[i].id === id) return all[i].name; }
+    if (b.knight && b.knight.id === id) return b.knight.name;
+    return '';
+  }
+
+  function spriteOf(id) { return document.querySelector('.sprite[data-id="' + id + '"]'); }
+
+  function showBanner(text, side, element) {
+    var banner = $('actionBanner');
+    banner.textContent = text;
+    banner.className = 'action-banner show ' + (side || '');
+    banner.style.borderColor = element ? elColor(element) : '';
+    clearTimeout(showBanner._h);
+    showBanner._h = setTimeout(hideBanner, 1400);
+  }
+  function hideBanner() {
+    var banner = $('actionBanner');
+    if (banner) banner.className = 'action-banner';
+  }
+
+  function flashSprite(id, cls) {
+    var node = spriteOf(id);
+    if (!node) return;
+    node.classList.add(cls);
+    setTimeout(function () { node.classList.remove(cls); }, 700);
+  }
+
+  function floatText(id, text, cls) {
+    var node = spriteOf(id);
+    if (!node) return;
+    var f = el('div', 'sp-float ' + cls, esc(text));
+    node.appendChild(f);
+    setTimeout(function () { f.remove(); }, 900);
+  }
+
+  function floatKnight(text) {
+    var plate = $('knightPlate');
+    if (!plate || plate.classList.contains('hidden')) return;
+    plate.classList.add('kp-pulse');
+    var f = el('div', 'sp-float dmg', esc(text));
+    f.style.top = '-4px';
+    plate.appendChild(f);
+    setTimeout(function () { plate.classList.remove('kp-pulse'); f.remove(); }, 800);
+  }
+
+  function impact(targetId, amount, ko) {
+    var node = spriteOf(targetId);
+    if (node) {
+      node.classList.add('hurt');
+      setTimeout(function () { node.classList.remove('hurt'); if (ko) node.classList.add('dead'); }, 480);
+      floatText(targetId, '-' + amount, 'dmg');
+    } else if (state.run && state.run.battle && state.run.battle.knight && state.run.battle.knight.id === targetId) {
+      floatKnight('-' + amount);
+    }
+  }
+
+  /** Element-colored orb that flies from the source sprite to the target. */
+  function fireProjectile(stage, sourceId, targetId, element, onArrive) {
+    var src = spriteOf(sourceId), dst = spriteOf(targetId);
+    if (!src || !dst || !stage) { if (onArrive) onArrive(); return; }
+    var sRect = src.getBoundingClientRect(), dRect = dst.getBoundingClientRect(), gRect = stage.getBoundingClientRect();
+    var x0 = sRect.left + sRect.width / 2 - gRect.left, y0 = sRect.top + sRect.height * 0.55 - gRect.top;
+    var x1 = dRect.left + dRect.width / 2 - gRect.left, y1 = dRect.top + dRect.height * 0.55 - gRect.top;
+    var orb = el('div', 'projectile');
+    var color = elColor(element);
+    orb.style.background = 'radial-gradient(circle at 35% 30%, #fff, ' + color + ')';
+    orb.style.boxShadow = '0 0 14px ' + color + ', 0 0 30px ' + color;
+    orb.style.left = x0 + 'px'; orb.style.top = y0 + 'px';
+    stage.appendChild(orb);
+    var anim = orb.animate([
+      { transform: 'translate(-50%,-50%) scale(.6)', offset: 0 },
+      { transform: 'translate(calc(-50% + ' + ((x1 - x0) / 2) + 'px), calc(-50% + ' + ((y1 - y0) / 2 - 34) + 'px)) scale(1.15)', offset: 0.5 },
+      { transform: 'translate(calc(-50% + ' + (x1 - x0) + 'px), calc(-50% + ' + (y1 - y0) + 'px)) scale(.9)', offset: 1 }
+    ], { duration: 340, easing: 'ease-in' });
+    anim.onfinish = function () {
+      orb.remove();
+      var burst = el('div', 'impact-burst');
+      burst.style.left = x1 + 'px'; burst.style.top = y1 + 'px';
+      burst.style.background = 'radial-gradient(circle, ' + color + ', transparent 65%)';
+      stage.appendChild(burst);
+      setTimeout(function () { burst.remove(); }, 420);
+      if (onArrive) onArrive();
+    };
   }
 
   // ---- hand ------------------------------------------------------------
@@ -460,10 +698,16 @@
       var c = el('div', 'playcard ' + elClass(card.element) + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : ''));
       c.style.setProperty('--fan-rot', ((i - mid) * 4) + 'deg');
       c.style.setProperty('--fan-y', (Math.abs(i - mid) * 7) + 'px');
-      c.innerHTML = '<div class="pc-cost">' + card.actionCost + '</div>' +
+      var statusLine = '';
+      if (card.status && card.statusChance) {
+        var meta = STATUS_META[card.status] || { icon: '', label: card.status };
+        statusLine = '<div class="pc-status">' + meta.icon + ' ' + card.statusChance + '% ' + meta.label + '</div>';
+      }
+      c.innerHTML = '<div class="pc-cost' + (card.actionCost === 0 ? ' free' : '') + '">' + card.actionCost + '</div>' +
         '<div class="pc-name">' + esc(card.name) + '</div>' +
         '<div class="pc-owner">' + icon(card.element) + ' ' + esc(card.ownerName) + '</div>' +
         '<div class="pc-eff ' + effCls + '">' + effectLabel(card) + '</div>' +
+        statusLine +
         '<div class="pc-desc">' + esc(card.description || '') + '</div>';
       c.addEventListener('click', function () { onCardClick(card); });
       hand.appendChild(c);
@@ -489,13 +733,14 @@
       case 'BUFF_ATK': return '↑ +' + card.value + ' attack (party)';
       case 'BUFF_SPD': return '↑ +' + card.value + ' speed';
       case 'SLOW': return '❄ Slow enemies';
+      case 'SWAP': return '⇄ Swap notches';
       default: return card.effect;
     }
   }
 
   function onCardClick(card) {
     var b = state.run.battle;
-    if (!b || b.phase !== 'PLAYER_INPUT' || !card.playable) return;
+    if (!b || b.phase !== 'PLAYER_INPUT' || !card.playable || state.busy) return;
     if (card.needsTarget) {
       if (state.selectedCardId === card.instanceId) { clearSelection(); }
       else { state.selectedCardId = card.instanceId; state.selectedCardNeedsTarget = true; renderBattle(); }
@@ -505,7 +750,7 @@
   }
 
   function onUnitClick(u) {
-    if (!state.selectedCardId || !state.selectedCardNeedsTarget) return;
+    if (!state.selectedCardId || !state.selectedCardNeedsTarget || state.busy) return;
     var card = currentCard();
     if (!card) return;
     var wantsEnemy = card.target === 'ENEMY_SINGLE';
@@ -525,10 +770,12 @@
     if (b.phase !== 'PLAYER_INPUT') { hint.textContent = 'Enemies are acting…'; return; }
     var card = currentCard();
     if (card && card.needsTarget) {
-      hint.textContent = 'Select a ' + (card.target === 'ENEMY_SINGLE' ? 'target enemy' : 'friendly Siegeling') + ' for ' + card.name + '.';
+      hint.textContent = card.effect === 'SWAP'
+        ? 'Select the Siegeling to swap notches with.'
+        : 'Select a ' + (card.target === 'ENEMY_SINGLE' ? 'target enemy' : 'friendly Siegeling') + ' for ' + card.name + '.';
       highlightTargets(card);
     } else {
-      hint.textContent = 'Play cards (' + b.actionPoints + ' actions left) or End Turn.';
+      hint.textContent = 'Play cards (' + b.actionPoints + ' AP left) or End Turn.';
     }
   }
 
@@ -544,18 +791,28 @@
   function playCard(cardId, targetId) {
     if (state.busy) return; state.busy = true;
     api('/api/siege/battle/play', { method: 'POST', body: { token: token(), cardId: cardId, targetId: targetId } })
-      .then(function (run) { state.run = run; state.selectedCardId = null; state.selectedCardNeedsTarget = false; if (run.error) toast(run.error); renderRun(); })
-      .catch(function (e) { toast(e.message); })
-      .then(function () { state.busy = false; });
+      .then(function (run) {
+        state.selectedCardId = null; state.selectedCardNeedsTarget = false;
+        if (run.error) toast(run.error);
+        state.busy = false;
+        applyRun(run);
+      })
+      .catch(function (e) { toast(e.message); state.busy = false; });
   }
 
   function endTurn() {
     if (state.busy) return; state.busy = true;
     state.selectedCardId = null; state.selectedCardNeedsTarget = false;
     api('/api/siege/battle/end-turn', { method: 'POST', body: { token: token() } })
-      .then(function (run) { state.run = run; renderRun(); })
-      .catch(function (e) { toast(e.message); })
-      .then(function () { state.busy = false; });
+      .then(function (run) { state.busy = false; applyRun(run); })
+      .catch(function (e) { toast(e.message); state.busy = false; });
+  }
+
+  function useUltimate() {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/battle/ultimate', { method: 'POST', body: { token: token() } })
+      .then(function (run) { if (run.error) toast(run.error); state.busy = false; applyRun(run); })
+      .catch(function (e) { toast(e.message); state.busy = false; });
   }
 
   function continueRun() {
@@ -575,7 +832,7 @@
     (state.run.pendingRewards || []).forEach(function (opt) {
       var c = el('div', 'reward-card ' + elClass(opt.element) + ' kind-' + opt.kind);
       var art = opt.artUrl
-        ? '<div class="reward-art" style="background-image:url(\'' + encodeURI(opt.artUrl) + '\')"></div>'
+        ? '<div class="reward-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
         : '<div class="reward-glyph">' + (REWARD_ICON[opt.kind] || '🎁') + '</div>';
       var meta = '';
       if (opt.kind === 'CARD' && opt.cardEffect) {

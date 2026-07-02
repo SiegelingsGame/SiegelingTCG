@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=4">
+<link rel="stylesheet" href="/css/adventure.css?v=5">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -59,9 +59,11 @@
   <section class="siege-screen battle hidden" id="battleScreen">
     <div class="battle-top">
       <div class="initiative-bar" id="initiativeBar"></div>
+      <div class="knight-plate hidden" id="knightPlate"></div>
     </div>
     <div class="battle-stage" id="battleStage">
       <div class="stage-ground"></div>
+      <div class="action-banner" id="actionBanner"></div>
       <div class="foe-line" id="enemyRow"></div>
       <div class="ally-line" id="allyRow"></div>
     </div>
@@ -69,6 +71,7 @@
     <div class="battle-hud">
       <div class="ap-display" id="apDisplay"></div>
       <div class="deck-counts" id="deckCounts"></div>
+      <button class="siege-btn ult hidden" id="knightUltBtn" type="button">⚡ Ultimate</button>
       <button class="siege-btn" id="endTurnBtn" type="button">End Turn</button>
     </div>
     <div class="hand-fan" id="handRow"></div>
@@ -94,6 +97,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=4"></script>
+<script src="/js/adventure.js?v=5"></script>
 </body>
 </html>
