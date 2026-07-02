@@ -141,8 +141,12 @@
     }).forEach(function (s) {
       var picked = state.party.indexOf(s.id);
       var c = el('div', 'sgl-card ' + elClass(s.element) + (picked >= 0 ? ' sel' : ''));
+      var art = s.artUrl
+        ? '<div class="sart" style="background-image:url(\'' + encodeURI(s.artUrl) + '\')"></div>'
+        : '<div class="sart sart-fallback">' + icon(s.element) + '</div>';
       c.innerHTML =
         (picked >= 0 ? '<div class="selorder">' + (picked + 1) + '</div>' : '') +
+        art +
         '<div class="sname">' + esc(s.name) + '</div>' +
         '<div class="schip">' + icon(s.element) + ' ' + esc(s.element) + '</div>' +
         '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>';
@@ -224,9 +228,16 @@
     party.forEach(function (p) {
       var chip = el('div', 'party-chip ' + elClass(p.element) + (p.alive ? '' : ' dead'));
       var pct = Math.max(0, Math.round(100 * p.hp / Math.max(1, p.maxHp)));
-      chip.innerHTML = '<div class="pname">' + icon(p.element) + ' ' + esc(p.name) + '</div>' +
+      var thumb = p.artUrl
+        ? '<div class="pthumb" style="background-image:url(\'' + encodeURI(p.artUrl) + '\')"></div>'
+        : '<div class="pthumb pthumb-fallback">' + icon(p.element) + '</div>';
+      var buff = p.attackBuff > 0 ? '  ·  <span class="pbuff">⚔ +' + p.attackBuff + '</span>' : '';
+      chip.innerHTML = thumb +
+        '<div class="pbody">' +
+        '<div class="pname">' + icon(p.element) + ' ' + esc(p.name) + '</div>' +
         '<div class="phpbar"><div class="phpfill" style="width:' + pct + '%"></div></div>' +
-        '<div class="phptext">HP ' + p.hp + ' / ' + p.maxHp + '  ·  ⚡' + p.speed + '</div>';
+        '<div class="phptext">HP ' + p.hp + ' / ' + p.maxHp + '  ·  ⚡' + p.speed + buff + '</div>' +
+        '</div>';
       host.appendChild(chip);
     });
   }
@@ -288,13 +299,24 @@
       var ab = (side === 'enemy' && u.abilities && u.abilities.length)
         ? '<div class="uabilities">Moves: ' + esc(u.abilities.join(', ')) + '</div>' : '';
       var shield = u.shield > 0 ? '<span class="ushield">🛡 ' + u.shield + '</span>' : '';
-      unit.innerHTML = '<div class="uname"><span>' + esc(u.name) + '</span><span class="uel">' + icon(u.element) + '</span></div>' +
+      var buff = u.attackBuff > 0 ? '<span class="ubuff" title="Attack boost">⚔ +' + u.attackBuff + '</span>' : '';
+      unit.innerHTML = artLayer(u) +
+        '<div class="uname"><span>' + esc(u.name) + '</span><span class="uel">' + icon(u.element) + '</span></div>' +
         '<div class="uhpbar"><div class="uhpfill" style="width:' + pct + '%"></div></div>' +
         '<div class="uhptext"><span>' + u.hp + ' / ' + u.maxHp + '</span>' + shield + '</div>' +
-        '<div class="uhptext"><span>⚡ ' + u.speed + '</span></div>' + ab;
+        '<div class="uhptext"><span>⚡ ' + u.speed + '</span>' + buff + '</div>' + ab;
       unit.addEventListener('click', function () { onUnitClick(u); });
       host.appendChild(unit);
     });
+  }
+
+  // Backgroundless Siegeling cutout shown inside the unit/party box. Falls back
+  // to the element icon watermark when a creature has no uploaded card art.
+  function artLayer(u) {
+    if (u.artUrl) {
+      return '<div class="uart" style="background-image:url(\'' + encodeURI(u.artUrl) + '\')"></div>';
+    }
+    return '<div class="uart uart-fallback">' + icon(u.element) + '</div>';
   }
 
   function renderHand(b, over) {
@@ -332,7 +354,12 @@
   }
   function effectLabel(card) {
     switch (card.effect) {
-      case 'DAMAGE': return '⚔ ' + card.value + ' dmg' + (card.target === 'ALL_ENEMIES' ? ' (all)' : '');
+      case 'DAMAGE': {
+        var boosted = (card.boostedValue != null && card.boostedValue > card.value)
+          ? '<span class="pc-boost">' + card.boostedValue + '</span> <s>' + card.value + '</s>'
+          : card.value;
+        return '⚔ ' + boosted + ' dmg' + (card.target === 'ALL_ENEMIES' ? ' (all)' : '');
+      }
       case 'HEAL': return '➕ Heal ' + card.value + (card.target === 'ALLY_ALL' ? ' (all)' : '');
       case 'SHIELD': return '🛡 Shield ' + card.value + (card.target === 'ALLY_ALL' ? ' (all)' : '');
       case 'BUFF_ATK': return '↑ +' + card.value + ' attack';

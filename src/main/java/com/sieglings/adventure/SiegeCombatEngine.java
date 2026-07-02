@@ -251,8 +251,11 @@ public class SiegeCombatEngine {
                 }
             }
             case BUFF_ATK -> {
-                for (Combatant t : targets) t.addAttackBuff(spec.value());
-                battle.log(attacker.getName() + " uses " + spec.name() + " → +" + spec.value() + " attack.");
+                // A damage boost strengthens the whole warband so it reliably
+                // applies to the party's shared turn, regardless of which
+                // Siegeling attacks next.
+                for (Combatant ally : battle.living(Side.PLAYER)) ally.addAttackBuff(spec.value());
+                battle.log(attacker.getName() + " uses " + spec.name() + " → the party gains +" + spec.value() + " attack.");
             }
             case BUFF_SPD -> {
                 for (Combatant t : targets) t.setSpeed(t.getSpeed() + spec.value());
