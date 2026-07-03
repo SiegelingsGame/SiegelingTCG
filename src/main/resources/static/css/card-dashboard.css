@@ -500,6 +500,50 @@ input[type="file"] {
     margin-bottom: 18px;
 }
 
+/* Collapsible sections: a chevron toggle sits left of the section title. */
+.panel-heading-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+}
+
+.panel-collapse-toggle {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    padding: 2px 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--text-dim, #9e9586);
+    cursor: pointer;
+    line-height: 1;
+    font-size: 14px;
+}
+
+.panel-collapse-toggle:hover {
+    border-color: var(--panel-border, rgba(255, 222, 173, 0.18));
+    color: var(--text-main, #f4efe5);
+}
+
+.panel-collapse-chevron {
+    display: inline-block;
+    transition: transform 0.16s ease;
+}
+
+.panel-collapsed .panel-collapse-chevron {
+    transform: rotate(-90deg);
+}
+
+/* Collapsed: hide everything in the panel except its heading row. */
+.panel.panel-collapsed > .panel-heading {
+    margin-bottom: 0;
+}
+
+.panel.panel-collapsed > *:not(.panel-heading) {
+    display: none !important;
+}
+
 .sub-heading {
     margin-bottom: 14px;
 }
