@@ -7516,6 +7516,23 @@ body.placement-active .board-cell.legal {
     max-height: 100%;
 }
 
+/* Uploaded illustration / overlay art fills the framed art window so it reaches
+   the inner edge of the rarity border instead of being letterboxed inside it. */
+.card-preview-card.element-frame .card-art-preview.card-art-crop-illustration img,
+.card-preview-card.element-frame .card-art-selected.card-art-crop-illustration img,
+.selected-preview-card.element-frame .card-art-preview.card-art-crop-illustration img,
+.selected-preview-card.element-frame .card-art-selected.card-art-crop-illustration img,
+.mulligan-showcase.element-frame .card-art-preview.card-art-crop-illustration img,
+.mulligan-showcase.element-frame .card-art-selected.card-art-crop-illustration img {
+    width: calc(100% * var(--card-art-zoom, 1));
+    height: calc(100% * var(--card-art-zoom, 1));
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
+    object-position: center var(--card-art-focus-y, 50%);
+    transform: translateY(var(--card-art-offset-y, 0%));
+}
+
 .card-preview-card.element-frame .hand-card-body,
 .selected-preview-card.element-frame .hand-card-body,
 .mulligan-showcase.element-frame .hand-card-body {

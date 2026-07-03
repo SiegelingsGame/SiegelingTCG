@@ -103,8 +103,76 @@
     function init() {
         cacheRefs();
         bindEvents();
+        setupCollapsiblePanels();
         renderAll();
         loadCurrentData();
+    }
+
+    // Makes each top-level dashboard section collapsible so the page can be
+    // condensed when working on one area. Collapsed state persists per section.
+    const COLLAPSE_STORAGE_KEY = "siegeDashboardCollapsedSections";
+
+    function setupCollapsiblePanels() {
+        let collapsed = {};
+        try {
+            collapsed = JSON.parse(window.localStorage.getItem(COLLAPSE_STORAGE_KEY) || "{}") || {};
+        } catch (error) {
+            collapsed = {};
+        }
+
+        const panels = document.querySelectorAll(".panel");
+        panels.forEach((panel) => {
+            const heading = Array.from(panel.children).find((child) =>
+                child.classList && child.classList.contains("panel-heading"));
+            if (!heading || heading.dataset.collapsible === "1") {
+                return;
+            }
+            const titleBlock = heading.firstElementChild;
+            if (!titleBlock) {
+                return;
+            }
+            heading.dataset.collapsible = "1";
+
+            const key = panel.id
+                || (heading.querySelector("h2, h3")?.textContent || "").trim().toLowerCase().replace(/\s+/g, "-")
+                || Math.random().toString(36).slice(2);
+
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "panel-collapse-toggle";
+            toggle.setAttribute("aria-label", "Collapse or expand this section");
+            toggle.setAttribute("aria-expanded", "true");
+            toggle.innerHTML = '<span class="panel-collapse-chevron" aria-hidden="true">▾</span>';
+
+            const wrap = document.createElement("div");
+            wrap.className = "panel-heading-title";
+            heading.insertBefore(wrap, titleBlock);
+            wrap.appendChild(toggle);
+            wrap.appendChild(titleBlock);
+
+            const apply = (isCollapsed) => {
+                panel.classList.toggle("panel-collapsed", isCollapsed);
+                toggle.setAttribute("aria-expanded", String(!isCollapsed));
+            };
+            apply(Boolean(collapsed[key]));
+
+            toggle.addEventListener("click", (event) => {
+                event.stopPropagation();
+                const nowCollapsed = !panel.classList.contains("panel-collapsed");
+                apply(nowCollapsed);
+                try {
+                    const store = JSON.parse(window.localStorage.getItem(COLLAPSE_STORAGE_KEY) || "{}") || {};
+                    if (nowCollapsed) {
+                        store[key] = true;
+                    } else {
+                        delete store[key];
+                    }
+                    window.localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify(store));
+                } catch (error) {
+                    // Persisting collapse state is best-effort only.
+                }
+            });
+        });
     }
 
     function cacheRefs() {
@@ -313,6 +381,7 @@
             "trainerList",
             "newTrainerBtn",
             "duplicateTrainerBtn",
+            "deleteTrainerBtn",
             "trainerSearchInput",
             "trainerStatusFilterSelect",
             "emptyTrainerState",
@@ -845,6 +914,7 @@
     function bindTrainerFieldEvents() {
         refs.newTrainerBtn.addEventListener("click", createTrainer);
         refs.duplicateTrainerBtn.addEventListener("click", duplicateTrainer);
+        refs.deleteTrainerBtn?.addEventListener("click", deleteTrainer);
         refs.trainerSearchInput.addEventListener("input", (event) => {
             state.trainerSearch = event.target.value || "";
             renderTrainerList();
@@ -2328,6 +2398,29 @@
         state.dirty = true;
         state.validation = validateDashboard();
         setStatus(`Duplicated ${trainer.name || trainer.id}.`, "warning");
+        renderAll();
+    }
+
+    function deleteTrainer() {
+        const trainer = getSelectedTrainer();
+        if (!trainer) {
+            return;
+        }
+        const label = trainer.name || trainer.id || "this Siegeknight";
+        if (!window.confirm(`Delete ${label}? This cannot be undone until you reload without publishing.`)) {
+            return;
+        }
+        const index = state.trainers.findIndex((entry) => entry.id === trainer.id);
+        if (index < 0) {
+            return;
+        }
+        state.trainers.splice(index, 1);
+        state.selectedTrainerId =
+            state.trainers[Math.max(0, index - 1)]?.id || state.trainers[0]?.id || null;
+        state.editorPage = "TRAINERS";
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus(`Deleted ${label}.`, "warning");
         renderAll();
     }
 
@@ -3870,6 +3963,9 @@
         refs.deleteDeckBtn.disabled = !hasDeck;
         refs.clearDeckCardsBtn.disabled = !hasDeck;
         refs.duplicateTrainerBtn.disabled = !hasTrainer;
+        if (refs.deleteTrainerBtn) {
+            refs.deleteTrainerBtn.disabled = !hasTrainer;
+        }
         const saveDisabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
         refs.saveProjectBtn.disabled = saveDisabled;
         refs.saveProjectBtn.title = saveDisabled ? describeSaveButtonState(hasErrors) : "";
