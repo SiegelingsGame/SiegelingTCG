@@ -36,6 +36,35 @@ button{font-family:inherit;}
 .siege-abandon{background:transparent; border:1px solid var(--border); color:var(--dim); border-radius:20px; padding:6px 14px; cursor:pointer; font-size:12px;}
 .siege-abandon:hover{color:var(--bad); border-color:var(--bad);}
 
+/* Battle & map are static, full-viewport screens: the page itself never
+   scrolls — only designated internal regions (the map canvas) do. This
+   pins the bottom HUD/team-info blocks in place instead of letting page
+   scroll shove them around or clip them under mobile browser chrome. */
+html{height:100%;}
+body[data-screen="battleScreen"], body[data-screen="mapScreen"]{
+  height:100dvh; overflow:hidden;
+}
+body[data-screen="battleScreen"] .siege-app,
+body[data-screen="mapScreen"] .siege-app{
+  height:100dvh; overflow:hidden; min-height:0;
+  display:flex; flex-direction:column; padding-bottom:0;
+}
+body[data-screen="battleScreen"] .siege-topbar,
+body[data-screen="mapScreen"] .siege-topbar{ flex:0 0 auto; position:static; }
+body[data-screen="battleScreen"] #battleScreen{
+  flex:1 1 auto; min-height:0; overflow:hidden;
+  display:flex; flex-direction:column;
+}
+body[data-screen="battleScreen"] .battle-stage{ min-height:0; }
+body[data-screen="battleScreen"] .battle-log,
+body[data-screen="battleScreen"] .battle-hint,
+body[data-screen="battleScreen"] .hand-fan,
+body[data-screen="battleScreen"] .battle-hud{ flex:0 0 auto; }
+body[data-screen="mapScreen"] #mapScreen{
+  flex:1 1 auto; min-height:0; overflow:hidden;
+  display:flex; flex-direction:column;
+}
+
 .siege-screen{padding:14px 0;}
 .siege-screen h1{font-size:26px; margin:8px 0 6px;}
 .siege-sub{color:var(--dim); margin:0 0 20px;}
@@ -197,13 +226,10 @@ button{font-family:inherit;}
 .cache-risk{display:flex; gap:10px; align-items:center; margin-bottom:10px; font-size:12px; color:var(--dim);}
 .cache-riskbar{flex:1; max-width:280px; height:10px; border-radius:5px; background:#0c1017; overflow:hidden; border:1px solid rgba(255,80,60,.3);}
 .cache-riskfill{height:100%; background:linear-gradient(90deg,#8a3a1a,#ff503c); transition:width .3s;}
-/* Map fills the screen; team info + HUD anchor at the bottom. */
-#mapScreen{
-  display:flex; flex-direction:column;
-  min-height:calc(100dvh - 62px); padding-bottom:0;
-}
+/* Map fills the screen; team info + HUD anchor at the bottom (see the
+   body[data-screen="mapScreen"] rules above for the static full-height shell). */
 .map-bottom{
-  position:sticky; bottom:0; z-index:12;
+  flex:0 0 auto; z-index:12;
   padding:8px 0 10px;
   background:linear-gradient(transparent, var(--bg) 26%);
 }
@@ -244,15 +270,10 @@ button{font-family:inherit;}
 
 /* ---------- Battle stage ---------- */
 /* The battle fills the whole viewport: the stage grows, the hand + HUD sit
-   at the bottom of the screen near the thumbs. */
-.siege-screen.battle{
-  padding-top:4px; padding-bottom:0;
-  display:flex; flex-direction:column;
-  min-height:calc(100dvh - 62px);
-}
-.siege-screen.battle .battle-stage{flex:1 1 auto;}
-.siege-screen.battle .hand-fan{margin-top:auto;}
-.battle-top{display:flex; align-items:stretch; gap:8px; margin-bottom:6px;}
+   at the bottom of the screen near the thumbs (see the
+   body[data-screen="battleScreen"] rules above for the static full-height shell). */
+.siege-screen.battle{padding-top:4px; padding-bottom:0;}
+.battle-top{display:flex; align-items:stretch; gap:8px; margin-bottom:6px; flex:0 0 auto;}
 
 /* Speed race track: both teams race along a line; leader acts first */
 .speed-track{flex:1; display:flex; gap:8px; align-items:center; background:rgba(12,16,23,.85); border:1px solid var(--border); border-radius:10px; padding:5px 10px; min-width:0;}
@@ -498,16 +519,25 @@ button{font-family:inherit;}
   min-height:172px; margin-top:4px; padding:14px 8px 6px;
 }
 .playcard{
-  width:128px; background:linear-gradient(180deg, #1a2130, #151b28);
-  border:1px solid var(--border); border-top:4px solid var(--el);
+  width:128px;
+  /* Plain fallback first; browsers that don't parse color-mix() ignore the
+     tinted declaration below and keep this one. */
+  background:linear-gradient(180deg, #1a2130, #151b28);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el) 22%, #1a2130), color-mix(in srgb, var(--el) 10%, #151b28));
+  border:1px solid var(--border);
+  border:1px solid color-mix(in srgb, var(--el) 45%, var(--border));
+  border-top:4px solid var(--el);
   border-radius:11px; padding:9px 10px; cursor:pointer; position:relative;
   margin:0 -14px;
   transform:rotate(var(--fan-rot,0deg)) translateY(var(--fan-y,0px));
   transform-origin:50% 120%;
   transition:transform .16s ease, box-shadow .16s ease;
   box-shadow:0 6px 16px rgba(0,0,0,.35);
+  box-shadow:0 6px 16px rgba(0,0,0,.35), 0 0 0 1px color-mix(in srgb, var(--el) 18%, transparent) inset;
 }
 .playcard:hover{transform:rotate(0deg) translateY(-16px) scale(1.05); z-index:6; box-shadow:0 14px 26px rgba(0,0,0,.5);}
+/* A visible seam where the hand moves on to the next Siegeling's cards */
+.playcard.group-start{margin-left:0;}
 .playcard.unplayable{opacity:.4; cursor:not-allowed;}
 .playcard.selected{outline:2px solid var(--accent); transform:rotate(0deg) translateY(-18px) scale(1.06); z-index:7;}
 .playcard .pc-cost{position:absolute; top:-9px; left:-9px; width:26px;height:26px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ffc37a, var(--accent)); color:#1a1206; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.5); z-index:2;}
@@ -645,8 +675,6 @@ button{font-family:inherit;}
   .party-chip .pthumb{width:32px;height:32px; flex-basis:32px;}
   .party-chip .pname{font-size:11px;}
   .party-chip .phptext{font-size:10px;}
-  .siege-screen.battle{min-height:calc(100dvh - 52px);}
-  #mapScreen{min-height:calc(100dvh - 52px);}
   .camp-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));}
 }
 @media (min-width:900px){
