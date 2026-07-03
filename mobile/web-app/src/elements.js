@@ -3,10 +3,10 @@
  */
 export const ELEMENTS = {
   FIRE: { color: "#ff501e", icon: "🔥", name: "Fire" },
+  ICE: { color: "#76e6ff", icon: "❄️", name: "Ice" },
+  WATER: { color: "#3296ff", icon: "💧", name: "Water" },
   EARTH: { color: "#b48c50", icon: "🪨", name: "Earth" },
   WIND: { color: "#96ffb4", icon: "🌪", name: "Wind" },
-  WATER: { color: "#3296ff", icon: "💧", name: "Water" },
-  ICE: { color: "#76e6ff", icon: "❄️", name: "Ice" },
   SHADOW: { color: "#7832b4", icon: "🌑", name: "Shadow" },
   ELECTRIC: { color: "#ffe63c", icon: "⚡", name: "Electric" },
   METAL: { color: "#a0aab4", icon: "⚙️", name: "Metal" },

@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-const LIVE = ['FIRE', 'EARTH', 'WIND', 'WATER', 'ICE', 'SHADOW', 'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC'];
+const LIVE = ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW', 'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC'];
 const LABELS = {
   FIRE: 'Fire', EARTH: 'Earth', WIND: 'Wind', WATER: 'Water', ICE: 'Ice',
   SHADOW: 'Shadow', ELECTRIC: 'Electric', METAL: 'Metal', UNDEAD: 'Undead', PSYCHIC: 'Psychic'

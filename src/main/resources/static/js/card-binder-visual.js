@@ -362,7 +362,7 @@
         if (typeof showcase.hasElementFrame === 'function') {
             return showcase.hasElementFrame(card?.element);
         }
-        return ['FIRE', 'EARTH', 'ICE', 'WIND'].includes(String(card?.element || '').toUpperCase());
+        return ['FIRE', 'ICE', 'EARTH', 'WIND'].includes(String(card?.element || '').toUpperCase());
     }
 
     function renderFramedShowcaseCard(card, options = {}) {
