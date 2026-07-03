@@ -12,9 +12,11 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Persists Siege run checkpoints to Firestore so a player can leave and resume
- * later — even across server restarts and deploys. Checkpoints are taken at
- * safe map states (never mid-battle); resuming lands the player on the map with
- * the current node uncleared, ready to re-enter.
+ * later — even across server restarts and deploys, and even mid-battle (hand,
+ * deck, enemy intents, statuses, everything). Camp/cache/broker/reward
+ * prompts are short-lived UI states that are skipped; resuming from one of
+ * those lands the player on the map with the current node uncleared, ready to
+ * re-enter.
  *
  * <p>Fail-soft by design: if Firestore is unavailable the game keeps running on
  * in-memory sessions and checkpoints simply do not persist.

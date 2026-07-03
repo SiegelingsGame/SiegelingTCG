@@ -55,7 +55,11 @@ body[data-screen="battleScreen"] #battleScreen{
   flex:1 1 auto; min-height:0; overflow:hidden;
   display:flex; flex-direction:column;
 }
-body[data-screen="battleScreen"] .battle-stage{ min-height:0; }
+/* .battle-stage is the only child that should absorb any leftover height in
+   the #battleScreen flex column — otherwise it sits at its content height and
+   the extra space collects below the HUD (the column's last child) instead of
+   pinning the HUD to the bottom of the screen. */
+body[data-screen="battleScreen"] .battle-stage{ min-height:0; flex:1 1 auto; }
 body[data-screen="battleScreen"] .battle-log,
 body[data-screen="battleScreen"] .battle-hint,
 body[data-screen="battleScreen"] .hand-fan,
@@ -206,6 +210,13 @@ body[data-screen="mapScreen"] #mapScreen{
 .camp-card-desc{font-size:11px; color:var(--dim); margin-top:4px; line-height:1.35;}
 .camp-actions{margin-top:14px; display:flex; gap:10px; justify-content:center;}
 
+/* ---------- Resume prompt (boot-time: saved expedition detected) ---------- */
+.resume-summary{background:rgba(12,16,23,.6); border:1px solid var(--border); border-radius:14px; padding:14px; margin-top:10px;}
+.resume-summary .party-strip{flex-wrap:wrap;}
+.resume-meta{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;}
+.resume-battle-chip{font-size:12px; font-weight:800; color:#ff8a6a; border:1px solid rgba(255,110,80,.45); border-radius:12px; padding:2px 10px; background:rgba(255,110,80,.08); white-space:nowrap;}
+.resume-actions{margin-top:18px; display:flex; gap:10px; justify-content:center;}
+
 /* ---------- Broker stall ---------- */
 .broker-scene{background:linear-gradient(180deg,#141223 0%, #1e1730 55%, #2c2140 100%);}
 .broker-npc{position:absolute; left:18%; bottom:8px; font-size:36px; filter:drop-shadow(0 0 16px rgba(200,150,255,.7)); animation:idlebob 3s ease-in-out infinite;}
@@ -325,7 +336,10 @@ body[data-screen="mapScreen"] #mapScreen{
   background:
     radial-gradient(900px 300px at 50% -40px, rgba(255,154,60,.12), transparent 70%),
     linear-gradient(180deg, #10141f 0%, #131a28 44%, #1a2130 60%, #232b3a 100%);
+  transition:box-shadow .16s ease;
 }
+/* A card is being dragged over the arena — glow the drop zone. */
+.battle-stage.drop-hover{box-shadow:inset 0 0 0 2px var(--accent), 0 0 22px rgba(255,154,60,.35);}
 .stage-ground{
   position:absolute; left:-10%; right:-10%; bottom:-46%; height:75%;
   background:radial-gradient(ellipse at 50% 0%, rgba(62,166,255,.10), rgba(20,26,38,.0) 55%),
@@ -364,6 +378,9 @@ body[data-screen="mapScreen"] #mapScreen{
 .sprite.dead .sp-art{animation:none; filter:grayscale(1) brightness(.6); transform:rotate(8deg) translateY(8px);}
 .sprite.targetable{cursor:pointer;}
 .sprite.targetable .sp-shadow{background:radial-gradient(ellipse, rgba(255,154,60,.8), transparent 72%); animation:targetpulse 1.1s ease-in-out infinite;}
+/* A dragged card is hovering directly over this unit — it's the drop target. */
+.sprite.drop-hover .sp-plate{outline:2px solid var(--accent); box-shadow:0 0 16px rgba(255,154,60,.6);}
+.sprite.drop-hover .sp-art{filter:drop-shadow(0 0 16px rgba(255,154,60,.85));}
 @keyframes targetpulse{50%{transform:scale(1.25); opacity:.6;}}
 
 /* name plate */
@@ -506,7 +523,7 @@ body[data-screen="mapScreen"] #mapScreen{
 .ledger-cost{font-size:10px; color:var(--accent); font-weight:800; white-space:nowrap;}
 .ledger-text{color:var(--dim); flex:1; min-width:120px;}
 
-.battle-hud{display:flex; align-items:center; gap:16px; justify-content:center; margin:10px 0 4px;}
+.battle-hud{display:flex; align-items:center; gap:16px; justify-content:center; margin:10px 0 0; padding-bottom:max(4px, env(safe-area-inset-bottom, 0px));}
 .ap-display{display:flex; gap:5px; align-items:center;}
 .ap-pip{width:20px;height:20px;border-radius:50%; border:2px solid var(--accent);}
 .ap-pip.full{background:var(--accent); box-shadow:0 0 8px rgba(255,154,60,.7);}
@@ -527,8 +544,8 @@ body[data-screen="mapScreen"] #mapScreen{
   border:1px solid var(--border);
   border:1px solid color-mix(in srgb, var(--el) 45%, var(--border));
   border-top:4px solid var(--el);
-  border-radius:11px; padding:9px 10px; cursor:pointer; position:relative;
-  margin:0 -14px;
+  border-radius:11px; padding:9px 10px; cursor:grab; position:relative;
+  margin:0 -14px; touch-action:none;
   transform:rotate(var(--fan-rot,0deg)) translateY(var(--fan-y,0px));
   transform-origin:50% 120%;
   transition:transform .16s ease, box-shadow .16s ease;
@@ -539,7 +556,16 @@ body[data-screen="mapScreen"] #mapScreen{
 /* A visible seam where the hand moves on to the next Siegeling's cards */
 .playcard.group-start{margin-left:0;}
 .playcard.unplayable{opacity:.4; cursor:not-allowed;}
+/* Focused (tapped, not dragged) — a closer look, not an armed target. */
 .playcard.selected{outline:2px solid var(--accent); transform:rotate(0deg) translateY(-18px) scale(1.06); z-index:7;}
+/* The card left behind in the fan while its ghost is being dragged. */
+.playcard.playcard-dragsource{opacity:.35;}
+/* Floating clone that follows the pointer while dragging a card to the arena. */
+.playcard-ghost{
+  cursor:grabbing; pointer-events:none; z-index:999;
+  transform:scale(1.08) !important;
+  box-shadow:0 18px 34px rgba(0,0,0,.55), 0 0 0 2px var(--accent);
+}
 .playcard .pc-cost{position:absolute; top:-9px; left:-9px; width:26px;height:26px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ffc37a, var(--accent)); color:#1a1206; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.5); z-index:2;}
 .playcard .pc-cost.free{background:radial-gradient(circle at 35% 30%, #b7f0c0, var(--good)); color:#0c2412;}
 .playcard .pc-status{font-size:10px; color:#c896ff; margin-top:3px; font-weight:650;}

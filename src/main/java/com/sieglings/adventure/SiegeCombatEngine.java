@@ -448,6 +448,19 @@ public class SiegeCombatEngine {
             }
         }
 
+        // Passive evolution progress: every Siegeling gains at least 1 gauge
+        // point per turn, on top of whatever AP it spent on its own moves —
+        // otherwise a Siegeling whose whole moveset costs 0 AP could never
+        // fill its evolution gauge from played moves alone.
+        for (Combatant ally : battle.living(Side.PLAYER)) {
+            if (ally.isKnight() || ally.getApSpent() >= SiegeBattle.EVOLVE_GAUGE) continue;
+            ally.addApSpent(1);
+            if (ally.getApSpent() >= SiegeBattle.EVOLVE_GAUGE) {
+                battle.event("gaugeReady", "targetId", ally.getId());
+                battle.log(ally.getName() + "'s evolution gauge is full!");
+            }
+        }
+
         battle.setPhase(BattlePhase.ENEMY_RESOLVING);
         if (battle.isPlayerActsFirst()) {
             resolveEnemyTurn(run, rng);

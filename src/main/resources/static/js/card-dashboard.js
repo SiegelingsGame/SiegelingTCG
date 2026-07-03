@@ -11,6 +11,15 @@
         "FIRE", "EARTH", "WIND", "WATER", "ICE", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
     ];
 
+    // Matches .trainer-art-portrait.is-overlay { aspect-ratio: 639/919 } and the
+    // .knight-overlay-art-window inset (left 8.8% / right 8.6% / top 5.7% /
+    // bottom 7.1%) in style.css / card-dashboard.css — the actual visible art
+    // window is narrower than the 5:7 full card, so overlay uploads need a
+    // tighter aspect target than full-card art or they get cropped more than
+    // the fit message lets on.
+    const TRAINER_CARD_ASPECT = 639 / 919;
+    const TRAINER_OVERLAY_WINDOW_ASPECT = ((100 - 8.8 - 8.6) / (100 - 5.7 - 7.1)) * TRAINER_CARD_ASPECT;
+
     function defaultLiveElements() {
         return DEFAULT_LIVE_ELEMENT_ORDER.map((element) => ({ element, active: true }));
     }
@@ -3801,12 +3810,19 @@
                     return;
                 }
                 const ratio = w / h;
-                const goodFit = ratio >= 0.66 && ratio <= 0.77; // ~5:7 portrait
+                // Overlay art fills a narrower inset window than the full 5:7 card,
+                // so it needs its own (tighter) target aspect ratio to fit without
+                // cropping — using the full-card ratio here understated how much
+                // gets cropped and could report "good fit" on art that isn't.
+                const targetAspect = isOverlay ? TRAINER_OVERLAY_WINDOW_ASPECT : 5 / 7;
+                const tolerance = 0.055;
+                const goodFit = ratio >= targetAspect - tolerance && ratio <= targetAspect + tolerance;
                 const target = isOverlay ? "art window" : "card";
+                const targetLabel = isOverlay ? `${targetAspect.toFixed(2)}:1` : "5:7";
                 setTrainerArtMeta(
                     goodFit
-                        ? `${w}×${h} · good 5:7 fit — fills the ${target} with no cropping.`
-                        : `${w}×${h} · ${ratio > 5 / 7 ? "wider" : "taller"} than a 5:7 ${target}, so it's cropped to fit. Drag the art and use Scale below to frame it.`,
+                        ? `${w}×${h} · good ${targetLabel} fit — fills the ${target} with no cropping.`
+                        : `${w}×${h} · ${ratio > targetAspect ? "wider" : "taller"} than a ${targetLabel} ${target}, so it's cropped to fit. Drag the art and use Scale below to frame it.`,
                     goodFit ? "ok" : "warn"
                 );
                 // Clear any stale "could not load" error now that a good image rendered.
