@@ -6999,9 +6999,12 @@
     }
     function creatureDescriptionFor(card) {
         const descriptions = state.creatureDescriptions || {};
-        return polishFlavorText(descriptions[normalizeCreatureKey(card?.id)]
+        // A description set directly on the card (via the dashboard editor) is
+        // authoritative and wins over the shared creature-descriptions file so
+        // dashboard edits show immediately; the shared file is the fallback.
+        return polishFlavorText(String(card?.description || '').trim()
+            || descriptions[normalizeCreatureKey(card?.id)]
             || descriptions[normalizeCreatureKey(card?.name)]
-            || String(card?.description || '').trim()
             || 'Description coming soon.');
     }
     function polishFlavorText(value) {

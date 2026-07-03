@@ -19,6 +19,9 @@ public abstract class Card {
     private Element costElement;
     private int costAmount;
 
+    /** Optional flavor/description text shown on the card in the binder and card detail view. */
+    private String description;
+
     /** Optional custom art for the cards menu binder preview (URL or data URI). */
     private String cardArtUrl;
     /** REPLACE replaces the element icon; OVERLAY draws art on top of the default frame; FULL_CARD renders the image as the complete card. */
@@ -61,6 +64,8 @@ public abstract class Card {
     public void setCostElement(Element costElement) { this.costElement = costElement; }
     public int getCostAmount() { return costAmount; }
     public void setCostAmount(int costAmount) { this.costAmount = costAmount; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
     public String getCardArtUrl() { return cardArtUrl; }
     public void setCardArtUrl(String cardArtUrl) { this.cardArtUrl = cardArtUrl; }
     public String getCardArtMode() { return cardArtMode; }
