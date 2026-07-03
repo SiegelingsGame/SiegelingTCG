@@ -22,8 +22,16 @@ button{font-family:inherit;}
 .el-UNDEAD{--el:#8c78a0;} .el-PSYCHIC{--el:#c896ff;} .el-POISON{--el:#78dc50;} .el-LIGHT{--el:#fff0b0;}
 .el-NEUTRAL{--el:#95a5a6;} [class*="el-"]{--el:#95a5a6;}
 
-/* app shell */
-.siege-app{max-width:1120px; margin:0 auto; padding:0 16px 60px; min-height:100vh;}
+/* app shell — viewport-fit=cover + env(safe-area-inset-*) keeps chrome out
+   from under the notch / status bar on phones. */
+.siege-app{
+  max-width:1120px; margin:0 auto; min-height:100vh;
+  padding:
+    env(safe-area-inset-top, 0px)
+    max(16px, env(safe-area-inset-right, 0px))
+    60px
+    max(16px, env(safe-area-inset-left, 0px));
+}
 .siege-topbar{
   display:flex; align-items:center; justify-content:space-between;
   padding:14px 4px; position:sticky; top:0; z-index:10;
@@ -60,6 +68,9 @@ body[data-screen="battleScreen"] #battleScreen{
    the extra space collects below the HUD (the column's last child) instead of
    pinning the HUD to the bottom of the screen. */
 body[data-screen="battleScreen"] .battle-stage{ min-height:0; flex:1 1 auto; }
+/* Knight plate + speed track must never shrink — otherwise the name/HP strip
+   gets clipped when the flex column is tight on short phone viewports. */
+body[data-screen="battleScreen"] .battle-top{ flex:0 0 auto; }
 body[data-screen="battleScreen"] .battle-log,
 body[data-screen="battleScreen"] .battle-hint,
 body[data-screen="battleScreen"] .hand-fan,
@@ -284,7 +295,11 @@ body[data-screen="mapScreen"] #mapScreen{
    at the bottom of the screen near the thumbs (see the
    body[data-screen="battleScreen"] rules above for the static full-height shell). */
 .siege-screen.battle{padding-top:4px; padding-bottom:0;}
-.battle-top{display:flex; align-items:stretch; gap:8px; margin-bottom:6px; flex:0 0 auto;}
+.battle-top{
+  display:flex; align-items:stretch; gap:8px; margin-bottom:6px; flex:0 0 auto;
+  position:relative; z-index:12;
+  background:linear-gradient(180deg, var(--bg) 55%, rgba(12,15,22,.88));
+}
 
 /* Speed race track: both teams race along a line; leader acts first */
 .speed-track{flex:1; display:flex; gap:8px; align-items:center; background:rgba(12,16,23,.85); border:1px solid var(--border); border-radius:10px; padding:5px 10px; min-width:0;}
@@ -656,15 +671,30 @@ body[data-screen="mapScreen"] #mapScreen{
 /* ---------- Responsive ---------- */
 @media (max-width:640px){
   /* Everything on one phone screen: tighter chrome, smaller stage + hand. */
-  .siege-app{padding:0 10px 10px;}
+  .siege-app{
+    padding:
+      env(safe-area-inset-top, 0px)
+      max(10px, env(safe-area-inset-right, 0px))
+      10px
+      max(10px, env(safe-area-inset-left, 0px));
+  }
   .siege-topbar{padding:8px 0 6px;}
   .siege-title{font-size:13px; letter-spacing:1px;}
   .siege-title span{display:none;}
   .siege-screen{padding:6px 0;}
   .siege-screen.battle{padding-top:2px;}
 
-  .battle-top{flex-wrap:wrap;}
-  .knight-plate{flex:1; min-width:0; max-width:none;}
+  /* Battle: slim the global chrome so the knight plate (name + HP) stays visible. */
+  body[data-screen="battleScreen"] .siege-topbar{padding:4px 0 2px;}
+  body[data-screen="battleScreen"] .siege-title{display:none;}
+  body[data-screen="battleScreen"] .siege-back{font-size:12px;}
+  body[data-screen="battleScreen"] .siege-abandon{padding:4px 10px; font-size:11px;}
+
+  .battle-top{flex-wrap:wrap; margin-bottom:4px; gap:6px;}
+  .knight-plate{flex:1; min-width:0; max-width:none; padding:4px 8px 5px;}
+  .knight-plate .kp-head{font-size:11px;}
+  .knight-plate .kp-hpbar{height:5px; margin-top:3px;}
+  .knight-plate .kp-chargebar{height:10px; margin-top:3px;}
   .speed-track{flex-basis:100%; order:2; padding:4px 8px;}
   .track-first{display:none;}
 
