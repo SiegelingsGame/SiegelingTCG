@@ -303,6 +303,7 @@
         packs: [],
         dailyOffers: [],
         titleCatalog: [],
+        shopPacksError: '',
         creatureDescriptions: {},
         rooms: [],
         selectedCardId: null,
@@ -1253,9 +1254,7 @@
             loadDailyMissions()
         ]);
         applyGameOptions(options);
-        state.packs = packs?.packs || [];
-        state.dailyOffers = packs?.dailyOffers || [];
-        state.titleCatalog = packs?.titleCatalog || state.titleCatalog || [];
+        applyShopPacksPayload(packs);
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
         state.leaderboards = leaderboards || null;
         state.leaderboardsError = leaderboards?.error || '';
@@ -1431,12 +1430,14 @@
         renderRooms();
     }
 
-    async function ensurePacksLoaded() {
-        if (state.packs?.length) return;
-        const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS);
-        state.packs = packs?.packs || [];
-        state.dailyOffers = packs?.dailyOffers || [];
-        state.titleCatalog = packs?.titleCatalog || state.titleCatalog || [];
+    async function ensurePacksLoaded(force = false) {
+        if (!force && state.packs?.length) return;
+        const cached = force ? null : await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS);
+        if (applyShopPacksPayload(cached)) return;
+        const fresh = await fetchJson('/api/shop/packs');
+        if (applyShopPacksPayload(fresh)) {
+            writeCache('shopPacks', fresh);
+        }
     }
 
     function render() {
@@ -3313,6 +3314,13 @@
             .map(title => ({ ...title, unlocked: unlocked.has(title.id) || Boolean(title.unlocked) }));
     }
 
+    function renderShopPacksEmptyState() {
+        if (state.shopPacksError) {
+            return `<div class="unlock-card"><strong>Could not load packs</strong><span>${escapeHtml(state.shopPacksError)}</span><button class="ghost-btn compact-btn" type="button" data-retry-shop-packs>Retry</button></div>`;
+        }
+        return '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>';
+    }
+
     function renderShop() {
         const grid = document.getElementById('shopPackGrid');
         if (!grid) return;
@@ -3328,7 +3336,7 @@
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
             ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Unlock by playing or buy with Siegecoins</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
-            ${packs.length ? packs.map(renderPackTile).join('') : '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>'}
+            ${packs.length ? packs.map(renderPackTile).join('') : renderShopPacksEmptyState()}
         `;
         document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
         renderShopCardPreviewModal();
@@ -6432,6 +6440,11 @@
         setActiveRoute();
         renderSections();
         renderRoute();
+        if (route === 'shop' && !state.packs?.length) {
+            void ensurePacksLoaded().then(() => {
+                if (state.route === 'shop') renderShop();
+            });
+        }
         focusRouteTarget(options.focus);
     }
 
@@ -6584,11 +6597,27 @@
         }
     }
 
+    function isValidShopPacksPayload(data) {
+        return Boolean(data && !data.error && Array.isArray(data.packs));
+    }
+
+    function applyShopPacksPayload(data) {
+        if (!isValidShopPacksPayload(data)) {
+            if (data?.error) state.shopPacksError = data.error;
+            return false;
+        }
+        state.shopPacksError = '';
+        state.packs = data.packs;
+        state.dailyOffers = data.dailyOffers || [];
+        state.titleCatalog = data.titleCatalog || state.titleCatalog || [];
+        return true;
+    }
+
     async function fetchCachedJson(cacheKey, path, ttlMs) {
         const cached = readCache(cacheKey, ttlMs);
-        if (cached) return cached;
+        if (cached && !cached.error) return cached;
         const data = await fetchJson(path);
-        if (data) writeCache(cacheKey, data);
+        if (data && !data.error) writeCache(cacheKey, data);
         return data;
     }
 
@@ -6607,11 +6636,7 @@
             applyGameOptions(options);
         }
         const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS);
-        if (packs) {
-            state.packs = packs.packs || [];
-            state.dailyOffers = packs.dailyOffers || [];
-            state.titleCatalog = packs.titleCatalog || state.titleCatalog || [];
-        }
+        applyShopPacksPayload(packs);
         const descriptions = readCache('creatureDescriptions', STATIC_CACHE_TTL_MS);
         if (descriptions) {
             state.creatureDescriptions = indexCreatureDescriptions(descriptions);
@@ -8821,6 +8846,11 @@
         }
         if (event.target.closest('[data-clear-pack-result]')) {
             clearPackResult();
+            return;
+        }
+        const retryShopPacksButton = event.target.closest('[data-retry-shop-packs]');
+        if (retryShopPacksButton) {
+            void ensurePacksLoaded(true).then(() => renderShop());
             return;
         }
         const oddsButton = event.target.closest('[data-pack-odds]');

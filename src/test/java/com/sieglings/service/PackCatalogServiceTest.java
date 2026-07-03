@@ -96,6 +96,31 @@ class PackCatalogServiceTest {
         assertTrue(candidateIds.contains("trainer-neutral"));
     }
 
+    @Test
+    void dailyOfferSerializationHandlesNullElement() throws Exception {
+        PackCatalogService service = createService(new NullElementTrainerDefinitions());
+
+        List<Map<String, Object>> offers = service.serializeDailyOffers();
+
+        assertEquals(5, offers.size());
+        assertTrue(offers.stream().anyMatch(offer -> offer.get("element") == null));
+    }
+
+    private static class NullElementTrainerDefinitions extends FireOnlyCardDefinitions {
+        @Override
+        public List<TrainerCard> getTrainerOptions() {
+            return List.of(new TrainerCard(
+                    "trainer-null",
+                    "Null Knight",
+                    null,
+                    Rarity.RARE,
+                    Ability.passive("Banner", "Allies gain +1", "damage_boost", 1),
+                    Ability.damage("Strike", "Deal 2 damage", TargetType.SINGLE_ENEMY, null, 1, 2),
+                    false
+            ));
+        }
+    }
+
     private PackCatalogService createService() throws Exception {
         return createService(new NeutralDropCardDefinitions());
     }

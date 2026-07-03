@@ -319,7 +319,7 @@ public class PackCatalogService {
         out.put("cardId", offer.card().getId());
         out.put("cardName", offer.card().getName());
         out.put("type", offer.card().getCardType().name());
-        out.put("element", offer.card().getElement().name());
+        out.put("element", elementName(offer.card().getElement()));
         out.put("rarity", offer.card().getRarity().name());
         return out;
     }
@@ -384,10 +384,14 @@ public class PackCatalogService {
 
     private Comparator<Card> cardSort() {
         return Comparator
-                .comparing((Card card) -> card.getElement().name())
+                .comparing((Card card) -> elementName(card.getElement()), Comparator.nullsLast(String::compareTo))
                 .thenComparing(card -> card.getRarity().ordinal())
                 .thenComparing(Card::getName)
                 .thenComparing(Card::getId);
+    }
+
+    private String elementName(Element element) {
+        return element == null ? null : element.name();
     }
 
     private String formatElement(Element element) {

@@ -135,6 +135,37 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void shopPackCacheDoesNotPersistErrorPayloads() throws IOException {
+        String homeScript = readHomeScript();
+        String fetchCachedJson = extractFunction(homeScript, "async function fetchCachedJson(cacheKey, path, ttlMs)");
+
+        assertTrue(
+                fetchCachedJson.contains("!cached.error"),
+                "Cached shop pack payloads with an error must be treated as a cache miss."
+        );
+        assertTrue(
+                fetchCachedJson.contains("!data.error"),
+                "Failed shop pack responses must not be written to the static cache."
+        );
+    }
+
+    @Test
+    void shopPackLoadKeepsValidPayloadOnFailure() throws IOException {
+        String homeScript = readHomeScript();
+        String isValidShopPacksPayload = extractFunction(homeScript, "function isValidShopPacksPayload(data)");
+        String applyShopPacksPayload = extractFunction(homeScript, "function applyShopPacksPayload(data)");
+
+        assertTrue(
+                isValidShopPacksPayload.contains("!data.error") && isValidShopPacksPayload.contains("Array.isArray(data.packs)"),
+                "Shop pack payloads must require a real packs array and reject error objects."
+        );
+        assertTrue(
+                applyShopPacksPayload.contains("if (!isValidShopPacksPayload(data))"),
+                "Shop pack hydration must ignore malformed or error payloads instead of wiping packs to an empty array."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
     }
