@@ -172,12 +172,22 @@ public class SiegeService {
                 .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
     }
 
-    // ---- Checkpoints (save at safe map states; resume later) ---------------
+    /** Player chose "start over" on the resume prompt: drop the run and its checkpoint for good. */
+    void abandonRun(String token) {
+        if (token == null) return;
+        runs.remove(token);
+        checkpoints.delete(token);
+    }
+
+    // ---- Checkpoints (save mid-battle and at safe map states; resume later) --
 
     /**
-     * Persists the run whenever it is idle on the map (never mid-battle or
-     * mid-stop); deletes the checkpoint once the run ends. Resuming after a
-     * server restart lands the player on the map at the last safe point.
+     * Persists the run — including a live battle, if one is in progress — so
+     * closing the app or losing connection mid-fight resumes exactly where it
+     * left off. Camp/cache/broker/reward prompts are short-lived UI states
+     * without their own persisted model, so those are skipped (the last
+     * checkpoint before entering them still resumes cleanly). Deletes the
+     * checkpoint once the run ends.
      */
     private void checkpoint(SiegeRun run) {
         if (run.getStatus() != RunStatus.ACTIVE) {
@@ -185,9 +195,8 @@ public class SiegeService {
             run.setCheckpointSaved(false);
             return;
         }
-        boolean idle = run.getBattle() == null && !run.isInCamp() && !run.isInCache()
-                && !run.isInBroker() && run.getPendingRewards().isEmpty();
-        if (!idle) return;
+        boolean safe = !run.isInCamp() && !run.isInCache() && !run.isInBroker() && run.getPendingRewards().isEmpty();
+        if (!safe) return;
         run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
     }
 
@@ -234,7 +243,137 @@ public class SiegeService {
             map.add(n);
         }
         s.put("map", map);
+        if (run.getBattle() != null) {
+            s.put("battle", snapshotBattle(run.getBattle()));
+        }
         return s;
+    }
+
+    private Map<String, Object> snapshotBattle(SiegeBattle battle) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        b.put("nodeType", battle.getNodeType().name());
+        b.put("phase", battle.getPhase().name());
+        b.put("actionPoints", battle.getActionPoints());
+        b.put("roundNumber", battle.getRoundNumber());
+        b.put("playerActsFirst", battle.isPlayerActsFirst());
+        b.put("playerSpeed", battle.getPlayerSpeed());
+        b.put("enemySpeed", battle.getEnemySpeed());
+        b.put("knightCharge", battle.getKnightCharge());
+        b.put("leadId", battle.getLeadId());
+        b.put("log", new ArrayList<>(battle.getLog()));
+        b.put("turnLog", new ArrayList<>(battle.getTurnLog()));
+        List<Map<String, Object>> combatants = new ArrayList<>();
+        for (Combatant c : battle.getCombatants()) {
+            combatants.add(snapshotCombatant(c));
+        }
+        b.put("combatants", combatants);
+        b.put("deck", snapshotCards(battle.getDeck()));
+        b.put("hand", snapshotCards(battle.getHand()));
+        b.put("discard", snapshotCards(battle.getDiscard()));
+        return b;
+    }
+
+    private List<Map<String, Object>> snapshotCards(List<SiegeCard> cards) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (SiegeCard card : cards) {
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("iid", card.getInstanceId());
+            d.put("owner", card.getOwnerId());
+            d.put("spec", specToMap(card.getSpec()));
+            out.add(d);
+        }
+        return out;
+    }
+
+    private Map<String, Object> snapshotCombatant(Combatant c) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", c.getId());
+        m.put("name", c.getName());
+        m.put("element", c.getElement() == null ? null : c.getElement().name());
+        m.put("side", c.getSide().name());
+        m.put("knight", c.isKnight());
+        m.put("artUrl", c.getArtUrl());
+        m.put("maxHp", c.getMaxHp());
+        m.put("hp", c.getHp());
+        m.put("shield", c.getShield());
+        m.put("speed", c.getSpeed());
+        m.put("baseSpeed", c.getBaseSpeed());
+        m.put("attackBuff", c.getAttackBuff());
+        m.put("position", c.getPosition());
+        m.put("sourceCardId", c.getSourceCardId());
+        m.put("apSpent", c.getApSpent());
+        Map<String, Integer> statuses = new LinkedHashMap<>();
+        c.getStatuses().forEach((k, v) -> statuses.put(k.name(), v));
+        m.put("statuses", statuses);
+        List<Map<String, Object>> abilities = new ArrayList<>();
+        for (AbilitySpec spec : c.getAbilities()) abilities.add(specToMap(spec));
+        m.put("abilities", abilities);
+        m.put("intent", c.getIntent() == null ? null : specToMap(c.getIntent()));
+        m.put("intentPosition", c.getIntentPosition());
+        return m;
+    }
+
+    @SuppressWarnings("unchecked")
+    private SiegeBattle restoreBattle(Map<String, Object> b) {
+        SiegeBattle battle = new SiegeBattle(NodeType.valueOf(String.valueOf(b.get("nodeType"))));
+        battle.setPhase(BattlePhase.valueOf(String.valueOf(b.get("phase"))));
+        battle.setActionPoints(intVal(b.get("actionPoints"), SiegeBattle.ACTIONS_PER_TURN));
+        battle.setRoundNumber(intVal(b.get("roundNumber"), 0));
+        battle.setPlayerActsFirst(!Boolean.FALSE.equals(b.get("playerActsFirst")));
+        battle.setPlayerSpeed(intVal(b.get("playerSpeed"), 0));
+        battle.setEnemySpeed(intVal(b.get("enemySpeed"), 0));
+        battle.setKnightCharge(intVal(b.get("knightCharge"), 0));
+        battle.setLeadId(b.get("leadId") == null ? null : String.valueOf(b.get("leadId")));
+        for (Object line : (List<Object>) b.getOrDefault("log", List.of())) {
+            battle.log(String.valueOf(line));
+        }
+        for (Object entry : (List<Object>) b.getOrDefault("turnLog", List.of())) {
+            battle.getTurnLog().add((Map<String, Object>) entry);
+        }
+        for (Object c : (List<Object>) b.getOrDefault("combatants", List.of())) {
+            battle.getCombatants().add(restoreCombatant((Map<String, Object>) c));
+        }
+        for (Object d : (List<Object>) b.getOrDefault("deck", List.of())) battle.getDeck().add(restoreSiegeCard((Map<String, Object>) d));
+        for (Object d : (List<Object>) b.getOrDefault("hand", List.of())) battle.getHand().add(restoreSiegeCard((Map<String, Object>) d));
+        for (Object d : (List<Object>) b.getOrDefault("discard", List.of())) battle.getDiscard().add(restoreSiegeCard((Map<String, Object>) d));
+        return battle;
+    }
+
+    private SiegeCard restoreSiegeCard(Map<String, Object> d) {
+        return new SiegeCard(String.valueOf(d.get("iid")), String.valueOf(d.get("owner")),
+                specFromMap((Map<String, Object>) d.get("spec")));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Combatant restoreCombatant(Map<String, Object> m) {
+        Element element = m.get("element") == null ? null : Element.valueOf(String.valueOf(m.get("element")));
+        Side side = Side.valueOf(String.valueOf(m.get("side")));
+        boolean knight = Boolean.TRUE.equals(m.get("knight"));
+        int baseSpeed = intVal(m.get("baseSpeed"), 1);
+        Combatant c = new Combatant(String.valueOf(m.get("id")), String.valueOf(m.get("name")), element, side,
+                intVal(m.get("maxHp"), 1), baseSpeed,
+                m.get("artUrl") == null ? null : String.valueOf(m.get("artUrl")), knight);
+        c.setHp(intVal(m.get("hp"), c.getMaxHp()));
+        c.setShield(intVal(m.get("shield"), 0));
+        c.setSpeed(intVal(m.get("speed"), baseSpeed));
+        c.addAttackBuff(intVal(m.get("attackBuff"), 0));
+        c.setPosition(intVal(m.get("position"), -1));
+        c.setSourceCardId(m.get("sourceCardId") == null ? null : String.valueOf(m.get("sourceCardId")));
+        c.setApSpent(intVal(m.get("apSpent"), 0));
+        Object statuses = m.get("statuses");
+        if (statuses instanceof Map) {
+            ((Map<String, Object>) statuses).forEach((k, v) -> c.applyStatus(StatusKind.valueOf(k), intVal(v, 1)));
+        }
+        Object abilities = m.get("abilities");
+        if (abilities instanceof List) {
+            for (Object a : (List<Object>) abilities) c.getAbilities().add(specFromMap((Map<String, Object>) a));
+        }
+        Object intent = m.get("intent");
+        if (intent instanceof Map) {
+            c.setIntent(specFromMap((Map<String, Object>) intent));
+        }
+        c.setIntentPosition(intVal(m.get("intentPosition"), -1));
+        return c;
     }
 
     private Map<String, Object> specToMap(AbilitySpec spec) {
@@ -299,6 +438,26 @@ public class SiegeService {
                 }
                 run.getMap().add(node);
             }
+
+            // A live battle takes precedence over the idle party/knight HP above —
+            // its combatants ARE the party/knight instances (same objects the
+            // combat engine mutates), so restoring it keeps every stat (shield,
+            // statuses, position, hand/deck/discard, enemy intents) exact.
+            if (s.get("battle") instanceof Map) {
+                SiegeBattle battle = restoreBattle((Map<String, Object>) s.get("battle"));
+                run.setBattle(battle);
+                List<Combatant> restoredParty = new ArrayList<>();
+                Combatant restoredKnight = null;
+                for (Combatant c : battle.getCombatants()) {
+                    if (c.getSide() != Side.PLAYER) continue;
+                    if (c.isKnight()) restoredKnight = c; else restoredParty.add(c);
+                }
+                restoredParty.sort((x, y) -> Integer.compare(x.getPosition(), y.getPosition()));
+                run.getParty().clear();
+                run.getParty().addAll(restoredParty);
+                if (restoredKnight != null) run.setKnightUnit(restoredKnight);
+            }
+
             run.setCheckpointSaved(true);
             run.setLastReward("Welcome back — the expedition resumes from your last checkpoint.");
             return Optional.of(run);
@@ -775,6 +934,7 @@ public class SiegeService {
     Map<String, Object> playCard(String token, String cardInstanceId, String targetId) {
         SiegeRun run = require(token);
         SiegeCombatEngine.PlayResult result = engine.playCard(run, cardInstanceId, targetId, rng);
+        checkpoint(run);
         Map<String, Object> out = serialize(run);
         if (!result.ok && result.message != null) out.put("error", result.message);
         return out;
@@ -783,6 +943,7 @@ public class SiegeService {
     Map<String, Object> endTurn(String token) {
         SiegeRun run = require(token);
         engine.endPlayerTurn(run, rng);
+        checkpoint(run);
         return serialize(run);
     }
 
@@ -790,6 +951,7 @@ public class SiegeService {
     Map<String, Object> knightUltimate(String token) {
         SiegeRun run = require(token);
         SiegeCombatEngine.PlayResult result = engine.useKnightUltimate(run, rng);
+        checkpoint(run);
         Map<String, Object> out = serialize(run);
         if (!result.ok && result.message != null) out.put("error", result.message);
         return out;

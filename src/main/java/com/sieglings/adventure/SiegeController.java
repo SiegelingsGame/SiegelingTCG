@@ -43,6 +43,13 @@ public class SiegeController {
         return siege.state(token);
     }
 
+    /** Player declined the resume prompt: discard the saved run for good. */
+    @PostMapping("/api/siege/run/abandon")
+    public Map<String, Object> abandonRun(@RequestBody Map<String, Object> body) {
+        siege.abandonRun(str(body.get("token")));
+        return Map.of("ok", true);
+    }
+
     /** Travel to a reachable map node: body { token, nodeId }. */
     @PostMapping("/api/siege/node/enter")
     public Map<String, Object> enterNode(@RequestBody Map<String, Object> body) {

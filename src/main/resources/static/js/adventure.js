@@ -21,7 +21,6 @@
     elementFilter: 'ALL',
     setupStep: 'knight',
     selectedCardId: null,
-    selectedCardNeedsTarget: false,
     busy: false
   };
 
@@ -89,7 +88,7 @@
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
-    ['loadingScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
     // Battle and map are static, full-viewport screens (no page scroll —
@@ -109,12 +108,33 @@
     if (t) {
       api('/api/siege/state?token=' + encodeURIComponent(t)).then(function (run) {
         state.run = run;
-        if (run.status === 'ACTIVE') { renderRun(); }
+        if (run.status === 'ACTIVE') { renderResumePrompt(run); }
         else { setToken(null); loadRoster(); }
       }).catch(function () { setToken(null); loadRoster(); });
     } else {
       loadRoster();
     }
+  }
+
+  /** A saved expedition was found: ask whether to continue it or start fresh,
+   *  showing exactly where it left off (party HP, gold, floor, mid-battle). */
+  function renderResumePrompt(run) {
+    showScreen('resumeScreen');
+    $('abandonBtn').classList.add('hidden');
+    var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
+    var floor = node ? (node.row + 1) : 1;
+    $('resumeFloor').textContent = '📍 Floor ' + floor;
+    $('resumeGold').textContent = '🪙 ' + (run.gold || 0);
+    var battleChip = $('resumeBattle');
+    if (run.battle) {
+      battleChip.classList.remove('hidden');
+      battleChip.textContent = '⚔ Battle in progress · Round ' + (run.battle.roundNumber || 1);
+      $('resumeNote').textContent = 'You closed the app mid-battle — pick up right where you left off.';
+    } else {
+      battleChip.classList.add('hidden');
+      $('resumeNote').textContent = 'An expedition is already in progress.';
+    }
+    renderPartyStrip($('resumeParty'), run.party || [], run.knight);
   }
 
   function loadRoster() {
@@ -144,6 +164,13 @@
     $('unitModal').addEventListener('click', function (e) { if (e.target === $('unitModal')) closeUnitModal(); });
     $('abandonBtn').addEventListener('click', function () {
       if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
+    });
+    $('resumeContinueBtn').addEventListener('click', function () { renderRun(); });
+    $('resumeRestartBtn').addEventListener('click', function () {
+      if (!confirm('Start over? Your current expedition (progress, gold, party) will be lost.')) return;
+      var t = token();
+      setToken(null); state.run = null; state.party = []; state.knightId = null;
+      api('/api/siege/run/abandon', { method: 'POST', body: { token: t } }).catch(function () {}).then(loadRoster);
     });
   }
 
@@ -1159,8 +1186,132 @@
         '<div class="pc-eff ' + effCls + '">' + effectLabel(card) + '</div>' +
         statusLine + gaugeLine +
         '<div class="pc-desc">' + esc(card.description || '') + '</div>';
-      c.addEventListener('click', function () { onCardClick(card); });
+      setupCardDrag(c, card);
       hand.appendChild(c);
+    });
+  }
+
+  /** Cards are played by dragging them onto the battle arena; a tap (no
+   *  drag) just brings the card into focus for a closer look. A ghost
+   *  follows the pointer while dragging, and drop targets highlight so it's
+   *  obvious where the card will land. */
+  var DRAG_THRESHOLD = 8;
+  function setupCardDrag(cardEl, card) {
+    var pointerId = null;
+    var startX = 0, startY = 0, dragOffsetX = 0, dragOffsetY = 0;
+    var dragging = false;
+    var ghost = null;
+
+    function canInteract() {
+      var b = state.run && state.run.battle;
+      return Boolean(b) && b.phase === 'PLAYER_INPUT' && !state.busy;
+    }
+
+    function beginGhost(clientX, clientY) {
+      var rect = cardEl.getBoundingClientRect();
+      dragOffsetX = clientX - rect.left;
+      dragOffsetY = clientY - rect.top;
+      ghost = cardEl.cloneNode(true);
+      ghost.classList.add('playcard-ghost');
+      ghost.style.position = 'fixed';
+      ghost.style.left = rect.left + 'px';
+      ghost.style.top = rect.top + 'px';
+      ghost.style.width = rect.width + 'px';
+      ghost.style.margin = '0';
+      ghost.style.setProperty('--fan-rot', '0deg');
+      ghost.style.setProperty('--fan-y', '0px');
+      document.body.appendChild(ghost);
+      cardEl.classList.add('playcard-dragsource');
+    }
+
+    function moveGhost(clientX, clientY) {
+      if (!ghost) return;
+      ghost.style.left = (clientX - dragOffsetX) + 'px';
+      ghost.style.top = (clientY - dragOffsetY) + 'px';
+    }
+
+    function updateDropHover(clientX, clientY) {
+      var stage = $('battleStage');
+      var hitEl = document.elementFromPoint(clientX, clientY);
+      var overStage = Boolean(hitEl && stage.contains(hitEl));
+      stage.classList.toggle('drop-hover', overStage);
+      var spriteEl = hitEl && hitEl.closest ? hitEl.closest('.sprite') : null;
+      Array.prototype.forEach.call(document.querySelectorAll('.sprite.drop-hover'), function (n) { n.classList.remove('drop-hover'); });
+      if (spriteEl && card.needsTarget && isValidDropTarget(spriteEl)) {
+        spriteEl.classList.add('drop-hover');
+      }
+    }
+
+    function isValidDropTarget(spriteEl) {
+      var wantsEnemy = card.target === 'ENEMY_SINGLE';
+      var isEnemy = spriteEl.dataset.side === 'ENEMY';
+      var alive = !spriteEl.classList.contains('dead');
+      return alive && (wantsEnemy ? isEnemy : !isEnemy);
+    }
+
+    function cleanup() {
+      if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+      ghost = null;
+      cardEl.classList.remove('playcard-dragsource');
+      var stage = $('battleStage');
+      stage.classList.remove('drop-hover');
+      Array.prototype.forEach.call(document.querySelectorAll('.sprite.targetable, .sprite.drop-hover'), function (n) {
+        n.classList.remove('targetable');
+        n.classList.remove('drop-hover');
+      });
+      dragging = false;
+      pointerId = null;
+    }
+
+    cardEl.addEventListener('pointerdown', function (event) {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (!canInteract() || !card.playable) return;
+      pointerId = event.pointerId;
+      startX = event.clientX; startY = event.clientY;
+      dragging = false;
+      if (cardEl.setPointerCapture) cardEl.setPointerCapture(pointerId);
+    });
+
+    cardEl.addEventListener('pointermove', function (event) {
+      if (pointerId === null || event.pointerId !== pointerId) return;
+      var dx = event.clientX - startX, dy = event.clientY - startY;
+      if (!dragging) {
+        if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+        dragging = true;
+        beginGhost(startX, startY);
+        if (card.needsTarget) highlightTargets(card);
+      }
+      event.preventDefault();
+      moveGhost(event.clientX, event.clientY);
+      updateDropHover(event.clientX, event.clientY);
+    });
+
+    function finish(event) {
+      if (pointerId === null || event.pointerId !== pointerId) return;
+      var wasDragging = dragging;
+      var dropX = event.clientX, dropY = event.clientY;
+      if (cardEl.hasPointerCapture && cardEl.hasPointerCapture(pointerId)) cardEl.releasePointerCapture(pointerId);
+      cleanup();
+      if (!wasDragging) { toggleCardFocus(card); return; }
+      if (!canInteract() || !card.playable) return;
+      var dropEl = document.elementFromPoint(dropX, dropY);
+      var stage = $('battleStage');
+      if (!dropEl || !stage.contains(dropEl)) return; // dropped off the arena — cancel
+      if (card.needsTarget) {
+        var spriteEl = dropEl.closest ? dropEl.closest('.sprite') : null;
+        if (!spriteEl || !isValidDropTarget(spriteEl)) {
+          toast('Drop ' + card.name + ' on a valid target.');
+          return;
+        }
+        playCard(card.instanceId, spriteEl.dataset.id);
+      } else {
+        playCard(card.instanceId, null);
+      }
+    }
+    cardEl.addEventListener('pointerup', finish);
+    cardEl.addEventListener('pointercancel', function (event) {
+      if (pointerId === null || event.pointerId !== pointerId) return;
+      cleanup();
     });
   }
 
@@ -1202,29 +1353,19 @@
     }
   }
 
-  function onCardClick(card) {
+  /** Tapping a card (without dragging it) just brings it into focus — a
+   *  closer look, not a play attempt. Playing a card means dragging it onto
+   *  the battle arena (see setupCardDrag). */
+  function toggleCardFocus(card) {
     var b = state.run.battle;
-    if (!b || b.phase !== 'PLAYER_INPUT' || !card.playable || state.busy) return;
-    if (card.needsTarget) {
-      if (state.selectedCardId === card.instanceId) { clearSelection(); }
-      else { state.selectedCardId = card.instanceId; state.selectedCardNeedsTarget = true; renderBattle(); }
-    } else {
-      playCard(card.instanceId, null);
-    }
+    if (!b || b.phase !== 'PLAYER_INPUT') return;
+    state.selectedCardId = state.selectedCardId === card.instanceId ? null : card.instanceId;
+    renderBattle();
   }
 
   function onUnitClick(u) {
     if (state.busy) return;
-    // No card waiting for a target → open this unit's detail popup instead.
-    if (!state.selectedCardId || !state.selectedCardNeedsTarget) {
-      showBattleUnitDetails(u);
-      return;
-    }
-    var card = currentCard();
-    if (!card) return;
-    var wantsEnemy = card.target === 'ENEMY_SINGLE';
-    if (wantsEnemy && u.side === 'ENEMY' && u.alive) { playCard(card.instanceId, u.id); }
-    else if (!wantsEnemy && u.side === 'PLAYER' && u.alive) { playCard(card.instanceId, u.id); }
+    showBattleUnitDetails(u);
   }
 
   /** Cards, abilities, and evolution info for any battlefield unit (allies AND enemies). */
@@ -1257,26 +1398,29 @@
     var b = state.run.battle; if (!b) return null;
     return b.hand.find(function (c) { return c.instanceId === state.selectedCardId; });
   }
-  function clearSelection() { state.selectedCardId = null; state.selectedCardNeedsTarget = false; renderBattle(); }
 
+  /** The focused card (tapped, not dragged) shows a drag hint; if it needs a
+   *  target, valid drop targets glow so it's clear where to drag it. */
   function updateHint(b, over) {
     var hint = $('battleHint');
-    if (over) { hint.textContent = ''; return; }
-    if (b.phase !== 'PLAYER_INPUT') { hint.textContent = 'Enemies are acting…'; return; }
+    if (over) { hint.textContent = ''; highlightTargets(null); return; }
+    if (b.phase !== 'PLAYER_INPUT') { hint.textContent = 'Enemies are acting…'; highlightTargets(null); return; }
     var card = currentCard();
-    if (card && card.needsTarget) {
-      hint.textContent = card.effect === 'SWAP'
-        ? 'Select the Siegeling to swap notches with.'
-        : 'Select a ' + (card.target === 'ENEMY_SINGLE' ? 'target enemy' : 'friendly Siegeling') + ' for ' + card.name + '.';
-      highlightTargets(card);
+    if (card) {
+      highlightTargets(card.needsTarget ? card : null);
+      hint.textContent = card.needsTarget
+        ? 'Drag ' + card.name + ' onto a ' + (card.target === 'ENEMY_SINGLE' ? 'target enemy' : 'friendly Siegeling') + '.'
+        : 'Drag ' + card.name + ' onto the battlefield to play it.';
     } else {
-      hint.textContent = 'Play cards (' + b.actionPoints + ' AP left) or End Turn.';
+      highlightTargets(null);
+      hint.textContent = 'Drag a card onto the battlefield to play it (' + b.actionPoints + ' AP left), or End Turn.';
     }
   }
 
   function highlightTargets(card) {
-    var wantsEnemy = card.target === 'ENEMY_SINGLE';
     Array.prototype.forEach.call(document.querySelectorAll('.sprite'), function (node) {
+      if (!card) { node.classList.remove('targetable'); return; }
+      var wantsEnemy = card.target === 'ENEMY_SINGLE';
       var isEnemy = node.dataset.side === 'ENEMY';
       var alive = !node.classList.contains('dead');
       node.classList.toggle('targetable', alive && (wantsEnemy ? isEnemy : !isEnemy));
@@ -1287,7 +1431,7 @@
     if (state.busy) return; state.busy = true;
     api('/api/siege/battle/play', { method: 'POST', body: { token: token(), cardId: cardId, targetId: targetId } })
       .then(function (run) {
-        state.selectedCardId = null; state.selectedCardNeedsTarget = false;
+        state.selectedCardId = null;
         if (run.error) toast(run.error);
         state.busy = false;
         applyRun(run);
@@ -1297,7 +1441,7 @@
 
   function endTurn() {
     if (state.busy) return; state.busy = true;
-    state.selectedCardId = null; state.selectedCardNeedsTarget = false;
+    state.selectedCardId = null;
     api('/api/siege/battle/end-turn', { method: 'POST', body: { token: token() } })
       .then(function (run) { state.busy = false; applyRun(run); })
       .catch(function (e) { toast(e.message); state.busy = false; });

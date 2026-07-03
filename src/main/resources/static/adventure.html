@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=11">
+<link rel="stylesheet" href="/css/adventure.css?v=12">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -22,6 +22,24 @@
     <div class="siege-spinner"></div>
     <p>Preparing the expedition…</p>
   </div>
+
+  <!-- Resume prompt: shown at boot when a saved expedition is detected. -->
+  <section class="siege-screen hidden" id="resumeScreen">
+    <h1>Welcome Back</h1>
+    <p class="siege-sub" id="resumeNote">An expedition is already in progress.</p>
+    <div class="resume-summary">
+      <div class="party-strip" id="resumeParty"></div>
+      <div class="resume-meta">
+        <span class="gold-chip" id="resumeGold">🪙 0</span>
+        <span id="resumeFloor"></span>
+        <span id="resumeBattle" class="resume-battle-chip hidden">⚔ Battle in progress</span>
+      </div>
+    </div>
+    <div class="resume-actions">
+      <button class="siege-btn primary" id="resumeContinueBtn" type="button">Continue Expedition ▸</button>
+      <button class="siege-btn" id="resumeRestartBtn" type="button">Start Over</button>
+    </div>
+  </section>
 
   <!-- Team select: page 1 (knight) → page 2 (warband) -->
   <section class="siege-screen hidden" id="setupScreen">
@@ -170,6 +188,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=11"></script>
+<script src="/js/adventure.js?v=12"></script>
 </body>
 </html>
