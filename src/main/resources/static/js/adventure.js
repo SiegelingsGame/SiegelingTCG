@@ -1194,8 +1194,175 @@
   /** Cards are played by dragging them onto the battle arena; a tap (no
    *  drag) just brings the card into focus for a closer look. A ghost
    *  follows the pointer while dragging, and drop targets highlight so it's
-   *  obvious where the card will land. */
+   *  obvious where the card will land. Targeted cards also draw a curved
+   *  arrow from the card to the finger (snapping to a valid unit on hover). */
   var DRAG_THRESHOLD = 8;
+  var TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
+  var DRAG_ARROW_PALETTES = {
+    DAMAGE: { source: '#ffaa55', target: '#ff3344', glow: '#ff6644' },
+    HEAL: { source: '#a8ffd2', target: '#3ce08a', glow: '#5bffae' },
+    SHIELD: { source: '#9adfff', target: '#76e6ff', glow: '#5cbcff' },
+    BUFF_ATK: { source: '#9adfff', target: '#3ea6ff', glow: '#5cbcff' },
+    BUFF_SPD: { source: '#9adfff', target: '#3ea6ff', glow: '#5cbcff' },
+    SLOW: { source: '#dff0ff', target: '#7adfff', glow: '#a6edff' },
+    SWAP: { source: '#e2c2ff', target: '#9a55ff', glow: '#b985ff' },
+    EVOLVE: { source: '#ffe9a8', target: '#ffd066', glow: '#ffe080' },
+    default: { source: '#ffd28a', target: '#ff9a3c', glow: '#ffbd70' }
+  };
+  var dragArrowState = { active: false, raf: 0, palette: null, ghost: null, snapEl: null, startedAt: 0 };
+
+  function dragArrowPalette(card) {
+    return DRAG_ARROW_PALETTES[card.effect] || DRAG_ARROW_PALETTES.default;
+  }
+
+  function ensureDragArrowLayer() {
+    var layer = document.getElementById('siegeDragArrowLayer');
+    if (!layer) {
+      layer = document.createElementNS(TARGET_ARROW_SVG_NS, 'svg');
+      layer.id = 'siegeDragArrowLayer';
+      layer.classList.add('siege-target-arrow-layer');
+      layer.setAttribute('aria-hidden', 'true');
+      layer.setAttribute('focusable', 'false');
+      document.body.appendChild(layer);
+    }
+    return layer;
+  }
+
+  function dragArrowClamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function dragArrowControlPoint(source, target, sceneCenterY) {
+    var mx = (source.x + target.x) / 2;
+    var my = (source.y + target.y) / 2;
+    var dx = target.x - source.x;
+    var dy = target.y - source.y;
+    var len = Math.hypot(dx, dy) || 1;
+    var px = -dy / len;
+    var py = dx / len;
+    var dirSign = my > sceneCenterY ? -1 : 1;
+    if (Math.abs(dy) < 8) { px = 0; py = -1; }
+    var k = dragArrowClamp(len * 0.2, 24, 140);
+    return { x: mx + (px * k * dirSign), y: my + (py * k * dirSign) };
+  }
+
+  function dragArrowPath(source, control, target) {
+    return 'M ' + source.x.toFixed(1) + ' ' + source.y.toFixed(1) +
+      ' Q ' + control.x.toFixed(1) + ' ' + control.y.toFixed(1) +
+      ' ' + target.x.toFixed(1) + ' ' + target.y.toFixed(1);
+  }
+
+  function dragArrowQuadPoint(source, control, target, t) {
+    var u = 1 - t;
+    return {
+      x: (u * u * source.x) + (2 * u * t * control.x) + (t * t * target.x),
+      y: (u * u * source.y) + (2 * u * t * control.y) + (t * t * target.y)
+    };
+  }
+
+  function dragArrowGhostCenter() {
+    var ghost = dragArrowState.ghost;
+    if (!ghost) return null;
+    var rect = ghost.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return { x: rect.left + (rect.width / 2), y: rect.top + (rect.height / 2) };
+  }
+
+  function dragArrowSnapCenter() {
+    var el = dragArrowState.snapEl;
+    if (!el) return null;
+    var rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return { x: rect.left + (rect.width / 2), y: rect.top + (rect.height * 0.42) };
+  }
+
+  function drawDragArrow(timestamp) {
+    if (!dragArrowState.active) return;
+    var svg = ensureDragArrowLayer();
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+
+    var source = dragArrowGhostCenter();
+    var target = dragArrowSnapCenter();
+    if (!target && dragArrowState.pointerX != null) {
+      target = { x: dragArrowState.pointerX, y: dragArrowState.pointerY };
+    }
+    if (!source || !target) {
+      svg.innerHTML = '';
+      if (dragArrowState.active) dragArrowState.raf = window.requestAnimationFrame(drawDragArrow);
+      return;
+    }
+
+    var palette = dragArrowState.palette || DRAG_ARROW_PALETTES.default;
+    var control = dragArrowControlPoint(source, target, h / 2);
+    var path = dragArrowPath(source, control, target);
+    var elapsed = Math.max(0, timestamp - dragArrowState.startedAt);
+    var dashPhase = (elapsed * 0.0006) % 1;
+    var tail = dragArrowQuadPoint(source, control, target, 0.965);
+    var angle = Math.atan2(target.y - tail.y, target.x - tail.x);
+    var size = 14;
+    var spread = 0.52;
+    var left = {
+      x: target.x - (Math.cos(angle - spread) * size),
+      y: target.y - (Math.sin(angle - spread) * size)
+    };
+    var right = {
+      x: target.x - (Math.cos(angle + spread) * size),
+      y: target.y - (Math.sin(angle + spread) * size)
+    };
+    var shapes = [];
+    shapes.push('<path d="' + path + '" fill="none" stroke="' + palette.glow + '" stroke-width="10" stroke-linecap="round" opacity="0.2"/>');
+    shapes.push('<path d="' + path + '" fill="none" stroke="' + palette.source + '" stroke-width="2.5" stroke-linecap="round" opacity="0.95"/>');
+    shapes.push('<path d="' + path + '" fill="none" pathLength="1" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-dasharray="0.06 0.106" stroke-dashoffset="' + (-dashPhase).toFixed(3) + '" opacity="0.65"/>');
+    shapes.push('<polygon points="' + target.x.toFixed(1) + ',' + target.y.toFixed(1) + ' ' +
+      left.x.toFixed(1) + ',' + left.y.toFixed(1) + ' ' +
+      right.x.toFixed(1) + ',' + right.y.toFixed(1) + '" fill="' + palette.target + '" opacity="0.92"/>');
+    var pulse = Math.sin(elapsed * 0.01);
+    var ringRadius = 8 + (4 * ((pulse + 1) / 2));
+    shapes.push('<circle cx="' + target.x.toFixed(1) + '" cy="' + target.y.toFixed(1) + '" r="' + ringRadius.toFixed(1) + '" fill="none" stroke="' + palette.target + '" stroke-width="2" opacity="' + (0.22 + (0.2 * ((pulse + 1) / 2))).toFixed(3) + '"/>');
+    shapes.push('<circle cx="' + source.x.toFixed(1) + '" cy="' + source.y.toFixed(1) + '" r="12" fill="' + palette.source + '" opacity="0.16"/>');
+    shapes.push('<circle cx="' + source.x.toFixed(1) + '" cy="' + source.y.toFixed(1) + '" r="5" fill="' + palette.source + '" opacity="0.55"/>');
+    svg.innerHTML = shapes.join('');
+    svg.classList.add('is-active');
+    dragArrowState.raf = window.requestAnimationFrame(drawDragArrow);
+  }
+
+  function startDragArrow(card, ghostEl) {
+    if (!card.needsTarget) return;
+    if (dragArrowState.raf) window.cancelAnimationFrame(dragArrowState.raf);
+    dragArrowState.active = true;
+    dragArrowState.palette = dragArrowPalette(card);
+    dragArrowState.ghost = ghostEl;
+    dragArrowState.snapEl = null;
+    dragArrowState.pointerX = null;
+    dragArrowState.pointerY = null;
+    dragArrowState.startedAt = performance.now();
+    dragArrowState.raf = window.requestAnimationFrame(drawDragArrow);
+  }
+
+  function updateDragArrow(clientX, clientY, snapEl) {
+    if (!dragArrowState.active) return;
+    dragArrowState.pointerX = clientX;
+    dragArrowState.pointerY = clientY;
+    dragArrowState.snapEl = snapEl || null;
+  }
+
+  function clearDragArrow() {
+    dragArrowState.active = false;
+    dragArrowState.ghost = null;
+    dragArrowState.snapEl = null;
+    if (dragArrowState.raf) {
+      window.cancelAnimationFrame(dragArrowState.raf);
+      dragArrowState.raf = 0;
+    }
+    var svg = document.getElementById('siegeDragArrowLayer');
+    if (svg) {
+      svg.classList.remove('is-active');
+      svg.innerHTML = '';
+    }
+  }
+
   function setupCardDrag(cardEl, card) {
     var pointerId = null;
     var startX = 0, startY = 0, dragOffsetX = 0, dragOffsetY = 0;
@@ -1222,6 +1389,7 @@
       ghost.style.setProperty('--fan-y', '0px');
       document.body.appendChild(ghost);
       cardEl.classList.add('playcard-dragsource');
+      if (card.needsTarget) startDragArrow(card, ghost);
     }
 
     function moveGhost(clientX, clientY) {
@@ -1237,9 +1405,12 @@
       stage.classList.toggle('drop-hover', overStage);
       var spriteEl = hitEl && hitEl.closest ? hitEl.closest('.sprite') : null;
       Array.prototype.forEach.call(document.querySelectorAll('.sprite.drop-hover'), function (n) { n.classList.remove('drop-hover'); });
+      var snapEl = null;
       if (spriteEl && card.needsTarget && isValidDropTarget(spriteEl)) {
         spriteEl.classList.add('drop-hover');
+        snapEl = spriteEl;
       }
+      if (card.needsTarget) updateDragArrow(clientX, clientY, snapEl);
     }
 
     function isValidDropTarget(spriteEl) {
@@ -1252,6 +1423,7 @@
     function cleanup() {
       if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
       ghost = null;
+      clearDragArrow();
       cardEl.classList.remove('playcard-dragsource');
       var stage = $('battleStage');
       stage.classList.remove('drop-hover');
