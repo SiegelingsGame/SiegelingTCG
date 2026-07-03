@@ -92,6 +92,9 @@
     ['loadingScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
+    // Battle and map are static, full-viewport screens (no page scroll —
+    // only their own internal regions, like the map canvas, scroll).
+    document.body.dataset.screen = id;
   }
   function toast(msg) {
     var t = $('siegeToast'); if (!t) return;
@@ -1123,13 +1126,17 @@
       hand.appendChild(wrap);
       return;
     }
-    var n = b.hand.length;
+    var sorted = sortHandByOwner(b);
+    var n = sorted.length;
     var deal = state.dealAnimation;
     state.dealAnimation = false;
-    b.hand.forEach(function (card, i) {
+    var prevOwner = null;
+    sorted.forEach(function (card, i) {
       var effCls = effectClass(card.effect);
       var mid = (n - 1) / 2;
-      var c = el('div', 'playcard ' + elClass(card.element) + (card.effect === 'EVOLVE' ? ' evo-card' : '') + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : '') + (deal ? ' dealt' : ''));
+      var groupStart = i > 0 && card.ownerId !== prevOwner;
+      prevOwner = card.ownerId;
+      var c = el('div', 'playcard ' + elClass(card.element) + (card.effect === 'EVOLVE' ? ' evo-card' : '') + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : '') + (deal ? ' dealt' : '') + (groupStart ? ' group-start' : ''));
       c.dataset.owner = card.ownerId;
       c.style.setProperty('--fan-rot', ((i - mid) * 4) + 'deg');
       c.style.setProperty('--fan-y', (Math.abs(i - mid) * 7) + 'px');
@@ -1154,6 +1161,18 @@
         '<div class="pc-desc">' + esc(card.description || '') + '</div>';
       c.addEventListener('click', function () { onCardClick(card); });
       hand.appendChild(c);
+    });
+  }
+
+  /** Groups the hand by owning Siegeling (left-to-right party order), Knight
+   *  cards last; cards belonging to the same character always sit together. */
+  function sortHandByOwner(b) {
+    var rank = {};
+    (b.allies || []).forEach(function (a, i) { rank[a.id] = i; });
+    return b.hand.slice().sort(function (x, y) {
+      var rx = x.ownerId in rank ? rank[x.ownerId] : 999;
+      var ry = y.ownerId in rank ? rank[y.ownerId] : 999;
+      return rx - ry;
     });
   }
 
