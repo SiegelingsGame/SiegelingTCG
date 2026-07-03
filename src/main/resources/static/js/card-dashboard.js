@@ -247,6 +247,7 @@
             "cardNameInput",
             "cardElementSelect",
             "cardRaritySelect",
+            "cardDescriptionInput",
             "sieglingStatsSection",
             "cardHealthInput",
             "cardSpeedInput",
@@ -824,6 +825,7 @@
             });
         });
         refs.cardRaritySelect.addEventListener("change", (event) => updateSelectedCardField("rarity", event.target.value));
+        refs.cardDescriptionInput?.addEventListener("input", (event) => updateSelectedCardField("description", event.target.value));
         refs.cardHealthInput.addEventListener("input", (event) => updateSelectedCardField("health", toNumber(event.target.value, 0)));
         refs.cardSpeedInput.addEventListener("input", (event) => updateSelectedCardField("speed", toNumber(event.target.value, 0)));
         refs.cardPreferredRowSelect.addEventListener("change", (event) => updateSelectedCardField("preferredRow", event.target.value));
@@ -2006,6 +2008,10 @@
         if (card?.holographic === true) {
             exported.holographic = true;
         }
+        const description = String(card?.description || "").trim();
+        if (description) {
+            exported.description = description;
+        }
         return exported;
     }
 
@@ -2039,6 +2045,7 @@
                 notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
                 moveIds,
                 abilities: [],
+                description: String(card?.description || ""),
                 ...normalizeCardArtFields(card)
             };
         }
@@ -2064,6 +2071,7 @@
             requiredComboSignature: String(card?.requiredComboSignature || "").trim().toUpperCase(),
             notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
             abilities: normalizeCardAbilities(cardType, abilities, baseElement),
+            description: String(card?.description || ""),
             ...normalizeCardArtFields(card)
         };
     }
@@ -2738,6 +2746,7 @@
 
         setInputValue(refs.cardIdInput, card.id);
         setInputValue(refs.cardNameInput, card.name);
+        setInputValue(refs.cardDescriptionInput, card.description || "");
         refs.cardIdInput.dataset.autoId = computeAutoCardId(card, card.name);
         setInputValue(refs.cardHealthInput, card.health);
         setInputValue(refs.cardSpeedInput, card.speed);
