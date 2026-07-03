@@ -4018,6 +4018,14 @@ body.battle-phase-active .battlefield::after {
     max-width: 420px;
 }
 
+.board-overlay-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 3;
+}
+
 /* Bottom external sockets sit below row cells; reserve space so markers stay inside .battlefield (overflow: hidden). */
 #playerGrid.board-grid {
     padding-bottom: clamp(18px, 2.4vh, 26px);
