@@ -742,13 +742,20 @@
         var fillPct = Math.round(100 * lane.total / max);
         bar.appendChild(el('div', 'lane-fill', ''));
         bar.lastChild.style.width = fillPct + '%';
-        // runners: each living unit at its cumulative speed position
+        // runners: each living unit at its cumulative speed position —
+        // shown with its overlay art cutout (element icon as fallback).
         var cum = 0;
         (lane.units || []).forEach(function (u) {
           if (!u.alive) return;
           cum += (u.effectiveSpeed != null ? u.effectiveSpeed : u.speed) || 0;
-          var runner = el('span', 'lane-runner ' + elClass(u.element), icon(u.element));
-          runner.style.left = 'calc(' + Math.round(100 * cum / max) + '% - 8px)';
+          var runner;
+          if (u.artUrl) {
+            runner = el('span', 'lane-runner img ' + elClass(u.element), '');
+            runner.style.backgroundImage = 'url("' + String(u.artUrl).replace(/"/g, '%22') + '")';
+          } else {
+            runner = el('span', 'lane-runner ' + elClass(u.element), icon(u.element));
+          }
+          runner.style.left = 'calc(' + Math.round(100 * cum / max) + '% - 9px)';
           runner.title = u.name + ' ⚡' + (u.effectiveSpeed != null ? u.effectiveSpeed : u.speed);
           bar.appendChild(runner);
         });
@@ -918,7 +925,7 @@
         return 120;
       case 'apCharge':
         showBanner('Unused AP → +' + ev.amount + ' Ultimate Charge', 'you');
-        apChargeAnimation(ev.amount);
+        apChargeAnimation(ev.amount, ev.total);
         return 750;
       case 'whiff':
         showBanner(nameOf(ev.sourceId) + '\'s ' + ev.name + ' hits empty ground!', 'them');
@@ -1026,12 +1033,28 @@
     }
   }
 
-  /** Leftover AP pips fly from the HUD into the Knight's charge bar. */
-  function apChargeAnimation(amount) {
+  /** Writes a charge value onto the knight plate + ult button mid-animation. */
+  function updateChargeDisplay(value) {
+    var b = state.run && state.run.battle;
+    var cost = (b && b.knight && b.knight.ultCost) || 20;
+    var txt = document.querySelector('#knightPlate .kp-chargetext');
+    if (txt) txt.textContent = '⚡ ' + value + '/' + cost;
+    var fill = document.querySelector('#knightPlate .kp-chargefill');
+    if (fill) fill.style.width = Math.min(100, Math.round(100 * value / Math.max(1, cost))) + '%';
+    var ult = $('knightUltBtn');
+    if (ult && !ult.classList.contains('hidden')) {
+      ult.textContent = value >= cost ? '⚡ ULT!' : '⚡' + value + '/' + cost;
+    }
+  }
+
+  /** Leftover AP pips fly from the HUD into the Knight's charge bar — the
+   *  charge number ticks up as each orb lands. */
+  function apChargeAnimation(amount, total) {
     var apHost = $('apDisplay'), plate = $('knightPlate');
     if (!apHost || !plate || plate.classList.contains('hidden')) return;
     var from = apHost.getBoundingClientRect(), to = plate.getBoundingClientRect();
     var n = Math.min(amount || 1, 5);
+    var start = total != null ? total - amount : null;
     for (var i = 0; i < n; i++) {
       (function (i) {
         setTimeout(function () {
@@ -1048,6 +1071,10 @@
             orb.remove();
             plate.classList.add('kp-charge-pop');
             setTimeout(function () { plate.classList.remove('kp-charge-pop'); }, 260);
+            if (start != null) {
+              // Each impact bumps the visible charge toward the new total.
+              updateChargeDisplay(start + Math.round((i + 1) * amount / n));
+            }
           };
         }, i * 110);
       })(i);
