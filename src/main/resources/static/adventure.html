@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=9">
+<link rel="stylesheet" href="/css/adventure.css?v=10">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -53,17 +53,19 @@
     </div>
   </section>
 
-  <!-- Map -->
+  <!-- Map (the map fills the screen; team info + HUD live at the bottom) -->
   <section class="siege-screen hidden" id="mapScreen">
-    <div class="party-strip" id="partyStrip"></div>
-    <div class="map-meta">
-      <span class="gold-chip" id="mapGold">🪙 0</span>
-      <span id="mapDeckCount"></span>
-      <span class="map-hint" id="mapHint">Choose your path</span>
-    </div>
-    <div class="map-reward" id="mapReward"></div>
     <div class="map-scroll" id="mapScroll">
       <svg id="mapSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="map-bottom">
+      <div class="map-reward" id="mapReward"></div>
+      <div class="map-meta">
+        <span class="gold-chip" id="mapGold">🪙 0</span>
+        <span id="mapDeckCount"></span>
+        <span class="map-hint" id="mapHint">Choose your path</span>
+      </div>
+      <div class="party-strip" id="partyStrip"></div>
     </div>
   </section>
 
@@ -168,6 +170,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=9"></script>
+<script src="/js/adventure.js?v=10"></script>
 </body>
 </html>
