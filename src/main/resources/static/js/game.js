@@ -52,6 +52,8 @@ let hoveredHandIndex = null;
 let hoveredBoardCard = null;
 /** Persisted board selection for live preview / drawer ({ isPlayer, row, col, instanceId }). */
 let arenaSelection = null;
+/** Cached overlay structure fingerprint per side; skips link/nexus rebuild when board topology is unchanged. */
+const boardOverlayFingerprints = { player: '', enemy: '' };
 let pendingClaimTarget = null;
 let claimFxInFlight = false;
 let lastRenderedPhase = null;
@@ -1388,6 +1390,30 @@ function clearArenaSelection() {
     arenaSelection = null;
 }
 
+/** Toggle arena-selected highlight on existing cells without rebuilding the board or overlays. */
+function syncArenaSelectionHighlight() {
+    document.querySelectorAll('#playerGrid .board-cell.arena-selected, #enemyGrid .board-cell.arena-selected')
+        .forEach((el) => el.classList.remove('arena-selected'));
+    if (!arenaSelection) {
+        return;
+    }
+    const gridId = arenaSelection.isPlayer ? 'playerGrid' : 'enemyGrid';
+    const grid = document.getElementById(gridId);
+    if (!grid) {
+        return;
+    }
+    const cellEl = grid.querySelector(
+        `.board-cell[data-row="${arenaSelection.row}"][data-col="${arenaSelection.col}"]`
+    );
+    if (!cellEl) {
+        return;
+    }
+    const cell = getBoardCellAt(arenaSelection.isPlayer, arenaSelection.row, arenaSelection.col);
+    if (cell && cell.instanceId === arenaSelection.instanceId) {
+        cellEl.classList.add('arena-selected');
+    }
+}
+
 /**
  * Focus a Siegeling on either board for the live preview / Card Preview drawer.
  * Second click on the same piece clears selection.
@@ -1409,7 +1435,7 @@ function onArenaCardClick(isPlayer, row, col, event) {
     ) {
         clearArenaSelection();
         syncFocusedCardUi();
-        render();
+        syncArenaSelectionHighlight();
         return;
     }
     arenaSelection = { isPlayer, row, col, instanceId: cell.instanceId };
@@ -1419,7 +1445,7 @@ function onArenaCardClick(isPlayer, row, col, event) {
     hoveredHandIndex = null;
     updateSelectedInfo(boardCellToPreviewCard(cell));
     syncFocusedCardUi();
-    render();
+    syncArenaSelectionHighlight();
 }
 
 /** Mobile: inspect board cell; Claim control uses stopPropagation + openClaimPopup. */
@@ -11627,10 +11653,10 @@ function renderBoard(gridId, board, isPlayer) {
         }
     }
 
+    const overlayLayer = detachBoardOverlayLayer(grid);
     grid.innerHTML = html;
-    renderLinkConnectors(gridId, board, isPlayer);
-    const side = isPlayer ? gameState?.player : gameState?.enemy;
-    renderNexusOverlays(gridId, board, isPlayer, side?.nexusPoints || []);
+    ensureBoardOverlayLayer(grid, overlayLayer);
+    updateBoardOverlays(gridId, board, isPlayer);
 }
 
 function collectBoardCellElements(grid) {
@@ -11748,10 +11774,84 @@ function getNotchOutgoingAnchor(grid, cellRefs, r, c, direction, _isPlayer) {
     }
 }
 
-function renderNexusOverlays(gridId, board, isPlayer, nexusPoints) {
+function detachBoardOverlayLayer(grid) {
+    const layer = grid.querySelector(':scope > .board-overlay-layer');
+    if (layer) {
+        layer.remove();
+    }
+    return layer;
+}
+
+function ensureBoardOverlayLayer(grid, existingLayer) {
+    if (existingLayer) {
+        grid.appendChild(existingLayer);
+        return existingLayer;
+    }
+    const layer = document.createElement('div');
+    layer.className = 'board-overlay-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    grid.appendChild(layer);
+    return layer;
+}
+
+function getBoardOverlayLayer(grid) {
+    return grid.querySelector(':scope > .board-overlay-layer')
+        || ensureBoardOverlayLayer(grid, null);
+}
+
+function computeBoardOverlayFingerprint(board, nexusPoints) {
+    const parts = [];
+    for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+            const cell = board?.[r]?.[c];
+            if (!cell) {
+                continue;
+            }
+            parts.push(`${r}:${c}:${cell.instanceId || ''}`);
+            if (cell.notches?.length) {
+                parts.push(
+                    cell.notches
+                        .map((notch) => `${notch.direction}:${notch.element}`)
+                        .sort()
+                        .join('|')
+                );
+            }
+        }
+    }
+    parts.push(JSON.stringify(nexusPoints || []));
+    return parts.join(';');
+}
+
+function updateBoardOverlays(gridId, board, isPlayer, options = {}) {
     const grid = document.getElementById(gridId);
-    if (!grid) return;
-    grid.querySelectorAll('.nexus-overlay').forEach((el) => el.remove());
+    if (!grid) {
+        return;
+    }
+    const side = isPlayer ? gameState?.player : gameState?.enemy;
+    const nexusPoints = side?.nexusPoints || [];
+    const sideKey = isPlayer ? 'player' : 'enemy';
+    const fingerprint = computeBoardOverlayFingerprint(board, nexusPoints);
+    const layer = getBoardOverlayLayer(grid);
+    const contentUnchanged = !options.forceContent
+        && boardOverlayFingerprints[sideKey] === fingerprint
+        && layer.childElementCount > 0;
+
+    if (contentUnchanged && !options.forceLayout) {
+        return;
+    }
+
+    const overlayElements = [];
+    collectLinkConnectorElements(overlayElements, grid, board, isPlayer);
+    collectNexusOverlayElements(overlayElements, grid, board, isPlayer, nexusPoints);
+    layer.replaceChildren(...overlayElements);
+    boardOverlayFingerprints[sideKey] = fingerprint;
+}
+
+function renderNexusOverlays(gridId, board, isPlayer, nexusPoints) {
+    updateBoardOverlays(gridId, board, isPlayer, { forceContent: true, forceLayout: true });
+}
+
+function collectNexusOverlayElements(out, grid, board, isPlayer, nexusPoints) {
     if (!nexusPoints || nexusPoints.length === 0) return;
 
     const cellRefs = collectBoardCellElements(grid);
@@ -11809,7 +11909,7 @@ function renderNexusOverlays(gridId, board, isPlayer, nexusPoints) {
         svg += buildNexusHubGraphics(hx, hy, hubR, hubDistinct);
         svg += '</svg>';
         wrap.innerHTML = svg;
-        grid.appendChild(wrap);
+        out.push(wrap);
     }
 }
 
@@ -11853,9 +11953,10 @@ function getBoardCellLocalRect(grid, cellEl) {
 }
 
 function renderLinkConnectors(gridId, board, isPlayer) {
-    const grid = document.getElementById(gridId);
-    grid.querySelectorAll('.link-connector, .external-energy-point').forEach(el => el.remove());
+    updateBoardOverlays(gridId, board, isPlayer, { forceContent: true, forceLayout: true });
+}
 
+function collectLinkConnectorElements(out, grid, board, isPlayer) {
     const rowOrder = isPlayer ? [2, 1, 0] : [0, 1, 2];
     const links = [];
     const activeExternalSockets = new Map();
@@ -12045,7 +12146,7 @@ function renderLinkConnectors(gridId, board, isPlayer) {
         }
 
         connector.innerHTML = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">${svgContent}</svg>`;
-        grid.appendChild(connector);
+        out.push(connector);
     }
 
     for (const socket of getAllExternalSockets(isPlayer)) {
@@ -12060,10 +12161,10 @@ function renderLinkConnectors(gridId, board, isPlayer) {
 
         if (activeSocket) {
             const anchor = getCellEdgeAnchor(cellLocal, activeSocket.direction);
-            appendExternalLink(grid, anchor, point, getElementHex(activeSocket.element));
+            appendExternalLink(out, anchor, point, getElementHex(activeSocket.element));
         }
 
-        appendExternalEnergyPoint(grid, point, activeSocket?.element || null);
+        appendExternalEnergyPoint(out, point, activeSocket?.element || null);
     }
 }
 
@@ -12074,10 +12175,8 @@ function refreshBoardLinkConnectors() {
     const playerGrid = document.getElementById('playerGrid');
     const enemyGrid = document.getElementById('enemyGrid');
     if (!playerGrid || !enemyGrid) return;
-    renderLinkConnectors('enemyGrid', gameState.enemyBoard, false);
-    renderNexusOverlays('enemyGrid', gameState.enemyBoard, false, gameState.enemy?.nexusPoints || []);
-    renderLinkConnectors('playerGrid', gameState.playerBoard, true);
-    renderNexusOverlays('playerGrid', gameState.playerBoard, true, gameState.player?.nexusPoints || []);
+    updateBoardOverlays('enemyGrid', gameState.enemyBoard, false, { forceLayout: true });
+    updateBoardOverlays('playerGrid', gameState.playerBoard, true, { forceLayout: true });
 }
 
 function scheduleBoardLinkConnectorRefresh() {
@@ -12165,7 +12264,7 @@ function getExternalSocketPoint(local, side) {
     }
 }
 
-function appendExternalLink(grid, start, end, color) {
+function appendExternalLink(out, start, end, color) {
     const connector = document.createElement('div');
     connector.className = 'link-connector external-link';
 
@@ -12183,16 +12282,16 @@ function appendExternalLink(grid, start, end, color) {
     connector.style.width = `${svgW}px`;
     connector.style.height = `${svgH}px`;
     connector.innerHTML = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}"><line x1="${localSX}" y1="${localSY}" x2="${localEX}" y2="${localEY}" stroke="${color}" stroke-width="5" stroke-linecap="round"/></svg>`;
-    grid.appendChild(connector);
+    out.push(connector);
 }
 
-function appendExternalEnergyPoint(grid, point, element) {
+function appendExternalEnergyPoint(out, point, element) {
     const node = document.createElement('div');
     const activeClass = element ? ` active ${String(element).toLowerCase()}` : '';
     node.className = `external-energy-point${activeClass}`;
     node.style.left = `${point.x}px`;
     node.style.top = `${point.y}px`;
-    grid.appendChild(node);
+    out.push(node);
 }
 
 function getOppositeDirection(dir) {
