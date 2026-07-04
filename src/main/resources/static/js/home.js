@@ -118,7 +118,7 @@
     };
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
-    const DECK_ASSET_KEYS = ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND'];
+    const DECK_ASSET_KEYS = ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER'];
     const DECK_ASSET_PATHS = {
         FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
         EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
@@ -139,7 +139,7 @@
         EPIC: '#c084fc',
         LEGENDARY: '#ffd54a'
     };
-    const PROFILE_ELEMENTS = ['Fire', 'Ice', 'Earth', 'Wind', 'Neutral'];
+    const PROFILE_ELEMENTS = ['Fire', 'Earth', 'Wind', 'Ice', 'Neutral'];
     // Premade card backs players can choose from in their profile.
     const PROFILE_CARD_BACKS = [
         { name: 'Molten Sigil', element: 'Fire' },
@@ -2463,7 +2463,7 @@
     }
 
     function homeDefaultPackRows() {
-        return ['FIRE', 'ICE', 'EARTH', 'WIND'].map(element => `<button class="shop-pack-row" type="button" data-home-action="shop">
+        return ['FIRE', 'EARTH', 'WIND', 'ICE'].map(element => `<button class="shop-pack-row" type="button" data-home-action="shop">
             <span style="--el:${elementColor(element)}">${escapeHtml(format(element).slice(0, 1))}</span>
             <strong>${escapeHtml(format(element))} Starter Pack</strong>
             <em>${renderCoinAmount(100, '')}</em>

@@ -2,10 +2,10 @@ package com.sieglings.model.enums;
 
 public enum Element {
     FIRE,
-    ICE,
-    WATER,
     EARTH,
     WIND,
+    ICE,
+    WATER,
     SHADOW,
     ELECTRIC,
     METAL,

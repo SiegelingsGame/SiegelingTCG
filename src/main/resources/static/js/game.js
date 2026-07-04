@@ -76,7 +76,7 @@ let handSelectorScaleFrame = null;
 let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
-const DECK_ART_ASSET_KEYS = ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND'];
+const DECK_ART_ASSET_KEYS = ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER'];
 const DECK_ART_ASSETS = {
     FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
     EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
@@ -849,10 +849,10 @@ if (typeof window.matchMedia === 'function') {
 }
 const ENERGY_ORDER = [
     ['fire', 'Fire'],
-    ['ice', 'Ice'],
-    ['water', 'Water'],
     ['earth', 'Earth'],
     ['wind', 'Wind'],
+    ['ice', 'Ice'],
+    ['water', 'Water'],
     ['shadow', 'Shadow'],
     ['electric', 'Electric'],
     ['metal', 'Metal'],
