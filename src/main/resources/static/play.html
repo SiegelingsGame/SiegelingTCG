@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=180">
+    <link rel="stylesheet" href="/css/style.css?v=185">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -534,10 +534,10 @@
                     <span class="play-mode-btn-label">Battle</span>
                     <span class="play-mode-btn-sub">Solo &amp; live PvP — levels off</span>
                 </button>
-                <button class="btn play-mode-btn play-mode-btn-soon" type="button" onclick="announceSiegeComingSoon()" aria-disabled="true">
-                    <span class="play-mode-btn-label">Siege <span class="play-mode-soon-tag">Coming Soon</span></span>
-                    <span class="play-mode-btn-sub">Roguelike — your levels matter</span>
-                </button>
+                <a class="btn play-mode-btn" href="/siege">
+                    <span class="play-mode-btn-label">Siege <span class="play-mode-soon-tag play-mode-new-tag">New</span></span>
+                    <span class="play-mode-btn-sub">Roguelike expedition — build a warband</span>
+                </a>
                 <a class="btn welcome-dashboard-btn" href="/social">Browse Social Lobbies</a>
             </div>
         </section>
@@ -760,7 +760,11 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=182"></script>
+    <script src="/js/game.js?v=188"></script>
+    <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
+         getDashboardCardArtMeta() can't build the cardArtScale/offset transform, so
+         overlay art renders unscaled on the battle hand, board, and mulligan. -->
+    <script src="/js/card-binder-visual.js?v=6"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
     <script src="/js/action-queue.js?v=35"></script>

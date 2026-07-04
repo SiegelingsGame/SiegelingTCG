@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -24,6 +25,39 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ManualSieglingCatalogTest {
+
+    @Test
+    void deletingASieglingFromOverridesKeepsItOutOfTheRoster() {
+        List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+
+        // The dashboard publishes the full roster; deleting a card drops it from the
+        // exported definitions. The deleted card must not fall back to its generated seed.
+        List<ManualSieglingCatalog.ManualSieglingDefinition> definitions =
+                ManualSieglingCatalog.buildOverrideFile(generated).cards().stream()
+                        .filter(def -> !"emberpup".equalsIgnoreCase(def.id())
+                                && !"hotdog".equalsIgnoreCase(def.id()))
+                        .toList();
+
+        List<String> ids = ManualSieglingCatalog.applyOverrides(Element.FIRE, generated, definitions, pool)
+                .stream().map(SieglingCard::getId).toList();
+
+        assertFalse(ids.contains("emberpup"), "deleted card emberpup should not reappear");
+        assertFalse(ids.contains("hotdog"), "deleted card hotdog should not reappear");
+        assertTrue(ids.contains("firsky"), "surviving cards should remain");
+    }
+
+    @Test
+    void emptyOverridesFallBackToTheGeneratedRoster() {
+        List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+
+        List<String> ids = ManualSieglingCatalog.applyOverrides(Element.FIRE, generated, List.of(), pool)
+                .stream().map(SieglingCard::getId).sorted().toList();
+        List<String> generatedIds = generated.stream().map(SieglingCard::getId).sorted().toList();
+
+        assertEquals(generatedIds, ids);
+    }
 
     @Test
     void manualDefinitionsCanOverrideGeneratedSieglingFields() {
@@ -60,6 +94,8 @@ class ManualSieglingCatalogTest {
                         1,
                         null
                 ),
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -161,6 +197,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -219,6 +257,8 @@ class ManualSieglingCatalogTest {
                 "EARTH+FIRE",
                 null,
                 List.of(),
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -288,6 +328,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -334,6 +376,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 List.of(),
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -400,6 +444,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -452,6 +498,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -496,6 +544,8 @@ class ManualSieglingCatalogTest {
                 "REPLACE",
                 12.5,
                 -8.0,
+                null,
+                null,
                 1.35,
                 -15.0,
                 null
@@ -519,6 +569,28 @@ class ManualSieglingCatalogTest {
         assertEquals(-8.0, exported.cardArtOffsetY());
         assertEquals(1.35, exported.cardArtScale());
         assertEquals(-15.0, exported.cardArtRotation());
+    }
+
+    @Test
+    void copyRetainsCardArtTransform() {
+        // Regression: the deck-builder catalog runs every card through copy().
+        // copy() previously dropped scale/offsets, so published art rendered at
+        // scale 1.0 in the binder even though Firestore held the tuned values.
+        SieglingCard card = new SieglingCard("raydile", "Raydile", Element.FIRE, Rarity.UNCOMMON,
+                15, 8, List.of(), Row.FRONT);
+        card.setCardArtUrl("https://example.com/raydile.png");
+        card.setCardArtMode("OVERLAY");
+        card.setCardArtOffsetXPct(1.25);
+        card.setCardArtOffsetYPct(18.0);
+        card.setCardArtScale(1.82);
+        card.setCardArtRotation(0.0);
+
+        SieglingCard copy = card.copy();
+        assertEquals("https://example.com/raydile.png", copy.getCardArtUrl());
+        assertEquals("OVERLAY", copy.getCardArtMode());
+        assertEquals(1.25, copy.getCardArtOffsetXPct());
+        assertEquals(18.0, copy.getCardArtOffsetYPct());
+        assertEquals(1.82, copy.getCardArtScale());
     }
 
     @Test
@@ -602,6 +674,8 @@ class ManualSieglingCatalogTest {
                 null,
                 "data:image/png;base64,abc",
                 "REPLACE",
+                null,
+                null,
                 null,
                 null,
                 null,

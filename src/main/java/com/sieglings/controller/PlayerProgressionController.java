@@ -79,7 +79,12 @@ public class PlayerProgressionController {
                                         @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            PlayerProgressionEntity progression = progressionService.openPack(user, string(req, "packId"));
+            PlayerProgressionEntity progression = progressionService.openPacks(
+                    user,
+                    string(req, "packId"),
+                    intValue(req, "count", 1),
+                    string(req, "requestId")
+            );
             return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
@@ -236,5 +241,17 @@ public class PlayerProgressionController {
     private String string(Map<String, Object> req, String key) {
         Object value = req == null ? null : req.get(key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private int intValue(Map<String, Object> req, String key, int fallback) {
+        Object value = req == null ? null : req.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return value == null ? fallback : Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
     }
 }

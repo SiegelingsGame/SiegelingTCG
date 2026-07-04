@@ -29,9 +29,13 @@ public class PlayerProgressionService {
     public static final int ONLINE_WIN_GOLD = 5;
     public static final int WIN_STREAK_GOLD = 2;
     public static final int PACK_OPEN_REMNANTS = 40;
+    public static final double BULK_PACK_DISCOUNT = 0.05;
+    public static final int MAX_BULK_PACK_COUNT = 10;
     public static final int TUTORIAL_GOLD_REWARD = 250;
     public static final int SOLO_WIN_REMNANTS = 20;
     public static final int ONLINE_WIN_REMNANTS = 30;
+    private static final int PACK_OPEN_LOCK_STRIPES = 64;
+    private static final int COMPLETED_PACK_OPEN_REQUEST_LIMIT = 500;
 
     // SiegeKnight leveling / combining (tunable balance knobs).
     public static final int TRAINER_MAX_LEVEL = 5;
@@ -43,6 +47,8 @@ public class PlayerProgressionService {
 
     public record TrainerGrantOutcome(String trainerId, String trainerName, String element, String rarity, String tier,
                                       boolean newlyOwned, boolean leveledUp, int level, int points, int pointsForNext) {}
+
+    private final Object[] packOpenLocks = createLockStripes();
 
     @Autowired
     private PlayerProgressionStore store;
@@ -58,6 +64,19 @@ public class PlayerProgressionService {
 
     @Autowired(required = false)
     private PlayerTitleService playerTitleService;
+
+    private static Object[] createLockStripes() {
+        Object[] locks = new Object[PACK_OPEN_LOCK_STRIPES];
+        for (int i = 0; i < locks.length; i++) {
+            locks[i] = new Object();
+        }
+        return locks;
+    }
+
+    private Object packOpenLock(AccountUser user) {
+        String userId = user == null ? "" : String.valueOf(user.getId());
+        return packOpenLocks[Math.floorMod(userId.hashCode(), packOpenLocks.length)];
+    }
 
     public PlayerProgressionEntity getOrCreate(AccountUser user) {
         PlayerProgressionEntity progression = store.findByUserId(user.getId()).orElseGet(() -> {
@@ -114,6 +133,9 @@ public class PlayerProgressionService {
     public PlayerProgressionEntity chooseStarterPack(AccountUser user, String packId) {
         PlayerProgressionEntity progression = getOrCreate(user);
         if (progression.getStarterPackId() != null && !progression.getStarterPackId().isBlank()) {
+            if (progression.getStarterPackId().equals(packId)) {
+                return progression;
+            }
             throw new IllegalArgumentException("Starter pack has already been chosen.");
         }
         PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
@@ -128,7 +150,7 @@ public class PlayerProgressionService {
             progression.setTrainerPoints(new LinkedHashMap<>());
             trainerOutcome = grantTrainer(progression, starterTrainer);
         }
-        addPackHistory(progression, result, outcomes, trainerOutcome, 0, "STARTER");
+        addPackHistory(progression, result, outcomes, trainerOutcome, 0, "STARTER", null);
         progression.setUpdatedAt(Instant.now());
         PlayerProgressionEntity saved = store.save(progression);
         recordPackOpenedAsync(saved.getUserId());
@@ -154,7 +176,7 @@ public class PlayerProgressionService {
         grantRemnants(progression, PACK_OPEN_REMNANTS);
         progression.setGold(progression.getGold() + TUTORIAL_GOLD_REWARD);
         progression.setTutorialCompleted(true);
-        addPackHistory(progression, result, outcomes, null, 0, "TUTORIAL");
+        addPackHistory(progression, result, outcomes, null, 0, "TUTORIAL", null);
         progression.setUpdatedAt(Instant.now());
         PlayerProgressionEntity saved = store.save(progression);
         recordPackOpenedAsync(saved.getUserId());
@@ -162,9 +184,22 @@ public class PlayerProgressionService {
     }
 
     public PlayerProgressionEntity openPack(AccountUser user, String packId) {
+        return openPack(user, packId, null);
+    }
+
+    public PlayerProgressionEntity openPack(AccountUser user, String packId, String requestId) {
+        synchronized (packOpenLock(user)) {
+            return openPackInternal(user, packId, normalizePackOpenRequestId(requestId));
+        }
+    }
+
+    private PlayerProgressionEntity openPackInternal(AccountUser user, String packId, String requestId) {
         PlayerProgressionEntity progression = getOrCreate(user);
         if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
             throw new IllegalArgumentException("Choose a starter pack before buying more packs.");
+        }
+        if (hasCompletedPackOpenRequest(progression, requestId)) {
+            return progression;
         }
         PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, false);
         if (progression.getGold() < result.pack().price()) {
@@ -176,7 +211,80 @@ public class PlayerProgressionService {
         TrainerGrantOutcome trainerOutcome = result.bonusTrainer() == null
                 ? null
                 : grantTrainer(progression, result.bonusTrainer());
-        addPackHistory(progression, result, outcomes, trainerOutcome, result.pack().price(), "SHOP");
+        addPackHistory(progression, result, outcomes, trainerOutcome, result.pack().price(), "SHOP", requestId);
+        progression.setUpdatedAt(Instant.now());
+        PlayerProgressionEntity saved = store.save(progression);
+        recordPackOpenedAsync(saved.getUserId());
+        return saved;
+    }
+
+    /** Total Siegecoin cost for {@code count} copies of a pack, applying the bulk discount for multi-buys. */
+    public static int bulkPackCost(int unitPrice, int count) {
+        long gross = (long) unitPrice * Math.max(1, count);
+        if (count <= 1) {
+            return (int) gross;
+        }
+        return (int) Math.round(gross * (1.0 - BULK_PACK_DISCOUNT));
+    }
+
+    /**
+     * Opens {@code count} copies of a pack in a single transaction, charging the discounted bundle price.
+     * All pulled cards are combined into one pack-history entry so the reveal shows the full bundle at once.
+     */
+    public PlayerProgressionEntity openPacks(AccountUser user, String packId, int count) {
+        return openPacks(user, packId, count, null);
+    }
+
+    public PlayerProgressionEntity openPacks(AccountUser user, String packId, int count, String requestId) {
+        synchronized (packOpenLock(user)) {
+            return openPacksInternal(user, packId, count, normalizePackOpenRequestId(requestId));
+        }
+    }
+
+    private PlayerProgressionEntity openPacksInternal(AccountUser user, String packId, int count, String requestId) {
+        int safeCount = Math.max(1, Math.min(count, MAX_BULK_PACK_COUNT));
+        if (safeCount == 1) {
+            return openPackInternal(user, packId, requestId);
+        }
+        PlayerProgressionEntity progression = getOrCreate(user);
+        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+            throw new IllegalArgumentException("Choose a starter pack before buying more packs.");
+        }
+        if (hasCompletedPackOpenRequest(progression, requestId)) {
+            return progression;
+        }
+        PackCatalogService.PackDefinition pack = packCatalogService.findPack(packId)
+                .orElseThrow(() -> new IllegalArgumentException("Pack not found."));
+        int totalCost = bulkPackCost(pack.price(), safeCount);
+        if (progression.getGold() < totalCost) {
+            throw new IllegalArgumentException("Not enough Siegecoins for that bundle.");
+        }
+        progression.setGold(progression.getGold() - totalCost);
+
+        List<Card> allCards = new ArrayList<>();
+        List<String> allHoloIds = new ArrayList<>();
+        List<CardGrantOutcome> allOutcomes = new ArrayList<>();
+        TrainerGrantOutcome firstTrainerOutcome = null;
+        PackCatalogService.PackDefinition openedPack = pack;
+        for (int i = 0; i < safeCount; i++) {
+            PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, false);
+            openedPack = result.pack();
+            allOutcomes.addAll(grantCardsWithCap(progression, result.cards()));
+            grantRemnants(progression, PACK_OPEN_REMNANTS);
+            if (result.bonusTrainer() != null) {
+                TrainerGrantOutcome trainerOutcome = grantTrainer(progression, result.bonusTrainer());
+                if (firstTrainerOutcome == null) {
+                    firstTrainerOutcome = trainerOutcome;
+                }
+            }
+            allCards.addAll(result.cards());
+            if (result.holoCardIds() != null) {
+                allHoloIds.addAll(result.holoCardIds());
+            }
+        }
+        PackCatalogService.PackOpenResult combined =
+                new PackCatalogService.PackOpenResult(openedPack, allCards, null, allHoloIds);
+        addPackHistory(progression, combined, allOutcomes, firstTrainerOutcome, totalCost, "SHOP", requestId);
         progression.setUpdatedAt(Instant.now());
         PlayerProgressionEntity saved = store.save(progression);
         recordPackOpenedAsync(saved.getUserId());
@@ -704,6 +812,44 @@ public class PlayerProgressionService {
         return normalized.isBlank() ? null : normalized;
     }
 
+    private String normalizePackOpenRequestId(String requestId) {
+        if (requestId == null) {
+            return null;
+        }
+        String normalized = requestId.trim();
+        if (normalized.isBlank()) {
+            return null;
+        }
+        return normalized.length() > 120 ? normalized.substring(0, 120) : normalized;
+    }
+
+    private boolean hasCompletedPackOpenRequest(PlayerProgressionEntity progression, String requestId) {
+        if (requestId == null || progression == null) {
+            return false;
+        }
+        if (progression.getCompletedPackOpenRequestIds().contains(requestId)) {
+            return true;
+        }
+        return progression.getPackHistory() != null && progression.getPackHistory().stream()
+                .anyMatch(entry -> entry != null && requestId.equals(entry.get("requestId")));
+    }
+
+    private void recordCompletedPackOpenRequest(PlayerProgressionEntity progression, String requestId) {
+        if (progression == null || requestId == null || requestId.isBlank()) {
+            return;
+        }
+        List<String> completed = new ArrayList<>();
+        completed.add(requestId);
+        for (String existing : progression.getCompletedPackOpenRequestIds()) {
+            if (existing != null && !existing.isBlank() && !existing.equals(requestId)) {
+                completed.add(existing);
+            }
+        }
+        progression.setCompletedPackOpenRequestIds(completed.stream()
+                .limit(COMPLETED_PACK_OPEN_REQUEST_LIMIT)
+                .toList());
+    }
+
     /** Records pack-dropped holographic finishes on the player's collection. */
     private void applyHolographicDrops(PlayerProgressionEntity progression, PackCatalogService.PackOpenResult result) {
         if (result.holoCardIds() == null || result.holoCardIds().isEmpty()) {
@@ -724,13 +870,18 @@ public class PlayerProgressionService {
                                 List<CardGrantOutcome> outcomes,
                                 TrainerGrantOutcome trainerOutcome,
                                 int price,
-                                String source) {
+                                String source,
+                                String requestId) {
         applyHolographicDrops(progression, result);
         Map<String, Object> entry = new LinkedHashMap<>();
         entry.put("packId", result.pack().id());
         entry.put("packName", result.pack().name());
         entry.put("source", source);
         entry.put("price", price);
+        if (requestId != null) {
+            entry.put("requestId", requestId);
+            recordCompletedPackOpenRequest(progression, requestId);
+        }
         entry.put("openedAt", Instant.now().toString());
         int remnantsFromDuplicates = outcomes.stream().mapToInt(CardGrantOutcome::remnantsAwarded).sum();
         entry.put("remnantsFromDuplicates", remnantsFromDuplicates);

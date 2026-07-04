@@ -47,6 +47,8 @@ public class TrainerCard extends Card {
         copy.setCardArtMode(getCardArtMode());
         copy.setCardArtOffsetX(getCardArtOffsetX());
         copy.setCardArtOffsetY(getCardArtOffsetY());
+        copy.setCardArtOffsetXPct(getCardArtOffsetXPct());
+        copy.setCardArtOffsetYPct(getCardArtOffsetYPct());
         copy.setCardArtScale(getCardArtScale());
         copy.setCardArtRotation(getCardArtRotation());
         copy.setHolographic(isHolographic());

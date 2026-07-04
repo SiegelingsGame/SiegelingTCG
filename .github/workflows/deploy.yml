@@ -63,5 +63,93 @@ jobs:
       - name: Generate Functions Manifest
         run: npm --prefix functions run manifest
 
-      - name: Deploy Firebase Hosting And Functions
-        run: firebase deploy --only functions:api,hosting --project siegelingstcgtesting
+      - name: Write Firebase service account credentials
+        # firebase-tools (v15) does not honor the credential file that
+        # google-github-actions/auth exports — it ignores ADC and fails with
+        # "Failed to authenticate, have you run firebase login?" (see
+        # firebase/firebase-tools#10726). gcloud accepts that file, which is why
+        # the Cloud Run job authenticates fine. Write the raw service-account
+        # key to its own file and point firebase-tools straight at it below.
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Deploy Firebase Hosting
+        # Hosting is deployed on its own so a functions deploy failure can never
+        # block the hosting release. A stuck functions:api operation returning
+        # HTTP 409 previously aborted the combined deploy before hosting was
+        # released, leaving the site serving stale content despite a "success".
+        # Point firebase-tools at the raw service-account key (a format it can
+        # authenticate with), overriding the ADC file for this step only. Retry
+        # to ride out genuinely transient network/API errors; deploy is
+        # idempotent so retries are safe.
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          firebase --version || true
+          backoffs="20 40 60"
+          attempt=0
+          for wait in 0 $backoffs; do
+            if [ "$wait" -gt 0 ]; then
+              echo "Retrying in ${wait}s..."
+              sleep "$wait"
+            fi
+            attempt=$((attempt + 1))
+            echo "::group::firebase deploy hosting (attempt $attempt)"
+            set +e
+            output="$(firebase deploy --only hosting --project siegelingstcgtesting 2>&1)"
+            code=$?
+            set -e
+            echo "$output"
+            echo "::endgroup::"
+            if [ "$code" -eq 0 ]; then
+              echo "Firebase hosting deploy succeeded on attempt $attempt."
+              exit 0
+            fi
+            # A commit that touches only functions/** leaves the hosting content
+            # byte-identical to the live version. Firebase then rejects the
+            # release with HTTP 400 "is the current active version". There is
+            # nothing to release — treat it as a successful no-op so it does not
+            # abort the job before the functions deploy below.
+            if printf '%s' "$output" | grep -q "is the current active version"; then
+              echo "Hosting content unchanged (version already live). Treating as success."
+              exit 0
+            fi
+            echo "Attempt $attempt failed."
+          done
+          echo "Firebase hosting deploy failed after $attempt attempts."
+          exit 1
+
+      - name: Deploy Firebase Functions
+        # Functions deploy is best-effort: a stuck function operation (HTTP 409)
+        # must not fail the pipeline or block the hosting release above. Marked
+        # continue-on-error and surfaced as a warning so it stays visible.
+        # `if: !cancelled()` makes this run even when the hosting step above
+        # failed (e.g. a hosting no-op or transient error) so a functions-only
+        # change can still ship — hosting and functions are independent.
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          backoffs="20 40 60"
+          attempt=0
+          for wait in 0 $backoffs; do
+            if [ "$wait" -gt 0 ]; then
+              echo "Retrying in ${wait}s..."
+              sleep "$wait"
+            fi
+            attempt=$((attempt + 1))
+            echo "::group::firebase deploy functions (attempt $attempt)"
+            if firebase deploy --only functions:api --project siegelingstcgtesting; then
+              echo "::endgroup::"
+              echo "Firebase functions deploy succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "Attempt $attempt failed."
+          done
+          echo "::warning::Firebase functions deploy failed after $attempt attempts (hosting was still released)."
+          exit 1

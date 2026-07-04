@@ -1269,6 +1269,12 @@ public class GameController {
             if (card.getCardArtOffsetY() != null && card.getCardArtOffsetY() != 0.0) {
                 m.put("cardArtOffsetY", card.getCardArtOffsetY());
             }
+            if (card.getCardArtOffsetXPct() != null && card.getCardArtOffsetXPct() != 0.0) {
+                m.put("cardArtOffsetXPct", card.getCardArtOffsetXPct());
+            }
+            if (card.getCardArtOffsetYPct() != null && card.getCardArtOffsetYPct() != 0.0) {
+                m.put("cardArtOffsetYPct", card.getCardArtOffsetYPct());
+            }
             if (card.getCardArtScale() != null && card.getCardArtScale() != 1.0) {
                 m.put("cardArtScale", card.getCardArtScale());
             }
@@ -1359,6 +1365,12 @@ public class GameController {
         if (card.getCardArtOffsetY() != null) {
             m.put("cardArtOffsetY", card.getCardArtOffsetY());
         }
+        if (card.getCardArtOffsetXPct() != null) {
+            m.put("cardArtOffsetXPct", card.getCardArtOffsetXPct());
+        }
+        if (card.getCardArtOffsetYPct() != null) {
+            m.put("cardArtOffsetYPct", card.getCardArtOffsetYPct());
+        }
         if (card.getCardArtScale() != null) {
             m.put("cardArtScale", card.getCardArtScale());
         }
@@ -1399,6 +1411,10 @@ public class GameController {
                 if (ci.getCard().isHolographic()) {
                     m.put("holographic", true);
                 }
+                // Carry the source card's custom/overlay art (+ its scale/offset
+                // transform) onto the board cell so placed Siegelings render the
+                // same art the binder and hand show, instead of the default scene.
+                appendCardArt(m, ci.getCard());
                 List<Ability> visibleBoardAbilities = visibleSieglingAbilities(ci.getCard());
                 if (!visibleBoardAbilities.isEmpty()) {
                     m.put("abilities", visibleBoardAbilities.stream()

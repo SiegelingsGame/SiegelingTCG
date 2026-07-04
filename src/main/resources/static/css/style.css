@@ -862,6 +862,54 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     flex-shrink: 0;
 }
 
+/* When a SiegeKnight card is shown, the panel stacks the card art on top and
+   drops the text summary below it. */
+.hud-knight-card.has-knight-art {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    align-items: stretch;
+}
+
+.hud-knight-art {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 10px 10px 0 0;
+    background: rgba(255, 255, 255, 0.04);
+    line-height: 0;
+}
+
+.hud-knight-art-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 280px;
+    object-fit: contain;
+}
+
+.hud-knight-art-template {
+    opacity: 0.92;
+}
+
+.hud-knight-art-sigil {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    line-height: 1;
+}
+
+.hud-knight-card.has-knight-art .hud-knight-info {
+    padding: 8px;
+}
+
+.hud-knight-card.has-knight-art .hud-knight-portrait {
+    display: none;
+}
+
 .hud-knight-info {
     flex: 1;
     min-width: 0;
@@ -2142,6 +2190,59 @@ body.card-drag-active #playerGrid {
 .buff-pill-amount {
     font-weight: 900;
     color: #ffffff;
+}
+
+/* Claim control inside the card preview for battle-tested Siegelings. */
+.selected-claim-control {
+    margin-top: 10px;
+    display: grid;
+    gap: 8px;
+}
+.selected-claim-note {
+    font-size: 0.85em;
+    line-height: 1.35;
+    color: #c8ffe0;
+}
+.selected-claim-badge {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.82em;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #092018;
+    background: rgba(123, 255, 180, 0.95);
+    box-shadow: 0 0 6px rgba(123, 255, 180, 0.5);
+}
+.selected-claim-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.92em;
+    font-weight: 700;
+    cursor: pointer;
+    color: #07211a;
+    background: rgba(123, 255, 180, 0.95);
+    border: 1px solid rgba(123, 255, 180, 0.95);
+    transition: filter 0.15s ease;
+}
+.selected-claim-btn:hover {
+    filter: brightness(1.08);
+}
+.selected-claim-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 /* ============================================================
@@ -3627,6 +3728,36 @@ body.battle-phase-active .battlefield::after {
         flex-shrink: 0;
     }
 
+    /* SiegeKnight card thumbnail in the stat-sheet knight preview (opens on
+       tapping the health bar). */
+    .m-knight-icon.has-knight-card {
+        position: relative;
+        width: 56px;
+        height: 78px;
+        border-radius: 7px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.05);
+        font-size: 0;
+        padding: 0;
+    }
+
+    .m-knight-icon.has-knight-card .hud-knight-art-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .m-knight-icon.has-knight-card .hud-knight-art-sigil {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        line-height: 1;
+    }
+
     .m-knight-name {
         font-size: 0.72em;
         font-weight: 900;
@@ -3953,6 +4084,14 @@ body.battle-phase-active .battlefield::after {
     padding: 6px 10px;
     width: 100%;
     max-width: 420px;
+}
+
+.board-overlay-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 3;
 }
 
 /* Bottom external sockets sit below row cells; reserve space so markers stay inside .battlefield (overflow: hidden). */
@@ -6250,6 +6389,20 @@ body.placement-active .board-cell.legal {
     display: none;
 }
 
+/* Match the showcase art sizing (contain, not the board default cover) so the
+   overlay art + cardArtScale behave identically on the battle board as in the
+   binder/editor. Same window (above) + same img fit = one consistent scale
+   everywhere a card is shown. */
+.board-card.arena-board-card.element-frame .card-art-hand img {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    object-position: center;
+    filter: none;
+}
+
 /* HP bar pinned to the top of the painted info panel. It now lives inside the
    absolutely-positioned combat panel, so anchor it just above that panel's top
    edge (card-relative top% would land it on the stat pills). */
@@ -7437,6 +7590,23 @@ body.placement-active .board-cell.legal {
     width: auto;
     max-width: 100%;
     max-height: 100%;
+}
+
+/* Uploaded illustration / overlay art fills the framed art window so it reaches
+   the inner edge of the rarity border instead of being letterboxed inside it. */
+.card-preview-card.element-frame .card-art-preview.card-art-crop-illustration img,
+.card-preview-card.element-frame .card-art-selected.card-art-crop-illustration img,
+.selected-preview-card.element-frame .card-art-preview.card-art-crop-illustration img,
+.selected-preview-card.element-frame .card-art-selected.card-art-crop-illustration img,
+.mulligan-showcase.element-frame .card-art-preview.card-art-crop-illustration img,
+.mulligan-showcase.element-frame .card-art-selected.card-art-crop-illustration img {
+    width: calc(100% * var(--card-art-zoom, 1));
+    height: calc(100% * var(--card-art-zoom, 1));
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
+    object-position: center var(--card-art-focus-y, 50%);
+    transform: translateY(var(--card-art-offset-y, 0%));
 }
 
 .card-preview-card.element-frame .hand-card-body,
@@ -10680,12 +10850,48 @@ body.placement-active .board-cell.legal {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: fill;
+    /* cover (not fill) so non-5:7 uploads crop cleanly; a 5:7 source fills
+       exactly. Scale/position come from the dashboard crop controls. */
+    object-fit: cover;
 }
 
 .knight-card.has-knight-back::before,
 .knight-card.has-knight-back::after {
     display: none;
+}
+
+/* Overlay art: the uploaded image is the character illustration only. It sits
+   behind the shared SiegeKnight template (.knight-card-template, z-index 3),
+   showing through the fully transparent art window and dimmed through the
+   semi-transparent description box. The frame, shield and description box stay
+   pixel-identical card to card because they come from the template, not the
+   upload. The art layer fills the whole inner frame (top of the window down
+   through the description box to the inner bottom border) so it also shows
+   behind the caption. Overlay cards also carry .knight-full-card-art so they
+   inherit the body/name/meta/ability text styling and base box geometry. */
+.knight-card.knight-overlay-art .knight-overlay-art-window {
+    position: absolute;
+    z-index: 1;
+    left: 8.8%;
+    right: 8.6%;
+    top: 5.7%;
+    bottom: 7.1%;
+    overflow: hidden;
+    border-radius: 0;
+}
+
+.knight-card.knight-overlay-art .knight-overlay-art-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* cover so non-5:7 uploads crop cleanly into the window; the dashboard
+       crop controls supply scale/position via an inline transform. */
+    object-fit: cover;
+    object-position: center;
+}
+
+.knight-card.knight-overlay-art .knight-shield-element .deck-sigil {
+    opacity: 0;
 }
 
 .knight-card.has-knight-back .knight-card-portrait {
@@ -10762,6 +10968,11 @@ body.placement-active .board-cell.legal {
     border-radius: 0;
     background: transparent;
     font-size: 9px;
+}
+
+/* Keep the description box readable above the holographic sheen (z-index 12). */
+.knight-card.knight-full-card-art .knight-card-body {
+    z-index: 13;
 }
 
 .knight-card.has-knight-back .knight-card-name,
@@ -12517,6 +12728,26 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     max-width: 100%;
     height: auto;
     width: auto;
+}
+
+/* Element-frame (painted background) cards pin the art to the frame's scene
+   opening with the SAME absolute window the editor preview uses, instead of the
+   flex 3/2 window above. Without this the binder/in-game art window is a
+   different size+shape than the editor's, so the same cardArtScale renders at a
+   different apparent size — overlay art tuned in the dashboard looked right
+   there but wrong in the binder. Keeping one window everywhere makes the scale
+   proportional to card size on every surface. */
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-selected {
+    position: absolute;
+    left: 9.8%;
+    top: 10%;
+    width: 80.4%;
+    height: 58.7%;
+    aspect-ratio: auto;
+    flex: none;
+    min-height: 0;
+    padding: 0;
 }
 
 .mulligan-card-slot .hand-card.mulligan-showcase .card-art-fallback span {

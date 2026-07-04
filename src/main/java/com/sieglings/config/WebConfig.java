@@ -29,6 +29,10 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns(allowedOriginPatterns.toArray(String[]::new))
                 .allowedMethods("GET", "POST", "OPTIONS")
                 .allowedHeaders("*")
+                // Allow the session cookie to ride cross-origin dev requests. Safe
+                // with allowedOriginPatterns (never "*"); same-origin prod is
+                // unaffected.
+                .allowCredentials(true)
                 .maxAge(3600);
     }
 
@@ -71,6 +75,7 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/shop/cardpack").setViewName("forward:/home.html");
         registry.addViewController("/login").setViewName("forward:/home.html");
         registry.addViewController("/play").setViewName("forward:/play.html");
+        registry.addViewController("/siege").setViewName("forward:/adventure.html");
         registry.addRedirectViewController("/card_dashboard", "/card-dashboard.html");
         registry.addRedirectViewController("/card-dashboard", "/card-dashboard.html");
     }

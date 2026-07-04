@@ -52,10 +52,10 @@ public class LiveElementCatalogService {
      */
     public static final List<Element> DEFAULT_GAMEPLAY_ELEMENT_ORDER = List.of(
             Element.FIRE,
+            Element.ICE,
+            Element.WATER,
             Element.EARTH,
             Element.WIND,
-            Element.WATER,
-            Element.ICE,
             Element.SHADOW,
             Element.ELECTRIC,
             Element.METAL,

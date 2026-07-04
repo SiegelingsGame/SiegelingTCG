@@ -13,6 +13,8 @@ class GameJavaScriptRegressionTest {
 
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
+    private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
+    private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -55,6 +57,81 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 queuePlayLoadout.contains("savedDeck?.custom") && queuePlayLoadout.contains("customDeckCards"),
                 "Saved custom decks must carry their custom card list into the Play loadout payload."
+        );
+    }
+
+    @Test
+    void shopPackOpeningUsesPersistentIdempotencyKey() throws IOException {
+        String homeScript = readHomeScript();
+        String choosePack = extractFunction(homeScript, "async function choosePack(packId, count = 1)");
+        String getOrCreateRequestId = extractFunction(homeScript, "function getOrCreatePackOpenRequestId(packId, count)");
+
+        assertTrue(
+                choosePack.contains("getOrCreatePackOpenRequestId(packId, packCount)")
+                        && choosePack.contains("requestId"),
+                "Shop pack opens must send a persistent request id so retries can be deduped."
+        );
+        assertFalse(
+                choosePack.contains("if (!data?.timedOut) clearPackOpenRequestId(requestId);"),
+                "Ambiguous pack-open failures must preserve the request id; the server may have charged before the response was lost."
+        );
+        assertTrue(
+                homeScript.contains("timedOut: true"),
+                "Timed-out pack opens must be distinguishable so the retry id is preserved."
+        );
+        assertTrue(
+                getOrCreateRequestId.contains("...readPendingPackOpenRequests()"),
+                "Creating one pending pack open must not overwrite unrelated pack/count retries."
+        );
+    }
+
+    @Test
+    void shopCardPreviewHasModalShellForRenderedDetails() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+
+        assertTrue(
+                extractFunction(homeScript, "function renderShopCardPreviewModal()").contains("shopCardPreviewModal")
+                        && homeMarkup.contains("id=\"shopCardPreviewModal\"")
+                        && homeMarkup.contains("id=\"shopCardPreviewBody\""),
+                "Shop Card View must include the modal and body nodes that renderShopCardPreviewModal() updates."
+        );
+        assertTrue(
+                homeMarkup.contains("data-shop-card-preview-backdrop")
+                        && homeMarkup.contains("data-close-shop-card-preview"),
+                "Shop card preview modal must keep backdrop and close-button hooks so users can dismiss it."
+        );
+    }
+
+    @Test
+    void closeHostLobbyDoesNotSendCookieSentinelAsBearerToken() throws IOException {
+        String closeHostLobby = extractFunction(readHomeScript(), "async function closeHostLobby(lobby)");
+
+        assertTrue(
+                closeHostLobby.contains("isLegacyBearerToken(state.token)"),
+                "Cookie-auth users must rely on the session cookie instead of sending Authorization: Bearer cookie."
+        );
+    }
+
+    @Test
+    void dashboardArtUploadsApplyToCapturedCatalogEntry() throws IOException {
+        String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
+
+        assertTrue(
+                dashboardScript.contains("mutateCardById(cardId, (selected) =>"),
+                "Card art upload completions must update the card id captured when the upload started."
+        );
+        assertTrue(
+                dashboardScript.contains("mutateTrainerById(trainerId, (selected) =>"),
+                "SiegeKnight art upload completions must update the trainer id captured when the upload started."
+        );
+        assertFalse(
+                dashboardScript.contains("mutateSelectedCard((selected) => {\n                    selected.cardArtUrl = hostedUrl;"),
+                "Card art upload completions must not write to whichever card is selected when the request finishes."
+        );
+        assertFalse(
+                dashboardScript.contains("mutateSelectedTrainer((selected) => {\n                    selected.cardArtUrl = hostedUrl;"),
+                "SiegeKnight art upload completions must not write to whichever trainer is selected when the request finishes."
         );
     }
 

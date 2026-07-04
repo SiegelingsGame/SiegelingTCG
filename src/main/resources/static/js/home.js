@@ -5,8 +5,51 @@
     // /api/auth/me in the background instead of blocking on it.
     const AUTH_PROFILE_CACHE_KEY = 'sieglingsAuthProfile';
     const AUTH_PROFILE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    // Sentinel stored under AUTH_TOKEN_KEY once auth has moved to the httpOnly
+    // session cookie. Not a credential (the real token rides in the cookie the
+    // browser sends automatically) but it still drives every "signed in?" check and
+    // cross-tab storage-event sync exactly as a real token used to.
+    const COOKIE_SESSION_VALUE = 'cookie';
+    // True when the readable, secret-free `sgl_auth` companion cookie is present —
+    // signals a live session AND proves cookies round-trip in this environment.
+    function hasReadableAuthCookie() {
+        try {
+            return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+        } catch (e) {
+            return false;
+        }
+    }
+    // Only a real legacy Bearer token (not the cookie sentinel) is sent as a header.
+    function isLegacyBearerToken(token) {
+        return Boolean(token) && token !== COOKIE_SESSION_VALUE;
+    }
+    // True when running as an installed standalone Web App (iOS "Add to Home Screen"
+    // / Android PWA). iOS standalone Web Apps don't reliably send the session cookie
+    // across the full-page navigations this multi-page app uses (Home <-> Play), so
+    // there we keep authenticating with the localStorage Bearer token (which does
+    // persist across those navigations) rather than the cookie-only path.
+    function isStandalonePWA() {
+        try {
+            return window.navigator.standalone === true
+                || Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        } catch (e) {
+            return false;
+        }
+    }
+    // On login, store the cookie sentinel only when cookies are confirmed working AND
+    // we're not a standalone Web App; otherwise keep the real token for Bearer auth.
+    function preferredStoredToken(loginToken) {
+        return (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
+    }
     const PROFILE_PREFS_CACHE_KEY = 'sieglingsProfilePrefsCache';
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
+    // Bulk pack buy: 10 pulls at a 5% discount. Mirrors PlayerProgressionService.
+    const BULK_PACK_COUNT = 10;
+    const BULK_PACK_DISCOUNT = 0.05;
+    function bulkPackCost(unitPrice, count) {
+        const gross = (Number(unitPrice) || 0) * Math.max(1, count);
+        return count <= 1 ? gross : Math.round(gross * (1 - BULK_PACK_DISCOUNT));
+    }
     const HUB_CACHE_PREFIX = 'sieglingsHomeCache:';
     // Static data (card catalog, packs, descriptions) rarely changes, so keep it
     // cached for a full day. It lives in localStorage (see hubCacheStorage) so it
@@ -25,6 +68,8 @@
     const PLAYER_NAME_KEY = 'sieglingsPlayerName';
     const SOCIAL_POLL_MS = 6 * 1000;
     const PRESENCE_HEARTBEAT_MS = 45 * 1000;
+    const PENDING_PACK_OPEN_REQUEST_KEY = 'sieglingsPendingPackOpenRequest';
+    const MAX_PENDING_PACK_OPEN_REQUESTS = 20;
     const PACK_OPEN_TIMEOUT_MS = 15000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
@@ -73,7 +118,7 @@
     };
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
-    const DECK_ASSET_KEYS = ['FIRE', 'EARTH', 'WIND', 'WATER', 'ICE'];
+    const DECK_ASSET_KEYS = ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND'];
     const DECK_ASSET_PATHS = {
         FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
         EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
@@ -82,6 +127,9 @@
         ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
     };
     const RARITY_ORDER = { COMMON: 1, UNCOMMON: 2, RARE: 3, EPIC: 4, LEGENDARY: 5 };
+    // Collection "Sort" dropdown fields (see filteredCards). Each comparator is
+    // written ascending; the direction toggle negates it for descending.
+    const TYPE_ORDER = { SIEGLING: 0, SIEGEKNIGHT: 1, SPELL: 2, TRAP: 3 };
     const REMNANT_CRAFT_COSTS = { COMMON: 500, UNCOMMON: 1000, RARE: 2000, EPIC: 4000, LEGENDARY: 8000 };
     const DUPLICATE_REMNANT_PREVIEW = { COMMON: 100, UNCOMMON: 200, RARE: 400, EPIC: 800, LEGENDARY: 1600 };
     const RARITY_COLORS = {
@@ -91,7 +139,7 @@
         EPIC: '#c084fc',
         LEGENDARY: '#ffd54a'
     };
-    const PROFILE_ELEMENTS = ['Fire', 'Ice', 'Wind', 'Earth', 'Neutral'];
+    const PROFILE_ELEMENTS = ['Fire', 'Ice', 'Earth', 'Wind', 'Neutral'];
     // Premade card backs players can choose from in their profile.
     const PROFILE_CARD_BACKS = [
         { name: 'Molten Sigil', element: 'Fire' },
@@ -103,7 +151,7 @@
         Fire: {
             accent: '#ff6a2a',
             glow: 'rgba(255, 106, 42, 0.34)',
-            gradient: 'linear-gradient(135deg, rgba(74, 10, 20, 0.98), rgba(157, 41, 17, 0.82) 52%, rgba(255, 128, 30, 0.34))',
+            gradient: 'linear-gradient(135deg, rgba(74, 10, 20, 0.42), rgba(157, 41, 17, 0.32) 52%, rgba(255, 128, 30, 0.16))',
             border: 'rgba(255, 126, 56, 0.55)',
             badge: 'linear-gradient(135deg, #ff8a2a, #f43f1c)',
             mood: 'Blazing Core Duelist',
@@ -112,7 +160,7 @@
         Ice: {
             accent: '#7ad9e7',
             glow: 'rgba(122, 217, 231, 0.32)',
-            gradient: 'linear-gradient(135deg, rgba(10, 24, 54, 0.98), rgba(23, 78, 129, 0.82) 54%, rgba(155, 231, 255, 0.28))',
+            gradient: 'linear-gradient(135deg, rgba(10, 24, 54, 0.42), rgba(23, 78, 129, 0.32) 54%, rgba(155, 231, 255, 0.15))',
             border: 'rgba(146, 232, 255, 0.55)',
             badge: 'linear-gradient(135deg, #b8f3ff, #3c8ed8)',
             mood: 'Frostglass Tactician',
@@ -121,7 +169,7 @@
         Wind: {
             accent: '#64c987',
             glow: 'rgba(100, 201, 135, 0.31)',
-            gradient: 'linear-gradient(135deg, rgba(6, 45, 45, 0.98), rgba(17, 120, 92, 0.78) 55%, rgba(150, 255, 180, 0.24))',
+            gradient: 'linear-gradient(135deg, rgba(6, 45, 45, 0.42), rgba(17, 120, 92, 0.3) 55%, rgba(150, 255, 180, 0.14))',
             border: 'rgba(132, 236, 170, 0.52)',
             badge: 'linear-gradient(135deg, #96ffb4, #19a974)',
             mood: 'Gale-Thread Strategist',
@@ -130,7 +178,7 @@
         Earth: {
             accent: '#d0a65f',
             glow: 'rgba(208, 166, 95, 0.29)',
-            gradient: 'linear-gradient(135deg, rgba(22, 41, 25, 0.98), rgba(82, 67, 35, 0.82) 55%, rgba(199, 160, 89, 0.28))',
+            gradient: 'linear-gradient(135deg, rgba(22, 41, 25, 0.42), rgba(82, 67, 35, 0.32) 55%, rgba(199, 160, 89, 0.15))',
             border: 'rgba(208, 166, 95, 0.55)',
             badge: 'linear-gradient(135deg, #d0a65f, #537a3a)',
             mood: 'Mossgold Sentinel',
@@ -139,7 +187,7 @@
         Neutral: {
             accent: '#b8c0cc',
             glow: 'rgba(184, 192, 204, 0.25)',
-            gradient: 'linear-gradient(135deg, rgba(12, 17, 28, 0.98), rgba(48, 56, 72, 0.84) 55%, rgba(218, 226, 238, 0.2))',
+            gradient: 'linear-gradient(135deg, rgba(12, 17, 28, 0.42), rgba(48, 56, 72, 0.32) 55%, rgba(218, 226, 238, 0.13))',
             border: 'rgba(210, 218, 230, 0.45)',
             badge: 'linear-gradient(135deg, #d8dee8, #5f6b7a)',
             mood: 'Astral Core Adept',
@@ -160,13 +208,51 @@
         }
     }
 
+    // Drop the heavy per-match game logs before caching. The /api/auth/me payload
+    // embeds the full log of every recorded match, which can blow past the ~5MB
+    // localStorage quota; the write then throws QuotaExceededError, gets swallowed,
+    // and the cache never persists — which strands the Play page on the "Restoring
+    // your account…" takeover (it reads this same cache). The hub never needs the
+    // logs to render, so slim them out, and fall back to a minimal snapshot if even
+    // the slimmed copy won't fit.
+    function slimProfileForCache(profile) {
+        if (!profile) return profile;
+        // Never persist the bearer token: the httpOnly-cookie migration keeps the
+        // credential out of page-script reach, but the login response body still
+        // carries `token` for legacy clients — strip it so it can't leak into
+        // localStorage via the cached profile.
+        const { token, ...rest } = profile;
+        if (!Array.isArray(rest.matchHistory)) return rest;
+        return {
+            ...rest,
+            matchHistory: rest.matchHistory.map((entry) => {
+                if (!entry || !('gameLog' in entry)) return entry;
+                const { gameLog, ...e } = entry;
+                return e;
+            })
+        };
+    }
+
     function saveCachedAuthProfile(profile) {
         try {
             if (!profile?.authenticated) {
                 localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
                 return;
             }
-            localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+            const savedAt = Date.now();
+            const slim = slimProfileForCache(profile);
+            try {
+                localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt, profile: slim }));
+            } catch (quotaError) {
+                const minimal = {
+                    authenticated: true,
+                    user: slim.user,
+                    progression: slim.progression,
+                    savedDecks: slim.savedDecks || [],
+                    matchHistory: []
+                };
+                localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ savedAt, profile: minimal }));
+            }
         } catch (error) {
             // The profile cache is a render optimization only.
         }
@@ -180,7 +266,27 @@
         }
     }
 
-    const initialAuthToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    // Single source of truth for interpreting an /api/auth/me response. Sessions
+    // must only ever be dropped on an AUTHORITATIVE answer — never on a transient
+    // failure — so this returns one of three states the callers act on:
+    //   'signed-in'  -> server confirmed a valid session
+    //   'signed-out' -> server authoritatively reports no/expired session
+    //   'unknown'    -> request failed (offline, timeout, abort, 5xx) or the body
+    //                   was malformed; the session is NOT proven gone, so keep it.
+    // The app's two fetch helpers signal failure differently (game.js returns null,
+    // home.js returns an { error } object), so both shapes collapse to 'unknown'.
+    // Only a clean, error-free { authenticated: <boolean> } is authoritative.
+    function classifyAuthMe(data) {
+        if (!data || data.error || typeof data.authenticated !== 'boolean') {
+            return 'unknown';
+        }
+        return data.authenticated ? 'signed-in' : 'signed-out';
+    }
+
+    // Fall back to the cookie sentinel when an httpOnly session cookie exists but the
+    // localStorage marker is missing, so a live cookie session is still recognized.
+    const initialAuthToken = (localStorage.getItem(AUTH_TOKEN_KEY) || '')
+        || (hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : '');
     // Seed from the cached snapshot so the signed-in hub renders instantly; the
     // background syncProfile() on init revalidates and refreshes it.
     const cachedAuthProfile = initialAuthToken ? loadCachedAuthProfile() : null;
@@ -189,6 +295,10 @@
         token: initialAuthToken,
         profile: cachedAuthProfile,
         progression: cachedAuthProfile?.progression || null,
+        // True once a profile sync has completed this session (success or not).
+        // Until then, a signed-in player with no cached snapshot shows a loading
+        // screen for cards/decks instead of a misleading empty binder.
+        profileSynced: false,
         options: null,
         packs: [],
         dailyOffers: [],
@@ -200,9 +310,11 @@
         elementFilter: 'ALL',
         typeFilter: 'ALL',
         rarityFilter: 'ALL',
+        finishFilter: 'ALL',
         energyCostFilter: 'ALL',
         showUnowned: false,
-        sort: 'owned-desc',
+        sortField: 'owned',
+        sortDir: 'desc',
         roomSearch: '',
         roomFormatFilter: 'ALL',
         roomElementFilter: 'ALL',
@@ -220,6 +332,8 @@
         builderVisibleLimit: 0,
         builderRenderTimer: null,
         notifications: [],
+        newCards: new Set(),
+        newCardsSnapshot: null,
         loadingArt: [],
         friendRequestsOpen: false,
         friendMessage: '',
@@ -228,7 +342,10 @@
         filterTrayOpen: false,
         cardTrayOpen: false,
         authOpen: false,
+        authMode: 'login',
+        authDraft: { email: '', password: '' },
         authRegisterStep: 'credentials',
+        authLoading: false,
         registerDraft: { email: '', password: '' },
         profileEditOpen: false,
         activeAchievementId: '',
@@ -282,6 +399,21 @@
         document.body.classList.toggle('hud-minimized', minimized);
         document.getElementById('hudFab')?.classList.toggle('hidden', !minimized);
         localStorage.setItem('sieglingsHudMinimized', minimized ? '1' : '0');
+        measureBottomHud();
+    }
+
+    // Expose the docked bottom HUD's height as a CSS variable so the Card View
+    // / Filter trays can anchor their bottom edge right above its top (the
+    // yellow accent line) instead of guessing with a fixed offset. The HUD
+    // height shifts with the route (different action buttons) and when the HUD
+    // is minimized, so this re-runs on those changes plus resize/orientation.
+    function measureBottomHud() {
+        const nav = document.querySelector('.home-nav');
+        if (!nav) return;
+        const height = Math.round(nav.getBoundingClientRect().height);
+        if (height > 0) {
+            document.documentElement.style.setProperty('--bottom-hud-height', `${height}px`);
+        }
     }
 
     function openFriendsModal() {
@@ -400,6 +532,81 @@
         state.notifications = [];
         saveNotifications();
         renderNotifications();
+    }
+
+    // ── New-card tags ────────────────────────────────────────────────────
+    // Freshly acquired cards (pack pulls, crafts, daily buys) wear a "New" badge
+    // in the binder until the player opens them. Tracked client-side per account
+    // by diffing owned-card counts against a persisted snapshot, mirroring the
+    // notification feed's diffing approach.
+    let newCardsLoadedKey = '';
+
+    function newCardsStorageKey() {
+        return `sieglingsNewCards:${state.profile?.user?.email || 'anon'}`;
+    }
+
+    function loadNewCards() {
+        newCardsLoadedKey = newCardsStorageKey();
+        state.newCards = new Set();
+        state.newCardsSnapshot = null;
+        try {
+            const raw = JSON.parse(localStorage.getItem(newCardsStorageKey()) || 'null');
+            if (raw && typeof raw === 'object') {
+                state.newCards = new Set(Array.isArray(raw.newIds) ? raw.newIds : []);
+                state.newCardsSnapshot = raw.snapshot && typeof raw.snapshot === 'object' ? raw.snapshot : null;
+            }
+        } catch (error) {
+            state.newCards = new Set();
+            state.newCardsSnapshot = null;
+        }
+    }
+
+    function saveNewCards() {
+        try {
+            localStorage.setItem(newCardsStorageKey(), JSON.stringify({
+                snapshot: state.newCardsSnapshot || {},
+                newIds: Array.from(state.newCards || [])
+            }));
+        } catch (error) {
+            // localStorage full/unavailable — badges still work for this session.
+        }
+    }
+
+    // Diff the current owned-card counts against the last snapshot; any card whose
+    // count went up is flagged "New". The very first run for an account on this
+    // device just records the baseline, so an existing collection is never flagged
+    // wholesale.
+    function detectNewCards() {
+        if (!state.profile?.authenticated) return;
+        if (newCardsLoadedKey !== newCardsStorageKey()) loadNewCards();
+        const owned = state.progression?.ownedCards || {};
+        if (!state.newCardsSnapshot) {
+            state.newCardsSnapshot = { ...owned };
+            saveNewCards();
+            return;
+        }
+        let changed = false;
+        Object.keys(owned).forEach(id => {
+            const prev = Number(state.newCardsSnapshot[id]) || 0;
+            if ((Number(owned[id]) || 0) > prev && !state.newCards.has(id)) {
+                state.newCards.add(id);
+                changed = true;
+            }
+        });
+        state.newCardsSnapshot = { ...owned };
+        saveNewCards();
+        if (changed) state._cardsRenderSig = '';
+    }
+
+    function isNewCard(id) {
+        return Boolean(id && state.newCards && state.newCards.has(id));
+    }
+
+    function markCardViewed(id) {
+        if (!isNewCard(id)) return;
+        state.newCards.delete(id);
+        saveNewCards();
+        state._cardsRenderSig = '';
     }
 
     function renderNotifications() {
@@ -522,6 +729,9 @@
         // Cache the list so the very next visit can paint a loading screen
         // before the network answers.
         localStorage.setItem(ART_CACHE_KEY, JSON.stringify(state.loadingArt));
+        // Now that the catalog is known, resolve any account-saved background
+        // ids that arrived before the art list did.
+        applyProfileArtFromPrefs(state.profilePrefs);
     }
 
     function showLoadingArtScreen(label) {
@@ -566,8 +776,17 @@
         document.body.classList.toggle('has-custom-art', Boolean(url));
     }
 
+    // Maps a background localStorage key to the profile-settings field that
+    // persists the chosen art id to the account (so it follows the player across
+    // browsers/devices).
+    const ART_KEY_TO_FIELD = {
+        [PAGE_ART_KEY]: 'pageArtId',
+        [PROFILE_ART_KEY]: 'profileArtId'
+    };
+
     function setStoredArt(key, pieceId) {
         const current = readStoredArt(key);
+        let selectedId = '';
         if (current?.id === pieceId) {
             // Picking the active piece again toggles back to the default look.
             localStorage.removeItem(key);
@@ -575,10 +794,57 @@
             const piece = (state.loadingArt || []).find(item => item.id === pieceId);
             if (!piece) return;
             localStorage.setItem(key, JSON.stringify(piece));
+            selectedId = piece.id;
         }
+        persistArtSelection(key, selectedId);
         applyCustomPageArt();
         renderOptions();
         if (state.route === 'profile') safeRender(renderProfile);
+    }
+
+    // Mirrors the working localStorage background selection onto the account so a
+    // fresh browser can rehydrate it. Updates in-memory prefs immediately and
+    // best-effort saves to the server (the localStorage copy keeps it usable even
+    // if the request fails).
+    function persistArtSelection(key, pieceId) {
+        const field = ART_KEY_TO_FIELD[key];
+        if (!field) return;
+        const value = String(pieceId || '');
+        if (state.profilePrefs) state.profilePrefs[field] = value;
+        cacheProfilePrefs(state.profilePrefs);
+        if (!state.profile?.authenticated) return;
+        fetchJson('/api/profile/settings', { method: 'POST', body: JSON.stringify({ [field]: value }) })
+            .then(data => {
+                const serverPrefs = data && !data.error ? applyProfileSettingsFromServer(data.profileSettings) : null;
+                if (serverPrefs) {
+                    state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
+                    cacheProfilePrefs(state.profilePrefs);
+                }
+            })
+            .catch(() => { /* localStorage keeps the selection usable offline */ });
+    }
+
+    // Rehydrates the page/profile background images from saved account prefs,
+    // resolving the stored art ids against the loaded gallery. Called whenever
+    // prefs load and again once the art catalog finishes loading.
+    function applyProfileArtFromPrefs(prefs) {
+        if (!prefs) return;
+        syncArtKeyFromId(PAGE_ART_KEY, prefs.pageArtId);
+        syncArtKeyFromId(PROFILE_ART_KEY, prefs.profileArtId);
+        applyCustomPageArt();
+        if (state.route === 'profile') safeRender(renderProfile);
+    }
+
+    function syncArtKeyFromId(key, pieceId) {
+        const id = String(pieceId || '').trim();
+        if (!id) {
+            localStorage.removeItem(key);
+            return;
+        }
+        const piece = (state.loadingArt || []).find(item => item.id === id);
+        // If the catalog hasn't loaded yet we leave any existing copy in place;
+        // loadLoadingArt() re-runs this once the pieces are available.
+        if (piece) localStorage.setItem(key, JSON.stringify(piece));
     }
 
     function openArtLightbox(pieceId) {
@@ -759,6 +1025,10 @@
         };
         window.addEventListener('orientationchange', handleOrientationArtChange);
         window.matchMedia?.('(orientation: portrait)')?.addEventListener?.('change', handleOrientationArtChange);
+        // Keep the docked-HUD height measurement current for the tray anchor.
+        window.addEventListener('resize', measureBottomHud);
+        window.addEventListener('orientationchange', measureBottomHud);
+        measureBottomHud();
         // Only show the top loading bar when there's nothing cached to paint yet;
         // otherwise the page is already populated and the refresh is silent.
         setHubLoading(!state.options);
@@ -809,9 +1079,15 @@
             renderCards();
         });
         document.getElementById('cardSortSelect')?.addEventListener('change', (event) => {
-            state.sort = event.target.value;
+            state.sortField = event.target.value;
             renderCards();
         });
+        document.getElementById('cardSortDirToggle')?.addEventListener('click', () => {
+            state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+            updateSortDirToggle();
+            renderCards();
+        });
+        updateSortDirToggle();
         document.getElementById('showUnownedToggle')?.addEventListener('click', () => {
             state.showUnowned = !state.showUnowned;
             renderFilters();
@@ -896,9 +1172,25 @@
         // by delegation rather than per render.
         document.addEventListener('click', (event) => {
             if (event.target.closest('[data-tray-close]')) closeTrays();
+            if (event.target.closest('[data-card-fullscreen]')) openCardFullscreen();
+        });
+        // Keyboard activation for the (non-button) card preview trigger.
+        document.addEventListener('keydown', (event) => {
+            if ((event.key === 'Enter' || event.key === ' ') && event.target.closest('[data-card-fullscreen]')) {
+                event.preventDefault();
+                openCardFullscreen();
+            }
+        });
+        document.getElementById('cardFullscreenBack')?.addEventListener('click', closeCardFullscreen);
+        document.getElementById('cardFullscreen')?.addEventListener('click', (event) => {
+            if (event.target === event.currentTarget) closeCardFullscreen();
         });
         document.getElementById('authHudBtn')?.addEventListener('click', openAuth);
         document.getElementById('closeAuthBtn')?.addEventListener('click', closeAuth);
+        // Close when the backdrop (the overlay itself) is tapped, like the Play popup.
+        document.getElementById('authModal')?.addEventListener('click', (event) => {
+            if (event.target === event.currentTarget) closeAuth();
+        });
         document.getElementById('closeDeckPreviewBtn')?.addEventListener('click', closeDeckPreview);
         document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
             if (event.target === event.currentTarget) closeDeckPreview();
@@ -907,6 +1199,7 @@
         document.querySelectorAll('[data-match-review-close]').forEach(btn => btn.addEventListener('click', closeMatchReview));
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
+                closeCardFullscreen();
                 closeDeckPreview();
                 closeMatchReview();
                 closeAchievementDetail();
@@ -983,6 +1276,7 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            state.profileSynced = true;
             clearCachedAuthProfile();
             stopPresenceHeartbeat();
             notifSnapshot = null;
@@ -991,7 +1285,18 @@
         // Bypass the HTTP cache: a stale {authenticated:false} response (Safari
         // is especially eager to cache GETs) would otherwise wipe a valid token.
         const data = await fetchJson('/api/auth/me', { cache: 'no-store' });
-        if (!data?.authenticated) {
+        const status = classifyAuthMe(data);
+        // Fail open: only an AUTHORITATIVE "signed out" clears the session. A
+        // network/timeout/5xx (status === 'unknown') keeps the cached profile +
+        // token and retries later — otherwise one flaky /api/auth/me blanks the
+        // signed-in UI even though the session is valid.
+        if (status === 'unknown') {
+            return state.profile;
+        }
+        if (status === 'signed-out') {
+            // The sign-in state is resolved (authoritatively signed out); stop the
+            // cards/decks loading screen so the guest view shows instead.
+            state.profileSynced = true;
             // Do NOT delete the persisted token here. The token is shared with the
             // Play page (play.html/game.js); a transient failure or stale response
             // would otherwise sign the player out everywhere, and revisiting any
@@ -1007,8 +1312,17 @@
             notifSnapshot = null;
             return null;
         }
+        // Transparent migration (browsers only): a legacy token rode in as a Bearer
+        // header and the server has set the session cookie (confirmed by the readable
+        // companion cookie). Drop the secret and keep only the sentinel. Skip in a
+        // standalone Web App, where the cookie isn't reliably sent across pages.
+        if (isLegacyBearerToken(state.token) && hasReadableAuthCookie() && !isStandalonePWA()) {
+            state.token = COOKIE_SESSION_VALUE;
+            try { localStorage.setItem(AUTH_TOKEN_KEY, state.token); } catch (e) { /* ignore */ }
+        }
         state.profile = data;
         state.progression = data.progression || null;
+        state.profileSynced = true;
         saveCachedAuthProfile(data);
         await loadDailyMissions();
         startPresenceHeartbeat();
@@ -1016,6 +1330,8 @@
         // signed in, then diff the fresh snapshot for new notifications.
         if (notifStorageKey() !== notifLoadedKey) loadNotifications();
         detectNotifications();
+        if (newCardsStorageKey() !== newCardsLoadedKey) loadNewCards();
+        detectNewCards();
         const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
         if (serverPrefs) {
             state.profilePrefs = { ...defaultProfilePrefs(data.user || {}), ...serverPrefs };
@@ -1023,6 +1339,7 @@
         } else if (!state.profilePrefs) {
             state.profilePrefs = defaultProfilePrefs(data.user || {});
         }
+        applyProfileArtFromPrefs(state.profilePrefs);
         return data;
     }
 
@@ -1088,6 +1405,11 @@
             stored = localStorage.getItem(AUTH_TOKEN_KEY) || '';
         } catch (e) {
             stored = '';
+        }
+        // Same cookie fallback as init: a live httpOnly session whose localStorage
+        // marker is missing must not be wiped on focus/pageshow/storage.
+        if (!stored && hasReadableAuthCookie()) {
+            stored = COOKIE_SESSION_VALUE;
         }
         const tokenChanged = stored !== state.token;
         const profileStale = Boolean(stored) && !state.profile?.authenticated;
@@ -1248,6 +1570,17 @@
             renderFilters();
             renderCards();
         }, formatEnergyCostFilter);
+        renderFilter('finishFilters', ['ALL', 'HOLOGRAPHIC', 'STANDARD'], state.finishFilter, (value) => {
+            state.finishFilter = value;
+            renderFilters();
+            renderCards();
+        }, formatFinishFilter);
+    }
+
+    function formatFinishFilter(value) {
+        if (value === 'HOLOGRAPHIC') return 'Holographic';
+        if (value === 'STANDARD') return 'Standard';
+        return 'All';
     }
 
     function renderFilter(id, values, active, onPick, formatter = format) {
@@ -1267,18 +1600,30 @@
             state.typeFilter,
             state.rarityFilter,
             state.energyCostFilter,
-            state.sort,
+            state.finishFilter,
+            state.sortField,
+            state.sortDir,
             state.search,
             state.selectedCardId,
+            Array.from(state.newCards || []).sort().join(','),
+            (state.progression?.holographicCards || []).join(','),
             cards.map(card => `${card.id}:${ownedCount(card.id)}`).join(',')
         ].join('|');
+    }
+
+    // Signed in but the owned-cards/decks snapshot hasn't arrived yet this session
+    // (and nothing was painted from cache). Show a loading screen rather than a
+    // misleading empty binder/deck list.
+    function ownedDataLoading() {
+        return Boolean(state.token) && !state.profileSynced && !state.profile;
     }
 
     function renderCards() {
         const grid = document.getElementById('allCardGrid');
         if (!grid) return;
-        // Catalog not loaded yet — show the spinner instead of a blank panel.
-        if (!state.options) {
+        // Catalog not loaded yet, or owned cards still loading for a signed-in
+        // player — show the spinner instead of a blank/empty panel.
+        if (!state.options || ownedDataLoading()) {
             grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your card binder…</strong></div>`;
             state._cardsRenderSig = '';
             return;
@@ -1295,6 +1640,7 @@
                 : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
+                markCardViewed(tile.dataset.cardId);
                 openCardTray();
                 renderCards();
                 renderDetail();
@@ -1402,20 +1748,66 @@
             if (state.typeFilter !== 'ALL' && card.type !== state.typeFilter) return false;
             if (state.rarityFilter !== 'ALL' && card.rarity !== state.rarityFilter) return false;
             if (!matchesEnergyCostFilter(card)) return false;
+            if (!matchesFinishFilter(card)) return false;
             if (state.search) {
                 const text = `${JSON.stringify(card)} ${creatureDescriptionFor(card)}`.toLowerCase();
                 if (!text.includes(state.search)) return false;
             }
             return true;
         });
+        const dir = state.sortDir === 'asc' ? 1 : -1;
+        const acquiredOrder = acquiredOrderIndex();
+        const elementOrder = elementOrderIndex();
+        const compareField = (a, b) => {
+            switch (state.sortField) {
+                case 'name': return a.name.localeCompare(b.name);
+                case 'type': return (TYPE_ORDER[a.type] ?? 99) - (TYPE_ORDER[b.type] ?? 99);
+                case 'cost': return cardEnergyCost(a) - cardEnergyCost(b);
+                case 'element': return elementOrder(a) - elementOrder(b);
+                case 'acquired': return acquiredOrder(a.id) - acquiredOrder(b.id);
+                case 'rarity': return (RARITY_ORDER[a.rarity] || 0) - (RARITY_ORDER[b.rarity] || 0);
+                case 'speed': return (a.speed || 0) - (b.speed || 0);
+                case 'health': return (a.health || 0) - (b.health || 0);
+                case 'owned':
+                default: return ownedCount(a.id) - ownedCount(b.id);
+            }
+        };
         return cards.sort((a, b) => {
-            if (state.sort === 'name-asc') return a.name.localeCompare(b.name);
-            if (state.sort === 'speed-desc') return (b.speed || 0) - (a.speed || 0);
-            if (state.sort === 'health-desc') return (b.health || 0) - (a.health || 0);
-            if (state.sort === 'cost-asc') return cardEnergyCost(a) - cardEnergyCost(b) || a.name.localeCompare(b.name);
-            if (state.sort === 'rarity-desc') return (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0);
-            return ownedCount(b.id) - ownedCount(a.id) || a.name.localeCompare(b.name);
+            const primary = compareField(a, b);
+            if (primary !== 0) return dir * primary;
+            // Stable, predictable tiebreaker regardless of direction.
+            return a.name.localeCompare(b.name);
         });
+    }
+
+    // Acquisition order proxy: ownedCards is a server-side LinkedHashMap, so its
+    // key order reflects first-acquired order. Unowned cards sort to the end.
+    function acquiredOrderIndex() {
+        const owned = state.progression?.ownedCards || {};
+        const order = new Map();
+        Object.keys(owned).forEach((id, index) => order.set(String(id).toLowerCase(), index));
+        return (id) => {
+            const value = order.get(String(id || '').toLowerCase());
+            return value === undefined ? Number.MAX_SAFE_INTEGER : value;
+        };
+    }
+
+    function updateSortDirToggle() {
+        const btn = document.getElementById('cardSortDirToggle');
+        if (!btn) return;
+        const ascending = state.sortDir === 'asc';
+        btn.textContent = ascending ? 'Ascending ↑' : 'Descending ↓';
+        btn.setAttribute('aria-pressed', ascending ? 'true' : 'false');
+    }
+
+    // Element order follows the filter-chip ordering (live elements first).
+    function elementOrderIndex() {
+        const order = new Map();
+        elementFilterValues().filter(value => value !== 'ALL').forEach((element, index) => order.set(element, index));
+        return (card) => {
+            const value = order.get(card?.element);
+            return value === undefined ? Number.MAX_SAFE_INTEGER : value;
+        };
     }
 
     function renderBinderCardShell(card, options = {}) {
@@ -1491,8 +1883,10 @@
         if (fullCardArtUrl) {
             const holoClass = card.holographic ? ' is-holographic' : '';
             const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+            const cropStyle = window.SieglingsCardBinderVisual?.buildArtTransformStyle?.(card) || '';
+            const cropAttr = cropStyle ? ` style="${escapeAttr(cropStyle)}"` : '';
             return `<div class="knight-card knight-full-card-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
-                <img src="${escapeAttr(fullCardArtUrl)}" alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy">
+                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeAttr(card.name || 'SiegeKnight card')}" loading="lazy"${cropAttr}>
                 ${holoOverlay}
                 <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
             </div>`;
@@ -1505,6 +1899,15 @@
         const elementIconStyle = iconPath ? `--knight-element-icon:url('${iconPath}');` : '';
         const holoClass = card.holographic ? ' is-holographic' : '';
         const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+        if (window.SieglingsCardBinderVisual?.usesKnightOverlayArt?.(card)) {
+            return `<div class="knight-card knight-full-card-art knight-overlay-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
+                ${window.SieglingsCardBinderVisual.renderKnightOverlayArtWindow(card)}
+                <div class="knight-card-template" aria-hidden="true"></div>
+                <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
+                ${holoOverlay}
+                <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
+            </div>`;
+        }
         return `<div class="knight-card has-knight-back knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
@@ -1517,28 +1920,67 @@
     function renderCardTile(card) {
         card = withPlayerHolographic(card);
         const selected = card.id === state.selectedCardId ? ' selected' : '';
+        const newClass = isNewCard(card.id) ? ' is-new' : '';
+        const newBadge = isNewCard(card.id) ? '<span class="card-new-badge" aria-label="New card">New</span>' : '';
         const knightClass = card.type === 'SIEGEKNIGHT' ? ' siegeknight-binder-card' : '';
         const binderVisual = window.SieglingsCardBinderVisual;
         const holoOptions = binderHolographicOptions();
         if (card.type === 'SIEGEKNIGHT') {
-            return `<button class="card-tile binder-card framed-binder-tile knight-binder-tile${selected}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-                ${renderKnightBinderCard(card, { compact: true })}
+            return `<button class="card-tile binder-card framed-binder-tile knight-binder-tile${selected}${newClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${newBadge}${renderKnightBinderCard(card, { compact: true })}
             </button>`;
         }
         if (binderVisual?.usesFullCardArt?.(card)) {
-            return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-                ${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
+            return `<button class="card-tile binder-card framed-binder-tile${selected}${newClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${newBadge}${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
             </button>`;
         }
         if (binderVisual?.usesFramedCardTemplate?.(card)) {
-            return `<button class="card-tile binder-card framed-binder-tile${selected}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-                ${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
+            return `<button class="card-tile binder-card framed-binder-tile${selected}${newClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+                ${newBadge}${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
             </button>`;
         }
         const modeClass = card.type === 'SIEGEKNIGHT' ? '' : (binderVisual?.resolveArtModeClass(card) || '');
-        return `<button class="card-tile binder-card${selected}${modeClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
-            ${renderBinderCardShell(card)}
+        return `<button class="card-tile binder-card${selected}${newClass}${modeClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
+            ${newBadge}${renderBinderCardShell(card)}
         </button>`;
+    }
+
+    // Shared card art markup for the Card View tray and its full-screen
+    // takeover so both surfaces render an identical card.
+    function renderDetailCardPreviewMarkup(card, extraPreviewClass = '') {
+        const previewClass = `detail-card-preview${extraPreviewClass ? ` ${extraPreviewClass}` : ''}`;
+        if (card.type === 'SIEGEKNIGHT') {
+            return `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`;
+        }
+        return window.SieglingsCardBinderVisual?.renderBinderCardPreview
+            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
+                ownedOverride: ownedCount(card.id),
+                previewClass,
+                descriptionText: shopCardDescriptionFor(card),
+                ...binderHolographicOptions()
+            })
+            : `<div class="binder-card ${previewClass}" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+    }
+
+    // Full-screen card takeover: tapping the card in the Card View tray blows
+    // the art up to fill the screen; the back arrow returns to the tray.
+    function openCardFullscreen() {
+        const overlay = document.getElementById('cardFullscreen');
+        const body = document.getElementById('cardFullscreenBody');
+        let card = selectedCard();
+        if (!overlay || !body || !card) return;
+        card = withPlayerHolographic(card);
+        body.innerHTML = renderDetailCardPreviewMarkup(card, 'card-fullscreen-preview');
+        overlay.classList.remove('hidden');
+        document.body.classList.add('card-fullscreen-open');
+        window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
+    }
+
+    function closeCardFullscreen() {
+        document.getElementById('cardFullscreen')?.classList.add('hidden');
+        document.body.classList.remove('card-fullscreen-open');
     }
 
     function renderDetail() {
@@ -1587,19 +2029,10 @@
             && state.profile?.authenticated
             && state.progression?.starterChosen
             && (state.progression?.gold || 0) >= nextXpCost;
-        const cardPreview = isSiegeknight
-            ? `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`
-            : window.SieglingsCardBinderVisual?.renderBinderCardPreview
-            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
-                ownedOverride: ownedCount(card.id),
-                previewClass: 'detail-card-preview',
-                descriptionText: shopCardDescriptionFor(card),
-                ...binderHolographicOptions()
-            })
-            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+        const cardPreview = renderDetailCardPreviewMarkup(card);
         panel.innerHTML = `
             <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
-            <div class="detail-card-preview-wrap">${cardPreview}</div>
+            <div class="detail-card-preview-wrap" data-card-fullscreen role="button" tabindex="0" aria-label="View card full screen" title="Tap to view full screen">${cardPreview}</div>
             ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
                 ${renderActiveNotchChips(card.notches)}
             </div>
@@ -2030,7 +2463,7 @@
     }
 
     function homeDefaultPackRows() {
-        return ['FIRE', 'EARTH', 'WIND', 'ICE'].map(element => `<button class="shop-pack-row" type="button" data-home-action="shop">
+        return ['FIRE', 'ICE', 'EARTH', 'WIND'].map(element => `<button class="shop-pack-row" type="button" data-home-action="shop">
             <span style="--el:${elementColor(element)}">${escapeHtml(format(element).slice(0, 1))}</span>
             <strong>${escapeHtml(format(element))} Starter Pack</strong>
             <em>${renderCoinAmount(100, '')}</em>
@@ -2089,6 +2522,13 @@
     function renderDecks() {
         const grid = document.getElementById('deckGrid');
         if (!grid) return;
+        // Catalog or owned decks still loading — show a spinner instead of an
+        // empty grid that would imply the player has no decks.
+        if (!state.options || ownedDataLoading()) {
+            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your decks…</strong></div>`;
+            renderSavedDecks();
+            return;
+        }
         grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
         grid.querySelectorAll('[data-preview-deck]').forEach(tile => {
             tile.addEventListener('click', () => {
@@ -2129,6 +2569,13 @@
         const grid = document.getElementById('customDeckGrid');
         const count = document.getElementById('deckCardCount');
         if (!grid) return;
+        // Signed in but saved decks haven't loaded yet — show a spinner rather
+        // than "No saved custom decks yet", which would be misleading mid-load.
+        if (ownedDataLoading()) {
+            if (count) count.textContent = '';
+            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your saved decks…</strong></div>`;
+            return;
+        }
         const savedDecks = state.profile?.savedDecks || [];
         if (count) count.textContent = `${savedDecks.length} saved`;
         if (!state.profile?.authenticated) {
@@ -3150,11 +3597,7 @@
         const starterMode = state.profile?.authenticated && state.progression && !state.progression.starterChosen;
         const openingThisPack = state.packOpeningPending?.packId === pack.id;
         const openingAnyPack = Boolean(state.packOpeningPending);
-        const label = openingThisPack
-            ? 'Opening...'
-            : starterMode && pack.starterEligible
-            ? 'Choose Starter'
-            : renderCoinAmount(pack.price, '');
+        const isStarterChoice = starterMode && pack.starterEligible;
         const primaryElement = pack.elements?.[0] || 'FIRE';
         const image = packImageFor(pack);
         const imageStyle = image ? `--pack-art-image:url('${escapeAttr(image)}');` : '';
@@ -3162,6 +3605,20 @@
         const displayName = pack.starterEligible && !starterMode
             ? `${format(primaryElement)} Element Pack`
             : pack.name;
+        // Starter picks and in-progress opens stay a single button. Otherwise show a
+        // single pull plus a discounted x10 bundle.
+        let actions;
+        if (openingThisPack) {
+            actions = `<button class="primary-btn" type="button" disabled>Opening...</button>`;
+        } else if (isStarterChoice) {
+            actions = `<button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}"${openingAnyPack ? ' disabled' : ''}>Choose Starter</button>`;
+        } else {
+            const bulkCost = bulkPackCost(pack.price, BULK_PACK_COUNT);
+            actions = `<div class="pack-buy-actions">
+                <button class="primary-btn pack-buy-btn" type="button" data-pack-id="${escapeAttr(pack.id)}" data-pack-count="1"${openingAnyPack ? ' disabled' : ''}><span class="pack-buy-qty">x1</span>${renderCoinAmount(pack.price, '')}</button>
+                <button class="ghost-btn pack-buy-btn pack-buy-bulk" type="button" data-pack-id="${escapeAttr(pack.id)}" data-pack-count="${BULK_PACK_COUNT}"${openingAnyPack ? ' disabled' : ''} title="${BULK_PACK_COUNT} pulls, ${Math.round(BULK_PACK_DISCOUNT * 100)}% off"><span class="pack-buy-qty">x${BULK_PACK_COUNT}</span>${renderCoinAmount(bulkCost, '')}</button>
+            </div>`;
+        }
         return `<article class="pack-tile ${image ? 'pack-tile-art' : ''}" style="--el:${elementColor(primaryElement)}">
             <button class="pack-odds-btn" type="button" data-pack-odds="${escapeAttr(pack.id)}" aria-label="Drop rates for ${escapeAttr(displayName)}" title="Drop rates">i</button>
             <div class="pack-art" style="${imageStyle}"></div>
@@ -3170,7 +3627,7 @@
                 <strong>${escapeHtml(displayName)}</strong>
                 <span>${pack.elements.map(format).join(' / ')}</span>
                 <span>${escapeHtml(formatGameText(pack.description || ''))}</span>
-                <button class="primary-btn" type="button" data-pack-id="${escapeAttr(pack.id)}"${openingAnyPack ? ' disabled' : ''}>${label}</button>
+                ${actions}
             </div>
         </article>`;
     }
@@ -3637,7 +4094,7 @@
         };
         const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
         prefs.favoriteElement = favoriteElement;
-        const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
+        const theme = profileThemeFor(prefs);
         const collection = collectionSummary();
         const savedDecks = state.profile?.savedDecks || [];
         const battles = (state.profile?.matchHistory || []).map((row, index) => normalizeBattle(row, prefs.favoriteElement, index));
@@ -3666,6 +4123,8 @@
             avatar: initials(displayName),
             avatarUrl: '',
             favoriteElement,
+            profileArtId: '',
+            pageArtId: '',
             playerTitle: theme.mood,
             playerTitleId: defaultStarterTitleId(favoriteElement),
             bio: starterProfileBio(favoriteElement),
@@ -3834,6 +4293,13 @@
             Wind: 'Wind starter chosen. Build around tempo, disruption, and fast Siegelings.',
             Ice: 'Ice starter chosen. Build around freezes, control, and resilient board lines.'
         }[normalizeProfileElement(element)] || 'Ready to tune a deck, open a pack, and make the next match count.';
+    }
+
+    // The profile color theme always tracks the player's favorite element. The
+    // selectable "profile background" is an image (see profileArtId), not a color.
+    function profileThemeFor(prefs = {}) {
+        const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
+        return elementThemes[favoriteElement] || elementThemes.Neutral;
     }
 
     function profileThemeStyle(theme) {
@@ -4311,6 +4777,7 @@
                     ${profileInput('Avatar initials', 'avatar', prefs.avatar)}
                     ${profileInput('Avatar image URL', 'avatarUrl', prefs.avatarUrl)}
                     <label><span>Favorite element</span><select class="search-input" data-profile-field="favoriteElement">${PROFILE_ELEMENTS.map(element => `<option value="${element}"${element === prefs.favoriteElement ? ' selected' : ''}>${element}</option>`).join('')}</select></label>
+                    ${profileBackgroundSelect(prefs.profileArtId)}
                     ${profileTitleSelect(prefs.playerTitleId, prefs)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
                     ${profileCardBackSelect(prefs.preferredCardBack)}
@@ -4326,6 +4793,23 @@
 
     function profileInput(label, field, value) {
         return `<label><span>${escapeHtml(label)}</span><input class="search-input" data-profile-field="${escapeAttr(field)}" value="${escapeAttr(value)}"></label>`;
+    }
+
+    // Renders the profile background image picker, listing the art gallery pieces.
+    // The first option is the default (no image); any saved id not in the loaded
+    // catalog is preserved so a slow art fetch never wipes the player's choice.
+    function profileBackgroundSelect(selectedId) {
+        const current = String(selectedId || '').trim();
+        const pieces = (state.loadingArt || []).slice();
+        const ids = pieces.map(piece => piece.id);
+        const options = [`<option value=""${current ? '' : ' selected'}>Default (no image)</option>`];
+        if (current && !ids.includes(current)) {
+            options.push(`<option value="${escapeAttr(current)}" selected>${escapeHtml(current)}</option>`);
+        }
+        pieces.forEach(piece => {
+            options.push(`<option value="${escapeAttr(piece.id)}"${piece.id === current ? ' selected' : ''}>${escapeHtml(piece.title || piece.id)}</option>`);
+        });
+        return `<label><span>Profile background</span><select class="search-input" data-profile-field="profileArtId">${options.join('')}</select></label>`;
     }
 
     // Renders the preferred card back picker as a dropdown of premade backs.
@@ -4447,6 +4931,7 @@
             ? { ...defaultProfilePrefs(state.profile?.user || {}), ...applyProfileSettingsFromServer(data.profileSettings) }
             : next;
         cacheProfilePrefs(state.profilePrefs);
+        applyProfileArtFromPrefs(state.profilePrefs);
         if (state.profile?.user && state.profilePrefs?.displayName) {
             state.profile.user.displayName = state.profilePrefs.displayName;
         }
@@ -4772,7 +5257,112 @@
         return new Promise(resolve => window.setTimeout(resolve, 760));
     }
 
-    async function choosePack(packId) {
+    function packOpenRequestStorageKey() {
+        const userId = state.profile?.user?.id || state.profile?.user?.email || 'anonymous';
+        return `${PENDING_PACK_OPEN_REQUEST_KEY}:${userId}`;
+    }
+
+    function createPackOpenRequestId() {
+        try {
+            if (window.crypto?.randomUUID) {
+                return window.crypto.randomUUID();
+            }
+        } catch (error) {
+            // Fall through to the timestamp/random fallback below.
+        }
+        return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    function packOpenRequestEntryKey(packId, count) {
+        return `${String(packId)}:${Number(count) || 1}`;
+    }
+
+    function normalizePackOpenRequestEntry(entry) {
+        if (!entry?.requestId || !entry.packId) return null;
+        return {
+            requestId: String(entry.requestId),
+            packId: String(entry.packId),
+            count: Number(entry.count) || 1,
+            createdAt: Number(entry.createdAt) || 0
+        };
+    }
+
+    function readPendingPackOpenRequests() {
+        try {
+            const raw = localStorage.getItem(packOpenRequestStorageKey());
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            const entries = Array.isArray(parsed?.requests)
+                ? parsed.requests
+                : (Array.isArray(parsed) ? parsed : (parsed?.requestId ? [parsed] : []));
+            return entries
+                .map(normalizePackOpenRequestEntry)
+                .filter(Boolean);
+        } catch (error) {
+            // Treat malformed or unavailable storage as no pending retry.
+            return [];
+        }
+    }
+
+    function writePendingPackOpenRequests(entries) {
+        try {
+            const seen = new Set();
+            const normalized = [];
+            for (const entry of entries || []) {
+                const next = normalizePackOpenRequestEntry(entry);
+                if (!next) continue;
+                const key = packOpenRequestEntryKey(next.packId, next.count);
+                if (seen.has(key)) continue;
+                seen.add(key);
+                normalized.push(next);
+            }
+            normalized.sort((left, right) => (right.createdAt || 0) - (left.createdAt || 0));
+            const trimmed = normalized.slice(0, MAX_PENDING_PACK_OPEN_REQUESTS);
+            const key = packOpenRequestStorageKey();
+            if (trimmed.length) {
+                localStorage.setItem(key, JSON.stringify({ requests: trimmed }));
+            } else {
+                localStorage.removeItem(key);
+            }
+        } catch (error) {
+            // Idempotency persistence is best effort; the in-flight request still carries its id.
+        }
+    }
+
+    function readPendingPackOpenRequest(packId, count) {
+        const entries = readPendingPackOpenRequests();
+        for (const entry of entries) {
+            if (entry?.packId === packId && Number(entry.count) === Number(count) && entry.requestId) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    function getOrCreatePackOpenRequestId(packId, count) {
+        const pending = readPendingPackOpenRequest(packId, count);
+        if (pending?.requestId) return pending.requestId;
+        const requestId = createPackOpenRequestId();
+        writePendingPackOpenRequests([
+            {
+                requestId,
+                packId,
+                count,
+                createdAt: Date.now()
+            },
+            ...readPendingPackOpenRequests()
+        ]);
+        return requestId;
+    }
+
+    function clearPackOpenRequestId(requestId) {
+        if (!requestId) return;
+        const remaining = readPendingPackOpenRequests()
+            .filter(entry => entry.requestId !== requestId);
+        writePendingPackOpenRequests(remaining);
+    }
+
+    async function choosePack(packId, count = 1) {
         if (!state.profile?.authenticated) {
             openAuth();
             return;
@@ -4783,70 +5373,99 @@
         const starterMode = state.progression && !state.progression.starterChosen;
         const endpoint = starterMode ? '/api/player/starter-pack' : '/api/shop/open-pack';
         const pack = state.packs.find(item => item.id === packId) || null;
-        state.packOpeningPending = { packId, startedAt: Date.now(), element: pack?.elements?.[0] || 'FIRE', name: pack?.name || 'Pack' };
+        // Starter pulls are always single; bulk only applies to normal shop buys.
+        const packCount = starterMode ? 1 : Math.max(1, Math.min(Number(count) || 1, BULK_PACK_COUNT));
+        const requestId = starterMode ? null : getOrCreatePackOpenRequestId(packId, packCount);
+        state.packOpeningPending = { packId, startedAt: Date.now(), element: pack?.elements?.[0] || 'FIRE', name: pack?.name || 'Pack', count: packCount };
         state.packOpeningDismissedKey = '';
         navigateHub('shop', { shopView: 'cardpack' });
         renderPackOpeningPending();
         renderShop();
+
+        // Phase 1 — the network call. fetchJson resolves to {error} for
+        // network/timeout/HTTP failures, but guard against any unexpected throw so
+        // the pending overlay is always torn down.
+        let data;
         try {
-            const data = await fetchJson(endpoint, {
+            data = await fetchJson(endpoint, {
                 method: 'POST',
-                body: JSON.stringify({ packId }),
+                body: JSON.stringify({ packId, count: packCount, requestId }),
                 timeoutMs: PACK_OPEN_TIMEOUT_MS
             });
-            if (data?.error) {
-                alert(data.error);
-                return;
+        } catch (error) {
+            data = { error: error?.message || 'Could not open that pack. Please try again.' };
+        }
+
+        // The server may have charged and granted before the response was lost.
+        // Keep the request id so a retry can be deduped server-side.
+        if (!data || data.error) {
+            state.packOpeningPending = null;
+            hidePackResultDom();
+            renderShop();
+            syncShopPackView();
+            alert(data?.error || 'Could not open that pack. Please try again.');
+            return;
+        }
+
+        // Phase 2 — commit the server result. The cards are already granted and
+        // persisted at this point, so apply progression FIRST. This way a hiccup in
+        // the heavy reveal animation can never lose the cards or, worse, surface a
+        // "could not open" error that tricks the player into paying for the pack
+        // again.
+        state.progression = data.progression;
+        state.packs = data.packs || state.packs;
+        state.dailyOffers = data.dailyOffers || state.dailyOffers;
+        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+        clearPackOpenRequestId(requestId);
+        const latest = state.progression?.packHistory?.[0];
+        if (latest) {
+            pushNotification('pack', `Pack opened: ${pack?.name || latest.packId || 'Card pack'}`, `${(latest.cards || []).length} cards added to your binder.`);
+        }
+        if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
+        // Tag the freshly pulled cards as "New" until the player opens them.
+        detectNewCards();
+        state.packOpeningDismissedKey = '';
+        state.packReveal = latest ? {
+            packId: latest.packId,
+            openedAt: latest.openedAt,
+            revealed: new Set(),
+            dissolvedRemnants: new Set(),
+            lastRevealedId: '',
+            previewId: '',
+            sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
+        } : null;
+        if (starterMode) {
+            const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
+            if (serverPrefs) {
+                state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
+                cacheProfilePrefs(state.profilePrefs);
+                applyProfileArtFromPrefs(state.profilePrefs);
+            } else {
+                applyStarterProfileDefaults();
             }
-            state.progression = data.progression;
-            state.packs = data.packs || state.packs;
-            state.dailyOffers = data.dailyOffers || state.dailyOffers;
-            state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
-            const latest = state.progression?.packHistory?.[0];
-            if (latest) {
-                pushNotification('pack', `Pack opened: ${pack?.name || latest.packId || 'Card pack'}`, `${(latest.cards || []).length} cards added to your binder.`);
-            }
-            if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
-            state.packOpeningDismissedKey = '';
-            state.packReveal = latest ? {
-                packId: latest.packId,
-                openedAt: latest.openedAt,
-                revealed: new Set(),
-                dissolvedRemnants: new Set(),
-                lastRevealedId: '',
-                previewId: '',
-                sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
-            } : null;
-            if (starterMode) {
-                const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
-                if (serverPrefs) {
-                    state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
-                    cacheProfilePrefs(state.profilePrefs);
-                } else {
-                    applyStarterProfileDefaults();
-                }
-            }
+        }
+
+        // Phase 3 — the (heavy) reveal animation. If anything here throws, the
+        // cards are already safely in the binder, so don't strand the player on a
+        // half-built overlay: clear it and drop them into the Cards binder where the
+        // new pulls are waiting, tagged "New".
+        try {
             await finishPendingSpears(latest?.cards || []);
             state.packOpeningPending = null;
             renderPackResult();
             render();
-            void loadDailyMissions().then(() => {
-                renderHomeDashboard();
-                renderAchievements();
-                renderProfile();
-            });
-        } catch (error) {
-            alert(error?.message || 'Could not open that pack. Please try again.');
-        } finally {
-            if (state.packOpeningPending?.packId === packId) {
-                state.packOpeningPending = null;
-                hidePackResultDom();
-                renderShop();
-                syncShopPackView();
-            } else {
-                renderShop();
-            }
+        } catch (revealError) {
+            console.error(revealError);
+            state.packOpeningPending = null;
+            hidePackResultDom();
+            render();
+            navigateHub('cards');
         }
+        void loadDailyMissions().then(() => {
+            renderHomeDashboard();
+            renderAchievements();
+            renderProfile();
+        });
     }
 
     async function purchaseDailyOffer(offerId) {
@@ -4860,6 +5479,7 @@
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
         state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+        detectNewCards();
         render();
     }
 
@@ -4969,7 +5589,7 @@
                 </div>
             </div>
             <canvas class="gacha-particles" aria-hidden="true"></canvas>
-            <div class="gacha-stage">
+            <div class="gacha-stage${cards.length > 5 ? ' is-bulk' : ''}">
                 ${cards.map((card, index) => renderRevealCard(card, reveal.revealed.has(card.revealId), latest.packId, index)).join('')}
             </div>
             ${previewCard ? renderRevealPreview(previewCard) : ''}
@@ -5528,6 +6148,7 @@
             window.SiegelingsAchievements.incrementStat('crafts', 1);
         }
         state.progression = data.progression;
+        detectNewCards();
         renderCards();
         renderHomeDashboard();
         renderGold();
@@ -5912,17 +6533,25 @@
         cardTray?.setAttribute('aria-hidden', String(!binder || !state.cardTrayOpen));
         const trayOpen = (showFilterHud && filterOpen) || (binder && state.cardTrayOpen);
         backdrop?.classList.toggle('hidden', !trayOpen);
+        // Lock the page scroll behind an open tray so touch gestures stay
+        // confined to the tray instead of scrolling the background.
+        document.body.classList.toggle('tray-open', trayOpen);
+        // The action buttons differ per route, so the docked HUD height can
+        // change here — keep the tray anchor measurement in sync.
+        measureBottomHud();
     }
 
     async function fetchJson(path, options = {}) {
         const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-        if (state.token) headers.Authorization = `Bearer ${state.token}`;
+        // Cookie-mode sessions authenticate via the httpOnly cookie (sent
+        // automatically); only attach a Bearer header for a real legacy token.
+        if (isLegacyBearerToken(state.token)) headers.Authorization = `Bearer ${state.token}`;
         const timeoutMs = Number(options.timeoutMs) || 0;
         const controller = timeoutMs && window.AbortController ? new AbortController() : null;
         const timeout = controller
             ? window.setTimeout(() => controller.abort(), timeoutMs)
             : null;
-        const fetchOptions = { ...options, headers };
+        const fetchOptions = { credentials: 'same-origin', ...options, headers };
         delete fetchOptions.timeoutMs;
         if (controller) {
             fetchOptions.signal = controller.signal;
@@ -5947,7 +6576,7 @@
         } catch (error) {
             console.error(error);
             if (error?.name === 'AbortError') {
-                return { error: 'Pack opening is taking too long. Please try again.' };
+                return { error: 'Pack opening is taking too long. Please try again.', timedOut: true };
             }
             return { error: 'Network error. Check your connection and try again.' };
         } finally {
@@ -6075,36 +6704,83 @@
         }
     }
 
+    // Mirrors the Play page's sign-in popup (game.js buildAuthFormMarkup) so the
+    // hub/shop login matches it: ACCOUNT eyebrow, Log In / Register tabs, and a
+    // single primary button. Shared style.css supplies the look; the hub wires
+    // events via IDs/data-attrs (its code is sandboxed, so no inline onclick).
     function authMarkup() {
+        const loading = !!state.authLoading;
+        const disabledAttr = loading ? ' disabled' : '';
         if (state.authRegisterStep === 'display-name') {
-            return `<div class="auth-card">
-                <strong>Choose your display name</strong>
-                <span>Confirm how other duelists will see you (${escapeHtml(state.registerDraft.email || '')}).</span>
-                <input class="search-input" id="authName" maxlength="20" placeholder="Display name" autofocus>
-                <button class="primary-btn" id="confirmRegisterBtn" type="button">Confirm</button>
-                <button class="ghost-btn" id="backRegisterBtn" type="button">Back</button>
-            </div>`;
+            return `
+                <div class="welcome-eyebrow">ACCOUNT</div>
+                <h3>Choose your display name</h3>
+                <div class="welcome-auth-meta">${escapeHtml(state.registerDraft.email || '')}</div>
+                <label class="online-field">
+                    <span>Display Name</span>
+                    <input type="text" id="authName" maxlength="20" placeholder="Arena name"${disabledAttr} autofocus>
+                </label>
+                <div class="welcome-auth-actions">
+                    <button class="btn welcome-auth-submit" id="backRegisterBtn" type="button"${disabledAttr}>Back</button>
+                    <button class="btn btn-primary welcome-auth-submit" id="confirmRegisterBtn" type="button"${disabledAttr}>${loading ? 'Working...' : 'Confirm'}</button>
+                </div>
+            `;
         }
-        return `<div class="auth-card">
-            <strong>Sign in to save progression</strong>
-            <span>Starter packs, Siegecoins, Remnants, owned cards, and custom decks require an account. New players start with ${renderCoinAmount(100)}.</span>
-            <input class="search-input" id="authEmail" type="email" placeholder="Email">
-            <input class="search-input" id="authPassword" type="password" placeholder="Password">
-            <button class="primary-btn" id="loginBtn" type="button">Log In</button>
-            <button class="ghost-btn" id="registerBtn" type="button">Register</button>
-        </div>`;
+        const mode = state.authMode === 'register' ? 'register' : 'login';
+        return `
+            <div class="welcome-eyebrow">ACCOUNT</div>
+            <h3>${mode === 'login' ? 'Pick up where you left off' : 'Save decks with your email'}</h3>
+            <div class="welcome-auth-tabs">
+                <button class="welcome-auth-tab${mode === 'login' ? ' active' : ''}" type="button" data-auth-mode="login" aria-selected="${mode === 'login'}"${disabledAttr}>Log In</button>
+                <button class="welcome-auth-tab${mode === 'register' ? ' active' : ''}" type="button" data-auth-mode="register" aria-selected="${mode === 'register'}"${disabledAttr}>Register</button>
+            </div>
+            <label class="online-field">
+                <span>Email</span>
+                <input type="email" id="authEmail" placeholder="you@example.com"${disabledAttr}>
+            </label>
+            <label class="online-field">
+                <span>Password</span>
+                <input type="password" id="authPassword" placeholder="At least 6 characters"${disabledAttr}>
+            </label>
+            <div class="welcome-auth-actions">
+                <button class="btn btn-primary welcome-auth-submit" id="authPrimaryBtn" type="button"${disabledAttr}>${loading ? 'Working...' : (mode === 'login' ? 'Log In' : 'Register')}</button>
+            </div>
+        `;
     }
 
     function openAuth() {
         if (state.profile?.authenticated) return logout();
         state.authOpen = true;
+        state.authMode = 'login';
+        state.authRegisterStep = 'credentials';
+        state.authDraft = { email: '', password: '' };
+        state.authLoading = false;
         renderAuthModal();
     }
 
     function closeAuth() {
         state.authOpen = false;
+        state.authMode = 'login';
         state.authRegisterStep = 'credentials';
         state.registerDraft = { email: '', password: '' };
+        state.authDraft = { email: '', password: '' };
+        state.authLoading = false;
+        renderAuthModal();
+    }
+
+    // Preserve whatever the player has typed when flipping the Log In / Register tab.
+    function captureAuthDraft() {
+        const email = document.getElementById('authEmail');
+        const password = document.getElementById('authPassword');
+        state.authDraft = {
+            email: email ? email.value : (state.authDraft?.email || ''),
+            password: password ? password.value : (state.authDraft?.password || '')
+        };
+    }
+
+    function setAuthMode(mode) {
+        captureAuthDraft();
+        state.authMode = mode === 'register' ? 'register' : 'login';
         renderAuthModal();
     }
 
@@ -6126,13 +6802,24 @@
     }
 
     function bindAuthForms() {
-        document.querySelectorAll('#loginBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('login')));
-        document.querySelectorAll('#registerBtn').forEach(btn => btn.addEventListener('click', () => beginRegisterDisplayName()));
-        document.querySelectorAll('#confirmRegisterBtn').forEach(btn => btn.addEventListener('click', () => submitAuth('register')));
-        document.querySelectorAll('#backRegisterBtn').forEach(btn => btn.addEventListener('click', () => {
+        // Restore typed credentials after a re-render (e.g. switching tab).
+        const draft = state.authDraft || { email: '', password: '' };
+        const emailInput = document.getElementById('authEmail');
+        const passwordInput = document.getElementById('authPassword');
+        if (emailInput && draft.email) emailInput.value = draft.email;
+        if (passwordInput && draft.password) passwordInput.value = draft.password;
+
+        document.querySelectorAll('[data-auth-mode]').forEach(btn =>
+            btn.addEventListener('click', () => setAuthMode(btn.getAttribute('data-auth-mode'))));
+        document.getElementById('authPrimaryBtn')?.addEventListener('click', () => {
+            if (state.authMode === 'register') beginRegisterDisplayName();
+            else submitAuth('login');
+        });
+        document.getElementById('confirmRegisterBtn')?.addEventListener('click', () => submitAuth('register'));
+        document.getElementById('backRegisterBtn')?.addEventListener('click', () => {
             state.authRegisterStep = 'credentials';
             renderAuthModal();
-        }));
+        });
     }
 
     function beginRegisterDisplayName() {
@@ -6152,6 +6839,7 @@
     }
 
     async function submitAuth(mode) {
+        if (state.authLoading) return;
         const onRegisterNameStep = mode === 'register' && state.authRegisterStep === 'display-name';
         const email = onRegisterNameStep ? state.registerDraft.email : (document.getElementById('authEmail')?.value || '');
         const password = onRegisterNameStep ? state.registerDraft.password : (document.getElementById('authPassword')?.value || '');
@@ -6159,22 +6847,44 @@
         const body = mode === 'register'
             ? { email, password, displayName }
             : { email, password };
+        // Persist what the user typed so the inputs aren't cleared when the modal
+        // re-renders into its "Working..." state.
+        if (!onRegisterNameStep) state.authDraft = { email, password };
+        state.authLoading = true;
+        renderAuthModal();
         const data = await fetchJson(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) });
-        if (data?.error) return alert(data.error);
-        state.token = data.token || '';
+        if (data?.error) {
+            state.authLoading = false;
+            renderAuthModal();
+            return alert(data.error);
+        }
+        state.authLoading = false;
+        // Prefer cookie auth in browsers; in a standalone Web App (or when cookies
+        // are blocked) keep the real token + Bearer header so auth survives the
+        // full-page Home <-> Play navigation.
+        state.token = preferredStoredToken(data.token);
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
         saveCachedAuthProfile(data);
         state.progression = data.progression;
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
+        applyProfileArtFromPrefs(state.profilePrefs);
         state.profileEditOpen = false;
         state.authOpen = false;
-        startPresenceHeartbeat();
         state.authRegisterStep = 'credentials';
         state.registerDraft = { email: '', password: '' };
-        await ensurePacksLoaded();
-        render();
+        // Close the login UI instantly, then cover the data load with a random
+        // loading-screen art piece so the player isn't staring at the form.
+        renderAuthModal();
+        const loadingShownAt = showLoadingArtScreen('Loading your Siegelings…');
+        startPresenceHeartbeat();
+        try {
+            await ensurePacksLoaded();
+            render();
+        } finally {
+            hideLoadingArtScreen(loadingShownAt);
+        }
     }
 
     async function logout() {
@@ -6291,9 +7001,12 @@
     }
     function creatureDescriptionFor(card) {
         const descriptions = state.creatureDescriptions || {};
-        return polishFlavorText(descriptions[normalizeCreatureKey(card?.id)]
+        // A description set directly on the card (via the dashboard editor) is
+        // authoritative and wins over the shared creature-descriptions file so
+        // dashboard edits show immediately; the shared file is the fallback.
+        return polishFlavorText(String(card?.description || '').trim()
+            || descriptions[normalizeCreatureKey(card?.id)]
             || descriptions[normalizeCreatureKey(card?.name)]
-            || String(card?.description || '').trim()
             || 'Description coming soon.');
     }
     function polishFlavorText(value) {
@@ -6331,6 +7044,12 @@
         if (filter === 'FREE') return cost === 0;
         if (filter === '5+') return cost >= 5;
         return cost === Number(filter);
+    }
+    function matchesFinishFilter(card) {
+        const filter = state.finishFilter;
+        if (filter === 'ALL') return true;
+        const holo = cardShowsPlayerHolographic(card);
+        return filter === 'HOLOGRAPHIC' ? holo : !holo;
     }
     function formatEnergyCostFilter(value) {
         if (value === 'ALL') return 'All Costs';
@@ -6491,7 +7210,7 @@
         const url = resolveCardArtUrl(card);
         if (url) {
             const name = card?.name || 'Card';
-            return `<img class="element-icon-art" src="${escapeAttr(url)}" alt="${escapeAttr(name)} art" loading="lazy">`;
+            return `<img class="element-icon-art" ${webpImgAttrs(url)} alt="${escapeAttr(name)} art" loading="lazy">`;
         }
         return renderElementIcon(card?.element);
     }
@@ -6554,6 +7273,19 @@
     }
     function escapeAttr(value) { return escapeHtml(value); }
 
+    // Prefer the .webp twin of a local raster art URL (WebP-capable browsers),
+    // reverting to the original on any load error. See card-binder-visual.js.
+    function webpImgAttrs(url) {
+        const original = String(url || '');
+        const preferred = window.SieglingsCardBinderVisual?.preferWebp
+            ? window.SieglingsCardBinderVisual.preferWebp(original)
+            : original;
+        if (preferred === original) {
+            return `src="${escapeAttr(original)}"`;
+        }
+        return `src="${escapeAttr(preferred)}" data-img-fallback="${escapeAttr(original)}" onerror="sgWebpFallback(this)"`;
+    }
+
     function applyProfileSettingsFromServer(settings) {
         if (!settings) return null;
         const mapped = {
@@ -6561,6 +7293,8 @@
             avatarMode: settings.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL',
             avatar: settings.avatar || '',
             avatarUrl: settings.avatarUrl || '',
+            profileArtId: settings.profileArtId || '',
+            pageArtId: settings.pageArtId || '',
             playerTitle: settings.playerTitle || '',
             playerTitleId: settings.playerTitleId || settings.playerTitle || '',
             bio: settings.bio || '',
@@ -6597,6 +7331,8 @@
                 avatar: prefs.avatar,
                 avatarUrl: prefs.avatarUrl,
                 favoriteElement: prefs.favoriteElement,
+                profileArtId: prefs.profileArtId,
+                pageArtId: prefs.pageArtId,
                 playerTitle: prefs.playerTitle,
                 playerTitleId: prefs.playerTitleId,
                 bio: prefs.bio,
@@ -7370,7 +8106,7 @@
     async function closeHostLobby(lobby) {
         if (!lobby?.roomId) return;
         const headers = { 'Content-Type': 'application/json' };
-        if (state.token) headers.Authorization = `Bearer ${state.token}`;
+        if (isLegacyBearerToken(state.token)) headers.Authorization = `Bearer ${state.token}`;
         if (lobby.playerToken) {
             headers['X-Room-Id'] = lobby.roomId;
             headers['X-Player-Token'] = lobby.playerToken;
@@ -7551,7 +8287,7 @@
         };
         const favoriteElement = normalizeProfileElement(prefs.favoriteElement);
         prefs.favoriteElement = favoriteElement;
-        const theme = elementThemes[favoriteElement] || elementThemes.Neutral;
+        const theme = profileThemeFor(prefs);
         const stats = data.stats || {};
         const battles = (data.recentMatches || []).map((row, index) => normalizeBattle(row, favoriteElement, index));
         const record = battleRecord(battles);
@@ -7987,6 +8723,8 @@
         if (event.target.closest('[data-art-clear]')) {
             localStorage.removeItem(PAGE_ART_KEY);
             localStorage.removeItem(PROFILE_ART_KEY);
+            persistArtSelection(PAGE_ART_KEY, '');
+            persistArtSelection(PROFILE_ART_KEY, '');
             applyCustomPageArt();
             renderOptions();
             if (state.route === 'profile') safeRender(renderProfile);
@@ -8023,12 +8761,40 @@
         const form = event.target.closest('#optionsAdminForm');
         if (!form) return;
         event.preventDefault();
-        const pass = document.getElementById('optionsAdminPassword')?.value || '';
-        if (pass === 'Aviators4!') {
-            window.location.href = '/card-dashboard.html';
-        } else {
-            const err = document.getElementById('optionsAdminError');
+        unlockAdminDashboard();
+    }
+
+    async function unlockAdminDashboard() {
+        const passwordInput = document.getElementById('optionsAdminPassword');
+        const submitBtn = document.querySelector('#optionsAdminForm button[type="submit"]');
+        const err = document.getElementById('optionsAdminError');
+        const pass = passwordInput?.value || '';
+        if (err) err.textContent = '';
+        if (pass !== 'Aviators4!') {
             if (err) err.textContent = 'Incorrect password.';
+            return;
+        }
+        // Visible feedback while we probe the dashboard and hand off — without
+        // it the form sits inert on a slow connection and looks broken.
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.dataset.originalLabel = submitBtn.textContent;
+            submitBtn.textContent = 'Unlocking...';
+        }
+        if (passwordInput) passwordInput.disabled = true;
+        const dashboardUrl = '/card-dashboard.html';
+        try {
+            const probe = await fetch(dashboardUrl, { method: 'HEAD', cache: 'no-store' });
+            if (!probe.ok) throw new Error(`HTTP ${probe.status}`);
+            window.location.href = dashboardUrl;
+        } catch (probeError) {
+            console.error(probeError);
+            if (err) err.textContent = `Could not reach the dashboard (${probeError?.message || 'unknown error'}). Please try again.`;
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = submitBtn.dataset.originalLabel || 'Unlock Dashboard';
+            }
+            if (passwordInput) passwordInput.disabled = false;
         }
     }
 
@@ -8068,7 +8834,7 @@
             return;
         }
         const packButton = event.target.closest('[data-pack-id]');
-        if (packButton) choosePack(packButton.dataset.packId);
+        if (packButton) choosePack(packButton.dataset.packId, Number(packButton.dataset.packCount) || 1);
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const titleButton = event.target.closest('[data-purchase-title-id]');

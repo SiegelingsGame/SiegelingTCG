@@ -1,6 +1,9 @@
 {
   "name": "Sieglings TCG",
   "short_name": "Sieglings",
+  "id": "/home",
+  "start_url": "/home",
+  "scope": "/",
   "icons": [
     {
       "src": "/favicon-192x192.png",

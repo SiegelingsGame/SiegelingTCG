@@ -188,6 +188,19 @@ body.starter-onboarding-active .hud-fab {
     -webkit-backdrop-filter: blur(5px);
 }
 
+.loading-art-spinner {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 215, 0, 0.22);
+    border-top-color: #ffd700;
+    animation: loadingArtSpin 0.8s linear infinite;
+}
+
+@keyframes loadingArtSpin {
+    to { transform: rotate(360deg); }
+}
+
 .loading-art-label {
     color: #fff7d9;
     font-size: 13px;
@@ -316,6 +329,87 @@ body.starter-onboarding-active .hud-fab {
     text-transform: uppercase;
 }
 
+/* Full-screen card takeover opened by tapping the Card View card. */
+.card-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 3300;
+    display: grid;
+    place-items: center;
+    padding:
+        calc(env(safe-area-inset-top, 0px) + 72px)
+        20px
+        calc(env(safe-area-inset-bottom, 0px) + 24px);
+    background: radial-gradient(120% 120% at 50% 18%, rgba(16, 22, 44, 0.92), rgba(3, 6, 14, 0.97));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.card-fullscreen.hidden {
+    display: none;
+}
+
+body.card-fullscreen-open {
+    overflow: hidden;
+}
+
+.card-fullscreen-back {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    left: 16px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px 9px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(10, 16, 32, 0.9);
+    color: #fff7d9;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: .02em;
+    cursor: pointer;
+}
+
+.card-fullscreen-back:hover {
+    border-color: rgba(255, 215, 0, 0.62);
+    color: #ffe9a0;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.card-fullscreen-card {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+/* Zoomed-in card: fill the screen, bounded by 92% width and by the available
+   height via the 5/7 card aspect so the whole card always fits. The
+   max-width/min-width reset defeats the inherited .hand-card 156px cap; a
+   definite vw width (not a percentage) avoids the centered-grid track
+   collapse. */
+.card-fullscreen-card .detail-card-preview,
+.card-fullscreen-card .knight-detail-preview {
+    width: 92vw; /* fallback if dvh/calc below is unsupported */
+    width: min(92vw, calc((100dvh - 150px) * 5 / 7));
+    max-width: none;
+    min-width: 0;
+    margin: 0 auto;
+    pointer-events: none;
+}
+
+.card-fullscreen-card .detail-card-preview .binder-card-shell {
+    min-height: 0;
+}
+
+.card-fullscreen-card .detail-card-preview .binder-card-art {
+    height: clamp(280px, 60vh, 520px);
+}
+
 /* Player-selected art behind the profile hero card. */
 .profile-hero.has-art::before {
     content: "";
@@ -324,7 +418,7 @@ body.starter-onboarding-active .hud-fab {
     z-index: 0;
     border-radius: inherit;
     background:
-        linear-gradient(180deg, rgba(5, 8, 17, 0.25), rgba(5, 8, 17, 0.78)),
+        linear-gradient(180deg, rgba(5, 8, 17, 0.12), rgba(5, 8, 17, 0.5)),
         var(--profile-art, none) center / cover no-repeat;
 }
 
@@ -1097,6 +1191,9 @@ body.starter-onboarding-active .hud-fab {
     max-height: calc(100vh - 104px);
     padding: 14px;
     overflow-y: auto;
+    /* Keep scroll momentum inside the tray so reaching the top/bottom edge
+       doesn't chain the gesture through to the page behind it. */
+    overscroll-behavior: contain;
     transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
@@ -1107,7 +1204,7 @@ body.starter-onboarding-active .hud-fab {
 
 .detail-panel {
     right: 18px;
-    width: min(410px, calc(100vw - 36px));
+    width: min(480px, calc(100vw - 36px));
 }
 
 .hud-tray.is-closed {
@@ -1125,6 +1222,10 @@ body.starter-onboarding-active .hud-fab {
     background: rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
+    /* Swallow touch gestures on the dimmed area so dragging on it can't
+       scroll the page underneath the open tray. */
+    touch-action: none;
+    overscroll-behavior: contain;
 }
 
 .browser-panel {
@@ -1557,9 +1658,50 @@ select.search-input { color-scheme: dark; }
     box-shadow: 0 5px 14px rgba(255, 80, 30, 0.2);
 }
 
+/* Single pull + discounted x10 bundle, side by side. */
+.pack-buy-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.pack-tile .pack-buy-btn {
+    width: auto;
+    min-width: 0;
+    min-height: 26px;
+    margin-top: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.pack-tile .pack-buy-bulk {
+    box-shadow: none;
+}
+
+.pack-buy-qty {
+    font-weight: 700;
+    font-size: 10px;
+    opacity: 0.85;
+}
+
 .daily-offer-tile .primary-btn .coin-value,
-.pack-tile .primary-btn .coin-value {
+.pack-tile .primary-btn .coin-value,
+.pack-tile .pack-buy-btn .coin-value {
     gap: 4px;
+}
+
+.pack-tile .pack-buy-btn .coin-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.pack-tile .pack-buy-btn .coin-value span {
+    font-size: 11px;
 }
 
 .daily-offer-tile .primary-btn .coin-icon,
@@ -1926,12 +2068,45 @@ select.search-input { color-scheme: dark; }
 }
 
 .card-tile {
+    position: relative;
     min-height: 318px;
     display: grid;
     grid-template-rows: 1fr auto;
     text-align: left;
     cursor: pointer;
     transition: transform 0.16s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+/* "New" tag on freshly acquired (pulled/crafted/bought) cards, until viewed. */
+.card-new-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 6;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #1a1205;
+    background: linear-gradient(135deg, #ffe27a, #ffb628);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), 0 0 12px rgba(255, 196, 40, 0.55);
+    pointer-events: none;
+    animation: card-new-badge-pulse 1.8s ease-in-out infinite;
+}
+
+.card-tile.is-new {
+    border-color: color-mix(in srgb, #ffc428 55%, rgba(255, 255, 255, 0.18));
+}
+
+@keyframes card-new-badge-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card-new-badge { animation: none; }
 }
 
 .card-tile:hover {
@@ -2067,7 +2242,7 @@ select.search-input { color-scheme: dark; }
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: fill;
+    object-fit: cover;
 }
 
 .binder-card-shell {
@@ -2631,9 +2806,28 @@ select.search-input { color-scheme: dark; }
 
 .detail-panel .detail-card-preview,
 .deck-builder-preview-card .detail-card-preview {
-    width: min(100%, 300px);
     margin: 0 auto;
     pointer-events: none;
+}
+
+/* Card View tray renders the card larger than the deck-builder preview.
+   max-width/min-width reset defeats the .hand-card 156px cap that the framed
+   showcase card otherwise inherits. */
+.detail-panel .detail-card-preview {
+    width: min(100%, 240px);
+    max-width: none;
+    min-width: 0;
+}
+
+/* A content-sized (auto) grid track collapses width:min(100%,…) to the card's
+   min-content. Give the wrap a definite 1fr track so the width actually
+   applies and the card can grow. */
+.detail-panel .detail-card-preview-wrap {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.deck-builder-preview-card .detail-card-preview {
+    width: min(100%, 300px);
 }
 
 .detail-panel .detail-card-preview .binder-card-shell,
@@ -2641,9 +2835,17 @@ select.search-input { color-scheme: dark; }
     min-height: 0;
 }
 
-.detail-panel .detail-card-preview .binder-card-art,
+.detail-panel .detail-card-preview .binder-card-art {
+    height: clamp(192px, 54vw, 252px);
+}
+
 .deck-builder-preview-card .detail-card-preview .binder-card-art {
     height: clamp(128px, 36vw, 168px);
+}
+
+/* The card art doubles as the trigger for the full-screen takeover. */
+.detail-panel .detail-card-preview-wrap {
+    cursor: zoom-in;
 }
 
 .detail-panel .detail-card-preview .binder-card-description,
@@ -5983,10 +6185,14 @@ body.gacha-active {
     padding: 20px;
     border: 1px solid var(--profile-border, rgba(255, 126, 56, 0.55));
     border-radius: 14px;
+    /* Liquid-glass treatment: the themed gradient is translucent and sits over a
+       backdrop blur so any page/profile background art reads through the panel. */
     background:
         radial-gradient(circle at 12% 20%, var(--profile-glow, rgba(255, 106, 42, 0.3)), transparent 34%),
         radial-gradient(circle at 90% 15%, rgba(255, 255, 255, 0.13), transparent 24%),
-        var(--profile-gradient, linear-gradient(135deg, rgba(74, 10, 20, 0.98), rgba(157, 41, 17, 0.82)));
+        var(--profile-gradient, linear-gradient(135deg, rgba(74, 10, 20, 0.6), rgba(157, 41, 17, 0.48)));
+    backdrop-filter: blur(9px) saturate(135%);
+    -webkit-backdrop-filter: blur(9px) saturate(135%);
     box-shadow:
         0 24px 70px rgba(0, 0, 0, 0.42),
         inset 0 1px 0 rgba(255, 255, 255, 0.16),
@@ -5996,7 +6202,7 @@ body.gacha-active {
 .profile-hero-neutral {
     --profile-accent: #b8c0cc;
     --profile-glow: rgba(184, 192, 204, 0.25);
-    --profile-gradient: linear-gradient(135deg, rgba(12, 17, 28, 0.98), rgba(48, 56, 72, 0.84));
+    --profile-gradient: linear-gradient(135deg, rgba(12, 17, 28, 0.6), rgba(48, 56, 72, 0.48));
     --profile-border: rgba(210, 218, 230, 0.45);
 }
 
@@ -6134,12 +6340,12 @@ body.gacha-active {
     flex-direction: column;
     justify-content: flex-end;
     gap: 9px;
-    padding: 14px;
+    padding: 10px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     background: rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .profile-hero-side span {
@@ -6171,9 +6377,9 @@ body.gacha-active {
     padding: 14px;
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 14px;
-    background: rgba(4, 8, 18, 0.5);
-    backdrop-filter: blur(9px);
-    -webkit-backdrop-filter: blur(9px);
+    background: rgba(4, 8, 18, 0.34);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
 }
 
@@ -6181,6 +6387,12 @@ body.gacha-active {
     display: flex;
     flex-direction: column;
     gap: 9px;
+    /* Wrap tightly around the favorite card so the glass is a thin line outside
+       it instead of a full-width panel. */
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    padding: 7px;
 }
 
 /* ── Interactive profile polish ───────────────────────────────────────── */
@@ -6305,9 +6517,11 @@ body.gacha-active {
     border: 1px solid var(--profile-border, rgba(255, 126, 56, 0.4));
     border-radius: 12px;
     background:
-        radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--profile-accent, #ff6a2a) 16%, transparent), transparent 42%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
-        rgba(8, 13, 28, 0.72);
+        radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--profile-accent, #ff6a2a) 14%, transparent), transparent 42%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+        rgba(8, 13, 28, 0.38);
+    backdrop-filter: blur(8px) saturate(125%);
+    -webkit-backdrop-filter: blur(8px) saturate(125%);
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.08),
         0 18px 38px rgba(0, 0, 0, 0.23);
@@ -7671,6 +7885,12 @@ body.gacha-active {
         padding: calc(10px + var(--device-safe-top)) 10px calc(224px + var(--device-safe-bottom));
         scroll-padding-bottom: calc(224px + env(safe-area-inset-bottom, 0px));
     }
+    /* While the Card View / Filter tray is open, freeze the page scroll so the
+       gesture stays locked to the tray instead of bleeding to the background. */
+    body.tray-open .home-main {
+        overflow: hidden;
+        touch-action: none;
+    }
     /* Mobile HUD docks at the bottom: handle moves to its top edge and the
        chevron points down (collapse downward). With the HUD minimized only
        the FAB remains, so give the freed space back to the page. */
@@ -7721,10 +7941,14 @@ body.gacha-active {
     .detail-panel {
         top: auto;
         right: 10px;
-        bottom: calc(170px + env(safe-area-inset-bottom, 0px));
+        /* Sit 8px above the docked HUD's top (the yellow accent line). The HUD
+           height is measured into --bottom-hud-height by JS; 170px is a safe
+           fallback before the first measurement. */
+        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
         left: 10px;
         width: auto;
-        max-height: calc(100vh - 204px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100vh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
+        max-height: calc(100dvh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
         transform: translateY(0);
         background:
             linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
@@ -7734,6 +7958,14 @@ body.gacha-active {
         box-shadow:
             0 -10px 44px rgba(0, 0, 0, 0.6),
             0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+    /* Card View tray: pin it just above the bottom HUD's yellow line and cap
+       the top so the larger card never pushes the close button off the top of
+       the screen — the panel scrolls internally instead. */
+    .detail-panel {
+        top: calc(env(safe-area-inset-top, 0px) + 64px);
+        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
+        max-height: none;
     }
     .tray-backdrop {
         background: rgba(0, 0, 0, 0.55);
@@ -8160,14 +8392,46 @@ body.gacha-active {
     }
     .gacha-stage {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        /* Fill the leftover height and split it evenly across rows so every card
-           is on screen at once — no horizontal scroll, no offscreen cards. */
+        /* Fill the leftover height and split it evenly across rows so a normal
+           pack pull (5 cards in a 2-2-1 grid) all fits on screen at once -
+           no scroll, no offscreen cards. */
         align-self: stretch;
         align-content: center;
         grid-auto-rows: 1fr;
         min-height: 0;
         gap: 10px;
         overflow: hidden;
+    }
+    /* Bulk pulls (10x / 50 cards): keep each row at roughly the same height as
+       a 5-card row would be (~1/3 of the stage area) and let the user scroll
+       through the rest. The row height is approximated from viewport units so
+       the first three rows fill the screen the same way the 5-card layout
+       does. */
+    .gacha-stage.is-bulk {
+        align-content: start;
+        grid-auto-rows: calc((100dvh - 250px) / 3);
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    /* Bulk-pull crash mitigation. With 50 cards on iOS Safari the per-card
+       blurred halo (.reveal-card::before is `filter: blur(...)` + an infinite
+       animation) plus the secondary halo (::after) plus the heavy card-back
+       background-image piled enough GPU/Jetsam memory to reload the tab
+       mid-scroll. Skip painting off-screen cards, hold the glow static, and
+       drop the secondary halo so the bulk grid stays under iOS's budget. */
+    .gacha-stage.is-bulk .reveal-card {
+        content-visibility: auto;
+        contain-intrinsic-size: 200px 280px;
+        contain: layout style paint;
+    }
+    .gacha-stage.is-bulk .reveal-card::before {
+        animation: none;
+        opacity: 0.28;
+    }
+    .gacha-stage.is-bulk .reveal-card::after {
+        display: none;
     }
     .reveal-card {
         /* Size to the row height (kept to a 5:7 ratio) and never exceed the

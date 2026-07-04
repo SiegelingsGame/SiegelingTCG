@@ -97,11 +97,19 @@
     function normalizeArtTransform(card) {
         const x = Number(card?.cardArtOffsetX);
         const y = Number(card?.cardArtOffsetY);
+        // Percentage offsets (fraction of the art element) are card-relative, so a
+        // dragged position holds the same relative spot at any card size. They take
+        // precedence over the legacy pixel offsets, which shift differently per card
+        // size. Older cards (no *Pct fields) keep their pixel behavior.
+        const xPct = Number(card?.cardArtOffsetXPct);
+        const yPct = Number(card?.cardArtOffsetYPct);
         const scale = Number(card?.cardArtScale);
         const rotation = Number(card?.cardArtRotation);
         return {
             x: Number.isFinite(x) ? x : 0,
             y: Number.isFinite(y) ? y : 0,
+            xPct: Number.isFinite(xPct) ? clampNumber(xPct, -200, 200) : null,
+            yPct: Number.isFinite(yPct) ? clampNumber(yPct, -200, 200) : null,
             scale: Number.isFinite(scale) ? clampNumber(scale, 0.25, 3) : 1,
             rotation: Number.isFinite(rotation) ? clampNumber(rotation, -180, 180) : 0
         };
@@ -109,15 +117,26 @@
 
     function buildArtTransformStyle(card) {
         const transform = normalizeArtTransform(card);
-        if (!transform.x && !transform.y && transform.scale === 1 && !transform.rotation) {
+        const usePct = transform.xPct !== null || transform.yPct !== null;
+        const tx = usePct ? `${transform.xPct || 0}%` : `${transform.x}px`;
+        const ty = usePct ? `${transform.yPct || 0}%` : `${transform.y}px`;
+        const noOffset = usePct
+            ? (!transform.xPct && !transform.yPct)
+            : (!transform.x && !transform.y);
+        if (noOffset && transform.scale === 1 && !transform.rotation) {
             return '';
         }
-        return `transform:translate(${transform.x}px,${transform.y}px) scale(${transform.scale}) rotate(${transform.rotation}deg);transform-origin:center center;`;
+        return `transform:translate(${tx},${ty}) scale(${transform.scale}) rotate(${transform.rotation}deg);transform-origin:center center;`;
     }
 
     function renderCustomArtImage(className, artUrl, card) {
         const style = buildArtTransformStyle(card);
-        return `<img class="${className}" src="${escapeAttr(artUrl)}" alt=""${style ? ` style="${style}"` : ''}>`;
+        const original = String(artUrl || '');
+        const preferred = preferWebp(original);
+        const fallbackAttrs = preferred !== original
+            ? ` data-img-fallback="${escapeAttr(original)}" onerror="sgWebpFallback(this)"`
+            : '';
+        return `<img class="${className}" src="${escapeAttr(preferred)}" alt=""${style ? ` style="${style}"` : ''}${fallbackAttrs}>`;
     }
 
     function fullCardArtUrl(card) {
@@ -127,6 +146,30 @@
 
     function usesFullCardArt(card) {
         return Boolean(fullCardArtUrl(card));
+    }
+
+    // Overlay art for SiegeKnights: the upload is the character illustration
+    // only, composited behind the shared template frame (transparent art
+    // window + semi-transparent description box + opaque shield/border) so the
+    // frame and caption box stay identical across every card.
+    function knightOverlayArtUrl(card) {
+        const artUrl = String(card?.cardArtUrl || '').trim();
+        return artUrl && normalizeArtMode(card?.cardArtMode) === 'OVERLAY' ? artUrl : '';
+    }
+
+    function usesKnightOverlayArt(card) {
+        return normalizeCardType(card) === 'SIEGEKNIGHT' && Boolean(knightOverlayArtUrl(card));
+    }
+
+    function renderKnightOverlayArtWindow(card) {
+        const artUrl = knightOverlayArtUrl(card);
+        if (!artUrl) return '';
+        const style = buildArtTransformStyle(card);
+        const preferred = preferWebp(artUrl);
+        const fallbackAttrs = preferred !== artUrl
+            ? ` data-img-fallback="${escapeAttr(artUrl)}" onerror="sgWebpFallback(this)"`
+            : '';
+        return `<div class="knight-overlay-art-window"><img class="knight-overlay-art-img" src="${escapeAttr(preferred)}" alt=""${style ? ` style="${style}"` : ''}${fallbackAttrs}></div>`;
     }
 
     function isHolographic(card, options = {}) {
@@ -319,7 +362,7 @@
         if (typeof showcase.hasElementFrame === 'function') {
             return showcase.hasElementFrame(card?.element);
         }
-        return ['FIRE', 'EARTH', 'ICE', 'WIND'].includes(String(card?.element || '').toUpperCase());
+        return ['FIRE', 'ICE', 'EARTH', 'WIND'].includes(String(card?.element || '').toUpperCase());
     }
 
     function renderFramedShowcaseCard(card, options = {}) {
@@ -378,6 +421,46 @@
         return `<div class="binder-card card-visual-preview${extraClass}${modeClass}${holographicClass(card, options)}" style="--el:${elementColor(element)}">${shell}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
     }
 
+    // ── WebP delivery ──────────────────────────────────────────────
+    // Every local raster card asset has a .webp twin (committed + on Storage).
+    // preferWebp() swaps the extension when the browser supports WebP; the
+    // <img onerror> handler falls back to the original file if a .webp is ever
+    // missing, so this can never leave a broken image.
+    let __webpSupport = null;
+    function webpSupported() {
+        if (__webpSupport !== null) {
+            return __webpSupport;
+        }
+        try {
+            const c = document.createElement('canvas');
+            __webpSupport = !!(c.getContext && c.getContext('2d'))
+                && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+        } catch (e) {
+            __webpSupport = false;
+        }
+        return __webpSupport;
+    }
+
+    function preferWebp(url) {
+        const u = String(url || '');
+        if (!u || !webpSupported()) {
+            return u;
+        }
+        return u.replace(/^(\/(?:img|assets)\/[^?#]+)\.(png|jpe?g)(\?[^#]*)?$/i, '$1.webp$3');
+    }
+
+    // onerror handler: revert a failed .webp <img> to its original source once.
+    window.sgWebpFallback = function (img) {
+        if (!img) {
+            return;
+        }
+        const fallback = img.getAttribute('data-img-fallback');
+        img.onerror = null;
+        if (fallback && img.getAttribute('src') !== fallback) {
+            img.setAttribute('src', fallback);
+        }
+    };
+
     window.SieglingsCardBinderVisual = {
         renderBinderCardPreview,
         renderBinderCardTile,
@@ -388,11 +471,16 @@
         elementColor,
         usesFramedCardTemplate,
         usesFullCardArt,
+        usesKnightOverlayArt,
+        knightOverlayArtUrl,
+        renderKnightOverlayArtWindow,
         isHolographic,
         holographicClass,
         normalizeArtMode,
         normalizeArtTransform,
         buildArtTransformStyle,
-        resolveArtModeClass
+        resolveArtModeClass,
+        preferWebp,
+        webpSupported
     };
 })();

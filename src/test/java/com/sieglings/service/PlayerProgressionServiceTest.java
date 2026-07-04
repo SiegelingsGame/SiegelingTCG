@@ -30,6 +30,80 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlayerProgressionServiceTest {
 
     @Test
+    void bulkPackCostAppliesFivePercentDiscountForMultiBuys() {
+        // Single pulls pay full price; bulk pulls get 5% off the gross.
+        assertEquals(100, PlayerProgressionService.bulkPackCost(100, 1));
+        assertEquals(950, PlayerProgressionService.bulkPackCost(100, 10));
+        assertEquals(1140, PlayerProgressionService.bulkPackCost(120, 10));
+        assertEquals(11400, PlayerProgressionService.bulkPackCost(1200, 10));
+    }
+
+    @Test
+    void repeatedPackOpenRequestDoesNotChargeAgain() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.openPacks(user(), "pack_fire", 1, "pack-request-1");
+        int savesAfterFirstRequest = store.saveCount;
+        service.openPacks(user(), "pack_fire", 1, "pack-request-1");
+
+        assertEquals(400, store.saved.getGold());
+        assertEquals(1, store.saved.getPackHistory().size());
+        assertEquals("pack-request-1", store.saved.getPackHistory().get(0).get("requestId"));
+        assertEquals(savesAfterFirstRequest, store.saveCount);
+    }
+
+    @Test
+    void repeatedBulkPackOpenRequestDoesNotChargeAgain() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(2000);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.openPacks(user(), "pack_fire", 10, "bulk-pack-request-1");
+        int savesAfterFirstRequest = store.saveCount;
+        service.openPacks(user(), "pack_fire", 10, "bulk-pack-request-1");
+
+        assertEquals(1050, store.saved.getGold());
+        assertEquals(1, store.saved.getPackHistory().size());
+        assertEquals("bulk-pack-request-1", store.saved.getPackHistory().get(0).get("requestId"));
+        assertEquals(savesAfterFirstRequest, store.saveCount);
+    }
+
+    @Test
+    void repeatedPackOpenRequestDoesNotChargeAgainAfterHistoryEviction() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(3000);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.openPacks(user(), "pack_fire", 1, "timed-out-request");
+        for (int i = 0; i < 20; i++) {
+            service.openPacks(user(), "pack_fire", 1, "later-request-" + i);
+        }
+        int goldAfterLaterRequests = store.saved.getGold();
+        int savesBeforeRetry = store.saveCount;
+
+        service.openPacks(user(), "pack_fire", 1, "timed-out-request");
+
+        assertEquals(20, store.saved.getPackHistory().size());
+        assertEquals(goldAfterLaterRequests, store.saved.getGold());
+        assertTrue(store.saved.getCompletedPackOpenRequestIds().contains("timed-out-request"));
+        assertEquals(savesBeforeRetry, store.saveCount);
+    }
+
+    @Test
     void getOrCreateDoesNotOverwriteExistingProgressionOnRead() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity existing = new PlayerProgressionEntity();
@@ -52,11 +126,16 @@ class PlayerProgressionServiceTest {
         AccountUser user = user();
 
         PlayerProgressionEntity progression = service.chooseStarterPack(user, "pack_fire");
+        int savesAfterFirstChoice = store.saveCount;
 
         assertEquals("pack_fire", progression.getStarterPackId());
         assertEquals(5, progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum());
         assertEquals(PlayerProgressionService.PACK_OPEN_REMNANTS, progression.getRemnants());
-        assertThrows(IllegalArgumentException.class, () -> service.chooseStarterPack(user, "pack_fire"));
+        PlayerProgressionEntity retry = service.chooseStarterPack(user, "pack_fire");
+        assertSame(progression, retry);
+        assertEquals(savesAfterFirstChoice, store.saveCount);
+        assertEquals(5, progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum());
+        assertThrows(IllegalArgumentException.class, () -> service.chooseStarterPack(user, "pack_water"));
     }
 
     @Test
@@ -319,6 +398,14 @@ class PlayerProgressionServiceTest {
     }
 
     private static class FakePackCatalogService extends PackCatalogService {
+        @Override
+        public Optional<PackDefinition> findPack(String packId) {
+            if (!"pack_fire".equals(packId)) {
+                return Optional.empty();
+            }
+            return Optional.of(new PackDefinition("pack_fire", "Fire Pack", "", true, 100, List.of(Element.FIRE), true));
+        }
+
         @Override
         public PackOpenResult openPack(String packId, boolean starterOnly) {
             return new PackOpenResult(

@@ -6,7 +6,7 @@
     const STATS_KEY = 'sieglingsAchievementStats';
 
     const LIVE_ELEMENTS = [
-        'FIRE', 'EARTH', 'WIND', 'WATER', 'ICE',
+        'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND',
         'SHADOW', 'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC'
     ];
 

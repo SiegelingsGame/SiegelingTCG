@@ -70,7 +70,7 @@ final class ManualSieglingCatalog {
                                              List<ManualSieglingDefinition> definitions,
                                              MovesPoolService movesPool) {
         Objects.requireNonNull(movesPool, "movesPool");
-        Map<String, SieglingCard> cardsById = generatedCards.stream()
+        Map<String, SieglingCard> generatedById = generatedCards.stream()
                 .map(ManualSieglingCatalog::copyCard)
                 .collect(Collectors.toMap(
                         SieglingCard::getId,
@@ -79,27 +79,37 @@ final class ManualSieglingCatalog {
                         LinkedHashMap::new
                 ));
 
-        for (ManualSieglingDefinition definition : definitions) {
-            if (definitionType(definition) != CardType.SIEGLING) {
-                continue;
-            }
-            String id = normalizeId(definition.id());
-            if (id == null) {
-                throw new IllegalStateException("Manual Siegling definitions require a non-blank id.");
-            }
+        List<ManualSieglingDefinition> sieglingDefinitions = definitions.stream()
+                .filter(definition -> definitionType(definition) == CardType.SIEGLING)
+                .toList();
 
-            SieglingCard generated = cardsById.get(id);
-            boolean touchesExistingCard = generated != null;
-            boolean targetsThisElement = definition.element() == element;
-            if (!touchesExistingCard && !targetsThisElement) {
-                continue;
-            }
+        // The published override file is the authoritative full roster — the dashboard
+        // exports every card it knows about. When it carries Siegling definitions, build
+        // the element's roster strictly from them so a card deleted in the dashboard
+        // stays deleted instead of falling back to its generated seed. When there are no
+        // Siegling overrides at all, keep the generated roster so an empty or missing
+        // override file never wipes the catalog.
+        Map<String, SieglingCard> cardsById = new LinkedHashMap<>();
+        if (sieglingDefinitions.isEmpty()) {
+            cardsById.putAll(generatedById);
+        } else {
+            for (ManualSieglingDefinition definition : sieglingDefinitions) {
+                String id = normalizeId(definition.id());
+                if (id == null) {
+                    throw new IllegalStateException("Manual Siegling definitions require a non-blank id.");
+                }
 
-            SieglingCard merged = mergeDefinition(generated, id, definition, movesPool);
-            if (merged.getElement() == element) {
-                cardsById.put(id, merged);
-            } else {
-                cardsById.remove(id);
+                SieglingCard generated = generatedById.get(id);
+                boolean touchesExistingCard = generated != null;
+                boolean targetsThisElement = definition.element() == element;
+                if (!touchesExistingCard && !targetsThisElement) {
+                    continue;
+                }
+
+                SieglingCard merged = mergeDefinition(generated, id, definition, movesPool);
+                if (merged.getElement() == element) {
+                    cardsById.put(id, merged);
+                }
             }
         }
 
@@ -269,6 +279,12 @@ final class ManualSieglingCatalog {
         }
         if (definition.cardArtOffsetY() != null) {
             card.setCardArtOffsetY(definition.cardArtOffsetY());
+        }
+        if (definition.cardArtOffsetXPct() != null) {
+            card.setCardArtOffsetXPct(definition.cardArtOffsetXPct());
+        }
+        if (definition.cardArtOffsetYPct() != null) {
+            card.setCardArtOffsetYPct(definition.cardArtOffsetYPct());
         }
         if (definition.cardArtScale() != null) {
             card.setCardArtScale(definition.cardArtScale());
@@ -654,6 +670,8 @@ final class ManualSieglingCatalog {
                     card.getCardArtMode(),
                     card.getCardArtOffsetX(),
                     card.getCardArtOffsetY(),
+                    card.getCardArtOffsetXPct(),
+                    card.getCardArtOffsetYPct(),
                     card.getCardArtScale(),
                     card.getCardArtRotation(),
                     card.isHolographic()
@@ -686,6 +704,8 @@ final class ManualSieglingCatalog {
                     spell.getCardArtMode(),
                     spell.getCardArtOffsetX(),
                     spell.getCardArtOffsetY(),
+                    spell.getCardArtOffsetXPct(),
+                    spell.getCardArtOffsetYPct(),
                     spell.getCardArtScale(),
                     spell.getCardArtRotation(),
                     spell.isHolographic()
@@ -718,6 +738,8 @@ final class ManualSieglingCatalog {
                     trap.getCardArtMode(),
                     trap.getCardArtOffsetX(),
                     trap.getCardArtOffsetY(),
+                    trap.getCardArtOffsetXPct(),
+                    trap.getCardArtOffsetYPct(),
                     trap.getCardArtScale(),
                     trap.getCardArtRotation(),
                     trap.isHolographic()
@@ -802,6 +824,8 @@ final class ManualSieglingCatalog {
             String cardArtMode,
             Double cardArtOffsetX,
             Double cardArtOffsetY,
+            Double cardArtOffsetXPct,
+            Double cardArtOffsetYPct,
             Double cardArtScale,
             Double cardArtRotation,
             Boolean holographic

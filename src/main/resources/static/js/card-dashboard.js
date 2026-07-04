@@ -8,8 +8,17 @@
 
     /** Must match server live-element roster order (see LiveElementCatalogService). */
     const DEFAULT_LIVE_ELEMENT_ORDER = [
-        "FIRE", "EARTH", "WIND", "WATER", "ICE", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
+        "FIRE", "ICE", "WATER", "EARTH", "WIND", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
     ];
+
+    // Matches .trainer-art-portrait.is-overlay { aspect-ratio: 639/919 } and the
+    // .knight-overlay-art-window inset (left 8.8% / right 8.6% / top 5.7% /
+    // bottom 7.1%) in style.css / card-dashboard.css — the actual visible art
+    // window is narrower than the 5:7 full card, so overlay uploads need a
+    // tighter aspect target than full-card art or they get cropped more than
+    // the fit message lets on.
+    const TRAINER_CARD_ASPECT = 639 / 919;
+    const TRAINER_OVERLAY_WINDOW_ASPECT = ((100 - 8.8 - 8.6) / (100 - 5.7 - 7.1)) * TRAINER_CARD_ASPECT;
 
     function defaultLiveElements() {
         return DEFAULT_LIVE_ELEMENT_ORDER.map((element) => ({ element, active: true }));
@@ -103,8 +112,76 @@
     function init() {
         cacheRefs();
         bindEvents();
+        setupCollapsiblePanels();
         renderAll();
         loadCurrentData();
+    }
+
+    // Makes each top-level dashboard section collapsible so the page can be
+    // condensed when working on one area. Collapsed state persists per section.
+    const COLLAPSE_STORAGE_KEY = "siegeDashboardCollapsedSections";
+
+    function setupCollapsiblePanels() {
+        let collapsed = {};
+        try {
+            collapsed = JSON.parse(window.localStorage.getItem(COLLAPSE_STORAGE_KEY) || "{}") || {};
+        } catch (error) {
+            collapsed = {};
+        }
+
+        const panels = document.querySelectorAll(".panel");
+        panels.forEach((panel) => {
+            const heading = Array.from(panel.children).find((child) =>
+                child.classList && child.classList.contains("panel-heading"));
+            if (!heading || heading.dataset.collapsible === "1") {
+                return;
+            }
+            const titleBlock = heading.firstElementChild;
+            if (!titleBlock) {
+                return;
+            }
+            heading.dataset.collapsible = "1";
+
+            const key = panel.id
+                || (heading.querySelector("h2, h3")?.textContent || "").trim().toLowerCase().replace(/\s+/g, "-")
+                || Math.random().toString(36).slice(2);
+
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "panel-collapse-toggle";
+            toggle.setAttribute("aria-label", "Collapse or expand this section");
+            toggle.setAttribute("aria-expanded", "true");
+            toggle.innerHTML = '<span class="panel-collapse-chevron" aria-hidden="true">▾</span>';
+
+            const wrap = document.createElement("div");
+            wrap.className = "panel-heading-title";
+            heading.insertBefore(wrap, titleBlock);
+            wrap.appendChild(toggle);
+            wrap.appendChild(titleBlock);
+
+            const apply = (isCollapsed) => {
+                panel.classList.toggle("panel-collapsed", isCollapsed);
+                toggle.setAttribute("aria-expanded", String(!isCollapsed));
+            };
+            apply(Boolean(collapsed[key]));
+
+            toggle.addEventListener("click", (event) => {
+                event.stopPropagation();
+                const nowCollapsed = !panel.classList.contains("panel-collapsed");
+                apply(nowCollapsed);
+                try {
+                    const store = JSON.parse(window.localStorage.getItem(COLLAPSE_STORAGE_KEY) || "{}") || {};
+                    if (nowCollapsed) {
+                        store[key] = true;
+                    } else {
+                        delete store[key];
+                    }
+                    window.localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify(store));
+                } catch (error) {
+                    // Persisting collapse state is best-effort only.
+                }
+            });
+        });
     }
 
     function cacheRefs() {
@@ -121,8 +198,10 @@
             "showPacksBtn",
             "showLiveElementsBtn",
             "showMovesPoolBtn",
+            "showLoadingArtBtn",
             "cardWorkspace",
             "movesPoolWorkspace",
+            "loadingArtWorkspace",
             "deckWorkspace",
             "packWorkspace",
             "packList",
@@ -158,10 +237,8 @@
             "authSessionPanel",
             "authSessionText",
             "logoutBtn",
-            "sourcePill",
             "dirtyPill",
             "cardCountPill",
-            "filePathLabel",
             "statusMessage",
             "emptyEditorState",
             "cardEditorContent",
@@ -170,6 +247,7 @@
             "cardNameInput",
             "cardElementSelect",
             "cardRaritySelect",
+            "cardDescriptionInput",
             "sieglingStatsSection",
             "cardHealthInput",
             "cardSpeedInput",
@@ -276,9 +354,9 @@
             "cardArtTransformControls",
             "cardArtTransformHelp",
             "cardArtScaleInput",
-            "cardArtScaleValue",
+            "cardArtScaleNumber",
             "cardArtRotationInput",
-            "cardArtRotationValue",
+            "cardArtRotationNumber",
             "resetCardArtTransformBtn",
             "cardHolographicCheckbox",
             "cardSummary",
@@ -313,6 +391,7 @@
             "trainerList",
             "newTrainerBtn",
             "duplicateTrainerBtn",
+            "deleteTrainerBtn",
             "trainerSearchInput",
             "trainerStatusFilterSelect",
             "emptyTrainerState",
@@ -325,6 +404,19 @@
             "trainerActiveCheckbox",
             "trainerOncePerGameCheckbox",
             "trainerHolographicCheckbox",
+            "trainerArtStage",
+            "trainerArtMeta",
+            "trainerArtStatus",
+            "trainerArtControls",
+            "trainerArtFileInput",
+            "trainerArtUrlInput",
+            "clearTrainerArtBtn",
+            "trainerArtTransformControls",
+            "trainerArtScaleInput",
+            "trainerArtScaleNumber",
+            "trainerArtRotationInput",
+            "trainerArtRotationNumber",
+            "resetTrainerArtTransformBtn",
             "trainerPassiveNameInput",
             "trainerPassiveDescriptionInput",
             "trainerPassiveTargetTypeSelect",
@@ -373,6 +465,7 @@
         refs.showPacksBtn.addEventListener("click", () => setEditorPage("PACKS"));
         refs.showLiveElementsBtn.addEventListener("click", () => setEditorPage("LIVE_ELEMENTS"));
         refs.showMovesPoolBtn.addEventListener("click", () => setEditorPage("MOVES_POOL"));
+        refs.showLoadingArtBtn.addEventListener("click", () => setEditorPage("LOADING_ART"));
         refs.liveElementsWorkspace.addEventListener("change", (event) => {
             const input = event.target.closest("input[data-live-element-index]");
             if (!input || input.type !== "checkbox") {
@@ -501,7 +594,7 @@
                     throw new Error("Upload finished but the server did not return an image URL.");
                 }
                 clearEphemeralCardArtPreview();
-                mutateSelectedCard((selected) => {
+                mutateCardById(cardId, (selected) => {
                     selected.cardArtUrl = hostedUrl;
                     selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "REPLACE";
                 }, { render: false });
@@ -545,6 +638,26 @@
             updateSelectedCardArtTransform((card) => {
                 card.cardArtRotation = clampCardArtRotation(event.target.value);
             });
+        });
+
+        refs.cardArtScaleNumber?.addEventListener("input", (event) => {
+            updateSelectedCardArtTransform((card) => {
+                card.cardArtScale = clampCardArtScale(event.target.value);
+            });
+        });
+
+        refs.cardArtScaleNumber?.addEventListener("change", (event) => {
+            event.target.value = formatCardArtScaleValue(event.target.value);
+        });
+
+        refs.cardArtRotationNumber?.addEventListener("input", (event) => {
+            updateSelectedCardArtTransform((card) => {
+                card.cardArtRotation = clampCardArtRotation(event.target.value);
+            });
+        });
+
+        refs.cardArtRotationNumber?.addEventListener("change", (event) => {
+            event.target.value = String(Math.round(clampCardArtRotation(event.target.value)));
         });
 
         refs.resetCardArtTransformBtn?.addEventListener("click", () => {
@@ -712,6 +825,7 @@
             });
         });
         refs.cardRaritySelect.addEventListener("change", (event) => updateSelectedCardField("rarity", event.target.value));
+        refs.cardDescriptionInput?.addEventListener("input", (event) => updateSelectedCardField("description", event.target.value));
         refs.cardHealthInput.addEventListener("input", (event) => updateSelectedCardField("health", toNumber(event.target.value, 0)));
         refs.cardSpeedInput.addEventListener("input", (event) => updateSelectedCardField("speed", toNumber(event.target.value, 0)));
         refs.cardPreferredRowSelect.addEventListener("change", (event) => updateSelectedCardField("preferredRow", event.target.value));
@@ -811,6 +925,7 @@
     function bindTrainerFieldEvents() {
         refs.newTrainerBtn.addEventListener("click", createTrainer);
         refs.duplicateTrainerBtn.addEventListener("click", duplicateTrainer);
+        refs.deleteTrainerBtn?.addEventListener("click", deleteTrainer);
         refs.trainerSearchInput.addEventListener("input", (event) => {
             state.trainerSearch = event.target.value || "";
             renderTrainerList();
@@ -845,6 +960,7 @@
         refs.trainerActiveCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("active", Boolean(event.target.checked)));
         refs.trainerOncePerGameCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("oncePerGame", Boolean(event.target.checked)));
         refs.trainerHolographicCheckbox?.addEventListener("change", (event) => updateSelectedTrainerField("holographic", Boolean(event.target.checked)));
+        bindTrainerArtFieldEvents();
 
         bindTrainerAbilityFieldEvents("passive", {
             nameInput: refs.trainerPassiveNameInput,
@@ -931,7 +1047,6 @@
 
     async function saveToProjectFile() {
         const errors = state.validation.filter((issue) => issue.severity === "error");
-        const alerts = state.validation.filter((issue) => issue.severity === "warn");
         const verb = state.liveEditingEnabled ? "publish live changes" : "save to the project file";
 
         if (!state.liveEditingEnabled && errors.length > 0) {
@@ -941,9 +1056,10 @@
             return;
         }
 
-        const blockers = state.liveEditingEnabled
-            ? state.validation.filter((issue) => issue.severity === "error" || issue.severity === "warn")
-            : alerts;
+        // Only errors gate a publish/save (the confirm + type-PUBLISH double-check).
+        // Warnings are surfaced in the validation box but never block or require
+        // extra confirmation.
+        const blockers = errors;
         if (blockers.length > 0) {
             const summary = blockers
                 .slice(0, 5)
@@ -1302,6 +1418,20 @@
         }
     }
 
+    function mutateCardById(cardId, mutator, options = {}) {
+        const card = findCardById(cardId);
+        if (!card) {
+            return;
+        }
+        mutator(card);
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        if (options.render !== false) {
+            renderAll();
+        }
+    }
+
     function updateSelectedCardArtTransform(mutator) {
         const card = getSelectedCard();
         if (!card) {
@@ -1315,7 +1445,10 @@
         syncCardArtTransformControls(card);
         renderPreview();
         renderValidation();
-        renderChrome();
+        // renderChrome() never existed — it threw a ReferenceError here on every
+        // scale/rotate/drag, aborting the rest of the update. renderButtons()
+        // refreshes the save/dirty chrome, which is what just changed.
+        renderButtons();
         renderStatus();
     }
 
@@ -1394,6 +1527,20 @@
         state.validation = validateDashboard();
         setStatus("You have unsaved changes in the dashboard.", "warning");
         renderAll();
+    }
+
+    function mutateTrainerById(trainerId, mutator, options = {}) {
+        const trainer = findTrainerById(trainerId);
+        if (!trainer) {
+            return;
+        }
+        mutator(trainer);
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus("You have unsaved changes in the dashboard.", "warning");
+        if (options.render !== false) {
+            renderAll();
+        }
     }
 
     function mutateSelectedTrainerAbility(kind, mutator) {
@@ -1615,6 +1762,8 @@
         return {
             cardArtOffsetX: toNumber(card?.cardArtOffsetX, 0),
             cardArtOffsetY: toNumber(card?.cardArtOffsetY, 0),
+            cardArtOffsetXPct: toNumber(card?.cardArtOffsetXPct, 0),
+            cardArtOffsetYPct: toNumber(card?.cardArtOffsetYPct, 0),
             cardArtScale: clampCardArtScale(card?.cardArtScale ?? 1),
             cardArtRotation: clampCardArtRotation(card?.cardArtRotation ?? 0)
         };
@@ -1623,6 +1772,8 @@
     function resetCardArtTransform(card) {
         card.cardArtOffsetX = 0;
         card.cardArtOffsetY = 0;
+        card.cardArtOffsetXPct = 0;
+        card.cardArtOffsetYPct = 0;
         card.cardArtScale = 1;
         card.cardArtRotation = 0;
     }
@@ -1641,17 +1792,25 @@
         return clampCardArtScale(scale).toFixed(2);
     }
 
-    function formatCardArtRotationValue(rotation) {
-        return `${Math.round(clampCardArtRotation(rotation))}°`;
-    }
-
     function buildCardArtTransformStyle(card) {
         return window.SieglingsCardBinderVisual?.buildArtTransformStyle(card) || "";
     }
 
     function getCardArtDragTargets(card) {
+        const stage = refs.cardVisualStage;
+        if (!stage) {
+            return { artFrame: null, artImg: null };
+        }
+        // Framed Siegelings render through the showcase (.hand-card with the art
+        // in .card-art img), not the legacy binder shell. Live drag/scale must
+        // target whichever the current preview actually produced, or the slider
+        // appears to do nothing.
+        const showcaseImg = stage.querySelector(".card-art img");
+        if (showcaseImg) {
+            return { artFrame: showcaseImg.closest(".card-art") || stage, artImg: showcaseImg };
+        }
         const mode = normalizeCardArtMode(card?.cardArtMode);
-        const previewCard = refs.cardVisualStage?.querySelector(".binder-card");
+        const previewCard = stage.querySelector(".binder-card");
         if (!previewCard) {
             return { artFrame: null, artImg: null };
         }
@@ -1703,6 +1862,17 @@
         const { signal } = cardArtDragAbortController;
         let dragState = null;
 
+        // Offsets are stored as a percentage of the art element so a dragged
+        // position holds the same relative spot at any card size. Convert the
+        // screen-pixel drag delta into a percentage using the element's laid-out
+        // size; legacy pixel offsets are converted to percent on first drag.
+        const pctDelta = (deltaPx, sizePx) => (sizePx > 0 ? (deltaPx / sizePx) * 100 : 0);
+        const startPct = (pctVal, pxVal, sizePx) => {
+            if (Number.isFinite(Number(pctVal))) return Number(pctVal);
+            const px = toNumber(pxVal, 0);
+            return px && sizePx > 0 ? (px / sizePx) * 100 : 0;
+        };
+
         const finishDrag = (event) => {
             if (!dragState) {
                 return;
@@ -1711,12 +1881,16 @@
             if (artImg.hasPointerCapture?.(event.pointerId)) {
                 artImg.releasePointerCapture(event.pointerId);
             }
-            const nextX = dragState.startOffsetX + (event.clientX - dragState.startClientX);
-            const nextY = dragState.startOffsetY + (event.clientY - dragState.startClientY);
+            const nextXPct = dragState.startXPct + pctDelta(event.clientX - dragState.startClientX, dragState.imgW);
+            const nextYPct = dragState.startYPct + pctDelta(event.clientY - dragState.startClientY, dragState.imgH);
             dragState = null;
             mutateSelectedCard((selectedCard) => {
-                selectedCard.cardArtOffsetX = nextX;
-                selectedCard.cardArtOffsetY = nextY;
+                selectedCard.cardArtOffsetXPct = nextXPct;
+                selectedCard.cardArtOffsetYPct = nextYPct;
+                // Drop the legacy pixel offset so the (now card-relative) percent
+                // offset is authoritative.
+                selectedCard.cardArtOffsetX = 0;
+                selectedCard.cardArtOffsetY = 0;
             });
         };
 
@@ -1725,11 +1899,15 @@
                 return;
             }
             event.preventDefault();
+            const imgW = artImg.offsetWidth || artImg.getBoundingClientRect().width || 1;
+            const imgH = artImg.offsetHeight || artImg.getBoundingClientRect().height || 1;
             dragState = {
                 startClientX: event.clientX,
                 startClientY: event.clientY,
-                startOffsetX: toNumber(card.cardArtOffsetX, 0),
-                startOffsetY: toNumber(card.cardArtOffsetY, 0)
+                imgW,
+                imgH,
+                startXPct: startPct(card.cardArtOffsetXPct, card.cardArtOffsetX, imgW),
+                startYPct: startPct(card.cardArtOffsetYPct, card.cardArtOffsetY, imgH)
             };
             artFrame.classList.add("is-art-dragging");
             artImg.setPointerCapture?.(event.pointerId);
@@ -1742,8 +1920,10 @@
             event.preventDefault();
             const previewCard = {
                 ...card,
-                cardArtOffsetX: dragState.startOffsetX + (event.clientX - dragState.startClientX),
-                cardArtOffsetY: dragState.startOffsetY + (event.clientY - dragState.startClientY)
+                cardArtOffsetX: 0,
+                cardArtOffsetY: 0,
+                cardArtOffsetXPct: dragState.startXPct + pctDelta(event.clientX - dragState.startClientX, dragState.imgW),
+                cardArtOffsetYPct: dragState.startYPct + pctDelta(event.clientY - dragState.startClientY, dragState.imgH)
             };
             applyCardArtTransformToPreview(previewCard);
         }, { signal });
@@ -1767,11 +1947,11 @@
         if (refs.cardArtRotationInput && document.activeElement !== refs.cardArtRotationInput) {
             refs.cardArtRotationInput.value = String(rotation);
         }
-        if (refs.cardArtScaleValue) {
-            refs.cardArtScaleValue.textContent = formatCardArtScaleValue(scale);
+        if (refs.cardArtScaleNumber && document.activeElement !== refs.cardArtScaleNumber) {
+            refs.cardArtScaleNumber.value = formatCardArtScaleValue(scale);
         }
-        if (refs.cardArtRotationValue) {
-            refs.cardArtRotationValue.textContent = formatCardArtRotationValue(rotation);
+        if (refs.cardArtRotationNumber && document.activeElement !== refs.cardArtRotationNumber) {
+            refs.cardArtRotationNumber.value = String(Math.round(rotation));
         }
         if (refs.cardArtTransformHelp) {
             const mode = normalizeCardArtMode(card?.cardArtMode);
@@ -1802,12 +1982,20 @@
             exported.cardArtMode = normalizeCardArtMode(card?.cardArtMode) || "REPLACE";
             const offsetX = toNumber(card.cardArtOffsetX, 0);
             const offsetY = toNumber(card.cardArtOffsetY, 0);
+            const offsetXPct = toNumber(card.cardArtOffsetXPct, 0);
+            const offsetYPct = toNumber(card.cardArtOffsetYPct, 0);
             const scale = clampCardArtScale(card.cardArtScale ?? 1);
             const rotation = clampCardArtRotation(card.cardArtRotation ?? 0);
-            if (offsetX !== 0) {
+            // Card-relative percent offsets (preferred) supersede the legacy pixel
+            // offsets; only emit pixels when no percent offset is set.
+            if (offsetXPct !== 0) {
+                exported.cardArtOffsetXPct = offsetXPct;
+            } else if (offsetX !== 0) {
                 exported.cardArtOffsetX = offsetX;
             }
-            if (offsetY !== 0) {
+            if (offsetYPct !== 0) {
+                exported.cardArtOffsetYPct = offsetYPct;
+            } else if (offsetY !== 0) {
                 exported.cardArtOffsetY = offsetY;
             }
             if (scale !== 1) {
@@ -1819,6 +2007,10 @@
         }
         if (card?.holographic === true) {
             exported.holographic = true;
+        }
+        const description = String(card?.description || "").trim();
+        if (description) {
+            exported.description = description;
         }
         return exported;
     }
@@ -1853,6 +2045,7 @@
                 notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
                 moveIds,
                 abilities: [],
+                description: String(card?.description || ""),
                 ...normalizeCardArtFields(card)
             };
         }
@@ -1878,6 +2071,7 @@
             requiredComboSignature: String(card?.requiredComboSignature || "").trim().toUpperCase(),
             notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
             abilities: normalizeCardAbilities(cardType, abilities, baseElement),
+            description: String(card?.description || ""),
             ...normalizeCardArtFields(card)
         };
     }
@@ -2129,6 +2323,8 @@
             state.editorPage = "TRAINERS";
         } else if (page === "LIVE_ELEMENTS") {
             state.editorPage = "LIVE_ELEMENTS";
+        } else if (page === "LOADING_ART") {
+            state.editorPage = "LOADING_ART";
         } else if (page === "MOVES_POOL") {
             const prev = state.editorPage;
             state.editorPage = "MOVES_POOL";
@@ -2219,6 +2415,29 @@
         state.dirty = true;
         state.validation = validateDashboard();
         setStatus(`Duplicated ${trainer.name || trainer.id}.`, "warning");
+        renderAll();
+    }
+
+    function deleteTrainer() {
+        const trainer = getSelectedTrainer();
+        if (!trainer) {
+            return;
+        }
+        const label = trainer.name || trainer.id || "this Siegeknight";
+        if (!window.confirm(`Delete ${label}? This cannot be undone until you reload without publishing.`)) {
+            return;
+        }
+        const index = state.trainers.findIndex((entry) => entry.id === trainer.id);
+        if (index < 0) {
+            return;
+        }
+        state.trainers.splice(index, 1);
+        state.selectedTrainerId =
+            state.trainers[Math.max(0, index - 1)]?.id || state.trainers[0]?.id || null;
+        state.editorPage = "TRAINERS";
+        state.dirty = true;
+        state.validation = validateDashboard();
+        setStatus(`Deleted ${label}.`, "warning");
         renderAll();
     }
 
@@ -2321,12 +2540,13 @@
         renderAuth();
         renderStatus();
         renderFilterOptions();
-        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "PACKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL");
+        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "PACKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL" || state.editorPage === "LOADING_ART");
         refs.movesPoolWorkspace.classList.toggle("hidden", state.editorPage !== "MOVES_POOL");
         refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
         refs.packWorkspace.classList.toggle("hidden", state.editorPage !== "PACKS");
         refs.trainerWorkspace.classList.toggle("hidden", state.editorPage !== "TRAINERS");
         refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
+        refs.loadingArtWorkspace.classList.toggle("hidden", state.editorPage !== "LOADING_ART");
         if (state.editorPage === "MOVES_POOL") {
             mountMoveDraftPanel(refs.moveDraftPanelHostPool);
             renderMovesPoolBrowser();
@@ -2380,8 +2600,10 @@
         }
 
         if (auth.authenticated) {
-            refs.authSummaryText.textContent = "This dashboard is connected to the live Firestore card store. Changes you publish here become the source for the live game.";
-            refs.authSessionText.textContent = `Signed in as ${auth.displayName || auth.email || "editor"}${state.updatedBy ? `. Last live publish: ${state.updatedBy}${state.updatedAt ? ` on ${formatTimestamp(state.updatedAt)}` : ""}.` : "."}`;
+            refs.authSummaryText.textContent = "Changes you publish here go live in the game.";
+            refs.authSessionText.textContent = state.updatedBy
+                ? `Last publish: ${state.updatedBy}${state.updatedAt ? ` on ${formatTimestamp(state.updatedAt)}` : ""}.`
+                : "";
             refs.authSessionPanel.classList.remove("hidden");
             return;
         }
@@ -2397,7 +2619,6 @@
     }
 
     function renderStatus() {
-        refs.sourcePill.textContent = formatSourceLabel();
         refs.dirtyPill.textContent = state.dirty ? "Unsaved changes" : "Saved";
         refs.cardCountPill.textContent = state.editorPage === "DECKS"
             ? `${state.decks.length} preset deck${state.decks.length === 1 ? "" : "s"}`
@@ -2409,19 +2630,20 @@
                     ? `${state.liveElements.filter((row) => row.active !== false).length} active element${state.liveElements.filter((row) => row.active !== false).length === 1 ? "" : "s"}`
                     : (state.editorPage === "MOVES_POOL"
                         ? `${state.movesPool.length} shared abilit${state.movesPool.length === 1 ? "y" : "ies"}`
-                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`))));
-        refs.filePathLabel.textContent = buildStatusPathText();
+                    : (state.editorPage === "LOADING_ART"
+                        ? "Loading screen art"
+                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`)))));
         refs.statusMessage.textContent = state.status.message;
 
-        refs.sourcePill.className = "status-pill";
         refs.dirtyPill.className = `status-pill ${state.dirty ? "is-dirty" : "is-success"}`;
         refs.cardCountPill.className = `status-pill ${state.validation.some((issue) => issue.severity === "error") ? "is-error" : "is-success"}`;
+        refs.statusMessage.className = "status-message";
         if (state.status.tone === "error") {
-            refs.sourcePill.classList.add("is-error");
+            refs.statusMessage.classList.add("tone-error");
         } else if (state.status.tone === "warning") {
-            refs.sourcePill.classList.add("is-warning");
+            refs.statusMessage.classList.add("tone-warning");
         } else if (state.status.tone === "success") {
-            refs.sourcePill.classList.add("is-success");
+            refs.statusMessage.classList.add("tone-success");
         }
     }
 
@@ -2467,6 +2689,7 @@
         refs.showPacksBtn.classList.toggle("active", state.editorPage === "PACKS");
         refs.showLiveElementsBtn.classList.toggle("active", state.editorPage === "LIVE_ELEMENTS");
         refs.showMovesPoolBtn.classList.toggle("active", state.editorPage === "MOVES_POOL");
+        refs.showLoadingArtBtn.classList.toggle("active", state.editorPage === "LOADING_ART");
         if (state.editorPage === "LIVE_ELEMENTS") {
             refs.browserTitle.textContent = "Live Elements";
         }
@@ -2523,6 +2746,7 @@
 
         setInputValue(refs.cardIdInput, card.id);
         setInputValue(refs.cardNameInput, card.name);
+        setInputValue(refs.cardDescriptionInput, card.description || "");
         refs.cardIdInput.dataset.autoId = computeAutoCardId(card, card.name);
         setInputValue(refs.cardHealthInput, card.health);
         setInputValue(refs.cardSpeedInput, card.speed);
@@ -2702,11 +2926,11 @@
     function renderNotches(card) {
         refs.notchGrid.innerHTML = NOTCH_LAYOUT.map((direction) => {
             if (direction === "CENTER") {
-                return `<div class="notch-center">Card</div>`;
+                return `<div class="notch-center notch-cell-CENTER">C</div>`;
             }
             const activeNotch = card.notches.find((notch) => notch.direction === direction);
             return `
-                <button class="notch-button${activeNotch ? " active" : ""}" type="button" data-notch-direction="${direction}">
+                <button class="notch-button notch-cell-${direction}${activeNotch ? " active" : ""}" type="button" data-notch-direction="${direction}">
                     ${escapeHtml(shortDirection(direction))}
                 </button>
             `;
@@ -2813,7 +3037,7 @@
         if (getEphemeralCardArtPreviewUrl(card.id)) {
             return;
         }
-        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card, .binder-full-card-art img");
+        const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card, .binder-full-card-art img, .card-art img");
         if (!artImg) {
             return;
         }
@@ -3175,6 +3399,8 @@
             targetHelper: refs.trainerActiveTargetHelper,
             effectHelper: refs.trainerActiveEffectHelper
         });
+
+        renderTrainerArtControls(trainer);
     }
 
     function renderTrainerAbilityEditor(kind, ability, refsForAbility) {
@@ -3273,6 +3499,375 @@
         }
         const trainer = getSelectedTrainer();
         refs.trainerJsonPreview.value = trainer ? JSON.stringify(buildExportTrainer(trainer), null, 2) : "";
+    }
+
+    // SiegeKnights reuse the shared card-art fields (cardArtUrl / cardArtMode) and the
+    // generic /api/cards/editor/art upload. In-game they render in FULL_CARD mode — the
+    // uploaded image is a complete, hand-drawn card that replaces the template — so the
+    // editor only offers Default vs Full card art.
+    // Inline status shown inside the Custom Art panel so feedback is visible on
+    // mobile (the global status bar lives at the top of the page, off-screen here).
+    function setTrainerArtStatus(message, tone) {
+        const el = refs.trainerArtStatus;
+        if (!el) {
+            return;
+        }
+        el.textContent = message || "";
+        el.classList.toggle("hidden", !message);
+        el.dataset.tone = message ? (tone || "info") : "";
+    }
+
+    function bindTrainerArtFieldEvents() {
+        refs.trainerArtControls?.addEventListener("change", (event) => {
+            const modeInput = event.target.closest('input[name="trainerArtMode"]');
+            if (!modeInput) {
+                return;
+            }
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtMode = normalizeCardArtMode(modeInput.value);
+                if (!trainer.cardArtMode) {
+                    trainer.cardArtUrl = "";
+                }
+            });
+        });
+
+        refs.trainerArtUrlInput?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtUrl = String(event.target.value || "").trim();
+                if (trainer.cardArtUrl && !trainer.cardArtMode) {
+                    trainer.cardArtMode = "FULL_CARD";
+                }
+                if (!trainer.cardArtUrl) {
+                    trainer.cardArtMode = "";
+                }
+            });
+        });
+
+        refs.clearTrainerArtBtn?.addEventListener("click", () => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtUrl = "";
+                trainer.cardArtMode = "";
+                trainer.cardArtOffsetX = 0;
+                trainer.cardArtOffsetY = 0;
+                trainer.cardArtOffsetXPct = 0;
+                trainer.cardArtOffsetYPct = 0;
+                trainer.cardArtScale = 1;
+                trainer.cardArtRotation = 0;
+            });
+            if (refs.trainerArtFileInput) {
+                refs.trainerArtFileInput.value = "";
+            }
+            setTrainerArtStatus("");
+        });
+
+        refs.trainerArtScaleInput?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtScale = clampCardArtScale(event.target.value);
+            });
+        });
+
+        refs.trainerArtRotationInput?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtRotation = clampCardArtRotation(event.target.value);
+            });
+        });
+
+        refs.trainerArtScaleNumber?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtScale = clampCardArtScale(event.target.value);
+            });
+        });
+
+        refs.trainerArtScaleNumber?.addEventListener("change", (event) => {
+            event.target.value = formatCardArtScaleValue(event.target.value);
+        });
+
+        refs.trainerArtRotationNumber?.addEventListener("input", (event) => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtRotation = clampCardArtRotation(event.target.value);
+            });
+        });
+
+        refs.trainerArtRotationNumber?.addEventListener("change", (event) => {
+            event.target.value = String(Math.round(clampCardArtRotation(event.target.value)));
+        });
+
+        refs.resetTrainerArtTransformBtn?.addEventListener("click", () => {
+            mutateSelectedTrainer((trainer) => {
+                trainer.cardArtOffsetX = 0;
+                trainer.cardArtOffsetY = 0;
+                trainer.cardArtOffsetXPct = 0;
+                trainer.cardArtOffsetYPct = 0;
+                trainer.cardArtScale = 1;
+                trainer.cardArtRotation = 0;
+            });
+        });
+
+        refs.trainerArtFileInput?.addEventListener("change", async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) {
+                return;
+            }
+            const trainer = getSelectedTrainer();
+            const trainerId = String(trainer?.id || "").trim();
+            if (!trainerId) {
+                setStatus("Set a Siegeknight id before uploading art.", "error");
+                setTrainerArtStatus("Set a Siegeknight ID (in Identity, above) before uploading art.", "error");
+                event.target.value = "";
+                renderStatus();
+                return;
+            }
+            if (state.liveEditingEnabled && !state.auth?.canEdit) {
+                setStatus("Sign in under Live Publishing before uploading SiegeKnight art.", "error");
+                setTrainerArtStatus("Sign in under Live Publishing (top of page) before uploading art.", "error");
+                event.target.value = "";
+                renderStatus();
+                return;
+            }
+            mutateSelectedTrainer((selected) => {
+                if (!selected.cardArtMode) {
+                    selected.cardArtMode = "FULL_CARD";
+                }
+            });
+            setStatus("Uploading SiegeKnight art...", "warning");
+            setTrainerArtStatus("Uploading art…", "warning");
+            renderStatus();
+            try {
+                const payload = await uploadCardArtFile(trainerId, file);
+                const hostedUrl = String(payload?.url || "").trim();
+                if (!hostedUrl) {
+                    throw new Error("Upload finished but the server did not return an image URL.");
+                }
+                mutateTrainerById(trainerId, (selected) => {
+                    selected.cardArtUrl = hostedUrl;
+                    selected.cardArtMode = normalizeCardArtMode(selected.cardArtMode) || "FULL_CARD";
+                }, { render: false });
+                const applyMsg = state.liveEditingEnabled
+                    ? `Uploaded ✓ — now click Publish Live Changes to apply.`
+                    : `Uploaded ✓ — now click Save To Project File to apply.`;
+                setStatus(`Uploaded art for ${trainerId}. ${applyMsg}`, "success");
+                setTrainerArtStatus(applyMsg, "success");
+            } catch (error) {
+                const detail = error?.message || "Unable to upload SiegeKnight art.";
+                setStatus(detail, "error");
+                // Image upload needs a Firebase Storage bucket. If it's unavailable,
+                // pasting a hosted /img/knights/... path is the reliable path.
+                setTrainerArtStatus(
+                    `Upload failed: ${detail} You can instead paste a hosted path (e.g. /img/knights/${trainerId}-full-card.png) into Art URL below.`,
+                    "error"
+                );
+            } finally {
+                event.target.value = "";
+                renderAll();
+            }
+        });
+    }
+
+    function setTrainerArtMeta(message, tone) {
+        const el = refs.trainerArtMeta;
+        if (!el) {
+            return;
+        }
+        el.textContent = message || "";
+        el.classList.toggle("hidden", !message);
+        el.dataset.tone = message ? (tone || "info") : "";
+    }
+
+    let trainerArtDragController = null;
+
+    function teardownTrainerArtDrag() {
+        trainerArtDragController?.abort();
+        trainerArtDragController = null;
+    }
+
+    // Drag the preview art to reposition it. Offsets are stored as a percentage
+    // of the art element so the position holds the same relative spot at any card
+    // size, mirroring the creature card-art crop interaction.
+    function setupTrainerArtDrag(trainer, img, portrait) {
+        if (!img || !hasCustomCardArt(trainer)) {
+            return;
+        }
+        trainerArtDragController = new AbortController();
+        const { signal } = trainerArtDragController;
+        let drag = null;
+        const pctDelta = (deltaPx, sizePx) => (sizePx > 0 ? (deltaPx / sizePx) * 100 : 0);
+        const startPct = (pctVal, pxVal, sizePx) => {
+            if (Number.isFinite(Number(pctVal))) return Number(pctVal);
+            const px = toNumber(pxVal, 0);
+            return px && sizePx > 0 ? (px / sizePx) * 100 : 0;
+        };
+        const finish = (event) => {
+            if (!drag) {
+                return;
+            }
+            portrait.classList.remove("is-art-dragging");
+            if (img.hasPointerCapture?.(event.pointerId)) {
+                img.releasePointerCapture(event.pointerId);
+            }
+            const nxPct = drag.oxPct + pctDelta(event.clientX - drag.cx, drag.w);
+            const nyPct = drag.oyPct + pctDelta(event.clientY - drag.cy, drag.h);
+            drag = null;
+            mutateSelectedTrainer((t) => {
+                t.cardArtOffsetXPct = nxPct;
+                t.cardArtOffsetYPct = nyPct;
+                t.cardArtOffsetX = 0;
+                t.cardArtOffsetY = 0;
+            });
+        };
+        img.addEventListener("pointerdown", (event) => {
+            if (event.button !== 0) {
+                return;
+            }
+            event.preventDefault();
+            const w = img.offsetWidth || img.getBoundingClientRect().width || 1;
+            const h = img.offsetHeight || img.getBoundingClientRect().height || 1;
+            drag = {
+                cx: event.clientX,
+                cy: event.clientY,
+                w,
+                h,
+                oxPct: startPct(trainer.cardArtOffsetXPct, trainer.cardArtOffsetX, w),
+                oyPct: startPct(trainer.cardArtOffsetYPct, trainer.cardArtOffsetY, h)
+            };
+            portrait.classList.add("is-art-dragging");
+            img.setPointerCapture?.(event.pointerId);
+        }, { signal });
+        img.addEventListener("pointermove", (event) => {
+            if (!drag) {
+                return;
+            }
+            event.preventDefault();
+            const preview = {
+                ...trainer,
+                cardArtOffsetX: 0,
+                cardArtOffsetY: 0,
+                cardArtOffsetXPct: drag.oxPct + pctDelta(event.clientX - drag.cx, drag.w),
+                cardArtOffsetYPct: drag.oyPct + pctDelta(event.clientY - drag.cy, drag.h)
+            };
+            const style = buildCardArtTransformStyle(preview);
+            if (style) {
+                img.setAttribute("style", style);
+            } else {
+                img.removeAttribute("style");
+            }
+        }, { signal });
+        img.addEventListener("pointerup", finish, { signal });
+        img.addEventListener("pointercancel", finish, { signal });
+    }
+
+    function renderTrainerArtControls(trainer) {
+        const stage = refs.trainerArtStage;
+        if (!stage) {
+            return;
+        }
+        const url = String(trainer?.cardArtUrl || "").trim();
+        const mode = normalizeCardArtMode(trainer?.cardArtMode);
+        const hasArt = Boolean(url && mode);
+
+        // Clear stale upload feedback when switching between SiegeKnights.
+        if (state._lastArtTrainerId !== trainer?.id) {
+            state._lastArtTrainerId = trainer?.id;
+            setTrainerArtStatus("");
+        }
+
+        const radios = refs.trainerArtControls?.querySelectorAll('input[name="trainerArtMode"]') || [];
+        radios.forEach((radio) => {
+            radio.checked = radio.value === mode;
+        });
+
+        if (refs.trainerArtUrlInput && document.activeElement !== refs.trainerArtUrlInput) {
+            refs.trainerArtUrlInput.value = url;
+        }
+
+        // Crop & scale controls (only meaningful once there's art).
+        refs.trainerArtTransformControls?.classList.toggle("hidden", !hasArt);
+        if (hasArt) {
+            const scale = clampCardArtScale(trainer?.cardArtScale ?? 1);
+            const rotation = clampCardArtRotation(trainer?.cardArtRotation ?? 0);
+            if (refs.trainerArtScaleInput && document.activeElement !== refs.trainerArtScaleInput) {
+                refs.trainerArtScaleInput.value = String(scale);
+            }
+            if (refs.trainerArtRotationInput && document.activeElement !== refs.trainerArtRotationInput) {
+                refs.trainerArtRotationInput.value = String(rotation);
+            }
+            if (refs.trainerArtScaleNumber && document.activeElement !== refs.trainerArtScaleNumber) {
+                refs.trainerArtScaleNumber.value = formatCardArtScaleValue(scale);
+            }
+            if (refs.trainerArtRotationNumber && document.activeElement !== refs.trainerArtRotationNumber) {
+                refs.trainerArtRotationNumber.value = String(Math.round(rotation));
+            }
+        }
+
+        teardownTrainerArtDrag();
+        stage.innerHTML = "";
+        const isOverlay = mode === "OVERLAY";
+        const portrait = document.createElement("div");
+        portrait.className = isOverlay ? "trainer-art-portrait is-overlay" : "trainer-art-portrait";
+        if (url) {
+            const img = document.createElement("img");
+            img.className = "trainer-art-full-img";
+            img.alt = "";
+            const transformStyle = buildCardArtTransformStyle(trainer);
+            if (transformStyle) {
+                img.setAttribute("style", transformStyle);
+            }
+            img.onload = () => {
+                const w = img.naturalWidth;
+                const h = img.naturalHeight;
+                if (!w || !h) {
+                    setTrainerArtMeta("");
+                    return;
+                }
+                const ratio = w / h;
+                // Overlay art fills a narrower inset window than the full 5:7 card,
+                // so it needs its own (tighter) target aspect ratio to fit without
+                // cropping — using the full-card ratio here understated how much
+                // gets cropped and could report "good fit" on art that isn't.
+                const targetAspect = isOverlay ? TRAINER_OVERLAY_WINDOW_ASPECT : 5 / 7;
+                const tolerance = 0.055;
+                const goodFit = ratio >= targetAspect - tolerance && ratio <= targetAspect + tolerance;
+                const target = isOverlay ? "art window" : "card";
+                const targetLabel = isOverlay ? `${targetAspect.toFixed(2)}:1` : "5:7";
+                setTrainerArtMeta(
+                    goodFit
+                        ? `${w}×${h} · good ${targetLabel} fit — fills the ${target} with no cropping.`
+                        : `${w}×${h} · ${ratio > targetAspect ? "wider" : "taller"} than a ${targetLabel} ${target}, so it's cropped to fit. Drag the art and use Scale below to frame it.`,
+                    goodFit ? "ok" : "warn"
+                );
+                // Clear any stale "could not load" error now that a good image rendered.
+                if (refs.trainerArtStatus?.dataset.tone === "error") {
+                    setTrainerArtStatus("");
+                }
+            };
+            img.onerror = () => {
+                setTrainerArtMeta("Could not load this image — check the URL/path is hosted and correct.", "warn");
+                setTrainerArtStatus("Preview could not load that image. Use a hosted https:// URL or a deployed /img/... path.", "error");
+            };
+            img.src = url;
+            if (isOverlay) {
+                // Art fills an inset window that clips it to the frame, then the
+                // template is drawn on top — matching the in-game overlay render
+                // (transparent window + caption box, nothing outside the border).
+                const window_ = document.createElement("div");
+                window_.className = "trainer-art-overlay-window";
+                window_.appendChild(img);
+                portrait.appendChild(window_);
+                const template = document.createElement("div");
+                template.className = "trainer-art-template";
+                template.setAttribute("aria-hidden", "true");
+                portrait.appendChild(template);
+            } else {
+                portrait.appendChild(img);
+            }
+            setupTrainerArtDrag(trainer, img, portrait);
+        } else {
+            setTrainerArtMeta("");
+            const placeholder = document.createElement("div");
+            placeholder.className = "trainer-art-placeholder";
+            placeholder.textContent = "No custom art yet. Upload a full SiegeKnight card image or paste a hosted URL/path.";
+            portrait.appendChild(placeholder);
+        }
+        stage.appendChild(portrait);
     }
 
     function renderLiveElementsPanel() {
@@ -3393,6 +3988,9 @@
         refs.deleteDeckBtn.disabled = !hasDeck;
         refs.clearDeckCardsBtn.disabled = !hasDeck;
         refs.duplicateTrainerBtn.disabled = !hasTrainer;
+        if (refs.deleteTrainerBtn) {
+            refs.deleteTrainerBtn.disabled = !hasTrainer;
+        }
         const saveDisabled = !canSaveCurrentData() || (!state.liveEditingEnabled && hasErrors) || !state.dirty;
         refs.saveProjectBtn.disabled = saveDisabled;
         refs.saveProjectBtn.title = saveDisabled ? describeSaveButtonState(hasErrors) : "";
@@ -3890,7 +4488,7 @@
                 return;
             }
             if (!liveNames.has(trainer.element)) {
-                issues.push(issue("error", `Active Siegeknight '${trainer.id.trim() || trainer.name}' uses element ${trainer.element}, which is off in Live Elements.`, "trainers"));
+                issues.push(issue("warn", `Active Siegeknight '${trainer.id.trim() || trainer.name}' uses element ${trainer.element}, which is off in Live Elements.`, "trainers"));
             }
         });
 
@@ -4282,33 +4880,7 @@
     }
 
     function buildLoadedMessage() {
-        return state.liveEditingEnabled
-            ? "Loaded the live Firestore card, Siegeknight, premade deck, live element roster, and shared abilities into the dashboard."
-            : "Loaded the current card, Siegeknight, premade deck, live element roster, and shared abilities into the dashboard.";
-    }
-
-    function buildStatusPathText() {
-        if (!state.filePath) {
-            return state.liveEditingEnabled ? "No Firestore document path is available." : "No project file path available.";
-        }
-        const updatedSuffix = state.updatedBy
-            ? ` Last update: ${state.updatedBy}${state.updatedAt ? ` on ${formatTimestamp(state.updatedAt)}` : ""}.`
-            : "";
-        const prefix = state.liveEditingEnabled ? "Live source" : "Editing";
-        return `${prefix}: ${state.filePath}${updatedSuffix}`;
-    }
-
-    function formatSourceLabel() {
-        switch (state.source) {
-            case "FIRESTORE":
-                return "Live Firestore";
-            case "PROJECT_FILE":
-                return "Project file";
-            case "CLASSPATH_RESOURCE":
-                return "Bundled fallback";
-            default:
-                return "Loading...";
-        }
+        return state.liveEditingEnabled ? "Loaded live data." : "Loaded local data.";
     }
 
     function apiUrl(path) {

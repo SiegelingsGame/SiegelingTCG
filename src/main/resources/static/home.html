@@ -10,8 +10,8 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=161">
-    <link rel="stylesheet" href="/css/home.css?v=85">
+    <link rel="stylesheet" href="/css/style.css?v=185">
+    <link rel="stylesheet" href="/css/home.css?v=92">
 </head>
 <body>
 <div class="home-shell">
@@ -60,6 +60,7 @@
 
     <div class="loading-art-screen hidden" id="loadingArtScreen" aria-hidden="true">
         <div class="loading-art-frame">
+            <div class="loading-art-spinner" aria-hidden="true"></div>
             <span class="loading-art-label" id="loadingArtLabel">Loading...</span>
             <div class="loading-art-bar"><span></span></div>
             <span class="loading-art-title" id="loadingArtTitle"></span>
@@ -69,6 +70,21 @@
     <div class="art-lightbox hidden" id="artLightbox" role="dialog" aria-label="Artwork preview">
         <img id="artLightboxImg" alt="">
         <span class="art-lightbox-title" id="artLightboxTitle"></span>
+    </div>
+
+    <div class="card-fullscreen hidden" id="cardFullscreen" role="dialog" aria-modal="true" aria-label="Card preview">
+        <button class="card-fullscreen-back" type="button" id="cardFullscreenBack" aria-label="Back to card view">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+            <span>Back</span>
+        </button>
+        <div class="card-fullscreen-card" id="cardFullscreenBody"></div>
+    </div>
+
+    <div class="shop-card-preview-modal hidden" id="shopCardPreviewModal" role="dialog" aria-modal="true" aria-labelledby="shopCardPreviewTitle" data-shop-card-preview-backdrop>
+        <div class="shop-card-preview-panel panel">
+            <button class="shop-card-preview-close" type="button" data-close-shop-card-preview aria-label="Close card preview">&times;</button>
+            <div id="shopCardPreviewBody"></div>
+        </div>
     </div>
 
     <main class="home-main">
@@ -193,16 +209,22 @@
         <div class="chip-wrap" id="rarityFilters"></div>
         <div class="filter-label">Energy Cost</div>
         <div class="chip-wrap" id="energyCostFilters"></div>
+        <div class="filter-label">Finish</div>
+        <div class="chip-wrap" id="finishFilters"></div>
         <div class="filter-label">Collection</div>
         <button class="ghost-btn filter-toggle" id="showUnownedToggle" type="button" aria-pressed="false">Show unowned</button>
         <select class="search-input" id="cardSortSelect">
-            <option value="owned-desc">Sort: Owned first</option>
-            <option value="name-asc">Sort: Name</option>
-            <option value="speed-desc">Sort: Speed high</option>
-            <option value="health-desc">Sort: Health high</option>
-            <option value="cost-asc">Sort: Cost low</option>
-            <option value="rarity-desc">Sort: Rarity high</option>
+            <option value="owned">Sort: Owned</option>
+            <option value="name">Sort: Alphabetical</option>
+            <option value="type">Sort: Type</option>
+            <option value="cost">Sort: Cost</option>
+            <option value="element">Sort: Element</option>
+            <option value="acquired">Sort: Acquired date</option>
+            <option value="rarity">Sort: Rarity</option>
+            <option value="speed">Sort: Speed</option>
+            <option value="health">Sort: Health</option>
         </select>
+        <button class="ghost-btn filter-toggle" id="cardSortDirToggle" type="button" aria-pressed="false">Descending ↓</button>
         <div class="unlock-card" id="customUnlockCard"></div>
     </aside>
     <aside class="filter-panel panel hud-tray filter-tray lobby-filter-tray is-closed" id="lobbyFilterTray" aria-hidden="true">
@@ -318,13 +340,10 @@
         </div>
     </div>
 
-    <div class="auth-modal hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
-        <div class="auth-modal-panel panel">
-            <div class="section-head">
-                <div><span class="eyebrow">Account</span><h2 id="authModalTitle">Sign in to save progression</h2></div>
-                <button class="ghost-btn" id="closeAuthBtn" type="button">Close</button>
-            </div>
-            <div id="authPanelBody"></div>
+    <div class="auth-popup-overlay hidden" id="authModal" role="dialog" aria-modal="true" aria-label="Account sign in">
+        <div class="auth-popup-modal welcome-auth-card">
+            <button class="match-detail-close auth-popup-close" id="closeAuthBtn" type="button" aria-label="Close sign in">&times;</button>
+            <div class="auth-popup-body" id="authPanelBody"></div>
         </div>
     </div>
 
@@ -363,10 +382,10 @@
 
 <script src="/js/qrcode-vendor.js?v=1"></script>
 <script src="/js/catalog-sync.js?v=1"></script>
-<script src="/js/game.js?v=170"></script>
-<script src="/js/card-binder-visual.js?v=3"></script>
+<script src="/js/game.js?v=187"></script>
+<script src="/js/card-binder-visual.js?v=6"></script>
 <script src="/js/achievements.js?v=5"></script>
-<script src="/js/home.js?v=89"></script>
+<script src="/js/home.js?v=99"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

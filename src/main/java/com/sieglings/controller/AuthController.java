@@ -1,5 +1,6 @@
 package com.sieglings.controller;
 
+import com.sieglings.config.SessionCookieService;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.entity.ProfileSettingsEntity;
@@ -12,6 +13,7 @@ import com.sieglings.service.ProfileSettingsService;
 import com.sieglings.service.FriendRequestService;
 import com.sieglings.service.PresenceService;
 import com.sieglings.service.SavedDeckService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +63,9 @@ public class AuthController {
     @Autowired
     private PresenceService presenceService;
 
+    @Autowired
+    private SessionCookieService sessionCookieService;
+
     // Bounded pool for fanning out the independent Firestore reads that make up a
     // profile response. Daemon threads so it never blocks JVM shutdown. Every task
     // submitted here is a leaf — it never waits on another pooled task — so the
@@ -74,13 +79,14 @@ public class AuthController {
             });
 
     @PostMapping("/api/auth/register")
-    public Map<String, Object> register(@RequestBody Map<String, Object> req) {
+    public Map<String, Object> register(@RequestBody Map<String, Object> req, HttpServletResponse response) {
         try {
             AccountService.SessionView session = accountService.register(
                     (String) req.get("email"),
                     (String) req.get("password"),
                     (String) req.get("displayName")
             );
+            sessionCookieService.setSession(response, session.token());
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
@@ -91,12 +97,13 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/login")
-    public Map<String, Object> login(@RequestBody Map<String, Object> req) {
+    public Map<String, Object> login(@RequestBody Map<String, Object> req, HttpServletResponse response) {
         try {
             AccountService.SessionView session = accountService.login(
                     (String) req.get("email"),
                     (String) req.get("password")
             );
+            sessionCookieService.setSession(response, session.token());
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
@@ -107,13 +114,14 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/reset-password")
-    public Map<String, Object> resetPassword(@RequestBody Map<String, Object> req) {
+    public Map<String, Object> resetPassword(@RequestBody Map<String, Object> req, HttpServletResponse response) {
         try {
             AccountService.SessionView session = accountService.resetPassword(
                     (String) req.get("email"),
                     (String) req.get("resetCode"),
                     (String) req.get("password")
             );
+            sessionCookieService.setSession(response, session.token());
             return buildProfileResponse(session.user(), session.token());
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage(), "authenticated", false);
@@ -124,21 +132,25 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/logout")
-    public Map<String, Object> logout(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+    public Map<String, Object> logout(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                      HttpServletResponse response) {
         AccountUser user = accountService.findUser(authorizationHeader);
         if (user != null) {
             presenceService.markOffline(user);
         }
         accountService.logout(authorizationHeader);
+        sessionCookieService.clearSession(response);
         return Map.of("ok", true, "authenticated", false);
     }
 
     @PostMapping("/api/auth/delete-account")
     public Map<String, Object> deleteAccount(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
-                                             @RequestBody Map<String, Object> req) {
+                                             @RequestBody Map<String, Object> req,
+                                             HttpServletResponse response) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
             accountService.deleteAccount(user, (String) req.get("confirmationText"));
+            sessionCookieService.clearSession(response);
             return Map.of("ok", true, "authenticated", false);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
@@ -149,11 +161,17 @@ public class AuthController {
     }
 
     @GetMapping("/api/auth/me")
-    public Map<String, Object> me(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+    public Map<String, Object> me(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                  HttpServletResponse response) {
         AccountUser user = accountService.findUser(authorizationHeader);
         if (user == null) {
             return Map.of("authenticated", false);
         }
+        // Refresh the cookie on every authenticated check: this transparently
+        // upgrades legacy clients that still authenticate via the Bearer header
+        // (the filter resolves either source) to cookie auth, and slides the
+        // 30-day expiry forward on activity.
+        sessionCookieService.setSession(response, accountService.extractBearerToken(authorizationHeader));
         return buildProfileResponse(user, null);
     }
 

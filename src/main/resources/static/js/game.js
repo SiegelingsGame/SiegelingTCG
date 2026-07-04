@@ -28,7 +28,6 @@ let loadoutMode = 'preset';
 let loadoutStep = 'setup';
 const LOADOUT_STEPS = ['setup', 'deck', 'knight', 'review'];
 const GUEST_DIRECT_PLAYER_NAME = 'Guest';
-const GUEST_LOADOUT_TRAINER_IDS = new Set(['trainer02', 'trainer05', 'trainer06', 'trainer09']);
 let builderCounts = {};
 let builderElementFilter = 'ALL';
 let builderTypeFilter = 'ALL';
@@ -54,6 +53,8 @@ let hoveredHandIndex = null;
 let hoveredBoardCard = null;
 /** Persisted board selection for live preview / drawer ({ isPlayer, row, col, instanceId }). */
 let arenaSelection = null;
+/** Cached overlay structure fingerprint per side; skips link/nexus rebuild when board topology is unchanged. */
+const boardOverlayFingerprints = { player: '', enemy: '' };
 let pendingClaimTarget = null;
 let claimFxInFlight = false;
 let lastRenderedPhase = null;
@@ -76,7 +77,7 @@ let handSelectorScaleFrame = null;
 let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
-const DECK_ART_ASSET_KEYS = ['FIRE', 'EARTH', 'WIND', 'WATER', 'ICE'];
+const DECK_ART_ASSET_KEYS = ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND'];
 const DECK_ART_ASSETS = {
     FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
     EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
@@ -99,6 +100,45 @@ const HAND_DOUBLE_TAP_MS = 320;
 let lastViewportSignature = '';
 const PLAYER_NAME_STORAGE_KEY = 'sieglingsPlayerName';
 const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
+// Sentinel stored under AUTH_TOKEN_STORAGE_KEY once auth has moved to the httpOnly
+// session cookie. It is NOT a credential — the real token lives in the cookie the
+// browser sends automatically — but its presence still drives every "are we signed
+// in?" check and cross-tab storage-event sync exactly as a real token used to.
+const COOKIE_SESSION_VALUE = 'cookie';
+// True when the readable, secret-free `sgl_auth` companion cookie is present. The
+// server sets it alongside the httpOnly session cookie, so this both signals a
+// live session and proves cookies actually round-trip in this environment.
+function hasReadableAuthCookie() {
+    try {
+        return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+    } catch (e) {
+        return false;
+    }
+}
+// Whether the stored token value is a real legacy Bearer token (vs the cookie
+// sentinel). Only legacy tokens are sent as an Authorization header.
+function isLegacyBearerToken(token) {
+    return Boolean(token) && token !== COOKIE_SESSION_VALUE;
+}
+// True when running as an installed standalone Web App (iOS "Add to Home Screen"
+// / Android PWA). iOS standalone Web Apps do NOT reliably send the session cookie
+// across the full-page navigations this multi-page app uses (Home <-> Play), so in
+// that context we keep authenticating with the localStorage Bearer token — which
+// DOES persist across those navigations — instead of the cookie-only path. Browsers
+// keep the cookie-only path so the token stays out of script-readable storage.
+function isStandalonePWA() {
+    try {
+        return window.navigator.standalone === true
+            || Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    } catch (e) {
+        return false;
+    }
+}
+// On login, store the cookie sentinel only when cookies are confirmed working AND
+// we're not in a standalone Web App; otherwise persist the real token for Bearer auth.
+function preferredStoredToken(loginToken) {
+    return (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
+}
 // Last authenticated profile, cached in localStorage and shared with the hub so
 // every page can render the signed-in UI instantly and then revalidate against
 // /api/auth/me in the background instead of blocking on it.
@@ -191,17 +231,26 @@ let authMode = 'login';
 let authRegisterStep = 'credentials';
 let authPopupOpen = false;
 let registerDraft = { email: '', password: '' };
-const initialAuthToken = loadSavedAuthToken();
+// Fall back to the cookie sentinel when an httpOnly session cookie exists but the
+// localStorage marker is missing (e.g. localStorage cleared independently), so a
+// live cookie session is still recognized as signed-in.
+const initialAuthToken = loadSavedAuthToken() || (hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : '');
+// Seed from the cached snapshot so the signed-in UI renders instantly; the
+// background /api/auth/me on init revalidates and refreshes it.
+const initialCachedProfile = initialAuthToken ? loadCachedAuthProfile() : null;
 let authState = {
     token: initialAuthToken,
-    // Seed from the cached snapshot so the signed-in UI renders instantly; the
-    // background /api/auth/me on init revalidates and refreshes it.
-    profile: initialAuthToken ? loadCachedAuthProfile() : null,
+    profile: initialCachedProfile,
     loading: false,
-    // Whether /api/auth/me has returned a definitive answer this page load. Until
-    // it has, a present token means "signing in", NOT "logged out" — so the
-    // welcome screen shows a loading state instead of flashing the Log In card.
-    profileResolved: false,
+    // Whether we can treat the auth state as known for this page load. Seed it true
+    // when we already have a cached signed-in profile so navigating to Play from the
+    // hub paints the account immediately with NO "Restoring your account…" loading —
+    // the player is already signed in, so there is nothing to wait on. The silent
+    // background /api/auth/me still revalidates and corrects this if the session has
+    // genuinely lapsed. When there is no cached profile, a present token means
+    // "signing in", NOT "logged out", so the welcome screen shows a loading state
+    // instead of flashing the Log In card.
+    profileResolved: Boolean(initialCachedProfile?.authenticated),
     error: ''
 };
 let selectedSavedDeckId = null;
@@ -801,10 +850,10 @@ if (typeof window.matchMedia === 'function') {
 }
 const ENERGY_ORDER = [
     ['fire', 'Fire'],
+    ['ice', 'Ice'],
+    ['water', 'Water'],
     ['earth', 'Earth'],
     ['wind', 'Wind'],
-    ['water', 'Water'],
-    ['ice', 'Ice'],
     ['shadow', 'Shadow'],
     ['electric', 'Electric'],
     ['metal', 'Metal'],
@@ -1110,6 +1159,75 @@ function escapeHtmlAttribute(value) {
         .replace(/>/g, '&gt;');
 }
 
+// ── WebP delivery (self-contained; the battle page does not load
+// card-binder-visual.js). Every local raster card asset has a .webp twin;
+// prefer it when supported and fall back to the original on any load error.
+let __sgWebpSupport = null;
+function sgWebpSupported() {
+    if (__sgWebpSupport !== null) {
+        return __sgWebpSupport;
+    }
+    try {
+        const c = document.createElement('canvas');
+        __sgWebpSupport = !!(c.getContext && c.getContext('2d'))
+            && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+    } catch (e) {
+        __sgWebpSupport = false;
+    }
+    return __sgWebpSupport;
+}
+function sgPreferWebp(url) {
+    const u = String(url || '');
+    if (!u || !sgWebpSupported()) {
+        return u;
+    }
+    return u.replace(/^(\/(?:img|assets)\/[^?#]+)\.(png|jpe?g)(\?[^#]*)?$/i, '$1.webp$3');
+}
+if (typeof window !== 'undefined' && !window.sgWebpFallback) {
+    window.sgWebpFallback = function (img) {
+        if (!img) {
+            return;
+        }
+        const fallback = img.getAttribute('data-img-fallback');
+        img.onerror = null;
+        if (fallback && img.getAttribute('src') !== fallback) {
+            img.setAttribute('src', fallback);
+        }
+    };
+}
+
+// CSS transform for a SiegeKnight full-card image, from the dashboard crop/scale
+// controls (translate px + scale + rotate). Default (0,0,1,0) → no transform, so
+// existing 5:7 cards are unchanged.
+function knightArtTransformStyle(trainer) {
+    const x = Number(trainer?.cardArtOffsetX);
+    const y = Number(trainer?.cardArtOffsetY);
+    const scaleN = Number(trainer?.cardArtScale);
+    const rotN = Number(trainer?.cardArtRotation);
+    const tx = Number.isFinite(x) ? x : 0;
+    const ty = Number.isFinite(y) ? y : 0;
+    const scale = Number.isFinite(scaleN) ? Math.min(3, Math.max(0.25, scaleN)) : 1;
+    const rot = Number.isFinite(rotN) ? Math.min(180, Math.max(-180, rotN)) : 0;
+    if (!tx && !ty && scale === 1 && !rot) {
+        return '';
+    }
+    return `transform:translate(${tx}px,${ty}px) scale(${scale}) rotate(${rot}deg);transform-origin:center center;`;
+}
+function knightArtStyleAttr(trainer) {
+    const style = knightArtTransformStyle(trainer);
+    return style ? ` style="${escapeHtmlAttribute(style)}"` : '';
+}
+
+// Builds `src` (+ WebP fallback) attributes for a local raster art URL.
+function webpImgAttrs(url) {
+    const original = String(url || '');
+    const preferred = sgPreferWebp(original);
+    if (preferred === original) {
+        return `src="${escapeHtmlAttribute(original)}"`;
+    }
+    return `src="${escapeHtmlAttribute(preferred)}" data-img-fallback="${escapeHtmlAttribute(original)}" onerror="sgWebpFallback(this)"`;
+}
+
 function escapeHtml(value) {
     return String(value || '')
         .replace(/&/g, '&amp;')
@@ -1191,7 +1309,14 @@ function renderCardArt(card, variant, fallbackLabel = '') {
             ? ` card-art-crop-${artMeta.crop}`
             : '';
         const styleAttr = artMeta.transformStyle ? ` style="${escapeHtmlAttribute(artMeta.transformStyle)}"` : '';
-        return `<div class="card-art card-art-${variant}${cropClass}"><img src="${escapeHtmlAttribute(artMeta.url)}" alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"${styleAttr}></div>`;
+        // Prominent single-card previews (the deck-builder Card View, the binder
+        // detail card) must show their character overlay right away. Lazy-loading
+        // left the art blank when the panel started below the fold — on mobile the
+        // deck-builder Card View stacks under the binder list — so the frame's
+        // element background showed alone. Load those eagerly; keep grid/hand/board
+        // art lazy since many render at once.
+        const loading = (variant === 'preview' || variant === 'selected') ? 'eager' : 'lazy';
+        return `<div class="card-art card-art-${variant}${cropClass}"><img ${webpImgAttrs(artMeta.url)} alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="${loading}"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
@@ -1273,6 +1398,30 @@ function clearArenaSelection() {
     arenaSelection = null;
 }
 
+/** Toggle arena-selected highlight on existing cells without rebuilding the board or overlays. */
+function syncArenaSelectionHighlight() {
+    document.querySelectorAll('#playerGrid .board-cell.arena-selected, #enemyGrid .board-cell.arena-selected')
+        .forEach((el) => el.classList.remove('arena-selected'));
+    if (!arenaSelection) {
+        return;
+    }
+    const gridId = arenaSelection.isPlayer ? 'playerGrid' : 'enemyGrid';
+    const grid = document.getElementById(gridId);
+    if (!grid) {
+        return;
+    }
+    const cellEl = grid.querySelector(
+        `.board-cell[data-row="${arenaSelection.row}"][data-col="${arenaSelection.col}"]`
+    );
+    if (!cellEl) {
+        return;
+    }
+    const cell = getBoardCellAt(arenaSelection.isPlayer, arenaSelection.row, arenaSelection.col);
+    if (cell && cell.instanceId === arenaSelection.instanceId) {
+        cellEl.classList.add('arena-selected');
+    }
+}
+
 /**
  * Focus a Siegeling on either board for the live preview / Card Preview drawer.
  * Second click on the same piece clears selection.
@@ -1294,7 +1443,7 @@ function onArenaCardClick(isPlayer, row, col, event) {
     ) {
         clearArenaSelection();
         syncFocusedCardUi();
-        render();
+        syncArenaSelectionHighlight();
         return;
     }
     arenaSelection = { isPlayer, row, col, instanceId: cell.instanceId };
@@ -1304,7 +1453,7 @@ function onArenaCardClick(isPlayer, row, col, event) {
     hoveredHandIndex = null;
     updateSelectedInfo(boardCellToPreviewCard(cell));
     syncFocusedCardUi();
-    render();
+    syncArenaSelectionHighlight();
 }
 
 /** Mobile: inspect board cell; Claim control uses stopPropagation + openClaimPopup. */
@@ -5136,6 +5285,7 @@ function renderDesktopCardPreviewPanel() {
         html += '</div>';
     }
     html += `<div class="desktop-preview-note">${escapeHtml(getDesktopPreviewNote(focusedCard, lockReason))}</div>`;
+    html += renderPreviewClaimControl(focusedCard);
     html += '</div>';
     html += '</div>';
 
@@ -5328,7 +5478,7 @@ function scheduleSiegeKnightCardFit() {
 }
 
 function fitSiegeKnightCardText(root = document) {
-    root.querySelectorAll('.knight-card.has-knight-back .knight-card-body').forEach((body) => {
+    root.querySelectorAll('.knight-card.has-knight-back .knight-card-body, .knight-card.knight-full-card-art .knight-card-body').forEach((body) => {
         const card = body.closest('.knight-card');
         if (!card || !body.clientHeight || !body.clientWidth) {
             return;
@@ -6056,13 +6206,62 @@ function loadCachedAuthProfile() {
     }
 }
 
+// Strip the heavy, rarely-needed fields from a profile before caching it. The
+// /api/auth/me payload embeds the FULL game log of every recorded match, which
+// can run to several megabytes — well past the ~5MB localStorage quota. When the
+// write throws QuotaExceededError it used to be swallowed silently, so the cache
+// never persisted and the Play page fell back to the "Restoring your account…"
+// takeover on every single visit. The welcome card only needs match metadata
+// (result/labels/health), never the per-line log, so we drop the logs for the
+// cached copy. The live in-memory profile keeps its logs, so the match-detail
+// modal still works once the background /api/auth/me refresh lands.
+function slimProfileForCache(profile) {
+    if (!profile) {
+        return profile;
+    }
+    // Never persist the bearer token. The httpOnly-cookie migration keeps the
+    // credential out of page-script reach, but the login response body still
+    // carries `token` for legacy clients — strip it so it can't leak into
+    // localStorage via the cached profile.
+    const { token, ...rest } = profile;
+    if (!Array.isArray(rest.matchHistory)) {
+        return rest;
+    }
+    return {
+        ...rest,
+        matchHistory: rest.matchHistory.map((entry) => {
+            if (!entry || !('gameLog' in entry)) {
+                return entry;
+            }
+            const { gameLog, ...rest } = entry;
+            return rest;
+        })
+    };
+}
+
 function saveCachedAuthProfile(profile) {
     try {
         if (!profile?.authenticated) {
             localStorage.removeItem(AUTH_PROFILE_STORAGE_KEY);
             return;
         }
-        localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), profile }));
+        const savedAt = Date.now();
+        const slim = slimProfileForCache(profile);
+        try {
+            localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt, profile: slim }));
+        } catch (quotaError) {
+            // Still too big (huge deck/match counts): fall back to the bare minimum
+            // the signed-in UI needs so SOMETHING always persists and the Play page
+            // can paint signed-in instead of looping on "Restoring your account…".
+            const minimal = {
+                authenticated: true,
+                user: slim.user,
+                progression: slim.progression,
+                savedDecks: slim.savedDecks || [],
+                matchHistory: []
+            };
+            localStorage.setItem(AUTH_PROFILE_STORAGE_KEY, JSON.stringify({ savedAt, profile: minimal }));
+        }
     } catch (e) {
         // The profile cache is a render optimization only.
     }
@@ -6129,7 +6328,9 @@ function renderAuthDependentSurfaces() {
 }
 
 async function refreshAuthFromStorage(silent = true) {
-    const stored = loadSavedAuthToken();
+    // Same cookie fallback as init: a live httpOnly session whose localStorage
+    // marker is missing must not be wiped on focus/pageshow/storage.
+    const stored = loadSavedAuthToken() || (hasReadableAuthCookie() ? COOKIE_SESSION_VALUE : '');
     const tokenChanged = stored !== authState.token;
     const profileStale = Boolean(stored) && !authState.profile?.authenticated;
     const loggedOutElsewhere = !stored && Boolean(authState.profile?.authenticated);
@@ -6209,7 +6410,9 @@ function renderPlayHubAuth() {
 
 function getAuthHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
-    if (authState.token && !headers.Authorization) {
+    // Cookie-mode sessions authenticate via the httpOnly cookie the browser sends
+    // automatically, so only attach a Bearer header for a real legacy token.
+    if (isLegacyBearerToken(authState.token) && !headers.Authorization) {
         headers.Authorization = `Bearer ${authState.token}`;
     }
     return headers;
@@ -6490,7 +6693,17 @@ function dismissWelcome() {
 // on `authenticated` so a genuinely signed-in player keeps their token (and knight
 // progression) untouched.
 function dropStaleGuestToken() {
-    if (!authState.profile?.authenticated && (authState.token || authState.profile)) {
+    // Only drop the shared token once /api/auth/me has returned a *definitive*
+    // answer (profileResolved). During the "Restoring your account…" window the
+    // profile is not authenticated yet simply because the check is still in flight
+    // — the token may belong to a perfectly valid session. Wiping it here (e.g. a
+    // signed-in player tapping "Battle" before the restore settles) clears the
+    // token from localStorage and logs them out on every page, since the hub and
+    // Play page share it. A genuinely stale token is harmless: the server resolves
+    // a missing/expired session to a guest anyway (AccountService.findUser returns
+    // null), so we lose nothing by letting an unresolved token ride along until we
+    // actually know it is invalid.
+    if (authState.profileResolved && !authState.profile?.authenticated && (authState.token || authState.profile)) {
         clearAuthState();
     }
 }
@@ -6934,7 +7147,11 @@ async function submitAuth(mode) {
         return;
     }
 
-    saveAuthToken(data.token || '');
+    // Prefer cookie auth in browsers: persist the sentinel (no secret in
+    // localStorage) once the companion cookie confirms cookies round-trip. In a
+    // standalone Web App, or when cookies are blocked, keep the real token and send
+    // it as a Bearer header so auth survives cross-page navigation.
+    saveAuthToken(preferredStoredToken(data.token));
     authState.profile = data;
     authState.profileResolved = true;
     saveCachedAuthProfile(data);
@@ -6950,6 +7167,19 @@ async function submitAuth(mode) {
     renderSavedDecks();
     renderLoadoutOptions();
     updateLoadoutSummary();
+}
+
+// Single source of truth for interpreting an /api/auth/me response, mirrored in
+// home.js. Sessions are only ever dropped on an AUTHORITATIVE answer — never on a
+// transient failure. Returns 'signed-in', 'signed-out', or 'unknown' (request
+// failed or body malformed -> session NOT proven gone, so keep it). This page's
+// fetchJson returns null on failure while the hub's returns an { error } object;
+// both collapse to 'unknown'. Only a clean { authenticated: <boolean> } is acted on.
+function classifyAuthMe(data) {
+    if (!data || data.error || typeof data.authenticated !== 'boolean') {
+        return 'unknown';
+    }
+    return data.authenticated ? 'signed-in' : 'signed-out';
 }
 
 async function syncAuthProfile(silent = false) {
@@ -6972,20 +7202,31 @@ async function syncAuthProfile(silent = false) {
     // signed in on another page (e.g. the hub), logging them back out here.
     const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET', cache: 'no-store' });
     authState.loading = false;
-    if (!data) {
+    const status = classifyAuthMe(data);
+    // Fail open: a transient failure ('unknown') must never drop a valid session.
+    if (status === 'unknown') {
         if (!silent) {
             renderWelcomeAuth();
             renderSavedDecks();
         }
         return false;
     }
-    if (!data.authenticated) {
+    if (status === 'signed-out') {
         // Keep the shared token; only an explicit Log Out (or the deliberate guest
         // flow) should remove it. Wiping it here would sign the player out on the
         // hub and every other page too.
         authState.profileResolved = true;
         clearAuthProfile();
         return false;
+    }
+
+    // Transparent migration (browsers only): a legacy token rode in as a Bearer
+    // header and the server has now set the session cookie (confirmed by the
+    // readable companion cookie). Drop the secret and keep only the sentinel. Skip
+    // in a standalone Web App, where the cookie isn't reliably sent across pages so
+    // the Bearer token must stay.
+    if (isLegacyBearerToken(authState.token) && hasReadableAuthCookie() && !isStandalonePWA()) {
+        saveAuthToken(COOKIE_SESSION_VALUE);
     }
 
     authState.profile = data;
@@ -7976,6 +8217,7 @@ async function fetchJson(urlOrUrls, options = {}, timeoutMs = DEFAULT_REQUEST_TI
         const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
         try {
             const resp = await fetch(url, {
+                credentials: 'same-origin',
                 ...options,
                 headers: getAuthHeaders(options.headers || {}),
                 signal: controller.signal
@@ -8007,6 +8249,14 @@ async function loadGameOptions() {
     try {
         renderWelcomeTutorial();
         renderWelcomeAuth();
+        // Arriving from the hub with a chosen loadout (e.g. Start Match) means
+        // the player asked to play now — drop them straight onto deck selection
+        // instead of holding them on the welcome screen. Critically this happens
+        // before any network await, so a slow/hung account restore can't trap
+        // them behind the "Restoring your account…" spinner.
+        if (peekPendingHomeLoadout()) {
+            welcomeDismissed = true;
+        }
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();
@@ -8021,10 +8271,15 @@ async function loadGameOptions() {
             }
         }
 
+        // Refresh the account profile in the background. It must not gate the
+        // loadout transition: /api/auth/me has no timeout, and blocking on it
+        // would strand a player who just pressed Start Match on the welcome
+        // overlay if the auth check stalls.
+        void syncAuthProfile(true);
+
         const [data, editorState] = await Promise.all([
             fetchJson(apiUrls('/api/game/options'), {}, LOADOUT_ACTION_TIMEOUT_MS),
-            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS),
-            syncAuthProfile(true)
+            fetchJson(apiUrls('/api/cards/editor'), {}, LOADOUT_ACTION_TIMEOUT_MS)
         ]);
         if (!data) {
             // If we already painted usable (if stale) options from cache, keep
@@ -8275,6 +8530,14 @@ function getOwnedTrainerIdSet() {
     return new Set(owned.map((entry) => entry?.id).filter(Boolean));
 }
 
+// The common base tier guests are allowed to play. COMMON is included for
+// forward-compatibility; today the lowest catalog rarity is UNCOMMON.
+const GUEST_TRAINER_RARITIES = new Set(['COMMON', 'UNCOMMON']);
+
+function isCommonTierTrainer(trainer) {
+    return GUEST_TRAINER_RARITIES.has(String(trainer?.rarity || '').toUpperCase());
+}
+
 function getVisibleLoadoutTrainers() {
     if (!gameOptions?.trainers?.length) {
         return [];
@@ -8286,7 +8549,9 @@ function getVisibleLoadoutTrainers() {
     if (authState.profile?.authenticated) {
         return gameOptions.trainers.filter((trainer) => trainer.owned !== false);
     }
-    return gameOptions.trainers.filter((trainer) => GUEST_LOADOUT_TRAINER_IDS.has(trainer.id));
+    // Guests (no account) only get the common base SiegeKnight for each element;
+    // rarer knights unlock through account progression.
+    return gameOptions.trainers.filter(isCommonTierTrainer);
 }
 
 function selectTrainerOption(trainerId) {
@@ -8411,17 +8676,33 @@ async function claimTutorialReward() {
     }
 }
 
-function applyPendingHomeLoadout() {
-    let pending = null;
+// Reads the hub handoff (Start Match, deck builder launch, etc.) without
+// consuming it, so the boot path can decide to skip the welcome screen before
+// the network settles. Returns null when missing, malformed, or stale.
+function peekPendingHomeLoadout() {
     try {
         const raw = localStorage.getItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
-        pending = raw ? JSON.parse(raw) : null;
+        if (!raw) {
+            return null;
+        }
+        const pending = JSON.parse(raw);
+        if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
+            return null;
+        }
+        return pending;
+    } catch (e) {
+        return null;
+    }
+}
+
+function applyPendingHomeLoadout() {
+    const pending = peekPendingHomeLoadout();
+    try {
         localStorage.removeItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
     } catch (e) {
-        localStorage.removeItem(PENDING_HOME_LOADOUT_STORAGE_KEY);
-        return;
+        /* ignore storage errors */
     }
-    if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
+    if (!pending) {
         return;
     }
     const directLoadout = Boolean(pending.directLoadout);
@@ -8960,14 +9241,43 @@ function renderLoadoutOptions() {
         }
         const fullCardArtUrl = String(trainer.cardArtUrl || '').trim();
         const fullCardMode = String(trainer.cardArtMode || '').trim().toUpperCase() === 'FULL_CARD';
+        // Name / type / passive / ultimate, shown in the description box for every
+        // SiegeKnight card — including hand-drawn full-art cards, which previously
+        // rendered the artwork alone with no readable info.
+        const knightCardBody = `
+            <div class="knight-card-body">
+                <span class="knight-card-name">${escapeHtml(trainer.name)}</span>
+                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(formatElementLabel(trainer.element))}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${rarityClass}">${escapeHtml(trainer.rarity)}</span></span>
+                <span class="knight-card-ability"><span>Passive</span>${escapeHtml(readTrainerAbilityText(trainer.passive))}</span>
+                <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(readTrainerAbilityText(trainer.active))}</span>
+            </div>`;
         if (fullCardArtUrl && fullCardMode) {
             const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
             const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
             return `<button type="button" class="knight-card knight-full-card-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
-                <img src="${escapeHtmlAttribute(fullCardArtUrl)}" alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy">
+                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy"${knightArtStyleAttr(trainer)}>
                 ${holoOverlay}
+                ${knightCardBody}
+            </button>`;
+        }
+        const overlayMode = String(trainer.cardArtMode || '').trim().toUpperCase() === 'OVERLAY';
+        if (fullCardArtUrl && overlayMode) {
+            // Character art behind the shared template frame: window stays
+            // transparent, description box dims the art, shield/border stay fixed.
+            // Built inline (no card-binder-visual dependency) since play.html
+            // does not load that module.
+            const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
+            const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+                ${topRibbon}
+                ${levelBadge}
+                <div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(fullCardArtUrl)} alt="" loading="lazy"${knightArtStyleAttr(trainer)}></div>
+                <div class="knight-card-template" aria-hidden="true"></div>
+                <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
+                ${holoOverlay}
+                ${knightCardBody}
             </button>`;
         }
         return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
@@ -8977,12 +9287,7 @@ function renderLoadoutOptions() {
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
             <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
-            <div class="knight-card-body">
-                <span class="knight-card-name">${escapeHtml(trainer.name)}</span>
-                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(formatElementLabel(trainer.element))}</span> <span class="knight-tier tier-${tier.toLowerCase()}">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${rarityClass}">${escapeHtml(trainer.rarity)}</span></span>
-                <span class="knight-card-ability"><span>Passive</span>${escapeHtml(readTrainerAbilityText(trainer.passive))}</span>
-                <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(readTrainerAbilityText(trainer.active))}</span>
-            </div>
+            ${knightCardBody}
         </button>`;
     }).join('');
     scheduleSiegeKnightCardFit();
@@ -10659,20 +10964,70 @@ function updateMobileHudSide(label, playerData, ids) {
     }
 
     const icon = document.getElementById(ids.knightIconId);
-    if (icon) icon.innerHTML = elementEmoji(trainer?.element);
+    if (icon) {
+        if (trainer) {
+            icon.classList.add('has-knight-card');
+            icon.classList.toggle('has-knight-fullart', knightHasFullCardArt(trainer));
+            icon.innerHTML = knightHudCardInnerHtml(trainer);
+        } else {
+            icon.classList.remove('has-knight-card', 'has-knight-fullart');
+            icon.innerHTML = elementEmoji(trainer?.element);
+        }
+    }
 
     renderMobileHudElementDots(ids.dotsId, playerData);
     renderMobileStatElements(ids.statElementsId, playerData);
+}
+
+// True when this SiegeKnight has uploaded full-card art (Pyla / Squire Bob style).
+function knightHasFullCardArt(trainer) {
+    return Boolean(String(trainer?.cardArtUrl || '').trim()
+        && String(trainer?.cardArtMode || '').trim().toUpperCase() === 'FULL_CARD');
+}
+
+// Inner markup for a SiegeKnight card shown in the battle HUD: the hand-drawn
+// full-card art when available, otherwise the default card-front template with
+// the element sigil overlaid so every knight still reads as a card.
+function knightHudCardInnerHtml(trainer) {
+    if (knightHasFullCardArt(trainer)) {
+        // The HUD shows the full card at natural aspect (no fixed 5:7 frame), so the
+        // dashboard crop/scale transform — tuned for the framed loadout/binder — is
+        // intentionally not applied here.
+        const url = String(trainer.cardArtUrl).trim();
+        return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight')}" loading="lazy">`;
+    }
+    return `<img class="hud-knight-art-img hud-knight-art-template" ${webpImgAttrs(SIEGEKNIGHT_CARD_TEMPLATE)} alt="" aria-hidden="true"><span class="hud-knight-art-sigil">${elementEmoji(trainer?.element)}</span>`;
 }
 
 function updateHudRailKnight(prefix, trainer) {
     setTextIfExists(`${prefix}KnightName`, trainer?.name || '-');
     setTextIfExists(`${prefix}KnightElement`, trainer?.element ? formatElementLabel(trainer.element) : '');
     setTrainerAbilityMarkup(`${prefix}KnightAbility`, trainer);
+    const card = document.getElementById(`${prefix}Knight`);
     const portrait = document.getElementById(`${prefix}KnightPortrait`);
-    if (portrait) {
-        portrait.innerHTML = elementEmoji(trainer?.element);
+    if (!card) {
+        if (portrait) portrait.innerHTML = elementEmoji(trainer?.element);
+        return;
     }
+    if (!trainer) {
+        card.classList.remove('has-knight-art');
+        card.querySelector('.hud-knight-art')?.remove();
+        if (portrait) {
+            portrait.style.display = '';
+            portrait.innerHTML = elementEmoji(trainer?.element);
+        }
+        return;
+    }
+    card.classList.add('has-knight-art');
+    card.classList.toggle('has-knight-fullart', knightHasFullCardArt(trainer));
+    let art = card.querySelector('.hud-knight-art');
+    if (!art) {
+        art = document.createElement('div');
+        art.className = 'hud-knight-art';
+        card.insertBefore(art, card.firstChild);
+    }
+    art.innerHTML = knightHudCardInnerHtml(trainer);
+    if (portrait) portrait.style.display = 'none';
 }
 
 /** Full SiegeKnight readout (element + passive + active/ultimate) for the player detail tray. */
@@ -11417,10 +11772,10 @@ function renderBoard(gridId, board, isPlayer) {
         }
     }
 
+    const overlayLayer = detachBoardOverlayLayer(grid);
     grid.innerHTML = html;
-    renderLinkConnectors(gridId, board, isPlayer);
-    const side = isPlayer ? gameState?.player : gameState?.enemy;
-    renderNexusOverlays(gridId, board, isPlayer, side?.nexusPoints || []);
+    ensureBoardOverlayLayer(grid, overlayLayer);
+    updateBoardOverlays(gridId, board, isPlayer);
 }
 
 function collectBoardCellElements(grid) {
@@ -11538,10 +11893,84 @@ function getNotchOutgoingAnchor(grid, cellRefs, r, c, direction, _isPlayer) {
     }
 }
 
-function renderNexusOverlays(gridId, board, isPlayer, nexusPoints) {
+function detachBoardOverlayLayer(grid) {
+    const layer = grid.querySelector(':scope > .board-overlay-layer');
+    if (layer) {
+        layer.remove();
+    }
+    return layer;
+}
+
+function ensureBoardOverlayLayer(grid, existingLayer) {
+    if (existingLayer) {
+        grid.appendChild(existingLayer);
+        return existingLayer;
+    }
+    const layer = document.createElement('div');
+    layer.className = 'board-overlay-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    grid.appendChild(layer);
+    return layer;
+}
+
+function getBoardOverlayLayer(grid) {
+    return grid.querySelector(':scope > .board-overlay-layer')
+        || ensureBoardOverlayLayer(grid, null);
+}
+
+function computeBoardOverlayFingerprint(board, nexusPoints) {
+    const parts = [];
+    for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+            const cell = board?.[r]?.[c];
+            if (!cell) {
+                continue;
+            }
+            parts.push(`${r}:${c}:${cell.instanceId || ''}`);
+            if (cell.notches?.length) {
+                parts.push(
+                    cell.notches
+                        .map((notch) => `${notch.direction}:${notch.element}`)
+                        .sort()
+                        .join('|')
+                );
+            }
+        }
+    }
+    parts.push(JSON.stringify(nexusPoints || []));
+    return parts.join(';');
+}
+
+function updateBoardOverlays(gridId, board, isPlayer, options = {}) {
     const grid = document.getElementById(gridId);
-    if (!grid) return;
-    grid.querySelectorAll('.nexus-overlay').forEach((el) => el.remove());
+    if (!grid) {
+        return;
+    }
+    const side = isPlayer ? gameState?.player : gameState?.enemy;
+    const nexusPoints = side?.nexusPoints || [];
+    const sideKey = isPlayer ? 'player' : 'enemy';
+    const fingerprint = computeBoardOverlayFingerprint(board, nexusPoints);
+    const layer = getBoardOverlayLayer(grid);
+    const contentUnchanged = !options.forceContent
+        && boardOverlayFingerprints[sideKey] === fingerprint
+        && layer.childElementCount > 0;
+
+    if (contentUnchanged && !options.forceLayout) {
+        return;
+    }
+
+    const overlayElements = [];
+    collectLinkConnectorElements(overlayElements, grid, board, isPlayer);
+    collectNexusOverlayElements(overlayElements, grid, board, isPlayer, nexusPoints);
+    layer.replaceChildren(...overlayElements);
+    boardOverlayFingerprints[sideKey] = fingerprint;
+}
+
+function renderNexusOverlays(gridId, board, isPlayer, nexusPoints) {
+    updateBoardOverlays(gridId, board, isPlayer, { forceContent: true, forceLayout: true });
+}
+
+function collectNexusOverlayElements(out, grid, board, isPlayer, nexusPoints) {
     if (!nexusPoints || nexusPoints.length === 0) return;
 
     const cellRefs = collectBoardCellElements(grid);
@@ -11599,7 +12028,7 @@ function renderNexusOverlays(gridId, board, isPlayer, nexusPoints) {
         svg += buildNexusHubGraphics(hx, hy, hubR, hubDistinct);
         svg += '</svg>';
         wrap.innerHTML = svg;
-        grid.appendChild(wrap);
+        out.push(wrap);
     }
 }
 
@@ -11643,9 +12072,10 @@ function getBoardCellLocalRect(grid, cellEl) {
 }
 
 function renderLinkConnectors(gridId, board, isPlayer) {
-    const grid = document.getElementById(gridId);
-    grid.querySelectorAll('.link-connector, .external-energy-point').forEach(el => el.remove());
+    updateBoardOverlays(gridId, board, isPlayer, { forceContent: true, forceLayout: true });
+}
 
+function collectLinkConnectorElements(out, grid, board, isPlayer) {
     const rowOrder = isPlayer ? [2, 1, 0] : [0, 1, 2];
     const links = [];
     const activeExternalSockets = new Map();
@@ -11835,7 +12265,7 @@ function renderLinkConnectors(gridId, board, isPlayer) {
         }
 
         connector.innerHTML = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">${svgContent}</svg>`;
-        grid.appendChild(connector);
+        out.push(connector);
     }
 
     for (const socket of getAllExternalSockets(isPlayer)) {
@@ -11850,10 +12280,10 @@ function renderLinkConnectors(gridId, board, isPlayer) {
 
         if (activeSocket) {
             const anchor = getCellEdgeAnchor(cellLocal, activeSocket.direction);
-            appendExternalLink(grid, anchor, point, getElementHex(activeSocket.element));
+            appendExternalLink(out, anchor, point, getElementHex(activeSocket.element));
         }
 
-        appendExternalEnergyPoint(grid, point, activeSocket?.element || null);
+        appendExternalEnergyPoint(out, point, activeSocket?.element || null);
     }
 }
 
@@ -11864,10 +12294,8 @@ function refreshBoardLinkConnectors() {
     const playerGrid = document.getElementById('playerGrid');
     const enemyGrid = document.getElementById('enemyGrid');
     if (!playerGrid || !enemyGrid) return;
-    renderLinkConnectors('enemyGrid', gameState.enemyBoard, false);
-    renderNexusOverlays('enemyGrid', gameState.enemyBoard, false, gameState.enemy?.nexusPoints || []);
-    renderLinkConnectors('playerGrid', gameState.playerBoard, true);
-    renderNexusOverlays('playerGrid', gameState.playerBoard, true, gameState.player?.nexusPoints || []);
+    updateBoardOverlays('enemyGrid', gameState.enemyBoard, false, { forceLayout: true });
+    updateBoardOverlays('playerGrid', gameState.playerBoard, true, { forceLayout: true });
 }
 
 function scheduleBoardLinkConnectorRefresh() {
@@ -11955,7 +12383,7 @@ function getExternalSocketPoint(local, side) {
     }
 }
 
-function appendExternalLink(grid, start, end, color) {
+function appendExternalLink(out, start, end, color) {
     const connector = document.createElement('div');
     connector.className = 'link-connector external-link';
 
@@ -11973,16 +12401,16 @@ function appendExternalLink(grid, start, end, color) {
     connector.style.width = `${svgW}px`;
     connector.style.height = `${svgH}px`;
     connector.innerHTML = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}"><line x1="${localSX}" y1="${localSY}" x2="${localEX}" y2="${localEY}" stroke="${color}" stroke-width="5" stroke-linecap="round"/></svg>`;
-    grid.appendChild(connector);
+    out.push(connector);
 }
 
-function appendExternalEnergyPoint(grid, point, element) {
+function appendExternalEnergyPoint(out, point, element) {
     const node = document.createElement('div');
     const activeClass = element ? ` active ${String(element).toLowerCase()}` : '';
     node.className = `external-energy-point${activeClass}`;
     node.style.left = `${point.x}px`;
     node.style.top = `${point.y}px`;
-    grid.appendChild(node);
+    out.push(node);
 }
 
 function getOppositeDirection(dir) {
@@ -13986,6 +14414,7 @@ function updateSelectedInfo(card, msg) {
             const phases = Number(card.battlePhasesSeen || 0);
             html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
             html += renderBoardCardBuffsList(card);
+            html += renderPreviewClaimControl(card);
         } else if (card.type === 'SIEGLING') {
             html += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`
@@ -14169,6 +14598,42 @@ function isClaimableBoardCell(cell, isPlayer) {
         && !targetMode
         && Number(cell.battlePhasesSeen || 0) > 0
     );
+}
+
+// Locate the previewed Siegeling on the player's board so the card preview can
+// surface a Claim control. Returns the {row, col} only when the cell is one of
+// our own battle-tested Siegelings eligible to claim this setup turn.
+function getClaimablePreviewPosition(card) {
+    if (!card?.instanceId || !Array.isArray(gameState?.playerBoard)) {
+        return null;
+    }
+    for (let row = 0; row < 3; row += 1) {
+        for (let col = 0; col < 3; col += 1) {
+            const cell = gameState.playerBoard?.[row]?.[col];
+            if (cell && cell.instanceId === card.instanceId && isClaimableBoardCell(cell, true)) {
+                return { row, col };
+            }
+        }
+    }
+    return null;
+}
+
+// Claimable badge + Claim button shown inside the card preview. The button
+// opens the existing claim popup, which carries the second-step confirmation.
+function renderPreviewClaimControl(card) {
+    const pos = getClaimablePreviewPosition(card);
+    if (!pos) {
+        return '';
+    }
+    const elementLabel = card.element ? formatElementLabel(card.element) : 'its element';
+    const name = card.name || 'Siegeling';
+    let html = '<div class="selected-claim-control">';
+    html += `<div class="selected-claim-note"><span class="selected-claim-badge">Claimable</span>Battle-tested — claim it to gain 1 temporary ${escapeHtml(elementLabel)} energy this setup turn.</div>`;
+    html += `<button type="button" class="selected-claim-btn" onclick="openClaimPopup(${pos.row}, ${pos.col})" aria-label="Claim ${escapeHtmlAttribute(name)}">`;
+    html += '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.4 1.2v13.6M3.4 2.2h8.7L10.4 5.4l1.7 3.2H3.4"/></svg>';
+    html += `<span>Claim ${escapeHtml(name)}</span></button>`;
+    html += '</div>';
+    return html;
 }
 
 function positionTooltip(event, tt) {

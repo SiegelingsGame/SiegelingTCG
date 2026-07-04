@@ -16,6 +16,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MatchHistoryServiceTest {
@@ -49,6 +50,28 @@ class MatchHistoryServiceTest {
         assertTrue(matchHistoryStore.savedIds.contains(state.getMatchHistoryId() + "-enemy"));
     }
 
+    @Test
+    void completedGuestSoloGameCanBeRecordedAfterAccountIsAttached() throws Exception {
+        BlockingMatchHistoryStore matchHistoryStore = new BlockingMatchHistoryStore();
+        RecordingProgressionService progressionService = new RecordingProgressionService();
+        MatchHistoryService service = createService(matchHistoryStore, progressionService);
+        GameState state = completedGuestSoloGame();
+
+        service.recordCompletedGame(state);
+
+        assertFalse(state.isMatchHistoryRecorded());
+        assertEquals(0, matchHistoryStore.savedIds.size());
+        assertEquals(0, progressionService.rewardedIds.size());
+
+        state.getPlayer().setAccountUserId("player@example.com");
+        service.recordCompletedGame(state);
+
+        assertTrue(state.isMatchHistoryRecorded());
+        assertEquals(1, matchHistoryStore.savedIds.size());
+        assertEquals(1, progressionService.rewardedIds.size());
+        assertTrue(matchHistoryStore.savedIds.contains(state.getMatchHistoryId() + "-player"));
+    }
+
     private MatchHistoryService createService(MatchHistoryStore matchHistoryStore, PlayerProgressionService progressionService) throws Exception {
         MatchHistoryService service = new MatchHistoryService();
         setField(service, "matchHistoryStore", matchHistoryStore);
@@ -66,6 +89,17 @@ class MatchHistoryServiceTest {
         state.setPlayer(player);
         state.setEnemy(enemy);
         state.setEnemyHumanControlled(true);
+        state.setGameOver(true);
+        state.setWinner("Player");
+        return state;
+    }
+
+    private GameState completedGuestSoloGame() {
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        state.setPlayer(player);
+        state.setEnemy(enemy);
         state.setGameOver(true);
         state.setWinner("Player");
         return state;

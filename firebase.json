@@ -19,6 +19,24 @@
             "value": "no-store"
           }
         ]
+      },
+      {
+        "source": "**/*.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/siege",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
       }
     ],
     "rewrites": [
@@ -81,6 +99,10 @@
       {
         "source": "/play",
         "destination": "/play.html"
+      },
+      {
+        "source": "/siege",
+        "destination": "/adventure.html"
       },
       {
         "source": "/api/cards/editor",
