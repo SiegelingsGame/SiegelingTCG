@@ -8,11 +8,15 @@ package com.sieglings.adventure;
  * @param id     stable id
  * @param name   display name
  * @param icon   emoji/glyph for the UI
- * @param kind   VITALITY | ATTACK | SPEED | SHIELD
- * @param value  magnitude of the bonus
+ * @param kind   VITALITY | ATTACK | SPEED | SHIELD | REVIVE | HEAL
+ * @param value  magnitude of the bonus (percent for REVIVE/HEAL)
  * @param desc   short human-readable text
  */
 record SiegeItem(String id, String name, String icon, String kind, int value, String desc) {
+
+    boolean consumable() {
+        return "REVIVE".equals(kind) || "HEAL".equals(kind);
+    }
 
     String effectText() {
         return switch (kind) {
@@ -20,6 +24,8 @@ record SiegeItem(String id, String name, String icon, String kind, int value, St
             case "ATTACK" -> "+" + value + " attack each battle";
             case "SPEED" -> "+" + value + " speed each battle";
             case "SHIELD" -> "+" + value + " shield at battle start";
+            case "REVIVE" -> "Revive a fallen Siegeling at " + value + "% HP";
+            case "HEAL" -> "Restore " + value + "% HP to one ally";
             default -> desc == null ? "" : desc;
         };
     }
