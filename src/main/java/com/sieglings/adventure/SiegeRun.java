@@ -75,6 +75,8 @@ class SiegeRun {
     private int goldEarnedTotal;
     private boolean endRewardsGranted;
     private java.util.Map<String, Object> endRewards;
+    /** A just-joined Siegeling awaiting its gacha-style reveal (null when none). */
+    private java.util.Map<String, Object> pendingRecruit;
 
     /** Whether the run's last idle checkpoint reached persistent storage. */
     private boolean checkpointSaved;
@@ -165,6 +167,8 @@ class SiegeRun {
     void setEndRewardsGranted(boolean endRewardsGranted) { this.endRewardsGranted = endRewardsGranted; }
     java.util.Map<String, Object> getEndRewards() { return endRewards; }
     void setEndRewards(java.util.Map<String, Object> endRewards) { this.endRewards = endRewards; }
+    java.util.Map<String, Object> getPendingRecruit() { return pendingRecruit; }
+    void setPendingRecruit(java.util.Map<String, Object> pendingRecruit) { this.pendingRecruit = pendingRecruit; }
 
     boolean isCheckpointSaved() { return checkpointSaved; }
     void setCheckpointSaved(boolean checkpointSaved) { this.checkpointSaved = checkpointSaved; }

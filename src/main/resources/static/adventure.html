@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=15">
+<link rel="stylesheet" href="/css/adventure.css?v=16">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -172,6 +172,21 @@
     </div>
   </section>
 
+  <!-- Gacha-style Siegeling join reveal -->
+  <section class="siege-screen hidden" id="recruitScreen">
+    <div class="gacha-stage" id="gachaStage">
+      <div class="gacha-rays"></div>
+      <div class="gacha-glow"></div>
+      <div class="gacha-sparkles" id="gachaSparkles"></div>
+      <div class="gacha-art" id="gachaArt"></div>
+      <div class="gacha-stars" id="gachaStars"></div>
+      <div class="gacha-banner" id="gachaBanner"></div>
+      <div class="gacha-name" id="gachaName"></div>
+      <div class="gacha-stats" id="gachaStats"></div>
+      <button class="siege-btn primary gacha-claim" id="gachaClaimBtn" type="button">Claim ▸</button>
+    </div>
+  </section>
+
   <!-- Result -->
   <section class="siege-screen hidden" id="resultScreen">
     <h1 id="resultTitle"></h1>
@@ -190,6 +205,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=15"></script>
+<script src="/js/adventure.js?v=16"></script>
 </body>
 </html>
