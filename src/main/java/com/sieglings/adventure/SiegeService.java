@@ -1266,6 +1266,10 @@ public class SiegeService {
         List<String> statuses = new ArrayList<>();
         for (StatusKind s : c.getStatuses().keySet()) statuses.add(s.name());
         m.put("statuses", statuses);
+        // Times this unit evolved this battle — the client grows the sprite 1.5× per stage.
+        int evoStage = 0;
+        for (Combatant prev = c.getEvolvedFrom(); prev != null; prev = prev.getEvolvedFrom()) evoStage++;
+        m.put("evoStage", evoStage);
         // Evolution gauge for player Siegelings (AP spent on own moves this battle).
         if (c.getSide() == Side.PLAYER && !c.isKnight()) {
             boolean hasEvolution = content.evolutionOf(c.getSourceCardId()).isPresent();
