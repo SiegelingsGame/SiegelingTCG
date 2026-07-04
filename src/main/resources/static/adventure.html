@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=14">
+<link rel="stylesheet" href="/css/adventure.css?v=15">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -79,6 +79,7 @@
     <div class="map-bottom">
       <div class="map-reward" id="mapReward"></div>
       <div class="map-meta">
+        <button class="hud-menu-btn run-menu-trigger" id="mapMenuBtn" type="button" title="Menu" aria-label="Open menu" aria-haspopup="dialog" aria-expanded="false">☰</button>
         <span class="gold-chip" id="mapGold">🪙 0</span>
         <span id="mapDeckCount"></span>
         <span class="map-hint" id="mapHint">Choose your path</span>
@@ -138,6 +139,7 @@
     <div class="battle-hint" id="battleHint"></div>
     <div class="hand-fan" id="handRow"></div>
     <div class="battle-hud" id="battleHud">
+      <button class="hud-menu-btn run-menu-trigger" id="battleMenuBtn" type="button" title="Menu" aria-label="Open menu" aria-haspopup="dialog" aria-expanded="false">☰</button>
       <div class="ap-display" id="apDisplay"></div>
       <div class="deck-counts" id="deckCounts"></div>
       <button class="siege-btn ult hidden" id="knightUltBtn" type="button">⚡ Ultimate</button>
@@ -187,7 +189,18 @@
   </div>
 
   <div class="siege-toast hidden" id="siegeToast"></div>
+
+  <!-- In-run menu (Save / Restart / Quit) -->
+  <div class="run-menu hidden" id="runMenu" role="dialog" aria-modal="true" aria-labelledby="runMenuTitle">
+    <button class="run-menu-backdrop" id="runMenuBackdrop" type="button" aria-label="Close menu"></button>
+    <div class="run-menu-panel">
+      <div class="run-menu-title" id="runMenuTitle">Expedition Menu</div>
+      <button class="run-menu-item" id="runMenuSave" type="button">💾 Save</button>
+      <button class="run-menu-item" id="runMenuRestart" type="button">🔄 Restart</button>
+      <button class="run-menu-item danger" id="runMenuQuit" type="button">🚪 Quit</button>
+    </div>
+  </div>
 </div>
-<script src="/js/adventure.js?v=14"></script>
+<script src="/js/adventure.js?v=15"></script>
 </body>
 </html>

@@ -172,11 +172,22 @@ public class SiegeService {
                 .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
     }
 
-    /** Player chose "start over" on the resume prompt: drop the run and its checkpoint for good. */
+    /** Player declined the resume prompt: discard the saved run for good. */
     void abandonRun(String token) {
         if (token == null) return;
         runs.remove(token);
         checkpoints.delete(token);
+    }
+
+    /** Player explicitly requested a save from the HUD menu. */
+    Map<String, Object> saveRun(String token) {
+        SiegeRun run = lookup(token)
+                .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
+        if (run.getStatus() != RunStatus.ACTIVE) {
+            throw new IllegalArgumentException("This expedition has already ended.");
+        }
+        run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
+        return serialize(run);
     }
 
     // ---- Checkpoints (save mid-battle and at safe map states; resume later) --

@@ -50,6 +50,12 @@ public class SiegeController {
         return Map.of("ok", true);
     }
 
+    /** Force-save the current expedition so the player can leave and resume later. */
+    @PostMapping("/api/siege/run/save")
+    public Map<String, Object> saveRun(@RequestBody Map<String, Object> body) {
+        return siege.saveRun(str(body.get("token")));
+    }
+
     /** Travel to a reachable map node: body { token, nodeId }. */
     @PostMapping("/api/siege/node/enter")
     public Map<String, Object> enterNode(@RequestBody Map<String, Object> body) {

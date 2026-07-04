@@ -121,6 +121,7 @@
   function renderResumePrompt(run) {
     showScreen('resumeScreen');
     $('abandonBtn').classList.add('hidden');
+    updateRunMenuTriggers(false);
     var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
     var floor = node ? (node.row + 1) : 1;
     $('resumeFloor').textContent = '📍 Floor ' + floor;
@@ -166,18 +167,80 @@
       if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
     });
     $('resumeContinueBtn').addEventListener('click', function () { renderRun(); });
-    $('resumeRestartBtn').addEventListener('click', function () {
-      if (!confirm('Start over? Your current expedition (progress, gold, party) will be lost.')) return;
-      var t = token();
-      setToken(null); state.run = null; state.party = []; state.knightId = null;
-      api('/api/siege/run/abandon', { method: 'POST', body: { token: t } }).catch(function () {}).then(loadRoster);
+    $('resumeRestartBtn').addEventListener('click', restartRun);
+    wireRunMenu();
+  }
+
+  function wireRunMenu() {
+    document.querySelectorAll('.run-menu-trigger').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openRunMenu(btn);
+      });
     });
+    $('runMenuBackdrop').addEventListener('click', closeRunMenu);
+    $('runMenuSave').addEventListener('click', saveRun);
+    $('runMenuRestart').addEventListener('click', function () { closeRunMenu(); restartRun(); });
+    $('runMenuQuit').addEventListener('click', function () { closeRunMenu(); quitRun(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('runMenu').classList.contains('hidden')) closeRunMenu();
+    });
+  }
+
+  function openRunMenu(trigger) {
+    $('runMenu').classList.remove('hidden');
+    document.querySelectorAll('.run-menu-trigger').forEach(function (btn) {
+      btn.setAttribute('aria-expanded', btn === trigger ? 'true' : 'false');
+    });
+  }
+
+  function closeRunMenu() {
+    $('runMenu').classList.add('hidden');
+    document.querySelectorAll('.run-menu-trigger').forEach(function (btn) {
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  function updateRunMenuTriggers(show) {
+    document.querySelectorAll('.run-menu-trigger').forEach(function (btn) {
+      btn.classList.toggle('hidden', !show);
+    });
+    if (!show) closeRunMenu();
+  }
+
+  function saveRun() {
+    if (state.busy || !state.run || state.run.status !== 'ACTIVE') return;
+    closeRunMenu();
+    state.busy = true;
+    api('/api/siege/run/save', { method: 'POST', body: { token: token() } })
+      .then(function (run) {
+        state.run = run;
+        toast(run.checkpoint ? 'Progress saved — resume anytime from Play.' : 'Could not save right now. Try again on the map or in battle.');
+        renderRun();
+      })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  function restartRun() {
+    if (!confirm('Start over? Your current expedition (progress, gold, party) will be lost.')) return;
+    var t = token();
+    setToken(null); state.run = null; state.party = []; state.knightId = null;
+    closeRunMenu();
+    api('/api/siege/run/abandon', { method: 'POST', body: { token: t } }).catch(function () {}).then(loadRoster);
+  }
+
+  function quitRun() {
+    if (!confirm('Leave expedition? Your progress stays saved — you can continue later from Play.')) return;
+    closeRunMenu();
+    location.href = '/play';
   }
 
   // ---- team select (paged: knight → warband) ---------------------------
   function renderSetup() {
     showScreen('setupScreen');
     $('abandonBtn').classList.add('hidden');
+    updateRunMenuTriggers(false);
     var onKnight = state.setupStep === 'knight';
     $('setupStepKnight').classList.toggle('hidden', !onKnight);
     $('setupStepParty').classList.toggle('hidden', onKnight);
@@ -331,8 +394,10 @@
   // ---- run router ----------------------------------------------------
   function renderRun() {
     var run = state.run;
-    if (!run) { loadRoster(); return; }
-    $('abandonBtn').classList.toggle('hidden', run.status !== 'ACTIVE');
+    if (!run) { updateRunMenuTriggers(false); loadRoster(); return; }
+    var active = run.status === 'ACTIVE';
+    $('abandonBtn').classList.toggle('hidden', !active);
+    updateRunMenuTriggers(active);
     if (run.battle) { renderBattle(); return; }
     if (run.status === 'WON' || run.status === 'LOST') { renderResult(); return; }
     if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
