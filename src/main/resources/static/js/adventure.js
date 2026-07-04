@@ -810,6 +810,8 @@
         (isThreatened ? ' threatened' : ''));
       sp.dataset.id = u.id; sp.dataset.side = u.side;
       sp.style.setProperty('--idle-delay', (idx * 0.45) + 's');
+      // Evolved forms stand taller: 1.5× more space and art size per evolution stage.
+      if (u.evoStage > 0) sp.style.setProperty('--evo-scale', Math.pow(1.5, u.evoStage));
       var pct = Math.max(0, Math.round(100 * u.hp / Math.max(1, u.maxHp)));
       var shield = u.shield > 0 ? '<span class="sp-shield">🛡' + u.shield + '</span>' : '';
       var buff = u.attackBuff > 0 ? '<span class="sp-buff">⚔+' + u.attackBuff + '</span>' : '';

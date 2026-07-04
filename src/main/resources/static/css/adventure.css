@@ -369,17 +369,19 @@ body[data-screen="mapScreen"] #mapScreen{
 .foe-line{margin-bottom:6px;}
 .ally-line{margin-top:6px;}
 
-/* character sprite (overlay cutout standing on the field) */
-.sprite{position:relative; width:120px; max-width:26vw; text-align:center; cursor:default;}
+/* character sprite (overlay cutout standing on the field).
+   --evo-scale grows the footprint and art 1.5× per evolution stage, so evolved
+   forms always read as bigger than the base Siegeling they came from. */
+.sprite{position:relative; width:calc(120px * var(--evo-scale,1)); max-width:calc(26vw * var(--evo-scale,1)); text-align:center; cursor:default;}
 .sprite .sp-art{
-  position:relative; height:110px; display:flex; align-items:flex-end; justify-content:center;
+  position:relative; height:calc(110px * var(--evo-scale,1)); display:flex; align-items:flex-end; justify-content:center;
   animation:idlebob 3.2s ease-in-out infinite; animation-delay:var(--idle-delay,0s);
   filter:drop-shadow(0 10px 12px rgba(0,0,0,.45));
 }
-.sprite .sp-art img{max-height:110px; max-width:100%; object-fit:contain; pointer-events:none; user-select:none;}
+.sprite .sp-art img{max-height:calc(110px * var(--evo-scale,1)); max-width:100%; object-fit:contain; pointer-events:none; user-select:none;}
 .sprite.enemy .sp-art img{transform:scaleX(-1);}
 .sprite .sp-art-fallback span{
-  font-size:56px; opacity:.8;
+  font-size:calc(56px * var(--evo-scale,1)); opacity:.8;
   filter:drop-shadow(0 0 14px var(--el));
 }
 .sprite.enemy .sp-art-fallback span{filter:drop-shadow(0 0 14px var(--el)) grayscale(.2) brightness(.8);}
@@ -708,10 +710,10 @@ body[data-screen="mapScreen"] #mapScreen{
   .track-first{display:none;}
 
   .battle-stage{min-height:236px; padding:8px 4px 4px;}
-  .sprite{width:86px;}
-  .sprite .sp-art{height:64px;}
-  .sprite .sp-art img{max-height:64px;}
-  .sprite .sp-art-fallback span{font-size:38px;}
+  .sprite{width:calc(86px * var(--evo-scale,1));}
+  .sprite .sp-art{height:calc(64px * var(--evo-scale,1));}
+  .sprite .sp-art img{max-height:calc(64px * var(--evo-scale,1));}
+  .sprite .sp-art-fallback span{font-size:calc(38px * var(--evo-scale,1));}
   .sprite .sp-plate{padding:3px 5px 4px;}
   .sprite .sp-name{font-size:10px;}
   .foe-line,.ally-line{min-height:112px;}
@@ -745,7 +747,7 @@ body[data-screen="mapScreen"] #mapScreen{
 @media (min-width:900px){
   /* Larger screens: widen the battlefield, bigger sprites */
   .battle-stage{min-height:400px;}
-  .sprite{width:150px;}
-  .sprite .sp-art{height:130px;}
-  .sprite .sp-art img{max-height:130px;}
+  .sprite{width:calc(150px * var(--evo-scale,1));}
+  .sprite .sp-art{height:calc(130px * var(--evo-scale,1));}
+  .sprite .sp-art img{max-height:calc(130px * var(--evo-scale,1));}
 }
