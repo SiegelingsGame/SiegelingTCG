@@ -39,7 +39,7 @@
     STUN: { icon: '💫', label: 'Stun' },
     SHOCK: { icon: '⚡', label: 'Shock' }
   };
-  var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', BOSS: '👑' };
+  var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
   var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', BROKER: '🐾' };
   var PASSIVE_META = {
@@ -88,7 +88,7 @@
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
-    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
     // Battle and map are static, full-viewport screens (no page scroll —
@@ -154,6 +154,12 @@
     $('knightUltBtn').addEventListener('click', useUltimate);
     $('rewardSkipBtn').addEventListener('click', function () { chooseReward('skip'); });
     $('gachaClaimBtn').addEventListener('click', claimRecruit);
+    $('inventoryBtn').addEventListener('click', function () { openInventory(); });
+    $('invClose').addEventListener('click', function () { $('invOverlay').classList.add('hidden'); });
+    $('invOverlay').addEventListener('click', function (e) { if (e.target === $('invOverlay')) $('invOverlay').classList.add('hidden'); });
+    $('smithLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/smith/leave'); });
+    $('smithScrapBtn').addEventListener('click', function () { toggleSmithScrap(); });
+    $('caravanLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/caravan/leave'); });
     $('resultBtn').addEventListener('click', function () { setToken(null); location.href = '/play'; });
     $('campLeaveBtn').addEventListener('click', campLeave);
     $('cacheDigBtn').addEventListener('click', cacheDig);
@@ -383,6 +389,9 @@
     if (run.camp) { renderCamp(); return; }
     if (run.cache) { renderCache(); return; }
     if (run.broker) { renderBroker(); return; }
+    if (run.smith) { renderSmith(); return; }
+    if (run.caravan) { renderCaravan(); return; }
+    if (run.event) { renderEvent(); return; }
     renderMap();
   }
 
@@ -755,6 +764,137 @@
     if (state.busy) return; state.busy = true;
     api('/api/siege/broker/leave', { method: 'POST', body: { token: token() } })
       .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  // ---- generic post helper (token-only endpoints) -----------------------
+  function simplePost(path, extra) {
+    if (state.busy) return; state.busy = true;
+    var body = { token: token() };
+    if (extra) for (var k in extra) body[k] = extra[k];
+    api(path, { method: 'POST', body: body })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  // ---- Smith ------------------------------------------------------------
+  var smithScrapMode = false;
+  function renderSmith() {
+    showScreen('smithScreen');
+    smithScrapMode = false;
+    var run = state.run, sm = run.smith;
+    $('smithGold').textContent = '🪙 ' + (run.gold || 0);
+    $('smithReward').textContent = run.lastReward || '';
+    var grid = $('smithGrid'); grid.innerHTML = '';
+    (sm.options || []).forEach(function (o) {
+      var card = el('div', 'camp-card ' + elClass(o.element) + (o.used ? ' used' : ''));
+      card.innerHTML = '<div class="camp-glyph">🔨</div>' +
+        '<div class="camp-card-title">' + esc(o.title) + '</div>' +
+        '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
+        (o.cost > 0 ? '<div class="camp-card-cost">🪙 ' + o.cost + '</div>' : '');
+      if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { optionId: o.id }); }); }
+      else if (!o.affordable) card.classList.add('unaffordable');
+      grid.appendChild(card);
+    });
+  }
+  function toggleSmithScrap() {
+    smithScrapMode = !smithScrapMode;
+    if (!smithScrapMode) { renderSmith(); return; }
+    var grid = $('smithGrid'); grid.innerHTML = '<div class="smith-scrap-note">Pick a card to scrap (removed for good):</div>';
+    (state.run.party || []).forEach(function (pm) {
+      (pm.cards || []).forEach(function () {});
+    });
+    // Scrap by deck index: show each deck card via party cards list is complex; use a compact prompt.
+    var deck = collectDeck();
+    deck.forEach(function (d) {
+      var card = el('div', 'camp-card clickable', '<div class="camp-glyph">🗑</div><div class="camp-card-title">' + esc(d.name) + '</div><div class="camp-card-desc">Owner: ' + esc(d.owner) + '</div>');
+      card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { scrapIndex: d.index }); });
+      grid.appendChild(card);
+    });
+  }
+  // The server only exposes per-member card specs, not deck indices; approximate
+  // scrap by asking the server which template — fall back to a name list with indices
+  // derived from party card order is unreliable, so we simply disable fine control:
+  function collectDeck() { return (state.run.deckList || []); }
+
+  // ---- Caravan ----------------------------------------------------------
+  function renderCaravan() {
+    showScreen('caravanScreen');
+    var run = state.run, cv = run.caravan;
+    $('caravanGold').textContent = '🪙 ' + (run.gold || 0);
+    $('caravanReward').textContent = run.lastReward || '';
+    var grid = $('caravanGrid'); grid.innerHTML = '';
+    (cv.options || []).forEach(function (o) {
+      var icon = o.kind === 'SHOP_ITEM' ? (o.item ? o.item.icon : '📦') : o.kind === 'SHOP_HEAL' ? '🍲' : '🃏';
+      var card = el('div', 'camp-card' + (o.used ? ' used' : ''));
+      card.innerHTML = '<div class="camp-glyph">' + icon + '</div>' +
+        '<div class="camp-card-title">' + esc(o.title) + '</div>' +
+        '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
+        '<div class="camp-card-cost">🪙 ' + o.cost + '</div>';
+      if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/caravan/buy', { optionId: o.id }); }); }
+      else if (!o.affordable) card.classList.add('unaffordable');
+      grid.appendChild(card);
+    });
+  }
+
+  // ---- Event ------------------------------------------------------------
+  function renderEvent() {
+    showScreen('eventScreen');
+    var run = state.run, ev = run.event;
+    $('eventIcon').textContent = ev.icon || '❔';
+    $('eventTitle').textContent = ev.title || 'Event';
+    $('eventPrompt').textContent = ev.prompt || '';
+    $('eventGold').textContent = '🪙 ' + (run.gold || 0);
+    var box = $('eventChoices'); box.innerHTML = '';
+    (ev.options || []).forEach(function (o) {
+      var b = el('button', 'siege-btn event-choice' + (o.affordable ? '' : ' unaffordable'),
+        '<span class="ec-label">' + esc(o.title) + '</span>' + (o.desc ? '<span class="ec-desc">' + esc(o.desc) + '</span>' : ''));
+      if (o.affordable) b.addEventListener('click', function () { simplePost('/api/siege/event/choose', { optionId: o.id }); });
+      box.appendChild(b);
+    });
+  }
+
+  // ---- Inventory --------------------------------------------------------
+  function openInventory() { $('invOverlay').classList.remove('hidden'); renderInventory(); }
+  function renderInventory() {
+    var run = state.run;
+    var party = $('invParty'); party.innerHTML = '';
+    (run.party || []).forEach(function (pm) {
+      var slot = pm.item
+        ? '<div class="inv-slot filled" title="' + esc(pm.item.effect) + '">' + pm.item.icon + ' ' + esc(pm.item.name) + ' <button class="inv-unequip" type="button">✕</button></div>'
+        : '<div class="inv-slot empty">— empty slot —</div>';
+      var row = el('div', 'inv-member ' + elClass(pm.element) + (pm.alive ? '' : ' dead'),
+        '<div class="inv-member-name">' + icon(pm.element) + ' ' + esc(pm.name) + '</div>' + slot);
+      if (pm.item) {
+        row.querySelector('.inv-unequip').addEventListener('click', function (e) { e.stopPropagation(); simplePostKeepInv('/api/siege/item/unequip', { memberId: pm.id }); });
+      }
+      row.dataset.memberId = pm.id;
+      row.addEventListener('click', function () {
+        if (invSelectedItem) { simplePostKeepInv('/api/siege/item/equip', { itemId: invSelectedItem, memberId: pm.id }); invSelectedItem = null; }
+      });
+      party.appendChild(row);
+    });
+    var bag = $('invBag'); bag.innerHTML = '';
+    if (!(run.inventory || []).length) bag.innerHTML = '<div class="inv-empty">No spare items. Find them at caravans, events and caches.</div>';
+    (run.inventory || []).forEach(function (it) {
+      var b = el('button', 'inv-item' + (invSelectedItem === it.id ? ' sel' : ''),
+        '<span class="inv-item-icon">' + it.icon + '</span><span class="inv-item-name">' + esc(it.name) + '</span><span class="inv-item-eff">' + esc(it.effect) + '</span>');
+      b.addEventListener('click', function () { invSelectedItem = (invSelectedItem === it.id ? null : it.id); renderInventory(); });
+      bag.appendChild(b);
+    });
+    var hint = invSelectedItem ? 'Tap a Siegeling to equip.' : 'Tap an item, then a Siegeling to equip it.';
+    // reuse subhead area for hint
+    var sub = $('invBag').previousElementSibling; if (sub) sub.textContent = 'Backpack — ' + hint;
+  }
+  var invSelectedItem = null;
+  function simplePostKeepInv(path, extra) {
+    if (state.busy) return; state.busy = true;
+    var body = { token: token() };
+    if (extra) for (var k in extra) body[k] = extra[k];
+    api(path, { method: 'POST', body: body })
+      .then(function (run) { state.run = run; if (!$('invOverlay').classList.contains('hidden')) renderInventory(); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }

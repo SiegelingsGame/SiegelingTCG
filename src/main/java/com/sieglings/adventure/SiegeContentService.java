@@ -35,6 +35,53 @@ public class SiegeContentService {
     private final java.util.concurrent.ConcurrentHashMap<String, KnightPassive> classOverrides =
             new java.util.concurrent.ConcurrentHashMap<>();
 
+    /** Built-in carryable items plus any created from the dashboard (in-memory). */
+    private final java.util.LinkedHashMap<String, SiegeItem> items = new java.util.LinkedHashMap<>();
+    { seedDefaultItems(); }
+
+    private void seedDefaultItems() {
+        putItem(new SiegeItem("iron-charm", "Iron Charm", "\uD83D\uDEE1\uFE0F", "VITALITY", 12, "A sturdy charm."));
+        putItem(new SiegeItem("vigor-band", "Vigor Band", "\u2764\uFE0F", "VITALITY", 20, "Bursting with life."));
+        putItem(new SiegeItem("war-fang", "War Fang", "\u2694\uFE0F", "ATTACK", 3, "Hungry for battle."));
+        putItem(new SiegeItem("razor-sigil", "Razor Sigil", "\uD83D\uDD2A", "ATTACK", 5, "Cuts deep."));
+        putItem(new SiegeItem("swift-boots", "Swift Boots", "\uD83D\uDC5F", "SPEED", 3, "Fleet of foot."));
+        putItem(new SiegeItem("gale-plume", "Gale Plume", "\uD83C\uDF2C\uFE0F", "SPEED", 5, "Rides the wind."));
+        putItem(new SiegeItem("aegis-crest", "Aegis Crest", "\uD83D\uDEE1\uFE0F", "SHIELD", 8, "Wards the first blow."));
+        putItem(new SiegeItem("bulwark-totem", "Bulwark Totem", "\uD83E\uDDF1", "SHIELD", 14, "An immovable ward."));
+    }
+
+    void putItem(SiegeItem item) {
+        if (item != null && item.id() != null) items.put(item.id(), item);
+    }
+
+    java.util.List<SiegeItem> allItems() { return new java.util.ArrayList<>(items.values()); }
+
+    SiegeItem findItem(String id) { return id == null ? null : items.get(id); }
+
+    /** {@code count} distinct random items for rewards / shops. */
+    java.util.List<SiegeItem> randomItems(int count, Random rng) {
+        java.util.List<SiegeItem> pool = new java.util.ArrayList<>(items.values());
+        java.util.List<SiegeItem> out = new java.util.ArrayList<>();
+        while (out.size() < count && !pool.isEmpty()) out.add(pool.remove(rng.nextInt(pool.size())));
+        return out;
+    }
+
+    /** Dashboard item creation: kind must be VITALITY|ATTACK|SPEED|SHIELD. */
+    SiegeItem createItem(String name, String icon, String kind, int value) {
+        String k = kind == null ? "" : kind.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!java.util.Set.of("VITALITY", "ATTACK", "SPEED", "SHIELD").contains(k)) {
+            throw new IllegalArgumentException("Item kind must be VITALITY, ATTACK, SPEED or SHIELD.");
+        }
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Item name is required.");
+        String id = name.trim().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+        if (id.isBlank()) id = "item-" + Integer.toHexString(name.hashCode());
+        SiegeItem item = new SiegeItem(id, name.trim(),
+                icon == null || icon.isBlank() ? "\uD83D\uDCE6" : icon.trim(), k, Math.max(1, value),
+                java.beans.Introspector.decapitalize(name.trim()));
+        putItem(item);
+        return item;
+    }
+
     @Autowired
     private CardDefinitionService cardDefs;
 
@@ -477,7 +524,14 @@ public class SiegeContentService {
         int[] counts = new int[totalRows];
         for (int r = 0; r < totalRows; r++) {
             int rin = r % SEGMENT_ROWS;
-            if (rin == 0) counts[r] = 2 + rng.nextInt(2);            // 2–3 openers
+            if (rin == 0) {
+                int seg = segmentOf(rowOffset + r);
+                counts[r] = switch (Math.min(seg, 2)) {
+                    case 0 -> 3 + rng.nextInt(3);   // Squire: 3–5 main paths
+                    case 1 -> 2 + rng.nextInt(3);   // SiegeKnight: 2–4
+                    default -> 2 + rng.nextInt(2);  // Siegelord: 2–3
+                };
+            }
             else if (rin == SEGMENT_ROWS - 1) counts[r] = 1;          // the boss
             else if (rin == SEGMENT_ROWS - 2) counts[r] = 2;          // rest row
             else counts[r] = 2 + rng.nextInt(3);                      // 2–4
@@ -543,11 +597,17 @@ public class SiegeContentService {
         if (row == 2 && col == rowCount - 1) return NodeType.TREASURE;
         if (row == 3 && col == 0) return NodeType.BROKER;
         if (row == 4 && col == 0) return NodeType.ELITE;
+        // Guaranteed variety anchors for the new stops.
+        if (row == 3 && col == rowCount - 1) return NodeType.SMITH;
+        if (row == 4 && col == rowCount - 1) return NodeType.EVENT;
         int roll = rng.nextInt(100);
-        if (row >= 3 && roll < 16) return NodeType.ELITE;
-        if (roll < 30) return NodeType.TREASURE;
-        if (roll < 42) return NodeType.REST;
-        if (row >= 2 && roll < 52) return NodeType.BROKER;
+        if (row >= 3 && roll < 14) return NodeType.ELITE;
+        if (roll < 24) return NodeType.EVENT;
+        if (roll < 36) return NodeType.TREASURE;
+        if (roll < 46) return NodeType.REST;
+        if (row >= 1 && roll < 56) return NodeType.BROKER;
+        if (row >= 2 && roll < 66) return NodeType.SMITH;
+        if (row >= 2 && roll < 74) return NodeType.CARAVAN;
         return NodeType.BATTLE;
     }
 
@@ -558,6 +618,9 @@ public class SiegeContentService {
             case REST -> "Rest Camp";
             case TREASURE -> "Cache";
             case BROKER -> "Broker";
+            case SMITH -> "Smith";
+            case CARAVAN -> "Caravan";
+            case EVENT -> "Event";
             case BOSS -> "Boss";
         };
     }
@@ -672,6 +735,59 @@ public class SiegeContentService {
     }
 
     Map<String, KnightPassive> classOverrides() { return classOverrides; }
+
+    // ---- Event nodes (data-driven) ----------------------------------------
+
+    /** One event choice: outcome code + value, decoded by the service. */
+    record EventChoice(String label, String outcome, int value, String flavor) {}
+    /** An event definition: title/prompt/icon + 2-3 choices. */
+    record EventDef(String id, String title, String icon, String prompt, List<EventChoice> choices) {}
+
+    private final List<EventDef> events = buildEvents();
+
+    EventDef randomEvent(Random rng) {
+        return events.get(rng.nextInt(events.size()));
+    }
+
+    private List<EventDef> buildEvents() {
+        List<EventDef> out = new ArrayList<>();
+        out.add(new EventDef("traveler", "A Weary Traveler", "\uD83E\uDDD1", // 🧑
+                "A traveler shares your road. \u201CSpare a moment for a fellow wanderer?\u201D", List.of(
+                new EventChoice("Trade stories", "GOLD", 18, "The traveler tips you off to a hidden cache."),
+                new EventChoice("Share your rations", "ITEM_HEALTHCOST", 8, "Grateful, they press a trinket into your hand."),
+                new EventChoice("Walk on by", "NOTHING", 0, "You keep your own counsel."))));
+        out.add(new EventDef("bandit-toll", "Bandit Toll", "\uD83E\uDD77", // 🥷
+                "Bandits block the pass. \u201CPay the toll \u2014 or bleed for it.\u201D", List.of(
+                new EventChoice("Pay 30 gold", "PAY_GOLD", 30, "They step aside, grinning."),
+                new EventChoice("Fight them (ambush!)", "AMBUSH", 0, "Steel rings out \u2014 they strike first!"),
+                new EventChoice("Try to sneak past", "SNEAK", 12, "You slip into the brush\u2026"))));
+        out.add(new EventDef("stranger", "Mysterious Stranger", "\uD83E\uDDD9", // 🧙
+                "A cloaked figure offers a bargain. \u201CYour blood for my treasure.\u201D", List.of(
+                new EventChoice("Bleed for a relic (\u221215 HP)", "BLEED_ITEM", 15, "The pain is worth it."),
+                new EventChoice("Decline", "NOTHING", 0, "The figure fades into mist."))));
+        out.add(new EventDef("lost-child", "Lost Siegeling", "\uD83D\uDC23", // 🐣
+                "A frightened wild Siegeling watches from the ferns.", List.of(
+                new EventChoice("Coax it along", "RECRUIT_CHANCE", 0, "It follows, warily\u2026"),
+                new EventChoice("Leave a treat & go", "HEAL", 12, "It chirps thankfully as you leave."))));
+        out.add(new EventDef("abandoned-camp", "Abandoned Camp", "\u26FA", // ⛺
+                "Cold ashes and a half-packed pack. Something feels off.", List.of(
+                new EventChoice("Search carefully", "SEARCH", 0, "You sift the wreckage\u2026"),
+                new EventChoice("Rest here", "HEAL", 18, "You risk a short rest."),
+                new EventChoice("Move on", "NOTHING", 0, "Best not linger."))));
+        out.add(new EventDef("monster-tracks", "Monster Tracks", "\uD83D\uDC3E", // 🐾
+                "Huge tracks lead off the path \u2014 fresh, and deep.", List.of(
+                new EventChoice("Follow them (elite ambush!)", "AMBUSH_ELITE", 0, "You corner the beast \u2014 it lunges!"),
+                new EventChoice("Avoid them", "GOLD", 10, "You skirt danger and pocket some scrap."))));
+        out.add(new EventDef("treasure-map", "Treasure Map", "\uD83D\uDDFA\uFE0F", // 🗺️
+                "A tattered map marks an X not far off.", List.of(
+                new EventChoice("Dig at the X", "DIG_MAP", 0, "You dig, dirt flying\u2026"),
+                new EventChoice("Sell the map", "GOLD", 35, "A passing trader pays well."))));
+        out.add(new EventDef("oracle", "Wandering Oracle", "\uD83D\uDD2E", // 🔮
+                "An oracle reads the threads of fate for a fee.", List.of(
+                new EventChoice("Pay 15 for a blessing", "BLESS_SPEED", 15, "Foresight quickens your warband."),
+                new EventChoice("Ask nothing", "NOTHING", 0, "You trust your own path."))));
+        return out;
+    }
 
     void assignClass(String trainerId, KnightPassive passive) {
         if (trainerId == null || trainerId.isBlank()) return;

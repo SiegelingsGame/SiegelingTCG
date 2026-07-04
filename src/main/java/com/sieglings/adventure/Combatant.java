@@ -28,7 +28,7 @@ class Combatant {
     private int hp;
     private int shield;
     private int speed;                // base speed before status modifiers
-    private final int baseSpeed;
+    private int baseSpeed;
     private int attackBuff;           // flat bonus added to this unit's damage
     private int position = -1;        // notch index for player Siegelings; -1 for others
     private String sourceCardId;      // catalog card this unit was built from (evolution lookups)
@@ -36,6 +36,9 @@ class Combatant {
     private Combatant evolvedFrom;
     /** Battle-scoped evolution gauge: AP spent on this unit's own moves. */
     private int apSpent;
+
+    /** Equipped item id (one carried item per Siegeling), or null. */
+    private String itemId;
 
     /** Active elemental statuses → rounds remaining (BURN uses a battle-long duration). */
     private final Map<StatusKind, Integer> statuses = new EnumMap<>(StatusKind.class);
@@ -80,12 +83,15 @@ class Combatant {
     int getSpeed() { return speed; }
     void setSpeed(int speed) { this.speed = Math.max(0, speed); }
     int getBaseSpeed() { return baseSpeed; }
+    void setBaseSpeed(int baseSpeed) { this.baseSpeed = Math.max(1, baseSpeed); }
     int getAttackBuff() { return attackBuff; }
     void addAttackBuff(int amount) { this.attackBuff = Math.max(0, this.attackBuff + amount); }
     int getPosition() { return position; }
     void setPosition(int position) { this.position = position; }
     String getSourceCardId() { return sourceCardId; }
     void setSourceCardId(String sourceCardId) { this.sourceCardId = sourceCardId; }
+    String getItemId() { return itemId; }
+    void setItemId(String itemId) { this.itemId = itemId; }
     Combatant getEvolvedFrom() { return evolvedFrom; }
     void setEvolvedFrom(Combatant evolvedFrom) { this.evolvedFrom = evolvedFrom; }
     int getApSpent() { return apSpent; }

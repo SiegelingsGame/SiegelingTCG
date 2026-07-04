@@ -78,6 +78,20 @@ class SiegeRun {
     /** A just-joined Siegeling awaiting its gacha-style reveal (null when none). */
     private java.util.Map<String, Object> pendingRecruit;
 
+    /** Unequipped items carried by the warband (equipped items live on Combatants). */
+    private final List<String> inventory = new ArrayList<>();
+
+    // Smith / Caravan / Event interactive stops (each reuses the CampOption shape).
+    private boolean inSmith;
+    private final List<CampOption> smithOptions = new ArrayList<>();
+    private boolean inCaravan;
+    private final List<CampOption> caravanOptions = new ArrayList<>();
+    private boolean inEvent;
+    private String eventTitle = "";
+    private String eventPrompt = "";
+    private String eventIcon = "";
+    private final List<CampOption> eventOptions = new ArrayList<>();
+
     /** Whether the run's last idle checkpoint reached persistent storage. */
     private boolean checkpointSaved;
 
@@ -170,6 +184,26 @@ class SiegeRun {
     java.util.Map<String, Object> getPendingRecruit() { return pendingRecruit; }
     void setPendingRecruit(java.util.Map<String, Object> pendingRecruit) { this.pendingRecruit = pendingRecruit; }
 
+    List<String> getInventory() { return inventory; }
+
+    boolean isInSmith() { return inSmith; }
+    void setInSmith(boolean inSmith) { this.inSmith = inSmith; }
+    List<CampOption> getSmithOptions() { return smithOptions; }
+
+    boolean isInCaravan() { return inCaravan; }
+    void setInCaravan(boolean inCaravan) { this.inCaravan = inCaravan; }
+    List<CampOption> getCaravanOptions() { return caravanOptions; }
+
+    boolean isInEvent() { return inEvent; }
+    void setInEvent(boolean inEvent) { this.inEvent = inEvent; }
+    String getEventTitle() { return eventTitle; }
+    void setEventTitle(String eventTitle) { this.eventTitle = eventTitle == null ? "" : eventTitle; }
+    String getEventPrompt() { return eventPrompt; }
+    void setEventPrompt(String eventPrompt) { this.eventPrompt = eventPrompt == null ? "" : eventPrompt; }
+    String getEventIcon() { return eventIcon; }
+    void setEventIcon(String eventIcon) { this.eventIcon = eventIcon == null ? "" : eventIcon; }
+    List<CampOption> getEventOptions() { return eventOptions; }
+
     boolean isCheckpointSaved() { return checkpointSaved; }
     void setCheckpointSaved(boolean checkpointSaved) { this.checkpointSaved = checkpointSaved; }
 
@@ -189,7 +223,8 @@ class SiegeRun {
     List<Integer> reachableNodeIds() {
         List<Integer> out = new ArrayList<>();
         if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()
-                || inCamp || inCache || inBroker) return out;
+                || inCamp || inCache || inBroker || inSmith || inCaravan || inEvent
+                || pendingRecruit != null) return out;
         SiegeNode current = currentNode();
         if (current == null) {
             for (SiegeNode n : map) {

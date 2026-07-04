@@ -73,6 +73,16 @@ public class SiegeCombatEngine {
                     default -> { } // HEALTH is baked into max HP; LOOT affects gold only
                 }
             }
+            // Carried item bonus (VITALITY is baked into max HP on equip).
+            SiegeItem item = content.findItem(ally.getItemId());
+            if (item != null) {
+                switch (item.kind()) {
+                    case "ATTACK" -> ally.addAttackBuff(item.value());
+                    case "SPEED" -> ally.setSpeed(ally.getSpeed() + item.value());
+                    case "SHIELD" -> ally.setShield(ally.getShield() + item.value());
+                    default -> { }
+                }
+            }
             battle.getCombatants().add(ally);
         }
         if (knight != null) {
