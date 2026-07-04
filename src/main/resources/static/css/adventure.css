@@ -48,20 +48,29 @@ button{font-family:inherit;}
    scrolls — only designated internal regions (the map canvas) do. This
    pins the bottom HUD/team-info blocks in place instead of letting page
    scroll shove them around or clip them under mobile browser chrome. */
-html{height:100%;}
+html{height:100%; overscroll-behavior:none;}
 body[data-screen="battleScreen"], body[data-screen="mapScreen"]{
-  height:100dvh; overflow:hidden;
+  height:100dvh; max-height:100dvh;
+  overflow:hidden; overscroll-behavior:none;
+  width:100%; position:fixed; inset:0;
 }
 body[data-screen="battleScreen"] .siege-app,
 body[data-screen="mapScreen"] .siege-app{
-  height:100dvh; overflow:hidden; min-height:0;
-  display:flex; flex-direction:column; padding-bottom:0;
+  height:100%; max-height:100%;
+  overflow:hidden; min-height:0;
+  display:flex; flex-direction:column;
+  padding:
+    env(safe-area-inset-top, 0px)
+    max(16px, env(safe-area-inset-right, 0px))
+    env(safe-area-inset-bottom, 0px)
+    max(16px, env(safe-area-inset-left, 0px));
 }
 body[data-screen="battleScreen"] .siege-topbar,
 body[data-screen="mapScreen"] .siege-topbar{ flex:0 0 auto; position:static; }
 body[data-screen="battleScreen"] #battleScreen{
   flex:1 1 auto; min-height:0; overflow:hidden;
   display:flex; flex-direction:column;
+  padding:0;
 }
 /* .battle-stage is the only child that should absorb any leftover height in
    the #battleScreen flex column — otherwise it sits at its content height and
@@ -78,6 +87,10 @@ body[data-screen="battleScreen"] .battle-hud{ flex:0 0 auto; }
 body[data-screen="mapScreen"] #mapScreen{
   flex:1 1 auto; min-height:0; overflow:hidden;
   display:flex; flex-direction:column;
+  padding:0;
+}
+body[data-screen="mapScreen"] .map-scroll{
+  flex:1 1 auto; min-height:0;
 }
 
 .siege-screen{padding:14px 0;}
@@ -285,14 +298,14 @@ body[data-screen="mapScreen"] #mapScreen{
    body[data-screen="mapScreen"] rules above for the static full-height shell). */
 .map-bottom{
   flex:0 0 auto; z-index:12;
-  padding:8px 0 10px;
+  padding:8px 0 max(10px, env(safe-area-inset-bottom, 0px));
   background:linear-gradient(transparent, var(--bg) 26%);
 }
 .map-bottom .party-strip{margin-bottom:0; margin-top:6px;}
 .map-bottom .map-reward{margin-bottom:2px;}
 .map-bottom .map-meta{margin-bottom:0;}
 .map-scroll{
-  position:relative; overflow:auto; flex:1 1 auto; min-height:280px;
+  position:relative; overflow:auto; flex:1 1 auto; min-height:0;
   border:1px solid var(--border); border-radius:14px;
   background:
     radial-gradient(700px 340px at 50% 0%, rgba(255,154,60,.07), transparent 70%),
@@ -722,6 +735,14 @@ body[data-screen="mapScreen"] #mapScreen{
       env(safe-area-inset-top, 0px)
       max(10px, env(safe-area-inset-right, 0px))
       10px
+      max(10px, env(safe-area-inset-left, 0px));
+  }
+  body[data-screen="mapScreen"] .siege-app,
+  body[data-screen="battleScreen"] .siege-app{
+    padding:
+      env(safe-area-inset-top, 0px)
+      max(10px, env(safe-area-inset-right, 0px))
+      env(safe-area-inset-bottom, 0px)
       max(10px, env(safe-area-inset-left, 0px));
   }
   .siege-topbar{padding:8px 0 6px;}

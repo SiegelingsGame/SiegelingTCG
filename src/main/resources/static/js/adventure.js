@@ -94,6 +94,24 @@
     // Battle and map are static, full-viewport screens (no page scroll —
     // only their own internal regions, like the map canvas, scroll).
     document.body.dataset.screen = id;
+    if (id === 'mapScreen' || id === 'battleScreen') resetPageScroll();
+  }
+
+  function resetPageScroll() {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+
+  function focusMapScroll(scroll, focusY) {
+    if (!scroll) return;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        var target = Math.max(0, focusY - scroll.clientHeight * 0.62);
+        var maxScroll = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+        scroll.scrollTop = Math.min(target, maxScroll);
+      });
+    });
   }
   function toast(msg) {
     var t = $('siegeToast'); if (!t) return;
@@ -424,6 +442,7 @@
 
   function renderMap() {
     showScreen('mapScreen');
+    resetPageScroll();
     var run = state.run;
     renderPartyStrip($('partyStrip'), run.party, run.knight);
     $('mapGold').textContent = '🪙 ' + (run.gold || 0);
@@ -527,13 +546,12 @@
       svg.appendChild(g);
     });
 
-    // Keep the action in view: scroll to the current position (or the start).
+    // Keep the current node in view inside the map canvas only — never scroll
+    // the page itself, so the top bar and bottom HUD stay pinned on screen.
     var scroll = $('mapScroll');
     var focus = nodes.find(function (n) { return n.current; });
     var focusY = focus ? pos(focus).y : height;
-    setTimeout(function () {
-      scroll.scrollTop = Math.max(0, focusY - scroll.clientHeight * 0.6);
-    }, 30);
+    focusMapScroll(scroll, focusY);
   }
 
   function travelTo(nodeId) {
