@@ -88,7 +88,7 @@
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
-    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
     // Battle and map are static, full-viewport screens (no page scroll —
@@ -153,6 +153,7 @@
     $('endTurnBtn').addEventListener('click', endTurn);
     $('knightUltBtn').addEventListener('click', useUltimate);
     $('rewardSkipBtn').addEventListener('click', function () { chooseReward('skip'); });
+    $('gachaClaimBtn').addEventListener('click', claimRecruit);
     $('resultBtn').addEventListener('click', function () { setToken(null); location.href = '/play'; });
     $('campLeaveBtn').addEventListener('click', campLeave);
     $('cacheDigBtn').addEventListener('click', cacheDig);
@@ -374,6 +375,9 @@
     if (!run) { loadRoster(); return; }
     $('abandonBtn').classList.toggle('hidden', run.status !== 'ACTIVE');
     if (run.battle) { renderBattle(); return; }
+    // A freshly joined Siegeling gets its gacha reveal before anything else —
+    // claim it, then the normal reward flow continues.
+    if (run.recruit) { renderRecruitReveal(); return; }
     if (run.status === 'WON' || run.status === 'LOST') { renderResult(); return; }
     if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
     if (run.camp) { renderCamp(); return; }
@@ -1805,6 +1809,54 @@
   }
 
   // ---- result --------------------------------------------------------
+  // ---- gacha-style join reveal ------------------------------------------
+  function renderRecruitReveal() {
+    showScreen('recruitScreen');
+    var r = state.run.recruit;
+    var stage = r.stage || 1;
+    var stageCls = stage >= 3 ? 'stage3' : stage === 2 ? 'stage2' : 'stage1';
+    var el3 = elClass(r.element);
+
+    var gs = $('gachaStage');
+    gs.className = 'gacha-stage ' + stageCls + ' ' + el3;
+    // Restart the pop animation on each reveal.
+    void gs.offsetWidth;
+    gs.classList.add('go');
+
+    $('gachaBanner').textContent = stage >= 3 ? '✦ LEGENDARY MUSTER ✦' : stage === 2 ? '✦ Rare Muster ✦' : 'A Siegeling joins!';
+    $('gachaName').innerHTML = icon(r.element) + ' ' + esc(r.name);
+    $('gachaStats').textContent = '❤ ' + (r.hp || '?') + ' · ⚡ ' + (r.speed || '?') + ' · 🃏 ' + (r.moveCount || 0) + ' moves join your deck';
+
+    var stars = '';
+    for (var i = 0; i < stage; i++) stars += '★';
+    $('gachaStars').textContent = stars;
+
+    var art = $('gachaArt');
+    art.innerHTML = r.artUrl
+      ? '<img src="' + artAttr(r.artUrl) + '" alt="" onerror="this.parentNode.innerHTML=\'<span class=&quot;gacha-fallback&quot;>' + icon(r.element) + '</span>\'">'
+      : '<span class="gacha-fallback">' + icon(r.element) + '</span>';
+
+    // Sparkle field
+    var sp = $('gachaSparkles'); sp.innerHTML = '';
+    for (var k = 0; k < 18; k++) {
+      var dot = el('span', 'gacha-spark');
+      dot.style.left = (5 + Math.random() * 90) + '%';
+      dot.style.top = (5 + Math.random() * 80) + '%';
+      dot.style.animationDelay = (Math.random() * 2.4) + 's';
+      dot.style.fontSize = (9 + Math.random() * 14) + 'px';
+      dot.textContent = '✦';
+      sp.appendChild(dot);
+    }
+  }
+
+  function claimRecruit() {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/recruit/ack', { method: 'POST', body: { token: token() } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
   function renderResult() {
     showScreen('resultScreen');
     var run = state.run;

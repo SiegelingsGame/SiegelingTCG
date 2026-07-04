@@ -200,7 +200,28 @@ public class SiegeService {
             String prior = run.getLastReward();
             run.setLastReward((prior == null || prior.isBlank() ? "" : prior + " ")
                     + s.getName() + flavorSuffix + stageNote);
+            queueRecruitReveal(run, s, member);
         });
+    }
+
+    /** Queues the gacha-style join reveal the client shows before anything else. */
+    private void queueRecruitReveal(SiegeRun run, SieglingCard s, Combatant member) {
+        Map<String, Object> reveal = new LinkedHashMap<>();
+        reveal.put("name", s.getName());
+        reveal.put("element", s.getElement().name());
+        reveal.put("artUrl", s.getCardArtUrl());
+        reveal.put("stage", content.stageOf(s));
+        reveal.put("hp", member.getMaxHp());
+        reveal.put("speed", member.getBaseSpeed());
+        reveal.put("moveCount", content.moveCount(s));
+        run.setPendingRecruit(reveal);
+    }
+
+    /** Player acknowledged the join reveal; the run flow resumes. */
+    Map<String, Object> recruitAck(String token) {
+        SiegeRun run = require(token);
+        run.setPendingRecruit(null);
+        return serialize(run);
     }
 
     Optional<SiegeRun> lookup(String token) {
@@ -769,6 +790,7 @@ public class SiegeService {
                     run.getParty().add(member);
                     run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
                     run.setLastReward(s.getName() + " joined the warband!");
+                    queueRecruitReveal(run, s, member);
                 });
             }
             default -> { }
@@ -1187,6 +1209,7 @@ public class SiegeService {
                 run.getParty().add(member);
                 run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
                 run.setLastReward(s.getName() + " joined the warband!");
+                queueRecruitReveal(run, s, member);
             });
             default -> { }
         }
@@ -1309,6 +1332,7 @@ public class SiegeService {
         stats.put("goldEarned", run.getGoldEarnedTotal());
         m.put("stats", stats);
         m.put("endRewards", run.getEndRewards());
+        m.put("recruit", run.getPendingRecruit());
         if (run.getMercenary() != null) {
             Combatant merc = run.getMercenary();
             m.put("mercenary", Map.of("name", merc.getName(),

@@ -789,3 +789,66 @@ body[data-screen="mapScreen"] #mapScreen{
 .camp-card.clickable{cursor:pointer;}
 .camp-card.clickable:hover{border-color:var(--accent);}
 .camp-card.unaffordable{opacity:.5;}
+
+/* ---------- gacha-style Siegeling join reveal ---------- */
+#recruitScreen{padding:0;}
+.gacha-stage{
+  position:relative; min-height:calc(100vh - 70px); overflow:hidden;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; text-align:center; border-radius:14px;
+  background:radial-gradient(ellipse at 50% 45%, #1c2436 0%, #0b0e15 70%);
+}
+/* spinning ray burst behind the art */
+.gacha-rays{
+  position:absolute; left:50%; top:42%; width:160vmax; height:160vmax;
+  transform:translate(-50%,-50%);
+  background:repeating-conic-gradient(from 0deg,
+    rgba(255,255,255,0.07) 0deg 9deg, transparent 9deg 18deg);
+  animation:gachaSpin 24s linear infinite; opacity:.9;
+}
+.gacha-glow{
+  position:absolute; left:50%; top:42%; width:340px; height:340px;
+  transform:translate(-50%,-50%); border-radius:50%;
+  background:radial-gradient(circle, var(--el,#3ea6ff) 0%, transparent 65%);
+  opacity:.38; filter:blur(6px); animation:gachaPulse 2.2s ease-in-out infinite;
+}
+@keyframes gachaSpin{to{transform:translate(-50%,-50%) rotate(360deg);}}
+@keyframes gachaPulse{50%{opacity:.6; transform:translate(-50%,-50%) scale(1.12);}}
+
+.gacha-art{
+  position:relative; z-index:2; height:min(46vh,360px); display:flex;
+  align-items:flex-end; justify-content:center;
+  filter:drop-shadow(0 0 26px var(--el,#3ea6ff)) drop-shadow(0 14px 22px rgba(0,0,0,.55));
+}
+.gacha-art img{max-height:100%; max-width:78vw; object-fit:contain;}
+.gacha-fallback{font-size:120px; line-height:1;}
+.gacha-stage.go .gacha-art{animation:gachaPop .7s cubic-bezier(.2,1.6,.4,1) both .15s;}
+@keyframes gachaPop{0%{transform:scale(.2) translateY(60px); opacity:0;} 100%{transform:scale(1) translateY(0); opacity:1;}}
+
+.gacha-banner{
+  position:relative; z-index:2; font-size:13px; letter-spacing:3px; font-weight:800;
+  text-transform:uppercase; color:var(--dim);
+}
+.gacha-stars{position:relative; z-index:2; font-size:26px; letter-spacing:6px; color:#ffd55a; text-shadow:0 0 14px rgba(255,213,90,.8);}
+.gacha-name{position:relative; z-index:2; font-size:30px; font-weight:800; text-shadow:0 2px 14px rgba(0,0,0,.6);}
+.gacha-stats{position:relative; z-index:2; font-size:13.5px; color:var(--dim);}
+.gacha-claim{position:relative; z-index:2; margin-top:14px; padding:13px 40px; font-size:16px;}
+.gacha-stage.go .gacha-banner,.gacha-stage.go .gacha-stars,.gacha-stage.go .gacha-name,
+.gacha-stage.go .gacha-stats,.gacha-stage.go .gacha-claim{animation:gachaFadeUp .55s ease both .55s;}
+.gacha-stage.go .gacha-stars{animation-delay:.7s;}
+.gacha-stage.go .gacha-claim{animation-delay:.95s;}
+@keyframes gachaFadeUp{0%{opacity:0; transform:translateY(16px);} 100%{opacity:1; transform:translateY(0);}}
+
+.gacha-sparkles{position:absolute; inset:0; z-index:1; pointer-events:none;}
+.gacha-spark{position:absolute; color:#fff; opacity:0; animation:gachaTwinkle 2.6s ease-in-out infinite;}
+@keyframes gachaTwinkle{0%,100%{opacity:0; transform:scale(.4);} 50%{opacity:.9; transform:scale(1.15);}}
+
+/* stage rarity theming */
+.gacha-stage.stage1 .gacha-banner{color:#8fb7e8;}
+.gacha-stage.stage2{background:radial-gradient(ellipse at 50% 45%, #241c36 0%, #0d0b15 70%);}
+.gacha-stage.stage2 .gacha-banner{color:#c896ff; text-shadow:0 0 12px rgba(200,150,255,.6);}
+.gacha-stage.stage2 .gacha-rays{background:repeating-conic-gradient(from 0deg, rgba(200,150,255,0.12) 0deg 9deg, transparent 9deg 18deg);}
+.gacha-stage.stage3{background:radial-gradient(ellipse at 50% 45%, #362a12 0%, #120d05 70%);}
+.gacha-stage.stage3 .gacha-banner{color:#ffd55a; text-shadow:0 0 16px rgba(255,213,90,.85);}
+.gacha-stage.stage3 .gacha-rays{background:repeating-conic-gradient(from 0deg, rgba(255,213,90,0.16) 0deg 9deg, transparent 9deg 18deg); animation-duration:14s;}
+.gacha-stage.stage3 .gacha-glow{opacity:.55;}

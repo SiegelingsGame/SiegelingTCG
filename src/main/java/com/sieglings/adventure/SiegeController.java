@@ -131,6 +131,12 @@ public class SiegeController {
         return siege.continueRun(str(body.get("token")), authorizationHeader);
     }
 
+    /** Player closed the gacha-style join reveal: body { token }. */
+    @PostMapping("/api/siege/recruit/ack")
+    public Map<String, Object> recruitAck(@RequestBody Map<String, Object> body) {
+        return siege.recruitAck(str(body.get("token")));
+    }
+
     /** Resolve a CHESTS / WHEEL cache mini-game pick: body { token, optionId }. */
     @PostMapping("/api/siege/cache/choose")
     public Map<String, Object> cacheChoose(@RequestBody Map<String, Object> body) {
