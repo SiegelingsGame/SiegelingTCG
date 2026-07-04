@@ -41,6 +41,7 @@ public class SpellCard extends Card {
         c.setCardArtScale(getCardArtScale());
         c.setCardArtRotation(getCardArtRotation());
         c.setHolographic(isHolographic());
+        c.setDescription(getDescription());
         return c;
     }
 
