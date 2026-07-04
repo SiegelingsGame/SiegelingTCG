@@ -288,3 +288,40 @@ win counts:
 Verified end-to-end via `/api/siege/**`: solo start → win → auto-recruit; chest cache;
 merc rental → fought as 4th ally → departed after victory; endless run creation;
 end-reward preview on defeat; classes endpoint listing all six classes.
+
+## v9 — Items, Smith, Caravan, Events, broker rework, path variety
+
+- **Brokers sell Siegelings again**: when the warband has room (<3), brokers offer
+  Siegelings to **add** to an open slot or **swap** in for a member (the released
+  member's gear returns to your inventory), alongside one mercenary rental. At 3
+  Siegelings the stall is **mercenary-rental only**, as specified. (Note: solo start +
+  a wild recruit after every battle win fills the team to 3 quickly, so in practice the
+  first broker is often already merc-only — lower the recruit rate or allow swap-at-full
+  if the sell window should be wider.)
+- **Path variety per boss region**: Squire segment now opens with **3–5** main paths,
+  the rogue-SiegeKnight segment **2–4**, the Siegelord segment **2–3** (verified live).
+- **Smith node**: pay to **chisel** a deck card into a stronger version, or **scrap** a
+  card to thin the deck.
+- **Item system**: each Siegeling carries **one item** (VITALITY raises max HP while
+  equipped; ATTACK/SPEED/SHIELD apply at battle start). A **🎒 inventory** panel on the
+  map equips/unequips items; items drop from events, caches and the **Merchant Caravan**
+  (a shop of items + a card + healing). Items are **created from the card dashboard**
+  ("Siege Items" panel, editor-auth `GET/POST /api/siege/items`); 8 built-ins ship by
+  default. Item definitions are in-memory for now (reset on redeploy).
+- **Event nodes** (data-driven `EventDef`): a random narrative stop with 2–3 choices and
+  outcomes (gold, heal, item, recruit, ambush battle, blessing). Seeded set: Weary
+  Traveler, Bandit Toll, Mysterious Stranger, Lost Siegeling, Abandoned Camp, Monster
+  Tracks, Treasure Map, Wandering Oracle. More can be added as pure data.
+- **Ambush** battle modifier: enemies start with extra shield/attack/speed and strike
+  first; used by several event outcomes (Bandit Toll fight, Monster Tracks, trapped camp).
+
+**Deferred (data-extendable follow-ups):** the fuller node catalogs from the design
+brief — Black Market / Auction House shops, the Upgrade shrines (Trainer, Evolution
+Shrine, Skill Dojo, Elemental Shrine, Fusion Forge, Memory Crystal), the dedicated
+Gambling nodes (Fortune Wheel, Dice Dealer, Slot Machine…), Story nodes, and Route
+Manipulation (Scout Tower, Teleport Gate, Bridge Builder, Collapse, Compass). The Event
+framework and item/shop plumbing added here are the substrate these slot into as data.
+
+Verified live via `/api/siege/**`: per-segment opener counts (3–5 / 2–4 / 2–3), all new
+node types generating, Smith chisel, Caravan, Event choices + event-triggered ambush
+battles, item equip raising max HP (VITALITY), and broker merc-only gating at a full team.

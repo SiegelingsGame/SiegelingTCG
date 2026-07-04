@@ -143,6 +143,65 @@ public class SiegeController {
         return siege.cacheChoose(str(body.get("token")), str(body.get("optionId")));
     }
 
+    @PostMapping("/api/siege/smith/choose")
+    public Map<String, Object> smithChoose(@RequestBody Map<String, Object> body) {
+        Integer scrap = null;
+        Object si = body.get("scrapIndex");
+        if (si != null && !"null".equals(String.valueOf(si))) {
+            try { scrap = Integer.parseInt(String.valueOf(si)); } catch (NumberFormatException ignored) { }
+        }
+        return siege.smithChoose(str(body.get("token")), str(body.get("optionId")), scrap);
+    }
+
+    @PostMapping("/api/siege/smith/leave")
+    public Map<String, Object> smithLeave(@RequestBody Map<String, Object> body) {
+        return siege.smithLeave(str(body.get("token")));
+    }
+
+    @PostMapping("/api/siege/caravan/buy")
+    public Map<String, Object> caravanBuy(@RequestBody Map<String, Object> body) {
+        return siege.caravanBuy(str(body.get("token")), str(body.get("optionId")));
+    }
+
+    @PostMapping("/api/siege/caravan/leave")
+    public Map<String, Object> caravanLeave(@RequestBody Map<String, Object> body) {
+        return siege.caravanLeave(str(body.get("token")));
+    }
+
+    /** Resolve an event choice: body { token, optionId }. */
+    @PostMapping("/api/siege/event/choose")
+    public Map<String, Object> eventChoose(@RequestBody Map<String, Object> body) {
+        return siege.eventChoose(str(body.get("token")), str(body.get("optionId")));
+    }
+
+    /** Equip an inventory item onto a Siegeling: body { token, itemId, memberId }. */
+    @PostMapping("/api/siege/item/equip")
+    public Map<String, Object> equipItem(@RequestBody Map<String, Object> body) {
+        return siege.equipItem(str(body.get("token")), str(body.get("itemId")), str(body.get("memberId")));
+    }
+
+    @PostMapping("/api/siege/item/unequip")
+    public Map<String, Object> unequipItem(@RequestBody Map<String, Object> body) {
+        return siege.unequipItem(str(body.get("token")), str(body.get("memberId")));
+    }
+
+    /** Dashboard: list all Siege items. */
+    @GetMapping("/api/siege/items")
+    public Map<String, Object> listItems() {
+        return siege.listItems();
+    }
+
+    /** Dashboard: create a Siege item (editor-authenticated). */
+    @PostMapping("/api/siege/items")
+    public Map<String, Object> createItem(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        int value;
+        try { value = Integer.parseInt(String.valueOf(body.get("value"))); }
+        catch (NumberFormatException e) { throw new IllegalArgumentException("Item value must be a number."); }
+        return siege.createItem(editorToken, str(body.get("name")), str(body.get("icon")), str(body.get("kind")), value);
+    }
+
     /** Dashboard: knights with their roguelike class (hash default or override). */
     @GetMapping("/api/siege/classes")
     public Map<String, Object> listClasses() {

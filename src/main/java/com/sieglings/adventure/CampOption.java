@@ -86,4 +86,21 @@ class CampOption {
     static CampOption cache(String id, String kind, String title, String desc, int cost) {
         return new CampOption(id, kind, title, desc, cost, null, null, null, null, -1, null);
     }
+
+    /** An item on offer at a shop/caravan — sieglingId carries the item id. */
+    static CampOption shopItem(String id, SiegeItem item, int cost) {
+        return new CampOption(id, "SHOP_ITEM", item.name() + " " + item.icon(),
+                item.effectText(), cost, null, null, null, null, -1, item.id());
+    }
+
+    /** A Smith option: chisel (upgrade) or scrap (destroy) a deck template. */
+    static CampOption smith(String id, String kind, String title, String desc, Element element, int templateIndex, int cost) {
+        return new CampOption(id, kind, title, desc, cost, element, null, null, null, templateIndex, null);
+    }
+
+    /** A generic event choice; outcome is decoded by SiegeService.eventChoose. */
+    static CampOption event(String id, String outcome, String title, String desc, int cost, int value) {
+        // Reuse templateIndex to carry the outcome value.
+        return new CampOption(id, "EV_" + outcome, title, desc, cost, null, null, null, null, value, null);
+    }
 }

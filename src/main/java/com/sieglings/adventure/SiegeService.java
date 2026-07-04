@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -296,9 +297,12 @@ public class SiegeService {
             p.put("hp", c.getHp());
             p.put("maxHp", c.getMaxHp());
             p.put("position", c.getPosition());
+            p.put("itemId", c.getItemId());
+            p.put("baseSpeed", c.getBaseSpeed());
             party.add(p);
         }
         s.put("party", party);
+        s.put("inventory", new ArrayList<>(run.getInventory()));
         List<Map<String, Object>> deck = new ArrayList<>();
         for (SiegeCard card : run.getDeckTemplates()) {
             Map<String, Object> d = new LinkedHashMap<>();
@@ -496,6 +500,9 @@ public class SiegeService {
             run.setEnemiesDefeated(intVal(s.get("enemiesDefeated"), 0));
             run.setGoldEarnedTotal(intVal(s.get("goldEarnedTotal"), 0));
             run.setCurrentNodeId(intVal(s.get("currentNodeId"), -1));
+            if (s.get("inventory") instanceof List) {
+                for (Object it : (List<Object>) s.get("inventory")) run.getInventory().add(String.valueOf(it));
+            }
 
             for (Map<String, Object> p : (List<Map<String, Object>>) s.get("party")) {
                 String sourceId = String.valueOf(p.get("sourceCardId"));
@@ -507,6 +514,8 @@ public class SiegeService {
                 m.setSourceCardId(sourceId);
                 m.setHp(intVal(p.get("hp"), maxHp));
                 m.setPosition(intVal(p.get("position"), run.getParty().size()));
+                m.setBaseSpeed(intVal(p.get("baseSpeed"), Math.max(4, src.getSpeed())));
+                if (p.get("itemId") != null) m.setItemId(String.valueOf(p.get("itemId")));
                 run.getParty().add(m);
             }
             for (Map<String, Object> d : (List<Map<String, Object>>) s.get("deck")) {
@@ -586,22 +595,19 @@ public class SiegeService {
         run.setLastReward("");
 
         if (node.isBattle()) {
-            List<Element> palette = elementPaletteFor(run);
-            int segment = SiegeContentService.segmentOf(node.getRow());
-            // Compress depth so 24 rows (and endless loops) ramp gently.
-            int effFloor = node.getRow() % SiegeContentService.SEGMENT_ROWS + 1
-                    + segment * 4 + run.getLoop() * 4;
-            int partySize = (int) run.getParty().stream().filter(Combatant::isAlive).count()
-                    + (run.getMercenary() != null ? 1 : 0);
-            List<Combatant> enemies = content.generateEnemies(node.getType(), effFloor,
-                    Math.max(1, partySize), segment + run.getLoop(), rng, palette);
-            engine.startBattle(run, node.getType(), enemies, rng);
+            startNodeBattle(run, node, node.getType(), false);
         } else if (node.getType() == NodeType.REST) {
             openCamp(run);
         } else if (node.getType() == NodeType.TREASURE) {
             openCache(run);
         } else if (node.getType() == NodeType.BROKER) {
             openBroker(run);
+        } else if (node.getType() == NodeType.SMITH) {
+            openSmith(run);
+        } else if (node.getType() == NodeType.CARAVAN) {
+            openCaravan(run);
+        } else if (node.getType() == NodeType.EVENT) {
+            openEvent(run);
         } else {
             node.setCleared(true);
             checkpoint(run);
@@ -609,18 +615,59 @@ public class SiegeService {
         return serialize(run);
     }
 
+    /** Generates and starts a battle at the current node, optionally as an ambush. */
+    private void startNodeBattle(SiegeRun run, SiegeNode node, NodeType battleType, boolean ambush) {
+        List<Element> palette = elementPaletteFor(run);
+        int segment = SiegeContentService.segmentOf(node.getRow());
+        int effFloor = node.getRow() % SiegeContentService.SEGMENT_ROWS + 1
+                + segment * 4 + run.getLoop() * 4;
+        int partySize = (int) run.getParty().stream().filter(Combatant::isAlive).count()
+                + (run.getMercenary() != null ? 1 : 0);
+        List<Combatant> enemies = content.generateEnemies(battleType, effFloor,
+                Math.max(1, partySize), segment + run.getLoop(), rng, palette);
+        if (ambush) {
+            // Ambush: enemies get the drop on you — extra shield, bite, and haste.
+            for (Combatant foe : enemies) {
+                foe.setShield(foe.getShield() + 6);
+                foe.addAttackBuff(3);
+                foe.setSpeed(foe.getSpeed() + 6);
+            }
+        }
+        engine.startBattle(run, battleType, enemies, rng);
+        if (ambush && run.getBattle() != null) run.getBattle().log("Ambush! The enemy struck first.");
+    }
+
     // ---- Broker stall (recruit or swap Siegelings for gold) ----------------
 
     private static final int MERC_RENT_COST = 55;
+    private static final int BROKER_HIRE_COST = 45;
+    private static final int BROKER_SWAP_COST = 25;
 
-    /** Opens a broker stall: elite mercenaries for rent — one battle, then gone. */
+    /**
+     * Opens a broker stall. If the warband has room, Siegelings are for sale to
+     * add or swap; if it is already full (3), only mercenary rentals are offered.
+     */
     private void openBroker(SiegeRun run) {
         run.setInBroker(true);
         run.getBrokerOptions().clear();
         int oid = 0;
-        for (SieglingCard s : content.mercOffers(2, rng)) {
-            run.getBrokerOptions().add(CampOption.merc("b" + (oid++), s.getName(), s.getElement(),
-                    s.getCardArtUrl(), s.getId(), MERC_RENT_COST));
+        boolean full = run.getParty().size() >= content.partyMax();
+        if (full) {
+            for (SieglingCard s : content.mercOffers(2, rng)) {
+                run.getBrokerOptions().add(CampOption.merc("b" + (oid++), s.getName(), s.getElement(),
+                        s.getCardArtUrl(), s.getId(), MERC_RENT_COST));
+            }
+        } else {
+            List<String> names = run.getParty().stream().map(Combatant::getName).toList();
+            for (SieglingCard s : content.randomRecruits(3, names, rng)) {
+                run.getBrokerOptions().add(CampOption.broker("b" + (oid++), s.getName(), s.getElement(),
+                        s.getCardArtUrl(), s.getId(), BROKER_HIRE_COST));
+            }
+            // One mercenary is always available as an alternative.
+            for (SieglingCard s : content.mercOffers(1, rng)) {
+                run.getBrokerOptions().add(CampOption.merc("b" + (oid++), s.getName(), s.getElement(),
+                        s.getCardArtUrl(), s.getId(), MERC_RENT_COST));
+            }
         }
     }
 
@@ -635,18 +682,57 @@ public class SiegeService {
         CampOption pick = run.getBrokerOptions().stream()
                 .filter(o -> o.id.equals(optionId)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown broker offer."));
-        if (pick.used) throw new IllegalArgumentException("That mercenary has already been taken.");
-        if (run.getMercenary() != null) throw new IllegalArgumentException("A mercenary is already under contract.");
+        if (pick.used) throw new IllegalArgumentException("That offer has already been taken.");
         if (run.getGold() < pick.cost) throw new IllegalArgumentException("Not enough gold.");
-        SieglingCard s = content.findAnySiegling(pick.sieglingId)
-                .orElseThrow(() -> new IllegalArgumentException("That mercenary is gone."));
 
-        run.addGold(-pick.cost);
-        Combatant merc = content.toMercCombatant(s);
-        run.setMercenary(merc);
-        run.getMercCards().clear();
-        run.getMercCards().addAll(content.mercBoonCards(merc, s));
-        run.setLastReward(merc.getName() + " is under contract — it fights your NEXT battle with boon cards, then departs.");
+        if ("MERC".equals(pick.kind)) {
+            if (run.getMercenary() != null) throw new IllegalArgumentException("A mercenary is already under contract.");
+            SieglingCard s = content.findAnySiegling(pick.sieglingId)
+                    .orElseThrow(() -> new IllegalArgumentException("That mercenary is gone."));
+            run.addGold(-pick.cost);
+            Combatant merc = content.toMercCombatant(s);
+            run.setMercenary(merc);
+            run.getMercCards().clear();
+            run.getMercCards().addAll(content.mercBoonCards(merc, s));
+            run.setLastReward(merc.getName() + " is under contract — it fights your NEXT battle with boon cards, then departs.");
+            pick.used = true;
+            return serialize(run);
+        }
+
+        // Siegeling hire (add to an open slot) or swap (release a current member).
+        SieglingCard s = content.findSiegling(pick.sieglingId)
+                .orElseThrow(() -> new IllegalArgumentException("That Siegeling is gone."));
+        boolean swap = replaceId != null && !replaceId.isBlank() && !"null".equals(replaceId);
+        if (!swap && run.getParty().size() >= content.partyMax()) {
+            throw new IllegalArgumentException("The warband is full — swap a member or rent a mercenary instead.");
+        }
+        int cost = swap ? BROKER_SWAP_COST : BROKER_HIRE_COST;
+        if (run.getGold() < cost) throw new IllegalArgumentException("Not enough gold.");
+        run.addGold(-cost);
+        if (swap) {
+            Combatant leaving = run.getParty().stream()
+                    .filter(m -> m.getId().equals(replaceId)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown party member to swap out."));
+            int position = leaving.getPosition();
+            if (leaving.getItemId() != null) run.getInventory().add(leaving.getItemId()); // keep their gear
+            run.getParty().remove(leaving);
+            run.getDeckTemplates().removeIf(c -> c.getOwnerId().equals(leaving.getId()));
+            Combatant member = content.toPartyCombatant(s, run.getParty().size());
+            member.setPosition(position >= 0 ? position : run.getParty().size());
+            applyJoinBonus(run, member);
+            run.getParty().add(member);
+            run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            run.setLastReward(s.getName() + " joins the warband — " + leaving.getName() + " returns to the broker.");
+            queueRecruitReveal(run, s, member);
+        } else {
+            Combatant member = content.toPartyCombatant(s, run.getParty().size());
+            member.setPosition(run.getParty().size());
+            applyJoinBonus(run, member);
+            run.getParty().add(member);
+            run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            run.setLastReward(s.getName() + " joined the warband!");
+            queueRecruitReveal(run, s, member);
+        }
         pick.used = true;
         return serialize(run);
     }
@@ -1113,6 +1199,291 @@ public class SiegeService {
         run.setEndRewardsGranted(true);
     }
 
+    // ---- Smith (upgrade or scrap deck cards) ------------------------------
+
+    private static final int SMITH_UPGRADE_COST = 30;
+
+    private void openSmith(SiegeRun run) {
+        run.setInSmith(true);
+        run.getSmithOptions().clear();
+        int oid = 0;
+        List<SiegeCard> deck = run.getDeckTemplates();
+        // Offer up to three cards to chisel (upgrade), and allow scrapping any card.
+        List<Integer> idxs = new ArrayList<>();
+        for (int i = 0; i < deck.size(); i++) idxs.add(i);
+        Collections.shuffle(idxs, rng);
+        for (int k = 0; k < Math.min(3, idxs.size()); k++) {
+            int idx = idxs.get(k);
+            AbilitySpec spec = deck.get(idx).getSpec();
+            AbilitySpec up = content.upgradeSpec(spec);
+            run.getSmithOptions().add(CampOption.smith("s" + (oid++), "CHISEL",
+                    "Chisel " + spec.name(), spec.name() + " → " + up.name() + " ("
+                            + describeUpgrade(spec, up) + ")", spec.element(), idx, SMITH_UPGRADE_COST));
+        }
+        run.setLastReward("");
+    }
+
+    Map<String, Object> smithChoose(String token, String optionId, Integer scrapIndex) {
+        SiegeRun run = require(token);
+        if (!run.isInSmith()) throw new IllegalArgumentException("There is no smith here.");
+        if (scrapIndex != null) {
+            int idx = scrapIndex;
+            if (idx < 0 || idx >= run.getDeckTemplates().size()) throw new IllegalArgumentException("No such card.");
+            if (run.getDeckTemplates().size() <= 3) throw new IllegalArgumentException("Your deck is too thin to scrap more.");
+            SiegeCard removed = run.getDeckTemplates().remove(idx);
+            run.setLastReward("Scrapped " + removed.getSpec().name() + " — a leaner deck.");
+            return serialize(run);
+        }
+        CampOption pick = run.getSmithOptions().stream().filter(o -> o.id.equals(optionId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown smith option."));
+        if (pick.used) throw new IllegalArgumentException("Already forged this card.");
+        if (run.getGold() < pick.cost) throw new IllegalArgumentException("Not enough gold.");
+        int idx = pick.templateIndex;
+        if (idx < 0 || idx >= run.getDeckTemplates().size()) throw new IllegalArgumentException("That card is gone.");
+        run.addGold(-pick.cost);
+        SiegeCard old = run.getDeckTemplates().get(idx);
+        AbilitySpec up = content.upgradeSpec(old.getSpec());
+        run.getDeckTemplates().set(idx, new SiegeCard(old.getInstanceId(), old.getOwnerId(), up));
+        run.setLastReward(old.getSpec().name() + " was chiseled into " + up.name() + "!");
+        pick.used = true;
+        return serialize(run);
+    }
+
+    Map<String, Object> smithLeave(String token) {
+        SiegeRun run = require(token);
+        if (!run.isInSmith()) return serialize(run);
+        run.setInSmith(false);
+        run.getSmithOptions().clear();
+        SiegeNode node = run.currentNode();
+        if (node != null) node.setCleared(true);
+        checkpoint(run);
+        return serialize(run);
+    }
+
+    // ---- Merchant Caravan (items + goods for gold) ------------------------
+
+    private void openCaravan(SiegeRun run) {
+        run.setInCaravan(true);
+        run.getCaravanOptions().clear();
+        int oid = 0;
+        for (SiegeItem item : content.randomItems(3, rng)) {
+            int cost = switch (item.kind()) { case "VITALITY" -> 45; case "SHIELD" -> 40; default -> 50; };
+            run.getCaravanOptions().add(CampOption.shopItem("v" + (oid++), item, cost));
+        }
+        // A card and a heal round out the wares.
+        List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
+        if (!living.isEmpty()) {
+            AbilitySpec spec = content.randomCardRewards(1, rng).get(0);
+            Combatant owner = living.get(rng.nextInt(living.size()));
+            run.getCaravanOptions().add(CampOption.shopCard("v" + (oid++), spec, owner.getId(), owner.getName(), 30));
+        }
+        run.getCaravanOptions().add(CampOption.shopHeal("v" + (oid++), 20));
+        run.setLastReward("");
+    }
+
+    Map<String, Object> caravanBuy(String token, String optionId) {
+        SiegeRun run = require(token);
+        if (!run.isInCaravan()) throw new IllegalArgumentException("There is no caravan here.");
+        CampOption pick = run.getCaravanOptions().stream().filter(o -> o.id.equals(optionId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown wares."));
+        if (pick.used) throw new IllegalArgumentException("Already bought.");
+        if (run.getGold() < pick.cost) throw new IllegalArgumentException("Not enough gold.");
+        run.addGold(-pick.cost);
+        switch (pick.kind) {
+            case "SHOP_ITEM" -> {
+                run.getInventory().add(pick.sieglingId);
+                SiegeItem it = content.findItem(pick.sieglingId);
+                run.setLastReward("Bought " + (it == null ? "an item" : it.name()) + " — equip it from your inventory.");
+            }
+            case "SHOP_CARD" -> {
+                run.getDeckTemplates().add(new SiegeCard(
+                        "caravan-" + pick.id + "-" + run.getDeckTemplates().size(), pick.ownerId, pick.cardSpec));
+                run.setLastReward("Bought " + pick.cardSpec.name() + " for the deck.");
+            }
+            case "SHOP_HEAL" -> {
+                int healed = healParty(run, 0.3);
+                run.setLastReward("Supplies bought: the party recovers " + healed + " HP.");
+            }
+            default -> { }
+        }
+        pick.used = true;
+        return serialize(run);
+    }
+
+    Map<String, Object> caravanLeave(String token) {
+        SiegeRun run = require(token);
+        if (!run.isInCaravan()) return serialize(run);
+        run.setInCaravan(false);
+        run.getCaravanOptions().clear();
+        SiegeNode node = run.currentNode();
+        if (node != null) node.setCleared(true);
+        checkpoint(run);
+        return serialize(run);
+    }
+
+    // ---- Event nodes ------------------------------------------------------
+
+    private void openEvent(SiegeRun run) {
+        SiegeContentService.EventDef def = content.randomEvent(rng);
+        run.setInEvent(true);
+        run.setEventTitle(def.title());
+        run.setEventIcon(def.icon());
+        run.setEventPrompt(def.prompt());
+        run.getEventOptions().clear();
+        int oid = 0;
+        for (SiegeContentService.EventChoice ch : def.choices()) {
+            run.getEventOptions().add(CampOption.event("e" + (oid++), ch.outcome(), ch.label(), ch.flavor(), 0, ch.value()));
+        }
+    }
+
+    Map<String, Object> eventChoose(String token, String optionId) {
+        SiegeRun run = require(token);
+        if (!run.isInEvent()) throw new IllegalArgumentException("There is no event here.");
+        CampOption pick = run.getEventOptions().stream().filter(o -> o.id.equals(optionId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown choice."));
+        String outcome = pick.kind.startsWith("EV_") ? pick.kind.substring(3) : pick.kind;
+        int value = pick.templateIndex; // event value rides in templateIndex
+        SiegeNode node = run.currentNode();
+
+        run.setInEvent(false);
+        run.getEventOptions().clear();
+        boolean startedBattle = false;
+
+        switch (outcome) {
+            case "GOLD" -> run.setLastReward((pick.desc == null ? "" : pick.desc + " ") + "+" + earnGold(run, value) + " gold.");
+            case "PAY_GOLD" -> {
+                if (run.getGold() < value) { // can't pay -> forced fight
+                    run.setInEvent(false);
+                    startedBattle = true;
+                    startNodeBattle(run, node, NodeType.BATTLE, true);
+                    run.setLastReward("You can't pay — the bandits attack!");
+                } else {
+                    run.addGold(-value);
+                    run.setLastReward("You pay the toll and pass.");
+                }
+            }
+            case "SNEAK" -> {
+                if (rng.nextBoolean()) run.setLastReward("You slip past unseen.");
+                else { hurtParty(run, value); run.setLastReward("Caught! The party takes " + value + " damage escaping."); }
+            }
+            case "HEAL" -> run.setLastReward((pick.desc == null ? "" : pick.desc + " ") + "The party recovers " + healPartyFlat(run, value) + " HP.");
+            case "AMBUSH" -> { startedBattle = true; startNodeBattle(run, node, NodeType.BATTLE, true); }
+            case "AMBUSH_ELITE" -> { startedBattle = true; startNodeBattle(run, node, NodeType.ELITE, true); }
+            case "ITEM_HEALTHCOST" -> {
+                hurtParty(run, value);
+                SiegeItem it = grantRandomItem(run);
+                run.setLastReward(pick.desc + " Received " + (it == null ? "a trinket" : it.name()) + " (−" + value + " HP).");
+            }
+            case "BLEED_ITEM" -> {
+                hurtParty(run, value);
+                SiegeItem it = grantRandomItem(run);
+                run.setLastReward("You bleed for it — received " + (it == null ? "a relic" : it.name()) + "!");
+            }
+            case "RECRUIT_CHANCE" -> {
+                if (run.getParty().size() < content.partyMax()) joinStagedRecruit(run, " tags along and joins the warband!");
+                else { grantRandomItem(run); run.setLastReward("The warband is full — the Siegeling leaves you a parting gift instead."); }
+            }
+            case "SEARCH" -> {
+                int roll = rng.nextInt(100);
+                if (roll < 45) { SiegeItem it = grantRandomItem(run); run.setLastReward("You find " + (it == null ? "a useful item" : it.name()) + " in the wreckage."); }
+                else if (roll < 70) run.setLastReward("You scavenge " + earnGold(run, 20) + " gold.");
+                else { startedBattle = true; startNodeBattle(run, node, NodeType.BATTLE, true); run.setLastReward("A scavenger's trap — ambush!"); }
+            }
+            case "DIG_MAP" -> {
+                int g = earnGold(run, 25);
+                SiegeItem it = grantRandomItem(run);
+                run.setLastReward("X marks the spot: +" + g + " gold and " + (it == null ? "an item" : it.name()) + "!");
+            }
+            case "BLESS_SPEED" -> {
+                if (run.getGold() < value) run.setLastReward("You can't afford the blessing.");
+                else {
+                    run.addGold(-value);
+                    for (Combatant c : run.getParty()) c.setBaseSpeed(c.getBaseSpeed() + 1);
+                    run.setLastReward("Foresight quickens the warband: +1 speed to all Siegelings.");
+                }
+            }
+            default -> run.setLastReward(pick.desc == null ? "You move on." : pick.desc);
+        }
+
+        if (!startedBattle) {
+            if (node != null) node.setCleared(true);
+            checkpoint(run);
+        }
+        return serialize(run);
+    }
+
+    // ---- Items (equip / unequip) ------------------------------------------
+
+    Map<String, Object> equipItem(String token, String itemId, String memberId) {
+        SiegeRun run = require(token);
+        if (!run.getInventory().contains(itemId)) throw new IllegalArgumentException("That item is not in your inventory.");
+        Combatant member = run.getParty().stream().filter(m -> m.getId().equals(memberId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown Siegeling."));
+        SiegeItem item = content.findItem(itemId);
+        if (item == null) throw new IllegalArgumentException("Unknown item.");
+        // Unequip whatever the member currently holds (back to inventory).
+        if (member.getItemId() != null) unequipToInventory(run, member);
+        run.getInventory().remove(itemId);
+        member.setItemId(itemId);
+        if ("VITALITY".equals(item.kind())) { member.setMaxHp(member.getMaxHp() + item.value()); member.heal(item.value()); }
+        run.setLastReward(member.getName() + " equips " + item.name() + ".");
+        checkpoint(run);
+        return serialize(run);
+    }
+
+    Map<String, Object> unequipItem(String token, String memberId) {
+        SiegeRun run = require(token);
+        Combatant member = run.getParty().stream().filter(m -> m.getId().equals(memberId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown Siegeling."));
+        if (member.getItemId() == null) return serialize(run);
+        unequipToInventory(run, member);
+        checkpoint(run);
+        return serialize(run);
+    }
+
+    private void unequipToInventory(SiegeRun run, Combatant member) {
+        SiegeItem item = content.findItem(member.getItemId());
+        if (item != null && "VITALITY".equals(item.kind())) {
+            member.setMaxHp(Math.max(1, member.getMaxHp() - item.value()));
+        }
+        run.getInventory().add(member.getItemId());
+        member.setItemId(null);
+    }
+
+    // ---- Small shared helpers ---------------------------------------------
+
+    private int healParty(SiegeRun run, double frac) {
+        int healed = 0;
+        for (Combatant ally : run.getParty()) {
+            if (ally.isAlive()) { int b = ally.getHp(); ally.setHp(b + (int) Math.round(ally.getMaxHp() * frac)); healed += ally.getHp() - b; }
+        }
+        if (run.getKnightUnit() != null && run.getKnightUnit().isAlive()) {
+            int b = run.getKnightUnit().getHp();
+            run.getKnightUnit().setHp(b + (int) Math.round(run.getKnightUnit().getMaxHp() * frac));
+            healed += run.getKnightUnit().getHp() - b;
+        }
+        return healed;
+    }
+
+    private int healPartyFlat(SiegeRun run, int amount) {
+        int healed = 0;
+        for (Combatant ally : run.getParty()) {
+            if (ally.isAlive()) { int b = ally.getHp(); ally.heal(amount); healed += ally.getHp() - b; }
+        }
+        return healed;
+    }
+
+    private void hurtParty(SiegeRun run, int amount) {
+        for (Combatant ally : run.getParty()) if (ally.isAlive()) ally.takeDamage(amount);
+    }
+
+    private SiegeItem grantRandomItem(SiegeRun run) {
+        List<SiegeItem> items = content.randomItems(1, rng);
+        if (items.isEmpty()) return null;
+        run.getInventory().add(items.get(0).id());
+        return items.get(0);
+    }
+
     // ---- Rewards ----------------------------------------------------------
 
     private void generateRewards(SiegeRun run, boolean elite) {
@@ -1248,6 +1619,20 @@ public class SiegeService {
     }
 
     // ---- Knight roguelike classes (dashboard admin) -----------------------
+
+    Map<String, Object> listItems() {
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (SiegeItem it : content.allItems()) items.add(serializeItem(it));
+        return Map.of("items", items,
+                "kinds", List.of("VITALITY", "ATTACK", "SPEED", "SHIELD"));
+    }
+
+    Map<String, Object> createItem(String editorToken, String name, String icon, String kind, int value) {
+        if (editorAuth == null) throw new IllegalArgumentException("Editor auth is unavailable.");
+        editorAuth.requireEditor(editorToken);
+        content.createItem(name, icon, kind, value);
+        return listItems();
+    }
 
     Map<String, Object> listKnightClasses() {
         List<Map<String, Object>> knights = new ArrayList<>();
@@ -1457,6 +1842,44 @@ public class SiegeService {
         }
         m.put("party", party);
 
+        // Deck list (indices) — powers the Smith scrap picker.
+        List<Map<String, Object>> deckList = new ArrayList<>();
+        List<SiegeCard> templates = run.getDeckTemplates();
+        for (int i = 0; i < templates.size(); i++) {
+            SiegeCard tpl = templates.get(i);
+            AbilitySpec spec = tpl.getSpec();
+            Combatant owner = run.getParty().stream()
+                    .filter(c -> c.getId().equals(tpl.getOwnerId())).findFirst().orElse(null);
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("index", i);
+            d.put("name", spec.name());
+            d.put("element", spec.element() == null ? null : spec.element().name());
+            d.put("owner", owner == null ? (tpl.getOwnerId().startsWith("knight-") ? run.getKnightName() : "—") : owner.getName());
+            deckList.add(d);
+        }
+        m.put("deckList", deckList);
+
+        // Inventory (unequipped items) + full item catalog for equip UI.
+        List<Map<String, Object>> inv = new ArrayList<>();
+        for (String id : run.getInventory()) {
+            Map<String, Object> im = serializeItem(content.findItem(id));
+            if (im != null) inv.add(im);
+        }
+        m.put("inventory", inv);
+
+        // Smith / Caravan / Event interactive stops.
+        m.put("smith", run.isInSmith() ? serializeOptionStop(run, run.getSmithOptions(), null) : null);
+        m.put("caravan", run.isInCaravan() ? serializeOptionStop(run, run.getCaravanOptions(), null) : null);
+        if (run.isInEvent()) {
+            Map<String, Object> ev = serializeOptionStop(run, run.getEventOptions(), null);
+            ev.put("title", run.getEventTitle());
+            ev.put("prompt", run.getEventPrompt());
+            ev.put("icon", run.getEventIcon());
+            m.put("event", ev);
+        } else {
+            m.put("event", null);
+        }
+
         List<Integer> reachable = run.reachableNodeIds();
         List<Map<String, Object>> map = new ArrayList<>();
         for (SiegeNode node : run.getMap()) {
@@ -1611,6 +2034,43 @@ public class SiegeService {
         return b;
     }
 
+    private Map<String, Object> serializeItem(SiegeItem item) {
+        if (item == null) return null;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", item.id());
+        m.put("name", item.name());
+        m.put("icon", item.icon());
+        m.put("kind", item.kind());
+        m.put("value", item.value());
+        m.put("effect", item.effectText());
+        m.put("desc", item.desc());
+        return m;
+    }
+
+    private Map<String, Object> serializeOptionStop(SiegeRun run, List<CampOption> options, String note) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (note != null) out.put("note", note);
+        List<Map<String, Object>> opts = new ArrayList<>();
+        for (CampOption o : options) {
+            Map<String, Object> om = new LinkedHashMap<>();
+            om.put("id", o.id);
+            om.put("kind", o.kind);
+            om.put("title", o.title);
+            om.put("desc", o.desc);
+            om.put("cost", o.cost);
+            om.put("element", o.element == null ? null : o.element.name());
+            om.put("used", o.used);
+            om.put("affordable", run.getGold() >= o.cost);
+            om.put("templateIndex", o.templateIndex);
+            if ("SHOP_ITEM".equals(o.kind) && o.sieglingId != null) {
+                om.put("item", serializeItem(content.findItem(o.sieglingId)));
+            }
+            opts.add(om);
+        }
+        out.put("options", opts);
+        return out;
+    }
+
     private Map<String, Object> serializeCombatant(Combatant c, boolean includeAbilities) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", c.getId());
@@ -1624,6 +2084,8 @@ public class SiegeService {
         m.put("effectiveSpeed", c.effectiveSpeed());
         m.put("attackBuff", c.getAttackBuff());
         m.put("sourceCardId", c.getSourceCardId());
+        m.put("itemId", c.getItemId());
+        m.put("item", c.getItemId() == null ? null : serializeItem(content.findItem(c.getItemId())));
         m.put("alive", c.isAlive());
         m.put("artUrl", c.getArtUrl());
         m.put("position", c.getPosition());
