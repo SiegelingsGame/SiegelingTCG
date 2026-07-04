@@ -1144,7 +1144,10 @@
 
   // ---- hand ------------------------------------------------------------
   function renderHand(b, over) {
-    var hand = $('handRow'); hand.innerHTML = '';
+    var hand = $('handRow');
+    var wasDealt = hand.dataset.dealt === '1';
+    var prevScrollLeft = hand.scrollLeft;
+    hand.innerHTML = '';
     if (over) {
       var wrap = el('div', 'battle-endwrap');
       wrap.appendChild(el('div', 'battle-endtitle ' + (b.phase === 'WON' ? 'win' : 'lose'),
@@ -1156,19 +1159,15 @@
       return;
     }
     var sorted = sortHandByOwner(b);
-    var n = sorted.length;
     var deal = state.dealAnimation;
     state.dealAnimation = false;
     var prevOwner = null;
     sorted.forEach(function (card, i) {
       var effCls = effectClass(card.effect);
-      var mid = (n - 1) / 2;
       var groupStart = i > 0 && card.ownerId !== prevOwner;
       prevOwner = card.ownerId;
       var c = el('div', 'playcard ' + elClass(card.element) + (card.effect === 'EVOLVE' ? ' evo-card' : '') + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : '') + (deal ? ' dealt' : '') + (groupStart ? ' group-start' : ''));
       c.dataset.owner = card.ownerId;
-      c.style.setProperty('--fan-rot', ((i - mid) * 4) + 'deg');
-      c.style.setProperty('--fan-y', (Math.abs(i - mid) * 7) + 'px');
       if (deal) c.style.setProperty('--deal-i', i);
       var statusLine = '';
       if (card.status && card.statusChance) {
@@ -1190,6 +1189,57 @@
         '<div class="pc-desc">' + esc(card.description || '') + '</div>';
       setupCardDrag(c, card);
       hand.appendChild(c);
+    });
+    bindHandFanScrolling(hand);
+    // First deal centers the whole hand; later re-renders (draw/play/end turn)
+    // keep whatever part of the hand the player last scrolled to.
+    hand.scrollLeft = (deal || !wasDealt) ? (hand.scrollWidth - hand.clientWidth) / 2 : prevScrollLeft;
+    if (sorted.length) hand.dataset.dealt = '1';
+    layoutHandFan(hand);
+  }
+
+  /** Hand cards overflow a single screen, so the hand scrolls horizontally —
+   *  swipe left/right (or spin a mouse wheel) to bring other cards to the
+   *  center. As the hand scrolls, layoutHandFan() re-arcs the cards so the
+   *  centered one sits upright and raised, like a wheel of cards turning
+   *  through the middle, while off-center cards rotate away and dip down. */
+  function bindHandFanScrolling(hand) {
+    if (hand.dataset.wheelBound === '1') return;
+    hand.dataset.wheelBound = '1';
+    var raf = 0;
+    function scheduleLayout() {
+      if (raf) return;
+      raf = window.requestAnimationFrame(function () { raf = 0; layoutHandFan(hand); });
+    }
+    hand.addEventListener('scroll', scheduleLayout, { passive: true });
+    hand.addEventListener('wheel', function (event) {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      hand.scrollLeft += event.deltaY;
+      event.preventDefault();
+    }, { passive: false });
+    window.addEventListener('resize', scheduleLayout);
+  }
+
+  var HAND_FAN_MAX_ANGLE = 16;   // deg a card rotates away from center at the edge
+  var HAND_FAN_MAX_LIFT = 30;    // px a card dips below the centered card at the edge
+  var HAND_FAN_MAX_SHRINK = 0.08; // fraction a card shrinks away from center
+
+  /** Re-arcs every card in the hand based on its current scroll position —
+   *  distance from the container's horizontal center drives rotation, dip,
+   *  and scale, so scrolling reads as a wheel of cards turning past center. */
+  function layoutHandFan(hand) {
+    hand = hand || $('handRow');
+    if (!hand) return;
+    var half = hand.clientWidth / 2;
+    if (!half) return;
+    var centerX = hand.scrollLeft + half;
+    Array.prototype.forEach.call(hand.querySelectorAll('.playcard'), function (card) {
+      var cardCenter = card.offsetLeft + (card.offsetWidth / 2);
+      var offset = Math.max(-1.4, Math.min(1.4, (cardCenter - centerX) / half));
+      card.style.setProperty('--fan-rot', (offset * HAND_FAN_MAX_ANGLE).toFixed(2) + 'deg');
+      card.style.setProperty('--fan-y', (Math.abs(offset) * HAND_FAN_MAX_LIFT).toFixed(1) + 'px');
+      card.style.setProperty('--fan-scale', (1 - (Math.abs(offset) * HAND_FAN_MAX_SHRINK)).toFixed(3));
+      card.classList.toggle('is-centered', Math.abs(offset) < 0.12);
     });
   }
 
@@ -1389,6 +1439,7 @@
       ghost.style.margin = '0';
       ghost.style.setProperty('--fan-rot', '0deg');
       ghost.style.setProperty('--fan-y', '0px');
+      ghost.style.setProperty('--fan-scale', '1');
       document.body.appendChild(ghost);
       cardEl.classList.add('playcard-dragsource');
       if (card.needsTarget) startDragArrow(card, ghost);
