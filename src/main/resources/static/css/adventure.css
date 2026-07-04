@@ -751,3 +751,20 @@ body[data-screen="mapScreen"] #mapScreen{
   .sprite .sp-art{height:calc(130px * var(--evo-scale,1));}
   .sprite .sp-art img{max-height:calc(130px * var(--evo-scale,1));}
 }
+
+/* ---------- v8: results, endless, cache games ---------- */
+.result-stats{margin:10px auto 4px; color:var(--dim); font-size:13.5px;}
+.result-rewards{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin:14px auto; max-width:340px;}
+.result-rewards h3{margin:0 0 8px; font-size:15px; color:var(--accent);}
+.result-rewards div{margin:3px 0; font-size:14px;}
+.result-claim{margin-top:8px; font-size:12px; color:var(--dim);}
+.result-claim.ok{color:var(--good);}
+.result-save{margin:14px auto; max-width:420px;}
+.result-save h3{font-size:14px; margin:0 0 8px;}
+.result-save-row{display:flex; gap:8px; flex-wrap:wrap; justify-content:center;}
+.endless-slots{margin:14px 0 4px; text-align:center;}
+.endless-title{font-size:13px; color:var(--accent-2); margin-bottom:8px; font-weight:650;}
+.endless-btn{margin:4px; border-color:var(--accent-2);}
+.camp-card.clickable{cursor:pointer;}
+.camp-card.clickable:hover{border-color:var(--accent);}
+.camp-card.unaffordable{opacity:.5;}

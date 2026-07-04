@@ -81,6 +81,16 @@ public class SiegeCombatEngine {
             knight.setPosition(-1);
             battle.getCombatants().add(knight);
         }
+        // A rented mercenary marches in for this one battle with its boon cards.
+        Combatant merc = run.getMercenary();
+        if (merc != null) {
+            merc.setShield(0);
+            merc.clearStatuses();
+            merc.setApSpent(0);
+            merc.setPosition(pos++);
+            battle.getCombatants().add(merc);
+            battle.log(merc.getName() + " marches with the warband — for this battle only.");
+        }
         for (Combatant foe : enemies) {
             battle.getCombatants().add(foe);
         }
@@ -89,6 +99,11 @@ public class SiegeCombatEngine {
         int n = 0;
         for (SiegeCard template : run.getDeckTemplates()) {
             battle.getDeck().add(new SiegeCard("c" + (n++), template.getOwnerId(), template.getSpec()));
+        }
+        if (merc != null) {
+            for (SiegeCard boon : run.getMercCards()) {
+                battle.getDeck().add(new SiegeCard("c" + (n++), boon.getOwnerId(), boon.getSpec()));
+            }
         }
         // Each member with a next stage gets its Evolution card in the deck —
         // evolution happens in battle by drawing and playing it (2 AP).
@@ -847,8 +862,9 @@ public class SiegeCombatEngine {
             case SHIELD -> lead + "grants the party +" + pv + " shield.";
             case ATTACK -> lead + "rallies the party for +" + pv + " attack.";
             case SPEED -> lead + "quickens the party by +" + pv + " speed.";
-            case HEALTH -> null; // reflected in each Siegeling's raised max HP
-            case LOOT -> null;   // reflected in richer spoils
+            case HEALTH -> null;  // reflected in each Siegeling's raised max HP
+            case LOOT -> null;    // reflected in richer spoils
+            case MARSHAL -> null; // reflected in the extra starting Siegeling
         };
     }
 

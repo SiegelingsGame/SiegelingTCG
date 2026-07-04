@@ -49,7 +49,10 @@ enum NodeType { BATTLE, ELITE, REST, TREASURE, BROKER, BOSS }
  * each battle; HEALTH raises every Siegeling's max HP for the whole run; LOOT
  * boosts gold earned from spoils and caches.
  */
-enum KnightPassive { SHIELD, ATTACK, SPEED, HEALTH, LOOT }
+enum KnightPassive { SHIELD, ATTACK, SPEED, HEALTH, LOOT, MARSHAL }
+
+/** How a run plays out: a fixed 3-boss expedition, or score-chasing endless loops. */
+enum RunMode { STANDARD, ENDLESS }
 
 /** Battle turn phase driving what the client may submit. */
 enum BattlePhase { PLAYER_INPUT, ENEMY_RESOLVING, WON, LOST }

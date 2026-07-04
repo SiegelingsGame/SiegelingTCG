@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,12 +31,12 @@ public class SiegeController {
         return siege.roster();
     }
 
-    /** Start a new expedition: body { knightId, sieglingIds:[...] }. */
+    /** Start a run: body { knightId, sieglingIds:[...], mode? ("STANDARD"|"ENDLESS") }. */
     @PostMapping("/api/siege/run/new")
     public Map<String, Object> newRun(@RequestBody Map<String, Object> body) {
         String knightId = str(body.get("knightId"));
         List<String> sieglingIds = toStringList(body.get("sieglingIds"));
-        return siege.newRun(knightId, sieglingIds);
+        return siege.newRun(knightId, sieglingIds, str(body.get("mode")));
     }
 
     @GetMapping("/api/siege/state")
@@ -124,8 +125,30 @@ public class SiegeController {
 
     /** Apply a finished battle's outcome and advance the map / end the run. */
     @PostMapping("/api/siege/continue")
-    public Map<String, Object> continueRun(@RequestBody Map<String, Object> body) {
-        return siege.continueRun(str(body.get("token")));
+    public Map<String, Object> continueRun(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return siege.continueRun(str(body.get("token")), authorizationHeader);
+    }
+
+    /** Resolve a CHESTS / WHEEL cache mini-game pick: body { token, optionId }. */
+    @PostMapping("/api/siege/cache/choose")
+    public Map<String, Object> cacheChoose(@RequestBody Map<String, Object> body) {
+        return siege.cacheChoose(str(body.get("token")), str(body.get("optionId")));
+    }
+
+    /** Dashboard: knights with their roguelike class (hash default or override). */
+    @GetMapping("/api/siege/classes")
+    public Map<String, Object> listClasses() {
+        return siege.listKnightClasses();
+    }
+
+    /** Dashboard: assign a roguelike class to a knight (editor-authenticated). */
+    @PostMapping("/api/siege/classes")
+    public Map<String, Object> assignClass(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        return siege.assignKnightClass(editorToken, str(body.get("trainerId")), str(body.get("passive")));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
