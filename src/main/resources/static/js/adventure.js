@@ -21,6 +21,7 @@
     elementFilter: 'ALL',
     setupStep: 'knight',
     selectedCardId: null,
+    knightSelectedItem: null,
     busy: false
   };
 
@@ -858,22 +859,59 @@
 
   // ---- Inventory --------------------------------------------------------
   function openInventory() { $('invOverlay').classList.remove('hidden'); renderInventory(); }
+  function knightBagItems(run) { return run.knightBag || []; }
+  function findKnightItem(run, itemId) {
+    return knightBagItems(run).find(function (it) { return it.id === itemId; }) || null;
+  }
   function renderInventory() {
     var run = state.run;
+    var knightBag = $('invKnightBag'); knightBag.innerHTML = '';
+    var bagItems = knightBagItems(run);
+    if (!bagItems.length) {
+      knightBag.innerHTML = '<div class="inv-empty">The knight\'s bag is empty.</div>';
+    } else {
+      bagItems.forEach(function (it) {
+        var b = el('button', 'inv-item inv-knight-item' + (state.knightSelectedItem === it.id ? ' sel' : ''),
+          '<span class="inv-item-icon">' + it.icon + '</span><span class="inv-item-name">' + esc(it.name) + '</span><span class="inv-item-eff">' + esc(it.effect) + '</span>');
+        b.addEventListener('click', function () {
+          state.knightSelectedItem = (state.knightSelectedItem === it.id ? null : it.id);
+          renderInventory();
+        });
+        knightBag.appendChild(b);
+      });
+    }
+
+    var selItem = state.knightSelectedItem ? findKnightItem(run, state.knightSelectedItem) : null;
     var party = $('invParty'); party.innerHTML = '';
+    if (run.knight && run.knight.hp != null) {
+      var k = run.knight;
+      var krow = el('div', 'inv-member knight-chip ' + elClass(k.element) + (k.alive ? '' : ' dead') +
+        knightTargetClass(selItem, k, true),
+        '<div class="inv-member-name">🛡️ ' + esc(k.name) + ' <span class="phptext">' + k.hp + '/' + k.maxHp + '</span></div>' +
+        '<div class="inv-slot empty">SiegeKnight</div>');
+      krow.dataset.targetId = k.unitId || 'knight-unit';
+      if (selItem && knightTargetValid(selItem, k, true)) {
+        krow.addEventListener('click', function () { useKnightItemFromMap(selItem.id, k.unitId || 'knight-unit'); });
+      }
+      party.appendChild(krow);
+    }
     (run.party || []).forEach(function (pm) {
       var slot = pm.item
         ? '<div class="inv-slot filled" title="' + esc(pm.item.effect) + '">' + pm.item.icon + ' ' + esc(pm.item.name) + ' <button class="inv-unequip" type="button">✕</button></div>'
         : '<div class="inv-slot empty">— empty slot —</div>';
-      var row = el('div', 'inv-member ' + elClass(pm.element) + (pm.alive ? '' : ' dead'),
+      var row = el('div', 'inv-member ' + elClass(pm.element) + (pm.alive ? '' : ' dead') +
+        knightTargetClass(selItem, pm, false),
         '<div class="inv-member-name">' + icon(pm.element) + ' ' + esc(pm.name) + '</div>' + slot);
       if (pm.item) {
         row.querySelector('.inv-unequip').addEventListener('click', function (e) { e.stopPropagation(); simplePostKeepInv('/api/siege/item/unequip', { memberId: pm.id }); });
       }
       row.dataset.memberId = pm.id;
-      row.addEventListener('click', function () {
-        if (invSelectedItem) { simplePostKeepInv('/api/siege/item/equip', { itemId: invSelectedItem, memberId: pm.id }); invSelectedItem = null; }
-      });
+      row.dataset.targetId = pm.id;
+      if (selItem && knightTargetValid(selItem, pm, false)) {
+        row.addEventListener('click', function () { useKnightItemFromMap(selItem.id, pm.id); });
+      } else if (invSelectedItem) {
+        row.addEventListener('click', function () { simplePostKeepInv('/api/siege/item/equip', { itemId: invSelectedItem, memberId: pm.id }); invSelectedItem = null; });
+      }
       party.appendChild(row);
     });
     var bag = $('invBag'); bag.innerHTML = '';
@@ -881,12 +919,36 @@
     (run.inventory || []).forEach(function (it) {
       var b = el('button', 'inv-item' + (invSelectedItem === it.id ? ' sel' : ''),
         '<span class="inv-item-icon">' + it.icon + '</span><span class="inv-item-name">' + esc(it.name) + '</span><span class="inv-item-eff">' + esc(it.effect) + '</span>');
-      b.addEventListener('click', function () { invSelectedItem = (invSelectedItem === it.id ? null : it.id); renderInventory(); });
+      b.addEventListener('click', function () { invSelectedItem = (invSelectedItem === it.id ? null : it.id); state.knightSelectedItem = null; renderInventory(); });
       bag.appendChild(b);
     });
-    var hint = invSelectedItem ? 'Tap a Siegeling to equip.' : 'Tap an item, then a Siegeling to equip it.';
-    // reuse subhead area for hint
+    var hint = selItem
+      ? (selItem.kind === 'REVIVE' ? 'Tap a fallen Siegeling to revive.' : 'Tap an ally to heal.')
+      : (invSelectedItem ? 'Tap a Siegeling to equip.' : 'Tap a knight item, then a target — or tap a backpack item to equip.');
     var sub = $('invBag').previousElementSibling; if (sub) sub.textContent = 'Backpack — ' + hint;
+    var ksub = $('invParty').previousElementSibling; if (ksub) ksub.textContent = selItem ? 'Knight\'s Bag — ' + hint : 'Knight\'s Bag';
+  }
+  function knightTargetValid(item, unit, isKnight) {
+    if (!item || !unit) return false;
+    if (item.kind === 'REVIVE') return !isKnight && !unit.alive;
+    if (item.kind === 'HEAL') return unit.alive && unit.hp < unit.maxHp;
+    return false;
+  }
+  function knightTargetClass(item, unit, isKnight) {
+    if (!item || !knightTargetValid(item, unit, isKnight)) return '';
+    return ' inv-targetable' + (item.kind === 'REVIVE' ? ' revive-target' : ' heal-target');
+  }
+  function useKnightItemFromMap(itemId, targetId) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/knight/use', { method: 'POST', body: { token: token(), itemId: itemId, targetId: targetId } })
+      .then(function (run) { state.knightSelectedItem = null; state.busy = false; state.run = run; renderInventory(); toast(run.lastReward || 'Item used.'); })
+      .catch(function (e) { toast(e.message); state.busy = false; });
+  }
+  function useKnightItemInBattle(itemId, targetId) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/knight/use', { method: 'POST', body: { token: token(), itemId: itemId, targetId: targetId } })
+      .then(function (run) { state.knightSelectedItem = null; state.busy = false; applyRun(run); if (run.lastReward) toast(run.lastReward); })
+      .catch(function (e) { toast(e.message); state.busy = false; });
   }
   var invSelectedItem = null;
   function simplePostKeepInv(path, extra) {
@@ -967,12 +1029,31 @@
     host.className = 'knight-plate ' + elClass(k.element) + (k.hp <= 0 ? ' dead' : '');
     var pct = Math.max(0, Math.round(100 * k.hp / Math.max(1, k.maxHp)));
     var chargePct = Math.min(100, Math.round(100 * k.charge / Math.max(1, k.ultCost)));
+    var bagHtml = '';
+    var bagItems = knightBagItems(state.run);
+    if (bagItems.length && b.phase === 'PLAYER_INPUT') {
+      bagHtml = '<div class="knight-bag-row">';
+      bagItems.forEach(function (it) {
+        bagHtml += '<button type="button" class="knight-bag-btn' + (state.knightSelectedItem === it.id ? ' sel' : '') +
+          '" data-item-id="' + esc(it.id) + '" title="' + esc(it.effect) + '">' + it.icon + ' ' + esc(it.name) + '</button>';
+      });
+      bagHtml += '</div>';
+    }
     host.innerHTML =
       '<div class="kp-head"><span class="kp-name">🛡️ ' + esc(k.name) + '</span>' +
       '<span class="kp-hp">' + k.hp + '/' + k.maxHp + '</span></div>' +
       '<div class="kp-hpbar"><div class="kp-hpfill" style="width:' + pct + '%"></div></div>' +
       '<div class="kp-chargebar" title="Knight Ultimate Charge"><div class="kp-chargefill" style="width:' + chargePct + '%"></div>' +
-      '<span class="kp-chargetext">⚡ ' + k.charge + '/' + k.ultCost + '</span></div>';
+      '<span class="kp-chargetext">⚡ ' + k.charge + '/' + k.ultCost + '</span></div>' +
+      bagHtml;
+    host.querySelectorAll('.knight-bag-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute('data-item-id');
+        state.knightSelectedItem = (state.knightSelectedItem === id ? null : id);
+        renderBattle();
+      });
+    });
     var ult = $('knightUltBtn');
     ult.classList.toggle('hidden', b.phase === 'WON' || b.phase === 'LOST');
     ult.disabled = !(k.ultReady && b.phase === 'PLAYER_INPUT');
@@ -1139,6 +1220,10 @@
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '+' + ev.amount, 'heal');
         return 420;
+      case 'revive':
+        flashSprite(ev.targetId, 'healed');
+        floatText(ev.targetId, '📜 Back!', 'heal');
+        return 650;
       case 'shield':
         flashSprite(ev.targetId, 'shielded');
         floatText(ev.targetId, '🛡+' + ev.amount, 'shield');
@@ -1812,6 +1897,16 @@
 
   function onUnitClick(u) {
     if (state.busy) return;
+    var sel = state.knightSelectedItem ? findKnightItem(state.run, state.knightSelectedItem) : null;
+    if (sel && state.run && state.run.battle && state.run.battle.phase === 'PLAYER_INPUT') {
+      var isKnight = state.run.battle.knight && state.run.battle.knight.id === u.id;
+      if (knightTargetValid(sel, u, isKnight)) {
+        useKnightItemInBattle(sel.id, u.id);
+        return;
+      }
+      toast(sel.kind === 'REVIVE' ? 'Choose a fallen Siegeling.' : 'Choose a living ally who needs healing.');
+      return;
+    }
     showBattleUnitDetails(u);
   }
 
@@ -1851,16 +1946,49 @@
   function updateHint(b, over) {
     var hint = $('battleHint');
     if (over) { hint.textContent = ''; highlightTargets(null); return; }
-    if (b.phase !== 'PLAYER_INPUT') { hint.textContent = 'Enemies are acting…'; highlightTargets(null); return; }
+    if (b.phase !== 'PLAYER_INPUT') { hint.textContent = 'Enemies are acting…'; highlightTargets(null); highlightKnightTargets(null); return; }
+    var selItem = state.knightSelectedItem ? findKnightItem(state.run, state.knightSelectedItem) : null;
+    if (selItem) {
+      highlightTargets(null);
+      highlightKnightTargets(selItem);
+      hint.textContent = selItem.kind === 'REVIVE'
+        ? 'Tap a fallen Siegeling to play ' + selItem.name + '.'
+        : 'Tap an ally to share ' + selItem.name + '.';
+      return;
+    }
     var card = currentCard();
     if (card) {
       highlightTargets(card.needsTarget ? card : null);
+      highlightKnightTargets(null);
       hint.textContent = card.needsTarget
         ? 'Drag ' + card.name + ' onto a ' + (card.target === 'ENEMY_SINGLE' ? 'target enemy' : 'friendly Siegeling') + '.'
         : 'Drag ' + card.name + ' onto the battlefield to play it.';
     } else {
       highlightTargets(null);
+      highlightKnightTargets(null);
       hint.textContent = 'Drag a card onto the battlefield to play it (' + b.actionPoints + ' AP left), or End Turn.';
+    }
+  }
+
+  function highlightKnightTargets(item) {
+    Array.prototype.forEach.call(document.querySelectorAll('.sprite.ally'), function (node) {
+      if (!item) { node.classList.remove('targetable'); return; }
+      var id = node.dataset.id;
+      var u = (state.run.battle.allies || []).find(function (a) { return a.id === id; });
+      var isKnight = state.run.battle.knight && state.run.battle.knight.id === id;
+      node.classList.toggle('targetable', u && knightTargetValid(item, u, isKnight));
+    });
+    var knightNode = $('knightPlate');
+    if (knightNode && state.run.battle.knight && item && item.kind === 'HEAL') {
+      knightNode.classList.toggle('targetable', knightTargetValid(item, state.run.battle.knight, true));
+      if (knightNode.classList.contains('targetable')) {
+        knightNode.onclick = function () { useKnightItemInBattle(item.id, state.run.battle.knight.id); };
+      } else {
+        knightNode.onclick = null;
+      }
+    } else if (knightNode) {
+      knightNode.classList.remove('targetable');
+      knightNode.onclick = null;
     }
   }
 

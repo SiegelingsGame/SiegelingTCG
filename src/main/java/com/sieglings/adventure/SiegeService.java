@@ -160,6 +160,8 @@ public class SiegeService {
             joinStagedRecruit(run, " answers the Marshal's muster!");
         }
 
+        seedStartingKnightBag(run);
+
         run.getMap().addAll(content.generateMap(rng));
         runs.put(token, new Session(run));
         checkpoint(run);
@@ -173,6 +175,12 @@ public class SiegeService {
             member.setMaxHp(member.getMaxHp() + v);
             member.heal(v);
         }
+    }
+
+    /** Every SiegeKnight begins with a revive card and a healing potion in their bag. */
+    private void seedStartingKnightBag(SiegeRun run) {
+        run.getKnightBag().add("revive-card");
+        run.getKnightBag().add("healing-potion");
     }
 
     /** Credits gold, applying the knight's LOOT passive; returns the amount added. */
@@ -303,6 +311,7 @@ public class SiegeService {
         }
         s.put("party", party);
         s.put("inventory", new ArrayList<>(run.getInventory()));
+        s.put("knightBag", new ArrayList<>(run.getKnightBag()));
         List<Map<String, Object>> deck = new ArrayList<>();
         for (SiegeCard card : run.getDeckTemplates()) {
             Map<String, Object> d = new LinkedHashMap<>();
@@ -502,6 +511,9 @@ public class SiegeService {
             run.setCurrentNodeId(intVal(s.get("currentNodeId"), -1));
             if (s.get("inventory") instanceof List) {
                 for (Object it : (List<Object>) s.get("inventory")) run.getInventory().add(String.valueOf(it));
+            }
+            if (s.get("knightBag") instanceof List) {
+                for (Object it : (List<Object>) s.get("knightBag")) run.getKnightBag().add(String.valueOf(it));
             }
 
             for (Map<String, Object> p : (List<Map<String, Object>>) s.get("party")) {
@@ -1416,11 +1428,15 @@ public class SiegeService {
 
     Map<String, Object> equipItem(String token, String itemId, String memberId) {
         SiegeRun run = require(token);
+        if (run.getKnightBag().contains(itemId)) {
+            throw new IllegalArgumentException("Knight consumables must be used from the knight's bag.");
+        }
         if (!run.getInventory().contains(itemId)) throw new IllegalArgumentException("That item is not in your inventory.");
         Combatant member = run.getParty().stream().filter(m -> m.getId().equals(memberId)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown Siegeling."));
         SiegeItem item = content.findItem(itemId);
         if (item == null) throw new IllegalArgumentException("Unknown item.");
+        if (item.consumable()) throw new IllegalArgumentException("That item cannot be equipped.");
         // Unequip whatever the member currently holds (back to inventory).
         if (member.getItemId() != null) unequipToInventory(run, member);
         run.getInventory().remove(itemId);
@@ -1439,6 +1455,72 @@ public class SiegeService {
         unequipToInventory(run, member);
         checkpoint(run);
         return serialize(run);
+    }
+
+    /** Use a knight-bag consumable on a party member or the knight: body { token, itemId, targetId }. */
+    Map<String, Object> useKnightItem(String token, String itemId, String targetId) {
+        SiegeRun run = require(token);
+        if (targetId == null || targetId.isBlank()) throw new IllegalArgumentException("Choose a target.");
+        if (!run.getKnightBag().contains(itemId)) throw new IllegalArgumentException("That item is not in the knight's bag.");
+        SiegeItem item = content.findItem(itemId);
+        if (item == null || !item.consumable()) throw new IllegalArgumentException("Unknown consumable.");
+
+        SiegeBattle battle = run.getBattle();
+        if (battle != null && battle.getPhase() != BattlePhase.PLAYER_INPUT) {
+            throw new IllegalArgumentException("Cannot use items right now.");
+        }
+
+        Combatant target = resolveKnightItemTarget(run, battle, targetId);
+        if (target == null) throw new IllegalArgumentException("Unknown target.");
+        if (target.getSide() != Side.PLAYER) {
+            throw new IllegalArgumentException("Knight items can only target your warband.");
+        }
+        Combatant merc = run.getMercenary();
+        if (merc != null && merc.getId().equals(target.getId())) {
+            throw new IllegalArgumentException("Mercenaries cannot use the knight's supplies.");
+        }
+
+        switch (item.kind()) {
+            case "REVIVE" -> {
+                if (target.isAlive()) throw new IllegalArgumentException("That Siegeling is still standing.");
+                if (target.isKnight()) throw new IllegalArgumentException("The knight cannot be revived with a card.");
+                int hp = Math.max(1, (int) Math.round(target.getMaxHp() * (item.value() / 100.0)));
+                target.setHp(hp);
+                run.setLastReward(target.getName() + " rises again at " + item.value() + "% strength!");
+                if (battle != null) {
+                    battle.log(run.getKnightName() + " plays " + item.name() + " — " + target.getName() + " returns!");
+                    battle.event("revive", "targetId", target.getId(), "hp", target.getHp(), "maxHp", target.getMaxHp());
+                }
+            }
+            case "HEAL" -> {
+                if (!target.isAlive()) throw new IllegalArgumentException("That ally has fallen — use a Revive Card instead.");
+                int before = target.getHp();
+                target.setHp(before + (int) Math.round(target.getMaxHp() * (item.value() / 100.0)));
+                int healed = target.getHp() - before;
+                run.setLastReward(target.getName() + " drinks " + item.name() + " (+ " + healed + " HP).");
+                if (battle != null) {
+                    battle.log(run.getKnightName() + " shares " + item.name() + " with " + target.getName() + ".");
+                    battle.event("heal", "targetId", target.getId(), "amount", healed, "hp", target.getHp());
+                }
+            }
+            default -> throw new IllegalArgumentException("That item cannot be used.");
+        }
+
+        run.getKnightBag().remove(itemId);
+        checkpoint(run);
+        return serialize(run);
+    }
+
+    private Combatant resolveKnightItemTarget(SiegeRun run, SiegeBattle battle, String targetId) {
+        if (battle != null) {
+            for (Combatant c : battle.getCombatants()) {
+                if (c.getId().equals(targetId)) return c;
+            }
+            return null;
+        }
+        Combatant knight = run.getKnightUnit();
+        if (knight != null && knight.getId().equals(targetId)) return knight;
+        return run.getParty().stream().filter(m -> m.getId().equals(targetId)).findFirst().orElse(null);
     }
 
     private void unequipToInventory(SiegeRun run, Combatant member) {
@@ -1821,9 +1903,11 @@ public class SiegeService {
         knight.put("active", run.getKnightActive() == null ? null : run.getKnightActive().name());
         knight.put("activeSpec", run.getKnightActive() == null ? null : serializeSpec(run.getKnightActive()));
         if (run.getKnightUnit() != null) {
+            knight.put("unitId", run.getKnightUnit().getId());
             knight.put("hp", run.getKnightUnit().getHp());
             knight.put("maxHp", run.getKnightUnit().getMaxHp());
             knight.put("artUrl", run.getKnightUnit().getArtUrl());
+            knight.put("alive", run.getKnightUnit().isAlive());
         }
         m.put("knight", knight);
 
@@ -1866,6 +1950,13 @@ public class SiegeService {
             if (im != null) inv.add(im);
         }
         m.put("inventory", inv);
+
+        List<Map<String, Object>> knightBag = new ArrayList<>();
+        for (String id : run.getKnightBag()) {
+            Map<String, Object> im = serializeItem(content.findItem(id));
+            if (im != null) knightBag.add(im);
+        }
+        m.put("knightBag", knightBag);
 
         // Smith / Caravan / Event interactive stops.
         m.put("smith", run.isInSmith() ? serializeOptionStop(run, run.getSmithOptions(), null) : null);

@@ -80,6 +80,8 @@ class SiegeRun {
 
     /** Unequipped items carried by the warband (equipped items live on Combatants). */
     private final List<String> inventory = new ArrayList<>();
+    /** Consumables carried by the SiegeKnight (revive cards, potions, etc.). */
+    private final List<String> knightBag = new ArrayList<>();
 
     // Smith / Caravan / Event interactive stops (each reuses the CampOption shape).
     private boolean inSmith;
@@ -185,6 +187,7 @@ class SiegeRun {
     void setPendingRecruit(java.util.Map<String, Object> pendingRecruit) { this.pendingRecruit = pendingRecruit; }
 
     List<String> getInventory() { return inventory; }
+    List<String> getKnightBag() { return knightBag; }
 
     boolean isInSmith() { return inSmith; }
     void setInSmith(boolean inSmith) { this.inSmith = inSmith; }
