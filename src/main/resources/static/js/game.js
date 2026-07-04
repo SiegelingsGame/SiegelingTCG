@@ -1308,7 +1308,14 @@ function renderCardArt(card, variant, fallbackLabel = '') {
             ? ` card-art-crop-${artMeta.crop}`
             : '';
         const styleAttr = artMeta.transformStyle ? ` style="${escapeHtmlAttribute(artMeta.transformStyle)}"` : '';
-        return `<div class="card-art card-art-${variant}${cropClass}"><img ${webpImgAttrs(artMeta.url)} alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="lazy"${styleAttr}></div>`;
+        // Prominent single-card previews (the deck-builder Card View, the binder
+        // detail card) must show their character overlay right away. Lazy-loading
+        // left the art blank when the panel started below the fold — on mobile the
+        // deck-builder Card View stacks under the binder list — so the frame's
+        // element background showed alone. Load those eagerly; keep grid/hand/board
+        // art lazy since many render at once.
+        const loading = (variant === 'preview' || variant === 'selected') ? 'eager' : 'lazy';
+        return `<div class="card-art card-art-${variant}${cropClass}"><img ${webpImgAttrs(artMeta.url)} alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="${loading}"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
