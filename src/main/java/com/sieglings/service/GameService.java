@@ -98,7 +98,12 @@ public class GameService {
 
     /** Starts a brand-new solo game scoped to a freshly generated token. */
     public SoloHandle newSoloGame(StartOptions options) {
-        GameState state = createGame(options, null, "Player", "AI Opponent", false);
+        return newSoloGame(options, "Player");
+    }
+
+    /** Starts a brand-new solo game scoped to a freshly generated token. */
+    public SoloHandle newSoloGame(StartOptions options, String playerName) {
+        GameState state = createGame(options, null, safePlayerName(playerName, "Player"), "AI Opponent", false);
         purgeStaleSoloGames();
         String token = generateSoloToken();
         soloGames.put(token, new SoloSession(state));
@@ -126,6 +131,14 @@ public class GameService {
             token = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         } while (soloGames.containsKey(token));
         return token;
+    }
+
+    private String safePlayerName(String name, String fallback) {
+        String trimmed = name == null ? "" : name.trim();
+        if (trimmed.isEmpty()) {
+            return fallback;
+        }
+        return trimmed.length() > 20 ? trimmed.substring(0, 20) : trimmed;
     }
 
     private void purgeStaleSoloGames() {

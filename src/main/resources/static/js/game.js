@@ -27,6 +27,8 @@ let selectedTrainerId = null;
 let loadoutMode = 'preset';
 let loadoutStep = 'setup';
 const LOADOUT_STEPS = ['setup', 'deck', 'knight', 'review'];
+const GUEST_DIRECT_PLAYER_NAME = 'Guest';
+const GUEST_LOADOUT_TRAINER_IDS = new Set(['trainer02', 'trainer05', 'trainer06', 'trainer09']);
 let builderCounts = {};
 let builderElementFilter = 'ALL';
 let builderTypeFilter = 'ALL';
@@ -3385,16 +3387,20 @@ function updateResponsiveLayoutVars(force = false) {
     const boardMaxWidth = desktop
         ? Math.round(clampNumber(viewportHeight * 0.45, 360, 620))
         : 420;
+    // Offset = fixed vertical chrome reserved before splitting the arena height into
+    // two boards: the two row labels, the inter-half gap, and (crucially) the player
+    // grid's bottom socket reserve. Ratio = a board's height/width. Short desktops and
+    // phones must reserve the socket row + labels or the bottom external notches clip.
     const boardHeightOffset = desktop
         ? Math.round(clampNumber(
-            viewportHeight * (desktopShortViewport ? 0.075 : 0.1),
-            desktopShortViewport ? 72 : 82,
-            desktopShortViewport ? 108 : 148
+            viewportHeight * (desktopShortViewport ? 0.09 : 0.1),
+            desktopShortViewport ? 84 : 82,
+            desktopShortViewport ? 120 : 148
         ))
-        : 124;
+        : 84;
     const boardHeightRatio = desktop
-        ? (desktopShortViewport ? 1.22 : 1.38)
-        : 2.72;
+        ? (desktopShortViewport ? 1.34 : 1.38)
+        : 1.32;
     const topBarHeight = desktop
         ? Math.round(document.querySelector('.top-bar')?.getBoundingClientRect().height || 36)
         : 0;
@@ -6252,6 +6258,17 @@ function hydrateSavedPlayerName() {
     }
 }
 
+function setLoadoutPlayerName(name, persist = false) {
+    const safe = String(name || '').trim().slice(0, 20);
+    const input = document.getElementById('playerNameInput');
+    if (input) {
+        input.value = safe;
+    }
+    if (persist) {
+        savePlayerName(safe);
+    }
+}
+
 function onPlayerNameInput() {
     savePlayerName(getCurrentPlayerName());
     renderLoadoutOptions();
@@ -7145,9 +7162,9 @@ function renderSavedDeckLoadoutOptions() {
 
     if (!authState.profile?.authenticated) {
         if (noteEl) {
-            noteEl.textContent = 'Sign in to use decks saved on the home Decks screen.';
+            noteEl.textContent = 'Sign in or create an account here to use decks saved on the home Decks screen.';
         }
-        optionsEl.innerHTML = '<div class="builder-empty">Sign in to pick saved custom and premade decks from your binder.</div>';
+        optionsEl.innerHTML = renderLoadoutAuthGate('saved');
         return;
     }
 
@@ -8156,6 +8173,7 @@ async function newGame() {
         });
     }
     const body = getSelectedLoadoutBody();
+    body.playerName = getCurrentPlayerName() || (authState.profile?.user?.displayName || 'Player');
     if (tutorialMatchActive) {
         body.tutorial = true;
     }
@@ -8268,7 +8286,7 @@ function getVisibleLoadoutTrainers() {
     if (authState.profile?.authenticated) {
         return gameOptions.trainers.filter((trainer) => trainer.owned !== false);
     }
-    return gameOptions.trainers;
+    return gameOptions.trainers.filter((trainer) => GUEST_LOADOUT_TRAINER_IDS.has(trainer.id));
 }
 
 function selectTrainerOption(trainerId) {
@@ -8406,9 +8424,19 @@ function applyPendingHomeLoadout() {
     if (!pending || (pending.createdAt && Date.now() - pending.createdAt > 10 * 60 * 1000)) {
         return;
     }
+    const directLoadout = Boolean(pending.directLoadout);
     tutorialMatchActive = Boolean(pending.tutorial);
     // Arrived from the Home hub with a chosen loadout — skip the welcome and go straight to the loadout.
     welcomeDismissed = true;
+    if (directLoadout) {
+        loadoutStep = 'deck';
+        if (!authState.profile?.authenticated) {
+            dropStaleGuestToken();
+            setLoadoutPlayerName(pending.playerName || GUEST_DIRECT_PLAYER_NAME);
+        } else if (pending.playerName || authState.profile?.user?.displayName) {
+            setLoadoutPlayerName(pending.playerName || authState.profile.user.displayName);
+        }
+    }
     if (pending.trainerId && gameOptions?.trainers?.some(trainer => trainer.id === pending.trainerId)) {
         selectedTrainerId = pending.trainerId;
     }
@@ -8593,9 +8621,10 @@ function isLoadoutStepValid(step) {
         }
         case 'deck': {
             if (loadoutMode === 'builder') {
-                return getBuilderCardCount() >= gameOptions.deckBuilder.minDeckSize;
+                return authState.profile?.authenticated && getBuilderCardCount() >= gameOptions.deckBuilder.minDeckSize;
             }
             if (loadoutMode === 'saved') {
+                if (!authState.profile?.authenticated) return false;
                 const savedDeck = getSelectedSavedDeck();
                 if (!savedDeck) return false;
                 return savedDeck.custom
@@ -8705,14 +8734,18 @@ function renderLoadoutSwaps() {
             return `<option value="preset:${escapeHtmlAttribute(deck.id)}"${selected}>${escapeHtml(deck.name)}</option>`;
         }).join('');
         html += `</optgroup>`;
-        html += `<optgroup label="My Decks">`;
-        html += savedDecks.length
-            ? savedDecks.map(deck => {
-                const selected = loadoutMode === 'saved' && deck.id === selectedSavedDeckId ? ' selected' : '';
-                return `<option value="saved:${escapeHtmlAttribute(deck.id)}"${selected}>${escapeHtml(deck.name)}</option>`;
-            }).join('')
-            : `<option value="" disabled>No saved decks yet</option>`;
-        html += `</optgroup>`;
+        if (authState.profile?.authenticated) {
+            html += `<optgroup label="My Decks">`;
+            html += savedDecks.length
+                ? savedDecks.map(deck => {
+                    const selected = loadoutMode === 'saved' && deck.id === selectedSavedDeckId ? ' selected' : '';
+                    return `<option value="saved:${escapeHtmlAttribute(deck.id)}"${selected}>${escapeHtml(deck.name)}</option>`;
+                }).join('')
+                : `<option value="" disabled>No saved decks yet</option>`;
+            html += `</optgroup>`;
+        } else {
+            html += `<optgroup label="My Decks"><option value="" disabled>Sign in to use My Decks</option></optgroup>`;
+        }
         deckSelect.innerHTML = html;
     }
 
@@ -8783,6 +8816,56 @@ function getDeckEvolutionLines() {
         }
     });
     return lines;
+}
+
+function getDeckOpeningHandHints() {
+    const catalog = gameOptions?.cardCatalog;
+    if (!Array.isArray(catalog) || !catalog.length) return [];
+    const byId = new Map(catalog.map(card => [card.id, card]));
+    const seen = new Set();
+    const hints = [];
+    getDeckLoadoutCardIds().forEach(id => {
+        const card = byId.get(id);
+        if (!card || seen.has(card.id)) return;
+        const type = String(card.type || '').toUpperCase();
+        const directCost = Number(card.costAmount || 0);
+        const trapCost = Number(card.trapBucketAmount || 0);
+        const comboCost = Number(card.requiredComboSize || 0);
+        const isBaseStarter = type === 'SIEGLING' && !card.evolvesFromId && !card.evolvesFromName;
+        const isFreeAction = type !== 'TRAP' && type !== 'SIEGLING'
+            && directCost <= 0 && trapCost <= 0 && comboCost <= 0 && !card.requiredReaction;
+        if (!isBaseStarter && !isFreeAction) return;
+        seen.add(card.id);
+        hints.push({
+            name: card.name,
+            element: card.element,
+            type,
+            reason: isBaseStarter ? '0-cost starter' : '0-cost keep'
+        });
+    });
+    return hints
+        .sort((a, b) => (a.type === 'SIEGLING' ? 0 : 1) - (b.type === 'SIEGLING' ? 0 : 1) || a.name.localeCompare(b.name))
+        .slice(0, 8);
+}
+
+function renderLoadoutAuthGate(kind) {
+    const isBuilder = kind === 'builder';
+    const title = isBuilder ? 'Sign in to use Deck Builder' : 'Sign in to use My Decks';
+    const copy = isBuilder
+        ? 'Create an account or sign in to build custom decks from your binder. Preset decks are ready for guest battles.'
+        : 'Create an account or sign in to load decks saved to your binder. Preset decks are ready for guest battles.';
+    return `<div class="loadout-auth-gate">
+        <div>
+            <div class="selected-loadout-subtle-label">Account Required</div>
+            <h3>${escapeHtml(title)}</h3>
+            <p>${escapeHtml(copy)}</p>
+        </div>
+        <div class="loadout-auth-gate-actions">
+            <button class="btn btn-primary" type="button" onclick="openAuthPopup('login')">Sign In</button>
+            <button class="btn" type="button" onclick="openAuthPopup('register')">Create Account</button>
+            <button class="btn loadout-auth-preset-btn" type="button" onclick="switchLoadoutMode('preset')">Use Presets</button>
+        </div>
+    </div>`;
 }
 
 function renderLoadoutOptions() {
@@ -9088,7 +9171,17 @@ function renderSelectedLoadoutPreview() {
         .slice(0, 4);
 
     const evolutionLines = getDeckEvolutionLines();
+    const openingHints = getDeckOpeningHandHints();
     const strategyDescription = theme.description || deck?.description || 'Tune your list, choose a commander, and bring your preferred plan into battle.';
+    const openingBlock = openingHints.length
+        ? `<div class="selected-loadout-opening-block">
+                <div class="selected-loadout-subtle-label">Opening Hand Keeps</div>
+                <p class="selected-loadout-opening-copy">Keep these 0-cost starter cards, or mulligan toward one if your hand opens slow.</p>
+                <div class="selected-loadout-opening-cards">
+                    ${openingHints.map(card => `<span class="loadout-opening-card" style="--opening-el:${getElementHex(card.element)}"><strong>${escapeHtml(card.name)}</strong><em>${escapeHtml(card.reason)}</em></span>`).join('')}
+                </div>
+            </div>`
+        : '';
     const evolutionBlock = evolutionLines.length
         ? `<div class="selected-loadout-evolution-block">
                 <div class="selected-loadout-subtle-label">Cards That Evolve</div>
@@ -9104,6 +9197,7 @@ function renderSelectedLoadoutPreview() {
             <div class="selected-loadout-traits">
                 ${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}
             </div>
+            ${openingBlock}
             ${evolutionBlock}
         </div>`;
 
@@ -9195,6 +9289,15 @@ function renderDeckBuilder() {
     const elementFiltersEl = document.getElementById('builderElementFilters');
     const typeFiltersEl = document.getElementById('builderTypeFilters');
     if (!catalogEl || !deckListEl || !previewEl || !elementFiltersEl || !typeFiltersEl) {
+        return;
+    }
+
+    if (!authState.profile?.authenticated) {
+        elementFiltersEl.innerHTML = '';
+        typeFiltersEl.innerHTML = '';
+        catalogEl.innerHTML = renderLoadoutAuthGate('builder');
+        deckListEl.innerHTML = '<div class="builder-empty">Your custom deck list unlocks after sign in.</div>';
+        previewEl.innerHTML = '<div class="builder-empty">Sign in or create an account to preview and save custom builds.</div>';
         return;
     }
 
@@ -9359,6 +9462,11 @@ function applyLoadoutSummary() {
     }
 
     if (loadoutMode === 'builder') {
+        if (!authState.profile?.authenticated) {
+            summary.textContent = 'Sign in or create an account to use Deck Builder.';
+            syncLoadoutStartButton(startBtn, true, startButtonLabel);
+            return;
+        }
         const cardCount = getBuilderCardCount();
         const elementList = collectBuilderElements();
         const valid = cardCount >= gameOptions.deckBuilder.minDeckSize;
@@ -9378,7 +9486,7 @@ function applyLoadoutSummary() {
     if (loadoutMode === 'saved') {
         const savedDeck = getSelectedSavedDeck();
         if (!authState.profile?.authenticated) {
-            summary.textContent = 'Sign in to use decks from your binder.';
+            summary.textContent = 'Sign in or create an account to use decks from your binder.';
             syncLoadoutStartButton(startBtn, true, startButtonLabel);
             return;
         }
@@ -9424,6 +9532,10 @@ async function startSelectedGame() {
     if (loadoutStartPending) return;
     if (!selectedTrainerId) return;
     if (loadoutMode === 'preset' && !selectedDeckId) return;
+    if ((loadoutMode === 'builder' || loadoutMode === 'saved') && !authState.profile?.authenticated) {
+        openAuthPopup('login');
+        return;
+    }
     if (loadoutMode === 'builder' && getBuilderCardCount() < gameOptions.deckBuilder.minDeckSize) return;
     if (loadoutMode === 'saved') {
         const savedDeck = getSelectedSavedDeck();
@@ -10116,6 +10228,7 @@ function renderDomLegacy() {
         const canUse = canUseTrainerAbility(trainer);
         btnTrainerAbility.classList.toggle('hidden', !hasTrainer);
         btnTrainerAbility.disabled = !hasTrainer;
+        btnTrainerAbility.classList.toggle('ab-ability-ready', canUse);
         btnTrainerAbility.innerHTML = trainer?.tier === 'SiegeLord' ? '&#9876; Lord' : '&#9876; Knight';
         btnTrainerAbility.title = trainer
             ? `${trainer.name}${trainer.active?.name ? `: ${trainer.active.name}` : ''}${canUse ? '' : ' (details only)'}`

@@ -5745,7 +5745,7 @@
     function queuePlayLoadout(payload = {}) {
         const savedDeck = selectedSavedDeck();
         const customDeckCards = payload.customDeckCards
-            || (savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null);
+            || (!payload.directLoadout && savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null);
         const loadoutLabel = payload.loadoutLabel
             || (customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : '');
         localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
@@ -5759,7 +5759,9 @@
             directLoadout: Boolean(payload.directLoadout),
             tutorial: Boolean(payload.tutorial),
             customDeckCards,
-            loadoutLabel
+            loadoutLabel,
+            playerName: payload.playerName
+                || (state.profile?.authenticated ? (state.profile?.user?.displayName || '') : 'Guest')
         }));
     }
 

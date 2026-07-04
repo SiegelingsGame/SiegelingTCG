@@ -26,6 +26,10 @@
     --glow-blue: rgba(50, 150, 255, 0.22);
     --glow-fire: rgba(255, 80, 30, 0.18);
     --glow-wind: rgba(150, 255, 180, 0.14);
+    --device-safe-top: env(safe-area-inset-top, 0px);
+    --device-safe-right: env(safe-area-inset-right, 0px);
+    --device-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --device-safe-left: env(safe-area-inset-left, 0px);
     font-family: "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -7664,7 +7668,7 @@ body.gacha-active {
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
         box-sizing: border-box;
-        padding: 10px 10px calc(224px + env(safe-area-inset-bottom, 0px));
+        padding: calc(10px + var(--device-safe-top)) 10px calc(224px + var(--device-safe-bottom));
         scroll-padding-bottom: calc(224px + env(safe-area-inset-bottom, 0px));
     }
     /* Mobile HUD docks at the bottom: handle moves to its top edge and the

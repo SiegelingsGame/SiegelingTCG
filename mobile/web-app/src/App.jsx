@@ -77,9 +77,14 @@ const GlobalStyles = () => (
       --text-primary: #E8EDF5; --text-secondary: #8899B4; --text-dim: #5A6B85;
       --accent-blue: #3B82F6; --accent-cyan: #06B6D4; --accent-gold: #F59E0B;
       --danger: #EF4444; --success: #22C55E;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
     }
+    html, #root { width: 100%; height: 100%; overflow: hidden; background: var(--bg-deep); }
     body { background: var(--bg-deep); color: var(--text-primary); font-family: 'Exo 2', sans-serif;
-      overflow: hidden; -webkit-font-smoothing: antialiased; user-select: none; }
+      width: 100vw; height: 100dvh; min-height: 100dvh; overflow: hidden; -webkit-font-smoothing: antialiased; user-select: none; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
@@ -95,7 +100,11 @@ const GlobalStyles = () => (
       border-top-color: var(--accent-cyan);
       animation: spin 0.75s linear infinite;
     }
-    .screen { width: 100vw; height: 100dvh; position: fixed; top: 0; left: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .screen {
+      width: 100vw; height: 100dvh; position: fixed; inset: 0;
+      display: flex; flex-direction: column; overflow: hidden;
+      padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+    }
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       padding: 12px 24px; border-radius: 10px; border: 1px solid var(--border-glow);
@@ -671,7 +680,7 @@ function MulliganScreen({ hand, onKeep, onRedraw, selected, toggle, busy }) {
           position: "relative",
           zIndex: 1,
           textAlign: "center",
-          padding: "max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom))",
+          padding: "24px 20px",
           width: "100%",
           minHeight: "100%",
           boxSizing: "border-box",

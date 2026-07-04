@@ -42,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 /**
@@ -49,6 +50,8 @@ import java.util.stream.IntStream;
  */
 @Controller
 public class GameController {
+
+    private static final Set<String> GUEST_TRAINER_IDS = Set.of("trainer02", "trainer05", "trainer06", "trainer09");
 
     @Autowired
     private GameService gameService;
@@ -315,7 +318,10 @@ public class GameController {
             // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
             // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
             // roguelike mode, where levels will carry into every fight.
-            GameService.SoloHandle handle = gameService.newSoloGame(options);
+            Object rawPlayerName = req == null ? null : req.get("playerName");
+            String playerName = rawPlayerName == null ? null : String.valueOf(rawPlayerName);
+            GameService.SoloHandle handle = gameService.newSoloGame(options,
+                    user == null && (playerName == null || playerName.isBlank()) ? "Guest" : playerName);
             attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
             // Tutorial matches face a 10 HP enemy so new players can finish
             // the guided objectives quickly.
@@ -1305,12 +1311,12 @@ public class GameController {
 
     private List<Map<String, Object>> serializeTrainerOptions(String authorizationHeader) {
         AccountUser user = accountService.findUser(authorizationHeader);
-        // Guests are not gated server-side, so don't lock the picker for them either.
         boolean gated = user != null;
         Map<String, Integer> ownedLevels = gated
                 ? playerProgressionService.getOrCreate(user).getTrainerLevels()
                 : Map.of();
         return gameService.getTrainerOptions().stream()
+                .filter(trainer -> gated || GUEST_TRAINER_IDS.contains(normalizeTrainerId(trainer.getId())))
                 .map(trainer -> serializeTrainerOption(trainer, ownedLevels, gated))
                 .toList();
     }
@@ -1571,6 +1577,10 @@ public class GameController {
     }
 
     private void validateStartOwnership(AccountUser user, GameService.StartOptions options) {
+        if (user == null && options.playerTrainerId() != null && !options.playerTrainerId().isBlank()
+                && !GUEST_TRAINER_IDS.contains(normalizeTrainerId(options.playerTrainerId()))) {
+            throw new IllegalArgumentException("Guest players can use the Fire, Ice, Wind, and Earth starter SiegeKnights. Sign in to unlock more.");
+        }
         if (user != null && options.playerTrainerId() != null && !options.playerTrainerId().isBlank()
                 && !playerProgressionService.ownsTrainer(user, options.playerTrainerId())) {
             throw new IllegalArgumentException("You haven't unlocked that SiegeKnight yet. Pull it from a pack first.");
@@ -1582,6 +1592,10 @@ public class GameController {
             throw new IllegalArgumentException("Sign in to use custom decks.");
         }
         playerProgressionService.validateCustomDeckOwnership(user, options.customDeckCards());
+    }
+
+    private static String normalizeTrainerId(String trainerId) {
+        return trainerId == null ? "" : trainerId.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     /**
