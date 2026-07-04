@@ -1279,6 +1279,9 @@ public class GameController {
         if (card.isHolographic()) {
             m.put("holographic", true);
         }
+        if (card.getDescription() != null && !card.getDescription().isBlank()) {
+            m.put("description", card.getDescription());
+        }
 
         return m;
     }

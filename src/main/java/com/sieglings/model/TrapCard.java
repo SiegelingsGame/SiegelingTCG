@@ -33,6 +33,7 @@ public class TrapCard extends Card {
         copy.setCardArtScale(getCardArtScale());
         copy.setCardArtRotation(getCardArtRotation());
         copy.setHolographic(isHolographic());
+        copy.setDescription(getDescription());
         return copy;
     }
 }
