@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=14">
+<link rel="stylesheet" href="/css/adventure.css?v=15">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -65,7 +65,7 @@
       <div class="siegeling-grid" id="sieglingGrid"></div>
       <div class="setup-footer">
         <button class="siege-btn" id="partyBackBtn" type="button">◂ Knight</button>
-        <div class="setup-summary" id="setupSummary">Pick 3 Siegelings.</div>
+        <div class="setup-summary" id="setupSummary">Pick your starting Siegeling.</div>
         <button class="siege-btn primary" id="startRunBtn" type="button" disabled>Begin Expedition</button>
       </div>
     </div>
@@ -110,6 +110,7 @@
     <h1 class="camp-title">Buried Cache</h1>
     <p class="siege-sub">Dig for loot — but every dig risks a collapse that buries the unbanked gold.</p>
     <div class="cache-loot" id="cacheLoot"></div>
+    <div class="camp-grid" id="cacheOptions"></div>
     <div class="cache-risk"><div class="cache-riskbar"><div class="cache-riskfill" id="cacheRiskFill"></div></div><span id="cacheRiskText"></span></div>
     <div class="camp-meta"><span id="cacheReward" class="camp-reward"></span></div>
     <div class="camp-actions">
@@ -152,8 +153,8 @@
       <div class="broker-npc">🐾</div>
       <div class="camp-tent">🏪</div>
     </div>
-    <h1 class="camp-title">Siegeling Broker</h1>
-    <p class="siege-sub">New Siegelings for hire — recruit into an open slot, or swap one of yours for fresh blood.</p>
+    <h1 class="camp-title">Mercenary Broker</h1>
+    <p class="siege-sub">Elite mercenaries for rent — one fights your NEXT battle with powerful boon cards, then departs with its pay.</p>
     <div class="camp-meta"><span class="gold-chip" id="brokerGold">🪙 0</span><span id="brokerReward" class="camp-reward"></span></div>
     <div class="camp-grid" id="brokerGrid"></div>
     <div class="camp-actions">
@@ -175,6 +176,7 @@
   <section class="siege-screen hidden" id="resultScreen">
     <h1 id="resultTitle"></h1>
     <p class="siege-sub" id="resultText"></p>
+    <div id="resultExtras"></div>
     <button class="siege-btn primary" id="resultBtn" type="button">Continue</button>
   </section>
 
@@ -188,6 +190,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=14"></script>
+<script src="/js/adventure.js?v=15"></script>
 </body>
 </html>

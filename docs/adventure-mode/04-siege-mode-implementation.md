@@ -253,3 +253,38 @@ win counts:
   Phase 2–3 items from `03-technical-plan.md`, layered on the working loop.
 - Difficulty is a first tuning pass; numbers live in `SiegeContentService` for iteration
   (a naive greedy bot wins ≈25–30% of runs; thoughtful play should do noticeably better).
+
+## v8 — Warband growth, mercenaries, 3-boss campaign, endless mode
+
+- **Solo start + wild recruits**: runs begin as SiegeKnight + 1 Siegeling; after each
+  battle win a wild Siegeling joins (1% stage 3, 5% stage 2, else stage 1) until the
+  warband holds 3. Difficulty scales with living party size (a lone Siegeling faces
+  ~2/3-strength foes).
+- **3-boss campaign**: the map is 3× longer (24 rows) — three chained 8-row regions,
+  each funneling through an unskippable boss row: a **Squire**, a rogue **SiegeKnight**,
+  then the **Siegelord**. Mid-boss wins pay big gold, heal 25%, and open the next region.
+- **Mercenary brokers**: broker stalls now RENT elite mercenaries (evolved forms,
+  +35% HP, +3 speed) for 55g — they fight your NEXT battle with two extra Boon cards
+  (Warcry: party +3 attack · Bulwark: party 8 shield) plus their upgraded moves, then
+  depart. Permanent recruiting still happens at camps and elite rewards.
+- **Camp revives**: fallen Siegelings can be revived at Rest Camps — 50% HP for 35g or
+  100% for 70g.
+- **Knight roguelike classes**: new **Marshal** class starts the run with an extra
+  Siegeling. Classes (Bulwark/Warlord/Vanguard/Warden/Quartermaster/Marshal) are
+  assignable per knight from the card dashboard ("Siege Roguelike Classes" panel,
+  editor-authenticated, `/api/siege/classes`); unassigned knights keep their hash default.
+  Assignments are in-memory (reset on redeploy) — persistence is a follow-up.
+- **Cache variety**: caches now roll one of three mini-games — the press-your-luck Dig,
+  **Three Chests** (pick one: gold / +5 max HP / party heal / trap), or the **Wheel of
+  Spoils** (stake 15g for x0–x3).
+- **Endless mode**: winning a standard run lets you save the team to one of three slots
+  (client-side); saved teams launch **Endless runs** — when the Siegelord falls the map
+  grows another region and difficulty loops upward. Score accrues from kills, depth,
+  gold and bosses; a death screen shows the final score.
+- **End-of-run rewards**: every run ends with a Spoils of War payout — **Siegecoins,
+  Remnants, and (on wins) a random collection card** — granted to the logged-in
+  account via the existing progression store (guests see a sign-in preview).
+
+Verified end-to-end via `/api/siege/**`: solo start → win → auto-recruit; chest cache;
+merc rental → fought as 4th ally → departed after victory; endless run creation;
+end-reward preview on defeat; classes endpoint listing all six classes.

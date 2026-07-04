@@ -53,9 +53,28 @@ class SiegeRun {
     private int cacheGold;
     private int cacheDigs;
 
-    // Broker stall state (recruit or swap Siegelings for gold).
+    // Broker stall state (mercenary rentals for the next battle).
     private boolean inBroker;
     private final List<CampOption> brokerOptions = new ArrayList<>();
+
+    /** Rented mercenary — fights the NEXT battle only, then departs. */
+    private Combatant mercenary;
+    private final List<SiegeCard> mercCards = new ArrayList<>();
+
+    /** Which mini-game this cache rolled: DIG, CHESTS or WHEEL. */
+    private String cacheGame = "DIG";
+    private final List<CampOption> cacheOptions = new ArrayList<>();
+
+    // Run mode, scoring and lifetime stats (endless loops + end-of-run rewards).
+    private RunMode mode = RunMode.STANDARD;
+    private long score;
+    private int loop;
+    private int nodesCleared;
+    private int bossKills;
+    private int enemiesDefeated;
+    private int goldEarnedTotal;
+    private boolean endRewardsGranted;
+    private java.util.Map<String, Object> endRewards;
 
     /** Whether the run's last idle checkpoint reached persistent storage. */
     private boolean checkpointSaved;
@@ -118,6 +137,34 @@ class SiegeRun {
     boolean isInBroker() { return inBroker; }
     void setInBroker(boolean inBroker) { this.inBroker = inBroker; }
     List<CampOption> getBrokerOptions() { return brokerOptions; }
+
+    Combatant getMercenary() { return mercenary; }
+    void setMercenary(Combatant mercenary) { this.mercenary = mercenary; }
+    List<SiegeCard> getMercCards() { return mercCards; }
+
+    String getCacheGame() { return cacheGame; }
+    void setCacheGame(String cacheGame) { this.cacheGame = cacheGame == null ? "DIG" : cacheGame; }
+    List<CampOption> getCacheOptions() { return cacheOptions; }
+
+    RunMode getMode() { return mode; }
+    void setMode(RunMode mode) { this.mode = mode == null ? RunMode.STANDARD : mode; }
+    long getScore() { return score; }
+    void addScore(long points) { this.score = Math.max(0, this.score + points); }
+    void setScore(long score) { this.score = Math.max(0, score); }
+    int getLoop() { return loop; }
+    void setLoop(int loop) { this.loop = Math.max(0, loop); }
+    int getNodesCleared() { return nodesCleared; }
+    void setNodesCleared(int nodesCleared) { this.nodesCleared = Math.max(0, nodesCleared); }
+    int getBossKills() { return bossKills; }
+    void setBossKills(int bossKills) { this.bossKills = Math.max(0, bossKills); }
+    int getEnemiesDefeated() { return enemiesDefeated; }
+    void setEnemiesDefeated(int enemiesDefeated) { this.enemiesDefeated = Math.max(0, enemiesDefeated); }
+    int getGoldEarnedTotal() { return goldEarnedTotal; }
+    void setGoldEarnedTotal(int goldEarnedTotal) { this.goldEarnedTotal = Math.max(0, goldEarnedTotal); }
+    boolean isEndRewardsGranted() { return endRewardsGranted; }
+    void setEndRewardsGranted(boolean endRewardsGranted) { this.endRewardsGranted = endRewardsGranted; }
+    java.util.Map<String, Object> getEndRewards() { return endRewards; }
+    void setEndRewards(java.util.Map<String, Object> endRewards) { this.endRewards = endRewards; }
 
     boolean isCheckpointSaved() { return checkpointSaved; }
     void setCheckpointSaved(boolean checkpointSaved) { this.checkpointSaved = checkpointSaved; }

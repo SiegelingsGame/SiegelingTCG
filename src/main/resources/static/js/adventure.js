@@ -227,7 +227,28 @@
     $('knightSummary').textContent = kn ? (kn.name + ' — ' + kn.activeName) : 'Select a SiegeKnight.';
   }
 
+  function renderEndlessSlots() {
+    var host = $('endlessSlots');
+    if (!host) {
+      host = el('div', 'endless-slots');
+      host.id = 'endlessSlots';
+      var footer = $('startRunBtn') ? $('startRunBtn').parentNode : null;
+      if (footer && footer.parentNode) footer.parentNode.insertBefore(host, footer);
+    }
+    host.innerHTML = '';
+    var slots = teamSlots();
+    if (!slots.some(function (x) { return x; })) return;
+    host.appendChild(el('div', 'endless-title', '🔁 Endless Run — score attack with a saved team'));
+    slots.forEach(function (slot, i) {
+      if (!slot) return;
+      var btn = el('button', 'siege-btn endless-btn', '★ ' + esc(slot.name) + ' — Start Endless');
+      btn.addEventListener('click', function () { startEndless(slot); });
+      host.appendChild(btn);
+    });
+  }
+
   function renderPartyStep() {
+    renderEndlessSlots();
     var r = state.roster;
     var elements = ['ALL'];
     r.sieglings.forEach(function (s) { if (elements.indexOf(s.element) < 0) elements.push(s.element); });
@@ -283,7 +304,7 @@
   }
 
   function refreshSetupFooter() {
-    var need = state.roster.partySize || 3;
+    var need = state.roster.partySize || 1;
     var ready = state.knightId && state.party.length === need;
     $('startRunBtn').disabled = !ready;
     var names = state.party.map(function (id) {
@@ -293,9 +314,28 @@
     $('setupSummary').textContent = 'Warband (' + state.party.length + '/' + need + '): ' + (names.join(', ') || '—');
   }
 
+  // ---- saved team slots (endless mode) ----------------------------------
+  var SLOTS_KEY = 'siegeTeamSlots';
+  function teamSlots() {
+    try { return JSON.parse(localStorage.getItem(SLOTS_KEY) || '[null,null,null]'); }
+    catch (e) { return [null, null, null]; }
+  }
+  function saveTeamSlot(i, slot) {
+    var slots = teamSlots(); slots[i] = slot;
+    try { localStorage.setItem(SLOTS_KEY, JSON.stringify(slots)); } catch (e) {}
+  }
+
   function startRun() {
     if (state.busy) return; state.busy = true;
-    api('/api/siege/run/new', { method: 'POST', body: { knightId: state.knightId, sieglingIds: state.party } })
+    api('/api/siege/run/new', { method: 'POST', body: { knightId: state.knightId, sieglingIds: state.party, mode: 'STANDARD' } })
+      .then(function (run) { setToken(run.token); applyRun(run); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  function startEndless(slot) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/run/new', { method: 'POST', body: { knightId: slot.knightId, sieglingIds: slot.sieglingIds, mode: 'ENDLESS' } })
       .then(function (run) { setToken(run.token); applyRun(run); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
@@ -361,7 +401,8 @@
     showScreen('mapScreen');
     var run = state.run;
     renderPartyStrip($('partyStrip'), run.party, run.knight);
-    $('mapGold').textContent = '🪙 ' + (run.gold || 0);
+    $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
+      (run.mode === 'ENDLESS' ? '  ·  ★ ' + (run.score || 0) + '  ·  🔁 ' + ((run.loop || 0) + 1) : '');
     $('mapReward').textContent = run.lastReward || '';
     $('mapReward').classList.toggle('hidden', !run.lastReward);
     $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');
@@ -581,11 +622,44 @@
     showScreen('cacheScreen');
     var run = state.run;
     var c = run.cache;
-    $('cacheLoot').innerHTML = 'Unbanked loot: <strong>🪙 ' + c.loot + '</strong> · Wallet: 🪙 ' + (run.gold || 0);
-    $('cacheRiskFill').style.width = c.bustChance + '%';
-    $('cacheRiskText').textContent = 'Collapse risk: ' + c.bustChance + '% · Dig ' + c.digs + '/' + c.maxDigs;
+    var isDig = !c.game || c.game === 'DIG';
+    $('cacheDigBtn').classList.toggle('hidden', !isDig);
+    $('cacheTakeBtn').classList.toggle('hidden', !isDig);
+    $('cacheRiskFill').parentNode.parentNode.classList.toggle('hidden', !isDig);
     $('cacheReward').textContent = run.lastReward || '';
-    $('cacheChest').textContent = c.digs === 0 ? '🪙' : (c.digs >= 3 ? '💎' : '💰');
+    var opts = $('cacheOptions'); opts.innerHTML = '';
+    if (isDig) {
+      $('cacheLoot').innerHTML = 'Unbanked loot: <strong>🪙 ' + c.loot + '</strong> · Wallet: 🪙 ' + (run.gold || 0);
+      $('cacheChest').textContent = c.digs === 0 ? '🪙' : (c.digs >= 3 ? '💎' : '💰');
+      $('cacheRiskFill').style.width = c.bustChance + '%';
+      $('cacheRiskText').textContent = 'Collapse risk: ' + c.bustChance + '% · Dig ' + c.digs + '/' + c.maxDigs;
+      return;
+    }
+    $('cacheChest').textContent = c.game === 'CHESTS' ? '🧰' : '🎡';
+    $('cacheLoot').innerHTML = (c.game === 'CHESTS' ? 'Three chests — pick ONE.' : 'The Wheel of Spoils.') +
+      ' · Wallet: 🪙 ' + (run.gold || 0);
+    (c.options || []).forEach(function (o) {
+      var card = el('div', 'camp-card' + (o.used ? ' used' : ''));
+      card.innerHTML = '<div class="camp-glyph">' + (o.kind === 'CHEST' ? '🧰' : o.kind === 'WHEEL_SPIN' ? '🎡' : '🚶') + '</div>' +
+        '<div class="camp-card-title">' + esc(o.title) + '</div>' +
+        '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
+        (o.cost > 0 ? '<div class="camp-card-cost">🪙 ' + o.cost + '</div>' : '');
+      if (!o.used && o.affordable) {
+        card.classList.add('clickable');
+        card.addEventListener('click', function () { cacheChoose(o.id); });
+      } else if (!o.affordable) {
+        card.classList.add('unaffordable');
+      }
+      opts.appendChild(card);
+    });
+  }
+
+  function cacheChoose(optionId) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/cache/choose', { method: 'POST', body: { token: token(), optionId: optionId } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
   }
 
   function cacheDig() {
@@ -626,12 +700,16 @@
         art +
         '<div class="camp-card-title">' + esc(offer.name) + '</div>' +
         stats +
-        (offer.used ? '' :
-          '<div class="broker-actions">' +
-          '<button class="siege-btn broker-btn hire" type="button"' +
-            ((run.gold >= b.hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + b.hireCost + '</button>' +
-          '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= b.swapCost ? '' : ' disabled') + '>Swap 🪙' + b.swapCost + '</button>' +
-          '</div><div class="broker-swap-row hidden"></div>');
+        (offer.used ? '' : b.merc
+          ? '<div class="broker-actions">' +
+            '<button class="siege-btn broker-btn hire" type="button"' +
+              ((run.gold >= b.hireCost && !b.mercUnderContract) ? '' : ' disabled') + '>Rent 🪙' + b.hireCost + '</button>' +
+            '</div><div class="camp-card-desc">Fights your NEXT battle with boon cards, then departs.</div>'
+          : '<div class="broker-actions">' +
+            '<button class="siege-btn broker-btn hire" type="button"' +
+              ((run.gold >= b.hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + b.hireCost + '</button>' +
+            '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= b.swapCost ? '' : ' disabled') + '>Swap 🪙' + b.swapCost + '</button>' +
+            '</div><div class="broker-swap-row hidden"></div>');
       c.querySelector('.broker-info').addEventListener('click', function (e) {
         e.stopPropagation();
         showUnitModal({
@@ -644,8 +722,8 @@
         var hireBtn = c.querySelector('.broker-btn.hire');
         var swapBtn = c.querySelector('.broker-btn.swap');
         var swapRow = c.querySelector('.broker-swap-row');
-        hireBtn.addEventListener('click', function () { brokerHire(offer.id, null); });
-        swapBtn.addEventListener('click', function () {
+        if (hireBtn) hireBtn.addEventListener('click', function () { brokerHire(offer.id, null); });
+        if (swapBtn) swapBtn.addEventListener('click', function () {
           // Pick which party member is released in the trade.
           swapRow.classList.toggle('hidden');
           if (!swapRow.childNodes.length) {
@@ -1678,11 +1756,62 @@
   // ---- result --------------------------------------------------------
   function renderResult() {
     showScreen('resultScreen');
-    var won = state.run.status === 'WON';
+    var run = state.run;
+    var won = run.status === 'WON';
+    var endless = run.mode === 'ENDLESS';
     var title = $('resultTitle');
-    title.textContent = won ? 'Expedition Won' : 'Expedition Lost';
+    title.textContent = endless ? ('Endless Run — Score ' + (run.score || 0)) : (won ? 'Expedition Won' : 'Expedition Lost');
     title.className = won ? 'win' : 'lose';
-    $('resultText').textContent = state.run.lastReward || (won ? 'The Siegelord has fallen.' : 'Your warband was overwhelmed.');
+    $('resultText').textContent = run.lastReward || (won ? 'The Siegelord has fallen.' : 'Your warband was overwhelmed.');
+
+    var extras = $('resultExtras'); extras.innerHTML = '';
+
+    // Run stats + end-of-run account rewards.
+    var st = run.stats || {};
+    var statsRow = el('div', 'result-stats',
+      '⚔ ' + (st.enemiesDefeated || 0) + ' foes · 👑 ' + (st.bossKills || 0) + ' bosses · 🗺 ' +
+      (st.nodesCleared || 0) + ' nodes · 🪙 ' + (st.goldEarned || 0) + ' looted' +
+      (endless ? ' · 🔁 loop ' + ((run.loop || 0) + 1) : ''));
+    extras.appendChild(statsRow);
+
+    var er = run.endRewards;
+    if (er) {
+      var cardLine = er.card ? '<div>🃏 Card: <strong>' + esc(er.card.name) + '</strong> (' + esc(er.card.rarity) + ')</div>' : '';
+      var note = er.claimed ? 'Added to your account.' : 'Sign in before your next run to bank rewards like these!';
+      var box = el('div', 'result-rewards',
+        '<h3>Spoils of War</h3>' +
+        '<div>🪙 ' + (er.gold || 0) + ' Siegecoins</div>' +
+        '<div>💠 ' + (er.remnants || 0) + ' Remnants</div>' +
+        cardLine +
+        '<div class="result-claim' + (er.claimed ? ' ok' : '') + '">' + note + '</div>');
+      extras.appendChild(box);
+    }
+
+    // Winning a standard run unlocks saving the team for Endless mode.
+    if (won && !endless) {
+      var teamIds = (run.party || []).map(function (p) { return p.sourceCardId; }).filter(Boolean);
+      if (teamIds.length) {
+        var saver = el('div', 'result-save', '<h3>Save this team for Endless</h3>');
+        var row = el('div', 'result-save-row');
+        teamSlots().forEach(function (slot, i) {
+          var label = slot ? ('Slot ' + (i + 1) + ': ' + esc(slot.name)) : ('Save to Slot ' + (i + 1));
+          var btn = el('button', 'siege-btn', label);
+          btn.addEventListener('click', function () {
+            saveTeamSlot(i, {
+              name: (run.knight && run.knight.name ? run.knight.name : 'Team') + ' ×' + teamIds.length,
+              knightId: run.knight ? run.knight.id || state.knightId : state.knightId,
+              sieglingIds: teamIds
+            });
+            btn.textContent = '✓ Saved to Slot ' + (i + 1);
+            toast('Team saved — start an Endless run from the team-select screen.');
+          });
+          row.appendChild(btn);
+        });
+        saver.appendChild(row);
+        extras.appendChild(saver);
+      }
+    }
+
     setToken(null);
     $('resultBtn').textContent = 'Return to Play';
   }
