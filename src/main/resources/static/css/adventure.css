@@ -3,6 +3,7 @@
   --text:#e8ecf3; --dim:#9aa6b8; --faint:#6b7688;
   --accent:#ff9a3c; --accent-2:#3ea6ff; --good:#7ee787; --bad:#ff6e6e; --shield:#76e6ff;
   --radius:12px;
+  --playcard-w:128px;
 }
 *{box-sizing:border-box;}
 body{
@@ -586,7 +587,7 @@ body[data-screen="mapScreen"] .map-scroll{
 .ledger-cost{font-size:10px; color:var(--accent); font-weight:800; white-space:nowrap;}
 .ledger-text{color:var(--dim); flex:1; min-width:120px;}
 
-.battle-hud{display:flex; align-items:center; gap:12px; justify-content:center; margin:10px 0 0; padding:0 8px max(4px, env(safe-area-inset-bottom, 0px));}
+.battle-hud{display:flex; align-items:center; gap:12px; justify-content:center; margin:22px 0 0; padding:0 8px max(4px, env(safe-area-inset-bottom, 0px));}
 .battle-hud .hud-menu-btn{margin-right:auto;}
 .battle-hud .siege-btn:last-child{margin-left:auto;}
 .ap-display{display:flex; gap:5px; align-items:center;}
@@ -595,13 +596,28 @@ body[data-screen="mapScreen"] .map-scroll{
 .ap-label{font-size:12px; color:var(--dim); margin-right:4px;}
 .deck-counts{font-size:12px; color:var(--faint);}
 
-/* ---------- Fanned hand ---------- */
+/* ---------- Fanned hand (horizontally scrollable "wheel") ----------
+   The hand can hold more cards than fit on one screen, so it scrolls: swipe
+   left/right (or turn a mouse wheel) to bring other cards to the center.
+   Side padding equal to half a card's width lets the first/last card reach
+   the center. touch-action:pan-x hands horizontal swipes to native scrolling
+   while leaving vertical drag gestures (dragging a card up to play it) to
+   our own pointer handling in adventure.js — see setupCardDrag(). */
 .hand-fan{
-  display:flex; justify-content:center; align-items:flex-end;
-  min-height:172px; margin-top:4px; padding:14px 8px 6px;
+  display:flex; justify-content:flex-start; align-items:flex-end;
+  min-height:184px; margin-top:4px; padding:26px calc(50% - (var(--playcard-w) / 2)) 10px;
+  position:relative;
+  overflow-x:auto; overflow-y:hidden;
+  scroll-snap-type:x proximity;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x;
+  scrollbar-width:none;
 }
+.hand-fan::-webkit-scrollbar{display:none; height:0;}
 .playcard{
-  width:128px;
+  width:var(--playcard-w);
+  flex:0 0 auto;
+  scroll-snap-align:center;
   /* Plain fallback first; browsers that don't parse color-mix() ignore the
      tinted declaration below and keep this one. */
   background:linear-gradient(180deg, #1a2130, #151b28);
@@ -610,14 +626,17 @@ body[data-screen="mapScreen"] .map-scroll{
   border:1px solid color-mix(in srgb, var(--el) 45%, var(--border));
   border-top:4px solid var(--el);
   border-radius:11px; padding:9px 10px; cursor:grab; position:relative;
-  margin:0 -14px; touch-action:none;
-  transform:rotate(var(--fan-rot,0deg)) translateY(var(--fan-y,0px));
+  margin:0 -14px; touch-action:pan-x;
+  transform:rotate(var(--fan-rot,0deg)) translateY(var(--fan-y,0px)) scale(var(--fan-scale,1));
   transform-origin:50% 120%;
   transition:transform .16s ease, box-shadow .16s ease;
   box-shadow:0 6px 16px rgba(0,0,0,.35);
   box-shadow:0 6px 16px rgba(0,0,0,.35), 0 0 0 1px color-mix(in srgb, var(--el) 18%, transparent) inset;
 }
 .playcard:hover{transform:rotate(0deg) translateY(-16px) scale(1.05); z-index:6; box-shadow:0 14px 26px rgba(0,0,0,.5);}
+/* Card currently centered by the wheel scroll — a quiet cue, distinct from
+   .selected (which marks a tapped/focused card). */
+.playcard.is-centered{box-shadow:0 10px 22px rgba(0,0,0,.45), 0 0 0 1px color-mix(in srgb, var(--el) 40%, transparent) inset; z-index:2;}
 /* A visible seam where the hand moves on to the next Siegeling's cards */
 .playcard.group-start{margin-left:0;}
 .playcard.unplayable{opacity:.4; cursor:not-allowed;}
@@ -776,10 +795,11 @@ body[data-screen="mapScreen"] .map-scroll{
 
   .battle-log{max-height:38px; min-height:24px; font-size:11px; padding:4px 10px; margin-top:6px;}
 
-  /* HUD pinned to the bottom edge, right under the thumbs. */
+  /* HUD pushed down a bit further from the hand so the wheel-scrolled hand
+     (raised center card, dipped side cards) has clearance above it. */
   .battle-hud{
     position:sticky; bottom:0; z-index:20;
-    gap:8px; margin:0 -10px; padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+    gap:8px; margin:12px -10px 0; padding:8px 10px calc(8px + env(safe-area-inset-bottom));
     flex-wrap:nowrap;
     background:linear-gradient(transparent, rgba(12,15,22,.94) 30%);
   }
@@ -789,8 +809,9 @@ body[data-screen="mapScreen"] .map-scroll{
   .deck-counts{font-size:11px; white-space:nowrap;}
   .siege-btn{padding:10px 14px; font-size:13px;}
 
-  .hand-fan{min-height:122px; padding:8px 4px 0; margin-top:0;}
-  .playcard{width:104px; margin:0 -20px; padding:7px 8px;}
+  :root{--playcard-w:104px;}
+  .hand-fan{min-height:140px; padding:18px calc(50% - (var(--playcard-w) / 2)) 4px; margin-top:0;}
+  .playcard{margin:0 -20px; padding:7px 8px;}
   .playcard .pc-desc{display:none;}
   .battle-hint{font-size:11.5px; min-height:16px; margin-top:2px;}
 
@@ -809,3 +830,113 @@ body[data-screen="mapScreen"] .map-scroll{
   .sprite .sp-art{height:calc(130px * var(--evo-scale,1));}
   .sprite .sp-art img{max-height:calc(130px * var(--evo-scale,1));}
 }
+
+/* ---------- v8: results, endless, cache games ---------- */
+.result-stats{margin:10px auto 4px; color:var(--dim); font-size:13.5px;}
+.result-rewards{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin:14px auto; max-width:340px;}
+.result-rewards h3{margin:0 0 8px; font-size:15px; color:var(--accent);}
+.result-rewards div{margin:3px 0; font-size:14px;}
+.result-claim{margin-top:8px; font-size:12px; color:var(--dim);}
+.result-claim.ok{color:var(--good);}
+.result-save{margin:14px auto; max-width:420px;}
+.result-save h3{font-size:14px; margin:0 0 8px;}
+.result-save-row{display:flex; gap:8px; flex-wrap:wrap; justify-content:center;}
+.endless-slots{margin:14px 0 4px; text-align:center;}
+.endless-title{font-size:13px; color:var(--accent-2); margin-bottom:8px; font-weight:650;}
+.endless-btn{margin:4px; border-color:var(--accent-2);}
+.camp-card.clickable{cursor:pointer;}
+.camp-card.clickable:hover{border-color:var(--accent);}
+.camp-card.unaffordable{opacity:.5;}
+
+/* ---------- gacha-style Siegeling join reveal ---------- */
+#recruitScreen{padding:0;}
+.gacha-stage{
+  position:relative; min-height:calc(100vh - 70px); overflow:hidden;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; text-align:center; border-radius:14px;
+  background:radial-gradient(ellipse at 50% 45%, #1c2436 0%, #0b0e15 70%);
+}
+/* spinning ray burst behind the art */
+.gacha-rays{
+  position:absolute; left:50%; top:42%; width:160vmax; height:160vmax;
+  transform:translate(-50%,-50%);
+  background:repeating-conic-gradient(from 0deg,
+    rgba(255,255,255,0.07) 0deg 9deg, transparent 9deg 18deg);
+  animation:gachaSpin 24s linear infinite; opacity:.9;
+}
+.gacha-glow{
+  position:absolute; left:50%; top:42%; width:340px; height:340px;
+  transform:translate(-50%,-50%); border-radius:50%;
+  background:radial-gradient(circle, var(--el,#3ea6ff) 0%, transparent 65%);
+  opacity:.38; filter:blur(6px); animation:gachaPulse 2.2s ease-in-out infinite;
+}
+@keyframes gachaSpin{to{transform:translate(-50%,-50%) rotate(360deg);}}
+@keyframes gachaPulse{50%{opacity:.6; transform:translate(-50%,-50%) scale(1.12);}}
+
+.gacha-art{
+  position:relative; z-index:2; height:min(46vh,360px); display:flex;
+  align-items:flex-end; justify-content:center;
+  filter:drop-shadow(0 0 26px var(--el,#3ea6ff)) drop-shadow(0 14px 22px rgba(0,0,0,.55));
+}
+.gacha-art img{max-height:100%; max-width:78vw; object-fit:contain;}
+.gacha-fallback{font-size:120px; line-height:1;}
+.gacha-stage.go .gacha-art{animation:gachaPop .7s cubic-bezier(.2,1.6,.4,1) both .15s;}
+@keyframes gachaPop{0%{transform:scale(.2) translateY(60px); opacity:0;} 100%{transform:scale(1) translateY(0); opacity:1;}}
+
+.gacha-banner{
+  position:relative; z-index:2; font-size:13px; letter-spacing:3px; font-weight:800;
+  text-transform:uppercase; color:var(--dim);
+}
+.gacha-stars{position:relative; z-index:2; font-size:26px; letter-spacing:6px; color:#ffd55a; text-shadow:0 0 14px rgba(255,213,90,.8);}
+.gacha-name{position:relative; z-index:2; font-size:30px; font-weight:800; text-shadow:0 2px 14px rgba(0,0,0,.6);}
+.gacha-stats{position:relative; z-index:2; font-size:13.5px; color:var(--dim);}
+.gacha-claim{position:relative; z-index:2; margin-top:14px; padding:13px 40px; font-size:16px;}
+.gacha-stage.go .gacha-banner,.gacha-stage.go .gacha-stars,.gacha-stage.go .gacha-name,
+.gacha-stage.go .gacha-stats,.gacha-stage.go .gacha-claim{animation:gachaFadeUp .55s ease both .55s;}
+.gacha-stage.go .gacha-stars{animation-delay:.7s;}
+.gacha-stage.go .gacha-claim{animation-delay:.95s;}
+@keyframes gachaFadeUp{0%{opacity:0; transform:translateY(16px);} 100%{opacity:1; transform:translateY(0);}}
+
+.gacha-sparkles{position:absolute; inset:0; z-index:1; pointer-events:none;}
+.gacha-spark{position:absolute; color:#fff; opacity:0; animation:gachaTwinkle 2.6s ease-in-out infinite;}
+@keyframes gachaTwinkle{0%,100%{opacity:0; transform:scale(.4);} 50%{opacity:.9; transform:scale(1.15);}}
+
+/* stage rarity theming */
+.gacha-stage.stage1 .gacha-banner{color:#8fb7e8;}
+.gacha-stage.stage2{background:radial-gradient(ellipse at 50% 45%, #241c36 0%, #0d0b15 70%);}
+.gacha-stage.stage2 .gacha-banner{color:#c896ff; text-shadow:0 0 12px rgba(200,150,255,.6);}
+.gacha-stage.stage2 .gacha-rays{background:repeating-conic-gradient(from 0deg, rgba(200,150,255,0.12) 0deg 9deg, transparent 9deg 18deg);}
+.gacha-stage.stage3{background:radial-gradient(ellipse at 50% 45%, #362a12 0%, #120d05 70%);}
+.gacha-stage.stage3 .gacha-banner{color:#ffd55a; text-shadow:0 0 16px rgba(255,213,90,.85);}
+.gacha-stage.stage3 .gacha-rays{background:repeating-conic-gradient(from 0deg, rgba(255,213,90,0.16) 0deg 9deg, transparent 9deg 18deg); animation-duration:14s;}
+.gacha-stage.stage3 .gacha-glow{opacity:.55;}
+
+/* ---------- v9: inventory, smith, caravan, events ---------- */
+.map-inv-btn{padding:5px 12px; font-size:13px;}
+.inv-overlay{position:fixed; inset:0; background:rgba(6,9,14,.72); display:flex; align-items:center; justify-content:center; z-index:60; padding:16px;}
+.inv-panel{background:var(--panel); border:1px solid var(--border); border-radius:14px; width:min(560px,96vw); max-height:88vh; overflow:hidden; display:flex; flex-direction:column;}
+.inv-head{display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border); font-weight:700;}
+.inv-body{padding:14px 18px; overflow-y:auto;}
+.inv-subhead{font-size:13px; color:var(--dim); margin:16px 0 8px;}
+.inv-member{background:var(--bg-card,#1a2029); border:1px solid var(--border); border-left:4px solid var(--el); border-radius:10px; padding:10px 12px; margin-bottom:8px; cursor:pointer;}
+.inv-member.dead{opacity:.5;}
+.inv-member-name{font-weight:650; font-size:13.5px; margin-bottom:6px;}
+.inv-slot{font-size:12.5px; border:1px dashed var(--border); border-radius:8px; padding:6px 10px; color:var(--dim); display:flex; justify-content:space-between; align-items:center;}
+.inv-slot.filled{border-style:solid; color:var(--text);}
+.inv-unequip{background:transparent; border:none; color:var(--bad); cursor:pointer; font-size:13px;}
+.inv-bag{display:flex; flex-wrap:wrap; gap:8px;}
+.inv-item{display:flex; flex-direction:column; align-items:flex-start; gap:2px; background:var(--bg-card,#1a2029); border:1px solid var(--border); border-radius:10px; padding:8px 10px; cursor:pointer; min-width:120px; text-align:left;}
+.inv-item.sel{outline:2px solid var(--accent);}
+.inv-item-icon{font-size:18px;}
+.inv-item-name{font-size:12.5px; font-weight:650; color:var(--text);}
+.inv-item-eff{font-size:11px; color:var(--dim);}
+.inv-empty{color:var(--faint); font-size:12.5px;}
+.smith-scrap-note{width:100%; color:var(--accent); font-size:13px; margin-bottom:6px;}
+.event-scene{display:flex; justify-content:center; padding:22px 0 4px;}
+.event-icon{font-size:70px; filter:drop-shadow(0 6px 14px rgba(0,0,0,.5));}
+.event-prompt{max-width:560px; margin:0 auto 14px; text-align:center;}
+.event-choices{display:flex; flex-direction:column; gap:10px; max-width:460px; margin:0 auto;}
+.event-choice{display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:12px 16px; text-align:left;}
+.event-choice .ec-label{font-weight:700;}
+.event-choice .ec-desc{font-size:12px; color:var(--dim); font-weight:400;}
+.event-choice.unaffordable{opacity:.5;}

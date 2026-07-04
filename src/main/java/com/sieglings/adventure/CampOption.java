@@ -66,4 +66,41 @@ class CampOption {
                 "The broker's " + name + " (" + element.name() + ") joins the warband with its moves.",
                 cost, element, artUrl, null, null, -1, sieglingId);
     }
+
+    /** Revive a fallen Siegeling at camp — ownerId carries the fallen member's id. */
+    static CampOption revive(String id, String memberId, String memberName, int pct, int cost) {
+        return new CampOption(id, pct >= 100 ? "REVIVE100" : "REVIVE50",
+                "Revive " + memberName + " (" + pct + "%)",
+                memberName + " returns to the warband at " + pct + "% HP.",
+                cost, null, null, null, memberId, -1, null);
+    }
+
+    /** Rent a mercenary Siegeling for the NEXT battle only (broker stall). */
+    static CampOption merc(String id, String name, Element element, String artUrl, String sieglingId, int cost) {
+        return new CampOption(id, "MERC", name + " — mercenary",
+                "A battle-hardened " + name + " (" + element.name() + ") fights your NEXT battle with boon cards, then departs.",
+                cost, element, artUrl, null, null, -1, sieglingId);
+    }
+
+    /** A generic cache mini-game option (chest pick, wheel spin, …). */
+    static CampOption cache(String id, String kind, String title, String desc, int cost) {
+        return new CampOption(id, kind, title, desc, cost, null, null, null, null, -1, null);
+    }
+
+    /** An item on offer at a shop/caravan — sieglingId carries the item id. */
+    static CampOption shopItem(String id, SiegeItem item, int cost) {
+        return new CampOption(id, "SHOP_ITEM", item.name() + " " + item.icon(),
+                item.effectText(), cost, null, null, null, null, -1, item.id());
+    }
+
+    /** A Smith option: chisel (upgrade) or scrap (destroy) a deck template. */
+    static CampOption smith(String id, String kind, String title, String desc, Element element, int templateIndex, int cost) {
+        return new CampOption(id, kind, title, desc, cost, element, null, null, null, templateIndex, null);
+    }
+
+    /** A generic event choice; outcome is decoded by SiegeService.eventChoose. */
+    static CampOption event(String id, String outcome, String title, String desc, int cost, int value) {
+        // Reuse templateIndex to carry the outcome value.
+        return new CampOption(id, "EV_" + outcome, title, desc, cost, null, null, null, null, value, null);
+    }
 }

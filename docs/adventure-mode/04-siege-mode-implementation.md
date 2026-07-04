@@ -253,3 +253,75 @@ win counts:
   Phase 2–3 items from `03-technical-plan.md`, layered on the working loop.
 - Difficulty is a first tuning pass; numbers live in `SiegeContentService` for iteration
   (a naive greedy bot wins ≈25–30% of runs; thoughtful play should do noticeably better).
+
+## v8 — Warband growth, mercenaries, 3-boss campaign, endless mode
+
+- **Solo start + wild recruits**: runs begin as SiegeKnight + 1 Siegeling; after each
+  battle win a wild Siegeling joins (1% stage 3, 5% stage 2, else stage 1) until the
+  warband holds 3. Difficulty scales with living party size (a lone Siegeling faces
+  ~2/3-strength foes).
+- **3-boss campaign**: the map is 3× longer (24 rows) — three chained 8-row regions,
+  each funneling through an unskippable boss row: a **Squire**, a rogue **SiegeKnight**,
+  then the **Siegelord**. Mid-boss wins pay big gold, heal 25%, and open the next region.
+- **Mercenary brokers**: broker stalls now RENT elite mercenaries (evolved forms,
+  +35% HP, +3 speed) for 55g — they fight your NEXT battle with two extra Boon cards
+  (Warcry: party +3 attack · Bulwark: party 8 shield) plus their upgraded moves, then
+  depart. Permanent recruiting still happens at camps and elite rewards.
+- **Camp revives**: fallen Siegelings can be revived at Rest Camps — 50% HP for 35g or
+  100% for 70g.
+- **Knight roguelike classes**: new **Marshal** class starts the run with an extra
+  Siegeling. Classes (Bulwark/Warlord/Vanguard/Warden/Quartermaster/Marshal) are
+  assignable per knight from the card dashboard ("Siege Roguelike Classes" panel,
+  editor-authenticated, `/api/siege/classes`); unassigned knights keep their hash default.
+  Assignments are in-memory (reset on redeploy) — persistence is a follow-up.
+- **Cache variety**: caches now roll one of three mini-games — the press-your-luck Dig,
+  **Three Chests** (pick one: gold / +5 max HP / party heal / trap), or the **Wheel of
+  Spoils** (stake 15g for x0–x3).
+- **Endless mode**: winning a standard run lets you save the team to one of three slots
+  (client-side); saved teams launch **Endless runs** — when the Siegelord falls the map
+  grows another region and difficulty loops upward. Score accrues from kills, depth,
+  gold and bosses; a death screen shows the final score.
+- **End-of-run rewards**: every run ends with a Spoils of War payout — **Siegecoins,
+  Remnants, and (on wins) a random collection card** — granted to the logged-in
+  account via the existing progression store (guests see a sign-in preview).
+
+Verified end-to-end via `/api/siege/**`: solo start → win → auto-recruit; chest cache;
+merc rental → fought as 4th ally → departed after victory; endless run creation;
+end-reward preview on defeat; classes endpoint listing all six classes.
+
+## v9 — Items, Smith, Caravan, Events, broker rework, path variety
+
+- **Brokers sell Siegelings again**: when the warband has room (<3), brokers offer
+  Siegelings to **add** to an open slot or **swap** in for a member (the released
+  member's gear returns to your inventory), alongside one mercenary rental. At 3
+  Siegelings the stall is **mercenary-rental only**, as specified. (Note: solo start +
+  a wild recruit after every battle win fills the team to 3 quickly, so in practice the
+  first broker is often already merc-only — lower the recruit rate or allow swap-at-full
+  if the sell window should be wider.)
+- **Path variety per boss region**: Squire segment now opens with **3–5** main paths,
+  the rogue-SiegeKnight segment **2–4**, the Siegelord segment **2–3** (verified live).
+- **Smith node**: pay to **chisel** a deck card into a stronger version, or **scrap** a
+  card to thin the deck.
+- **Item system**: each Siegeling carries **one item** (VITALITY raises max HP while
+  equipped; ATTACK/SPEED/SHIELD apply at battle start). A **🎒 inventory** panel on the
+  map equips/unequips items; items drop from events, caches and the **Merchant Caravan**
+  (a shop of items + a card + healing). Items are **created from the card dashboard**
+  ("Siege Items" panel, editor-auth `GET/POST /api/siege/items`); 8 built-ins ship by
+  default. Item definitions are in-memory for now (reset on redeploy).
+- **Event nodes** (data-driven `EventDef`): a random narrative stop with 2–3 choices and
+  outcomes (gold, heal, item, recruit, ambush battle, blessing). Seeded set: Weary
+  Traveler, Bandit Toll, Mysterious Stranger, Lost Siegeling, Abandoned Camp, Monster
+  Tracks, Treasure Map, Wandering Oracle. More can be added as pure data.
+- **Ambush** battle modifier: enemies start with extra shield/attack/speed and strike
+  first; used by several event outcomes (Bandit Toll fight, Monster Tracks, trapped camp).
+
+**Deferred (data-extendable follow-ups):** the fuller node catalogs from the design
+brief — Black Market / Auction House shops, the Upgrade shrines (Trainer, Evolution
+Shrine, Skill Dojo, Elemental Shrine, Fusion Forge, Memory Crystal), the dedicated
+Gambling nodes (Fortune Wheel, Dice Dealer, Slot Machine…), Story nodes, and Route
+Manipulation (Scout Tower, Teleport Gate, Bridge Builder, Collapse, Compass). The Event
+framework and item/shop plumbing added here are the substrate these slot into as data.
+
+Verified live via `/api/siege/**`: per-segment opener counts (3–5 / 2–4 / 2–3), all new
+node types generating, Smith chisel, Caravan, Event choices + event-triggered ambush
+battles, item equip raising max HP (VITALITY), and broker merc-only gating at a full team.

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,12 +31,12 @@ public class SiegeController {
         return siege.roster();
     }
 
-    /** Start a new expedition: body { knightId, sieglingIds:[...] }. */
+    /** Start a run: body { knightId, sieglingIds:[...], mode? ("STANDARD"|"ENDLESS") }. */
     @PostMapping("/api/siege/run/new")
     public Map<String, Object> newRun(@RequestBody Map<String, Object> body) {
         String knightId = str(body.get("knightId"));
         List<String> sieglingIds = toStringList(body.get("sieglingIds"));
-        return siege.newRun(knightId, sieglingIds);
+        return siege.newRun(knightId, sieglingIds, str(body.get("mode")));
     }
 
     @GetMapping("/api/siege/state")
@@ -130,8 +131,95 @@ public class SiegeController {
 
     /** Apply a finished battle's outcome and advance the map / end the run. */
     @PostMapping("/api/siege/continue")
-    public Map<String, Object> continueRun(@RequestBody Map<String, Object> body) {
-        return siege.continueRun(str(body.get("token")));
+    public Map<String, Object> continueRun(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return siege.continueRun(str(body.get("token")), authorizationHeader);
+    }
+
+    /** Player closed the gacha-style join reveal: body { token }. */
+    @PostMapping("/api/siege/recruit/ack")
+    public Map<String, Object> recruitAck(@RequestBody Map<String, Object> body) {
+        return siege.recruitAck(str(body.get("token")));
+    }
+
+    /** Resolve a CHESTS / WHEEL cache mini-game pick: body { token, optionId }. */
+    @PostMapping("/api/siege/cache/choose")
+    public Map<String, Object> cacheChoose(@RequestBody Map<String, Object> body) {
+        return siege.cacheChoose(str(body.get("token")), str(body.get("optionId")));
+    }
+
+    @PostMapping("/api/siege/smith/choose")
+    public Map<String, Object> smithChoose(@RequestBody Map<String, Object> body) {
+        Integer scrap = null;
+        Object si = body.get("scrapIndex");
+        if (si != null && !"null".equals(String.valueOf(si))) {
+            try { scrap = Integer.parseInt(String.valueOf(si)); } catch (NumberFormatException ignored) { }
+        }
+        return siege.smithChoose(str(body.get("token")), str(body.get("optionId")), scrap);
+    }
+
+    @PostMapping("/api/siege/smith/leave")
+    public Map<String, Object> smithLeave(@RequestBody Map<String, Object> body) {
+        return siege.smithLeave(str(body.get("token")));
+    }
+
+    @PostMapping("/api/siege/caravan/buy")
+    public Map<String, Object> caravanBuy(@RequestBody Map<String, Object> body) {
+        return siege.caravanBuy(str(body.get("token")), str(body.get("optionId")));
+    }
+
+    @PostMapping("/api/siege/caravan/leave")
+    public Map<String, Object> caravanLeave(@RequestBody Map<String, Object> body) {
+        return siege.caravanLeave(str(body.get("token")));
+    }
+
+    /** Resolve an event choice: body { token, optionId }. */
+    @PostMapping("/api/siege/event/choose")
+    public Map<String, Object> eventChoose(@RequestBody Map<String, Object> body) {
+        return siege.eventChoose(str(body.get("token")), str(body.get("optionId")));
+    }
+
+    /** Equip an inventory item onto a Siegeling: body { token, itemId, memberId }. */
+    @PostMapping("/api/siege/item/equip")
+    public Map<String, Object> equipItem(@RequestBody Map<String, Object> body) {
+        return siege.equipItem(str(body.get("token")), str(body.get("itemId")), str(body.get("memberId")));
+    }
+
+    @PostMapping("/api/siege/item/unequip")
+    public Map<String, Object> unequipItem(@RequestBody Map<String, Object> body) {
+        return siege.unequipItem(str(body.get("token")), str(body.get("memberId")));
+    }
+
+    /** Dashboard: list all Siege items. */
+    @GetMapping("/api/siege/items")
+    public Map<String, Object> listItems() {
+        return siege.listItems();
+    }
+
+    /** Dashboard: create a Siege item (editor-authenticated). */
+    @PostMapping("/api/siege/items")
+    public Map<String, Object> createItem(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        int value;
+        try { value = Integer.parseInt(String.valueOf(body.get("value"))); }
+        catch (NumberFormatException e) { throw new IllegalArgumentException("Item value must be a number."); }
+        return siege.createItem(editorToken, str(body.get("name")), str(body.get("icon")), str(body.get("kind")), value);
+    }
+
+    /** Dashboard: knights with their roguelike class (hash default or override). */
+    @GetMapping("/api/siege/classes")
+    public Map<String, Object> listClasses() {
+        return siege.listKnightClasses();
+    }
+
+    /** Dashboard: assign a roguelike class to a knight (editor-authenticated). */
+    @PostMapping("/api/siege/classes")
+    public Map<String, Object> assignClass(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        return siege.assignKnightClass(editorToken, str(body.get("trainerId")), str(body.get("passive")));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

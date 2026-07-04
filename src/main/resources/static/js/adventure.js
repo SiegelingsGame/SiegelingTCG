@@ -39,7 +39,7 @@
     STUN: { icon: '💫', label: 'Stun' },
     SHOCK: { icon: '⚡', label: 'Shock' }
   };
-  var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', BOSS: '👑' };
+  var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
   var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', BROKER: '🐾' };
   var PASSIVE_META = {
@@ -88,7 +88,7 @@
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
-    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'battleScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
     // Battle and map are static, full-viewport screens (no page scroll —
@@ -172,6 +172,13 @@
     $('endTurnBtn').addEventListener('click', endTurn);
     $('knightUltBtn').addEventListener('click', useUltimate);
     $('rewardSkipBtn').addEventListener('click', function () { chooseReward('skip'); });
+    $('gachaClaimBtn').addEventListener('click', claimRecruit);
+    $('inventoryBtn').addEventListener('click', function () { openInventory(); });
+    $('invClose').addEventListener('click', function () { $('invOverlay').classList.add('hidden'); });
+    $('invOverlay').addEventListener('click', function (e) { if (e.target === $('invOverlay')) $('invOverlay').classList.add('hidden'); });
+    $('smithLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/smith/leave'); });
+    $('smithScrapBtn').addEventListener('click', function () { toggleSmithScrap(); });
+    $('caravanLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/caravan/leave'); });
     $('resultBtn').addEventListener('click', function () { setToken(null); location.href = '/play'; });
     $('campLeaveBtn').addEventListener('click', campLeave);
     $('cacheDigBtn').addEventListener('click', cacheDig);
@@ -308,7 +315,28 @@
     $('knightSummary').textContent = kn ? (kn.name + ' — ' + kn.activeName) : 'Select a SiegeKnight.';
   }
 
+  function renderEndlessSlots() {
+    var host = $('endlessSlots');
+    if (!host) {
+      host = el('div', 'endless-slots');
+      host.id = 'endlessSlots';
+      var footer = $('startRunBtn') ? $('startRunBtn').parentNode : null;
+      if (footer && footer.parentNode) footer.parentNode.insertBefore(host, footer);
+    }
+    host.innerHTML = '';
+    var slots = teamSlots();
+    if (!slots.some(function (x) { return x; })) return;
+    host.appendChild(el('div', 'endless-title', '🔁 Endless Run — score attack with a saved team'));
+    slots.forEach(function (slot, i) {
+      if (!slot) return;
+      var btn = el('button', 'siege-btn endless-btn', '★ ' + esc(slot.name) + ' — Start Endless');
+      btn.addEventListener('click', function () { startEndless(slot); });
+      host.appendChild(btn);
+    });
+  }
+
   function renderPartyStep() {
+    renderEndlessSlots();
     var r = state.roster;
     var elements = ['ALL'];
     r.sieglings.forEach(function (s) { if (elements.indexOf(s.element) < 0) elements.push(s.element); });
@@ -364,7 +392,7 @@
   }
 
   function refreshSetupFooter() {
-    var need = state.roster.partySize || 3;
+    var need = state.roster.partySize || 1;
     var ready = state.knightId && state.party.length === need;
     $('startRunBtn').disabled = !ready;
     var names = state.party.map(function (id) {
@@ -374,9 +402,28 @@
     $('setupSummary').textContent = 'Warband (' + state.party.length + '/' + need + '): ' + (names.join(', ') || '—');
   }
 
+  // ---- saved team slots (endless mode) ----------------------------------
+  var SLOTS_KEY = 'siegeTeamSlots';
+  function teamSlots() {
+    try { return JSON.parse(localStorage.getItem(SLOTS_KEY) || '[null,null,null]'); }
+    catch (e) { return [null, null, null]; }
+  }
+  function saveTeamSlot(i, slot) {
+    var slots = teamSlots(); slots[i] = slot;
+    try { localStorage.setItem(SLOTS_KEY, JSON.stringify(slots)); } catch (e) {}
+  }
+
   function startRun() {
     if (state.busy) return; state.busy = true;
-    api('/api/siege/run/new', { method: 'POST', body: { knightId: state.knightId, sieglingIds: state.party } })
+    api('/api/siege/run/new', { method: 'POST', body: { knightId: state.knightId, sieglingIds: state.party, mode: 'STANDARD' } })
+      .then(function (run) { setToken(run.token); applyRun(run); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  function startEndless(slot) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/run/new', { method: 'POST', body: { knightId: slot.knightId, sieglingIds: slot.sieglingIds, mode: 'ENDLESS' } })
       .then(function (run) { setToken(run.token); applyRun(run); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
@@ -417,11 +464,17 @@
     $('abandonBtn').classList.toggle('hidden', !active);
     updateRunMenuTriggers(active);
     if (run.battle) { renderBattle(); return; }
+    // A freshly joined Siegeling gets its gacha reveal before anything else —
+    // claim it, then the normal reward flow continues.
+    if (run.recruit) { renderRecruitReveal(); return; }
     if (run.status === 'WON' || run.status === 'LOST') { renderResult(); return; }
     if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
     if (run.camp) { renderCamp(); return; }
     if (run.cache) { renderCache(); return; }
     if (run.broker) { renderBroker(); return; }
+    if (run.smith) { renderSmith(); return; }
+    if (run.caravan) { renderCaravan(); return; }
+    if (run.event) { renderEvent(); return; }
     renderMap();
   }
 
@@ -445,7 +498,8 @@
     resetPageScroll();
     var run = state.run;
     renderPartyStrip($('partyStrip'), run.party, run.knight);
-    $('mapGold').textContent = '🪙 ' + (run.gold || 0);
+    $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
+      (run.mode === 'ENDLESS' ? '  ·  ★ ' + (run.score || 0) + '  ·  🔁 ' + ((run.loop || 0) + 1) : '');
     $('mapReward').textContent = run.lastReward || '';
     $('mapReward').classList.toggle('hidden', !run.lastReward);
     $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');
@@ -664,11 +718,44 @@
     showScreen('cacheScreen');
     var run = state.run;
     var c = run.cache;
-    $('cacheLoot').innerHTML = 'Unbanked loot: <strong>🪙 ' + c.loot + '</strong> · Wallet: 🪙 ' + (run.gold || 0);
-    $('cacheRiskFill').style.width = c.bustChance + '%';
-    $('cacheRiskText').textContent = 'Collapse risk: ' + c.bustChance + '% · Dig ' + c.digs + '/' + c.maxDigs;
+    var isDig = !c.game || c.game === 'DIG';
+    $('cacheDigBtn').classList.toggle('hidden', !isDig);
+    $('cacheTakeBtn').classList.toggle('hidden', !isDig);
+    $('cacheRiskFill').parentNode.parentNode.classList.toggle('hidden', !isDig);
     $('cacheReward').textContent = run.lastReward || '';
-    $('cacheChest').textContent = c.digs === 0 ? '🪙' : (c.digs >= 3 ? '💎' : '💰');
+    var opts = $('cacheOptions'); opts.innerHTML = '';
+    if (isDig) {
+      $('cacheLoot').innerHTML = 'Unbanked loot: <strong>🪙 ' + c.loot + '</strong> · Wallet: 🪙 ' + (run.gold || 0);
+      $('cacheChest').textContent = c.digs === 0 ? '🪙' : (c.digs >= 3 ? '💎' : '💰');
+      $('cacheRiskFill').style.width = c.bustChance + '%';
+      $('cacheRiskText').textContent = 'Collapse risk: ' + c.bustChance + '% · Dig ' + c.digs + '/' + c.maxDigs;
+      return;
+    }
+    $('cacheChest').textContent = c.game === 'CHESTS' ? '🧰' : '🎡';
+    $('cacheLoot').innerHTML = (c.game === 'CHESTS' ? 'Three chests — pick ONE.' : 'The Wheel of Spoils.') +
+      ' · Wallet: 🪙 ' + (run.gold || 0);
+    (c.options || []).forEach(function (o) {
+      var card = el('div', 'camp-card' + (o.used ? ' used' : ''));
+      card.innerHTML = '<div class="camp-glyph">' + (o.kind === 'CHEST' ? '🧰' : o.kind === 'WHEEL_SPIN' ? '🎡' : '🚶') + '</div>' +
+        '<div class="camp-card-title">' + esc(o.title) + '</div>' +
+        '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
+        (o.cost > 0 ? '<div class="camp-card-cost">🪙 ' + o.cost + '</div>' : '');
+      if (!o.used && o.affordable) {
+        card.classList.add('clickable');
+        card.addEventListener('click', function () { cacheChoose(o.id); });
+      } else if (!o.affordable) {
+        card.classList.add('unaffordable');
+      }
+      opts.appendChild(card);
+    });
+  }
+
+  function cacheChoose(optionId) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/cache/choose', { method: 'POST', body: { token: token(), optionId: optionId } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
   }
 
   function cacheDig() {
@@ -709,12 +796,16 @@
         art +
         '<div class="camp-card-title">' + esc(offer.name) + '</div>' +
         stats +
-        (offer.used ? '' :
-          '<div class="broker-actions">' +
-          '<button class="siege-btn broker-btn hire" type="button"' +
-            ((run.gold >= b.hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + b.hireCost + '</button>' +
-          '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= b.swapCost ? '' : ' disabled') + '>Swap 🪙' + b.swapCost + '</button>' +
-          '</div><div class="broker-swap-row hidden"></div>');
+        (offer.used ? '' : b.merc
+          ? '<div class="broker-actions">' +
+            '<button class="siege-btn broker-btn hire" type="button"' +
+              ((run.gold >= b.hireCost && !b.mercUnderContract) ? '' : ' disabled') + '>Rent 🪙' + b.hireCost + '</button>' +
+            '</div><div class="camp-card-desc">Fights your NEXT battle with boon cards, then departs.</div>'
+          : '<div class="broker-actions">' +
+            '<button class="siege-btn broker-btn hire" type="button"' +
+              ((run.gold >= b.hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + b.hireCost + '</button>' +
+            '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= b.swapCost ? '' : ' disabled') + '>Swap 🪙' + b.swapCost + '</button>' +
+            '</div><div class="broker-swap-row hidden"></div>');
       c.querySelector('.broker-info').addEventListener('click', function (e) {
         e.stopPropagation();
         showUnitModal({
@@ -727,8 +818,8 @@
         var hireBtn = c.querySelector('.broker-btn.hire');
         var swapBtn = c.querySelector('.broker-btn.swap');
         var swapRow = c.querySelector('.broker-swap-row');
-        hireBtn.addEventListener('click', function () { brokerHire(offer.id, null); });
-        swapBtn.addEventListener('click', function () {
+        if (hireBtn) hireBtn.addEventListener('click', function () { brokerHire(offer.id, null); });
+        if (swapBtn) swapBtn.addEventListener('click', function () {
           // Pick which party member is released in the trade.
           swapRow.classList.toggle('hidden');
           if (!swapRow.childNodes.length) {
@@ -760,9 +851,141 @@
       .then(function () { state.busy = false; });
   }
 
+  // ---- generic post helper (token-only endpoints) -----------------------
+  function simplePost(path, extra) {
+    if (state.busy) return; state.busy = true;
+    var body = { token: token() };
+    if (extra) for (var k in extra) body[k] = extra[k];
+    api(path, { method: 'POST', body: body })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  // ---- Smith ------------------------------------------------------------
+  var smithScrapMode = false;
+  function renderSmith() {
+    showScreen('smithScreen');
+    smithScrapMode = false;
+    var run = state.run, sm = run.smith;
+    $('smithGold').textContent = '🪙 ' + (run.gold || 0);
+    $('smithReward').textContent = run.lastReward || '';
+    var grid = $('smithGrid'); grid.innerHTML = '';
+    (sm.options || []).forEach(function (o) {
+      var card = el('div', 'camp-card ' + elClass(o.element) + (o.used ? ' used' : ''));
+      card.innerHTML = '<div class="camp-glyph">🔨</div>' +
+        '<div class="camp-card-title">' + esc(o.title) + '</div>' +
+        '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
+        (o.cost > 0 ? '<div class="camp-card-cost">🪙 ' + o.cost + '</div>' : '');
+      if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { optionId: o.id }); }); }
+      else if (!o.affordable) card.classList.add('unaffordable');
+      grid.appendChild(card);
+    });
+  }
+  function toggleSmithScrap() {
+    smithScrapMode = !smithScrapMode;
+    if (!smithScrapMode) { renderSmith(); return; }
+    var grid = $('smithGrid'); grid.innerHTML = '<div class="smith-scrap-note">Pick a card to scrap (removed for good):</div>';
+    (state.run.party || []).forEach(function (pm) {
+      (pm.cards || []).forEach(function () {});
+    });
+    // Scrap by deck index: show each deck card via party cards list is complex; use a compact prompt.
+    var deck = collectDeck();
+    deck.forEach(function (d) {
+      var card = el('div', 'camp-card clickable', '<div class="camp-glyph">🗑</div><div class="camp-card-title">' + esc(d.name) + '</div><div class="camp-card-desc">Owner: ' + esc(d.owner) + '</div>');
+      card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { scrapIndex: d.index }); });
+      grid.appendChild(card);
+    });
+  }
+  // The server only exposes per-member card specs, not deck indices; approximate
+  // scrap by asking the server which template — fall back to a name list with indices
+  // derived from party card order is unreliable, so we simply disable fine control:
+  function collectDeck() { return (state.run.deckList || []); }
+
+  // ---- Caravan ----------------------------------------------------------
+  function renderCaravan() {
+    showScreen('caravanScreen');
+    var run = state.run, cv = run.caravan;
+    $('caravanGold').textContent = '🪙 ' + (run.gold || 0);
+    $('caravanReward').textContent = run.lastReward || '';
+    var grid = $('caravanGrid'); grid.innerHTML = '';
+    (cv.options || []).forEach(function (o) {
+      var icon = o.kind === 'SHOP_ITEM' ? (o.item ? o.item.icon : '📦') : o.kind === 'SHOP_HEAL' ? '🍲' : '🃏';
+      var card = el('div', 'camp-card' + (o.used ? ' used' : ''));
+      card.innerHTML = '<div class="camp-glyph">' + icon + '</div>' +
+        '<div class="camp-card-title">' + esc(o.title) + '</div>' +
+        '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
+        '<div class="camp-card-cost">🪙 ' + o.cost + '</div>';
+      if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/caravan/buy', { optionId: o.id }); }); }
+      else if (!o.affordable) card.classList.add('unaffordable');
+      grid.appendChild(card);
+    });
+  }
+
+  // ---- Event ------------------------------------------------------------
+  function renderEvent() {
+    showScreen('eventScreen');
+    var run = state.run, ev = run.event;
+    $('eventIcon').textContent = ev.icon || '❔';
+    $('eventTitle').textContent = ev.title || 'Event';
+    $('eventPrompt').textContent = ev.prompt || '';
+    $('eventGold').textContent = '🪙 ' + (run.gold || 0);
+    var box = $('eventChoices'); box.innerHTML = '';
+    (ev.options || []).forEach(function (o) {
+      var b = el('button', 'siege-btn event-choice' + (o.affordable ? '' : ' unaffordable'),
+        '<span class="ec-label">' + esc(o.title) + '</span>' + (o.desc ? '<span class="ec-desc">' + esc(o.desc) + '</span>' : ''));
+      if (o.affordable) b.addEventListener('click', function () { simplePost('/api/siege/event/choose', { optionId: o.id }); });
+      box.appendChild(b);
+    });
+  }
+
+  // ---- Inventory --------------------------------------------------------
+  function openInventory() { $('invOverlay').classList.remove('hidden'); renderInventory(); }
+  function renderInventory() {
+    var run = state.run;
+    var party = $('invParty'); party.innerHTML = '';
+    (run.party || []).forEach(function (pm) {
+      var slot = pm.item
+        ? '<div class="inv-slot filled" title="' + esc(pm.item.effect) + '">' + pm.item.icon + ' ' + esc(pm.item.name) + ' <button class="inv-unequip" type="button">✕</button></div>'
+        : '<div class="inv-slot empty">— empty slot —</div>';
+      var row = el('div', 'inv-member ' + elClass(pm.element) + (pm.alive ? '' : ' dead'),
+        '<div class="inv-member-name">' + icon(pm.element) + ' ' + esc(pm.name) + '</div>' + slot);
+      if (pm.item) {
+        row.querySelector('.inv-unequip').addEventListener('click', function (e) { e.stopPropagation(); simplePostKeepInv('/api/siege/item/unequip', { memberId: pm.id }); });
+      }
+      row.dataset.memberId = pm.id;
+      row.addEventListener('click', function () {
+        if (invSelectedItem) { simplePostKeepInv('/api/siege/item/equip', { itemId: invSelectedItem, memberId: pm.id }); invSelectedItem = null; }
+      });
+      party.appendChild(row);
+    });
+    var bag = $('invBag'); bag.innerHTML = '';
+    if (!(run.inventory || []).length) bag.innerHTML = '<div class="inv-empty">No spare items. Find them at caravans, events and caches.</div>';
+    (run.inventory || []).forEach(function (it) {
+      var b = el('button', 'inv-item' + (invSelectedItem === it.id ? ' sel' : ''),
+        '<span class="inv-item-icon">' + it.icon + '</span><span class="inv-item-name">' + esc(it.name) + '</span><span class="inv-item-eff">' + esc(it.effect) + '</span>');
+      b.addEventListener('click', function () { invSelectedItem = (invSelectedItem === it.id ? null : it.id); renderInventory(); });
+      bag.appendChild(b);
+    });
+    var hint = invSelectedItem ? 'Tap a Siegeling to equip.' : 'Tap an item, then a Siegeling to equip it.';
+    // reuse subhead area for hint
+    var sub = $('invBag').previousElementSibling; if (sub) sub.textContent = 'Backpack — ' + hint;
+  }
+  var invSelectedItem = null;
+  function simplePostKeepInv(path, extra) {
+    if (state.busy) return; state.busy = true;
+    var body = { token: token() };
+    if (extra) for (var k in extra) body[k] = extra[k];
+    api(path, { method: 'POST', body: body })
+      .then(function (run) { state.run = run; if (!$('invOverlay').classList.contains('hidden')) renderInventory(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
   // ---- battle stage ----------------------------------------------------
   function renderBattle() {
     showScreen('battleScreen');
+    resetPageScroll();
     var b = state.run.battle;
     if (!b) { renderMap(); return; }
 
@@ -1227,7 +1450,10 @@
 
   // ---- hand ------------------------------------------------------------
   function renderHand(b, over) {
-    var hand = $('handRow'); hand.innerHTML = '';
+    var hand = $('handRow');
+    var wasDealt = hand.dataset.dealt === '1';
+    var prevScrollLeft = hand.scrollLeft;
+    hand.innerHTML = '';
     if (over) {
       var wrap = el('div', 'battle-endwrap');
       wrap.appendChild(el('div', 'battle-endtitle ' + (b.phase === 'WON' ? 'win' : 'lose'),
@@ -1239,19 +1465,15 @@
       return;
     }
     var sorted = sortHandByOwner(b);
-    var n = sorted.length;
     var deal = state.dealAnimation;
     state.dealAnimation = false;
     var prevOwner = null;
     sorted.forEach(function (card, i) {
       var effCls = effectClass(card.effect);
-      var mid = (n - 1) / 2;
       var groupStart = i > 0 && card.ownerId !== prevOwner;
       prevOwner = card.ownerId;
       var c = el('div', 'playcard ' + elClass(card.element) + (card.effect === 'EVOLVE' ? ' evo-card' : '') + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : '') + (deal ? ' dealt' : '') + (groupStart ? ' group-start' : ''));
       c.dataset.owner = card.ownerId;
-      c.style.setProperty('--fan-rot', ((i - mid) * 4) + 'deg');
-      c.style.setProperty('--fan-y', (Math.abs(i - mid) * 7) + 'px');
       if (deal) c.style.setProperty('--deal-i', i);
       var statusLine = '';
       if (card.status && card.statusChance) {
@@ -1273,6 +1495,57 @@
         '<div class="pc-desc">' + esc(card.description || '') + '</div>';
       setupCardDrag(c, card);
       hand.appendChild(c);
+    });
+    bindHandFanScrolling(hand);
+    // First deal centers the whole hand; later re-renders (draw/play/end turn)
+    // keep whatever part of the hand the player last scrolled to.
+    hand.scrollLeft = (deal || !wasDealt) ? (hand.scrollWidth - hand.clientWidth) / 2 : prevScrollLeft;
+    if (sorted.length) hand.dataset.dealt = '1';
+    layoutHandFan(hand);
+  }
+
+  /** Hand cards overflow a single screen, so the hand scrolls horizontally —
+   *  swipe left/right (or spin a mouse wheel) to bring other cards to the
+   *  center. As the hand scrolls, layoutHandFan() re-arcs the cards so the
+   *  centered one sits upright and raised, like a wheel of cards turning
+   *  through the middle, while off-center cards rotate away and dip down. */
+  function bindHandFanScrolling(hand) {
+    if (hand.dataset.wheelBound === '1') return;
+    hand.dataset.wheelBound = '1';
+    var raf = 0;
+    function scheduleLayout() {
+      if (raf) return;
+      raf = window.requestAnimationFrame(function () { raf = 0; layoutHandFan(hand); });
+    }
+    hand.addEventListener('scroll', scheduleLayout, { passive: true });
+    hand.addEventListener('wheel', function (event) {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      hand.scrollLeft += event.deltaY;
+      event.preventDefault();
+    }, { passive: false });
+    window.addEventListener('resize', scheduleLayout);
+  }
+
+  var HAND_FAN_MAX_ANGLE = 16;   // deg a card rotates away from center at the edge
+  var HAND_FAN_MAX_LIFT = 30;    // px a card dips below the centered card at the edge
+  var HAND_FAN_MAX_SHRINK = 0.08; // fraction a card shrinks away from center
+
+  /** Re-arcs every card in the hand based on its current scroll position —
+   *  distance from the container's horizontal center drives rotation, dip,
+   *  and scale, so scrolling reads as a wheel of cards turning past center. */
+  function layoutHandFan(hand) {
+    hand = hand || $('handRow');
+    if (!hand) return;
+    var half = hand.clientWidth / 2;
+    if (!half) return;
+    var centerX = hand.scrollLeft + half;
+    Array.prototype.forEach.call(hand.querySelectorAll('.playcard'), function (card) {
+      var cardCenter = card.offsetLeft + (card.offsetWidth / 2);
+      var offset = Math.max(-1.4, Math.min(1.4, (cardCenter - centerX) / half));
+      card.style.setProperty('--fan-rot', (offset * HAND_FAN_MAX_ANGLE).toFixed(2) + 'deg');
+      card.style.setProperty('--fan-y', (Math.abs(offset) * HAND_FAN_MAX_LIFT).toFixed(1) + 'px');
+      card.style.setProperty('--fan-scale', (1 - (Math.abs(offset) * HAND_FAN_MAX_SHRINK)).toFixed(3));
+      card.classList.toggle('is-centered', Math.abs(offset) < 0.12);
     });
   }
 
@@ -1472,6 +1745,7 @@
       ghost.style.margin = '0';
       ghost.style.setProperty('--fan-rot', '0deg');
       ghost.style.setProperty('--fan-y', '0px');
+      ghost.style.setProperty('--fan-scale', '1');
       document.body.appendChild(ghost);
       cardEl.classList.add('playcard-dragsource');
       if (card.needsTarget) startDragArrow(card, ghost);
@@ -1759,13 +2033,112 @@
   }
 
   // ---- result --------------------------------------------------------
+  // ---- gacha-style join reveal ------------------------------------------
+  function renderRecruitReveal() {
+    showScreen('recruitScreen');
+    var r = state.run.recruit;
+    var stage = r.stage || 1;
+    var stageCls = stage >= 3 ? 'stage3' : stage === 2 ? 'stage2' : 'stage1';
+    var el3 = elClass(r.element);
+
+    var gs = $('gachaStage');
+    gs.className = 'gacha-stage ' + stageCls + ' ' + el3;
+    // Restart the pop animation on each reveal.
+    void gs.offsetWidth;
+    gs.classList.add('go');
+
+    $('gachaBanner').textContent = stage >= 3 ? '✦ LEGENDARY MUSTER ✦' : stage === 2 ? '✦ Rare Muster ✦' : 'A Siegeling joins!';
+    $('gachaName').innerHTML = icon(r.element) + ' ' + esc(r.name);
+    $('gachaStats').textContent = '❤ ' + (r.hp || '?') + ' · ⚡ ' + (r.speed || '?') + ' · 🃏 ' + (r.moveCount || 0) + ' moves join your deck';
+
+    var stars = '';
+    for (var i = 0; i < stage; i++) stars += '★';
+    $('gachaStars').textContent = stars;
+
+    var art = $('gachaArt');
+    art.innerHTML = r.artUrl
+      ? '<img src="' + artAttr(r.artUrl) + '" alt="" onerror="this.parentNode.innerHTML=\'<span class=&quot;gacha-fallback&quot;>' + icon(r.element) + '</span>\'">'
+      : '<span class="gacha-fallback">' + icon(r.element) + '</span>';
+
+    // Sparkle field
+    var sp = $('gachaSparkles'); sp.innerHTML = '';
+    for (var k = 0; k < 18; k++) {
+      var dot = el('span', 'gacha-spark');
+      dot.style.left = (5 + Math.random() * 90) + '%';
+      dot.style.top = (5 + Math.random() * 80) + '%';
+      dot.style.animationDelay = (Math.random() * 2.4) + 's';
+      dot.style.fontSize = (9 + Math.random() * 14) + 'px';
+      dot.textContent = '✦';
+      sp.appendChild(dot);
+    }
+  }
+
+  function claimRecruit() {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/recruit/ack', { method: 'POST', body: { token: token() } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
   function renderResult() {
     showScreen('resultScreen');
-    var won = state.run.status === 'WON';
+    var run = state.run;
+    var won = run.status === 'WON';
+    var endless = run.mode === 'ENDLESS';
     var title = $('resultTitle');
-    title.textContent = won ? 'Expedition Won' : 'Expedition Lost';
+    title.textContent = endless ? ('Endless Run — Score ' + (run.score || 0)) : (won ? 'Expedition Won' : 'Expedition Lost');
     title.className = won ? 'win' : 'lose';
-    $('resultText').textContent = state.run.lastReward || (won ? 'The Siegelord has fallen.' : 'Your warband was overwhelmed.');
+    $('resultText').textContent = run.lastReward || (won ? 'The Siegelord has fallen.' : 'Your warband was overwhelmed.');
+
+    var extras = $('resultExtras'); extras.innerHTML = '';
+
+    // Run stats + end-of-run account rewards.
+    var st = run.stats || {};
+    var statsRow = el('div', 'result-stats',
+      '⚔ ' + (st.enemiesDefeated || 0) + ' foes · 👑 ' + (st.bossKills || 0) + ' bosses · 🗺 ' +
+      (st.nodesCleared || 0) + ' nodes · 🪙 ' + (st.goldEarned || 0) + ' looted' +
+      (endless ? ' · 🔁 loop ' + ((run.loop || 0) + 1) : ''));
+    extras.appendChild(statsRow);
+
+    var er = run.endRewards;
+    if (er) {
+      var cardLine = er.card ? '<div>🃏 Card: <strong>' + esc(er.card.name) + '</strong> (' + esc(er.card.rarity) + ')</div>' : '';
+      var note = er.claimed ? 'Added to your account.' : 'Sign in before your next run to bank rewards like these!';
+      var box = el('div', 'result-rewards',
+        '<h3>Spoils of War</h3>' +
+        '<div>🪙 ' + (er.gold || 0) + ' Siegecoins</div>' +
+        '<div>💠 ' + (er.remnants || 0) + ' Remnants</div>' +
+        cardLine +
+        '<div class="result-claim' + (er.claimed ? ' ok' : '') + '">' + note + '</div>');
+      extras.appendChild(box);
+    }
+
+    // Winning a standard run unlocks saving the team for Endless mode.
+    if (won && !endless) {
+      var teamIds = (run.party || []).map(function (p) { return p.sourceCardId; }).filter(Boolean);
+      if (teamIds.length) {
+        var saver = el('div', 'result-save', '<h3>Save this team for Endless</h3>');
+        var row = el('div', 'result-save-row');
+        teamSlots().forEach(function (slot, i) {
+          var label = slot ? ('Slot ' + (i + 1) + ': ' + esc(slot.name)) : ('Save to Slot ' + (i + 1));
+          var btn = el('button', 'siege-btn', label);
+          btn.addEventListener('click', function () {
+            saveTeamSlot(i, {
+              name: (run.knight && run.knight.name ? run.knight.name : 'Team') + ' ×' + teamIds.length,
+              knightId: run.knight ? run.knight.id || state.knightId : state.knightId,
+              sieglingIds: teamIds
+            });
+            btn.textContent = '✓ Saved to Slot ' + (i + 1);
+            toast('Team saved — start an Endless run from the team-select screen.');
+          });
+          row.appendChild(btn);
+        });
+        saver.appendChild(row);
+        extras.appendChild(saver);
+      }
+    }
+
     setToken(null);
     $('resultBtn').textContent = 'Return to Play';
   }

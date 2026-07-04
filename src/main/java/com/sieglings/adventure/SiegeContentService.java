@@ -27,7 +27,60 @@ import java.util.Random;
 public class SiegeContentService {
 
     static final int COPIES_PER_MOVE = 2;
-    private static final int PARTY_SIZE = 3;
+    /** A run starts as the SiegeKnight plus one Siegeling; more join along the way. */
+    private static final int PARTY_SIZE = 1;
+    private static final int PARTY_MAX = 3;
+
+    /** Admin-assigned roguelike classes per knight (dashboard); overrides the hash default. */
+    private final java.util.concurrent.ConcurrentHashMap<String, KnightPassive> classOverrides =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Built-in carryable items plus any created from the dashboard (in-memory). */
+    private final java.util.LinkedHashMap<String, SiegeItem> items = new java.util.LinkedHashMap<>();
+    { seedDefaultItems(); }
+
+    private void seedDefaultItems() {
+        putItem(new SiegeItem("iron-charm", "Iron Charm", "\uD83D\uDEE1\uFE0F", "VITALITY", 12, "A sturdy charm."));
+        putItem(new SiegeItem("vigor-band", "Vigor Band", "\u2764\uFE0F", "VITALITY", 20, "Bursting with life."));
+        putItem(new SiegeItem("war-fang", "War Fang", "\u2694\uFE0F", "ATTACK", 3, "Hungry for battle."));
+        putItem(new SiegeItem("razor-sigil", "Razor Sigil", "\uD83D\uDD2A", "ATTACK", 5, "Cuts deep."));
+        putItem(new SiegeItem("swift-boots", "Swift Boots", "\uD83D\uDC5F", "SPEED", 3, "Fleet of foot."));
+        putItem(new SiegeItem("gale-plume", "Gale Plume", "\uD83C\uDF2C\uFE0F", "SPEED", 5, "Rides the wind."));
+        putItem(new SiegeItem("aegis-crest", "Aegis Crest", "\uD83D\uDEE1\uFE0F", "SHIELD", 8, "Wards the first blow."));
+        putItem(new SiegeItem("bulwark-totem", "Bulwark Totem", "\uD83E\uDDF1", "SHIELD", 14, "An immovable ward."));
+    }
+
+    void putItem(SiegeItem item) {
+        if (item != null && item.id() != null) items.put(item.id(), item);
+    }
+
+    java.util.List<SiegeItem> allItems() { return new java.util.ArrayList<>(items.values()); }
+
+    SiegeItem findItem(String id) { return id == null ? null : items.get(id); }
+
+    /** {@code count} distinct random items for rewards / shops. */
+    java.util.List<SiegeItem> randomItems(int count, Random rng) {
+        java.util.List<SiegeItem> pool = new java.util.ArrayList<>(items.values());
+        java.util.List<SiegeItem> out = new java.util.ArrayList<>();
+        while (out.size() < count && !pool.isEmpty()) out.add(pool.remove(rng.nextInt(pool.size())));
+        return out;
+    }
+
+    /** Dashboard item creation: kind must be VITALITY|ATTACK|SPEED|SHIELD. */
+    SiegeItem createItem(String name, String icon, String kind, int value) {
+        String k = kind == null ? "" : kind.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!java.util.Set.of("VITALITY", "ATTACK", "SPEED", "SHIELD").contains(k)) {
+            throw new IllegalArgumentException("Item kind must be VITALITY, ATTACK, SPEED or SHIELD.");
+        }
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Item name is required.");
+        String id = name.trim().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+        if (id.isBlank()) id = "item-" + Integer.toHexString(name.hashCode());
+        SiegeItem item = new SiegeItem(id, name.trim(),
+                icon == null || icon.isBlank() ? "\uD83D\uDCE6" : icon.trim(), k, Math.max(1, value),
+                java.beans.Introspector.decapitalize(name.trim()));
+        putItem(item);
+        return item;
+    }
 
     @Autowired
     private CardDefinitionService cardDefs;
@@ -239,6 +292,8 @@ public class SiegeContentService {
      */
     KnightPassive knightPassiveKind(TrainerCard knight) {
         String id = knight.getId() == null ? knight.getName() : knight.getId();
+        KnightPassive assigned = classOverrides.get(id.trim().toLowerCase(java.util.Locale.ROOT));
+        if (assigned != null) return assigned;
         int h = 0;
         for (int i = 0; i < id.length(); i++) h = h * 31 + id.charAt(i);
         KnightPassive[] all = KnightPassive.values();
@@ -252,6 +307,7 @@ public class SiegeContentService {
             case SPEED -> 2;    // +2 speed to each Siegeling at battle start
             case HEALTH -> 8;   // +8 max HP to each Siegeling all expedition
             case LOOT -> 40;    // +40% gold from spoils and caches
+            case MARSHAL -> 1;  // starts the run with 1 extra Siegeling
         };
     }
 
@@ -262,6 +318,7 @@ public class SiegeContentService {
             case SPEED -> "Vanguard";
             case HEALTH -> "Warden";
             case LOOT -> "Quartermaster";
+            case MARSHAL -> "Marshal";
         };
     }
 
@@ -275,6 +332,7 @@ public class SiegeContentService {
             case SPEED -> "Vanguard: the party begins each battle with +" + v + " speed.";
             case HEALTH -> "Warden: every Siegeling has +" + v + " max HP all expedition.";
             case LOOT -> "Quartermaster: +" + v + "% gold from spoils and caches.";
+            case MARSHAL -> "Marshal: musters an extra Siegeling at the start of the expedition.";
         };
     }
 
@@ -351,17 +409,26 @@ public class SiegeContentService {
             Map.entry(Element.POISON, new String[] { "Venom Creeper", "Blight Fiend", "Spore Beast" }),
             Map.entry(Element.LIGHT, new String[] { "Radiant Shade", "Gleam Wisp", "Halo Fiend" }));
     private static final String[] ENEMY_NAMES_FALLBACK = { "Rift Crawler", "Gloom Maw", "Mire Beast" };
-    private static final String[] BOSS_NAMES = { "Siegelord Vareth", "The Hollow Warden", "Umbral Titan" };
 
-    List<Combatant> generateEnemies(NodeType type, int floor, Random rng, List<Element> palette) {
+    /**
+     * @param floor     effective depth (compressed across segments / endless loops)
+     * @param partySize living warband size — smaller parties face gentler odds
+     * @param segment   which boss region (0 Squire, 1 SiegeKnight, 2+ Siegelord)
+     */
+    List<Combatant> generateEnemies(NodeType type, int floor, int partySize, int segment, Random rng, List<Element> palette) {
         List<Combatant> enemies = new ArrayList<>();
         int count = switch (type) {
-            case ELITE -> 2;
+            case ELITE -> partySize <= 1 ? 1 : 2;
             case BOSS -> 1;
-            default -> 1 + (floor >= 3 ? rng.nextInt(2) : 0); // 1–2 for battles
+            default -> 1 + (floor >= 3 && partySize >= 2 ? rng.nextInt(2) : 0); // 1–2 for battles
         };
-        double hpMul = switch (type) { case ELITE -> 1.5; case BOSS -> 2.2; default -> 1.0; };
-        double dmgMul = switch (type) { case ELITE -> 1.2; case BOSS -> 1.25; default -> 1.0; };
+        int tier = Math.min(segment, 2);
+        double bossHp = switch (tier) { case 0 -> 1.9; case 1 -> 2.2; default -> 2.6; };
+        double bossDmg = switch (tier) { case 0 -> 1.15; case 1 -> 1.25; default -> 1.35; };
+        // Difficulty tracks warband size: a lone Siegeling faces ~2/3-strength foes.
+        double partyMul = 0.48 + 0.175 * Math.max(1, partySize);
+        double hpMul = (switch (type) { case ELITE -> 1.5; case BOSS -> bossHp; default -> 1.0; }) * partyMul;
+        double dmgMul = (switch (type) { case ELITE -> 1.2; case BOSS -> bossDmg; default -> 1.0; }) * Math.min(1.0, 0.62 + 0.13 * partySize);
         int abilityCount = switch (type) {
             case BOSS -> 3;
             case ELITE -> 2 + (floor >= 5 ? 1 : 0);
@@ -377,7 +444,7 @@ public class SiegeContentService {
             int speed = 6 + rng.nextInt(8) + (type == NodeType.BOSS ? 2 : 0);
             String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
             String name = type == NodeType.BOSS
-                    ? BOSS_NAMES[Math.floorMod(floor, BOSS_NAMES.length)]
+                    ? bossName(tier, rng)
                     : names[rng.nextInt(names.length)];
             String id = "foe-" + floor + "-" + i;
             Combatant foe = new Combatant(id, name, element, Side.ENEMY, hp, speed, null);
@@ -412,7 +479,24 @@ public class SiegeContentService {
 
     // ---- Map ------------------------------------------------------------
 
-    static final int MAP_ROWS = 8;
+    static final int SEGMENT_ROWS = 8;
+    static final int SEGMENTS = 3;
+    static final int MAP_ROWS = SEGMENT_ROWS * SEGMENTS;
+
+    /** Boss tier names per segment: a Squire, a rogue SiegeKnight, the Siegelord. */
+    private static final String[][] SEGMENT_BOSS_NAMES = {
+            { "Squire Bram", "Squire Vex", "Squire Odo" },
+            { "Ser Malachar", "Dame Cressida", "The Fallen Knight" },
+            { "Siegelord Vareth", "The Hollow Warden", "Umbral Titan" }
+    };
+    private static final String[] SEGMENT_BOSS_LABELS = { "Squire", "SiegeKnight", "Siegelord" };
+
+    static int segmentOf(int row) { return Math.min(SEGMENTS - 1, row / SEGMENT_ROWS); }
+
+    String bossName(int segment, Random rng) {
+        String[] names = SEGMENT_BOSS_NAMES[Math.min(segment, SEGMENT_BOSS_NAMES.length - 1)];
+        return names[rng.nextInt(names.length)];
+    }
 
     /**
      * Generates a Slay-the-Spire-style branching DAG: {@value #MAP_ROWS} rows,
@@ -421,22 +505,50 @@ public class SiegeContentService {
      * the boss.
      */
     List<SiegeNode> generateMap(Random rng) {
-        int[] counts = new int[MAP_ROWS];
-        counts[0] = 2 + rng.nextInt(2);                 // 2–3 starting paths
-        counts[MAP_ROWS - 1] = 1;                       // the Siegelord
-        counts[MAP_ROWS - 2] = 2;                       // rest row before the boss
-        for (int r = 1; r < MAP_ROWS - 2; r++) {
-            counts[r] = 2 + rng.nextInt(3);             // 2–4
+        return generateSegments(0, 0, SEGMENTS, rng);
+    }
+
+    /** One more segment for Endless mode, appended after the current last row. */
+    List<SiegeNode> generateEndlessSegment(int startRow, int startId, int loop, Random rng) {
+        return generateSegments(startRow, startId, 1, rng);
+    }
+
+    /**
+     * Builds {@code segmentCount} chained segments starting at global row
+     * {@code rowOffset}. Each segment is {@value #SEGMENT_ROWS} rows ending in a
+     * single unskippable boss row (rest row just before it); every path funnels
+     * through each boss, and a boss links onward to the next segment's openers.
+     */
+    private List<SiegeNode> generateSegments(int rowOffset, int idOffset, int segmentCount, Random rng) {
+        int totalRows = SEGMENT_ROWS * segmentCount;
+        int[] counts = new int[totalRows];
+        for (int r = 0; r < totalRows; r++) {
+            int rin = r % SEGMENT_ROWS;
+            if (rin == 0) {
+                int seg = segmentOf(rowOffset + r);
+                counts[r] = switch (Math.min(seg, 2)) {
+                    case 0 -> 3 + rng.nextInt(3);   // Squire: 3–5 main paths
+                    case 1 -> 2 + rng.nextInt(3);   // SiegeKnight: 2–4
+                    default -> 2 + rng.nextInt(2);  // Siegelord: 2–3
+                };
+            }
+            else if (rin == SEGMENT_ROWS - 1) counts[r] = 1;          // the boss
+            else if (rin == SEGMENT_ROWS - 2) counts[r] = 2;          // rest row
+            else counts[r] = 2 + rng.nextInt(3);                      // 2–4
         }
 
         List<SiegeNode> nodes = new ArrayList<>();
-        int nextId = 0;
-        int[][] rowIds = new int[MAP_ROWS][];
-        for (int r = 0; r < MAP_ROWS; r++) {
+        int nextId = idOffset;
+        int[][] rowIds = new int[totalRows][];
+        for (int r = 0; r < totalRows; r++) {
+            int globalRow = rowOffset + r;
             rowIds[r] = new int[counts[r]];
             for (int c = 0; c < counts[r]; c++) {
-                NodeType type = nodeTypeFor(r, c, counts[r], rng);
-                SiegeNode node = new SiegeNode(nextId, r, c, type, labelFor(type));
+                NodeType type = nodeTypeFor(r % SEGMENT_ROWS, c, counts[r], rng);
+                String label = type == NodeType.BOSS
+                        ? SEGMENT_BOSS_LABELS[Math.min(segmentOf(globalRow), SEGMENT_BOSS_LABELS.length - 1)]
+                        : labelFor(type);
+                SiegeNode node = new SiegeNode(nextId, globalRow, c, type, label);
                 rowIds[r][c] = nextId;
                 nodes.add(node);
                 nextId++;
@@ -445,11 +557,11 @@ public class SiegeContentService {
 
         // Forward edges. Mapping each node onto the next row's index space keeps
         // the paths monotonic (non-crossing) so the map reads cleanly.
-        for (int r = 0; r < MAP_ROWS - 1; r++) {
+        for (int r = 0; r < totalRows - 1; r++) {
             int a = counts[r], b = counts[r + 1];
             boolean[] hasIncoming = new boolean[b];
             for (int i = 0; i < a; i++) {
-                SiegeNode from = nodes.get(rowIds[r][i]);
+                SiegeNode from = nodes.get(rowIds[r][i] - idOffset);
                 int base = a == 1 ? (b - 1) / 2 : (int) Math.round(i * (double) (b - 1) / (a - 1));
                 from.getNext().add(rowIds[r + 1][base]);
                 hasIncoming[base] = true;
@@ -466,7 +578,7 @@ public class SiegeContentService {
             for (int j = 0; j < b; j++) {
                 if (!hasIncoming[j]) {
                     int i = a == 1 ? 0 : (int) Math.round(j * (double) (a - 1) / Math.max(1, b - 1));
-                    SiegeNode from = nodes.get(rowIds[r][i]);
+                    SiegeNode from = nodes.get(rowIds[r][i] - idOffset);
                     if (!from.getNext().contains(rowIds[r + 1][j])) {
                         from.getNext().add(rowIds[r + 1][j]);
                     }
@@ -476,19 +588,26 @@ public class SiegeContentService {
         return nodes;
     }
 
+    /** {@code row} here is the row within its segment (0..SEGMENT_ROWS-1). */
     private NodeType nodeTypeFor(int row, int col, int rowCount, Random rng) {
         if (row == 0) return NodeType.BATTLE;
-        if (row == MAP_ROWS - 1) return NodeType.BOSS;
-        if (row == MAP_ROWS - 2) return NodeType.REST;
+        if (row == SEGMENT_ROWS - 1) return NodeType.BOSS;
+        if (row == SEGMENT_ROWS - 2) return NodeType.REST;
         // Guaranteed variety anchors: a cache early, a broker and an elite mid-run.
         if (row == 2 && col == rowCount - 1) return NodeType.TREASURE;
         if (row == 3 && col == 0) return NodeType.BROKER;
         if (row == 4 && col == 0) return NodeType.ELITE;
+        // Guaranteed variety anchors for the new stops.
+        if (row == 3 && col == rowCount - 1) return NodeType.SMITH;
+        if (row == 4 && col == rowCount - 1) return NodeType.EVENT;
         int roll = rng.nextInt(100);
-        if (row >= 3 && roll < 16) return NodeType.ELITE;
-        if (roll < 30) return NodeType.TREASURE;
-        if (roll < 42) return NodeType.REST;
-        if (row >= 2 && roll < 52) return NodeType.BROKER;
+        if (row >= 3 && roll < 14) return NodeType.ELITE;
+        if (roll < 24) return NodeType.EVENT;
+        if (roll < 36) return NodeType.TREASURE;
+        if (roll < 46) return NodeType.REST;
+        if (row >= 1 && roll < 56) return NodeType.BROKER;
+        if (row >= 2 && roll < 66) return NodeType.SMITH;
+        if (row >= 2 && roll < 74) return NodeType.CARAVAN;
         return NodeType.BATTLE;
     }
 
@@ -499,7 +618,10 @@ public class SiegeContentService {
             case REST -> "Rest Camp";
             case TREASURE -> "Cache";
             case BROKER -> "Broker";
-            case BOSS -> "Siegelord";
+            case SMITH -> "Smith";
+            case CARAVAN -> "Caravan";
+            case EVENT -> "Event";
+            case BOSS -> "Boss";
         };
     }
 
@@ -520,7 +642,159 @@ public class SiegeContentService {
 
     int partySize() { return PARTY_SIZE; }
 
-    int partyMax() { return 4; }
+    int partyMax() { return PARTY_MAX; }
+
+    // ---- Evolution stages + staged recruits -------------------------------
+
+    /** 1 = base form, 2/3 = evolution depth via the evolvesFrom chain. */
+    int stageOf(SieglingCard s) {
+        int stage = 1;
+        String from = s.getEvolvesFromId();
+        int guard = 0;
+        while (from != null && !from.isBlank() && guard++ < 6) {
+            stage++;
+            from = findAnySiegling(from).map(SieglingCard::getEvolvesFromId).orElse(null);
+        }
+        return stage;
+    }
+
+    private List<SieglingCard> sieglingsAtStage(int stage) {
+        List<SieglingCard> out = new ArrayList<>();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (card instanceof SieglingCard s && !playableMoves(s).isEmpty() && stageOf(s) == stage) {
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A post-battle joiner: 1% chance of a stage-3, 5% of a stage-2, otherwise a
+     * stage-1 Siegeling (falling back down a stage when a tier has no entries).
+     */
+    Optional<SieglingCard> randomStagedRecruit(List<String> excludedNames, Random rng) {
+        int roll = rng.nextInt(100);
+        int stage = roll < 1 ? 3 : roll < 6 ? 2 : 1;
+        for (int s = stage; s >= 1; s--) {
+            List<SieglingCard> pool = new ArrayList<>();
+            for (SieglingCard cand : sieglingsAtStage(s)) {
+                if (!excludedNames.contains(cand.getName())) pool.add(cand);
+            }
+            if (!pool.isEmpty()) return Optional.of(pool.get(rng.nextInt(pool.size())));
+        }
+        return Optional.empty();
+    }
+
+    // ---- Mercenaries (broker rentals) --------------------------------------
+
+    /** Broker stall stock: prefer evolved forms — mercenaries are elite muscle. */
+    List<SieglingCard> mercOffers(int count, Random rng) {
+        List<SieglingCard> pool = sieglingsAtStage(3);
+        if (pool.size() < count) pool.addAll(sieglingsAtStage(2));
+        if (pool.size() < count) pool.addAll(sieglingsAtStage(1));
+        List<SieglingCard> out = new ArrayList<>();
+        List<SieglingCard> work = new ArrayList<>(pool);
+        while (out.size() < count && !work.isEmpty()) {
+            out.add(work.remove(rng.nextInt(work.size())));
+        }
+        return out;
+    }
+
+    /** A rented mercenary: beefier than a normal recruit; fights one battle then leaves. */
+    Combatant toMercCombatant(SieglingCard s) {
+        int hp = (int) Math.round((18 + s.getHealth() * 4) * 1.35);
+        Combatant merc = new Combatant("merc-" + s.getId(), s.getName() + " (Merc)", s.getElement(),
+                Side.PLAYER, hp, Math.max(4, s.getSpeed()) + 3, s.getCardArtUrl());
+        // No sourceCardId: mercs don't get evolution cards; they're already elite.
+        return merc;
+    }
+
+    /** The merc's own moves (upgraded once) plus two signature boon cards. */
+    List<SiegeCard> mercBoonCards(Combatant merc, SieglingCard s) {
+        List<SiegeCard> cards = new ArrayList<>();
+        int n = 0;
+        for (Move move : playableMoves(s)) {
+            cards.add(new SiegeCard(merc.getId() + "-m" + (n++), merc.getId(), upgradeSpec(toSpec(move))));
+        }
+        cards.add(new SiegeCard(merc.getId() + "-boon-war", merc.getId(),
+                new AbilitySpec("boon-warcry", "Boon: Warcry", s.getElement(), Effect.BUFF_ATK, 3,
+                        TargetKind.ALLY_ALL, 1, merc.getName() + " rallies the warband: +3 attack this battle.")));
+        cards.add(new SiegeCard(merc.getId() + "-boon-wall", merc.getId(),
+                new AbilitySpec("boon-bulwark", "Boon: Bulwark", s.getElement(), Effect.SHIELD, 8,
+                        TargetKind.ALLY_ALL, 1, merc.getName() + " shields the whole warband for 8.")));
+        return cards;
+    }
+
+    // ---- Knight class assignment (dashboard) --------------------------------
+
+    /** A random card from the full collection catalog — the end-of-run card prize. */
+    Optional<Card> randomCollectionCard(Random rng) {
+        List<Card> catalog = cardDefs.getDeckBuilderCatalog();
+        if (catalog.isEmpty()) return Optional.empty();
+        return Optional.of(catalog.get(rng.nextInt(catalog.size())));
+    }
+
+    Map<String, KnightPassive> classOverrides() { return classOverrides; }
+
+    // ---- Event nodes (data-driven) ----------------------------------------
+
+    /** One event choice: outcome code + value, decoded by the service. */
+    record EventChoice(String label, String outcome, int value, String flavor) {}
+    /** An event definition: title/prompt/icon + 2-3 choices. */
+    record EventDef(String id, String title, String icon, String prompt, List<EventChoice> choices) {}
+
+    private final List<EventDef> events = buildEvents();
+
+    EventDef randomEvent(Random rng) {
+        return events.get(rng.nextInt(events.size()));
+    }
+
+    private List<EventDef> buildEvents() {
+        List<EventDef> out = new ArrayList<>();
+        out.add(new EventDef("traveler", "A Weary Traveler", "\uD83E\uDDD1", // 🧑
+                "A traveler shares your road. \u201CSpare a moment for a fellow wanderer?\u201D", List.of(
+                new EventChoice("Trade stories", "GOLD", 18, "The traveler tips you off to a hidden cache."),
+                new EventChoice("Share your rations", "ITEM_HEALTHCOST", 8, "Grateful, they press a trinket into your hand."),
+                new EventChoice("Walk on by", "NOTHING", 0, "You keep your own counsel."))));
+        out.add(new EventDef("bandit-toll", "Bandit Toll", "\uD83E\uDD77", // 🥷
+                "Bandits block the pass. \u201CPay the toll \u2014 or bleed for it.\u201D", List.of(
+                new EventChoice("Pay 30 gold", "PAY_GOLD", 30, "They step aside, grinning."),
+                new EventChoice("Fight them (ambush!)", "AMBUSH", 0, "Steel rings out \u2014 they strike first!"),
+                new EventChoice("Try to sneak past", "SNEAK", 12, "You slip into the brush\u2026"))));
+        out.add(new EventDef("stranger", "Mysterious Stranger", "\uD83E\uDDD9", // 🧙
+                "A cloaked figure offers a bargain. \u201CYour blood for my treasure.\u201D", List.of(
+                new EventChoice("Bleed for a relic (\u221215 HP)", "BLEED_ITEM", 15, "The pain is worth it."),
+                new EventChoice("Decline", "NOTHING", 0, "The figure fades into mist."))));
+        out.add(new EventDef("lost-child", "Lost Siegeling", "\uD83D\uDC23", // 🐣
+                "A frightened wild Siegeling watches from the ferns.", List.of(
+                new EventChoice("Coax it along", "RECRUIT_CHANCE", 0, "It follows, warily\u2026"),
+                new EventChoice("Leave a treat & go", "HEAL", 12, "It chirps thankfully as you leave."))));
+        out.add(new EventDef("abandoned-camp", "Abandoned Camp", "\u26FA", // ⛺
+                "Cold ashes and a half-packed pack. Something feels off.", List.of(
+                new EventChoice("Search carefully", "SEARCH", 0, "You sift the wreckage\u2026"),
+                new EventChoice("Rest here", "HEAL", 18, "You risk a short rest."),
+                new EventChoice("Move on", "NOTHING", 0, "Best not linger."))));
+        out.add(new EventDef("monster-tracks", "Monster Tracks", "\uD83D\uDC3E", // 🐾
+                "Huge tracks lead off the path \u2014 fresh, and deep.", List.of(
+                new EventChoice("Follow them (elite ambush!)", "AMBUSH_ELITE", 0, "You corner the beast \u2014 it lunges!"),
+                new EventChoice("Avoid them", "GOLD", 10, "You skirt danger and pocket some scrap."))));
+        out.add(new EventDef("treasure-map", "Treasure Map", "\uD83D\uDDFA\uFE0F", // 🗺️
+                "A tattered map marks an X not far off.", List.of(
+                new EventChoice("Dig at the X", "DIG_MAP", 0, "You dig, dirt flying\u2026"),
+                new EventChoice("Sell the map", "GOLD", 35, "A passing trader pays well."))));
+        out.add(new EventDef("oracle", "Wandering Oracle", "\uD83D\uDD2E", // 🔮
+                "An oracle reads the threads of fate for a fee.", List.of(
+                new EventChoice("Pay 15 for a blessing", "BLESS_SPEED", 15, "Foresight quickens your warband."),
+                new EventChoice("Ask nothing", "NOTHING", 0, "You trust your own path."))));
+        return out;
+    }
+
+    void assignClass(String trainerId, KnightPassive passive) {
+        if (trainerId == null || trainerId.isBlank()) return;
+        String key = trainerId.trim().toLowerCase(java.util.Locale.ROOT);
+        if (passive == null) classOverrides.remove(key);
+        else classOverrides.put(key, passive);
+    }
 
     // ---- Rewards ---------------------------------------------------------
 

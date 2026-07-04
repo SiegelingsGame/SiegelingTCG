@@ -1099,8 +1099,29 @@
      renderer). The dashboard preview falls back to the old icon shell without it.
      Loaded at body-end (document.body exists) so its layout init can't throw, and
      before card-binder-visual.js so the showcase is registered first. -->
-<script src="/js/game.js?v=186"></script>
+<script src="/js/game.js?v=187"></script>
 <script src="/js/card-binder-visual.js?v=4"></script>
 <script src="/js/card-dashboard.js?v=44"></script>
+    <section class="panel" id="siegeClassSection" style="margin-top:18px;">
+        <h2>Siege Roguelike Classes</h2>
+        <div id="siegeClassPanel"></div>
+    </section>
+    <style>
+      .siege-class-table{width:100%;border-collapse:collapse;font-size:13px;}
+      .siege-class-table th,.siege-class-table td{padding:6px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);}
+      .siege-class-note{font-size:12.5px;opacity:.75;margin:6px 0 10px;}
+      .siege-class-status{font-size:12px;min-width:70px;}
+    </style>
+    <script src="/js/siege-class-admin.js?v=1"></script>
+    <section class="panel" id="siegeItemSection" style="margin-top:18px;">
+        <h2>Siege Items</h2>
+        <div id="siegeItemPanel"></div>
+    </section>
+    <style>
+      .siege-item-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 12px;}
+      .siege-item-form input,.siege-item-form select{padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.25);color:inherit;}
+      .siege-item-form button{padding:6px 14px;border-radius:6px;cursor:pointer;}
+    </style>
+    <script src="/js/siege-item-admin.js?v=1"></script>
 </body>
 </html>

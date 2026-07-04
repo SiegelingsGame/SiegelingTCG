@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=16">
+<link rel="stylesheet" href="/css/adventure.css?v=18">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -65,7 +65,7 @@
       <div class="siegeling-grid" id="sieglingGrid"></div>
       <div class="setup-footer">
         <button class="siege-btn" id="partyBackBtn" type="button">◂ Knight</button>
-        <div class="setup-summary" id="setupSummary">Pick 3 Siegelings.</div>
+        <div class="setup-summary" id="setupSummary">Pick your starting Siegeling.</div>
         <button class="siege-btn primary" id="startRunBtn" type="button" disabled>Begin Expedition</button>
       </div>
     </div>
@@ -82,6 +82,7 @@
         <button class="hud-menu-btn run-menu-trigger" id="mapMenuBtn" type="button" title="Menu" aria-label="Open menu" aria-haspopup="dialog" aria-expanded="false">☰</button>
         <span class="gold-chip" id="mapGold">🪙 0</span>
         <span id="mapDeckCount"></span>
+        <button class="siege-btn map-inv-btn" id="inventoryBtn" type="button">🎒 Items</button>
         <span class="map-hint" id="mapHint">Choose your path</span>
       </div>
       <div class="party-strip" id="partyStrip"></div>
@@ -111,6 +112,7 @@
     <h1 class="camp-title">Buried Cache</h1>
     <p class="siege-sub">Dig for loot — but every dig risks a collapse that buries the unbanked gold.</p>
     <div class="cache-loot" id="cacheLoot"></div>
+    <div class="camp-grid" id="cacheOptions"></div>
     <div class="cache-risk"><div class="cache-riskbar"><div class="cache-riskfill" id="cacheRiskFill"></div></div><span id="cacheRiskText"></span></div>
     <div class="camp-meta"><span id="cacheReward" class="camp-reward"></span></div>
     <div class="camp-actions">
@@ -154,8 +156,8 @@
       <div class="broker-npc">🐾</div>
       <div class="camp-tent">🏪</div>
     </div>
-    <h1 class="camp-title">Siegeling Broker</h1>
-    <p class="siege-sub">New Siegelings for hire — recruit into an open slot, or swap one of yours for fresh blood.</p>
+    <h1 class="camp-title">Mercenary Broker</h1>
+    <p class="siege-sub">Elite mercenaries for rent — one fights your NEXT battle with powerful boon cards, then departs with its pay.</p>
     <div class="camp-meta"><span class="gold-chip" id="brokerGold">🪙 0</span><span id="brokerReward" class="camp-reward"></span></div>
     <div class="camp-grid" id="brokerGrid"></div>
     <div class="camp-actions">
@@ -173,10 +175,26 @@
     </div>
   </section>
 
+  <!-- Gacha-style Siegeling join reveal -->
+  <section class="siege-screen hidden" id="recruitScreen">
+    <div class="gacha-stage" id="gachaStage">
+      <div class="gacha-rays"></div>
+      <div class="gacha-glow"></div>
+      <div class="gacha-sparkles" id="gachaSparkles"></div>
+      <div class="gacha-art" id="gachaArt"></div>
+      <div class="gacha-stars" id="gachaStars"></div>
+      <div class="gacha-banner" id="gachaBanner"></div>
+      <div class="gacha-name" id="gachaName"></div>
+      <div class="gacha-stats" id="gachaStats"></div>
+      <button class="siege-btn primary gacha-claim" id="gachaClaimBtn" type="button">Claim ▸</button>
+    </div>
+  </section>
+
   <!-- Result -->
   <section class="siege-screen hidden" id="resultScreen">
     <h1 id="resultTitle"></h1>
     <p class="siege-sub" id="resultText"></p>
+    <div id="resultExtras"></div>
     <button class="siege-btn primary" id="resultBtn" type="button">Continue</button>
   </section>
 
@@ -187,6 +205,48 @@
       <div id="unitModalBody"></div>
     </div>
   </div>
+
+  <!-- Inventory overlay: equip one item per Siegeling -->
+  <div class="inv-overlay hidden" id="invOverlay">
+    <div class="inv-panel">
+      <div class="inv-head"><span>🎒 Warband Inventory</span><button class="unit-modal-close" id="invClose" type="button">✕</button></div>
+      <div class="inv-body">
+        <div class="inv-party" id="invParty"></div>
+        <h3 class="inv-subhead">Backpack</h3>
+        <div class="inv-bag" id="invBag"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Smith / Caravan (reuse camp layout) -->
+  <section class="siege-screen hidden" id="smithScreen">
+    <div class="camp-scene smith-scene"><div class="camp-sky"></div><div class="broker-npc">🔨</div><div class="camp-tent">⚒️</div></div>
+    <h1 class="camp-title">The Smith</h1>
+    <p class="siege-sub">Chisel a card into a stronger version — or scrap one to thin your deck.</p>
+    <div class="camp-meta"><span class="gold-chip" id="smithGold">🪙 0</span><span id="smithReward" class="camp-reward"></span></div>
+    <div class="camp-grid" id="smithGrid"></div>
+    <div class="camp-actions">
+      <button class="siege-btn" id="smithScrapBtn" type="button">🗑 Scrap a card…</button>
+      <button class="siege-btn primary" id="smithLeaveBtn" type="button">Leave Forge ▸</button>
+    </div>
+  </section>
+
+  <section class="siege-screen hidden" id="caravanScreen">
+    <div class="camp-scene caravan-scene"><div class="camp-sky"></div><div class="broker-npc">🐫</div><div class="camp-tent">🏪</div></div>
+    <h1 class="camp-title">Merchant Caravan</h1>
+    <p class="siege-sub">Items, techniques and supplies for gold.</p>
+    <div class="camp-meta"><span class="gold-chip" id="caravanGold">🪙 0</span><span id="caravanReward" class="camp-reward"></span></div>
+    <div class="camp-grid" id="caravanGrid"></div>
+    <div class="camp-actions"><button class="siege-btn primary" id="caravanLeaveBtn" type="button">Move On ▸</button></div>
+  </section>
+
+  <section class="siege-screen hidden" id="eventScreen">
+    <div class="event-scene"><span class="event-icon" id="eventIcon">❔</span></div>
+    <h1 class="camp-title" id="eventTitle">Event</h1>
+    <p class="siege-sub event-prompt" id="eventPrompt"></p>
+    <div class="camp-meta"><span class="gold-chip" id="eventGold">🪙 0</span></div>
+    <div class="event-choices" id="eventChoices"></div>
+  </section>
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 
@@ -201,6 +261,6 @@
     </div>
   </div>
 </div>
-<script src="/js/adventure.js?v=16"></script>
+<script src="/js/adventure.js?v=18"></script>
 </body>
 </html>
