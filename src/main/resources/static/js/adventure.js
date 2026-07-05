@@ -1709,6 +1709,26 @@
     dragArrowState.raf = window.requestAnimationFrame(drawDragArrow);
   }
 
+  function livingEnemies(b) {
+    return (b && b.enemies ? b.enemies : []).filter(function (e) { return e.alive; });
+  }
+
+  function soleLivingEnemy(b) {
+    var live = livingEnemies(b);
+    return live.length === 1 ? live[0] : null;
+  }
+
+  function cardTargetsSingleEnemy(card) {
+    return Boolean(card && card.target === 'ENEMY_SINGLE');
+  }
+
+  /** True when the player must drop onto a specific unit sprite. */
+  function cardNeedsSpriteTarget(card, b) {
+    if (!card || !card.needsTarget) return false;
+    if (cardTargetsSingleEnemy(card) && soleLivingEnemy(b)) return false;
+    return true;
+  }
+
   function startDragArrow(card, ghostEl) {
     if (!card.needsTarget) return;
     if (dragArrowState.raf) window.cancelAnimationFrame(dragArrowState.raf);
@@ -1771,7 +1791,7 @@
       ghost.style.setProperty('--fan-scale', '1');
       document.body.appendChild(ghost);
       cardEl.classList.add('playcard-dragsource');
-      if (card.needsTarget) startDragArrow(card, ghost);
+      if (cardNeedsSpriteTarget(card, state.run.battle)) startDragArrow(card, ghost);
     }
 
     function moveGhost(clientX, clientY) {
@@ -1788,11 +1808,11 @@
       var spriteEl = hitEl && hitEl.closest ? hitEl.closest('.sprite') : null;
       Array.prototype.forEach.call(document.querySelectorAll('.sprite.drop-hover'), function (n) { n.classList.remove('drop-hover'); });
       var snapEl = null;
-      if (spriteEl && card.needsTarget && isValidDropTarget(spriteEl)) {
+      if (spriteEl && cardNeedsSpriteTarget(card, state.run.battle) && isValidDropTarget(spriteEl)) {
         spriteEl.classList.add('drop-hover');
         snapEl = spriteEl;
       }
-      if (card.needsTarget) updateDragArrow(clientX, clientY, snapEl);
+      if (cardNeedsSpriteTarget(card, state.run.battle)) updateDragArrow(clientX, clientY, snapEl);
     }
 
     function isValidDropTarget(spriteEl) {
@@ -1833,7 +1853,7 @@
         if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
         dragging = true;
         beginGhost(startX, startY);
-        if (card.needsTarget) highlightTargets(card);
+        if (cardNeedsSpriteTarget(card, state.run.battle)) highlightTargets(card);
       }
       event.preventDefault();
       moveGhost(event.clientX, event.clientY);
@@ -1851,16 +1871,18 @@
       var dropEl = document.elementFromPoint(dropX, dropY);
       var stage = $('battleStage');
       if (!dropEl || !stage.contains(dropEl)) return; // dropped off the arena — cancel
-      if (card.needsTarget) {
+      var b = state.run.battle;
+      if (cardNeedsSpriteTarget(card, b)) {
         var spriteEl = dropEl.closest ? dropEl.closest('.sprite') : null;
         if (!spriteEl || !isValidDropTarget(spriteEl)) {
           toast('Drop ' + card.name + ' on a valid target.');
           return;
         }
         playCard(card.instanceId, spriteEl.dataset.id);
-      } else {
-        playCard(card.instanceId, null);
+        return;
       }
+      var soleEnemy = cardTargetsSingleEnemy(card) ? soleLivingEnemy(b) : null;
+      playCard(card.instanceId, soleEnemy ? soleEnemy.id : null);
     }
     cardEl.addEventListener('pointerup', finish);
     cardEl.addEventListener('pointercancel', function (event) {
@@ -1980,9 +2002,10 @@
     }
     var card = currentCard();
     if (card) {
-      highlightTargets(card.needsTarget ? card : null);
+      var needsSprite = cardNeedsSpriteTarget(card, b);
+      highlightTargets(needsSprite ? card : null);
       highlightKnightTargets(null);
-      hint.textContent = card.needsTarget
+      hint.textContent = needsSprite
         ? 'Drag ' + card.name + ' onto a ' + (card.target === 'ENEMY_SINGLE' ? 'target enemy' : 'friendly Siegeling') + '.'
         : 'Drag ' + card.name + ' onto the battlefield to play it.';
     } else {
