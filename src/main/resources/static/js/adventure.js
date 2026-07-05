@@ -926,7 +926,7 @@
       ? (selItem.kind === 'REVIVE' ? 'Tap a fallen Siegeling to revive.' : 'Tap an ally to heal.')
       : (invSelectedItem ? 'Tap a Siegeling to equip.' : 'Tap a knight item, then a target — or tap a backpack item to equip.');
     var sub = $('invBag').previousElementSibling; if (sub) sub.textContent = 'Backpack — ' + hint;
-    var ksub = $('invParty').previousElementSibling; if (ksub) ksub.textContent = selItem ? 'Knight\'s Bag — ' + hint : 'Knight\'s Bag';
+    var ksub = $('invKnightBag').previousElementSibling; if (ksub) ksub.textContent = selItem ? 'Knight\'s Bag — ' + hint : 'Knight\'s Bag';
   }
   function knightTargetValid(item, unit, isKnight) {
     if (!item || !unit) return false;
