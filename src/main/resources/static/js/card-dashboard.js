@@ -3007,9 +3007,11 @@
         }
 
         const previewCard = toBinderPreviewCard(card);
-        const descriptionText = card.cardType === "SIEGLING"
-            ? ((card.moveIds || []).map((id) => findMoveById(id)?.description).find(Boolean) || "Preview card art and notches as players see them in the Cards menu.")
-            : (card.abilities?.[0]?.description || "Preview card art as players see it in the Cards menu.");
+        const flavorDescription = String(card?.description || "").trim();
+        const descriptionText = flavorDescription
+            || (card.cardType === "SIEGLING"
+                ? "Preview card art and notches as players see them in the Cards menu."
+                : "Preview card art as players see it in the Cards menu.");
 
         refs.cardVisualStage.innerHTML = binder.renderBinderCardPreview(previewCard, {
             ownedLabel: "Preview",

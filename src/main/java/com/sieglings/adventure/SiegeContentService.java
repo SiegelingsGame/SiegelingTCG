@@ -48,6 +48,10 @@ public class SiegeContentService {
         putItem(new SiegeItem("gale-plume", "Gale Plume", "\uD83C\uDF2C\uFE0F", "SPEED", 5, "Rides the wind."));
         putItem(new SiegeItem("aegis-crest", "Aegis Crest", "\uD83D\uDEE1\uFE0F", "SHIELD", 8, "Wards the first blow."));
         putItem(new SiegeItem("bulwark-totem", "Bulwark Totem", "\uD83E\uDDF1", "SHIELD", 14, "An immovable ward."));
+        putItem(new SiegeItem("revive-card", "Revive Card", "\uD83D\uDCDC", "REVIVE", 50,
+                "Raises a knocked Siegeling to half strength."));
+        putItem(new SiegeItem("healing-potion", "Healing Potion", "\uD83E\uDDEA", "HEAL", 50,
+                "Restores half of an ally's health."));
     }
 
     void putItem(SiegeItem item) {
@@ -60,17 +64,17 @@ public class SiegeContentService {
 
     /** {@code count} distinct random items for rewards / shops. */
     java.util.List<SiegeItem> randomItems(int count, Random rng) {
-        java.util.List<SiegeItem> pool = new java.util.ArrayList<>(items.values());
+        java.util.List<SiegeItem> pool = items.values().stream().filter(i -> !i.consumable()).toList();
         java.util.List<SiegeItem> out = new java.util.ArrayList<>();
         while (out.size() < count && !pool.isEmpty()) out.add(pool.remove(rng.nextInt(pool.size())));
         return out;
     }
 
-    /** Dashboard item creation: kind must be VITALITY|ATTACK|SPEED|SHIELD. */
+    /** Dashboard item creation: kind must be VITALITY|ATTACK|SPEED|SHIELD|REVIVE|HEAL. */
     SiegeItem createItem(String name, String icon, String kind, int value) {
         String k = kind == null ? "" : kind.trim().toUpperCase(java.util.Locale.ROOT);
-        if (!java.util.Set.of("VITALITY", "ATTACK", "SPEED", "SHIELD").contains(k)) {
-            throw new IllegalArgumentException("Item kind must be VITALITY, ATTACK, SPEED or SHIELD.");
+        if (!java.util.Set.of("VITALITY", "ATTACK", "SPEED", "SHIELD", "REVIVE", "HEAL").contains(k)) {
+            throw new IllegalArgumentException("Item kind must be VITALITY, ATTACK, SPEED, SHIELD, REVIVE or HEAL.");
         }
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Item name is required.");
         String id = name.trim().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");

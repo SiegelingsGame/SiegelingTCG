@@ -185,6 +185,12 @@ public class SiegeController {
         return siege.unequipItem(str(body.get("token")), str(body.get("memberId")));
     }
 
+    /** Use a knight-bag consumable: body { token, itemId, targetId }. */
+    @PostMapping("/api/siege/knight/use")
+    public Map<String, Object> useKnightItem(@RequestBody Map<String, Object> body) {
+        return siege.useKnightItem(str(body.get("token")), str(body.get("itemId")), str(body.get("targetId")));
+    }
+
     /** Dashboard: list all Siege items. */
     @GetMapping("/api/siege/items")
     public Map<String, Object> listItems() {

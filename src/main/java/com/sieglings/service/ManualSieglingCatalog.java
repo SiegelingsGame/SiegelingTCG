@@ -263,8 +263,15 @@ final class ManualSieglingCatalog {
         }
 
         applyCardArt(card, definition);
+        applyCardDescription(card, definition);
 
         return card;
+    }
+
+    private static void applyCardDescription(Card card, ManualSieglingDefinition definition) {
+        if (definition.description() != null) {
+            card.setDescription(normalizeBlank(definition.description()));
+        }
     }
 
     private static void applyCardArt(Card card, ManualSieglingDefinition definition) {
@@ -370,6 +377,7 @@ final class ManualSieglingCatalog {
         }
 
         applyCardArt(card, definition);
+        applyCardDescription(card, definition);
 
         return card;
     }
@@ -408,6 +416,7 @@ final class ManualSieglingCatalog {
         }
 
         applyCardArt(card, definition);
+        applyCardDescription(card, definition);
 
         return card;
     }
@@ -528,6 +537,7 @@ final class ManualSieglingCatalog {
         card.setAbility(source.getAbility() == null ? null : source.getAbility().copy());
         card.setCardArtUrl(source.getCardArtUrl());
         card.setCardArtMode(source.getCardArtMode());
+        card.setDescription(source.getDescription());
         return card;
     }
 
@@ -674,7 +684,8 @@ final class ManualSieglingCatalog {
                     card.getCardArtOffsetYPct(),
                     card.getCardArtScale(),
                     card.getCardArtRotation(),
-                    card.isHolographic()
+                    card.isHolographic(),
+                    card.getDescription()
             );
         }
         if (card instanceof SpellCard spell) {
@@ -708,7 +719,8 @@ final class ManualSieglingCatalog {
                     spell.getCardArtOffsetYPct(),
                     spell.getCardArtScale(),
                     spell.getCardArtRotation(),
-                    spell.isHolographic()
+                    spell.isHolographic(),
+                    spell.getDescription()
             );
         }
         if (card instanceof TrapCard trap) {
@@ -742,7 +754,8 @@ final class ManualSieglingCatalog {
                     trap.getCardArtOffsetYPct(),
                     trap.getCardArtScale(),
                     trap.getCardArtRotation(),
-                    trap.isHolographic()
+                    trap.isHolographic(),
+                    trap.getDescription()
             );
         }
         throw new IllegalStateException("Unsupported card type for override export: " + card.getClass().getSimpleName());
@@ -828,7 +841,8 @@ final class ManualSieglingCatalog {
             Double cardArtOffsetYPct,
             Double cardArtScale,
             Double cardArtRotation,
-            Boolean holographic
+            Boolean holographic,
+            String description
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)

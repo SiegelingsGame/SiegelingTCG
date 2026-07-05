@@ -109,8 +109,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null);
 
         MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
         SieglingCard staticap = ManualSieglingCatalog.applyOverrides(Element.ELECTRIC, generated, List.of(definition), pool).stream()
@@ -136,6 +136,56 @@ class ManualSieglingCatalogTest {
         assertEquals(TargetType.SINGLE_ENEMY, resolved.get(0).getTargetType());
         assertEquals(Element.ELECTRIC, resolved.get(0).getRequiredElement());
         assertEquals(1, resolved.get(0).getRequiredEnergy());
+    }
+
+    @Test
+    void manualDefinitionsPreserveCardDescription() {
+        List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
+
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ManualSieglingCatalog.ManualSieglingDefinition(
+                CardType.SIEGLING,
+                "firsky",
+                "Firsky",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "A small flame spirit that actively hunts smaller creatures."
+        );
+
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+        SieglingCard firsky = ManualSieglingCatalog.applyOverrides(Element.FIRE, generated, List.of(definition), pool).stream()
+                .filter(card -> card.getId().equals("firsky"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("A small flame spirit that actively hunts smaller creatures.", firsky.getDescription());
+
+        ManualSieglingCatalog.ManualSieglingDefinition exported = ManualSieglingCatalog.buildOverrideFile(List.of(firsky)).cards().get(0);
+        assertEquals("A small flame spirit that actively hunts smaller creatures.", exported.description());
     }
 
     @Test
@@ -199,8 +249,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null);
 
         MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
         SieglingCard staticap = ManualSieglingCatalog.applyOverrides(Element.ELECTRIC, generated, List.of(definition), pool).stream()
@@ -265,8 +315,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null);
 
         SpellCard spell = ManualSieglingCatalog.applySpellOverrides(generated, List.of(definition)).stream()
                 .filter(card -> card.getId().equals("spell_fire_01"))
@@ -330,8 +380,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null);
 
         List<SpellCard> spells = ManualSieglingCatalog.applySpellOverrides(generated, List.of(definition));
 
@@ -384,8 +434,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null);
 
         TrapCard trap = ManualSieglingCatalog.applyTrapOverrides(generated, List.of(definition)).stream()
                 .filter(card -> card.getId().equals("trap03"))
@@ -446,8 +496,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null);
 
         List<TrapCard> traps = ManualSieglingCatalog.applyTrapOverrides(generated, List.of(definition));
 
@@ -500,8 +550,8 @@ class ManualSieglingCatalogTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null);
 
         SpellCard spell = ManualSieglingCatalog.applySpellOverrides(generated, List.of(definition)).stream()
                 .filter(card -> card.getId().equals("spell_fire_06"))
@@ -548,8 +598,8 @@ class ManualSieglingCatalogTest {
                 null,
                 1.35,
                 -15.0,
-                null
-        );
+                null,
+                null);
 
         MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
         SieglingCard staticap = ManualSieglingCatalog.applyOverrides(Element.ELECTRIC, generated, List.of(definition), pool).stream()
@@ -674,6 +724,7 @@ class ManualSieglingCatalogTest {
                 null,
                 "data:image/png;base64,abc",
                 "REPLACE",
+                null,
                 null,
                 null,
                 null,

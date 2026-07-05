@@ -873,6 +873,16 @@ body[data-screen="mapScreen"] #mapScreen{
 .inv-item-name{font-size:12.5px; font-weight:650; color:var(--text);}
 .inv-item-eff{font-size:11px; color:var(--dim);}
 .inv-empty{color:var(--faint); font-size:12.5px;}
+.inv-knight-bag{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px;}
+.inv-knight-bag .inv-empty{margin-bottom:8px;}
+.inv-knight-item{border-color:rgba(255,230,60,.35);}
+.inv-targetable{outline:2px dashed rgba(255,230,60,.55); cursor:pointer;}
+.inv-targetable.revive-target{outline-color:rgba(120,200,255,.65);}
+.inv-targetable.heal-target{outline-color:rgba(120,255,160,.55);}
+.knight-bag-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
+.knight-bag-btn{font-size:11px; padding:4px 8px; border-radius:8px; border:1px solid rgba(255,230,60,.35); background:rgba(20,24,32,.85); color:var(--text); cursor:pointer;}
+.knight-bag-btn.sel{outline:2px solid var(--accent);}
+.knight-bag-btn:disabled{opacity:.45; cursor:not-allowed;}
 .smith-scrap-note{width:100%; color:var(--accent); font-size:13px; margin-bottom:6px;}
 .event-scene{display:flex; justify-content:center; padding:22px 0 4px;}
 .event-icon{font-size:70px; filter:drop-shadow(0 6px 14px rgba(0,0,0,.5));}
