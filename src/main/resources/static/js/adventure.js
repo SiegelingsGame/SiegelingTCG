@@ -926,7 +926,7 @@
       ? (selItem.kind === 'REVIVE' ? 'Tap a fallen Siegeling to revive.' : 'Tap an ally to heal.')
       : (invSelectedItem ? 'Tap a Siegeling to equip.' : 'Tap a knight item, then a target — or tap a backpack item to equip.');
     var sub = $('invBag').previousElementSibling; if (sub) sub.textContent = 'Backpack — ' + hint;
-    var ksub = $('invParty').previousElementSibling; if (ksub) ksub.textContent = selItem ? 'Knight\'s Bag — ' + hint : 'Knight\'s Bag';
+    var ksub = $('invKnightBag').previousElementSibling; if (ksub) ksub.textContent = selItem ? 'Knight\'s Bag — ' + hint : 'Knight\'s Bag';
   }
   function knightTargetValid(item, unit, isKnight) {
     if (!item || !unit) return false;
@@ -945,7 +945,9 @@
       .catch(function (e) { toast(e.message); state.busy = false; });
   }
   function useKnightItemInBattle(itemId, targetId) {
-    if (state.busy) return; state.busy = true;
+    if (state.busy) return;
+    state.busy = true;
+    syncBattleActionButtons();
     api('/api/siege/knight/use', { method: 'POST', body: { token: token(), itemId: itemId, targetId: targetId } })
       .then(function (run) { state.knightSelectedItem = null; state.busy = false; applyRun(run); if (run.lastReward) toast(run.lastReward); })
       .catch(function (e) { toast(e.message); state.busy = false; });
@@ -959,6 +961,26 @@
       .then(function (run) { state.run = run; if (!$('invOverlay').classList.contains('hidden')) renderInventory(); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
+  }
+
+  /** Keep End Turn / Ultimate in sync with phase and in-flight work. Without
+   *  this, taps during animations or API calls are silently ignored (busy) while
+   *  the buttons still look active — which feels like a double-tap is required. */
+  function syncBattleActionButtons() {
+    var b = state.run && state.run.battle;
+    if (!b) return;
+    var over = b.phase === 'WON' || b.phase === 'LOST';
+    var canAct = b.phase === 'PLAYER_INPUT' && !state.busy;
+    var endBtn = $('endTurnBtn');
+    if (endBtn) {
+      endBtn.classList.toggle('hidden', over);
+      endBtn.disabled = !canAct;
+    }
+    var ult = $('knightUltBtn');
+    if (ult) {
+      ult.classList.toggle('hidden', over);
+      ult.disabled = !(b.knight && b.knight.ultReady && canAct);
+    }
   }
 
   // ---- battle stage ----------------------------------------------------
@@ -986,8 +1008,7 @@
     $('deckCounts').textContent = '🃏' + b.deckCount + ' · ✋' + b.hand.length + ' · 🗑' + b.discardCount;
 
     var over = b.phase === 'WON' || b.phase === 'LOST';
-    $('endTurnBtn').classList.toggle('hidden', over);
-    $('endTurnBtn').disabled = b.phase !== 'PLAYER_INPUT';
+    syncBattleActionButtons();
 
     renderHand(b, over);
     updateHint(b, over);
@@ -1056,7 +1077,6 @@
     });
     var ult = $('knightUltBtn');
     ult.classList.toggle('hidden', b.phase === 'WON' || b.phase === 'LOST');
-    ult.disabled = !(k.ultReady && b.phase === 'PLAYER_INPUT');
     ult.textContent = k.ultReady ? '⚡ ULT!' : '⚡' + k.charge + '/' + k.ultCost;
   }
 
@@ -1172,6 +1192,7 @@
   // ---- event playback (projectiles + action moments) --------------------
   function playEvents(events, done) {
     state.busy = true;
+    syncBattleActionButtons();
     var stage = $('battleStage');
     // Compress long sequences so playback stays snappy.
     var scale = events.length > 10 ? 10 / events.length : 1;
@@ -1181,6 +1202,7 @@
       if (i >= events.length) {
         hideBanner();
         state.busy = false;
+        syncBattleActionButtons();
         done();
         return;
       }
@@ -1687,6 +1709,26 @@
     dragArrowState.raf = window.requestAnimationFrame(drawDragArrow);
   }
 
+  function livingEnemies(b) {
+    return (b && b.enemies ? b.enemies : []).filter(function (e) { return e.alive; });
+  }
+
+  function soleLivingEnemy(b) {
+    var live = livingEnemies(b);
+    return live.length === 1 ? live[0] : null;
+  }
+
+  function cardTargetsSingleEnemy(card) {
+    return Boolean(card && card.target === 'ENEMY_SINGLE');
+  }
+
+  /** True when the player must drop onto a specific unit sprite. */
+  function cardNeedsSpriteTarget(card, b) {
+    if (!card || !card.needsTarget) return false;
+    if (cardTargetsSingleEnemy(card) && soleLivingEnemy(b)) return false;
+    return true;
+  }
+
   function startDragArrow(card, ghostEl) {
     if (!card.needsTarget) return;
     if (dragArrowState.raf) window.cancelAnimationFrame(dragArrowState.raf);
@@ -1749,7 +1791,7 @@
       ghost.style.setProperty('--fan-scale', '1');
       document.body.appendChild(ghost);
       cardEl.classList.add('playcard-dragsource');
-      if (card.needsTarget) startDragArrow(card, ghost);
+      if (cardNeedsSpriteTarget(card, state.run.battle)) startDragArrow(card, ghost);
     }
 
     function moveGhost(clientX, clientY) {
@@ -1766,11 +1808,11 @@
       var spriteEl = hitEl && hitEl.closest ? hitEl.closest('.sprite') : null;
       Array.prototype.forEach.call(document.querySelectorAll('.sprite.drop-hover'), function (n) { n.classList.remove('drop-hover'); });
       var snapEl = null;
-      if (spriteEl && card.needsTarget && isValidDropTarget(spriteEl)) {
+      if (spriteEl && cardNeedsSpriteTarget(card, state.run.battle) && isValidDropTarget(spriteEl)) {
         spriteEl.classList.add('drop-hover');
         snapEl = spriteEl;
       }
-      if (card.needsTarget) updateDragArrow(clientX, clientY, snapEl);
+      if (cardNeedsSpriteTarget(card, state.run.battle)) updateDragArrow(clientX, clientY, snapEl);
     }
 
     function isValidDropTarget(spriteEl) {
@@ -1811,7 +1853,7 @@
         if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
         dragging = true;
         beginGhost(startX, startY);
-        if (card.needsTarget) highlightTargets(card);
+        if (cardNeedsSpriteTarget(card, state.run.battle)) highlightTargets(card);
       }
       event.preventDefault();
       moveGhost(event.clientX, event.clientY);
@@ -1829,16 +1871,18 @@
       var dropEl = document.elementFromPoint(dropX, dropY);
       var stage = $('battleStage');
       if (!dropEl || !stage.contains(dropEl)) return; // dropped off the arena — cancel
-      if (card.needsTarget) {
+      var b = state.run.battle;
+      if (cardNeedsSpriteTarget(card, b)) {
         var spriteEl = dropEl.closest ? dropEl.closest('.sprite') : null;
         if (!spriteEl || !isValidDropTarget(spriteEl)) {
           toast('Drop ' + card.name + ' on a valid target.');
           return;
         }
         playCard(card.instanceId, spriteEl.dataset.id);
-      } else {
-        playCard(card.instanceId, null);
+        return;
       }
+      var soleEnemy = cardTargetsSingleEnemy(card) ? soleLivingEnemy(b) : null;
+      playCard(card.instanceId, soleEnemy ? soleEnemy.id : null);
     }
     cardEl.addEventListener('pointerup', finish);
     cardEl.addEventListener('pointercancel', function (event) {
@@ -1958,9 +2002,10 @@
     }
     var card = currentCard();
     if (card) {
-      highlightTargets(card.needsTarget ? card : null);
+      var needsSprite = cardNeedsSpriteTarget(card, b);
+      highlightTargets(needsSprite ? card : null);
       highlightKnightTargets(null);
-      hint.textContent = card.needsTarget
+      hint.textContent = needsSprite
         ? 'Drag ' + card.name + ' onto a ' + (card.target === 'ENEMY_SINGLE' ? 'target enemy' : 'friendly Siegeling') + '.'
         : 'Drag ' + card.name + ' onto the battlefield to play it.';
     } else {
@@ -2003,7 +2048,9 @@
   }
 
   function playCard(cardId, targetId) {
-    if (state.busy) return; state.busy = true;
+    if (state.busy) return;
+    state.busy = true;
+    syncBattleActionButtons();
     api('/api/siege/battle/play', { method: 'POST', body: { token: token(), cardId: cardId, targetId: targetId } })
       .then(function (run) {
         state.selectedCardId = null;
@@ -2015,7 +2062,9 @@
   }
 
   function endTurn() {
-    if (state.busy) return; state.busy = true;
+    if (state.busy) return;
+    state.busy = true;
+    syncBattleActionButtons();
     state.selectedCardId = null;
     api('/api/siege/battle/end-turn', { method: 'POST', body: { token: token() } })
       .then(function (run) { state.busy = false; applyRun(run); })
@@ -2023,7 +2072,9 @@
   }
 
   function useUltimate() {
-    if (state.busy) return; state.busy = true;
+    if (state.busy) return;
+    state.busy = true;
+    syncBattleActionButtons();
     api('/api/siege/battle/ultimate', { method: 'POST', body: { token: token() } })
       .then(function (run) { if (run.error) toast(run.error); state.busy = false; applyRun(run); })
       .catch(function (e) { toast(e.message); state.busy = false; });
