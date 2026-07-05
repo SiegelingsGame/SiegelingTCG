@@ -8,6 +8,39 @@
     var closeBtn = document.getElementById('dashboardInfoClose');
     var topics = {};
     var siegeOutcomesCache = null;
+    var seenStorageKey = 'siegeDashboardInfoSeen';
+
+    function getSeenTopics() {
+        try {
+            var raw = sessionStorage.getItem(seenStorageKey);
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function markTopicSeen(topic) {
+        if (!topic) return;
+        var seen = getSeenTopics();
+        if (seen[topic]) return;
+        seen[topic] = true;
+        try {
+            sessionStorage.setItem(seenStorageKey, JSON.stringify(seen));
+        } catch (e) { /* ignore quota errors */ }
+        document.querySelectorAll('[data-info-topic="' + topic + '"]').forEach(function (btn) {
+            btn.classList.add('dash-info-seen');
+        });
+    }
+
+    function applySeenState() {
+        var seen = getSeenTopics();
+        Object.keys(seen).forEach(function (topic) {
+            if (!seen[topic]) return;
+            document.querySelectorAll('[data-info-topic="' + topic + '"]').forEach(function (btn) {
+                btn.classList.add('dash-info-seen');
+            });
+        });
+    }
 
     function escapeHtml(s) {
         return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -205,6 +238,7 @@
         var def = topics[topic];
         if (!def || !overlay || !titleEl || !bodyEl) return;
 
+        markTopicSeen(topic);
         titleEl.textContent = def.title || 'Help';
 
         if (def.dynamic && topic === 'siege-events') {
@@ -249,5 +283,7 @@
     });
     document.addEventListener('click', onClick);
 
-    window.DashboardInfo = { open: open, close: close };
+    applySeenState();
+
+    window.DashboardInfo = { open: open, close: close, markTopicSeen: markTopicSeen };
 })();

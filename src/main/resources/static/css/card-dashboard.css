@@ -438,13 +438,6 @@ input[type="file"] {
     align-items: start;
 }
 
-.browser-help {
-    margin: 0 0 12px;
-    color: var(--text-soft);
-    font-size: 0.9rem;
-    line-height: 1.45;
-}
-
 .browser-filters.moves-pool-filters {
     gap: 10px;
 }
@@ -1358,6 +1351,31 @@ textarea {
     background: rgba(142, 200, 255, 0.12);
 }
 
+@keyframes dashInfoPulse {
+    0%, 100% {
+        border-color: rgba(142, 200, 255, 0.35);
+        background: rgba(142, 200, 255, 0.08);
+        box-shadow: 0 0 0 rgba(142, 200, 255, 0);
+    }
+    50% {
+        border-color: rgba(142, 200, 255, 0.9);
+        background: rgba(142, 200, 255, 0.24);
+        box-shadow: 0 0 14px rgba(142, 200, 255, 0.45);
+    }
+}
+
+.form-section:focus-within .dash-info-btn:not(.dash-info-seen),
+.card-visual-panel:focus-within .dash-info-btn:not(.dash-info-seen),
+.live-elements-panel:focus-within .dash-info-btn:not(.dash-info-seen),
+.loading-art-panel:focus-within .dash-info-btn:not(.dash-info-seen),
+.siege-mode-panel:focus-within .siege-collapse-section[open] .dash-info-btn:not(.dash-info-seen),
+.deck-list-panel:focus-within > .panel-heading .dash-info-btn:not(.dash-info-seen),
+.deck-catalog-panel:focus-within > .panel-heading .dash-info-btn:not(.dash-info-seen),
+.deck-editor-panel:focus-within .form-section .dash-info-btn:not(.dash-info-seen),
+.deck-editor-panel:focus-within > .panel-heading .dash-info-btn:not(.dash-info-seen) {
+    animation: dashInfoPulse 1.5s ease-in-out infinite;
+}
+
 .dash-info-btn-inline,
 .siege-info-btn-inline {
     width: auto;
@@ -1803,10 +1821,6 @@ body.move-picker-open {
 
 .card-visual-panel {
     overflow: visible;
-}
-
-.card-visual-help {
-    margin: -6px 18px 12px;
 }
 
 .card-visual-stage {
