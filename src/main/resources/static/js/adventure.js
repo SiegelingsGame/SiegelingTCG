@@ -48,7 +48,8 @@
     ATTACK: { icon: '⚔', name: 'Warlord' },
     SPEED: { icon: '⚡', name: 'Vanguard' },
     HEALTH: { icon: '❤', name: 'Warden' },
-    LOOT: { icon: '🪙', name: 'Quartermaster' }
+    LOOT: { icon: '🪙', name: 'Quartermaster' },
+    MARSHAL: { icon: '🚩', name: 'Marshal' }
   };
 
   // ---- API -----------------------------------------------------------

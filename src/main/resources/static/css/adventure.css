@@ -117,6 +117,7 @@ body[data-screen="mapScreen"] #mapScreen{
 .kpassive-chip.pk-SPEED{color:#ffe63c; border:1px solid rgba(255,230,60,.45); background:rgba(255,230,60,.08);}
 .kpassive-chip.pk-HEALTH{color:var(--good); border:1px solid rgba(126,231,135,.45); background:rgba(126,231,135,.08);}
 .kpassive-chip.pk-LOOT{color:#ffd066; border:1px solid rgba(255,208,102,.45); background:rgba(255,208,102,.08);}
+.kpassive-chip.pk-MARSHAL{color:#c49bff; border:1px solid rgba(180,140,255,.45); background:rgba(180,140,255,.08);}
 .info-btn{position:absolute; top:6px; left:6px; z-index:3; width:22px;height:22px; border-radius:50%; border:1px solid var(--border); background:rgba(12,16,23,.8); color:var(--accent-2); font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
 .info-btn:hover{border-color:var(--accent-2);}
 .evo-tag{font-size:8.5px; font-weight:800; letter-spacing:.5px; color:#ffd066; border:1px solid rgba(255,208,102,.5); border-radius:8px; padding:0 5px; vertical-align:middle;}
