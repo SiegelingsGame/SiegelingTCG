@@ -330,14 +330,13 @@ public class SiegeContentService {
     String knightPassiveDescription(TrainerCard knight) {
         KnightPassive kind = knightPassiveKind(knight);
         int v = knightPassiveValue(kind);
-        String lead = knight.getName() + " leads the warband — ";
-        return lead + switch (kind) {
-            case SHIELD -> "Bulwark: the party begins each battle with +" + v + " shield.";
-            case ATTACK -> "Warlord: the party begins each battle with +" + v + " attack.";
-            case SPEED -> "Vanguard: the party begins each battle with +" + v + " speed.";
-            case HEALTH -> "Warden: every Siegeling has +" + v + " max HP all expedition.";
-            case LOOT -> "Quartermaster: +" + v + "% gold from spoils and caches.";
-            case MARSHAL -> "Marshal: musters an extra Siegeling at the start of the expedition.";
+        return switch (kind) {
+            case SHIELD -> "The party begins each battle with +" + v + " shield.";
+            case ATTACK -> "The party begins each battle with +" + v + " attack.";
+            case SPEED -> "The party begins each battle with +" + v + " speed.";
+            case HEALTH -> "Every Siegeling has +" + v + " max HP all expedition.";
+            case LOOT -> "+" + v + "% gold from spoils and caches.";
+            case MARSHAL -> "Musters an extra Siegeling at the start of the expedition.";
         };
     }
 
