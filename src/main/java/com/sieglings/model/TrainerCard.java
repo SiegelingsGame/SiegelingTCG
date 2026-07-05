@@ -13,6 +13,10 @@ public class TrainerCard extends Card {
     private boolean activeUsedThisTurn;
     private boolean activeUsedThisGame;
     private boolean oncePerGame;     // if true, active can only be used once total
+    /** Pickable at expedition start without a gold unlock (e.g. Squire Bob). */
+    private Boolean expeditionStarter;
+    /** Siegecoins required to unlock for expeditions; null uses rarity default. */
+    private Integer siegeUnlockCost;
 
     public TrainerCard() {
         setCardType(CardType.TRAINER);
@@ -52,6 +56,8 @@ public class TrainerCard extends Card {
         copy.setCardArtScale(getCardArtScale());
         copy.setCardArtRotation(getCardArtRotation());
         copy.setHolographic(isHolographic());
+        copy.setExpeditionStarter(getExpeditionStarter());
+        copy.setSiegeUnlockCost(getSiegeUnlockCost());
         return copy;
     }
 
@@ -77,4 +83,8 @@ public class TrainerCard extends Card {
     public boolean isActiveUsedThisTurn() { return activeUsedThisTurn; }
     public boolean isActiveUsedThisGame() { return activeUsedThisGame; }
     public boolean isOncePerGame() { return oncePerGame; }
+    public Boolean getExpeditionStarter() { return expeditionStarter; }
+    public void setExpeditionStarter(Boolean expeditionStarter) { this.expeditionStarter = expeditionStarter; }
+    public Integer getSiegeUnlockCost() { return siegeUnlockCost; }
+    public void setSiegeUnlockCost(Integer siegeUnlockCost) { this.siegeUnlockCost = siegeUnlockCost; }
 }

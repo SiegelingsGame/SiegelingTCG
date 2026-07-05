@@ -27,16 +27,27 @@ public class SiegeController {
 
     /** Selectable Siegelings + SiegeKnights for the team-select screen. */
     @GetMapping("/api/siege/roster")
-    public Map<String, Object> roster() {
-        return siege.roster();
+    public Map<String, Object> roster(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.roster(authorizationHeader);
+    }
+
+    /** Unlock a owned SiegeKnight for expedition warband selection. */
+    @PostMapping("/api/siege/knight/unlock")
+    public Map<String, Object> unlockKnight(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return siege.unlockKnight(authorizationHeader, str(body.get("knightId")));
     }
 
     /** Start a run: body { knightId, sieglingIds:[...], mode? ("STANDARD"|"ENDLESS") }. */
     @PostMapping("/api/siege/run/new")
-    public Map<String, Object> newRun(@RequestBody Map<String, Object> body) {
+    public Map<String, Object> newRun(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
         String knightId = str(body.get("knightId"));
         List<String> sieglingIds = toStringList(body.get("sieglingIds"));
-        return siege.newRun(knightId, sieglingIds, str(body.get("mode")));
+        return siege.newRun(authorizationHeader, knightId, sieglingIds, str(body.get("mode")));
     }
 
     @GetMapping("/api/siege/state")

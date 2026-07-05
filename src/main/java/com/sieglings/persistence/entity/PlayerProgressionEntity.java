@@ -26,6 +26,8 @@ public class PlayerProgressionEntity {
     private int craftCount;
     /** Card or SiegeKnight ids the player upgraded to a holographic foil finish. */
     private List<String> holographicCardIds = new ArrayList<>();
+    /** SiegeKnight ids unlocked for expedition warband selection (gold purchase). */
+    private List<String> siegeUnlockedKnights = new ArrayList<>();
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -84,6 +86,10 @@ public class PlayerProgressionEntity {
     public List<String> getHolographicCardIds() { return holographicCardIds; }
     public void setHolographicCardIds(List<String> holographicCardIds) {
         this.holographicCardIds = holographicCardIds == null ? new ArrayList<>() : new ArrayList<>(holographicCardIds);
+    }
+    public List<String> getSiegeUnlockedKnights() { return siegeUnlockedKnights; }
+    public void setSiegeUnlockedKnights(List<String> siegeUnlockedKnights) {
+        this.siegeUnlockedKnights = siegeUnlockedKnights == null ? new ArrayList<>() : new ArrayList<>(siegeUnlockedKnights);
     }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }

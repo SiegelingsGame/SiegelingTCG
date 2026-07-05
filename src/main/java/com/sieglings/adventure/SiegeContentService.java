@@ -5,6 +5,7 @@ import com.sieglings.model.Move;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.TargetType;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MovesPoolService;
@@ -204,6 +205,46 @@ public class SiegeContentService {
 
     Optional<TrainerCard> findKnight(String id) {
         return selectableKnights().stream().filter(k -> k.getId().equals(id)).findFirst();
+    }
+
+    private static final String DEFAULT_EXPEDITION_KNIGHT_ID = "squire-bob";
+
+    boolean expeditionKnightStartersConfigured() {
+        return selectableKnights().stream().anyMatch(k -> k.getExpeditionStarter() != null);
+    }
+
+    /** Free at warband assembly — Squire Bob by default until the dashboard configures starters. */
+    boolean isExpeditionKnightStarter(TrainerCard knight) {
+        if (knight == null) {
+            return false;
+        }
+        if (!expeditionKnightStartersConfigured()) {
+            return DEFAULT_EXPEDITION_KNIGHT_ID.equalsIgnoreCase(knight.getId());
+        }
+        return Boolean.TRUE.equals(knight.getExpeditionStarter());
+    }
+
+    int siegeUnlockCost(TrainerCard knight) {
+        if (knight == null) {
+            return 0;
+        }
+        if (knight.getSiegeUnlockCost() != null && knight.getSiegeUnlockCost() > 0) {
+            return knight.getSiegeUnlockCost();
+        }
+        return defaultSiegeUnlockCost(knight.getRarity());
+    }
+
+    private static int defaultSiegeUnlockCost(Rarity rarity) {
+        if (rarity == null) {
+            return 300;
+        }
+        return switch (rarity) {
+            case COMMON -> 200;
+            case UNCOMMON -> 300;
+            case RARE -> 450;
+            case EPIC -> 650;
+            case LEGENDARY -> 900;
+        };
     }
 
     /** Non-passive, targetable moves for a Siegeling, resolved to combat specs. */

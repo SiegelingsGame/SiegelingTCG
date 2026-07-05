@@ -402,6 +402,8 @@
             "trainerActiveCheckbox",
             "trainerOncePerGameCheckbox",
             "trainerHolographicCheckbox",
+            "trainerExpeditionStarterCheckbox",
+            "trainerSiegeUnlockCostInput",
             "trainerArtStage",
             "trainerArtMeta",
             "trainerArtStatus",
@@ -968,6 +970,11 @@
         refs.trainerActiveCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("active", Boolean(event.target.checked)));
         refs.trainerOncePerGameCheckbox.addEventListener("change", (event) => updateSelectedTrainerField("oncePerGame", Boolean(event.target.checked)));
         refs.trainerHolographicCheckbox?.addEventListener("change", (event) => updateSelectedTrainerField("holographic", Boolean(event.target.checked)));
+        refs.trainerExpeditionStarterCheckbox?.addEventListener("change", (event) => updateSelectedTrainerField("expeditionStarter", Boolean(event.target.checked)));
+        refs.trainerSiegeUnlockCostInput?.addEventListener("input", (event) => {
+            const raw = String(event.target.value || "").trim();
+            updateSelectedTrainerField("siegeUnlockCost", raw === "" ? 0 : toNumber(raw, 0));
+        });
         bindTrainerArtFieldEvents();
 
         bindTrainerAbilityFieldEvents("passive", {
@@ -2120,6 +2127,8 @@
             tier: String(trainer?.tier || "SiegeKnight"),
             active: trainer?.active !== false,
             oncePerGame: Boolean(trainer?.oncePerGame),
+            expeditionStarter: trainer?.expeditionStarter === true,
+            siegeUnlockCost: toNumber(trainer?.siegeUnlockCost, 0),
             passiveAbility,
             activeAbility,
             ...normalizeCardArtFields(trainer)
@@ -3374,6 +3383,12 @@
         if (refs.trainerHolographicCheckbox) {
             refs.trainerHolographicCheckbox.checked = Boolean(trainer.holographic);
         }
+        if (refs.trainerExpeditionStarterCheckbox) {
+            refs.trainerExpeditionStarterCheckbox.checked = trainer.expeditionStarter === true;
+        }
+        if (refs.trainerSiegeUnlockCostInput) {
+            setInputValue(refs.trainerSiegeUnlockCostInput, trainer.siegeUnlockCost > 0 ? trainer.siegeUnlockCost : "");
+        }
 
         renderTrainerAbilityEditor("passive", trainer.passiveAbility, {
             nameInput: refs.trainerPassiveNameInput,
@@ -4614,6 +4629,12 @@
             passiveAbility: { ...buildExportAbility(trainer.passiveAbility || createBlankTrainerPassiveAbility(trainer.element)), passive: true },
             activeAbility: { ...buildExportAbility(trainer.activeAbility || createBlankTrainerActiveAbility(trainer.element)), passive: false }
         };
+        if (trainer.expeditionStarter === true) {
+            exported.expeditionStarter = true;
+        }
+        if (toNumber(trainer.siegeUnlockCost, 0) > 0) {
+            exported.siegeUnlockCost = toNumber(trainer.siegeUnlockCost, 0);
+        }
         return appendCardArtExport(exported, trainer);
     }
 

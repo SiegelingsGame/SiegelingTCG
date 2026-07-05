@@ -53,11 +53,22 @@
   };
 
   // ---- API -----------------------------------------------------------
+  var AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+  function authHeaders(extra) {
+    var headers = extra || {};
+    try {
+      var token = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+      if (token && token.indexOf('cookie:') !== 0 && !headers.Authorization) {
+        headers.Authorization = 'Bearer ' + token;
+      }
+    } catch (e) { /* ignore */ }
+    return headers;
+  }
   function api(path, opts) {
     opts = opts || {};
     return fetch(path, {
       method: opts.method || 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {})),
       credentials: 'include',
       body: opts.body ? JSON.stringify(opts.body) : undefined
     }).then(function (r) {
@@ -143,6 +154,11 @@
     showScreen('loadingScreen');
     api('/api/siege/roster').then(function (data) {
       state.roster = data;
+      if (!state.knightId) {
+        var starter = (data.knights || []).find(function (k) { return k.selectable && k.expeditionStarter; })
+          || (data.knights || []).find(function (k) { return k.selectable; });
+        if (starter) state.knightId = starter.id;
+      }
       state.setupStep = 'knight';
       renderSetup();
     }).catch(function (e) { toast(e.message); });
@@ -213,27 +229,99 @@
   function renderKnightStep() {
     var r = state.roster;
     var kg = $('knightGrid'); kg.innerHTML = '';
-    r.knights.forEach(function (k) {
-      var c = el('div', 'knight-card ' + elClass(k.element) + (k.id === state.knightId ? ' sel' : ''));
+    var gold = r.gold || 0;
+    r.knights.slice().sort(function (a, b) {
+      if (a.selectable !== b.selectable) return a.selectable ? -1 : 1;
+      if (a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    }).forEach(function (k) {
+      var locked = !k.selectable;
+      var c = el('div', 'knight-card ' + elClass(k.element) + (k.id === state.knightId ? ' sel' : '') + (locked ? ' locked' : ''));
       var summary = specSummary(k.active);
       var pm = PASSIVE_META[k.passiveKind];
       var passiveChip = pm
         ? '<span class="kpassive-chip pk-' + k.passiveKind + '">' + pm.icon + ' ' + esc(k.passiveName || pm.name) + '</span>'
         : '';
-      c.innerHTML = '<div class="kname">' + icon(k.element) + ' ' + esc(k.name) + '</div>' +
+      var lockNote = '';
+      if (locked) {
+        if (k.canUnlock) {
+          lockNote = '<div class="klock-note">Unlock for 🪙 ' + k.unlockCost + ' Siegecoins</div>' +
+            '<button class="kunlock-btn" type="button" data-knight="' + esc(k.id) + '">Unlock</button>';
+        } else if (!r.loggedIn) {
+          lockNote = '<div class="klock-note">🔒 Sign in to unlock</div>';
+        } else if (!k.owned) {
+          lockNote = '<div class="klock-note">🔒 Own this SiegeKnight card first</div>';
+        } else {
+          lockNote = '<div class="klock-note">🔒 Locked for expeditions</div>';
+        }
+      }
+      c.innerHTML =
+        (locked ? '<div class="knight-lock">🔒</div>' : '') +
+        '<div class="kname">' + icon(k.element) + ' ' + esc(k.name) + '</div>' +
         '<div class="kability"><span class="kability-name">' + esc(k.activeName) + '</span>' +
         (summary ? ' <span class="kability-sum">' + summary + '</span>' : '') + '</div>' +
         (k.activeDesc ? '<div class="kdesc">' + esc(k.activeDesc) + '</div>' : '') +
-        '<div class="kpassive">' + passiveChip + ' ' + esc(k.passive || '') + '</div>';
-      c.addEventListener('click', function () {
-        state.knightId = k.id;
-        renderKnightStep();
-      });
+        '<div class="kpassive">' + passiveChip + ' ' + esc(k.passive || '') + '</div>' +
+        lockNote;
+      if (!locked) {
+        c.addEventListener('click', function () {
+          state.knightId = k.id;
+          renderKnightStep();
+        });
+      } else if (k.canUnlock) {
+        var unlockBtn = c.querySelector('.kunlock-btn');
+        if (unlockBtn) {
+          unlockBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            unlockKnight(k);
+          });
+        }
+        c.addEventListener('click', function () {
+          if (gold < k.unlockCost) {
+            toast('Need ' + k.unlockCost + ' Siegecoins to unlock ' + k.name + '.');
+            return;
+          }
+          unlockKnight(k);
+        });
+      } else {
+        c.addEventListener('click', function () {
+          if (!r.loggedIn) toast('Sign in to unlock SiegeKnights for expeditions.');
+          else if (!k.owned) toast('Own ' + k.name + ' before unlocking them for expeditions.');
+          else toast(k.name + ' is locked for expeditions.');
+        });
+      }
       kg.appendChild(c);
     });
     var kn = r.knights.find(function (k) { return k.id === state.knightId; });
+    if (kn && !kn.selectable) {
+      state.knightId = (r.knights.find(function (k) { return k.selectable; }) || {}).id || null;
+      kn = r.knights.find(function (k) { return k.id === state.knightId; });
+    }
     $('knightNextBtn').disabled = !kn;
-    $('knightSummary').textContent = kn ? (kn.name + ' — ' + kn.activeName) : 'Select a SiegeKnight.';
+    $('knightSummary').textContent = kn
+      ? (kn.name + ' — ' + kn.activeName + (r.loggedIn ? ' · 🪙 ' + gold : ''))
+      : 'Select a SiegeKnight.';
+  }
+
+  function unlockKnight(k) {
+    if (state.busy || !k || !k.canUnlock) return;
+    if ((state.roster.gold || 0) < k.unlockCost) {
+      toast('Need ' + k.unlockCost + ' Siegecoins to unlock ' + k.name + '.');
+      return;
+    }
+    state.busy = true;
+    api('/api/siege/knight/unlock', { method: 'POST', body: { knightId: k.id } })
+      .then(function (data) {
+        if (data.knights) state.roster = data;
+        else return api('/api/siege/roster').then(function (roster) { state.roster = roster; });
+      })
+      .then(function () {
+        state.knightId = k.id;
+        renderKnightStep();
+        toast(k.name + ' unlocked for expeditions!');
+      })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
   }
 
   function renderEndlessSlots() {

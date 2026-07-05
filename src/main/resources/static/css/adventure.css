@@ -123,10 +123,16 @@ body[data-screen="mapScreen"] #mapScreen{
 .evo-tag{font-size:8.5px; font-weight:800; letter-spacing:.5px; color:#ffd066; border:1px solid rgba(255,208,102,.5); border-radius:8px; padding:0 5px; vertical-align:middle;}
 .knight-card{
   background:var(--panel); border:1px solid var(--border); border-left:4px solid var(--el);
-  border-radius:10px; padding:12px 14px; cursor:pointer;
+  border-radius:10px; padding:12px 14px; cursor:pointer; position:relative;
 }
 .knight-card:hover{border-color:var(--el);}
 .knight-card.sel{outline:2px solid var(--accent); background:var(--panel-2);}
+.knight-card.locked{opacity:.58; filter:grayscale(.3); cursor:not-allowed;}
+.knight-card.locked:hover{border-color:rgba(255,255,255,.12);}
+.knight-card .knight-lock{position:absolute; top:8px; right:8px; font-size:16px; z-index:2;}
+.knight-card .klock-note{font-size:11px; color:var(--dim); margin-top:8px;}
+.knight-card .kunlock-btn{margin-top:6px; font-size:11px; padding:4px 10px; border-radius:8px; border:1px solid var(--accent-2); background:var(--panel-2); color:var(--text); cursor:pointer;}
+.knight-card .kunlock-btn:hover{border-color:var(--accent); color:var(--accent);}
 .knight-card .kname{font-weight:700;}
 .knight-card .kmeta{font-size:12px; color:var(--dim); margin-top:2px;}
 .knight-card .kpassive{font-size:11.5px; color:var(--faint); margin-top:6px;}

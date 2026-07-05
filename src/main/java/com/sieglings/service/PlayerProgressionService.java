@@ -544,6 +544,7 @@ public class PlayerProgressionService {
             out.put("playerTitles", List.of());
         }
         out.put("purchasedTitleIds", progression.getPurchasedTitleIds());
+        out.put("siegeUnlockedKnights", progression.getSiegeUnlockedKnights());
         return out;
     }
 
@@ -723,6 +724,31 @@ public class PlayerProgressionService {
             return 1;
         }
         return Math.max(1, progression.getTrainerLevels().getOrDefault(normalizeTrainerId(trainerId), 1));
+    }
+
+    public boolean isSiegeKnightUnlocked(PlayerProgressionEntity progression, String trainerId) {
+        if (progression == null || trainerId == null || trainerId.isBlank()) {
+            return false;
+        }
+        String id = normalizeTrainerId(trainerId);
+        return progression.getSiegeUnlockedKnights().stream()
+                .anyMatch(stored -> id.equals(normalizeTrainerId(stored)));
+    }
+
+    public void unlockSiegeKnight(PlayerProgressionEntity progression, String trainerId) {
+        if (progression == null || trainerId == null || trainerId.isBlank()) {
+            throw new IllegalArgumentException("SiegeKnight id is required.");
+        }
+        String id = normalizeTrainerId(trainerId);
+        if (isSiegeKnightUnlocked(progression, id)) {
+            throw new IllegalArgumentException("That SiegeKnight is already unlocked for expeditions.");
+        }
+        if (!progression.getTrainerLevels().containsKey(id)) {
+            throw new IllegalArgumentException("Own this SiegeKnight card before unlocking them for expeditions.");
+        }
+        List<String> unlocked = new ArrayList<>(progression.getSiegeUnlockedKnights());
+        unlocked.add(id);
+        progression.setSiegeUnlockedKnights(unlocked);
     }
 
     private String normalizeTrainerId(String trainerId) {

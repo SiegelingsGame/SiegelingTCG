@@ -21,7 +21,7 @@
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=184">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=33">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=34">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -664,6 +664,15 @@
                     <label class="toggle-field">
                         <input id="trainerHolographicCheckbox" type="checkbox">
                         <span>Holographic foil effect</span>
+                    </label>
+                    <label class="toggle-field expedition-starter-toggle">
+                        <input id="trainerExpeditionStarterCheckbox" type="checkbox">
+                        <span>Available for expedition warband (no unlock)</span>
+                        <button type="button" class="dash-info-btn" data-info-topic="knight-expedition-starter" title="Expedition SiegeKnight availability" aria-label="Expedition SiegeKnight availability">ⓘ</button>
+                    </label>
+                    <label>
+                        <span>Siege unlock cost (Siegecoins)</span>
+                        <input id="trainerSiegeUnlockCostInput" type="number" min="0" step="1" placeholder="Auto by rarity">
                     </label>
                 </section>
 

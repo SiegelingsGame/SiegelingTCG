@@ -100,6 +100,7 @@ public class TrainerCatalogService {
                         Ability.heal("Pep Talk", "Heal 1 ally for 2", TargetType.SINGLE_ALLY, null, 1, 2),
                         false,
                         "/img/knights/squire-bob-full-card.png",
+                        true,
                         true),
                 fullCardDefinition("pyla", "Lady Pyla", Element.FIRE, Rarity.RARE, "SiegeKnight",
                         Ability.passive("Heat Shield", "All Fire allies gain +2 Shield", "shield", 2),
@@ -421,7 +422,9 @@ public class TrainerCatalogService {
                         definition.cardArtOffsetY(),
                         definition.cardArtScale(),
                         definition.cardArtRotation(),
-                        definition.holographic()
+                        definition.holographic(),
+                        definition.expeditionStarter(),
+                        definition.siegeUnlockCost()
                 ))
                 .toList();
     }
@@ -494,6 +497,8 @@ public class TrainerCatalogService {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
     }
@@ -501,6 +506,13 @@ public class TrainerCatalogService {
     private static TrainerDefinition fullCardDefinition(String id, String name, Element element, Rarity rarity, String tier,
                                                         Ability passiveAbility, Ability activeAbility, boolean oncePerGame,
                                                         String cardArtUrl, boolean holographic) {
+        return fullCardDefinition(id, name, element, rarity, tier, passiveAbility, activeAbility, oncePerGame,
+                cardArtUrl, holographic, null);
+    }
+
+    private static TrainerDefinition fullCardDefinition(String id, String name, Element element, Rarity rarity, String tier,
+                                                        Ability passiveAbility, Ability activeAbility, boolean oncePerGame,
+                                                        String cardArtUrl, boolean holographic, Boolean expeditionStarter) {
         return new TrainerDefinition(
                 id,
                 name,
@@ -517,7 +529,9 @@ public class TrainerCatalogService {
                 null,
                 null,
                 null,
-                holographic
+                holographic,
+                expeditionStarter,
+                null
         );
     }
 
@@ -589,14 +603,16 @@ public class TrainerCatalogService {
             Double cardArtOffsetY,
             Double cardArtScale,
             Double cardArtRotation,
-            Boolean holographic
+            Boolean holographic,
+            Boolean expeditionStarter,
+            Integer siegeUnlockCost
     ) {
         public TrainerDefinition(String id, String name, Element element, Rarity rarity, String tier,
                                  Boolean active, Boolean oncePerGame,
                                  ManualSieglingCatalog.ManualAbilityDefinition passiveAbility,
                                  ManualSieglingCatalog.ManualAbilityDefinition activeAbility) {
             this(id, name, element, rarity, tier, active, oncePerGame, passiveAbility, activeAbility,
-                    null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null);
         }
     }
 }

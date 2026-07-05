@@ -111,6 +111,16 @@
             ])
     };
 
+    topics['knight-expedition-starter'] = {
+        title: 'Expedition SiegeKnight Availability',
+        html: '<p>Controls which SiegeKnights players can lead expeditions without spending Siegecoins.</p>' +
+            table([
+                row(['<strong>Expedition starter</strong>', 'Free at warband assembly (e.g. Squire Bob). No card ownership or unlock required.']),
+                row(['<strong>Unlock cost</strong>', 'Siegecoins spent once to add an owned SiegeKnight to the expedition roster. Player must already own the knight card from packs.']),
+                row(['<strong>Publish</strong>', 'Apply live so the siege roster API enforces locks in-game.'])
+            ])
+    };
+
     topics['expedition-starter'] = {
         title: 'Expedition Warband Availability',
         html: '<p>Controls which stage-1 Siegelings players can pick when assembling their warband before an expedition.</p>' +

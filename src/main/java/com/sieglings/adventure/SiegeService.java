@@ -70,7 +70,9 @@ public class SiegeService {
 
     // ---- Roster for team select ----------------------------------------
 
-    Map<String, Object> roster() {
+    Map<String, Object> roster(String authorizationHeader) {
+        AccountUser user = resolveUser(authorizationHeader);
+        PlayerProgressionEntity progression = user == null ? null : loadProgression(user);
         Map<String, Object> resp = new LinkedHashMap<>();
         List<Map<String, Object>> sieglings = new ArrayList<>();
         for (SieglingCard s : content.selectableSieglings()) {
@@ -91,6 +93,14 @@ public class SiegeService {
         List<Map<String, Object>> knights = new ArrayList<>();
         for (TrainerCard k : content.selectableKnights()) {
             AbilitySpec active = content.knightActiveSpec(k);
+            boolean starter = content.isExpeditionKnightStarter(k);
+            boolean owned = progression != null && progression.getTrainerLevels().containsKey(normalizeKnightId(k.getId()));
+            boolean unlocked = starter || (progression != null && progressionService != null
+                    && progressionService.isSiegeKnightUnlocked(progression, k.getId()));
+            int unlockCost = content.siegeUnlockCost(k);
+            boolean canUnlock = user != null && progression != null && progressionService != null
+                    && !starter && !unlocked && owned;
+            boolean selectable = starter || unlocked;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", k.getId());
             m.put("name", k.getName());
@@ -103,18 +113,96 @@ public class SiegeService {
             m.put("passiveKind", passive.name());
             m.put("passiveName", content.knightPassiveName(passive));
             m.put("passiveValue", content.knightPassiveValue(passive));
+            m.put("expeditionStarter", starter);
+            m.put("owned", owned);
+            m.put("siegeUnlocked", unlocked);
+            m.put("selectable", selectable);
+            m.put("unlockCost", unlockCost);
+            m.put("canUnlock", canUnlock);
             knights.add(m);
         }
         resp.put("sieglings", sieglings);
         resp.put("knights", knights);
         resp.put("partySize", content.partySize());
         resp.put("partyMax", content.partyMax());
+        resp.put("loggedIn", user != null);
+        resp.put("gold", progression == null ? 0 : progression.getGold());
         return resp;
+    }
+
+    Map<String, Object> unlockKnight(String authorizationHeader, String knightId) {
+        AccountUser user = requireUser(authorizationHeader);
+        if (progressionService == null || progressionStore == null) {
+            throw new IllegalStateException("SiegeKnight unlocks are unavailable right now.");
+        }
+        TrainerCard knight = content.findKnight(knightId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown SiegeKnight."));
+        if (content.isExpeditionKnightStarter(knight)) {
+            throw new IllegalArgumentException(knight.getName() + " is already available for expeditions.");
+        }
+        PlayerProgressionEntity progression = loadProgression(user);
+        if (progressionService.isSiegeKnightUnlocked(progression, knight.getId())) {
+            throw new IllegalArgumentException(knight.getName() + " is already unlocked for expeditions.");
+        }
+        int cost = content.siegeUnlockCost(knight);
+        if (progression.getGold() < cost) {
+            throw new IllegalArgumentException("Need " + cost + " Siegecoins to unlock " + knight.getName() + ".");
+        }
+        progressionService.unlockSiegeKnight(progression, knight.getId());
+        progression.setGold(progression.getGold() - cost);
+        progression.setUpdatedAt(Instant.now());
+        progressionStore.save(progression);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ok", true);
+        out.put("knightId", knight.getId());
+        out.put("gold", progression.getGold());
+        out.putAll(roster(authorizationHeader));
+        return out;
+    }
+
+    private AccountUser resolveUser(String authorizationHeader) {
+        if (accountService == null) {
+            return null;
+        }
+        try {
+            return accountService.findUser(authorizationHeader);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private AccountUser requireUser(String authorizationHeader) {
+        AccountUser user = resolveUser(authorizationHeader);
+        if (user == null) {
+            throw new IllegalArgumentException("Sign in to unlock SiegeKnights for expeditions.");
+        }
+        return user;
+    }
+
+    private PlayerProgressionEntity loadProgression(AccountUser user) {
+        if (progressionService == null || user == null) {
+            return null;
+        }
+        return progressionService.getOrCreate(user);
+    }
+
+    private boolean isKnightSelectable(TrainerCard knight, AccountUser user, PlayerProgressionEntity progression) {
+        if (content.isExpeditionKnightStarter(knight)) {
+            return true;
+        }
+        if (user == null || progression == null || progressionService == null) {
+            return false;
+        }
+        return progressionService.isSiegeKnightUnlocked(progression, knight.getId());
+    }
+
+    private static String normalizeKnightId(String trainerId) {
+        return trainerId == null ? null : trainerId.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     // ---- Run lifecycle --------------------------------------------------
 
-    Map<String, Object> newRun(String knightId, List<String> sieglingIds, String modeName) {
+    Map<String, Object> newRun(String authorizationHeader, String knightId, List<String> sieglingIds, String modeName) {
         RunMode mode = "ENDLESS".equalsIgnoreCase(modeName) ? RunMode.ENDLESS : RunMode.STANDARD;
         if (mode == RunMode.STANDARD
                 ? (sieglingIds == null || sieglingIds.size() != content.partySize())
@@ -125,6 +213,11 @@ public class SiegeService {
         }
         TrainerCard knight = content.findKnight(knightId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown SiegeKnight."));
+        AccountUser user = resolveUser(authorizationHeader);
+        PlayerProgressionEntity progression = loadProgression(user);
+        if (!isKnightSelectable(knight, user, progression)) {
+            throw new IllegalArgumentException(knight.getName() + " is locked — unlock them with Siegecoins first.");
+        }
 
         purgeStale();
         String token = generateToken();

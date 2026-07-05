@@ -897,6 +897,8 @@ public class CardDefinitionService {
         card.setCardArtScale(definition.cardArtScale());
         card.setCardArtRotation(definition.cardArtRotation());
         card.setHolographic(definition.holographic() != null && definition.holographic());
+        card.setExpeditionStarter(definition.expeditionStarter());
+        card.setSiegeUnlockCost(definition.siegeUnlockCost());
         return card;
     }
 
