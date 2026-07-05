@@ -64,7 +64,8 @@ public class SiegeContentService {
 
     /** {@code count} distinct random items for rewards / shops. */
     java.util.List<SiegeItem> randomItems(int count, Random rng) {
-        java.util.List<SiegeItem> pool = items.values().stream().filter(i -> !i.consumable()).toList();
+        java.util.List<SiegeItem> pool = new java.util.ArrayList<>(
+                items.values().stream().filter(i -> !i.consumable()).toList());
         java.util.List<SiegeItem> out = new java.util.ArrayList<>();
         while (out.size() < count && !pool.isEmpty()) out.add(pool.remove(rng.nextInt(pool.size())));
         return out;

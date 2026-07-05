@@ -59,6 +59,29 @@ class SiegeKnightBagTest {
     }
 
     @Test
+    void randomRewardItemsSkipKnightConsumablesWithoutThrowing() {
+        java.util.List<SiegeItem> rewards = content.randomItems(6, new java.util.Random(1));
+
+        assertEquals(6, rewards.size());
+        assertTrue(rewards.stream().noneMatch(SiegeItem::consumable));
+        assertEquals(rewards.size(), rewards.stream().map(SiegeItem::id).distinct().count());
+    }
+
+    @Test
+    void treasureMapDigChoiceResolvesRandomItemReward() throws Exception {
+        SiegeRun run = buildRunWithParty(100, 80);
+        run.setInEvent(true);
+        run.getEventOptions().add(CampOption.event("e0", "DIG_MAP", "Dig at the X", "You dig, dirt flying...", 0, 0));
+        registerRun(run);
+
+        service.eventChoose("bag-test", "e0");
+
+        assertFalse(run.isInEvent());
+        assertFalse(run.getInventory().isEmpty());
+        assertTrue(run.getLastReward().startsWith("X marks the spot:"));
+    }
+
+    @Test
     void reviveCardRaisesFallenSiegelingToHalfHp() throws Exception {
         SiegeRun run = buildRunWithParty(100, 0);
         run.getKnightBag().add("revive-card");
