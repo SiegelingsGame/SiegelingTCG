@@ -709,6 +709,10 @@ input[type="file"] {
     height: 18px;
 }
 
+.expedition-starter-toggle {
+    margin-top: 12px;
+}
+
 .form-section:first-child {
     border-top: 0;
     padding-top: 0;

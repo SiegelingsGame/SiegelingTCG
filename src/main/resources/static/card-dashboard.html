@@ -21,7 +21,7 @@
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=184">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=32">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=33">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -213,6 +213,11 @@
                                 <input id="cardCostAmountInput" type="number" min="0" step="1">
                             </label>
                         </div>
+                        <label class="toggle-field expedition-starter-toggle">
+                            <input id="cardExpeditionStarterCheckbox" type="checkbox">
+                            <span>Available for expedition warband</span>
+                            <button type="button" class="dash-info-btn" data-info-topic="expedition-starter" title="Expedition warband availability" aria-label="Expedition warband availability">ⓘ</button>
+                        </label>
                     </section>
 
                     <section class="form-section" id="actionCardSection">

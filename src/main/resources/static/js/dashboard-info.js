@@ -111,6 +111,17 @@
             ])
     };
 
+    topics['expedition-starter'] = {
+        title: 'Expedition Warband Availability',
+        html: '<p>Controls which stage-1 Siegelings players can pick when assembling their warband before an expedition.</p>' +
+            table([
+                row(['<strong>Checked</strong>', 'Pickable at warband assembly — shown normally on the Assemble the warband screen.']),
+                row(['<strong>Unchecked</strong>', 'Locked with a 🔒 overlay until the player recruits that Siegeling from a path node during a run.']),
+                row(['<strong>Publish</strong>', 'Once at least one Siegeling is marked available, publish live so the roster API applies locks in-game.'])
+            ]) +
+            '<p>Locked Siegelings still appear in the recruit pool on the map — finding them mid-run adds them to future expeditions.</p>'
+    };
+
     topics['action-cards'] = {
         title: 'Strategy & Deception Cards',
         html: '<p><strong>Strategies</strong> (spells) are played from hand for an element + energy cost, often gated by combo size or reaction type.</p>' +

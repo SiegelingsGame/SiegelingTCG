@@ -275,25 +275,34 @@
     var grid = $('sieglingGrid'); grid.innerHTML = '';
     state.roster.sieglings.filter(function (s) {
       return state.elementFilter === 'ALL' || s.element === state.elementFilter;
+    }).sort(function (a, b) {
+      if (a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
+      return a.name.localeCompare(b.name);
     }).forEach(function (s) {
       var picked = state.party.indexOf(s.id);
-      var c = el('div', 'sgl-card ' + elClass(s.element) + (picked >= 0 ? ' sel' : ''));
+      var locked = s.expeditionStarter === false;
+      var c = el('div', 'sgl-card ' + elClass(s.element) + (picked >= 0 ? ' sel' : '') + (locked ? ' locked' : ''));
       var art = s.artUrl
         ? '<div class="sart" style="background-image:url(\'' + artCss(s.artUrl) + '\')"></div>'
         : '<div class="sart sart-fallback">' + icon(s.element) + '</div>';
       c.innerHTML =
         (picked >= 0 ? '<div class="selorder">' + (picked + 1) + '</div>' : '') +
+        (locked ? '<div class="sgl-lock" title="Find on the expedition path">🔒</div>' : '') +
         '<button class="info-btn" type="button" title="View cards">ⓘ</button>' +
         art +
         '<div class="sname">' + esc(s.name) + (s.evolves ? ' <span class="evo-tag" title="Its Evolution card joins your battle deck — play it for 2 AP to evolve">EVO ↑</span>' : '') + '</div>' +
-        '<div class="schip">' + icon(s.element) + ' ' + esc(s.element) + '</div>' +
+        '<div class="schip">' + icon(s.element) + ' ' + esc(s.element) + (locked ? ' · locked' : '') + '</div>' +
         '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>';
-      c.addEventListener('click', function () { toggleSiegling(s.id); });
+      if (!locked) {
+        c.addEventListener('click', function () { toggleSiegling(s.id); });
+      } else {
+        c.addEventListener('click', function () { toast('Find ' + s.name + ' on the expedition path to recruit them.'); });
+      }
       c.querySelector('.info-btn').addEventListener('click', function (e) {
         e.stopPropagation();
         showUnitModal({
           name: s.name, element: s.element, artUrl: s.artUrl,
-          subtitle: '❤ ' + s.hp + ' · ⚡ ' + s.speed + (s.evolves ? ' · Evolution card in battle deck (2 AP)' : ''),
+          subtitle: '❤ ' + s.hp + ' · ⚡ ' + s.speed + (s.evolves ? ' · Evolution card in battle deck (2 AP)' : '') + (locked ? ' · Locked until found on the path' : ''),
           cards: s.moves || []
         });
       });
@@ -302,6 +311,11 @@
   }
 
   function toggleSiegling(id) {
+    var s = state.roster.sieglings.find(function (x) { return x.id === id; });
+    if (s && s.expeditionStarter === false) {
+      toast('Find ' + s.name + ' on the expedition path to recruit them.');
+      return;
+    }
     var i = state.party.indexOf(id);
     if (i >= 0) { state.party.splice(i, 1); }
     else {

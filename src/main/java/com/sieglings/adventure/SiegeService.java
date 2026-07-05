@@ -84,6 +84,7 @@ public class SiegeService {
             m.put("moveCount", content.moveCount(s));
             m.put("artUrl", s.getCardArtUrl());
             m.put("evolves", content.evolutionOf(s.getId()).isPresent());
+            m.put("expeditionStarter", content.isExpeditionStarter(s));
             m.put("moves", serializeSpecs(content.moveSpecs(s)));
             sieglings.add(m);
         }
@@ -144,6 +145,9 @@ public class SiegeService {
         for (String id : sieglingIds) {
             SieglingCard s = (mode == RunMode.ENDLESS ? content.findAnySiegling(id) : content.findSiegling(id))
                     .orElseThrow(() -> new IllegalArgumentException("Unknown Siegeling: " + id));
+            if (!content.isExpeditionStarter(s)) {
+                throw new IllegalArgumentException(s.getName() + " is locked — find them on the expedition path first.");
+            }
             Combatant member = content.toPartyCombatant(s, slot);
             applyJoinBonus(run, member);
             run.getParty().add(member);

@@ -264,6 +264,9 @@ final class ManualSieglingCatalog {
 
         applyCardArt(card, definition);
         applyCardDescription(card, definition);
+        if (definition.expeditionStarter() != null) {
+            card.setExpeditionStarter(definition.expeditionStarter());
+        }
 
         return card;
     }
@@ -538,6 +541,7 @@ final class ManualSieglingCatalog {
         card.setCardArtUrl(source.getCardArtUrl());
         card.setCardArtMode(source.getCardArtMode());
         card.setDescription(source.getDescription());
+        card.setExpeditionStarter(source.getExpeditionStarter());
         return card;
     }
 
@@ -685,6 +689,7 @@ final class ManualSieglingCatalog {
                     card.getCardArtScale(),
                     card.getCardArtRotation(),
                     card.isHolographic(),
+                    siegling.getExpeditionStarter(),
                     card.getDescription()
             );
         }
@@ -720,6 +725,7 @@ final class ManualSieglingCatalog {
                     spell.getCardArtScale(),
                     spell.getCardArtRotation(),
                     spell.isHolographic(),
+                    null,
                     spell.getDescription()
             );
         }
@@ -755,6 +761,7 @@ final class ManualSieglingCatalog {
                     trap.getCardArtScale(),
                     trap.getCardArtRotation(),
                     trap.isHolographic(),
+                    null,
                     trap.getDescription()
             );
         }
@@ -842,6 +849,7 @@ final class ManualSieglingCatalog {
             Double cardArtScale,
             Double cardArtRotation,
             Boolean holographic,
+            Boolean expeditionStarter,
             String description
     ) {}
 

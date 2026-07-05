@@ -109,6 +109,25 @@ public class SiegeContentService {
         return out;
     }
 
+    /** True when any catalog Siegeling has an explicit expedition-starter flag in overrides. */
+    boolean expeditionStartersConfigured() {
+        return selectableSieglings().stream().anyMatch(s -> s.getExpeditionStarter() != null);
+    }
+
+    /**
+     * Pickable at warband assembly. When no card has been configured yet, every
+     * stage-1 Siegeling remains available so existing catalogs keep working.
+     */
+    boolean isExpeditionStarter(SieglingCard s) {
+        if (s == null) {
+            return false;
+        }
+        if (!expeditionStartersConfigured()) {
+            return true;
+        }
+        return Boolean.TRUE.equals(s.getExpeditionStarter());
+    }
+
     /** The next evolution stage of a catalog card, if any (with usable moves). */
     Optional<SieglingCard> evolutionOf(String cardId) {
         if (cardId == null) return Optional.empty();

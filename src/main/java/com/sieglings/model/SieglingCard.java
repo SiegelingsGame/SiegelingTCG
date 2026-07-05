@@ -20,6 +20,8 @@ public class SieglingCard extends Card {
     private Row preferredRow;
     private String evolvesFromId;
     private String evolvesFromName;
+    /** When true, pickable at expedition warband assembly; false = locked until found on the path. */
+    private Boolean expeditionStarter;
 
     public SieglingCard() {
         setCardType(CardType.SIEGLING);
@@ -54,6 +56,7 @@ public class SieglingCard extends Card {
         c.setCardArtRotation(getCardArtRotation());
         c.setHolographic(isHolographic());
         c.setDescription(getDescription());
+        c.setExpeditionStarter(getExpeditionStarter());
         return c;
     }
 
@@ -97,6 +100,8 @@ public class SieglingCard extends Card {
     public String getEvolvesFromName() { return evolvesFromName; }
     public void setEvolvesFromName(String evolvesFromName) { this.evolvesFromName = evolvesFromName; }
     public boolean isEvolutionCard() { return evolvesFromId != null && !evolvesFromId.isBlank(); }
+    public Boolean getExpeditionStarter() { return expeditionStarter; }
+    public void setExpeditionStarter(Boolean expeditionStarter) { this.expeditionStarter = expeditionStarter; }
 
     @Override
     public void setAbility(Ability ability) {

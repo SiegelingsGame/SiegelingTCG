@@ -253,6 +253,7 @@
             "cardEvolvesFromInput",
             "cardCostElementSelect",
             "cardCostAmountInput",
+            "cardExpeditionStarterCheckbox",
             "actionCardSection",
             "actionCardSectionTitle",
             "spellCostElementField",
@@ -550,6 +551,16 @@
             }
             card.holographic = Boolean(event.target.checked);
             renderCardVisualPreview();
+            renderPreview();
+            queueValidation();
+        });
+
+        refs.cardExpeditionStarterCheckbox?.addEventListener("change", (event) => {
+            const card = getSelectedCard();
+            if (!card) {
+                return;
+            }
+            card.expeditionStarter = Boolean(event.target.checked);
             renderPreview();
             queueValidation();
         });
@@ -2042,6 +2053,7 @@
                 notches: Array.isArray(card?.notches) ? card.notches.map((notch) => normalizeNotch(notch, baseElement)) : [],
                 moveIds,
                 abilities: [],
+                expeditionStarter: card?.expeditionStarter === true,
                 description: String(card?.description || ""),
                 ...normalizeCardArtFields(card)
             };
@@ -2734,6 +2746,10 @@
         setInputValue(refs.trapBucketAmountInput, card.trapBucketAmount);
         setInputValue(refs.cardRequiredComboSizeInput, card.requiredComboSize);
         setInputValue(refs.cardRequiredComboSignatureInput, card.requiredComboSignature);
+
+        if (refs.cardExpeditionStarterCheckbox) {
+            refs.cardExpeditionStarterCheckbox.checked = card.expeditionStarter === true;
+        }
 
         refs.sieglingStatsSection.classList.toggle("hidden", !isSiegling);
         refs.notchesSection.classList.toggle("hidden", !isSiegling);
@@ -4563,6 +4579,12 @@
         if (card.costAmount > 0) {
             exported.costElement = card.costElement || card.element;
             exported.costAmount = toNumber(card.costAmount, 0);
+        }
+        const expeditionConfigActive = state.cards.some((row) => row.cardType === "SIEGLING" && row.expeditionStarter === true);
+        if (expeditionConfigActive) {
+            exported.expeditionStarter = card.expeditionStarter === true;
+        } else if (card.expeditionStarter === true) {
+            exported.expeditionStarter = true;
         }
 
         return appendCardArtExport(exported, card);
