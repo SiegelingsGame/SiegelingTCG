@@ -21,7 +21,7 @@
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=184">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=27">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=31">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -101,7 +101,7 @@
         <button class="page-tab" id="showActionsBtn" type="button" data-editor-page="ACTION">Strategy / Deception Page</button>
         <button class="page-tab" id="showTrainersBtn" type="button" data-editor-page="TRAINERS">Siegeknights</button>
         <button class="page-tab" id="showDecksBtn" type="button" data-editor-page="DECKS">Premade Decks</button>
-        <button class="page-tab" id="showPacksBtn" type="button" data-editor-page="PACKS">Packs</button>
+        <button class="page-tab" id="showSiegeBtn" type="button" data-editor-page="SIEGE">Siege Mode</button>
         <button class="page-tab" id="showLiveElementsBtn" type="button" data-editor-page="LIVE_ELEMENTS">Live Elements</button>
         <button class="page-tab" id="showMovesPoolBtn" type="button" data-editor-page="MOVES_POOL">Shared Abilities</button>
         <button class="page-tab" id="showLoadingArtBtn" type="button" data-editor-page="LOADING_ART">Loading Screen Art</button>
@@ -216,7 +216,7 @@
                     </section>
 
                     <section class="form-section" id="actionCardSection">
-                        <h3 id="actionCardSectionTitle">Strategy Cost And Requirements</h3>
+                        <h3 class="form-section-title" id="actionCardSectionTitle"><span>Strategy Cost And Requirements</span><button type="button" class="dash-info-btn" data-info-topic="action-cards" title="Strategy and deception fields" aria-label="Strategy and deception fields">ⓘ</button></h3>
                         <p class="section-help" id="actionCardHelpText">Choose the play cost, combo gate, or trigger threshold that makes this action card work the way you want.</p>
                         <div class="form-grid">
                             <label id="spellCostElementField">
@@ -251,7 +251,7 @@
                     </section>
 
                     <section class="form-section" id="notchesSection">
-                        <h3>Notches</h3>
+                        <h3 class="form-section-title"><span>Notches</span><button type="button" class="dash-info-btn" data-info-topic="siegling-notches" title="How notch assignment works" aria-label="How notch assignment works">ⓘ</button></h3>
                         <p class="section-help">Toggle the notch directions around the card, then set the element for each active notch below.</p>
                         <div class="notch-grid" id="notchGrid"></div>
                         <div class="notch-list" id="activeNotchList"></div>
@@ -261,7 +261,7 @@
                         <div class="panel-heading sub-heading">
                             <div>
                                 <div class="section-kicker">Moves pool</div>
-                                <h3>Siegeling Moves</h3>
+                                <h3 class="form-section-title"><span>Siegeling Moves</span><button type="button" class="dash-info-btn" data-info-topic="siegling-moves" title="How move assignment works" aria-label="How move assignment works">ⓘ</button></h3>
                             </div>
                             <div class="inline-actions">
                                 <button class="btn btn-secondary" type="button" id="newMoveBtn">New move</button>
@@ -296,7 +296,7 @@
                         <div class="panel-heading sub-heading">
                             <div>
                                 <div class="section-kicker">Abilities</div>
-                                <h3 id="abilitySectionTitle">Ability Editor</h3>
+                                <h3 class="form-section-title" id="abilitySectionTitle"><span>Ability Editor</span><button type="button" class="dash-info-btn" data-info-topic="action-cards" title="Ability and effect fields" aria-label="Ability and effect fields">ⓘ</button></h3>
                             </div>
                             <div class="inline-actions">
                                 <button class="btn btn-secondary" id="addAbilityBtn" type="button">New Ability</button>
@@ -366,6 +366,7 @@
                         <div class="section-kicker">Preview</div>
                         <h2>Cards Menu View</h2>
                     </div>
+                    <button type="button" class="dash-info-btn" data-info-topic="card-art" title="Card art modes" aria-label="Card art modes">ⓘ</button>
                 </div>
                 <p class="section-help card-visual-help">Replace art stays inside the icon frame; overlay art can extend across the full card; full card art is already complete and skips the template. Use Upload Image on the live dashboard so art is stored in cloud storage (a https:// URL). Drag replace or overlay art in the preview to reposition it; use the scale and rotation controls below. Publish from the header to apply globally in the game. Choose Default icon to revert. Sign in under Live Publishing before uploading or publishing. Notches always render above custom art.</p>
                 <div class="card-visual-stage" id="cardVisualStage">
@@ -492,7 +493,7 @@
 
             <div class="editor-content hidden" id="deckEditorContent">
                 <section class="form-section">
-                    <h3>Deck Identity</h3>
+                    <h3 class="form-section-title"><span>Deck Identity</span><button type="button" class="dash-info-btn" data-info-topic="deck-composition" title="Deck and trainer assignment" aria-label="Deck and trainer assignment">ⓘ</button></h3>
                     <div class="form-grid">
                         <label>
                             <span>Deck ID</span>
@@ -527,7 +528,7 @@
                     <div class="panel-heading sub-heading">
                         <div>
                             <div class="section-kicker">Deck List</div>
-                            <h3>Current Composition</h3>
+                            <h3 class="form-section-title"><span>Current Composition</span><button type="button" class="dash-info-btn" data-info-topic="deck-composition" title="How deck cards are assigned" aria-label="How deck cards are assigned">ⓘ</button></h3>
                         </div>
                         <button class="btn btn-secondary" id="clearDeckCardsBtn" type="button">Clear Deck</button>
                     </div>
@@ -543,6 +544,7 @@
                         <div class="section-kicker">Build</div>
                         <h2>Add Cards To Deck</h2>
                     </div>
+                    <button type="button" class="dash-info-btn" data-info-topic="deck-composition" title="How cards are added to decks" aria-label="How cards are added to decks">ⓘ</button>
                 </div>
                 <div class="browser-filters">
                     <input id="deckCatalogSearchInput" type="search" placeholder="Search card catalog">
@@ -665,7 +667,7 @@
                 </section>
 
                 <section class="form-section">
-                    <h3>Custom Art</h3>
+                    <h3 class="form-section-title"><span>Custom Art</span><button type="button" class="dash-info-btn" data-info-topic="trainer-art" title="Siegeknight art modes" aria-label="Siegeknight art modes">ⓘ</button></h3>
                     <p class="section-help card-visual-help">Two ways to give this SiegeKnight art. <strong>Overlay art (keep frame)</strong> — recommended for consistency — keeps the shared card frame, shield and description box and drops your <em>character illustration only</em> behind them, so every card's frame and caption box stay identical (the art shows through the window and dimmed behind the description box). <strong>Full card art</strong> replaces the whole template with a complete, hand-drawn card (the way Squire Bob is set up). For either, paste a hosted path into <strong>Art URL or path</strong> (e.g. <code>/img/knights/aldera-full-card.png</code>) or use <strong>Upload Image</strong>. The preview below shows exactly how it renders in-game. Any aspect works — drag the art and use the Scale slider to crop &amp; frame it into the 5:7 card. Then <strong>Publish Live Changes</strong> from the header. Choose Default icon to revert.</p>
                     <div class="trainer-art-stage" id="trainerArtStage">
                         <div class="validation-empty">Select a SiegeKnight to preview its art.</div>
@@ -712,7 +714,7 @@
                 </section>
 
                 <section class="form-section">
-                    <h3>Passive Ability</h3>
+                    <h3 class="form-section-title"><span>Passive Ability</span><button type="button" class="dash-info-btn" data-info-topic="trainer-abilities" title="Siegeknight ability fields" aria-label="Siegeknight ability fields">ⓘ</button></h3>
                     <div class="form-grid">
                         <label>
                             <span>Ability Name</span>
@@ -756,7 +758,7 @@
                 </section>
 
                 <section class="form-section">
-                    <h3>Active Ability</h3>
+                    <h3 class="form-section-title"><span>Active Ability</span><button type="button" class="dash-info-btn" data-info-topic="trainer-abilities" title="Siegeknight ability fields" aria-label="Siegeknight ability fields">ⓘ</button></h3>
                     <div class="form-grid">
                         <label>
                             <span>Ability Name</span>
@@ -841,6 +843,7 @@
                     <div class="section-kicker">Meta</div>
                     <h2>Live Element Roster</h2>
                 </div>
+                <button type="button" class="dash-info-btn" data-info-topic="live-elements" title="How element toggles work" aria-label="How element toggles work">ⓘ</button>
             </div>
             <p class="section-help">When an element is off, its Siegelings, spells, traps, matching Siegeknights, and premade decks that use it are hidden from the live game. Publish saves this together with cards, Siegeknights, and decks. At least one element must stay on.</p>
             <div id="liveElementToggles" class="live-element-toggle-grid"></div>
@@ -872,6 +875,7 @@
                     <div class="section-kicker">Art</div>
                     <h2>Loading Screen Art</h2>
                 </div>
+                <button type="button" class="dash-info-btn" data-info-topic="loading-art" title="Loading art upload and pairing" aria-label="Loading art upload and pairing">ⓘ</button>
             </div>
             <p class="section-help">Upload landscape/portrait art for loading screens, the Art Gallery, and custom backgrounds. Files pairing by name (e.g. piece "ember-hollow" + both orientations) become one gallery entry.</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -885,80 +889,77 @@
                 <button class="btn" id="loadingArtUploadBtn" type="button">Upload</button>
                 <span id="loadingArtStatus" class="section-help" style="margin:0;"></span>
             </div>
-            <div id="loadingArtList" class="section-help" style="margin:8px 0 0;"></div>
-            <script>
-            (function () {
-                var fileInput = document.getElementById('loadingArtFileInput');
-                var status = document.getElementById('loadingArtStatus');
-                function setStatus(msg) { if (status) status.textContent = msg; }
-                function refreshList() {
-                    fetch('/api/art/loading').then(function (r) { return r.json(); }).then(function (data) {
-                        var list = document.getElementById('loadingArtList');
-                        if (!list) return;
-                        var art = (data && data.art) || [];
-                        list.textContent = art.length
-                            ? 'Current pieces: ' + art.map(function (p) {
-                                var o = [p.landscape ? 'landscape' : '', p.portrait ? 'portrait' : ''].filter(Boolean).join(' + ');
-                                return p.title + ' (' + o + ')';
-                            }).join(' | ')
-                            : 'No loading art uploaded yet.';
-                    }).catch(function () {});
-                }
-                fileInput?.addEventListener('change', function () {
-                    setStatus(fileInput.files[0] ? fileInput.files[0].name + ' ready' : '');
-                });
-                document.getElementById('loadingArtUploadBtn')?.addEventListener('click', function () {
-                    var pieceId = (document.getElementById('loadingArtPieceId')?.value || '').trim();
-                    var file = fileInput?.files?.[0];
-                    if (!pieceId) return setStatus('Enter a piece name first.');
-                    if (!file) return setStatus('Choose an image file first.');
-                    var form = new FormData();
-                    form.append('pieceId', pieceId);
-                    form.append('orientation', document.getElementById('loadingArtOrientation')?.value || 'landscape');
-                    form.append('file', file);
-                    var headers = {};
-                    try {
-                        var token = localStorage.getItem('sieglingsCardEditorToken');
-                        if (token) headers['X-Card-Editor-Token'] = token;
-                    } catch (e) { /* anonymous upload attempt */ }
-                    setStatus('Uploading...');
-                    fetch('/api/art/loading', { method: 'POST', body: form, headers: headers })
-                        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-                        .then(function (res) {
-                            if (!res.ok) return setStatus(res.d?.error || 'Upload failed. Sign in under Live Publishing first.');
-                            setStatus('Uploaded ' + res.d.url);
-                            if (fileInput) fileInput.value = '';
-                            refreshList();
-                        })
-                        .catch(function () { setStatus('Upload failed — network error.'); });
-                });
-                refreshList();
-            })();
-            </script>
+            <div id="loadingArtGallery" class="loading-art-gallery" aria-live="polite"></div>
+            <p id="loadingArtList" class="section-help" style="margin:8px 0 0;"></p>
+            <div class="loading-art-preview-overlay hidden" id="loadingArtPreviewOverlay" role="dialog" aria-modal="true" aria-labelledby="loadingArtPreviewTitle">
+                <div class="loading-art-preview-modal">
+                    <div class="loading-art-preview-head">
+                        <h3 id="loadingArtPreviewTitle">Loading Art</h3>
+                        <button class="btn btn-secondary" id="loadingArtPreviewClose" type="button" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="loading-art-preview-tabs" id="loadingArtPreviewTabs"></div>
+                    <div class="loading-art-preview-frame">
+                        <img id="loadingArtPreviewImg" alt="">
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 
-    <section class="deck-workspace hidden" id="packWorkspace">
-        <div class="panel deck-editor-panel">
+    <section class="deck-workspace hidden" id="siegeWorkspace">
+        <div class="panel siege-mode-panel">
             <div class="panel-heading">
                 <div>
-                    <div class="section-kicker">Shop</div>
-                    <h2>Pack Groups</h2>
+                    <div class="section-kicker">Roguelike</div>
+                    <h2>Siege Mode</h2>
                 </div>
             </div>
-            <p class="section-help">Starter and shop packs are generated from live cards by element. Each opened pack contains five cards: 2-3 Siegelings, 1-2 traps, and 1-2 spells from the selected elements.</p>
-            <div class="deck-card-list" id="packList"></div>
-            <div class="panel preview-panel">
-                <div class="panel-heading sub-heading">
-                    <div>
-                        <div class="section-kicker">Export</div>
-                        <h3>packs JSON</h3>
-                    </div>
+            <p class="section-help">Manage Siege expedition content: roguelike knight classes, carryable items, and map events. Changes apply immediately to new runs.</p>
+
+            <details class="siege-collapse-section" id="siegeSectionClasses" open>
+                <summary class="siege-collapse-summary">
+                    <span class="siege-collapse-title">Siege Roguelike Classes</span>
+                    <button type="button" class="dash-info-btn siege-info-btn" data-info-topic="siege-classes" title="Roguelike class effects" aria-label="Roguelike class effects">ⓘ</button>
+                    <span class="siege-collapse-hint">Assign knight passives for new runs</span>
+                </summary>
+                <div class="siege-collapse-body">
+                    <div id="siegeClassPanel"></div>
                 </div>
-                <textarea id="packsJsonPreview" readonly spellcheck="false" rows="14"></textarea>
-            </div>
+            </details>
+
+            <details class="siege-collapse-section" id="siegeSectionItems">
+                <summary class="siege-collapse-summary">
+                    <span class="siege-collapse-title">Siege Items</span>
+                    <button type="button" class="dash-info-btn siege-info-btn" data-info-topic="siege-items" title="Item kind effects" aria-label="Item kind effects">ⓘ</button>
+                    <span class="siege-collapse-hint">Carryable equipment and consumables</span>
+                </summary>
+                <div class="siege-collapse-body">
+                    <div id="siegeItemPanel"></div>
+                </div>
+            </details>
+
+            <details class="siege-collapse-section" id="siegeSectionEvents">
+                <summary class="siege-collapse-summary">
+                    <span class="siege-collapse-title">Siege Events</span>
+                    <button type="button" class="dash-info-btn siege-info-btn" data-info-topic="siege-events" title="What each choice outcome does" aria-label="What each choice outcome does">ⓘ</button>
+                    <span class="siege-collapse-hint">Map encounters and player choices</span>
+                </summary>
+                <div class="siege-collapse-body">
+                    <div id="siegeEventPanel"></div>
+                </div>
+            </details>
         </div>
     </section>
+
+    <div class="dashboard-info-overlay hidden" id="dashboardInfoOverlay" role="dialog" aria-modal="true" aria-labelledby="dashboardInfoTitle">
+        <div class="dashboard-info-modal">
+            <div class="dashboard-info-head">
+                <h3 id="dashboardInfoTitle">Help</h3>
+                <button class="btn btn-secondary" id="dashboardInfoClose" type="button" aria-label="Close">&times;</button>
+            </div>
+            <div class="dashboard-info-body" id="dashboardInfoBody"></div>
+        </div>
+    </div>
 
     <section class="deck-workspace hidden" id="movesPoolWorkspace">
         <aside class="panel deck-list-panel">
@@ -968,6 +969,7 @@
                     <h2>Shared Abilities</h2>
                 </div>
                 <div class="inline-actions">
+                    <button type="button" class="dash-info-btn" data-info-topic="moves-pool" title="How shared abilities are assigned" aria-label="How shared abilities are assigned">ⓘ</button>
                     <button class="btn btn-secondary" id="newPoolMoveBtn" type="button">New ability</button>
                 </div>
             </div>
@@ -1101,27 +1103,11 @@
      before card-binder-visual.js so the showcase is registered first. -->
 <script src="/js/game.js?v=187"></script>
 <script src="/js/card-binder-visual.js?v=4"></script>
-<script src="/js/card-dashboard.js?v=44"></script>
-    <section class="panel" id="siegeClassSection" style="margin-top:18px;">
-        <h2>Siege Roguelike Classes</h2>
-        <div id="siegeClassPanel"></div>
-    </section>
-    <style>
-      .siege-class-table{width:100%;border-collapse:collapse;font-size:13px;}
-      .siege-class-table th,.siege-class-table td{padding:6px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);}
-      .siege-class-note{font-size:12.5px;opacity:.75;margin:6px 0 10px;}
-      .siege-class-status{font-size:12px;min-width:70px;}
-    </style>
-    <script src="/js/siege-class-admin.js?v=1"></script>
-    <section class="panel" id="siegeItemSection" style="margin-top:18px;">
-        <h2>Siege Items</h2>
-        <div id="siegeItemPanel"></div>
-    </section>
-    <style>
-      .siege-item-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 12px;}
-      .siege-item-form input,.siege-item-form select{padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.25);color:inherit;}
-      .siege-item-form button{padding:6px 14px;border-radius:6px;cursor:pointer;}
-    </style>
-    <script src="/js/siege-item-admin.js?v=1"></script>
+<script src="/js/dashboard-info.js?v=1"></script>
+<script src="/js/card-dashboard.js?v=46"></script>
+<script src="/js/loading-art-admin.js?v=1"></script>
+<script src="/js/siege-class-admin.js?v=2"></script>
+<script src="/js/siege-item-admin.js?v=2"></script>
+<script src="/js/siege-event-admin.js?v=3"></script>
 </body>
 </html>

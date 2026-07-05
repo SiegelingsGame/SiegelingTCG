@@ -1755,6 +1755,63 @@ public class SiegeService {
         return listKnightClasses();
     }
 
+    Map<String, Object> listEvents() {
+        List<Map<String, Object>> events = new ArrayList<>();
+        for (SiegeContentService.EventDef ev : content.allEvents()) {
+            List<Map<String, Object>> choices = new ArrayList<>();
+            for (SiegeContentService.EventChoice ch : ev.choices()) {
+                Map<String, Object> c = new LinkedHashMap<>();
+                c.put("label", ch.label());
+                c.put("outcome", ch.outcome());
+                c.put("value", ch.value());
+                c.put("flavor", ch.flavor());
+                choices.add(c);
+            }
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", ev.id());
+            m.put("title", ev.title());
+            m.put("icon", ev.icon());
+            m.put("prompt", ev.prompt());
+            m.put("choices", choices);
+            events.add(m);
+        }
+        List<Map<String, Object>> outcomes = new ArrayList<>();
+        outcomes.add(Map.of("code", "GOLD", "description", "Grants gold (value = amount)."));
+        outcomes.add(Map.of("code", "PAY_GOLD", "description", "Pays gold; ambush if you cannot afford (value = cost)."));
+        outcomes.add(Map.of("code", "HEAL", "description", "Heals the whole party (value = HP)."));
+        outcomes.add(Map.of("code", "SNEAK", "description", "50% pass; on fail, party takes damage (value = damage)."));
+        outcomes.add(Map.of("code", "AMBUSH", "description", "Starts a battle immediately."));
+        outcomes.add(Map.of("code", "AMBUSH_ELITE", "description", "Starts an elite battle immediately."));
+        outcomes.add(Map.of("code", "ITEM_HEALTHCOST", "description", "Party loses HP, then receives a random item (value = HP cost)."));
+        outcomes.add(Map.of("code", "BLEED_ITEM", "description", "Party loses HP, then receives a random item (value = HP cost)."));
+        outcomes.add(Map.of("code", "RECRUIT_CHANCE", "description", "Recruits a Siegeling if the party has room; otherwise grants an item."));
+        outcomes.add(Map.of("code", "SEARCH", "description", "Random loot: item, gold, or ambush."));
+        outcomes.add(Map.of("code", "DIG_MAP", "description", "Grants gold and a random item."));
+        outcomes.add(Map.of("code", "BLESS_SPEED", "description", "Pays gold for +1 speed to all Siegelings (value = gold cost)."));
+        outcomes.add(Map.of("code", "NOTHING", "description", "No mechanical effect; shows flavor text only."));
+        return Map.of("events", events, "outcomes", outcomes);
+    }
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> createEvent(String editorToken, String title, String icon, String prompt, Object choicesRaw) {
+        if (editorAuth == null) throw new IllegalArgumentException("Editor auth is unavailable.");
+        editorAuth.requireEditor(editorToken);
+        List<SiegeContentService.EventChoice> choices = new ArrayList<>();
+        if (choicesRaw instanceof List<?> list) {
+            for (Object row : list) {
+                if (!(row instanceof Map<?, ?> m)) continue;
+                String label = m.get("label") == null ? "" : String.valueOf(m.get("label"));
+                String outcome = m.get("outcome") == null ? "NOTHING" : String.valueOf(m.get("outcome"));
+                int value = 0;
+                try { value = Integer.parseInt(String.valueOf(m.get("value"))); } catch (NumberFormatException ignored) { }
+                String flavor = m.get("flavor") == null ? "" : String.valueOf(m.get("flavor"));
+                choices.add(new SiegeContentService.EventChoice(label, outcome, value, flavor));
+            }
+        }
+        content.createEvent(title, icon, prompt, choices);
+        return listEvents();
+    }
+
     // ---- Serialization --------------------------------------------------
 
     /** Compact JSON for a list of ability specs (detail modals / shop cards). */

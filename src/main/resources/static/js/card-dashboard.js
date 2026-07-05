@@ -195,17 +195,15 @@
             "showActionsBtn",
             "showTrainersBtn",
             "showDecksBtn",
-            "showPacksBtn",
+            "showSiegeBtn",
             "showLiveElementsBtn",
             "showMovesPoolBtn",
             "showLoadingArtBtn",
             "cardWorkspace",
             "movesPoolWorkspace",
             "loadingArtWorkspace",
+            "siegeWorkspace",
             "deckWorkspace",
-            "packWorkspace",
-            "packList",
-            "packsJsonPreview",
             "trainerWorkspace",
             "liveElementsWorkspace",
             "liveElementToggles",
@@ -462,7 +460,7 @@
         refs.showActionsBtn.addEventListener("click", () => setEditorPage("ACTION"));
         refs.showTrainersBtn.addEventListener("click", () => setEditorPage("TRAINERS"));
         refs.showDecksBtn.addEventListener("click", () => setEditorPage("DECKS"));
-        refs.showPacksBtn.addEventListener("click", () => setEditorPage("PACKS"));
+        refs.showSiegeBtn.addEventListener("click", () => setEditorPage("SIEGE"));
         refs.showLiveElementsBtn.addEventListener("click", () => setEditorPage("LIVE_ELEMENTS"));
         refs.showMovesPoolBtn.addEventListener("click", () => setEditorPage("MOVES_POOL"));
         refs.showLoadingArtBtn.addEventListener("click", () => setEditorPage("LOADING_ART"));
@@ -2325,6 +2323,8 @@
             state.editorPage = "LIVE_ELEMENTS";
         } else if (page === "LOADING_ART") {
             state.editorPage = "LOADING_ART";
+        } else if (page === "SIEGE") {
+            state.editorPage = "SIEGE";
         } else if (page === "MOVES_POOL") {
             const prev = state.editorPage;
             state.editorPage = "MOVES_POOL";
@@ -2540,10 +2540,10 @@
         renderAuth();
         renderStatus();
         renderFilterOptions();
-        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "PACKS" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL" || state.editorPage === "LOADING_ART");
+        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "SIEGE" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL" || state.editorPage === "LOADING_ART");
         refs.movesPoolWorkspace.classList.toggle("hidden", state.editorPage !== "MOVES_POOL");
         refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
-        refs.packWorkspace.classList.toggle("hidden", state.editorPage !== "PACKS");
+        refs.siegeWorkspace.classList.toggle("hidden", state.editorPage !== "SIEGE");
         refs.trainerWorkspace.classList.toggle("hidden", state.editorPage !== "TRAINERS");
         refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
         refs.loadingArtWorkspace.classList.toggle("hidden", state.editorPage !== "LOADING_ART");
@@ -2564,7 +2564,6 @@
         renderDeckSummary();
         renderDeckCatalog();
         renderDeckPreview();
-        renderPackPanel();
         renderTrainerList();
         renderTrainerEditor();
         renderTrainerSummary();
@@ -2622,8 +2621,8 @@
         refs.dirtyPill.textContent = state.dirty ? "Unsaved changes" : "Saved";
         refs.cardCountPill.textContent = state.editorPage === "DECKS"
             ? `${state.decks.length} preset deck${state.decks.length === 1 ? "" : "s"}`
-            : (state.editorPage === "PACKS"
-                ? `${state.packs.length} pack group${state.packs.length === 1 ? "" : "s"}`
+            : (state.editorPage === "SIEGE"
+                ? "Siege mode content"
             : (state.editorPage === "TRAINERS"
                 ? `${state.trainers.length} Siegeknight${state.trainers.length === 1 ? "" : "s"}`
                 : (state.editorPage === "LIVE_ELEMENTS"
@@ -2647,26 +2646,6 @@
         }
     }
 
-    function renderPackPanel() {
-        if (!refs.packList || !refs.packsJsonPreview) {
-            return;
-        }
-        const packs = Array.isArray(state.packs) ? state.packs : [];
-        refs.packList.innerHTML = packs.length
-            ? packs.map((pack) => `
-                <div class="deck-row">
-                    <div class="deck-row-main">
-                        <strong>${escapeHtml(pack.name || pack.id)}</strong>
-                        <div class="card-meta">${escapeHtml((pack.elements || []).map(formatEnumLabel).join(" / "))} | ${pack.starterEligible ? "Starter eligible" : "Shop pack"} | ${Number(pack.price || 0)} gold</div>
-                        <div class="card-meta">${escapeHtml(pack.description || "")}</div>
-                    </div>
-                    <span class="status-pill ${pack.active === false ? "is-warning" : "is-success"}">${pack.active === false ? "Inactive" : "Active"}</span>
-                </div>
-            `).join("")
-            : `<div class="empty-browser">No pack groups are available. The live game will use generated element packs.</div>`;
-        refs.packsJsonPreview.value = JSON.stringify(packs, null, 2);
-    }
-
     function renderFilterOptions() {
         if (!state.metadata) {
             refs.elementFilterSelect.innerHTML = `<option value="ALL">All Elements</option>`;
@@ -2686,7 +2665,7 @@
         refs.showActionsBtn.classList.toggle("active", state.editorPage === "ACTION");
         refs.showTrainersBtn.classList.toggle("active", state.editorPage === "TRAINERS");
         refs.showDecksBtn.classList.toggle("active", state.editorPage === "DECKS");
-        refs.showPacksBtn.classList.toggle("active", state.editorPage === "PACKS");
+        refs.showSiegeBtn.classList.toggle("active", state.editorPage === "SIEGE");
         refs.showLiveElementsBtn.classList.toggle("active", state.editorPage === "LIVE_ELEMENTS");
         refs.showMovesPoolBtn.classList.toggle("active", state.editorPage === "MOVES_POOL");
         refs.showLoadingArtBtn.classList.toggle("active", state.editorPage === "LOADING_ART");
@@ -2767,11 +2746,22 @@
         refs.spellRequiredComboSignatureField.classList.toggle("hidden", !isSpell);
         refs.trapBucketElementField.classList.toggle("hidden", !isTrap);
         refs.trapBucketAmountField.classList.toggle("hidden", !isTrap);
-        refs.actionCardSectionTitle.textContent = isTrap ? "Deception Trigger And Effect" : "Strategy Cost And Requirements";
+        const actionTitleSpan = refs.actionCardSectionTitle.querySelector('span');
+        if (actionTitleSpan) {
+            actionTitleSpan.textContent = isTrap ? "Deception Trigger And Effect" : "Strategy Cost And Requirements";
+        } else {
+            refs.actionCardSectionTitle.textContent = isTrap ? "Deception Trigger And Effect" : "Strategy Cost And Requirements";
+        }
         refs.actionCardHelpText.textContent = isTrap
             ? "Deception cards trigger from the opponent's bucket, so choose the enemy element threshold that springs this effect."
             : "Strategy cards can use a normal energy cost, a reaction gate, or a combo signature to control when they can be cast.";
-        refs.abilitySectionTitle.textContent = isSiegling ? "Ability Editor" : (isTrap ? "Deception Effect" : "Strategy Effect");
+        const abilityTitleSpan = refs.abilitySectionTitle.querySelector('span');
+        const abilityTitle = isSiegling ? "Ability Editor" : (isTrap ? "Deception Effect" : "Strategy Effect");
+        if (abilityTitleSpan) {
+            abilityTitleSpan.textContent = abilityTitle;
+        } else {
+            refs.abilitySectionTitle.textContent = abilityTitle;
+        }
 
         if (refs.sieglingMovesSection) {
             refs.sieglingMovesSection.classList.toggle("hidden", !isSiegling);

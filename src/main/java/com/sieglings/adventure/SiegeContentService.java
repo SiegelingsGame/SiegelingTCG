@@ -748,7 +748,47 @@ public class SiegeContentService {
     /** An event definition: title/prompt/icon + 2-3 choices. */
     record EventDef(String id, String title, String icon, String prompt, List<EventChoice> choices) {}
 
-    private final List<EventDef> events = buildEvents();
+    private final List<EventDef> events = new ArrayList<>(buildEvents());
+
+    List<EventDef> allEvents() { return List.copyOf(events); }
+
+    static final java.util.Set<String> VALID_EVENT_OUTCOMES = java.util.Set.of(
+            "GOLD", "PAY_GOLD", "SNEAK", "HEAL", "AMBUSH", "AMBUSH_ELITE",
+            "ITEM_HEALTHCOST", "BLEED_ITEM", "RECRUIT_CHANCE", "SEARCH",
+            "DIG_MAP", "BLESS_SPEED", "NOTHING");
+
+    /** Dashboard event creation: 2–3 choices with validated outcome codes. */
+    EventDef createEvent(String title, String icon, String prompt, List<EventChoice> choices) {
+        if (title == null || title.isBlank()) throw new IllegalArgumentException("Event title is required.");
+        if (prompt == null || prompt.isBlank()) throw new IllegalArgumentException("Event prompt is required.");
+        if (choices == null || choices.size() < 2 || choices.size() > 3) {
+            throw new IllegalArgumentException("Events need 2–3 choices.");
+        }
+        String id = title.trim().toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+        if (id.isBlank()) id = "event-" + Integer.toHexString(title.hashCode());
+        String finalId = id;
+        if (events.stream().anyMatch(e -> e.id().equals(finalId))) {
+            id = id + "-" + (events.size() + 1);
+        }
+        List<EventChoice> normalized = new ArrayList<>();
+        for (EventChoice ch : choices) {
+            if (ch.label() == null || ch.label().isBlank()) {
+                throw new IllegalArgumentException("Each choice needs a label.");
+            }
+            String outcome = ch.outcome() == null ? "NOTHING"
+                    : ch.outcome().trim().toUpperCase(java.util.Locale.ROOT);
+            if (!VALID_EVENT_OUTCOMES.contains(outcome)) {
+                throw new IllegalArgumentException("Unknown outcome: " + outcome);
+            }
+            normalized.add(new EventChoice(ch.label().trim(), outcome, Math.max(0, ch.value()),
+                    ch.flavor() == null ? "" : ch.flavor().trim()));
+        }
+        EventDef def = new EventDef(id, title.trim(),
+                icon == null || icon.isBlank() ? "❓" : icon.trim(), prompt.trim(), normalized);
+        events.add(def);
+        return def;
+    }
 
     EventDef randomEvent(Random rng) {
         return events.get(rng.nextInt(events.size()));

@@ -222,6 +222,21 @@ public class SiegeController {
         return siege.assignKnightClass(editorToken, str(body.get("trainerId")), str(body.get("passive")));
     }
 
+    /** Dashboard: list all Siege map events and outcome reference. */
+    @GetMapping("/api/siege/events")
+    public Map<String, Object> listEvents() {
+        return siege.listEvents();
+    }
+
+    /** Dashboard: create a Siege map event (editor-authenticated). */
+    @PostMapping("/api/siege/events")
+    public Map<String, Object> createEvent(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        return siege.createEvent(editorToken, str(body.get("title")), str(body.get("icon")),
+                str(body.get("prompt")), body.get("choices"));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
