@@ -255,7 +255,6 @@
             "cardCostAmountInput",
             "actionCardSection",
             "actionCardSectionTitle",
-            "actionCardHelpText",
             "spellCostElementField",
             "actionCostElementSelect",
             "spellCostAmountField",
@@ -2752,9 +2751,6 @@
         } else {
             refs.actionCardSectionTitle.textContent = isTrap ? "Deception Trigger And Effect" : "Strategy Cost And Requirements";
         }
-        refs.actionCardHelpText.textContent = isTrap
-            ? "Deception cards trigger from the opponent's bucket, so choose the enemy element threshold that springs this effect."
-            : "Strategy cards can use a normal energy cost, a reaction gate, or a combo signature to control when they can be cast.";
         const abilityTitleSpan = refs.abilitySectionTitle.querySelector('span');
         const abilityTitle = isSiegling ? "Ability Editor" : (isTrap ? "Deception Effect" : "Strategy Effect");
         if (abilityTitleSpan) {

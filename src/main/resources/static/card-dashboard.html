@@ -21,7 +21,7 @@
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=184">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=31">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=32">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -217,7 +217,6 @@
 
                     <section class="form-section" id="actionCardSection">
                         <h3 class="form-section-title" id="actionCardSectionTitle"><span>Strategy Cost And Requirements</span><button type="button" class="dash-info-btn" data-info-topic="action-cards" title="Strategy and deception fields" aria-label="Strategy and deception fields">ⓘ</button></h3>
-                        <p class="section-help" id="actionCardHelpText">Choose the play cost, combo gate, or trigger threshold that makes this action card work the way you want.</p>
                         <div class="form-grid">
                             <label id="spellCostElementField">
                                 <span>Play Cost Element</span>
@@ -252,7 +251,6 @@
 
                     <section class="form-section" id="notchesSection">
                         <h3 class="form-section-title"><span>Notches</span><button type="button" class="dash-info-btn" data-info-topic="siegling-notches" title="How notch assignment works" aria-label="How notch assignment works">ⓘ</button></h3>
-                        <p class="section-help">Toggle the notch directions around the card, then set the element for each active notch below.</p>
                         <div class="notch-grid" id="notchGrid"></div>
                         <div class="notch-list" id="activeNotchList"></div>
                     </section>
@@ -268,7 +266,6 @@
                                 <button class="btn btn-secondary" type="button" id="openMovePickerBtn">Add from pool</button>
                             </div>
                         </div>
-                        <p class="section-help">Up to five move ids per Siegeling. Passives apply when the card is on the board; actives (0–6 energy) appear in battle. Define shared moves in the pool; use Copy to fork an existing move. Edit the <strong>Shared Abilities</strong> page to change one definition everywhere it is assigned.</p>
                         <div id="sieglingAssignedMoves" class="move-assigned-list"></div>
                         <div id="moveDraftPanelHostSiegling">
                         <div class="form-grid" id="moveDraftPanel" style="display:none;">
@@ -368,7 +365,6 @@
                     </div>
                     <button type="button" class="dash-info-btn" data-info-topic="card-art" title="Card art modes" aria-label="Card art modes">ⓘ</button>
                 </div>
-                <p class="section-help card-visual-help">Replace art stays inside the icon frame; overlay art can extend across the full card; full card art is already complete and skips the template. Use Upload Image on the live dashboard so art is stored in cloud storage (a https:// URL). Drag replace or overlay art in the preview to reposition it; use the scale and rotation controls below. Publish from the header to apply globally in the game. Choose Default icon to revert. Sign in under Live Publishing before uploading or publishing. Notches always render above custom art.</p>
                 <div class="card-visual-stage" id="cardVisualStage">
                     <div class="validation-empty">Select a card to preview.</div>
                 </div>
@@ -668,7 +664,6 @@
 
                 <section class="form-section">
                     <h3 class="form-section-title"><span>Custom Art</span><button type="button" class="dash-info-btn" data-info-topic="trainer-art" title="Siegeknight art modes" aria-label="Siegeknight art modes">ⓘ</button></h3>
-                    <p class="section-help card-visual-help">Two ways to give this SiegeKnight art. <strong>Overlay art (keep frame)</strong> — recommended for consistency — keeps the shared card frame, shield and description box and drops your <em>character illustration only</em> behind them, so every card's frame and caption box stay identical (the art shows through the window and dimmed behind the description box). <strong>Full card art</strong> replaces the whole template with a complete, hand-drawn card (the way Squire Bob is set up). For either, paste a hosted path into <strong>Art URL or path</strong> (e.g. <code>/img/knights/aldera-full-card.png</code>) or use <strong>Upload Image</strong>. The preview below shows exactly how it renders in-game. Any aspect works — drag the art and use the Scale slider to crop &amp; frame it into the 5:7 card. Then <strong>Publish Live Changes</strong> from the header. Choose Default icon to revert.</p>
                     <div class="trainer-art-stage" id="trainerArtStage">
                         <div class="validation-empty">Select a SiegeKnight to preview its art.</div>
                     </div>
@@ -845,7 +840,6 @@
                 </div>
                 <button type="button" class="dash-info-btn" data-info-topic="live-elements" title="How element toggles work" aria-label="How element toggles work">ⓘ</button>
             </div>
-            <p class="section-help">When an element is off, its Siegelings, spells, traps, matching Siegeknights, and premade decks that use it are hidden from the live game. Publish saves this together with cards, Siegeknights, and decks. At least one element must stay on.</p>
             <div id="liveElementToggles" class="live-element-toggle-grid"></div>
             <div class="panel validation-panel">
                 <div class="panel-heading sub-heading">
@@ -877,7 +871,6 @@
                 </div>
                 <button type="button" class="dash-info-btn" data-info-topic="loading-art" title="Loading art upload and pairing" aria-label="Loading art upload and pairing">ⓘ</button>
             </div>
-            <p class="section-help">Upload landscape/portrait art for loading screens, the Art Gallery, and custom backgrounds. Files pairing by name (e.g. piece "ember-hollow" + both orientations) become one gallery entry.</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                 <input id="loadingArtPieceId" type="text" placeholder="Piece name (e.g. ember-hollow)" style="min-width:200px;">
                 <select id="loadingArtOrientation">
@@ -914,7 +907,6 @@
                     <h2>Siege Mode</h2>
                 </div>
             </div>
-            <p class="section-help">Manage Siege expedition content: roguelike knight classes, carryable items, and map events. Changes apply immediately to new runs.</p>
 
             <details class="siege-collapse-section" id="siegeSectionClasses" open>
                 <summary class="siege-collapse-summary">
@@ -973,7 +965,6 @@
                     <button class="btn btn-secondary" id="newPoolMoveBtn" type="button">New ability</button>
                 </div>
             </div>
-            <p class="section-help browser-help">These entries power every Siegeling move slot. Updating an ability here updates the rules text and effect for every card that references its id.</p>
             <div class="browser-filters moves-pool-filters form-grid">
                 <label class="full-width">
                     <span>Search</span>
@@ -1103,8 +1094,8 @@
      before card-binder-visual.js so the showcase is registered first. -->
 <script src="/js/game.js?v=187"></script>
 <script src="/js/card-binder-visual.js?v=4"></script>
-<script src="/js/dashboard-info.js?v=1"></script>
-<script src="/js/card-dashboard.js?v=46"></script>
+<script src="/js/dashboard-info.js?v=2"></script>
+<script src="/js/card-dashboard.js?v=47"></script>
 <script src="/js/loading-art-admin.js?v=1"></script>
 <script src="/js/siege-class-admin.js?v=2"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>
