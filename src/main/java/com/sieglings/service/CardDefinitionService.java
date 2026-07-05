@@ -19,8 +19,10 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -842,6 +844,8 @@ public class CardDefinitionService {
         };
     }
 
+    private static final List<String> GUEST_TRAINER_FALLBACK_IDS = List.of("squire-bob", "pyla", "ser-airek");
+
     private List<TrainerCatalogService.TrainerDefinition> loadTrainerDefinitions() {
         if (trainerCatalogService == null) {
             return TrainerCatalogService.defaultDefinitions();
@@ -850,19 +854,29 @@ public class CardDefinitionService {
         if (definitions.isEmpty()) {
             return TrainerCatalogService.defaultDefinitions();
         }
-        if (definitions.stream().anyMatch(definition -> "squire-bob".equals(definition.id()))) {
-            return definitions;
+        return withGuestTrainerFallbacks(definitions);
+    }
+
+    private List<TrainerCatalogService.TrainerDefinition> withGuestTrainerFallbacks(
+            List<TrainerCatalogService.TrainerDefinition> definitions
+    ) {
+        Set<String> presentIds = definitions.stream()
+                .map(TrainerCatalogService.TrainerDefinition::id)
+                .filter(Objects::nonNull)
+                .map(String::toLowerCase)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<TrainerCatalogService.TrainerDefinition> merged = new ArrayList<>(definitions);
+        for (TrainerCatalogService.TrainerDefinition fallback : TrainerCatalogService.defaultDefinitions()) {
+            String id = fallback.id();
+            if (id == null || !GUEST_TRAINER_FALLBACK_IDS.contains(id)) {
+                continue;
+            }
+            if (!presentIds.contains(id.toLowerCase())) {
+                merged.add(fallback);
+                presentIds.add(id.toLowerCase());
+            }
         }
-        TrainerCatalogService.TrainerDefinition squireBob = TrainerCatalogService.defaultDefinitions().stream()
-                .filter(definition -> "squire-bob".equals(definition.id()))
-                .findFirst()
-                .orElse(null);
-        if (squireBob == null) {
-            return definitions;
-        }
-        List<TrainerCatalogService.TrainerDefinition> withSquireBob = new ArrayList<>(definitions);
-        withSquireBob.add(squireBob);
-        return withSquireBob;
+        return merged;
     }
 
     private TrainerCard toTrainerCard(TrainerCatalogService.TrainerDefinition definition) {

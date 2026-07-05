@@ -51,7 +51,7 @@ import java.util.stream.IntStream;
 @Controller
 public class GameController {
 
-    private static final Set<String> GUEST_TRAINER_IDS = Set.of("trainer02", "trainer05", "trainer06", "trainer09");
+    private static final Set<String> GUEST_TRAINER_IDS = Set.of("squire-bob", "pyla", "ser-airek");
 
     @Autowired
     private GameService gameService;
@@ -1598,7 +1598,7 @@ public class GameController {
     private void validateStartOwnership(AccountUser user, GameService.StartOptions options) {
         if (user == null && options.playerTrainerId() != null && !options.playerTrainerId().isBlank()
                 && !GUEST_TRAINER_IDS.contains(normalizeTrainerId(options.playerTrainerId()))) {
-            throw new IllegalArgumentException("Guest players can use the Fire, Ice, Wind, and Earth starter SiegeKnights. Sign in to unlock more.");
+            throw new IllegalArgumentException("Guest players can use Squire Bob, Lady Pyla, and Ser Airek. Sign in to unlock more.");
         }
         if (user != null && options.playerTrainerId() != null && !options.playerTrainerId().isBlank()
                 && !playerProgressionService.ownsTrainer(user, options.playerTrainerId())) {
