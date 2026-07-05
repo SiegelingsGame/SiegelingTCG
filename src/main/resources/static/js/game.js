@@ -8530,12 +8530,12 @@ function getOwnedTrainerIdSet() {
     return new Set(owned.map((entry) => entry?.id).filter(Boolean));
 }
 
-// The common base tier guests are allowed to play. COMMON is included for
-// forward-compatibility; today the lowest catalog rarity is UNCOMMON.
-const GUEST_TRAINER_RARITIES = new Set(['COMMON', 'UNCOMMON']);
+// Starter SiegeKnights available before sign-in. Keep in sync with
+// GameController.GUEST_TRAINER_IDS on the backend.
+const GUEST_TRAINER_IDS = new Set(['squire-bob', 'pyla', 'ser-airek']);
 
-function isCommonTierTrainer(trainer) {
-    return GUEST_TRAINER_RARITIES.has(String(trainer?.rarity || '').toUpperCase());
+function isGuestTrainer(trainer) {
+    return GUEST_TRAINER_IDS.has(String(trainer?.id || '').toLowerCase());
 }
 
 function getVisibleLoadoutTrainers() {
@@ -8549,9 +8549,8 @@ function getVisibleLoadoutTrainers() {
     if (authState.profile?.authenticated) {
         return gameOptions.trainers.filter((trainer) => trainer.owned !== false);
     }
-    // Guests (no account) only get the common base SiegeKnight for each element;
-    // rarer knights unlock through account progression.
-    return gameOptions.trainers.filter(isCommonTierTrainer);
+    // Guests (no account) can pick the starter trio: Bob, Pyla, and Airek.
+    return gameOptions.trainers.filter(isGuestTrainer);
 }
 
 function selectTrainerOption(trainerId) {
