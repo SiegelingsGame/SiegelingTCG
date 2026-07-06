@@ -72,7 +72,14 @@ public class SiegeService {
 
     Map<String, Object> roster(String authorizationHeader) {
         AccountUser user = resolveUser(authorizationHeader);
-        PlayerProgressionEntity progression = user == null ? null : loadProgression(user);
+        PlayerProgressionEntity progression = null;
+        if (user != null) {
+            try {
+                progression = loadProgression(user);
+            } catch (Exception ignored) {
+                // Still return Siegelings when progression lookup fails (e.g. local Firestore).
+            }
+        }
         Map<String, Object> resp = new LinkedHashMap<>();
         List<Map<String, Object>> sieglings = new ArrayList<>();
         for (SieglingCard s : content.selectableSieglings()) {

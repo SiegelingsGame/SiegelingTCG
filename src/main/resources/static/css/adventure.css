@@ -86,6 +86,16 @@ body[data-screen="mapScreen"] #mapScreen{
 .siege-sub{color:var(--dim); margin:0 0 20px;}
 .siege-spinner{width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:60px auto 16px;}
 #loadingScreen{text-align:center;color:var(--dim);}
+.siege-load-bar{height:6px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden; margin:12px auto 10px; max-width:280px;}
+.siege-load-fill{height:100%; width:0%; border-radius:inherit; background:linear-gradient(90deg,var(--accent-2),var(--accent)); transition:width .35s ease;}
+.siege-load-count{font-size:12px; color:var(--faint); margin:4px 0 0; font-variant-numeric:tabular-nums;}
+.warband-meta{font-size:12.5px; color:var(--dim); margin:-8px 0 12px; min-height:18px;}
+.warband-load{text-align:center; padding:28px 12px 18px; color:var(--dim);}
+.warband-load .siege-load-bar{max-width:320px;}
+.warband-load .siege-btn{margin-top:12px;}
+.warband-load.hidden .siege-btn#warbandRetryBtn{display:none;}
+.warband-load:not(.hidden) #warbandRetryBtn.hidden{display:none;}
+.siegeling-grid.is-loading{opacity:.25; pointer-events:none; min-height:120px;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
 .siege-btn{
@@ -143,19 +153,47 @@ body[data-screen="mapScreen"] #mapScreen{
 
 .siegeling-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px;}
 .sgl-card{
-  background:var(--panel); border:1px solid var(--border); border-top:3px solid var(--el);
+  background:linear-gradient(180deg, #1a2130, #141a26);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el) 24%, #1a2130), color-mix(in srgb, var(--el) 10%, #141a26));
+  border:1px solid var(--border);
+  border:1px solid color-mix(in srgb, var(--el) 48%, var(--border));
+  border-top:3px solid var(--el);
   border-radius:10px; padding:10px 12px; cursor:pointer; position:relative; overflow:hidden;
+  box-shadow:0 4px 14px rgba(0,0,0,.28), 0 0 0 1px color-mix(in srgb, var(--el) 14%, transparent) inset;
 }
-.sgl-card:hover{border-color:var(--el);}
-.sgl-card.sel{outline:2px solid var(--accent); background:var(--panel-2);}
+.sgl-card::before{
+  content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+  background:radial-gradient(ellipse 90% 55% at 50% 0%, color-mix(in srgb, var(--el) 22%, transparent), transparent 68%);
+}
+.sgl-card > *{position:relative; z-index:1;}
+.sgl-card:hover{
+  border-color:color-mix(in srgb, var(--el) 72%, var(--border));
+  box-shadow:0 8px 20px rgba(0,0,0,.34), 0 0 0 1px color-mix(in srgb, var(--el) 28%, transparent) inset;
+}
+.sgl-card.sel{
+  outline:2px solid var(--accent);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el) 32%, #1d2533), color-mix(in srgb, var(--el) 14%, #161c27));
+  box-shadow:0 8px 22px rgba(0,0,0,.38), 0 0 0 1px color-mix(in srgb, var(--el) 32%, transparent) inset;
+}
 .sgl-card.locked{opacity:.55; filter:grayscale(.35); cursor:not-allowed;}
-.sgl-card.locked:hover{border-color:rgba(255,255,255,.12);}
+.sgl-card.locked:hover{border-color:rgba(255,255,255,.12); box-shadow:0 4px 14px rgba(0,0,0,.28);}
 .sgl-card .sgl-lock{position:absolute; top:8px; right:8px; font-size:16px; z-index:2; opacity:.9;}
 .sgl-card.sel .sgl-lock{right:34px;}
-.sgl-card .sart{height:104px; margin:-2px -6px 6px; border-radius:8px; background-size:contain; background-position:center bottom; background-repeat:no-repeat; background-color:rgba(0,0,0,.14);}
+.sgl-card .sart{
+  height:104px; margin:-2px -6px 6px; border-radius:8px;
+  background-size:contain; background-position:center bottom; background-repeat:no-repeat;
+  background-color:color-mix(in srgb, var(--el) 10%, rgba(0,0,0,.18));
+}
 .sgl-card .sart-fallback{display:flex; align-items:flex-end; justify-content:center; padding-bottom:8px; font-size:52px; color:var(--el); opacity:.4;}
 .sgl-card .sname{font-weight:650; font-size:14px;}
-.sgl-card .schip{display:inline-block; font-size:10px; color:var(--el); border:1px solid var(--el); border-radius:10px; padding:1px 7px; margin-top:4px;}
+.sgl-card .schips{display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; align-items:center;}
+.sgl-card .schip{display:inline-block; font-size:10px; color:var(--el); border:1px solid var(--el); border-radius:10px; padding:1px 7px;}
+.sgl-card .rarity-tag{display:inline-block; font-size:9px; font-weight:800; letter-spacing:.35px; border-radius:10px; padding:1px 7px; text-transform:uppercase;}
+.sgl-card .rarity-tag.rarity-common{color:#b0bec5; border:1px solid rgba(149,165,166,.45); background:rgba(149,165,166,.15);}
+.sgl-card .rarity-tag.rarity-uncommon{color:#6ecf8a; border:1px solid rgba(46,204,113,.45); background:rgba(46,204,113,.14);}
+.sgl-card .rarity-tag.rarity-rare{color:#6eb5ff; border:1px solid rgba(50,150,255,.45); background:rgba(50,150,255,.14);}
+.sgl-card .rarity-tag.rarity-epic{color:#d7b2ff; border:1px solid rgba(181,108,255,.45); background:rgba(181,108,255,.16);}
+.sgl-card .rarity-tag.rarity-legendary{color:#ffd066; border:1px solid rgba(255,208,102,.55); background:rgba(255,208,102,.12);}
 .sgl-card .sstats{font-size:12px; color:var(--dim); margin-top:6px; display:flex; gap:10px;}
 .sgl-card .selorder{position:absolute; top:8px; right:8px; width:20px;height:20px; border-radius:50%; background:var(--accent); color:#1a1206; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; z-index:2;}
 

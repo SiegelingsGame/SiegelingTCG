@@ -22,7 +22,9 @@
     setupStep: 'knight',
     selectedCardId: null,
     knightSelectedItem: null,
-    busy: false
+    busy: false,
+    warbandLoading: false,
+    warbandLoadToken: 0
   };
 
   var EL_ICON = {
@@ -91,6 +93,11 @@
     return e;
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function rarityKey(r) { return String(r || 'COMMON').toLowerCase(); }
+  function rarityLabel(r) {
+    var k = String(r || 'COMMON').toLowerCase();
+    return k.charAt(0).toUpperCase() + k.slice(1);
+  }
   /* Art URLs may already be percent-encoded (Firebase Storage object paths use
    * %2F). encodeURI would double-encode the % and 404 the image, so only
    * HTML/CSS-escape them. */
@@ -112,6 +119,154 @@
     var t = $('siegeToast'); if (!t) return;
     t.textContent = msg; t.classList.remove('hidden');
     clearTimeout(toast._h); toast._h = setTimeout(function () { t.classList.add('hidden'); }, 2600);
+  }
+
+  function rosterSiegelings(roster) {
+    return roster && Array.isArray(roster.siegelings) ? roster.siegelings : [];
+  }
+
+  function hasWarbandData(roster) {
+    return rosterSiegelings(roster).length > 0;
+  }
+
+  function createLoadProgress(fillEl, countEl) {
+    var pct = 8;
+    var timer = null;
+    if (fillEl) fillEl.style.width = pct + '%';
+    timer = setInterval(function () {
+      pct = Math.min(92, pct + (pct < 40 ? 9 : pct < 70 ? 5 : 2));
+      if (fillEl) fillEl.style.width = pct + '%';
+    }, 220);
+    return {
+      tick: function (loaded, total) {
+        if (!countEl) return;
+        if (total > 0) countEl.textContent = loaded + ' / ' + total;
+        else countEl.textContent = loaded > 0 ? String(loaded) : '0';
+      },
+      complete: function (loaded, total) {
+        clearInterval(timer);
+        if (fillEl) fillEl.style.width = '100%';
+        if (countEl && total > 0) countEl.textContent = loaded + ' / ' + total;
+      },
+      fail: function () {
+        clearInterval(timer);
+        if (fillEl) fillEl.style.width = '0%';
+      },
+      stop: function () {
+        clearInterval(timer);
+      }
+    };
+  }
+
+  function fetchRoster(attempt) {
+    attempt = attempt || 0;
+    return api('/api/siege/roster').then(function (data) {
+      var list = rosterSiegelings(data);
+      if (list.length === 0 && attempt < 4) {
+        return new Promise(function (resolve) {
+          setTimeout(function () { resolve(fetchRoster(attempt + 1)); }, 500 + attempt * 700);
+        });
+      }
+      if (!Array.isArray(data.siegelings)) data.siegelings = list;
+      return data;
+    });
+  }
+
+  function applyRoster(data) {
+    state.roster = data;
+    if (!state.knightId) {
+      var starter = (data.knights || []).find(function (k) { return k.selectable && k.expeditionStarter; })
+        || (data.knights || []).find(function (k) { return k.selectable; });
+      if (starter) state.knightId = starter.id;
+    }
+  }
+
+  function updateWarbandMeta() {
+    var meta = $('warbandMeta');
+    if (!meta) return;
+    if (state.warbandLoading) {
+      meta.textContent = 'Loading warband Siegelings...';
+      return;
+    }
+    var list = rosterSiegelings(state.roster);
+    if (!list.length) {
+      meta.textContent = 'No Siegelings loaded yet.';
+      return;
+    }
+    var starters = list.filter(function (s) { return s.expeditionStarter !== false; }).length;
+    var locked = list.length - starters;
+    var filtered = state.elementFilter === 'ALL'
+      ? list.length
+      : list.filter(function (s) { return s.element === state.elementFilter; }).length;
+    meta.textContent = filtered + ' shown · ' + list.length + ' total · ' + starters + ' starters'
+      + (locked > 0 ? (' · ' + locked + ' locked') : '');
+  }
+
+  function setWarbandLoading(active, loaded, total) {
+    state.warbandLoading = active;
+    var panel = $('warbandLoadPanel');
+    var grid = $('sieglingGrid');
+    var retry = $('warbandRetryBtn');
+    if (panel) panel.classList.toggle('hidden', !active);
+    if (grid) grid.classList.toggle('is-loading', active);
+    if (retry) retry.classList.toggle('hidden', active);
+    if (active && $('warbandLoadCount')) {
+      $('warbandLoadCount').textContent = (loaded || 0) + (total ? (' / ' + total) : '');
+    }
+    updateWarbandMeta();
+  }
+
+  function ensureWarbandLoaded(force) {
+    if (!force && hasWarbandData(state.roster)) {
+      return Promise.resolve(state.roster);
+    }
+    if (state.warbandLoading && !force) {
+      return new Promise(function (resolve, reject) {
+        var waits = 0;
+        var iv = setInterval(function () {
+          waits++;
+          if (!state.warbandLoading) {
+            clearInterval(iv);
+            hasWarbandData(state.roster) ? resolve(state.roster) : reject(new Error('Warband Siegelings failed to load.'));
+          } else if (waits > 80) {
+            clearInterval(iv);
+            reject(new Error('Warband Siegelings timed out.'));
+          }
+        }, 250);
+      });
+    }
+    var token = ++state.warbandLoadToken;
+    var prog = createLoadProgress($('warbandLoadFill'), $('warbandLoadCount'));
+    setWarbandLoading(true, 0, 0);
+    if ($('warbandLoadText')) $('warbandLoadText').textContent = 'Loading warband Siegelings...';
+    prog.tick(0, 0);
+    return fetchRoster().then(function (data) {
+      if (token !== state.warbandLoadToken) return data;
+      applyRoster(data);
+      var count = rosterSiegelings(data).length;
+      prog.complete(count, count);
+      if ($('warbandLoadText')) {
+        $('warbandLoadText').textContent = count
+          ? ('Loaded ' + count + ' Siegelings')
+          : 'No Siegelings returned — check your connection and retry.';
+      }
+      if (!count) throw new Error('Warband Siegelings are still empty. Try again in a moment.');
+      return data;
+    }).catch(function (e) {
+      if (token !== state.warbandLoadToken) throw e;
+      prog.fail();
+      if ($('warbandLoadText')) $('warbandLoadText').textContent = e.message || 'Could not load warband Siegelings.';
+      if ($('warbandRetryBtn')) $('warbandRetryBtn').classList.remove('hidden');
+      throw e;
+    }).then(function (data) {
+      if (token !== state.warbandLoadToken) return data;
+      setWarbandLoading(false);
+      return data;
+    }, function (e) {
+      if (token === state.warbandLoadToken) state.warbandLoading = false;
+      updateWarbandMeta();
+      throw e;
+    });
   }
 
   // ---- boot ----------------------------------------------------------
@@ -152,21 +307,41 @@
 
   function loadRoster() {
     showScreen('loadingScreen');
-    api('/api/siege/roster').then(function (data) {
-      state.roster = data;
-      if (!state.knightId) {
-        var starter = (data.knights || []).find(function (k) { return k.selectable && k.expeditionStarter; })
-          || (data.knights || []).find(function (k) { return k.selectable; });
-        if (starter) state.knightId = starter.id;
+    var prog = createLoadProgress($('bootLoadFill'), $('bootLoadCount'));
+    if ($('bootLoadStatus')) $('bootLoadStatus').textContent = 'Preparing the expedition...';
+    prog.tick(0, 0);
+    fetchRoster().then(function (data) {
+      applyRoster(data);
+      var count = rosterSiegelings(data).length;
+      prog.complete(count, count);
+      if ($('bootLoadStatus')) {
+        $('bootLoadStatus').textContent = count
+          ? ('Loaded ' + count + ' Siegelings for the warband')
+          : 'Expedition roster is empty — retrying on the warband step.';
       }
       state.setupStep = 'knight';
       renderSetup();
-    }).catch(function (e) { toast(e.message); });
+    }).catch(function (e) {
+      prog.fail();
+      if ($('bootLoadStatus')) $('bootLoadStatus').textContent = e.message || 'Could not load expedition roster.';
+      toast(e.message || 'Could not load expedition roster.');
+    });
   }
 
   function wireStaticButtons() {
-    $('knightNextBtn').addEventListener('click', function () { state.setupStep = 'party'; renderSetup(); });
+    $('knightNextBtn').addEventListener('click', function () {
+      state.setupStep = 'party';
+      renderSetup();
+    });
     $('partyBackBtn').addEventListener('click', function () { state.setupStep = 'knight'; renderSetup(); });
+    var warbandRetryBtn = $('warbandRetryBtn');
+    if (warbandRetryBtn) {
+      warbandRetryBtn.addEventListener('click', function () {
+        ensureWarbandLoaded(true).then(function () {
+          renderPartyStepContent();
+        }).catch(function (e) { toast(e.message); });
+      });
+    }
     $('startRunBtn').addEventListener('click', startRun);
     $('endTurnBtn').addEventListener('click', endTurn);
     $('knightUltBtn').addEventListener('click', useUltimate);
@@ -346,22 +521,41 @@
 
   function renderPartyStep() {
     renderEndlessSlots();
-    var r = state.roster;
+    updateWarbandMeta();
+    if (!hasWarbandData(state.roster)) {
+      ensureWarbandLoaded().then(function () {
+        renderPartyStepContent();
+      }).catch(function (e) { toast(e.message); });
+      return;
+    }
+    renderPartyStepContent();
+  }
+
+  function renderPartyStepContent() {
+    var siegelings = rosterSiegelings(state.roster);
     var elements = ['ALL'];
-    r.sieglings.forEach(function (s) { if (elements.indexOf(s.element) < 0) elements.push(s.element); });
+    siegelings.forEach(function (s) { if (elements.indexOf(s.element) < 0) elements.push(s.element); });
     var fr = $('elementFilter'); fr.innerHTML = '';
     elements.forEach(function (elm) {
       var chip = el('button', 'filter-chip' + (elm === state.elementFilter ? ' active' : ''), elm === 'ALL' ? 'All' : (icon(elm) + ' ' + elm));
-      chip.addEventListener('click', function () { state.elementFilter = elm; renderSieglingGrid(); Array.prototype.forEach.call(fr.children, function (n) { n.classList.remove('active'); }); chip.classList.add('active'); });
+      chip.addEventListener('click', function () {
+        state.elementFilter = elm;
+        renderSieglingGrid();
+        updateWarbandMeta();
+        Array.prototype.forEach.call(fr.children, function (n) { n.classList.remove('active'); });
+        chip.classList.add('active');
+      });
       fr.appendChild(chip);
     });
     renderSieglingGrid();
     refreshSetupFooter();
+    updateWarbandMeta();
   }
 
   function renderSieglingGrid() {
     var grid = $('sieglingGrid'); grid.innerHTML = '';
-    state.roster.sieglings.filter(function (s) {
+    if (!state.roster || !hasWarbandData(state.roster)) return;
+    rosterSiegelings(state.roster).filter(function (s) {
       return state.elementFilter === 'ALL' || s.element === state.elementFilter;
     }).sort(function (a, b) {
       if (a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
@@ -379,7 +573,10 @@
         '<button class="info-btn" type="button" title="View cards">ⓘ</button>' +
         art +
         '<div class="sname">' + esc(s.name) + (s.evolves ? ' <span class="evo-tag" title="Its Evolution card joins your battle deck — play it for 2 AP to evolve">EVO ↑</span>' : '') + '</div>' +
-        '<div class="schip">' + icon(s.element) + ' ' + esc(s.element) + (locked ? ' · locked' : '') + '</div>' +
+        '<div class="schips">' +
+          '<span class="schip">' + icon(s.element) + ' ' + esc(s.element) + (locked ? ' · locked' : '') + '</span>' +
+          '<span class="rarity-tag rarity-' + rarityKey(s.rarity) + '">' + esc(rarityLabel(s.rarity)) + '</span>' +
+        '</div>' +
         '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>';
       if (!locked) {
         c.addEventListener('click', function () { toggleSiegling(s.id); });
@@ -399,7 +596,7 @@
   }
 
   function toggleSiegling(id) {
-    var s = state.roster.sieglings.find(function (x) { return x.id === id; });
+    var s = rosterSiegelings(state.roster).find(function (x) { return x.id === id; });
     if (s && s.expeditionStarter === false) {
       toast('Find ' + s.name + ' on the expedition path to recruit them.');
       return;
@@ -415,11 +612,12 @@
   }
 
   function refreshSetupFooter() {
+    if (!state.roster) return;
     var need = state.roster.partySize || 1;
     var ready = state.knightId && state.party.length === need;
     $('startRunBtn').disabled = !ready;
     var names = state.party.map(function (id) {
-      var s = state.roster.sieglings.find(function (x) { return x.id === id; });
+      var s = rosterSiegelings(state.roster).find(function (x) { return x.id === id; });
       return s ? s.name : id;
     });
     $('setupSummary').textContent = 'Warband (' + state.party.length + '/' + need + '): ' + (names.join(', ') || '—');

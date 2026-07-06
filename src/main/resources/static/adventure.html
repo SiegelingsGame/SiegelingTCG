@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=21">
+<link rel="stylesheet" href="/css/adventure.css?v=24">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -20,7 +20,9 @@
   <!-- Loading -->
   <div class="siege-screen" id="loadingScreen">
     <div class="siege-spinner"></div>
-    <p>Preparing the expedition…</p>
+    <div class="siege-load-bar" aria-hidden="true"><div class="siege-load-fill" id="bootLoadFill"></div></div>
+    <p id="bootLoadStatus">Preparing the expedition…</p>
+    <p class="siege-load-count" id="bootLoadCount"></p>
   </div>
 
   <!-- Resume prompt: shown at boot when a saved expedition is detected. -->
@@ -61,7 +63,14 @@
     <div id="setupStepParty" class="hidden">
       <h1>Assemble the warband</h1>
       <p class="siege-sub">Select your starter siegeling. You will find more along the path.</p>
+      <div class="warband-meta" id="warbandMeta"></div>
       <div class="filter-row" id="elementFilter"></div>
+      <div id="warbandLoadPanel" class="warband-load hidden">
+        <div class="siege-load-bar" aria-hidden="true"><div class="siege-load-fill" id="warbandLoadFill"></div></div>
+        <p id="warbandLoadText">Loading warband Siegelings...</p>
+        <p class="siege-load-count" id="warbandLoadCount">0</p>
+        <button class="siege-btn" id="warbandRetryBtn" type="button">Retry</button>
+      </div>
       <div class="siegeling-grid" id="sieglingGrid"></div>
       <div class="setup-footer">
         <button class="siege-btn" id="partyBackBtn" type="button">◂ Knight</button>
@@ -250,6 +259,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=21"></script>
+<script src="/js/adventure.js?v=24"></script>
 </body>
 </html>
