@@ -112,14 +112,20 @@ public class CardDefinitionService {
 
     private MovesPoolService movesPool() {
         if (movesPoolService != null) {
-            movesPoolService.syncFromSources();
             return movesPoolService;
         }
         if (fallbackMovesPool == null) {
             fallbackMovesPool = new MovesPoolService(new ObjectMapper(), null);
         }
-        fallbackMovesPool.syncFromSources();
         return fallbackMovesPool;
+    }
+
+    private void syncMovesPoolFromSources() {
+        if (movesPoolService != null) {
+            movesPoolService.syncFromSources();
+        } else {
+            movesPool().syncFromSources();
+        }
     }
 
     public List<SpellCard> createSpells() {
@@ -259,6 +265,7 @@ public class CardDefinitionService {
     }
 
     public List<Card> getDeckBuilderCatalog() {
+        syncMovesPoolFromSources();
         Set<Element> live = activeGameplayElements();
         return Stream.concat(
                         LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
