@@ -21,7 +21,7 @@ button{font-family:inherit;}
 .el-FIRE{--el:#ff501e;} .el-EARTH{--el:#b48c50;} .el-WIND{--el:#96ffb4;} .el-WATER{--el:#3296ff;}
 .el-ICE{--el:#76e6ff;} .el-SHADOW{--el:#9a63d6;} .el-ELECTRIC{--el:#ffe63c;} .el-METAL{--el:#a0aab4;}
 .el-UNDEAD{--el:#8c78a0;} .el-PSYCHIC{--el:#c896ff;} .el-POISON{--el:#78dc50;} .el-LIGHT{--el:#fff0b0;}
-.el-NEUTRAL{--el:#95a5a6;} [class*="el-"]{--el:#95a5a6;}
+.el-NEUTRAL{--el:#95a5a6;}
 
 /* app shell — viewport-fit=cover + env(safe-area-inset-*) keeps chrome out
    from under the notch / status bar on phones. */
@@ -154,7 +154,7 @@ body[data-screen="mapScreen"] #mapScreen{
 .siegeling-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px;}
 .sgl-card{
   background:linear-gradient(180deg, #1a2130, #141a26);
-  background:linear-gradient(180deg, color-mix(in srgb, var(--el) 24%, #1a2130), color-mix(in srgb, var(--el) 10%, #141a26));
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el) 40%, #1a2130), color-mix(in srgb, var(--el) 18%, #141a26));
   border:1px solid var(--border);
   border:1px solid color-mix(in srgb, var(--el) 48%, var(--border));
   border-top:3px solid var(--el);
