@@ -122,7 +122,11 @@
   }
 
   function rosterSiegelings(roster) {
-    return roster && Array.isArray(roster.siegelings) ? roster.siegelings : [];
+    if (!roster) return [];
+    if (Array.isArray(roster.siegelings)) return roster.siegelings;
+    // Back-compat with older /api/siege/roster payloads that used the typo key.
+    if (Array.isArray(roster.sieglings)) return roster.sieglings;
+    return [];
   }
 
   function hasWarbandData(roster) {

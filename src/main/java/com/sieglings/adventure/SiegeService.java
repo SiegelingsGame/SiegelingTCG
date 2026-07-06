@@ -81,7 +81,7 @@ public class SiegeService {
             }
         }
         Map<String, Object> resp = new LinkedHashMap<>();
-        List<Map<String, Object>> sieglings = new ArrayList<>();
+        List<Map<String, Object>> siegelings = new ArrayList<>();
         for (SieglingCard s : content.selectableSieglings()) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", s.getId());
@@ -95,7 +95,7 @@ public class SiegeService {
             m.put("evolves", content.evolutionOf(s.getId()).isPresent());
             m.put("expeditionStarter", content.isExpeditionStarter(s));
             m.put("moves", serializeSpecs(content.moveSpecs(s)));
-            sieglings.add(m);
+            siegelings.add(m);
         }
         List<Map<String, Object>> knights = new ArrayList<>();
         for (TrainerCard k : content.selectableKnights()) {
@@ -107,7 +107,7 @@ public class SiegeService {
             int unlockCost = content.siegeUnlockCost(k);
             boolean canUnlock = user != null && progression != null && progressionService != null
                     && !starter && !unlocked && owned;
-            boolean selectable = starter || unlocked;
+            boolean knightSelectable = starter || unlocked;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", k.getId());
             m.put("name", k.getName());
@@ -123,12 +123,12 @@ public class SiegeService {
             m.put("expeditionStarter", starter);
             m.put("owned", owned);
             m.put("siegeUnlocked", unlocked);
-            m.put("selectable", selectable);
+            m.put("selectable", knightSelectable);
             m.put("unlockCost", unlockCost);
             m.put("canUnlock", canUnlock);
             knights.add(m);
         }
-        resp.put("sieglings", sieglings);
+        resp.put("siegelings", List.copyOf(siegelings));
         resp.put("knights", knights);
         resp.put("partySize", content.partySize());
         resp.put("partyMax", content.partyMax());
