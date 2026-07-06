@@ -82,6 +82,8 @@ public class SiegeService {
         }
         Map<String, Object> resp = new LinkedHashMap<>();
         List<Map<String, Object>> siegelings = new ArrayList<>();
+        boolean startersConfigured = content.expeditionStartersConfigured();
+        java.util.Set<String> evolvesFrom = content.idsWithEvolutionAvailable();
         for (SieglingCard s : content.selectableSieglings()) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", s.getId());
@@ -92,8 +94,8 @@ public class SiegeService {
             m.put("speed", Math.max(4, s.getSpeed()));
             m.put("moveCount", content.moveCount(s));
             m.put("artUrl", s.getCardArtUrl());
-            m.put("evolves", content.evolutionOf(s.getId()).isPresent());
-            m.put("expeditionStarter", content.isExpeditionStarter(s));
+            m.put("evolves", evolvesFrom.contains(s.getId()));
+            m.put("expeditionStarter", content.isExpeditionStarter(s, startersConfigured));
             m.put("moves", serializeSpecs(content.moveSpecs(s)));
             siegelings.add(m);
         }

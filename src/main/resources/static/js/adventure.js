@@ -66,18 +66,34 @@
     } catch (e) { /* ignore */ }
     return headers;
   }
+  var API_TIMEOUT_MS = 30000;
+
   function api(path, opts) {
     opts = opts || {};
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, API_TIMEOUT_MS) : null;
     return fetch(path, {
       method: opts.method || 'GET',
       headers: authHeaders(Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {})),
       credentials: 'include',
-      body: opts.body ? JSON.stringify(opts.body) : undefined
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: controller ? controller.signal : undefined
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (data) {
         if (!r.ok) { throw new Error(data && data.error ? data.error : ('Request failed (' + r.status + ')')); }
         return data;
       });
+    }).catch(function (e) {
+      if (e && e.name === 'AbortError') {
+        throw new Error('Request timed out. Check your connection and try again.');
+      }
+      throw e;
+    }).then(function (data) {
+      if (timer) clearTimeout(timer);
+      return data;
+    }, function (e) {
+      if (timer) clearTimeout(timer);
+      throw e;
     });
   }
 
@@ -166,9 +182,9 @@
     attempt = attempt || 0;
     return api('/api/siege/roster').then(function (data) {
       var list = rosterSiegelings(data);
-      if (list.length === 0 && attempt < 4) {
+      if (list.length === 0 && attempt < 1) {
         return new Promise(function (resolve) {
-          setTimeout(function () { resolve(fetchRoster(attempt + 1)); }, 500 + attempt * 700);
+          setTimeout(function () { resolve(fetchRoster(attempt + 1)); }, 600);
         });
       }
       if (!Array.isArray(data.siegelings)) data.siegelings = list;
@@ -278,6 +294,8 @@
     wireStaticButtons();
     var t = token();
     if (t) {
+      showScreen('loadingScreen');
+      if ($('bootLoadStatus')) $('bootLoadStatus').textContent = 'Checking saved expedition...';
       api('/api/siege/state?token=' + encodeURIComponent(t)).then(function (run) {
         state.run = run;
         if (run.status === 'ACTIVE') { renderResumePrompt(run); }
@@ -324,7 +342,12 @@
           : 'Expedition roster is empty — retrying on the warband step.';
       }
       state.setupStep = 'knight';
-      renderSetup();
+      try {
+        renderSetup();
+      } catch (e) {
+        if ($('bootLoadStatus')) $('bootLoadStatus').textContent = e.message || 'Could not open expedition setup.';
+        toast(e.message || 'Could not open expedition setup.');
+      }
     }).catch(function (e) {
       prog.fail();
       if ($('bootLoadStatus')) $('bootLoadStatus').textContent = e.message || 'Could not load expedition roster.';

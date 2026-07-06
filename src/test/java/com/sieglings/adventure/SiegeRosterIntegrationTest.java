@@ -29,13 +29,17 @@ class SiegeRosterIntegrationTest {
 
     @Test
     void rosterEndpointUsesSiegelingsKeyAndIncludesCards() {
+        long started = System.nanoTime();
         Map<String, Object> roster = siegeService.roster(null);
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000L;
         assertTrue(roster.containsKey("siegelings"),
                 "roster JSON must expose the siegelings array");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> siegelings = (List<Map<String, Object>>) roster.get("siegelings");
         assertFalse(siegelings.isEmpty(),
                 "roster must include at least one Siegeling");
+        assertTrue(elapsedMs < 4000,
+                "roster should build quickly (took " + elapsedMs + "ms)");
     }
 
     @Test

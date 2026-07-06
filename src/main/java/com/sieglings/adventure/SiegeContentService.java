@@ -112,7 +112,12 @@ public class SiegeContentService {
 
     /** True when any catalog Siegeling has an explicit expedition-starter flag in overrides. */
     boolean expeditionStartersConfigured() {
-        return selectableSieglings().stream().anyMatch(s -> s.getExpeditionStarter() != null);
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (card instanceof SieglingCard s && s.getExpeditionStarter() != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -120,13 +125,29 @@ public class SiegeContentService {
      * stage-1 Siegeling remains available so existing catalogs keep working.
      */
     boolean isExpeditionStarter(SieglingCard s) {
+        return isExpeditionStarter(s, expeditionStartersConfigured());
+    }
+
+    boolean isExpeditionStarter(SieglingCard s, boolean startersConfigured) {
         if (s == null) {
             return false;
         }
-        if (!expeditionStartersConfigured()) {
+        if (!startersConfigured) {
             return true;
         }
         return Boolean.TRUE.equals(s.getExpeditionStarter());
+    }
+
+    /** Stage-1 ids that have a playable evolution in the catalog. */
+    java.util.Set<String> idsWithEvolutionAvailable() {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (card instanceof SieglingCard s && s.getEvolvesFromId() != null && !s.getEvolvesFromId().isBlank()
+                    && !playableMoves(s).isEmpty()) {
+                out.add(s.getEvolvesFromId());
+            }
+        }
+        return out;
     }
 
     /** The next evolution stage of a catalog card, if any (with usable moves). */
