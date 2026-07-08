@@ -1249,7 +1249,7 @@
     async function loadAll() {
         const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
             fetchGameOptions(),
-            fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS),
+            fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
             fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS),
@@ -1439,7 +1439,7 @@
 
     async function ensurePacksLoaded() {
         if (state.packs?.length) return;
-        const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS);
+        const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
         state.packs = packs?.packs || [];
         state.dailyOffers = packs?.dailyOffers || [];
         state.titleCatalog = packs?.titleCatalog || state.titleCatalog || [];
@@ -6654,11 +6654,11 @@
         }
     }
 
-    async function fetchCachedJson(cacheKey, path, ttlMs) {
-        const cached = readCache(cacheKey, ttlMs);
+    async function fetchCachedJson(cacheKey, path, ttlMs, isValid = null) {
+        const cached = readCache(cacheKey, ttlMs, isValid);
         if (cached) return cached;
         const data = await fetchJson(path);
-        if (data) writeCache(cacheKey, data);
+        if (data && !data.error && (!isValid || isValid(data))) writeCache(cacheKey, data);
         return data;
     }
 
@@ -6702,7 +6702,7 @@
         if (options) {
             applyGameOptions(options);
         }
-        const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS);
+        const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
         if (packs) {
             state.packs = packs.packs || [];
             state.dailyOffers = packs.dailyOffers || [];
@@ -6760,13 +6760,31 @@
         return liveCatalogRefreshPromise;
     }
 
-    function readCache(cacheKey, ttlMs) {
+    function readCache(cacheKey, ttlMs, isValid = null) {
         try {
             const cached = readCacheEntry(cacheKey);
             if (!cached || Date.now() - cached.savedAt > ttlMs) return null;
+            if (isValid && !isValid(cached.data)) {
+                clearCache(cacheKey);
+                return null;
+            }
             return cached.data;
         } catch (error) {
             return null;
+        }
+    }
+
+    function isValidShopPacksPayload(data) {
+        return Array.isArray(data?.packs) && data.packs.length > 0;
+    }
+
+    function clearCache(cacheKey) {
+        try {
+            delete memoryCache[cacheKey];
+            const storage = hubCacheStorage();
+            storage?.removeItem(HUB_CACHE_PREFIX + cacheKey);
+        } catch (error) {
+            // Persistent cache cleanup is best-effort only.
         }
     }
 

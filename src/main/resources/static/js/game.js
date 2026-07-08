@@ -5385,19 +5385,58 @@ function scheduleFramedSummaryFit() {
 function fitFramedSummaryText(root = document) {
     const lists = root.querySelectorAll('.element-frame .card-summary-list');
     lists.forEach(fitFramedSummaryList);
-    root.querySelectorAll('.spell-trap-frame .card-title').forEach(fitSpellTrapFrameTitle);
+    root.querySelectorAll('.element-frame .card-title, .spell-trap-frame .card-title').forEach(fitCardFrameTitle);
 }
 
-function fitSpellTrapFrameTitle(title) {
+function fitCardFrameTitle(title) {
     const header = title.closest('.hand-card-header');
     if (!header || !header.clientWidth) {
         return;
     }
 
     title.style.fontSize = '';
-    const maxPx = title.closest('.desktop-preview-card') ? 15 : 13;
-    const minPx = title.closest('.mulligan-showcase') || title.closest('#playerHand') ? 7 : 8;
-    const fits = () => title.scrollWidth <= header.clientWidth + 0.5;
+    const card = title.closest('.hand-card');
+    const computed = window.getComputedStyle(title);
+    const maxPx = parseFloat(computed.fontSize) || (title.closest('.desktop-preview-card') ? 15 : 13);
+    const minPx = card?.closest('#playerHand, .hand-lift-layer')
+        ? 6
+        : title.closest('.mulligan-showcase')
+        ? 7
+        : 8;
+    const fits = () => title.scrollWidth <= header.clientWidth + 0.5
+        && title.scrollHeight <= title.clientHeight + 2;
+
+    if (!fits()) {
+        title.style.fontSize = `${minPx}px`;
+    }
+
+    let lo = minPx;
+    let hi = maxPx;
+    let best = minPx;
+    for (let i = 0; i < 9; i += 1) {
+        const mid = (lo + hi) / 2;
+        title.style.fontSize = `${mid}px`;
+        if (fits()) {
+            best = mid;
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    title.style.fontSize = `${best.toFixed(2)}px`;
+}
+
+function fitKnightCardName(title) {
+    if (!title || !title.clientWidth) {
+        return;
+    }
+
+    title.style.fontSize = '';
+    const computed = window.getComputedStyle(title);
+    const maxPx = parseFloat(computed.fontSize) || 12;
+    const minPx = 5.8;
+    const fits = () => title.scrollWidth <= title.clientWidth + 0.5
+        && title.scrollHeight <= title.clientHeight + 2;
 
     if (!fits()) {
         title.style.fontSize = `${minPx}px`;
@@ -5486,6 +5525,10 @@ function fitSiegeKnightCardText(root = document) {
 
         body.classList.remove('is-fitted');
         body.style.fontSize = '';
+        const title = body.querySelector('.knight-card-name');
+        if (title) {
+            title.style.fontSize = '';
+        }
 
         const fits = () => body.scrollHeight <= body.clientHeight + 0.5
             && body.scrollWidth <= body.clientWidth + 0.5;
@@ -5511,6 +5554,7 @@ function fitSiegeKnightCardText(root = document) {
         }
 
         body.style.fontSize = `${best.toFixed(2)}px`;
+        fitKnightCardName(title);
         if (fits()) {
             body.classList.add('is-fitted');
         }
@@ -9120,12 +9164,23 @@ function getDeckOpeningHandHints() {
             name: card.name,
             element: card.element,
             type,
-            reason: isBaseStarter ? '0-cost starter' : '0-cost keep'
+            reason: formatOpeningHandHintReason(card, isBaseStarter)
         });
     });
     return hints
         .sort((a, b) => (a.type === 'SIEGLING' ? 0 : 1) - (b.type === 'SIEGLING' ? 0 : 1) || a.name.localeCompare(b.name))
         .slice(0, 8);
+}
+
+function formatOpeningHandHintReason(card, isBaseStarter = false) {
+    const costAmount = Number(card?.costAmount || 0);
+    if (costAmount > 0) {
+        const costElement = card?.costElement || card?.element;
+        return costElement
+            ? `${costAmount} ${formatElementLabel(costElement)} cost`
+            : `${costAmount} energy cost`;
+    }
+    return isBaseStarter ? '0-cost starter' : '0-cost keep';
 }
 
 function renderLoadoutAuthGate(kind) {
@@ -9480,7 +9535,7 @@ function renderSelectedLoadoutPreview() {
     const openingBlock = openingHints.length
         ? `<div class="selected-loadout-opening-block">
                 <div class="selected-loadout-subtle-label">Opening Hand Keeps</div>
-                <p class="selected-loadout-opening-copy">Keep these 0-cost starter cards, or mulligan toward one if your hand opens slow.</p>
+                <p class="selected-loadout-opening-copy">Keep these opening starters and free utility cards, or mulligan toward one if your hand opens slow.</p>
                 <div class="selected-loadout-opening-cards">
                     ${openingHints.map(card => `<span class="loadout-opening-card" style="--opening-el:${getElementHex(card.element)}"><strong>${escapeHtml(card.name)}</strong><em>${escapeHtml(card.reason)}</em></span>`).join('')}
                 </div>

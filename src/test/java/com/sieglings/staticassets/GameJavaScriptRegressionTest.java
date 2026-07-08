@@ -41,6 +41,27 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void loadoutOpeningHintsShowActualCostForPaidStarters() throws IOException {
+        String gameScript = readGameScript();
+        String openingHints = extractFunction(gameScript, "function getDeckOpeningHandHints()");
+        String hintReason = extractFunction(gameScript, "function formatOpeningHandHintReason(card, isBaseStarter = false)");
+
+        assertTrue(
+                openingHints.contains("formatOpeningHandHintReason(card, isBaseStarter)"),
+                "Opening hand hints must format the reason from the card's actual cost fields."
+        );
+        assertTrue(
+                hintReason.contains("const costAmount = Number(card?.costAmount || 0);")
+                        && hintReason.contains("`${costAmount} ${formatElementLabel(costElement)} cost`"),
+                "Paid starter Siegelings such as Aerovane should render their Wind cost instead of 0-cost starter."
+        );
+        assertFalse(
+                gameScript.contains("Keep these 0-cost starter cards"),
+                "The loadout copy must not claim every opening keep is 0-cost."
+        );
+    }
+
+    @Test
     void homePlayLoadoutUsesSelectedAndSavedDecks() throws IOException {
         String homeScript = readHomeScript();
         String selectedDeckId = extractFunction(homeScript, "function selectedDeckId()");
@@ -100,6 +121,27 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("data-shop-card-preview-backdrop")
                         && homeMarkup.contains("data-close-shop-card-preview"),
                 "Shop card preview modal must keep backdrop and close-button hooks so users can dismiss it."
+        );
+    }
+
+    @Test
+    void shopPacksCacheRejectsEmptyOrErroredPayloads() throws IOException {
+        String homeScript = readHomeScript();
+        String fetchCachedJson = extractFunction(homeScript, "async function fetchCachedJson(cacheKey, path, ttlMs, isValid = null)");
+        String readCache = extractFunction(homeScript, "function readCache(cacheKey, ttlMs, isValid = null)");
+        String shopValidator = extractFunction(homeScript, "function isValidShopPacksPayload(data)");
+
+        assertTrue(
+                homeScript.contains("fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload)"),
+                "Shop packs must use a validator so an empty cached payload cannot pin the Shop to No packs available."
+        );
+        assertTrue(
+                fetchCachedJson.contains("!data.error") && fetchCachedJson.contains("(!isValid || isValid(data))"),
+                "Errored or invalid Shop pack responses must not be written to the one-day static cache."
+        );
+        assertTrue(
+                readCache.contains("clearCache(cacheKey)") && shopValidator.contains("data?.packs") && shopValidator.contains("data.packs.length > 0"),
+                "Invalid cached Shop pack payloads must be cleared before falling back to the network."
         );
     }
 

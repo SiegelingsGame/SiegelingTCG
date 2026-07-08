@@ -7519,13 +7519,18 @@ body.placement-active .board-cell.legal {
 .hand-card.selected-preview-card.element-frame .card-title,
 .hand-card.mulligan-showcase.element-frame .card-title {
     color: #ffffff;
+    display: block;
     font-size: 1em;
     font-weight: 900;
     letter-spacing: 0.03em;
-    line-height: 1;
+    line-height: 0.95;
+    max-height: 2.05em;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    text-wrap: balance;
+    white-space: normal;
+    width: 100%;
     /* Four-way dark outline keeps the name readable over any art. */
     text-shadow:
         -1px -1px 0 rgba(8, 5, 2, 0.9),
@@ -8010,11 +8015,17 @@ body.placement-active .board-cell.legal {
 
 .hand-card.spell-trap-frame .card-title {
     color: #ffffff;
+    display: block;
     font-size: 0.72em;
-    line-height: 1;
+    line-height: 0.95;
+    max-height: 2.05em;
     max-width: 100%;
-    white-space: nowrap;
     overflow: hidden;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    text-wrap: balance;
+    white-space: normal;
+    width: 100%;
     text-shadow:
         -1px -1px 0 rgba(0, 0, 0, 0.85),
         1px -1px 0 rgba(0, 0, 0, 0.85),
@@ -10979,12 +10990,15 @@ body.placement-active .board-cell.legal {
 .knight-card.knight-full-card-art .knight-card-name {
     color: #fff6d8;
     font-size: 1.28em;
-    line-height: 1;
+    line-height: 0.95;
+    max-height: 2.05em;
     text-align: center;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
-    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    text-wrap: balance;
+    white-space: normal;
 }
 
 .knight-card.has-knight-back .knight-card-meta,
