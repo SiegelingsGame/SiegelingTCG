@@ -25,7 +25,8 @@
     busy: false,
     warbandLoading: false,
     warbandLoadToken: 0,
-    interactionResult: null
+    interactionResult: null,
+    pendingKnightUnlock: null
   };
 
   var EL_ICON = {
@@ -391,6 +392,25 @@
     $('ledgerClose').addEventListener('click', function () { toggleLedger(false); });
     $('unitModalClose').addEventListener('click', closeUnitModal);
     $('unitModal').addEventListener('click', function (e) { if (e.target === $('unitModal')) closeUnitModal(); });
+    var knightLockClose = $('knightLockClose');
+    var knightLockDismiss = $('knightLockDismiss');
+    var knightLockModal = $('knightLockModal');
+    var knightLockUnlockBtn = $('knightLockUnlockBtn');
+    if (knightLockClose) knightLockClose.addEventListener('click', closeKnightLockModal);
+    if (knightLockDismiss) knightLockDismiss.addEventListener('click', closeKnightLockModal);
+    if (knightLockModal) {
+      knightLockModal.addEventListener('click', function (e) {
+        if (e.target === knightLockModal) closeKnightLockModal();
+      });
+    }
+    if (knightLockUnlockBtn) {
+      knightLockUnlockBtn.addEventListener('click', function () {
+        var k = state.pendingKnightUnlock;
+        if (!k || !k.canUnlock || (state.roster.gold || 0) < (k.unlockCost || 0)) return;
+        unlockKnight(k);
+        closeKnightLockModal();
+      });
+    }
     $('abandonBtn').addEventListener('click', function () {
       if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
     });
@@ -440,6 +460,7 @@
       return a.name.localeCompare(b.name);
     }).forEach(function (k) {
       var locked = !k.selectable;
+      var canAffordUnlock = locked && k.canUnlock && gold >= (k.unlockCost || 0);
       var c = el('div', 'knight-card ' + elClass(k.element) + (k.id === state.knightId ? ' sel' : '') + (locked ? ' locked' : ''));
       var summary = specSummary(k.active);
       var pm = PASSIVE_META[k.passiveKind];
@@ -449,8 +470,9 @@
       var lockNote = '';
       if (locked) {
         if (k.canUnlock) {
-          lockNote = '<div class="klock-note">Unlock for 🪙 ' + k.unlockCost + ' Siegecoins</div>' +
-            '<button class="kunlock-btn" type="button" data-knight="' + esc(k.id) + '">Unlock</button>';
+          lockNote = '<div class="klock-note">Owned in collection — unlock for raids</div>' +
+            '<button class="kunlock-btn" type="button" data-knight="' + esc(k.id) + '"' +
+            (canAffordUnlock ? '' : ' disabled') + '>Unlock · 🪙 ' + k.unlockCost + '</button>';
         } else if (!r.loggedIn) {
           lockNote = '<div class="klock-note">🔒 Sign in to unlock</div>';
         } else if (!k.owned) {
@@ -472,26 +494,17 @@
           state.knightId = k.id;
           renderKnightStep();
         });
-      } else if (k.canUnlock) {
+      } else {
         var unlockBtn = c.querySelector('.kunlock-btn');
         if (unlockBtn) {
           unlockBtn.addEventListener('click', function (e) {
             e.stopPropagation();
-            unlockKnight(k);
+            if (canAffordUnlock) unlockKnight(k);
+            else showKnightLockModal(k);
           });
         }
         c.addEventListener('click', function () {
-          if (gold < k.unlockCost) {
-            toast('Need ' + k.unlockCost + ' Siegecoins to unlock ' + k.name + '.');
-            return;
-          }
-          unlockKnight(k);
-        });
-      } else {
-        c.addEventListener('click', function () {
-          if (!r.loggedIn) toast('Sign in to unlock SiegeKnights for expeditions.');
-          else if (!k.owned) toast('Own ' + k.name + ' before unlocking them for expeditions.');
-          else toast(k.name + ' is locked for expeditions.');
+          showKnightLockModal(k);
         });
       }
       kg.appendChild(c);
@@ -505,6 +518,75 @@
     $('knightSummary').textContent = kn
       ? (kn.name + ' — ' + kn.activeName + (r.loggedIn ? ' · 🪙 ' + gold : ''))
       : 'Select a SiegeKnight.';
+  }
+
+  function closeKnightLockModal() {
+    var modal = $('knightLockModal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    state.pendingKnightUnlock = null;
+  }
+
+  function showKnightLockModal(k) {
+    if (!k) return;
+    var modal = $('knightLockModal');
+    if (!modal) {
+      if (k.canUnlock) toast('You own ' + k.name + '. Unlock them for raids with ' + (k.unlockCost || 0) + ' Siegecoins.');
+      else if (!state.roster || !state.roster.loggedIn) toast('Sign in to unlock SiegeKnights for expeditions.');
+      else if (!k.owned) toast('Own ' + k.name + ' before unlocking them for expeditions.');
+      else toast(k.name + ' is locked for expeditions.');
+      return;
+    }
+    state.pendingKnightUnlock = k;
+    var r = state.roster || {};
+    var gold = r.gold || 0;
+    var cost = k.unlockCost || 0;
+    var canAfford = k.canUnlock && gold >= cost;
+    var title = $('knightLockTitle');
+    var kicker = $('knightLockKicker');
+    var msg = $('knightLockMsg');
+    var balance = $('knightLockBalance');
+    var unlockBtn = $('knightLockUnlockBtn');
+    if (title) title.textContent = k.name;
+    if (k.canUnlock) {
+      var shortfall = Math.max(0, cost - gold);
+      if (kicker) kicker.textContent = 'Card owned';
+      if (msg) {
+        msg.textContent = shortfall > 0
+          ? 'You own this SiegeKnight in your collection. Unlock them for Siege raids for ' + cost + ' Siegecoins — you need ' + shortfall + ' more.'
+          : 'You own this SiegeKnight in your collection. Spend ' + cost + ' Siegecoins to unlock them for Siege raids.';
+      }
+      if (balance) {
+        balance.innerHTML = 'Your balance: <strong>🪙 ' + gold + '</strong> · Raid unlock: <strong>🪙 ' + cost + '</strong>';
+      }
+    } else if (!r.loggedIn) {
+      if (kicker) kicker.textContent = 'Sign in required';
+      if (msg) msg.textContent = 'Sign in to unlock SiegeKnights for expeditions.';
+      if (balance) balance.textContent = '';
+    } else if (!k.owned) {
+      if (kicker) kicker.textContent = 'Card not owned';
+      if (msg) msg.textContent = 'Own the ' + k.name + ' SiegeKnight card in your collection before you can unlock them for Siege raids.';
+      if (balance) balance.textContent = '';
+    } else {
+      if (kicker) kicker.textContent = 'Locked';
+      if (msg) msg.textContent = k.name + ' is locked for expeditions.';
+      if (balance) balance.textContent = '';
+    }
+    if (unlockBtn) {
+      if (k.canUnlock) {
+        unlockBtn.hidden = false;
+        unlockBtn.disabled = !canAfford;
+        unlockBtn.classList.toggle('is-disabled', !canAfford);
+        unlockBtn.textContent = canAfford
+          ? ('Unlock · 🪙 ' + cost)
+          : ('Unlock · 🪙 ' + cost + ' (need more)');
+      } else {
+        unlockBtn.hidden = true;
+        unlockBtn.disabled = true;
+        unlockBtn.classList.remove('is-disabled');
+      }
+    }
+    modal.classList.remove('hidden');
   }
 
   function unlockKnight(k) {
@@ -521,6 +603,7 @@
       })
       .then(function () {
         state.knightId = k.id;
+        closeKnightLockModal();
         renderKnightStep();
         toast(k.name + ' unlocked for expeditions!');
       })

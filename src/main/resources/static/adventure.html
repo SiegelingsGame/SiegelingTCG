@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=25">
+<link rel="stylesheet" href="/css/adventure.css?v=26">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -268,8 +268,23 @@
     <button class="siege-btn primary interaction-result-btn" id="interactionResultBtn" type="button">Continue ▸</button>
   </section>
 
+  <!-- SiegeKnight expedition unlock notice -->
+  <div class="unit-modal hidden" id="knightLockModal" role="dialog" aria-modal="true" aria-labelledby="knightLockTitle">
+    <div class="unit-modal-card knight-lock-modal-card">
+      <button class="unit-modal-close" id="knightLockClose" type="button" aria-label="Close">✕</button>
+      <div class="knight-lock-kicker" id="knightLockKicker">SiegeKnight locked</div>
+      <h2 class="knight-lock-title" id="knightLockTitle">Knight</h2>
+      <p class="knight-lock-msg" id="knightLockMsg"></p>
+      <div class="knight-lock-balance" id="knightLockBalance"></div>
+      <div class="knight-lock-actions">
+        <button class="siege-btn" id="knightLockDismiss" type="button">Got it</button>
+        <button class="siege-btn primary kunlock-btn kunlock-btn-modal" id="knightLockUnlockBtn" type="button" hidden>Unlock</button>
+      </div>
+    </div>
+  </div>
+
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=28"></script>
+<script src="/js/adventure.js?v=29"></script>
 </body>
 </html>
