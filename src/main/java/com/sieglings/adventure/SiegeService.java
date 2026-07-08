@@ -261,11 +261,6 @@ public class SiegeService {
             run.getDeckTemplates().add(new SiegeCard("knightcard", "knight-" + knight.getId(), run.getKnightActive()));
         }
 
-        // The Marshal class musters an extra Siegeling at the start of the run.
-        if (run.getKnightPassive() == KnightPassive.MARSHAL && run.getParty().size() < content.partyMax()) {
-            joinStagedRecruit(run, " answers the Marshal's muster!");
-        }
-
         seedStartingKnightBag(run);
 
         run.getMap().addAll(content.generateMap(rng));
@@ -301,8 +296,11 @@ public class SiegeService {
         return amount;
     }
 
-    /** A random Siegeling (1% stage 3, 5% stage 2) joins the warband. */
+    /** A random Siegeling (1% stage 3, 5% stage 2) joins the warband after combat. */
     private void joinStagedRecruit(SiegeRun run, String flavorSuffix) {
+        if (run.getEnemiesDefeated() <= 0) {
+            return;
+        }
         List<String> names = run.getParty().stream().map(Combatant::getName).toList();
         content.randomStagedRecruit(names, rng).ifPresent(s -> {
             Combatant member = content.toPartyCombatant(s, run.getParty().size());
@@ -1183,6 +1181,7 @@ public class SiegeService {
             if (node != null) node.setCleared(true);
             run.setNodesCleared(run.getNodesCleared() + 1);
             int foes = (int) battle.getCombatants().stream().filter(c -> c.getSide() == Side.ENEMY).count();
+            boolean firstBattleWin = run.getEnemiesDefeated() == 0;
             run.setEnemiesDefeated(run.getEnemiesDefeated() + foes);
             int depth = node == null ? 1 : node.getRow() + 1 + run.getLoop() * SiegeContentService.MAP_ROWS;
             run.addScore(foes * (10L + depth) + 5);
@@ -1240,9 +1239,14 @@ public class SiegeService {
             }
 
             // After a battle the warband grows: a wild Siegeling may join
-            // (1% stage 3, 5% stage 2) until the team is full.
+            // (1% stage 3, 5% stage 2) until the team is full. Recruits never
+            // appear before the first combat — including the Marshal class bonus.
             if (run.getStatus() == RunStatus.ACTIVE && run.getParty().size() < content.partyMax()) {
-                joinStagedRecruit(run, " emerges from the battlefield and joins the warband!");
+                if (firstBattleWin && run.getKnightPassive() == KnightPassive.MARSHAL) {
+                    joinStagedRecruit(run, " answers the Marshal's muster!");
+                } else {
+                    joinStagedRecruit(run, " emerges from the battlefield and joins the warband!");
+                }
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
             run.setStatus(RunStatus.LOST);
