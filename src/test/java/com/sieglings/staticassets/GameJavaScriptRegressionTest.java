@@ -114,6 +114,31 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void signedInGameOptionsBypassSharedGuestCache() throws IOException {
+        String homeScript = readHomeScript();
+
+        assertTrue(
+                homeScript.contains("function gameOptionsCacheKey()")
+                        && homeScript.contains("'gameOptions:signed-in'")
+                        && homeScript.contains("'gameOptions:guest'")
+                        && extractFunction(homeScript, "async function fetchGameOptions()").contains("if (!state.token)")
+                        && extractFunction(homeScript, "async function submitAuth(mode)").contains("await refreshLiveCatalog()"),
+                "Signed-in binder loads must not reuse the guest gameOptions cache."
+        );
+    }
+
+    @Test
+    void guestBinderUsesFullTrainerCatalogFromOptions() throws IOException {
+        String homeScript = readHomeScript();
+
+        assertTrue(
+                homeScript.contains("const GUEST_TRAINER_IDS = new Set(['squire-bob', 'pyla', 'ser-airek'])")
+                        && extractFunction(homeScript, "function isTrainerOwned(trainerId)").contains("GUEST_TRAINER_IDS.has"),
+                "Guest binder browsing must use the full trainer catalog while play keeps starter knights only."
+        );
+    }
+
+    @Test
     void dailyOfferCardUsesOfferArtWhenKnightMissingFromOptions() throws IOException {
         String homeScript = readHomeScript();
 

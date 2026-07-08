@@ -74,6 +74,9 @@
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
     const PACK_CARD_BACK_VERSION = 2;
+    // Starter SiegeKnights guests can command in Play. Keep in sync with
+    // GameController.GUEST_TRAINER_IDS and game.js.
+    const GUEST_TRAINER_IDS = new Set(['squire-bob', 'pyla', 'ser-airek']);
 
     function versionedPackAsset(path) {
         if (!path) return '';
@@ -1245,7 +1248,7 @@
 
     async function loadAll() {
         const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
-            fetchCachedJson('gameOptions', '/api/game/options', STATIC_CACHE_TTL_MS),
+            fetchGameOptions(),
             fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
@@ -1419,6 +1422,9 @@
         }
         state.token = stored;
         await syncProfile();
+        if (tokenChanged || profileStale || loggedOutElsewhere) {
+            await refreshLiveCatalog();
+        }
         render();
         syncAuthRouteIntent();
         return state.profile;
@@ -3258,8 +3264,14 @@
     window.addEventListener('orientationchange', handleBuilderViewportChange);
 
     function isTrainerOwned(trainerId) {
-        const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
-        return trainerOwnedLevel(trainerId) > 0 || (!!trainer && trainer.owned !== false);
+        if (trainerOwnedLevel(trainerId) > 0) {
+            return true;
+        }
+        if (!state.profile?.authenticated) {
+            return GUEST_TRAINER_IDS.has(String(trainerId || '').toLowerCase());
+        }
+        const trainer = (state.options?.trainers || []).find(item => String(item?.id || '').toLowerCase() === String(trainerId || '').toLowerCase());
+        return !!trainer && trainer.owned === true;
     }
 
     function firstOwnedTrainerId() {
@@ -6650,6 +6662,32 @@
         return data;
     }
 
+    function gameOptionsCacheKey() {
+        return state.token ? 'gameOptions:signed-in' : 'gameOptions:guest';
+    }
+
+    function clearGameOptionsCaches() {
+        ['gameOptions', 'gameOptions:guest', 'gameOptions:signed-in'].forEach((cacheKey) => {
+            delete memoryCache[cacheKey];
+            try {
+                hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + cacheKey);
+            } catch (error) {
+                // Cache cleanup is best-effort.
+            }
+        });
+    }
+
+    async function fetchGameOptions() {
+        const cacheKey = gameOptionsCacheKey();
+        if (!state.token) {
+            const cached = readCache(cacheKey, STATIC_CACHE_TTL_MS);
+            if (cached) return cached;
+        }
+        const data = await fetchJson('/api/game/options');
+        if (data) writeCache(cacheKey, data);
+        return data;
+    }
+
     function applyGameOptions(options) {
         const next = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
         state.options = next;
@@ -6660,7 +6698,7 @@
     // call, so the first paint of a fresh page load is instant when we've loaded
     // before. loadAll() then revalidates everything in the background.
     function hydrateStaticCachesFromStorage() {
-        const options = readCache('gameOptions', STATIC_CACHE_TTL_MS);
+        const options = readCache(gameOptionsCacheKey(), STATIC_CACHE_TTL_MS);
         if (options) {
             applyGameOptions(options);
         }
@@ -6714,7 +6752,7 @@
             const data = await fetchJson('/api/game/options');
             if (!data) return;
             applyGameOptions(data);
-            writeCache('gameOptions', data);
+            writeCache(gameOptionsCacheKey(), data);
             render();
         })().finally(() => {
             liveCatalogRefreshPromise = null;
@@ -6936,6 +6974,7 @@
         const loadingShownAt = showLoadingArtScreen('Loading your Siegelings…');
         startPresenceHeartbeat();
         try {
+            await refreshLiveCatalog();
             await ensurePacksLoaded();
             render();
         } finally {
@@ -6953,11 +6992,13 @@
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         clearCachedAuthProfile();
+        clearGameOptionsCaches();
         state.token = '';
         state.profile = null;
         state.progression = null;
         state.profilePrefs = null;
         state.profileEditOpen = false;
+        await refreshLiveCatalog();
         render();
     }
 
@@ -6978,6 +7019,7 @@
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         clearCachedAuthProfile();
+        clearGameOptionsCaches();
         state.token = '';
         state.profile = null;
         state.progression = null;
