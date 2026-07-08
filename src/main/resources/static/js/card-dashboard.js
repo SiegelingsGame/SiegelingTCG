@@ -199,9 +199,11 @@
             "showLiveElementsBtn",
             "showMovesPoolBtn",
             "showLoadingArtBtn",
+            "showShopBtn",
             "cardWorkspace",
             "movesPoolWorkspace",
             "loadingArtWorkspace",
+            "shopWorkspace",
             "siegeWorkspace",
             "deckWorkspace",
             "trainerWorkspace",
@@ -466,6 +468,7 @@
         refs.showLiveElementsBtn.addEventListener("click", () => setEditorPage("LIVE_ELEMENTS"));
         refs.showMovesPoolBtn.addEventListener("click", () => setEditorPage("MOVES_POOL"));
         refs.showLoadingArtBtn.addEventListener("click", () => setEditorPage("LOADING_ART"));
+        refs.showShopBtn.addEventListener("click", () => setEditorPage("SHOP"));
         refs.liveElementsWorkspace.addEventListener("change", (event) => {
             const input = event.target.closest("input[data-live-element-index]");
             if (!input || input.type !== "checkbox") {
@@ -2343,6 +2346,8 @@
             state.editorPage = "LIVE_ELEMENTS";
         } else if (page === "LOADING_ART") {
             state.editorPage = "LOADING_ART";
+        } else if (page === "SHOP") {
+            state.editorPage = "SHOP";
         } else if (page === "SIEGE") {
             state.editorPage = "SIEGE";
         } else if (page === "MOVES_POOL") {
@@ -2560,13 +2565,14 @@
         renderAuth();
         renderStatus();
         renderFilterOptions();
-        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "SIEGE" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL" || state.editorPage === "LOADING_ART");
+        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "SIEGE" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL" || state.editorPage === "LOADING_ART" || state.editorPage === "SHOP");
         refs.movesPoolWorkspace.classList.toggle("hidden", state.editorPage !== "MOVES_POOL");
         refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
         refs.siegeWorkspace.classList.toggle("hidden", state.editorPage !== "SIEGE");
         refs.trainerWorkspace.classList.toggle("hidden", state.editorPage !== "TRAINERS");
         refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
         refs.loadingArtWorkspace.classList.toggle("hidden", state.editorPage !== "LOADING_ART");
+        refs.shopWorkspace.classList.toggle("hidden", state.editorPage !== "SHOP");
         if (state.editorPage === "MOVES_POOL") {
             mountMoveDraftPanel(refs.moveDraftPanelHostPool);
             renderMovesPoolBrowser();
@@ -2651,7 +2657,9 @@
                         ? `${state.movesPool.length} shared abilit${state.movesPool.length === 1 ? "y" : "ies"}`
                     : (state.editorPage === "LOADING_ART"
                         ? "Loading screen art"
-                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`)))));
+                    : (state.editorPage === "SHOP"
+                        ? "Shop prices"
+                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`))))));
         refs.statusMessage.textContent = state.status.message;
 
         refs.dirtyPill.className = `status-pill ${state.dirty ? "is-dirty" : "is-success"}`;
@@ -2689,6 +2697,7 @@
         refs.showLiveElementsBtn.classList.toggle("active", state.editorPage === "LIVE_ELEMENTS");
         refs.showMovesPoolBtn.classList.toggle("active", state.editorPage === "MOVES_POOL");
         refs.showLoadingArtBtn.classList.toggle("active", state.editorPage === "LOADING_ART");
+        refs.showShopBtn.classList.toggle("active", state.editorPage === "SHOP");
         if (state.editorPage === "LIVE_ELEMENTS") {
             refs.browserTitle.textContent = "Live Elements";
         }

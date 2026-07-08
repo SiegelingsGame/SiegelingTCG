@@ -105,6 +105,7 @@
         <button class="page-tab" id="showLiveElementsBtn" type="button" data-editor-page="LIVE_ELEMENTS">Live Elements</button>
         <button class="page-tab" id="showMovesPoolBtn" type="button" data-editor-page="MOVES_POOL">Shared Abilities</button>
         <button class="page-tab" id="showLoadingArtBtn" type="button" data-editor-page="LOADING_ART">Loading Screen Art</button>
+        <button class="page-tab" id="showShopBtn" type="button" data-editor-page="SHOP">Shop</button>
     </section>
 
     <main class="workspace-grid" id="cardWorkspace">
@@ -957,6 +958,19 @@
         </div>
     </section>
 
+    <section class="deck-workspace hidden" id="shopWorkspace">
+        <div class="panel deck-editor-panel shop-price-panel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">Store</div>
+                    <h2>Shop Prices</h2>
+                </div>
+                <button type="button" class="dash-info-btn" data-info-topic="shop-prices" title="How shop pricing works" aria-label="How shop pricing works">ⓘ</button>
+            </div>
+            <div id="shopPricePanel"></div>
+        </div>
+    </section>
+
     <div class="dashboard-info-overlay hidden" id="dashboardInfoOverlay" role="dialog" aria-modal="true" aria-labelledby="dashboardInfoTitle">
         <div class="dashboard-info-modal">
             <div class="dashboard-info-head">
@@ -1114,5 +1128,6 @@
 <script src="/js/siege-class-admin.js?v=2"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>
 <script src="/js/siege-event-admin.js?v=3"></script>
+<script src="/js/shop-admin.js?v=1"></script>
 </body>
 </html>

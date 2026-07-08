@@ -94,6 +94,17 @@ class SiegeRun {
     private String eventIcon = "";
     private final List<CampOption> eventOptions = new ArrayList<>();
 
+    // Puzzle mini-game state (LINE / RPS / MATCH) — server-authoritative hidden state.
+    // Short-lived like the cache: skipped by checkpoints so a resume lands on the map
+    // with the node still uncleared. Reachable from both cache and event nodes, so it
+    // carries its own framing (title/prompt/icon).
+    private boolean inMinigame;
+    private String minigameType = "";
+    private String minigameTitle = "";
+    private String minigamePrompt = "";
+    private String minigameIcon = "";
+    private Object minigameState;
+
     /** Whether the run's last idle checkpoint reached persistent storage. */
     private boolean checkpointSaved;
 
@@ -207,6 +218,19 @@ class SiegeRun {
     void setEventIcon(String eventIcon) { this.eventIcon = eventIcon == null ? "" : eventIcon; }
     List<CampOption> getEventOptions() { return eventOptions; }
 
+    boolean isInMinigame() { return inMinigame; }
+    void setInMinigame(boolean inMinigame) { this.inMinigame = inMinigame; }
+    String getMinigameType() { return minigameType; }
+    void setMinigameType(String minigameType) { this.minigameType = minigameType == null ? "" : minigameType; }
+    String getMinigameTitle() { return minigameTitle; }
+    void setMinigameTitle(String minigameTitle) { this.minigameTitle = minigameTitle == null ? "" : minigameTitle; }
+    String getMinigamePrompt() { return minigamePrompt; }
+    void setMinigamePrompt(String minigamePrompt) { this.minigamePrompt = minigamePrompt == null ? "" : minigamePrompt; }
+    String getMinigameIcon() { return minigameIcon; }
+    void setMinigameIcon(String minigameIcon) { this.minigameIcon = minigameIcon == null ? "" : minigameIcon; }
+    Object getMinigameState() { return minigameState; }
+    void setMinigameState(Object minigameState) { this.minigameState = minigameState; }
+
     boolean isCheckpointSaved() { return checkpointSaved; }
     void setCheckpointSaved(boolean checkpointSaved) { this.checkpointSaved = checkpointSaved; }
 
@@ -226,7 +250,7 @@ class SiegeRun {
     List<Integer> reachableNodeIds() {
         List<Integer> out = new ArrayList<>();
         if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()
-                || inCamp || inCache || inBroker || inSmith || inCaravan || inEvent
+                || inCamp || inCache || inBroker || inSmith || inCaravan || inEvent || inMinigame
                 || pendingRecruit != null) return out;
         SiegeNode current = currentNode();
         if (current == null) {

@@ -126,7 +126,7 @@
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
-    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'minigameScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
     // Battle and map are static, full-viewport screens (no page scroll —
@@ -868,6 +868,7 @@
     if (run.smith) { renderSmith(); return; }
     if (run.caravan) { renderCaravan(); return; }
     if (run.event) { renderEvent(); return; }
+    if (run.minigame) { renderMinigame(); return; }
     renderMap();
   }
 
@@ -1337,6 +1338,279 @@
       });
       box.appendChild(b);
     });
+  }
+
+  // ---- Puzzle mini-games (LINE / RPS / MATCH) --------------------------
+  // The server holds every hidden board and validates all outcomes; the client
+  // only draws and forwards moves. All three share the framed minigameScreen.
+  var LINE_COLORS = ['#e34b5a', '#3d9bff', '#37c46b', '#f0b429'];
+  var RPS_META = { ROCK: { icon: '✊', label: 'Rock' }, PAPER: { icon: '✋', label: 'Paper' }, SCISSORS: { icon: '✌️', label: 'Scissors' } };
+  var mgLine = null;
+  var mgMatchSel = null;
+  var mgRevealTimer = null;
+
+  function renderMinigame() {
+    showScreen('minigameScreen');
+    var run = state.run, mg = run.minigame || {};
+    $('mgIcon').textContent = mg.icon || '🧩';
+    $('mgTitle').textContent = mg.title || 'Puzzle';
+    $('mgPrompt').textContent = mg.prompt || '';
+    $('mgGold').textContent = '🪙 ' + (run.gold || 0);
+    $('mgStatus').textContent = '';
+    var body = $('mgBody'); body.innerHTML = '';
+    var actions = $('mgActions'); actions.innerHTML = '';
+    if (mg.type === 'LINE') renderLine(mg, body, actions);
+    else if (mg.type === 'RPS') renderRps(mg, body, actions);
+    else if (mg.type === 'MATCH') renderMatch(mg, body, actions);
+  }
+
+  /** POSTs a puzzle move; re-renders if the game continues, else shows the outcome popup. */
+  function minigameAction(path, extra) {
+    if (state.busy) return; state.busy = true;
+    var mg = (state.run && state.run.minigame) || {};
+    var ctx = { source: 'cache', title: mg.title || 'Puzzle', icon: mg.icon || '🧩' };
+    var body = { token: token() };
+    if (extra) for (var k in extra) body[k] = extra[k];
+    api(path, { method: 'POST', body: body })
+      .then(function (run) {
+        if (run.minigame) { state.run = run; renderRun(); }
+        else applyInteractionResponse(run, ctx);
+      })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  // ---- LINE (Flow-Free style connect) ----------------------------------
+  function renderLine(mg, body, actions) {
+    var n = mg.size || 5;
+    mgLine = newLineState(mg, n);
+    var grid = el('div', 'mg-line-grid');
+    grid.style.setProperty('--n', n);
+    grid.style.touchAction = 'none';
+    mgLine.cellEls = [];
+    for (var r = 0; r < n; r++) {
+      var row = [];
+      for (var c = 0; c < n; c++) {
+        var cell = el('div', 'mg-cell');
+        cell.dataset.r = r; cell.dataset.c = c;
+        cell.appendChild(el('span', 'mg-dot'));
+        grid.appendChild(cell);
+        row.push(cell);
+      }
+      mgLine.cellEls.push(row);
+    }
+    grid.addEventListener('pointerdown', function (e) { lineDown(e, mgLine); });
+    grid.addEventListener('pointermove', function (e) { lineMove(e, mgLine); });
+    window.addEventListener('pointerup', lineUpHandler);
+    body.appendChild(grid);
+    body.appendChild(el('div', 'mg-note', 'Drag from a glowing rune to its twin. Paths can’t cross or reuse a tile.'));
+
+    var solveBtn = el('button', 'siege-btn primary', 'Break the Seal ▸');
+    solveBtn.addEventListener('click', function () { lineSubmit(mgLine); });
+    var clearBtn = el('button', 'siege-btn', 'Clear');
+    clearBtn.addEventListener('click', function () { renderMinigame(); });
+    var giveBtn = el('button', 'siege-btn ghost', 'Give Up');
+    giveBtn.addEventListener('click', function () { minigameAction('/api/siege/minigame/giveup'); });
+    actions.appendChild(clearBtn);
+    actions.appendChild(solveBtn);
+    actions.appendChild(giveBtn);
+    repaintLine(mgLine);
+    updateLineStatus(mgLine);
+  }
+
+  function newLineState(mg, n) {
+    var st = { n: n, colors: mg.colors, endpoints: mg.endpoints || [], paths: [], drawing: null, cellEls: [] };
+    for (var i = 0; i < mg.colors; i++) st.paths.push([]);
+    return st;
+  }
+  function lineUpHandler(e) { if (mgLine) lineUp(e, mgLine); }
+
+  function lineCellFromEvent(e, st) {
+    var node = document.elementFromPoint(e.clientX, e.clientY);
+    while (node && !node.classList.contains('mg-cell')) node = node.parentNode;
+    if (!node || node.dataset.r == null) return null;
+    return [parseInt(node.dataset.r, 10), parseInt(node.dataset.c, 10)];
+  }
+  function lineEndpointAt(st, r, c) {
+    for (var i = 0; i < st.endpoints.length; i++) {
+      var ep = st.endpoints[i];
+      if (ep.a[0] === r && ep.a[1] === c) return { color: ep.color, which: 'a' };
+      if (ep.b[0] === r && ep.b[1] === c) return { color: ep.color, which: 'b' };
+    }
+    return null;
+  }
+  function lineIndexInPath(path, r, c) {
+    for (var i = 0; i < path.length; i++) if (path[i][0] === r && path[i][1] === c) return i;
+    return -1;
+  }
+  function linePathColorAt(st, r, c) {
+    for (var col = 0; col < st.paths.length; col++) if (lineIndexInPath(st.paths[col], r, c) >= 0) return col;
+    return -1;
+  }
+  function lineOccupant(st, r, c) {
+    var ep = lineEndpointAt(st, r, c);
+    if (ep) return { color: ep.color, endpoint: true };
+    var pc = linePathColorAt(st, r, c);
+    if (pc >= 0) return { color: pc, endpoint: false };
+    return null;
+  }
+
+  function lineDown(e, st) {
+    var cell = lineCellFromEvent(e, st); if (!cell) return;
+    e.preventDefault();
+    var r = cell[0], c = cell[1];
+    var ep = lineEndpointAt(st, r, c);
+    if (ep) {
+      st.paths[ep.color] = [[r, c]];
+      st.drawing = { color: ep.color };
+    } else {
+      var pc = linePathColorAt(st, r, c);
+      if (pc < 0) return;
+      var idx = lineIndexInPath(st.paths[pc], r, c);
+      st.paths[pc] = st.paths[pc].slice(0, idx + 1);
+      st.drawing = { color: pc };
+    }
+    repaintLine(st);
+  }
+  function lineMove(e, st) {
+    if (!st.drawing) return;
+    var cell = lineCellFromEvent(e, st); if (!cell) return;
+    var r = cell[0], c = cell[1];
+    var path = st.paths[st.drawing.color];
+    var last = path[path.length - 1];
+    if (last[0] === r && last[1] === c) return;
+    e.preventDefault();
+    if (path.length >= 2) {
+      var prev = path[path.length - 2];
+      if (prev[0] === r && prev[1] === c) { path.pop(); repaintLine(st); updateLineStatus(st); return; }
+    }
+    if (Math.abs(last[0] - r) + Math.abs(last[1] - c) !== 1) return;
+    if (lineIndexInPath(path, r, c) >= 0) return;
+    var occ = lineOccupant(st, r, c);
+    if (occ) {
+      if (occ.color !== st.drawing.color) return;         // another colour blocks
+      if (occ.endpoint) {
+        var start = path[0];
+        if (start[0] === r && start[1] === c) return;     // can't loop to own start
+        path.push([r, c]); repaintLine(st); updateLineStatus(st); return;
+      }
+      return;
+    }
+    path.push([r, c]); repaintLine(st); updateLineStatus(st);
+  }
+  function lineUp(e, st) { st.drawing = null; repaintLine(st); updateLineStatus(st); }
+
+  function repaintLine(st) {
+    for (var r = 0; r < st.n; r++) {
+      for (var c = 0; c < st.n; c++) {
+        var cell = st.cellEls[r][c];
+        var occ = lineOccupant(st, r, c);
+        cell.className = 'mg-cell';
+        var dot = cell.querySelector('.mg-dot');
+        if (occ) {
+          var color = LINE_COLORS[occ.color % LINE_COLORS.length];
+          cell.style.background = occ.endpoint ? 'transparent' : hexAlpha(color, 0.4);
+          if (occ.endpoint) { cell.classList.add('mg-ep'); dot.style.background = color; dot.style.opacity = '1'; }
+          else { dot.style.opacity = '0'; }
+        } else {
+          cell.style.background = '';
+          dot.style.opacity = '0';
+        }
+      }
+    }
+  }
+  function lineConnected(st, color) {
+    var path = st.paths[color];
+    if (!path || path.length < 2) return false;
+    var ep = null;
+    for (var i = 0; i < st.endpoints.length; i++) if (st.endpoints[i].color === color) ep = st.endpoints[i];
+    if (!ep) return false;
+    var f = path[0], l = path[path.length - 1];
+    var fa = f[0] === ep.a[0] && f[1] === ep.a[1], fb = f[0] === ep.b[0] && f[1] === ep.b[1];
+    var la = l[0] === ep.a[0] && l[1] === ep.a[1], lb = l[0] === ep.b[0] && l[1] === ep.b[1];
+    return (fa && lb) || (fb && la);
+  }
+  function updateLineStatus(st) {
+    var done = 0;
+    for (var col = 0; col < st.colors; col++) if (lineConnected(st, col)) done++;
+    $('mgStatus').textContent = 'Runes linked: ' + done + ' / ' + st.colors;
+  }
+  function lineSubmit(st) {
+    var payload = [];
+    for (var col = 0; col < st.paths.length; col++) {
+      if (st.paths[col] && st.paths[col].length) payload.push({ color: col, cells: st.paths[col] });
+    }
+    minigameAction('/api/siege/minigame/line', { paths: payload });
+  }
+
+  // ---- RPS (ro-sham-bo, best of three) ---------------------------------
+  function renderRps(mg, body, actions) {
+    $('mgStatus').textContent = 'You ' + (mg.playerWins || 0) + ' — ' + (mg.npcWins || 0) + ' NPC · Round ' +
+      (Math.min((mg.round || 0) + 1, mg.bestOf || 3)) + ' of ' + (mg.bestOf || 3);
+    if (mg.tell) {
+      var meta = RPS_META[mg.tell] || { icon: '❔', label: mg.tell };
+      var tell = el('div', 'mg-tell', 'Tell: their hand looks like <strong>' + meta.icon + ' ' + meta.label +
+        '</strong> — but a tell lies about a third of the time.');
+      body.appendChild(tell);
+    }
+    var row = el('div', 'mg-rps-row');
+    (mg.throws || ['ROCK', 'PAPER', 'SCISSORS']).forEach(function (t) {
+      var meta = RPS_META[t] || { icon: '❔', label: t };
+      var btn = el('button', 'mg-rps-btn', '<span class="mg-rps-ic">' + meta.icon + '</span><span>' + meta.label + '</span>');
+      btn.addEventListener('click', function () { minigameAction('/api/siege/minigame/rps', { choice: t }); });
+      row.appendChild(btn);
+    });
+    body.appendChild(row);
+    if (mg.log && mg.log.length) {
+      var log = el('div', 'mg-log');
+      mg.log.forEach(function (line) { log.appendChild(el('div', 'mg-log-line', esc(line))); });
+      body.appendChild(log);
+    }
+  }
+
+  // ---- MATCH (memory pairs) --------------------------------------------
+  function renderMatch(mg, body, actions) {
+    var revealing = mg.flip && !mg.flip.matched;
+    $('mgStatus').textContent = 'Pairs ' + (mg.pairsFound || 0) + '/' + (mg.totalPairs || 8) +
+      ' · Misses ' + (mg.misses || 0) + '/' + (mg.maxMisses || 5);
+    var grid = el('div', 'mg-match-grid');
+    grid.style.setProperty('--n', mg.size || 4);
+    (mg.cells || []).forEach(function (cell) {
+      var tile = el('button', 'mg-tile');
+      var sym = null;
+      if (cell.matched) { tile.classList.add('matched', 'up'); sym = cell.symbol; }
+      else if (revealing && cell.index === mg.flip.a) { tile.classList.add('up'); sym = mg.flip.symbolA; }
+      else if (revealing && cell.index === mg.flip.b) { tile.classList.add('up'); sym = mg.flip.symbolB; }
+      else if (mgMatchSel === cell.index) tile.classList.add('sel');
+      tile.textContent = sym || '';
+      if (!cell.matched && !revealing) tile.addEventListener('click', function () { matchTap(cell.index); });
+      grid.appendChild(tile);
+    });
+    body.appendChild(grid);
+    body.appendChild(el('div', 'mg-note', 'Flip two tiles. A matching pair pays gold and stays up.'));
+    if (revealing) {
+      clearTimeout(mgRevealTimer);
+      mgRevealTimer = setTimeout(function () {
+        if (state.run && state.run.minigame && state.run.minigame.type === 'MATCH' && state.run.minigame.flip) {
+          state.run.minigame.flip = null;
+          renderMinigame();
+        }
+      }, 900);
+    }
+  }
+  function matchTap(index) {
+    if (state.busy) return;
+    if (mgMatchSel === null) { mgMatchSel = index; renderMinigame(); return; }
+    if (mgMatchSel === index) { mgMatchSel = null; renderMinigame(); return; }
+    var a = mgMatchSel; mgMatchSel = null;
+    minigameAction('/api/siege/minigame/match', { a: a, b: index });
+  }
+
+  /** #rrggbb + alpha → rgba() string for translucent path fills. */
+  function hexAlpha(hex, alpha) {
+    var h = hex.replace('#', '');
+    var r = parseInt(h.substring(0, 2), 16), g = parseInt(h.substring(2, 4), 16), b = parseInt(h.substring(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
   }
 
   // ---- Inventory --------------------------------------------------------

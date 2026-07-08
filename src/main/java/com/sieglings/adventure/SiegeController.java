@@ -191,6 +191,30 @@ public class SiegeController {
         return siege.eventChoose(str(body.get("token")), str(body.get("optionId")));
     }
 
+    /** LINE puzzle: submit connected paths: body { token, paths:[{color, cells:[[r,c],…]}] }. */
+    @PostMapping("/api/siege/minigame/line")
+    public Map<String, Object> minigameLine(@RequestBody Map<String, Object> body) {
+        return siege.minigameLineSubmit(str(body.get("token")), body.get("paths"));
+    }
+
+    /** RPS puzzle: throw a hand: body { token, choice: "ROCK"|"PAPER"|"SCISSORS" }. */
+    @PostMapping("/api/siege/minigame/rps")
+    public Map<String, Object> minigameRps(@RequestBody Map<String, Object> body) {
+        return siege.minigameRpsThrow(str(body.get("token")), str(body.get("choice")));
+    }
+
+    /** MATCH puzzle: flip two tiles: body { token, a, b }. */
+    @PostMapping("/api/siege/minigame/match")
+    public Map<String, Object> minigameMatch(@RequestBody Map<String, Object> body) {
+        return siege.minigameMatchFlip(str(body.get("token")), intOf(body.get("a")), intOf(body.get("b")));
+    }
+
+    /** Give up on the active puzzle for a small consolation: body { token }. */
+    @PostMapping("/api/siege/minigame/giveup")
+    public Map<String, Object> minigameGiveUp(@RequestBody Map<String, Object> body) {
+        return siege.minigameGiveUp(str(body.get("token")));
+    }
+
     /** Equip an inventory item onto a Siegeling: body { token, itemId, memberId }. */
     @PostMapping("/api/siege/item/equip")
     public Map<String, Object> equipItem(@RequestBody Map<String, Object> body) {
@@ -261,6 +285,15 @@ public class SiegeController {
 
     private static String str(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private static int intOf(Object value) {
+        if (value instanceof Number n) return n.intValue();
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Expected a tile number.");
+        }
     }
 
     @SuppressWarnings("unchecked")

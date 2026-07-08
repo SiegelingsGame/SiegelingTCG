@@ -72,6 +72,9 @@ public class PackCatalogService {
     @Autowired
     private CardDefinitionService cardDefinitionService;
 
+    @Autowired(required = false)
+    private ShopPriceCatalogService shopPriceCatalogService;
+
     public List<PackDefinition> listPacks() {
         List<PackDefinition> packs = new ArrayList<>();
         for (Element element : LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
@@ -419,13 +422,11 @@ public class PackCatalogService {
     }
 
     private int priceFor(Card card) {
-        return switch (card.getRarity()) {
-            case COMMON -> 60;
-            case UNCOMMON -> 95;
-            case RARE -> 140;
-            case EPIC -> 210;
-            case LEGENDARY -> 320;
-        };
+        if (shopPriceCatalogService != null) {
+            return shopPriceCatalogService.priceFor(card.getRarity(), card.getCardType());
+        }
+        // No override service wired (e.g. plain unit tests) — fall back to the default table.
+        return ShopPriceCatalogService.DEFAULT_PRICE_BY_RARITY.get(card.getRarity());
     }
 
     private Comparator<Card> cardSort() {

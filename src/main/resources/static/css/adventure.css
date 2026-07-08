@@ -960,6 +960,59 @@ body[data-screen="mapScreen"] #mapScreen{
 .event-choice .ec-desc{font-size:12px; color:var(--dim); font-weight:400;}
 .event-choice.unaffordable{opacity:.5;}
 
+/* ---------- cache/event puzzle mini-games ---------- */
+.mg-status{font-size:12px; font-weight:700; color:var(--dim);}
+.mg-body{display:flex; flex-direction:column; align-items:center; gap:12px; margin:14px auto 0; max-width:520px;}
+.mg-note{font-size:12px; color:var(--dim); text-align:center; max-width:340px;}
+#mgActions{margin-top:16px; flex-wrap:wrap;}
+.siege-btn.ghost{opacity:.75; font-weight:600;}
+
+/* LINE (Flow-Free) */
+.mg-line-grid{
+  display:grid; grid-template-columns:repeat(var(--n),1fr); gap:4px;
+  width:min(88vw,340px); aspect-ratio:1; padding:6px;
+  background:rgba(0,0,0,.3); border:1px solid var(--border); border-radius:14px;
+  user-select:none; -webkit-user-select:none;
+}
+.mg-cell{
+  position:relative; border-radius:7px; background:rgba(255,255,255,.04);
+  display:flex; align-items:center; justify-content:center; transition:background .08s;
+}
+.mg-cell.mg-ep{box-shadow:inset 0 0 0 2px rgba(255,255,255,.18);}
+.mg-dot{width:58%; height:58%; border-radius:50%; opacity:0; box-shadow:0 0 10px rgba(0,0,0,.5);}
+
+/* RPS (ro-sham-bo) */
+.mg-tell{
+  font-size:13px; line-height:1.5; text-align:center; max-width:400px;
+  padding:10px 14px; border-radius:12px; background:rgba(255,208,102,.08);
+  border:1px solid rgba(255,208,102,.3); color:#ffe1a0;
+}
+.mg-rps-row{display:flex; gap:12px; justify-content:center;}
+.mg-rps-btn{
+  display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer;
+  width:92px; padding:14px 6px; border-radius:14px; font-size:13px; font-weight:700;
+  color:var(--text); background:var(--panel); border:1px solid var(--border); transition:transform .08s,border-color .12s;
+}
+.mg-rps-btn:hover{transform:translateY(-2px); border-color:var(--accent-2);}
+.mg-rps-ic{font-size:34px;}
+.mg-log{width:100%; max-width:360px; display:flex; flex-direction:column; gap:4px;}
+.mg-log-line{font-size:12px; color:var(--dim); text-align:center;}
+
+/* MATCH (memory pairs) */
+.mg-match-grid{
+  display:grid; grid-template-columns:repeat(var(--n),1fr); gap:8px;
+  width:min(88vw,320px);
+}
+.mg-tile{
+  aspect-ratio:1; border-radius:12px; font-size:30px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg,#2a2740,#1c1a2e); border:1px solid var(--border);
+  color:var(--text); transition:transform .1s,background .15s;
+}
+.mg-tile.up{background:rgba(255,255,255,.1);}
+.mg-tile.sel{border-color:var(--accent); box-shadow:0 0 0 2px rgba(255,150,60,.4);}
+.mg-tile.matched{background:rgba(126,231,135,.16); border-color:rgba(126,231,135,.5); cursor:default;}
+
 /* ---------- interaction outcome popup ---------- */
 .interaction-result-card{
   max-width:480px; margin:0 auto 18px; padding:18px 20px;

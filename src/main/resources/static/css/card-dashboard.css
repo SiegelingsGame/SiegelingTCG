@@ -1613,6 +1613,70 @@ textarea {
     }
 }
 
+.shop-price-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.shop-price-table-wrap {
+    overflow-x: auto;
+}
+
+.shop-price-table {
+    min-width: 640px;
+}
+
+.shop-price-table th,
+.shop-price-table td {
+    vertical-align: top;
+}
+
+.shop-price-cell {
+    min-width: 110px;
+}
+
+.shop-price-cell input[type="number"] {
+    width: 90px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.25);
+    color: inherit;
+}
+
+.shop-price-cell.is-override input[type="number"] {
+    border-color: var(--accent, #6fa8ff);
+}
+
+.shop-price-cell-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.shop-price-cell-actions .btn {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.shop-price-cell-hint {
+    font-size: 11.5px;
+    opacity: 0.7;
+    margin-top: 4px;
+}
+
+.shop-price-cell.is-override .shop-price-cell-hint {
+    opacity: 0.9;
+    color: var(--accent, #6fa8ff);
+}
+
+@media (max-width: 720px) {
+    .shop-price-table {
+        min-width: 560px;
+    }
+}
+
 .live-element-toggle-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

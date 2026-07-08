@@ -383,9 +383,10 @@ public class SiegeService {
     /**
      * Persists the run — including a live battle, if one is in progress — so
      * closing the app or losing connection mid-fight resumes exactly where it
-     * left off. Camp/cache/broker/reward prompts are short-lived UI states
-     * without their own persisted model, so those are skipped (the last
-     * checkpoint before entering them still resumes cleanly). Deletes the
+     * left off. Camp/cache/broker/reward prompts and the cache/event puzzle
+     * mini-games are short-lived UI states without their own persisted model, so
+     * those are skipped (the last checkpoint before entering them still resumes
+     * cleanly — landing on the map with the node uncleared). Deletes the
      * checkpoint once the run ends.
      */
     private void checkpoint(SiegeRun run) {
@@ -394,7 +395,8 @@ public class SiegeService {
             run.setCheckpointSaved(false);
             return;
         }
-        boolean safe = !run.isInCamp() && !run.isInCache() && !run.isInBroker() && run.getPendingRewards().isEmpty();
+        boolean safe = !run.isInCamp() && !run.isInCache() && !run.isInBroker()
+                && !run.isInMinigame() && run.getPendingRewards().isEmpty();
         if (!safe) return;
         run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
     }
@@ -1038,21 +1040,27 @@ public class SiegeService {
         run.setCacheGold(6 + rng.nextInt(6));
         run.setLastReward("");
         run.getCacheOptions().clear();
+        // Six cache flavours: three press-your-luck games and three puzzles.
         int roll = rng.nextInt(100);
-        if (roll < 40) {
+        if (roll < 24) {
             run.setCacheGame("DIG");
-        } else if (roll < 75) {
+        } else if (roll < 45) {
             run.setCacheGame("CHESTS");
             for (int i = 0; i < 3; i++) {
                 run.getCacheOptions().add(CampOption.cache("ch" + i, "CHEST",
                         "Battered chest #" + (i + 1), "Something rattles inside… pick one chest.", 0));
             }
-        } else {
+        } else if (roll < 66) {
             run.setCacheGame("WHEEL");
             run.getCacheOptions().add(CampOption.cache("spin", "WHEEL_SPIN",
                     "Spin the Wheel of Spoils", "Stake 15 gold: it returns x0, x1, x2 or x3.", 15));
             run.getCacheOptions().add(CampOption.cache("walk", "WHEEL_LEAVE",
                     "Pocket the loose coins", "Take a safe 10 gold and move on.", 0));
+        } else {
+            // The remaining third rolls one of the three puzzle mini-games instead.
+            run.setInCache(false);
+            openPuzzleMinigame(run, rollPuzzleType(), "Buried Cache", "💎",
+                    "The cache is sealed by an old warden's puzzle — solve it for the loot.");
         }
     }
 
@@ -1184,6 +1192,233 @@ public class SiegeService {
         run.setLastReward("Banked " + banked + " gold from the cache.");
         checkpoint(run);
         return serialize(run);
+    }
+
+    // ---- Puzzle mini-games (LINE / RPS / MATCH) ----------------------------
+    // Server holds all hidden state and validates every outcome — the client is
+    // never trusted. Reachable from caches (openCache) and events (openEvent);
+    // both frame the puzzle with their own title/prompt/icon. Rewards run through
+    // earnGold so the knight's LOOT passive applies, exactly like other caches.
+
+    private String rollPuzzleType() {
+        int r = rng.nextInt(3);
+        return r == 0 ? "LINE" : r == 1 ? "RPS" : "MATCH";
+    }
+
+    /** Enters a puzzle mini-game with the given framing and freshly generated hidden state. */
+    private void openPuzzleMinigame(SiegeRun run, String type, String title, String icon, String prompt) {
+        run.setInMinigame(true);
+        run.setMinigameType(type);
+        run.setMinigameTitle(title);
+        run.setMinigameIcon(icon);
+        run.setMinigamePrompt(prompt);
+        run.setLastReward("");
+        switch (type) {
+            case "LINE" -> run.setMinigameState(SiegePuzzles.generateLine(rng));
+            case "RPS" -> run.setMinigameState(SiegePuzzles.generateRps(rng));
+            default -> run.setMinigameState(SiegePuzzles.generateMatch(rng));
+        }
+    }
+
+    /** Closes the puzzle and clears the node, mirroring how a cache seals itself. */
+    private void endMinigame(SiegeRun run) {
+        run.setInMinigame(false);
+        run.setMinigameState(null);
+        run.setMinigameType("");
+        SiegeNode node = run.currentNode();
+        if (node != null) node.setCleared(true);
+        checkpoint(run);
+    }
+
+    /** LINE: validate the submitted paths; a full solve pays a large reward. */
+    Map<String, Object> minigameLineSubmit(String token, Object rawPaths) {
+        SiegeRun run = require(token);
+        if (!run.isInMinigame() || !"LINE".equals(run.getMinigameType())) {
+            throw new IllegalArgumentException("There is no line puzzle to solve here.");
+        }
+        SiegePuzzles.LineBoard board = (SiegePuzzles.LineBoard) run.getMinigameState();
+        List<List<int[]>> paths = parseLinePaths(rawPaths, board.colors());
+        if (!SiegePuzzles.validateLine(board, paths)) {
+            throw new IllegalArgumentException(
+                    "The circuit isn't solved — every colour must link its runes without crossing or reusing a tile.");
+        }
+        int gold = earnGold(run, 40 + rng.nextInt(21)); // 40–60: a large cache-tier reward
+        run.setLastReward("Every rune connects — the seal shatters! +" + gold + " gold.");
+        endMinigame(run);
+        return serialize(run);
+    }
+
+    /** LINE: bail out for a small consolation instead of solving. */
+    Map<String, Object> minigameGiveUp(String token) {
+        SiegeRun run = require(token);
+        if (!run.isInMinigame()) return serialize(run);
+        int gold = earnGold(run, 8);
+        run.setLastReward("You step away from the puzzle and pocket a few loose coins. +" + gold + " gold.");
+        endMinigame(run);
+        return serialize(run);
+    }
+
+    /** RPS: resolve one round of the committed best-of-three; win the match for good gold. */
+    Map<String, Object> minigameRpsThrow(String token, String choice) {
+        SiegeRun run = require(token);
+        if (!run.isInMinigame() || !"RPS".equals(run.getMinigameType())) {
+            throw new IllegalArgumentException("There is no wager to play here.");
+        }
+        String player = choice == null ? "" : choice.toUpperCase(java.util.Locale.ROOT);
+        if (!SiegePuzzles.isRpsThrow(player)) throw new IllegalArgumentException("Throw rock, paper or scissors.");
+        SiegePuzzles.RpsMatch match = (SiegePuzzles.RpsMatch) run.getMinigameState();
+        if (match.over || match.round >= match.npcThrows.size()) {
+            throw new IllegalArgumentException("The match is already decided.");
+        }
+        String npc = match.npcThrows.get(match.round);
+        int result = SiegePuzzles.rpsOutcome(player, npc);
+        String verdict = result > 0 ? "you win" : result < 0 ? "you lose" : "a tie";
+        if (result > 0) match.playerWins++;
+        else if (result < 0) match.npcWins++;
+        match.log.add("Round " + (match.round + 1) + ": " + player + " vs " + npc + " — " + verdict + ".");
+        match.round++;
+
+        boolean decided = match.playerWins >= 2 || match.npcWins >= 2 || match.round >= match.npcThrows.size();
+        if (decided) {
+            match.over = true;
+            match.playerWon = match.playerWins > match.npcWins;
+            if (match.playerWon) {
+                int gold = earnGold(run, 30 + rng.nextInt(16)); // 30–45
+                run.setLastReward("You take the match " + match.playerWins + "–" + match.npcWins
+                        + "! The gambler pays up: +" + gold + " gold.");
+            } else {
+                int gold = earnGold(run, 8);
+                run.setLastReward("The gambler wins " + match.npcWins + "–" + match.playerWins
+                        + ". They flick you " + gold + " gold for the show.");
+            }
+            endMinigame(run);
+        } else {
+            run.setLastReward("");
+        }
+        return serialize(run);
+    }
+
+    /** MATCH: flip two tiles; a pair pays gold and stays up. Ends at 5 misses or all pairs. */
+    Map<String, Object> minigameMatchFlip(String token, int a, int b) {
+        SiegeRun run = require(token);
+        if (!run.isInMinigame() || !"MATCH".equals(run.getMinigameType())) {
+            throw new IllegalArgumentException("There are no tiles to flip here.");
+        }
+        SiegePuzzles.MatchBoard board = (SiegePuzzles.MatchBoard) run.getMinigameState();
+        int n = board.symbols.size();
+        if (a < 0 || b < 0 || a >= n || b >= n || a == b) {
+            throw new IllegalArgumentException("Pick two different face-down tiles.");
+        }
+        if (board.matched[a] || board.matched[b]) {
+            throw new IllegalArgumentException("That tile is already face-up.");
+        }
+        board.lastFlip = new int[]{a, b};
+        boolean isPair = board.symbols.get(a).equals(board.symbols.get(b));
+        board.lastFlipMatched = isPair;
+        if (isPair) {
+            board.matched[a] = true;
+            board.matched[b] = true;
+            board.pairsFound++;
+            int gold = earnGold(run, 6);
+            run.setLastReward("A matching pair! +" + gold + " gold.");
+        } else {
+            board.misses++;
+            run.setLastReward("");
+        }
+        if (board.pairsFound >= SiegePuzzles.MATCH_PAIRS) {
+            int bonus = earnGold(run, 20);
+            run.setLastReward("Every tile matched! The vault yields a bonus of " + bonus + " gold.");
+            endMinigame(run);
+        } else if (board.misses >= SiegePuzzles.MATCH_MAX_MISSES) {
+            run.setLastReward("The tiles reseal after too many misses. You keep what you matched.");
+            endMinigame(run);
+        }
+        return serialize(run);
+    }
+
+    /** Coerces the raw JSON {@code [{color, cells:[[r,c],…]}]} into typed paths per colour. */
+    private List<List<int[]>> parseLinePaths(Object raw, int colors) {
+        List<List<int[]>> result = new ArrayList<>();
+        for (int i = 0; i < colors; i++) result.add(null);
+        if (!(raw instanceof List<?> list)) return result;
+        for (Object o : list) {
+            if (!(o instanceof Map<?, ?> map)) continue;
+            int color = asInt(map.get("color"), -1);
+            if (color < 0 || color >= colors) continue;
+            List<int[]> cells = new ArrayList<>();
+            if (map.get("cells") instanceof List<?> cl) {
+                for (Object ce : cl) {
+                    if (ce instanceof List<?> pair && pair.size() == 2) {
+                        cells.add(new int[]{asInt(pair.get(0), -1), asInt(pair.get(1), -1)});
+                    }
+                }
+            }
+            result.set(color, cells);
+        }
+        return result;
+    }
+
+    private static int asInt(Object o, int def) {
+        if (o instanceof Number num) return num.intValue();
+        try { return Integer.parseInt(String.valueOf(o)); } catch (NumberFormatException e) { return def; }
+    }
+
+    /** Client-facing view of the active puzzle — hidden solution/board data stays server-side. */
+    private Map<String, Object> serializeMinigame(SiegeRun run) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        String type = run.getMinigameType();
+        m.put("type", type);
+        m.put("title", run.getMinigameTitle());
+        m.put("prompt", run.getMinigamePrompt());
+        m.put("icon", run.getMinigameIcon());
+        Object st = run.getMinigameState();
+        if ("LINE".equals(type) && st instanceof SiegePuzzles.LineBoard board) {
+            m.put("size", board.size);
+            m.put("colors", board.colors());
+            List<Map<String, Object>> eps = new ArrayList<>();
+            for (int c = 0; c < board.colors(); c++) {
+                int[] ep = board.endpoints.get(c);
+                Map<String, Object> em = new LinkedHashMap<>();
+                em.put("color", c);
+                em.put("a", List.of(ep[0], ep[1]));
+                em.put("b", List.of(ep[2], ep[3]));
+                eps.add(em);
+            }
+            m.put("endpoints", eps);
+        } else if ("RPS".equals(type) && st instanceof SiegePuzzles.RpsMatch match) {
+            m.put("bestOf", 3);
+            m.put("round", match.round);
+            m.put("playerWins", match.playerWins);
+            m.put("npcWins", match.npcWins);
+            m.put("throws", List.of(SiegePuzzles.RPS_THROWS));
+            if (match.round < match.tells.size()) m.put("tell", match.tells.get(match.round));
+            m.put("log", new ArrayList<>(match.log));
+        } else if ("MATCH".equals(type) && st instanceof SiegePuzzles.MatchBoard board) {
+            m.put("size", 4);
+            m.put("misses", board.misses);
+            m.put("maxMisses", SiegePuzzles.MATCH_MAX_MISSES);
+            m.put("pairsFound", board.pairsFound);
+            m.put("totalPairs", SiegePuzzles.MATCH_PAIRS);
+            List<Map<String, Object>> cells = new ArrayList<>();
+            for (int i = 0; i < board.symbols.size(); i++) {
+                Map<String, Object> cm = new LinkedHashMap<>();
+                cm.put("index", i);
+                cm.put("matched", board.matched[i]);
+                cm.put("symbol", board.matched[i] ? board.symbols.get(i) : null);
+                cells.add(cm);
+            }
+            m.put("cells", cells);
+            if (board.lastFlip != null) {
+                Map<String, Object> flip = new LinkedHashMap<>();
+                flip.put("a", board.lastFlip[0]);
+                flip.put("b", board.lastFlip[1]);
+                flip.put("symbolA", board.symbols.get(board.lastFlip[0]));
+                flip.put("symbolB", board.symbols.get(board.lastFlip[1]));
+                flip.put("matched", board.lastFlipMatched);
+                m.put("flip", flip);
+            }
+        }
+        return m;
     }
 
     /** Applies battle outcome; a win off a boss row queues reward choices. */
@@ -1461,6 +1696,33 @@ public class SiegeService {
     // ---- Event nodes ------------------------------------------------------
 
     private void openEvent(SiegeRun run) {
+        // Roughly a third of events are actually a warden's puzzle in disguise,
+        // framed with a matching event title/prompt instead of a choice list.
+        if (rng.nextInt(100) < 35) {
+            String type = rollPuzzleType();
+            String title;
+            String prompt;
+            String icon;
+            switch (type) {
+                case "LINE" -> {
+                    title = "Rune Circuit";
+                    icon = "🔮";
+                    prompt = "Glowing runes flank a warded door. Trace each colour to its twin to break the seal.";
+                }
+                case "RPS" -> {
+                    title = "The Wager";
+                    icon = "🎲";
+                    prompt = "A grinning gambler blocks the road: \"Best of three hands. Win and the purse is yours.\"";
+                }
+                default -> {
+                    title = "The Tile Vault";
+                    icon = "🁢";
+                    prompt = "Sixteen carved tiles lie face-down on the vault door. Match the pairs from memory.";
+                }
+            }
+            openPuzzleMinigame(run, type, title, icon, prompt);
+            return;
+        }
         SiegeContentService.EventDef def = content.randomEvent(rng);
         run.setInEvent(true);
         run.setEventTitle(def.title());
@@ -2170,6 +2432,9 @@ public class SiegeService {
             m.put("event", null);
         }
 
+        // Cache/event puzzle mini-game (LINE / RPS / MATCH).
+        m.put("minigame", run.isInMinigame() ? serializeMinigame(run) : null);
+
         List<Integer> reachable = run.reachableNodeIds();
         List<Map<String, Object>> map = new ArrayList<>();
         for (SiegeNode node : run.getMap()) {
@@ -2382,9 +2647,13 @@ public class SiegeService {
         List<String> statuses = new ArrayList<>();
         for (StatusKind s : c.getStatuses().keySet()) statuses.add(s.name());
         m.put("statuses", statuses);
-        // Times this unit evolved this battle — the client grows the sprite 1.5× per stage.
-        int evoStage = 0;
-        for (Combatant prev = c.getEvolvedFrom(); prev != null; prev = prev.getEvolvedFrom()) evoStage++;
+        // Evolution depth for sprite scaling (client grows the sprite 1.5× per stage).
+        // Derived from the catalog stage of the unit's current source card: a Siegeling
+        // recruited at stage 2/3 reports that stage even before any battle evolution, and
+        // playing an EVOLVE card rewrites sourceCardId to the evolved card (SiegeContentService#evolve),
+        // so stageOf already folds in battle evolutions — walking the evolvedFrom chain on
+        // top of it would double-count. Non-Siegelings (knights, enemies, mercs) stay at 0.
+        int evoStage = content.findAnySiegling(c.getSourceCardId()).map(content::stageOf).orElse(1) - 1;
         m.put("evoStage", evoStage);
         // Evolution gauge for player Siegelings (AP spent on own moves this battle).
         if (c.getSide() == Side.PLAYER && !c.isKnight()) {
