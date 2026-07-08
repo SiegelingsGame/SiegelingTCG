@@ -24,7 +24,8 @@
     knightSelectedItem: null,
     busy: false,
     warbandLoading: false,
-    warbandLoadToken: 0
+    warbandLoadToken: 0,
+    interactionResult: null
   };
 
   var EL_ICON = {
@@ -124,7 +125,7 @@
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
-    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
     // Battle and map are static, full-viewport screens (no page scroll —
@@ -374,6 +375,7 @@
     $('knightUltBtn').addEventListener('click', useUltimate);
     $('rewardSkipBtn').addEventListener('click', function () { chooseReward('skip'); });
     $('gachaClaimBtn').addEventListener('click', claimRecruit);
+    $('interactionResultBtn').addEventListener('click', ackInteractionResult);
     $('inventoryBtn').addEventListener('click', function () { openInventory(); });
     $('invClose').addEventListener('click', function () { $('invOverlay').classList.add('hidden'); });
     $('invOverlay').addEventListener('click', function (e) { if (e.target === $('invOverlay')) $('invOverlay').classList.add('hidden'); });
@@ -705,6 +707,67 @@
   function closeUnitModal() { $('unitModal').classList.add('hidden'); }
 
   // ---- run router ----------------------------------------------------
+  function interactionClosed(run, source) {
+    if (source === 'event') return true;
+    if (source === 'camp') return !run.camp;
+    if (source === 'cache') return !run.cache;
+    if (source === 'broker') return !run.broker;
+    if (source === 'smith') return !run.smith;
+    if (source === 'caravan') return !run.caravan;
+    return true;
+  }
+
+  function shouldDeferInteractionResult(run) {
+    return !!(run.battle || run.recruit || (run.pendingRewards && run.pendingRewards.length));
+  }
+
+  /** After an interaction choice, show a popup for lastReward before map / next step. */
+  function applyInteractionResponse(run, ctx) {
+    state.run = run;
+    if (shouldDeferInteractionResult(run)) {
+      state.interactionResult = null;
+      renderRun();
+      return;
+    }
+    if (run.lastReward) {
+      state.interactionResult = {
+        message: run.lastReward,
+        title: ctx.title || 'Outcome',
+        icon: ctx.icon || '✨',
+        returnToMap: interactionClosed(run, ctx.source)
+      };
+      renderInteractionResult();
+      return;
+    }
+    state.interactionResult = null;
+    renderRun();
+  }
+
+  function renderInteractionResult() {
+    showScreen('interactionResultScreen');
+    var ir = state.interactionResult || {};
+    var run = state.run || {};
+    $('interactionResultIcon').textContent = ir.icon || '✨';
+    $('interactionResultTitle').textContent = ir.title || 'Outcome';
+    $('interactionResultText').textContent = ir.message || '';
+    $('interactionResultGold').textContent = '🪙 ' + (run.gold || 0);
+  }
+
+  function ackInteractionResult() {
+    if (state.busy || !state.interactionResult) return;
+    state.busy = true;
+    var returnToMap = state.interactionResult.returnToMap;
+    api('/api/siege/result/ack', { method: 'POST', body: { token: token() } })
+      .then(function (run) {
+        state.interactionResult = null;
+        state.run = run;
+        if (returnToMap) renderMap();
+        else renderRun();
+      })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
   function renderRun() {
     var run = state.run;
     if (!run) { loadRoster(); return; }
@@ -715,6 +778,7 @@
     if (run.recruit) { renderRecruitReveal(); return; }
     if (run.status === 'WON' || run.status === 'LOST') { renderResult(); return; }
     if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
+    if (state.interactionResult) { renderInteractionResult(); return; }
     if (run.camp) { renderCamp(); return; }
     if (run.cache) { renderCache(); return; }
     if (run.broker) { renderBroker(); return; }
@@ -745,8 +809,8 @@
     renderPartyStrip($('partyStrip'), run.party, run.knight);
     $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
       (run.mode === 'ENDLESS' ? '  ·  ★ ' + (run.score || 0) + '  ·  🔁 ' + ((run.loop || 0) + 1) : '');
-    $('mapReward').textContent = run.lastReward || '';
-    $('mapReward').classList.toggle('hidden', !run.lastReward);
+    $('mapReward').textContent = '';
+    $('mapReward').classList.add('hidden');
     $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');
     $('mapHint').textContent = run.currentNodeId < 0 ? 'Choose where to begin' : 'Choose your path';
 
@@ -912,7 +976,6 @@
     var run = state.run;
     $('campNote').textContent = run.camp.note || '';
     $('campGold').textContent = '🪙 ' + (run.gold || 0);
-    $('campReward').textContent = run.lastReward || '';
 
     // party silhouettes around the fire
     var cp = $('campParty'); cp.innerHTML = '';
@@ -946,7 +1009,7 @@
   function campChoose(optionId) {
     if (state.busy) return; state.busy = true;
     api('/api/siege/camp/choose', { method: 'POST', body: { token: token(), optionId: optionId } })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) { applyInteractionResponse(run, { source: 'camp', title: 'Rest Camp', icon: '🏕️' }); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -968,7 +1031,6 @@
     $('cacheDigBtn').classList.toggle('hidden', !isDig);
     $('cacheTakeBtn').classList.toggle('hidden', !isDig);
     $('cacheRiskFill').parentNode.parentNode.classList.toggle('hidden', !isDig);
-    $('cacheReward').textContent = run.lastReward || '';
     var opts = $('cacheOptions'); opts.innerHTML = '';
     if (isDig) {
       $('cacheLoot').innerHTML = 'Unbanked loot: <strong>🪙 ' + c.loot + '</strong> · Wallet: 🪙 ' + (run.gold || 0);
@@ -999,7 +1061,7 @@
   function cacheChoose(optionId) {
     if (state.busy) return; state.busy = true;
     api('/api/siege/cache/choose', { method: 'POST', body: { token: token(), optionId: optionId } })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) { applyInteractionResponse(run, { source: 'cache', title: 'Buried Cache', icon: '💎' }); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -1007,7 +1069,7 @@
   function cacheDig() {
     if (state.busy) return; state.busy = true;
     api('/api/siege/cache/dig', { method: 'POST', body: { token: token() } })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) { applyInteractionResponse(run, { source: 'cache', title: 'Buried Cache', icon: '💎' }); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -1015,7 +1077,7 @@
   function cacheTake() {
     if (state.busy) return; state.busy = true;
     api('/api/siege/cache/take', { method: 'POST', body: { token: token() } })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) { applyInteractionResponse(run, { source: 'cache', title: 'Buried Cache', icon: '💎' }); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -1026,7 +1088,6 @@
     var run = state.run;
     var b = run.broker;
     $('brokerGold').textContent = '🪙 ' + (run.gold || 0);
-    $('brokerReward').textContent = run.lastReward || '';
 
     var grid = $('brokerGrid'); grid.innerHTML = '';
     (b.offers || []).forEach(function (offer) {
@@ -1084,7 +1145,7 @@
   function brokerHire(optionId, replaceId) {
     if (state.busy) return; state.busy = true;
     api('/api/siege/broker/hire', { method: 'POST', body: { token: token(), optionId: optionId, replaceId: replaceId } })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) { applyInteractionResponse(run, { source: 'broker', title: 'Siegeling Broker', icon: '🐾' }); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -1098,12 +1159,15 @@
   }
 
   // ---- generic post helper (token-only endpoints) -----------------------
-  function simplePost(path, extra) {
+  function simplePost(path, extra, resultCtx) {
     if (state.busy) return; state.busy = true;
     var body = { token: token() };
     if (extra) for (var k in extra) body[k] = extra[k];
     api(path, { method: 'POST', body: body })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) {
+        if (resultCtx) applyInteractionResponse(run, resultCtx);
+        else { state.run = run; renderRun(); }
+      })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -1115,7 +1179,6 @@
     smithScrapMode = false;
     var run = state.run, sm = run.smith;
     $('smithGold').textContent = '🪙 ' + (run.gold || 0);
-    $('smithReward').textContent = run.lastReward || '';
     var grid = $('smithGrid'); grid.innerHTML = '';
     (sm.options || []).forEach(function (o) {
       var card = el('div', 'camp-card ' + elClass(o.element) + (o.used ? ' used' : ''));
@@ -1123,7 +1186,7 @@
         '<div class="camp-card-title">' + esc(o.title) + '</div>' +
         '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
         (o.cost > 0 ? '<div class="camp-card-cost">🪙 ' + o.cost + '</div>' : '');
-      if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { optionId: o.id }); }); }
+      if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { optionId: o.id }, { source: 'smith', title: 'Smith', icon: '🔨' }); }); }
       else if (!o.affordable) card.classList.add('unaffordable');
       grid.appendChild(card);
     });
@@ -1139,7 +1202,7 @@
     var deck = collectDeck();
     deck.forEach(function (d) {
       var card = el('div', 'camp-card clickable', '<div class="camp-glyph">🗑</div><div class="camp-card-title">' + esc(d.name) + '</div><div class="camp-card-desc">Owner: ' + esc(d.owner) + '</div>');
-      card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { scrapIndex: d.index }); });
+      card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { scrapIndex: d.index }, { source: 'smith', title: 'Smith', icon: '🔨' }); });
       grid.appendChild(card);
     });
   }
@@ -1153,7 +1216,6 @@
     showScreen('caravanScreen');
     var run = state.run, cv = run.caravan;
     $('caravanGold').textContent = '🪙 ' + (run.gold || 0);
-    $('caravanReward').textContent = run.lastReward || '';
     var grid = $('caravanGrid'); grid.innerHTML = '';
     (cv.options || []).forEach(function (o) {
       var icon = o.kind === 'SHOP_ITEM' ? (o.item ? o.item.icon : '📦') : o.kind === 'SHOP_HEAL' ? '🍲' : '🃏';
@@ -1162,7 +1224,7 @@
         '<div class="camp-card-title">' + esc(o.title) + '</div>' +
         '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
         '<div class="camp-card-cost">🪙 ' + o.cost + '</div>';
-      if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/caravan/buy', { optionId: o.id }); }); }
+      if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/caravan/buy', { optionId: o.id }, { source: 'caravan', title: 'Merchant Caravan', icon: '🐫' }); }); }
       else if (!o.affordable) card.classList.add('unaffordable');
       grid.appendChild(card);
     });
@@ -1180,7 +1242,14 @@
     (ev.options || []).forEach(function (o) {
       var b = el('button', 'siege-btn event-choice' + (o.affordable ? '' : ' unaffordable'),
         '<span class="ec-label">' + esc(o.title) + '</span>' + (o.desc ? '<span class="ec-desc">' + esc(o.desc) + '</span>' : ''));
-      if (o.affordable) b.addEventListener('click', function () { simplePost('/api/siege/event/choose', { optionId: o.id }); });
+      if (o.affordable) b.addEventListener('click', function () {
+        var ev = state.run.event || {};
+        simplePost('/api/siege/event/choose', { optionId: o.id }, {
+          source: 'event',
+          title: ev.title || 'Event',
+          icon: ev.icon || '❔'
+        });
+      });
       box.appendChild(b);
     });
   }

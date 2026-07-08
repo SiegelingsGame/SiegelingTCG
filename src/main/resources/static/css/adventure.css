@@ -948,3 +948,15 @@ body[data-screen="mapScreen"] #mapScreen{
 .event-choice .ec-label{font-weight:700;}
 .event-choice .ec-desc{font-size:12px; color:var(--dim); font-weight:400;}
 .event-choice.unaffordable{opacity:.5;}
+
+/* ---------- interaction outcome popup ---------- */
+.interaction-result-card{
+  max-width:480px; margin:0 auto 18px; padding:18px 20px;
+  background:rgba(0,0,0,.35); border:1px solid rgba(126,231,135,.25);
+  border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.35);
+}
+.interaction-result-msg{
+  margin:0; text-align:center; font-size:15px; line-height:1.55; color:var(--good);
+}
+.interaction-result-meta{display:flex; justify-content:center; margin-top:14px;}
+.interaction-result-btn{display:block; margin:0 auto; padding:13px 42px; font-size:16px;}

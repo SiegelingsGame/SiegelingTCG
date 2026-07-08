@@ -257,8 +257,19 @@
     <div class="event-choices" id="eventChoices"></div>
   </section>
 
+  <!-- Interaction outcome popup (events, camp, cache, etc.) -->
+  <section class="siege-screen hidden" id="interactionResultScreen">
+    <div class="event-scene"><span class="event-icon" id="interactionResultIcon">✨</span></div>
+    <h1 class="camp-title" id="interactionResultTitle">Outcome</h1>
+    <div class="interaction-result-card">
+      <p class="interaction-result-msg" id="interactionResultText"></p>
+      <div class="interaction-result-meta"><span class="gold-chip" id="interactionResultGold">🪙 0</span></div>
+    </div>
+    <button class="siege-btn primary interaction-result-btn" id="interactionResultBtn" type="button">Continue ▸</button>
+  </section>
+
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=26"></script>
+<script src="/js/adventure.js?v=27"></script>
 </body>
 </html>

@@ -148,6 +148,12 @@ public class SiegeController {
         return siege.recruitAck(str(body.get("token")));
     }
 
+    /** Player closed an interaction outcome popup: body { token }. */
+    @PostMapping("/api/siege/result/ack")
+    public Map<String, Object> resultAck(@RequestBody Map<String, Object> body) {
+        return siege.resultAck(str(body.get("token")));
+    }
+
     /** Resolve a CHESTS / WHEEL cache mini-game pick: body { token, optionId }. */
     @PostMapping("/api/siege/cache/choose")
     public Map<String, Object> cacheChoose(@RequestBody Map<String, Object> body) {

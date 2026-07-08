@@ -345,6 +345,13 @@ public class SiegeService {
         return serialize(run);
     }
 
+    /** Player acknowledged an interaction outcome popup; clears the banner text. */
+    Map<String, Object> resultAck(String token) {
+        SiegeRun run = require(token);
+        run.setLastReward("");
+        return serialize(run);
+    }
+
     Optional<SiegeRun> lookup(String token) {
         if (token == null) return Optional.empty();
         Session session = runs.get(token);
