@@ -240,6 +240,8 @@
                 row(['<strong>ATTACK</strong>', '+attack applied at the start of each battle.']),
                 row(['<strong>SPEED</strong>', '+speed applied at the start of each battle.']),
                 row(['<strong>SHIELD</strong>', '+shield applied at the start of each battle.']),
+                row(['<strong>EVOLUTION</strong>', 'Evolves to the next stage at battle start (requires an evolution path).']),
+                row(['<strong>EVOLUTION2</strong>', 'Begins battle at stage 3 — only Siegelings with a 3-stage evolution line.']),
                 row(['<strong>REVIVE</strong>', 'Consumable — revives a fallen Siegeling.']),
                 row(['<strong>HEAL</strong>', 'Consumable — restores HP to a target.'])
             ], ['Kind', 'Effect'])

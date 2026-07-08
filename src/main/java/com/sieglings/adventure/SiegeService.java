@@ -1562,6 +1562,7 @@ public class SiegeService {
         SiegeItem item = content.findItem(itemId);
         if (item == null) throw new IllegalArgumentException("Unknown item.");
         if (item.consumable()) throw new IllegalArgumentException("That item cannot be equipped.");
+        validateEvolutionSigilEquip(member, item);
         // Unequip whatever the member currently holds (back to inventory).
         if (member.getItemId() != null) unequipToInventory(run, member);
         run.getInventory().remove(itemId);
@@ -1570,6 +1571,22 @@ public class SiegeService {
         run.setLastReward(member.getName() + " equips " + item.name() + ".");
         checkpoint(run);
         return serialize(run);
+    }
+
+    private void validateEvolutionSigilEquip(Combatant member, SiegeItem item) {
+        if (!item.evolutionSigil()) return;
+        String cardId = member.getSourceCardId();
+        if (cardId == null || cardId.isBlank()) {
+            throw new IllegalArgumentException(member.getName() + " cannot equip an evolution sigil.");
+        }
+        if ("EVOLUTION2".equals(item.kind())) {
+            if (!content.hasStage3EvolutionChain(cardId)) {
+                throw new IllegalArgumentException(member.getName()
+                        + " does not have a stage-3 evolution — only those Siegelings can equip an Evolution 2 Sigil.");
+            }
+        } else if (content.evolutionOf(cardId).isEmpty()) {
+            throw new IllegalArgumentException(member.getName() + " has no evolution path for an Evolution Sigil.");
+        }
     }
 
     Map<String, Object> unequipItem(String token, String memberId) {
@@ -1831,7 +1848,7 @@ public class SiegeService {
         List<Map<String, Object>> items = new ArrayList<>();
         for (SiegeItem it : content.allItems()) items.add(serializeItem(it));
         return Map.of("items", items,
-                "kinds", List.of("VITALITY", "ATTACK", "SPEED", "SHIELD"));
+                "kinds", List.of("VITALITY", "ATTACK", "SPEED", "SHIELD", "EVOLUTION", "EVOLUTION2"));
     }
 
     Map<String, Object> createItem(String editorToken, String name, String icon, String kind, int value) {
@@ -2373,6 +2390,7 @@ public class SiegeService {
         if (c.getSide() == Side.PLAYER && !c.isKnight()) {
             boolean hasEvolution = content.evolutionOf(c.getSourceCardId()).isPresent();
             m.put("hasEvolution", hasEvolution);
+            m.put("hasStage3Evolution", content.hasStage3EvolutionChain(c.getSourceCardId()));
             if (hasEvolution) {
                 m.put("evoGauge", Math.min(c.getApSpent(), SiegeBattle.EVOLVE_GAUGE));
                 m.put("evoGaugeMax", SiegeBattle.EVOLVE_GAUGE);

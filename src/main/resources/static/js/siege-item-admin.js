@@ -26,7 +26,8 @@
         var opts = kinds.map(function (k) { return '<option value="' + k + '">' + k + '</option>'; }).join('');
         host.innerHTML =
             '<p class="siege-class-note">Create carryable Siege items. Each Siegeling can hold one; ' +
-            'VITALITY raises max HP while equipped, the others apply at the start of each battle. ' +
+            'VITALITY raises max HP while equipped, ATTACK/SPEED/SHIELD apply at battle start, ' +
+            'EVOLUTION sigils auto-evolve at battle start (EVOLUTION2 requires a 3-stage line). ' +
             'Requires an editor login.</p>' +
             '<div class="siege-item-form">' +
             '<input id="siItemName" placeholder="Name" maxlength="28" />' +
