@@ -222,6 +222,10 @@ public class SiegeContentService {
                 maxHp, Math.max(4, evo.getSpeed()), evo.getCardArtUrl());
         e.setSourceCardId(evo.getId());
         e.setPosition(member.getPosition());
+        // Carry the base form's level/XP so its moves keep their scaling while
+        // evolved. Max HP above already folds in the base form's leveled HP, so
+        // we copy identity only — no second HP scaling pass.
+        e.copyLevelingFrom(member);
         e.setHp(Math.min(maxHp, member.getHp() + (int) Math.round(maxHp * 0.3)));
         return e;
     }

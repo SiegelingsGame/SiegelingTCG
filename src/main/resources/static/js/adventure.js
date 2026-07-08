@@ -1096,6 +1096,19 @@
   }
 
   /** Compact party chips (tap to inspect cards & abilities). */
+  /** Small "Lv3" badge for a unit chip; empty when the unit has no level yet. */
+  function partyLevelBadge(u) {
+    if (!u || !u.level) return '';
+    return '<span class="plvl' + (u.leveledThisBattle ? ' up' : '') + '">Lv' + u.level + '</span> ';
+  }
+  /** Thin XP progress bar under a unit's HP bar. */
+  function partyXpBar(u) {
+    if (!u || !u.level) return '';
+    var pct = u.xpSpan > 0 ? Math.max(0, Math.min(100, Math.round(100 * u.xpInLevel / u.xpSpan))) : 100;
+    var title = u.level >= 10 ? 'Max level' : ('XP ' + (u.xpInLevel || 0) + '/' + (u.xpSpan || 0));
+    return '<div class="pxpbar" title="' + title + '"><div class="pxpfill" style="width:' + pct + '%"></div></div>';
+  }
+
   function renderPartyStrip(host, party, knight) {
     host.innerHTML = '';
     if (knight && knight.hp != null) {
@@ -1103,8 +1116,9 @@
       var kpct = Math.max(0, Math.round(100 * knight.hp / Math.max(1, knight.maxHp)));
       kchip.innerHTML = '<div class="pthumb pthumb-fallback">🛡️</div>' +
         '<div class="pbody">' +
-        '<div class="pname">' + esc(knight.name) + '</div>' +
+        '<div class="pname">' + partyLevelBadge(knight) + esc(knight.name) + '</div>' +
         '<div class="phpbar"><div class="phpfill" style="width:' + kpct + '%"></div></div>' +
+        partyXpBar(knight) +
         '<div class="phptext">' + knight.hp + '/' + knight.maxHp + '</div>' +
         '</div>';
       kchip.addEventListener('click', function () {
@@ -1124,8 +1138,9 @@
         : '<div class="pthumb pthumb-fallback">' + icon(p.element) + '</div>';
       chip.innerHTML = thumb +
         '<div class="pbody">' +
-        '<div class="pname">' + esc(p.name) + ' <span class="pinfo">ⓘ</span></div>' +
+        '<div class="pname">' + partyLevelBadge(p) + esc(p.name) + ' <span class="pinfo">ⓘ</span></div>' +
         '<div class="phpbar"><div class="phpfill" style="width:' + pct + '%"></div></div>' +
+        partyXpBar(p) +
         '<div class="phptext">' + p.hp + '/' + p.maxHp + ' · ⚡' + p.speed + '</div>' +
         '</div>';
       chip.addEventListener('click', function () {
@@ -2010,6 +2025,15 @@
         intentLine = '<div class="sp-intent-line">' + intentLabel(u.intent, b) + '</div>';
       }
       var notch = side === 'ally' && u.position >= 0 ? '<div class="sp-notch">' + (u.position + 1) + '</div>' : '';
+      // Level badge + XP bar for player Siegelings.
+      var levelBadge = '';
+      var xpLine = '';
+      if (side === 'ally' && u.level) {
+        levelBadge = '<span class="sp-lvl' + (u.leveledThisBattle ? ' up' : '') + '">Lv' + u.level + '</span>';
+        var xpPct = u.xpSpan > 0 ? Math.max(0, Math.min(100, Math.round(100 * u.xpInLevel / u.xpSpan))) : 100;
+        xpLine = '<div class="sp-xpbar" title="XP ' + (u.xpInLevel || 0) + '/' + (u.xpSpan || 0) + '">' +
+          '<div class="sp-xpfill" style="width:' + xpPct + '%"></div></div>';
+      }
       // Evolution gauge: fills as this Siegeling spends AP on its own moves.
       var gaugeLine = '';
       if (side === 'ally' && u.alive && u.hasEvolution) {
@@ -2021,8 +2045,9 @@
       }
       sp.innerHTML =
         '<div class="sp-plate">' +
-          '<div class="sp-name">' + esc(u.name) + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
+          '<div class="sp-name">' + levelBadge + esc(u.name) + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
           '<div class="sp-hpbar"><div class="sp-hpfill" style="width:' + pct + '%"></div></div>' +
+          xpLine +
           '<div class="sp-tags"><span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + statusChips + '</div>' +
           gaugeLine +
           intentLine +
@@ -2952,9 +2977,22 @@
   function continueRun() {
     if (state.busy) return; state.busy = true;
     api('/api/siege/continue', { method: 'POST', body: { token: token() } })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) { state.run = run; renderRun(); announceLevelUps(run); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
+  }
+
+  /** After a battle, flag any Siegelings (or the knight) that leveled up. */
+  function announceLevelUps(run) {
+    if (!run) return;
+    var leveled = [];
+    (run.party || []).forEach(function (p) {
+      if (p.leveledThisBattle) leveled.push(p.name + ' → Lv' + p.level);
+    });
+    if (run.knight && run.knight.leveledThisBattle) {
+      leveled.push(run.knight.name + ' → Lv' + run.knight.level);
+    }
+    if (leveled.length) toast('⭐ LEVEL UP! ' + leveled.join(' · '));
   }
 
   // ---- rewards ----------------------------------------------------------

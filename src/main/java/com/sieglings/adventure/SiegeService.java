@@ -273,9 +273,18 @@ public class SiegeService {
     private void applyJoinBonus(SiegeRun run, Combatant member) {
         if (run.getKnightPassive() == KnightPassive.HEALTH) {
             int v = run.getKnightPassiveValue();
-            member.setMaxHp(member.getMaxHp() + v);
-            member.heal(v);
+            member.addBaseMaxHp(v);
         }
+    }
+
+    /** Grants flat XP to every living party member and the SiegeKnight (non-combat sources). */
+    private void awardPartyXp(SiegeRun run, int amount) {
+        if (amount <= 0) return;
+        for (Combatant ally : run.getParty()) {
+            if (ally.isAlive()) ally.addXp(amount);
+        }
+        Combatant knight = run.getKnightUnit();
+        if (knight != null && knight.isAlive()) knight.addXp(amount);
     }
 
     /** Every SiegeKnight begins with a revive card and a healing potion in their bag. */
@@ -417,6 +426,9 @@ public class SiegeService {
         if (run.getKnightUnit() != null) {
             s.put("knightHp", run.getKnightUnit().getHp());
             s.put("knightMaxHp", run.getKnightUnit().getMaxHp());
+            s.put("knightBaseMaxHp", run.getKnightUnit().getBaseMaxHp());
+            s.put("knightLevel", run.getKnightUnit().getLevel());
+            s.put("knightXp", run.getKnightUnit().getXp());
         }
         List<Map<String, Object>> party = new ArrayList<>();
         for (Combatant c : run.getParty()) {
@@ -425,6 +437,9 @@ public class SiegeService {
             p.put("sourceCardId", c.getSourceCardId());
             p.put("hp", c.getHp());
             p.put("maxHp", c.getMaxHp());
+            p.put("baseMaxHp", c.getBaseMaxHp());
+            p.put("level", c.getLevel());
+            p.put("xp", c.getXp());
             p.put("position", c.getPosition());
             p.put("itemId", c.getItemId());
             p.put("baseSpeed", c.getBaseSpeed());
@@ -474,6 +489,7 @@ public class SiegeService {
         b.put("leadId", battle.getLeadId());
         b.put("log", new ArrayList<>(battle.getLog()));
         b.put("turnLog", new ArrayList<>(battle.getTurnLog()));
+        b.put("killCredit", new LinkedHashMap<>(battle.getKillCredit()));
         List<Map<String, Object>> combatants = new ArrayList<>();
         for (Combatant c : battle.getCombatants()) {
             combatants.add(snapshotCombatant(c));
@@ -510,6 +526,9 @@ public class SiegeService {
         m.put("shield", c.getShield());
         m.put("speed", c.getSpeed());
         m.put("baseSpeed", c.getBaseSpeed());
+        m.put("baseMaxHp", c.getBaseMaxHp());
+        m.put("level", c.getLevel());
+        m.put("xp", c.getXp());
         m.put("attackBuff", c.getAttackBuff());
         m.put("position", c.getPosition());
         m.put("sourceCardId", c.getSourceCardId());
@@ -542,6 +561,10 @@ public class SiegeService {
         for (Object entry : (List<Object>) b.getOrDefault("turnLog", List.of())) {
             battle.getTurnLog().add((Map<String, Object>) entry);
         }
+        Object killCredit = b.get("killCredit");
+        if (killCredit instanceof Map) {
+            ((Map<String, Object>) killCredit).forEach((k, v) -> battle.getKillCredit().put(k, intVal(v, 0)));
+        }
         for (Object c : (List<Object>) b.getOrDefault("combatants", List.of())) {
             battle.getCombatants().add(restoreCombatant((Map<String, Object>) c));
         }
@@ -565,6 +588,10 @@ public class SiegeService {
         Combatant c = new Combatant(String.valueOf(m.get("id")), String.valueOf(m.get("name")), element, side,
                 intVal(m.get("maxHp"), 1), baseSpeed,
                 m.get("artUrl") == null ? null : String.valueOf(m.get("artUrl")), knight);
+        // Leveling first: set the pre-level base, then load XP (re-derives level and
+        // rescales max HP from base — never compounds). HP is applied afterwards.
+        c.setBaseMaxHp(intVal(m.get("baseMaxHp"), c.getMaxHp()));
+        c.loadLeveling(intVal(m.get("xp"), 0));
         c.setHp(intVal(m.get("hp"), c.getMaxHp()));
         c.setShield(intVal(m.get("shield"), 0));
         c.setSpeed(intVal(m.get("speed"), baseSpeed));
@@ -618,7 +645,9 @@ public class SiegeService {
             run.setKnightPassive(passive);
             run.setKnightPassiveValue(content.knightPassiveValue(passive));
             Combatant knightUnit = content.toKnightCombatant(knight);
-            knightUnit.setMaxHp(intVal(s.get("knightMaxHp"), knightUnit.getMaxHp()));
+            // Restore the pre-level base then load XP (re-derives level + rescales HP).
+            knightUnit.setBaseMaxHp(intVal(s.get("knightBaseMaxHp"), knightUnit.getBaseMaxHp()));
+            knightUnit.loadLeveling(intVal(s.get("knightXp"), 0));
             knightUnit.setHp(intVal(s.get("knightHp"), knightUnit.getMaxHp()));
             run.setKnightUnit(knightUnit);
             run.setGold(intVal(s.get("gold"), 0));
@@ -641,13 +670,18 @@ public class SiegeService {
                 String sourceId = String.valueOf(p.get("sourceCardId"));
                 SieglingCard src = content.findAnySiegling(sourceId).orElse(null);
                 if (src == null) return Optional.empty(); // catalog changed under us
-                int maxHp = intVal(p.get("maxHp"), 18 + src.getHealth() * 4);
+                int innateHp = 18 + src.getHealth() * 4;
+                // baseMaxHp is the pre-level base; legacy snapshots (pre-leveling) fall
+                // back to the innate formula and restore as level 1.
+                int baseMaxHp = intVal(p.get("baseMaxHp"), intVal(p.get("maxHp"), innateHp));
                 Combatant m = new Combatant(String.valueOf(p.get("id")), src.getName(), src.getElement(),
-                        Side.PLAYER, maxHp, Math.max(4, src.getSpeed()), src.getCardArtUrl());
+                        Side.PLAYER, baseMaxHp, Math.max(4, src.getSpeed()), src.getCardArtUrl());
                 m.setSourceCardId(sourceId);
-                m.setHp(intVal(p.get("hp"), maxHp));
-                m.setPosition(intVal(p.get("position"), run.getParty().size()));
                 m.setBaseSpeed(intVal(p.get("baseSpeed"), Math.max(4, src.getSpeed())));
+                m.setBaseMaxHp(baseMaxHp);
+                m.loadLeveling(intVal(p.get("xp"), 0)); // re-derives level, rescales max HP from base
+                m.setHp(intVal(p.get("hp"), m.getMaxHp()));
+                m.setPosition(intVal(p.get("position"), run.getParty().size()));
                 if (p.get("itemId") != null) m.setItemId(String.valueOf(p.get("itemId")));
                 run.getParty().add(m);
             }
@@ -1084,8 +1118,7 @@ public class SiegeService {
                     List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
                     if (!living.isEmpty()) {
                         Combatant lucky = living.get(rng.nextInt(living.size()));
-                        lucky.setMaxHp(lucky.getMaxHp() + 5);
-                        lucky.heal(5);
+                        lucky.addBaseMaxHp(5);
                         run.setLastReward("A growth elixir! " + lucky.getName() + " gains +5 max HP.");
                     }
                 } else if (roll < 85) {
@@ -1159,8 +1192,7 @@ public class SiegeService {
             List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
             if (!living.isEmpty()) {
                 Combatant lucky = living.get(rng.nextInt(living.size()));
-                lucky.setMaxHp(lucky.getMaxHp() + 3);
-                lucky.heal(3);
+                lucky.addBaseMaxHp(3);
                 run.setLastReward("An ancient tonic! " + lucky.getName() + " gains +3 max HP (kept even on a bust).");
             }
         } else {
@@ -1243,6 +1275,7 @@ public class SiegeService {
                     "The circuit isn't solved — every colour must link its runes without crossing or reusing a tile.");
         }
         int gold = earnGold(run, 40 + rng.nextInt(21)); // 40–60: a large cache-tier reward
+        awardPartyXp(run, SiegeTuning.XP_PUZZLE_PERFECT); // solving the circuit is a perfect clear
         run.setLastReward("Every rune connects — the seal shatters! +" + gold + " gold.");
         endMinigame(run);
         return serialize(run);
@@ -1284,6 +1317,7 @@ public class SiegeService {
             match.playerWon = match.playerWins > match.npcWins;
             if (match.playerWon) {
                 int gold = earnGold(run, 30 + rng.nextInt(16)); // 30–45
+                awardPartyXp(run, SiegeTuning.XP_PUZZLE_PERFECT); // winning the match is a clear
                 run.setLastReward("You take the match " + match.playerWins + "–" + match.npcWins
                         + "! The gambler pays up: +" + gold + " gold.");
             } else {
@@ -1327,6 +1361,7 @@ public class SiegeService {
         }
         if (board.pairsFound >= SiegePuzzles.MATCH_PAIRS) {
             int bonus = earnGold(run, 20);
+            awardPartyXp(run, SiegeTuning.XP_PUZZLE_PERFECT); // all pairs cleared
             run.setLastReward("Every tile matched! The vault yields a bonus of " + bonus + " gold.");
             endMinigame(run);
         } else if (board.misses >= SiegePuzzles.MATCH_MAX_MISSES) {
@@ -1441,6 +1476,21 @@ public class SiegeService {
             }
             boolean wasBoss = node != null && node.getType() == NodeType.BOSS;
             boolean wasElite = node != null && node.getType() == NodeType.ELITE;
+
+            // Leveling: every living party member (and the Knight) gains battle XP,
+            // plus a killing-blow bonus for units that landed a kill this fight.
+            int battleXp = wasBoss ? SiegeTuning.XP_BOSS_WON
+                    : wasElite ? SiegeTuning.XP_ELITE_WON : SiegeTuning.XP_BATTLE_WON;
+            Map<String, Integer> kills = battle.getKillCredit();
+            for (Combatant ally : run.getParty()) {
+                if (!ally.isAlive()) continue;
+                ally.addXp(battleXp + kills.getOrDefault(ally.getId(), 0) * SiegeTuning.XP_KILLING_BLOW);
+            }
+            Combatant xpKnight = run.getKnightUnit();
+            if (xpKnight != null && xpKnight.isAlive()) {
+                xpKnight.addXp(battleXp + kills.getOrDefault(xpKnight.getId(), 0) * SiegeTuning.XP_KILLING_BLOW);
+            }
+
             run.setBattle(null);
 
             // The rented mercenary's contract ends with the battle.
@@ -1805,6 +1855,8 @@ public class SiegeService {
         }
 
         if (!startedBattle) {
+            // Resolving an event peacefully (no fight triggered) is a "good outcome".
+            awardPartyXp(run, SiegeTuning.XP_EVENT_GOOD);
             if (node != null) node.setCleared(true);
             checkpoint(run);
         }
@@ -1829,7 +1881,7 @@ public class SiegeService {
         if (member.getItemId() != null) unequipToInventory(run, member);
         run.getInventory().remove(itemId);
         member.setItemId(itemId);
-        if ("VITALITY".equals(item.kind())) { member.setMaxHp(member.getMaxHp() + item.value()); member.heal(item.value()); }
+        if ("VITALITY".equals(item.kind())) { member.addBaseMaxHp(item.value()); }
         run.setLastReward(member.getName() + " equips " + item.name() + ".");
         checkpoint(run);
         return serialize(run);
@@ -1930,7 +1982,7 @@ public class SiegeService {
     private void unequipToInventory(SiegeRun run, Combatant member) {
         SiegeItem item = content.findItem(member.getItemId());
         if (item != null && "VITALITY".equals(item.kind())) {
-            member.setMaxHp(Math.max(1, member.getMaxHp() - item.value()));
+            member.addBaseMaxHp(-item.value());
         }
         run.getInventory().add(member.getItemId());
         member.setItemId(null);
@@ -2369,6 +2421,7 @@ public class SiegeService {
             knight.put("maxHp", run.getKnightUnit().getMaxHp());
             knight.put("artUrl", run.getKnightUnit().getArtUrl());
             knight.put("alive", run.getKnightUnit().isAlive());
+            putKnightLeveling(knight, run.getKnightUnit());
         }
         m.put("knight", knight);
 
@@ -2505,6 +2558,7 @@ public class SiegeService {
             knight.put("hp", knightUnit.getHp());
             knight.put("maxHp", knightUnit.getMaxHp());
             knight.put("artUrl", knightUnit.getArtUrl());
+            putKnightLeveling(knight, knightUnit);
         }
         knight.put("charge", battle.getKnightCharge());
         knight.put("ultCost", SiegeBattle.KNIGHT_ULT_COST);
@@ -2626,6 +2680,17 @@ public class SiegeService {
         return out;
     }
 
+    /** Adds the SiegeKnight's leveling fields (badge + XP bar) to a serialized knight map. */
+    private void putKnightLeveling(Map<String, Object> knight, Combatant unit) {
+        knight.put("level", unit.getLevel());
+        knight.put("xp", unit.getXp());
+        knight.put("xpToNext", SiegeTuning.xpToNext(unit.getXp()));
+        knight.put("xpInLevel", unit.getXp() - SiegeTuning.xpForLevel(unit.getLevel()));
+        knight.put("xpSpan", unit.getLevel() >= SiegeTuning.MAX_LEVEL ? 0
+                : SiegeTuning.xpForLevel(unit.getLevel() + 1) - SiegeTuning.xpForLevel(unit.getLevel()));
+        knight.put("leveledThisBattle", unit.isLeveledRecently());
+    }
+
     private Map<String, Object> serializeCombatant(Combatant c, boolean includeAbilities) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", c.getId());
@@ -2638,6 +2703,14 @@ public class SiegeService {
         m.put("speed", c.getSpeed());
         m.put("effectiveSpeed", c.effectiveSpeed());
         m.put("attackBuff", c.getAttackBuff());
+        // Leveling (drives the level badge + XP bar on the unit chip).
+        m.put("level", c.getLevel());
+        m.put("xp", c.getXp());
+        m.put("xpToNext", SiegeTuning.xpToNext(c.getXp()));
+        m.put("xpInLevel", c.getXp() - SiegeTuning.xpForLevel(c.getLevel()));
+        m.put("xpSpan", c.getLevel() >= SiegeTuning.MAX_LEVEL ? 0
+                : SiegeTuning.xpForLevel(c.getLevel() + 1) - SiegeTuning.xpForLevel(c.getLevel()));
+        m.put("leveledThisBattle", c.isLeveledRecently());
         m.put("sourceCardId", c.getSourceCardId());
         m.put("itemId", c.getItemId());
         m.put("item", c.getItemId() == null ? null : serializeItem(content.findItem(c.getItemId())));

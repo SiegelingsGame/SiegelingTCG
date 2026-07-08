@@ -37,6 +37,12 @@ class SiegeBattle {
     private final List<Map<String, Object>> events = new ArrayList<>();
     /** Structured turn ledger: every action with the card behind it, grouped by round. */
     private final List<Map<String, Object>> turnLog = new ArrayList<>();
+    /**
+     * Kills landed this battle, keyed by the combatant id that struck the blow.
+     * Drained at battle-won time to hand out the killing-blow XP bonus. Keyed by
+     * id so it survives evolution (which keeps the unit's id).
+     */
+    private final Map<String, Integer> killCredit = new LinkedHashMap<>();
 
     private BattlePhase phase = BattlePhase.PLAYER_INPUT;
     private int actionPoints = ACTIONS_PER_TURN;
@@ -86,6 +92,15 @@ class SiegeBattle {
     }
 
     List<Map<String, Object>> getTurnLog() { return turnLog; }
+
+    /** Records that {@code unitId} landed a killing blow this battle. */
+    void creditKill(String unitId) {
+        if (unitId == null) return;
+        killCredit.merge(unitId, 1, Integer::sum);
+    }
+
+    /** Kills landed per combatant id this battle (for killing-blow XP). */
+    Map<String, Integer> getKillCredit() { return killCredit; }
 
     /** Records a ledger step: who acted, with which card, and what happened. */
     void turnEntry(String side, String actor, String card, int cost, String text) {

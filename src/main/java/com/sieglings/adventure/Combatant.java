@@ -30,6 +30,20 @@ class Combatant {
     private int speed;                // base speed before status modifiers
     private int baseSpeed;
     private int attackBuff;           // flat bonus added to this unit's damage
+
+    // ---- Leveling (in-run progression; see SiegeTuning) -------------------
+    private int level = 1;            // 1..SiegeTuning.MAX_LEVEL
+    private int xp;                   // cumulative XP earned this run
+    /**
+     * Pre-level "base" max HP: the value all level scaling is derived FROM.
+     * Permanent additive bonuses (knight HEALTH passive, VITALITY items, cache
+     * growth elixirs) fold into this base via {@link #addBaseMaxHp(int)}, so
+     * {@link #applyLevel()} can always recompute {@link #maxHp} from a single
+     * base and never compound across repeated calls.
+     */
+    private int baseMaxHp;
+    /** Set when a level-up happened since the last battle start (drives the "LEVEL UP!" UI). */
+    private boolean leveledRecently;
     private int position = -1;        // notch index for player Siegelings; -1 for others
     private String sourceCardId;      // catalog card this unit was built from (evolution lookups)
     /** Battle-scoped: the form this unit evolved from (evolution reverts after battle). */
@@ -60,6 +74,7 @@ class Combatant {
         this.element = element;
         this.side = side;
         this.maxHp = Math.max(1, maxHp);
+        this.baseMaxHp = this.maxHp;
         this.hp = this.maxHp;
         this.speed = Math.max(1, speed);
         this.baseSpeed = this.speed;
@@ -97,6 +112,90 @@ class Combatant {
     int getApSpent() { return apSpent; }
     void setApSpent(int apSpent) { this.apSpent = Math.max(0, apSpent); }
     void addApSpent(int amount) { setApSpent(apSpent + amount); }
+
+    // ---- Leveling ---------------------------------------------------------
+
+    int getLevel() { return level; }
+    int getXp() { return xp; }
+    int getBaseMaxHp() { return baseMaxHp; }
+    void setBaseMaxHp(int baseMaxHp) { this.baseMaxHp = Math.max(1, baseMaxHp); }
+    boolean isLeveledRecently() { return leveledRecently; }
+    void setLeveledRecently(boolean leveledRecently) { this.leveledRecently = leveledRecently; }
+
+    /** Speed a fresh battle resets this unit to: its persistent base plus level milestones. */
+    int leveledBaseSpeed() {
+        return Math.max(0, baseSpeed + (knight ? 0 : SiegeTuning.speedBonus(level)));
+    }
+
+    /**
+     * Grants XP and levels up as thresholds are crossed. Returns the number of
+     * levels gained (0 if none). Derived stats are recomputed from base via
+     * {@link #applyLevel()} on every level-up, and the gained max HP is healed.
+     */
+    int addXp(int amount) {
+        if (amount <= 0) return 0;
+        int before = level;
+        xp = Math.max(0, xp + amount);
+        int now = SiegeTuning.levelForXp(xp);
+        if (now != level) {
+            level = now;
+            applyLevel();
+        }
+        int gained = level - before;
+        if (gained > 0) leveledRecently = true;
+        return gained;
+    }
+
+    /**
+     * Restores leveling from a checkpoint: XP is the source of truth, the level
+     * is re-derived from it, and derived stats are recomputed from base. Safe to
+     * call after {@link #setBaseMaxHp(int)} — it never compounds.
+     */
+    void loadLeveling(int xp) {
+        this.xp = Math.max(0, xp);
+        this.level = SiegeTuning.levelForXp(this.xp);
+        this.leveledRecently = false;
+        applyLevel();
+    }
+
+    /**
+     * Copies leveling identity (level + XP) from another unit WITHOUT recomputing
+     * max HP. Used by battle-scoped evolution, whose max HP is derived separately
+     * from the evolved form's stats; the level is still needed for move scaling.
+     */
+    void copyLevelingFrom(Combatant src) {
+        if (src == null) return;
+        this.level = src.getLevel();
+        this.xp = src.getXp();
+    }
+
+    /**
+     * Permanently adjusts the pre-level base max HP (positive to add, negative
+     * to remove) and recomputes the leveled {@link #maxHp}, healing any gain.
+     * Used for run rewards/items that raise max HP for the whole run.
+     */
+    void addBaseMaxHp(int delta) {
+        setBaseMaxHp(baseMaxHp + delta);
+        applyLevel();
+    }
+
+    /**
+     * Recomputes {@link #maxHp} (and the resting {@link #speed}) from the base
+     * stats and the current level. Idempotent: always derived from base, never
+     * compounded. Any increase in max HP is healed onto current HP; a decrease
+     * clamps HP down.
+     */
+    void applyLevel() {
+        int oldMax = maxHp;
+        maxHp = Math.max(1, knight
+                ? SiegeTuning.scaledKnightMaxHp(baseMaxHp, level)
+                : SiegeTuning.scaledMaxHp(baseMaxHp, level));
+        int delta = maxHp - oldMax;
+        if (delta > 0) hp = Math.min(maxHp, hp + delta);
+        else if (hp > maxHp) hp = maxHp;
+        // Outside battle, surface the leveled resting speed; battles reset to it too.
+        this.speed = leveledBaseSpeed();
+    }
 
     List<AbilitySpec> getAbilities() { return abilities; }
     AbilitySpec getIntent() { return intent; }

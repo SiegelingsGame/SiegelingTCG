@@ -57,20 +57,23 @@ public class SiegeCombatEngine {
         // then apply the knight's leadership passive (varies per knight).
         Combatant knight = run.getKnightUnit();
         KnightPassive passive = run.getKnightPassive();
-        int pv = run.getKnightPassiveValue();
+        // The leadership passive strengthens as the Knight levels (+1 every 2 levels).
+        int pv = run.getKnightPassiveValue()
+                + (knight != null ? SiegeTuning.knightPassiveBonus(knight.getLevel()) : 0);
         int pos = 0;
         for (Combatant ally : run.getParty()) {
             ally.setShield(0);
-            ally.setSpeed(ally.getBaseSpeed());
+            ally.setSpeed(ally.leveledBaseSpeed());
             ally.addAttackBuff(-ally.getAttackBuff());
             ally.clearStatuses();
             ally.setApSpent(0);
+            ally.setLeveledRecently(false);
             ally.setPosition(pos++);
             if (knight != null && passive != null) {
                 switch (passive) {
                     case SHIELD -> ally.setShield(pv);
                     case ATTACK -> ally.addAttackBuff(pv);
-                    case SPEED -> ally.setSpeed(ally.getBaseSpeed() + pv);
+                    case SPEED -> ally.setSpeed(ally.leveledBaseSpeed() + pv);
                     default -> { } // HEALTH is baked into max HP; LOOT affects gold only
                 }
             }
@@ -91,6 +94,7 @@ public class SiegeCombatEngine {
             knight.setShield(0);
             knight.clearStatuses();
             knight.setPosition(-1);
+            knight.setLeveledRecently(false);
             battle.getCombatants().add(knight);
         }
         // A rented mercenary marches in for this one battle with its boon cards.
@@ -501,11 +505,13 @@ public class SiegeCombatEngine {
         for (Combatant foe : new ArrayList<>(battle.living(Side.ENEMY))) {
             boolean wasAlive = foe.isAlive();
             int dealt = foe.takeDamage(KNIGHT_ULT_DAMAGE);
+            boolean killed = wasAlive && !foe.isAlive();
             battle.event("hit", "sourceId", knight.getId(), "targetId", foe.getId(),
                     "amount", dealt, "element", knight.getElement() == null ? null : knight.getElement().name(),
-                    "ko", wasAlive && !foe.isAlive());
+                    "ko", killed);
             battle.log(run.getKnightName() + "'s Ultimate → " + foe.getName() + " takes " + dealt
                     + (foe.isAlive() ? "" : " and is defeated!"));
+            if (killed) battle.creditKill(knight.getId());
             if (foe.isAlive() && status != null) {
                 applyStatus(battle, foe, status);
             }
@@ -631,28 +637,32 @@ public class SiegeCombatEngine {
                     boolean wasAlive = t.isAlive();
                     int dmg = damageValue(attacker, spec);
                     int dealt = t.takeDamage(dmg);
+                    boolean killed = wasAlive && !t.isAlive();
                     battle.event("hit", "sourceId", attacker.getId(), "targetId", t.getId(),
                             "amount", dealt, "element", spec.element() == null ? null : spec.element().name(),
-                            "ko", wasAlive && !t.isAlive());
+                            "ko", killed);
                     battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName()
                             + " takes " + dealt + (t.isAlive() ? "" : " and is defeated!"));
+                    if (killed && t.getSide() == Side.ENEMY) battle.creditKill(attacker.getId());
                     if (t.isAlive()) {
                         rollStatus(battle, spec, t, rng);
                     }
                 }
             }
             case HEAL -> {
+                int amount = scaledMoveValue(attacker, spec.value());
                 for (Combatant t : targets) {
-                    t.heal(spec.value());
-                    battle.event("heal", "sourceId", attacker.getId(), "targetId", t.getId(), "amount", spec.value());
-                    battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName() + " heals " + spec.value() + ".");
+                    t.heal(amount);
+                    battle.event("heal", "sourceId", attacker.getId(), "targetId", t.getId(), "amount", amount);
+                    battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName() + " heals " + amount + ".");
                 }
             }
             case SHIELD -> {
+                int amount = scaledMoveValue(attacker, spec.value());
                 for (Combatant t : targets) {
-                    t.setShield(t.getShield() + spec.value());
-                    battle.event("shield", "sourceId", attacker.getId(), "targetId", t.getId(), "amount", spec.value());
-                    battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName() + " gains " + spec.value() + " shield.");
+                    t.setShield(t.getShield() + amount);
+                    battle.event("shield", "sourceId", attacker.getId(), "targetId", t.getId(), "amount", amount);
+                    battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName() + " gains " + amount + " shield.");
                 }
             }
             case BUFF_ATK -> {
@@ -685,9 +695,19 @@ public class SiegeCombatEngine {
         }
     }
 
-    /** Damage is exactly the number written on the card, plus explicit attack buffs. */
+    /** Damage is the card's (level-scaled) value plus explicit attack buffs. */
     private int damageValue(Combatant attacker, AbilitySpec spec) {
-        return Math.max(0, spec.value() + attacker.getAttackBuff());
+        return Math.max(0, scaledMoveValue(attacker, spec.value()) + attacker.getAttackBuff());
+    }
+
+    /**
+     * Scales a Siegeling's own move value (damage/heal/shield) by +4% per level.
+     * Only the owning player Siegeling's moves scale — the Knight's own moves and
+     * enemy abilities are left at their written value.
+     */
+    private int scaledMoveValue(Combatant attacker, int base) {
+        if (attacker == null || attacker.isKnight() || attacker.getSide() != Side.PLAYER) return base;
+        return SiegeTuning.scaledMoveValue(base, attacker.getLevel());
     }
 
     private void rollStatus(SiegeBattle battle, AbilitySpec spec, Combatant target, Random rng) {
@@ -920,6 +940,9 @@ public class SiegeCombatEngine {
                 root = root.getEvolvedFrom();
             }
             if (root != member) {
+                // Carry any XP the evolved form banked this battle back to the
+                // base form (evolution is battle-scoped; leveling is not).
+                if (member.getXp() > root.getXp()) root.loadLeveling(member.getXp());
                 root.setHp(Math.min(root.getMaxHp(), member.getHp()));
                 root.setPosition(member.getPosition());
                 member.setEvolvedFrom(null);
@@ -928,7 +951,7 @@ public class SiegeCombatEngine {
         }
         for (Combatant ally : run.getParty()) {
             ally.setShield(0);
-            ally.setSpeed(ally.getBaseSpeed());
+            ally.setSpeed(ally.leveledBaseSpeed());
             ally.addAttackBuff(-ally.getAttackBuff());
             ally.clearStatuses();
         }

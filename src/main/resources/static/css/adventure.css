@@ -242,6 +242,12 @@ body[data-screen="mapScreen"] #mapScreen{
 .party-chip .phpfill{height:100%; background:linear-gradient(90deg,var(--good),#4fbf67);}
 .party-chip .phptext{font-size:11px; color:var(--dim); margin-top:3px;}
 .party-chip .pbuff{color:var(--accent); font-weight:700;}
+/* Leveling: badge + thin XP bar under the HP bar. */
+.plvl{display:inline-block; font-size:10px; font-weight:800; line-height:1; padding:2px 4px; border-radius:4px;
+  background:#22304a; color:#cfe0ff; vertical-align:middle;}
+.plvl.up{background:#ffd066; color:#3a2c00; box-shadow:0 0 6px rgba(255,208,102,.7);}
+.party-chip .pxpbar{height:3px; border-radius:2px; background:#0c1017; margin-top:3px; overflow:hidden;}
+.party-chip .pxpfill{height:100%; background:linear-gradient(90deg,#5b8def,#8ab4ff);}
 
 /* ---------- Branching map ---------- */
 .map-reward{color:var(--good); font-size:12.5px; margin-bottom:4px;}
@@ -473,6 +479,12 @@ body[data-screen="mapScreen"] #mapScreen{
 .sprite .sp-hpbar{height:6px; border-radius:3px; background:#0c1017; margin-top:4px; overflow:hidden;}
 .sprite .sp-hpfill{height:100%; background:linear-gradient(90deg,var(--good),#4fbf67); transition:width .35s;}
 .sprite.enemy .sp-hpfill{background:linear-gradient(90deg,#ff7a5c,var(--bad));}
+/* Leveling on the battle sprite: level badge before the name + a thin XP bar. */
+.sprite .sp-lvl{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 3px; border-radius:4px;
+  background:#22304a; color:#cfe0ff; margin-right:4px; vertical-align:middle;}
+.sprite .sp-lvl.up{background:#ffd066; color:#3a2c00; box-shadow:0 0 6px rgba(255,208,102,.7);}
+.sprite .sp-xpbar{height:3px; border-radius:2px; background:#0c1017; margin-top:3px; overflow:hidden;}
+.sprite .sp-xpfill{height:100%; background:linear-gradient(90deg,#5b8def,#8ab4ff); transition:width .35s;}
 .sprite .sp-tags{display:flex; gap:6px; justify-content:center; font-size:10px; color:var(--dim); margin-top:3px;}
 .sprite .sp-shield{color:var(--shield); font-weight:700;}
 .sprite .sp-buff{color:var(--accent); font-weight:700;}
