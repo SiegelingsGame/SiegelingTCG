@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 @SpringBootTest
@@ -53,15 +54,38 @@ class SiegeRecruitTimingTest {
         SiegeRun run = new SiegeRun("recruit-timing");
         run.getParty().add(new Combatant("ally-0", "Sprout", Element.EARTH, Side.PLAYER, 40, 6, null));
 
-        invokeJoinStagedRecruit(run, " emerges from the battlefield and joins the warband!");
+        invokeJoinStagedRecruit(run, " emerges from the battlefield and joins the warband!", false);
 
         assertEquals(1, run.getParty().size());
         assertNull(run.getPendingRecruit());
     }
 
-    private void invokeJoinStagedRecruit(SiegeRun run, String flavor) throws Exception {
-        Method method = SiegeService.class.getDeclaredMethod("joinStagedRecruit", SiegeRun.class, String.class);
+    @Test
+    void postCombatRecruitCanFireAfterFirstVictory() throws Exception {
+        SiegeRun run = new SiegeRun("recruit-timing");
+        run.getParty().add(new Combatant("ally-0", "Sprout", Element.EARTH, Side.PLAYER, 40, 6, null));
+        run.setEnemiesDefeated(1);
+        run.getPendingRewards().add(RewardOption.card(
+                "r0", "Spark", "A new move", Element.FIRE,
+                new AbilitySpec("spark", "Spark", Element.FIRE, Effect.DAMAGE, 4,
+                        TargetKind.ENEMY_SINGLE, 1, "Deal 4 damage.", null, 0),
+                "ally-0"));
+
+        invokeJoinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
+
+        assertEquals(2, run.getParty().size());
+        assertNotNull(run.getPendingRecruit());
+        assertEquals(1, run.getPendingRewards().size());
+    }
+
+    private void invokeJoinStagedRecruit(SiegeRun run, String flavor, boolean afterCombat) throws Exception {
+        Method method = SiegeService.class.getDeclaredMethod(
+                "joinStagedRecruit", SiegeRun.class, String.class, boolean.class);
         method.setAccessible(true);
-        method.invoke(siegeService, run, flavor);
+        method.invoke(siegeService, run, flavor, afterCombat);
+    }
+
+    private void invokeJoinStagedRecruit(SiegeRun run, String flavor) throws Exception {
+        invokeJoinStagedRecruit(run, flavor, false);
     }
 }

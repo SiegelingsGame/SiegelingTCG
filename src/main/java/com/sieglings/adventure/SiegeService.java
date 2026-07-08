@@ -296,9 +296,17 @@ public class SiegeService {
         return amount;
     }
 
-    /** A random Siegeling (1% stage 3, 5% stage 2) joins the warband after combat. */
+    /** A random Siegeling (1% stage 3, 5% stage 2) joins the warband. */
     private void joinStagedRecruit(SiegeRun run, String flavorSuffix) {
-        if (run.getEnemiesDefeated() <= 0) {
+        joinStagedRecruit(run, flavorSuffix, false);
+    }
+
+    /**
+     * @param afterCombat when true (post-battle wins), always eligible; when false,
+     *                    blocks joins until the warband has won at least one fight.
+     */
+    private void joinStagedRecruit(SiegeRun run, String flavorSuffix, boolean afterCombat) {
+        if (!afterCombat && run.getEnemiesDefeated() <= 0) {
             return;
         }
         List<String> names = run.getParty().stream().map(Combatant::getName).toList();
@@ -1243,9 +1251,9 @@ public class SiegeService {
             // appear before the first combat — including the Marshal class bonus.
             if (run.getStatus() == RunStatus.ACTIVE && run.getParty().size() < content.partyMax()) {
                 if (firstBattleWin && run.getKnightPassive() == KnightPassive.MARSHAL) {
-                    joinStagedRecruit(run, " answers the Marshal's muster!");
+                    joinStagedRecruit(run, " answers the Marshal's muster!", true);
                 } else {
-                    joinStagedRecruit(run, " emerges from the battlefield and joins the warband!");
+                    joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
                 }
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
