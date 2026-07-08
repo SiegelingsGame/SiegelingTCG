@@ -114,6 +114,17 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void guestBinderUsesFullTrainerCatalogFromOptions() throws IOException {
+        String homeScript = readHomeScript();
+
+        assertTrue(
+                homeScript.contains("const GUEST_TRAINER_IDS = new Set(['squire-bob', 'pyla', 'ser-airek'])")
+                        && extractFunction(homeScript, "function isTrainerOwned(trainerId)").contains("GUEST_TRAINER_IDS.has"),
+                "Guest binder browsing must use the full trainer catalog while play keeps starter knights only."
+        );
+    }
+
+    @Test
     void dashboardArtUploadsApplyToCapturedCatalogEntry() throws IOException {
         String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
 

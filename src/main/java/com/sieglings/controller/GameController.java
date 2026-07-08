@@ -1324,8 +1324,10 @@ public class GameController {
         Map<String, Integer> ownedLevels = gated
                 ? playerProgressionService.getOrCreate(user).getTrainerLevels()
                 : Map.of();
+        // Return every live SiegeKnight for binder/shop browsing. Play-time
+        // restrictions for guests stay in validateStartOwnership + the client
+        // loadout filter (GUEST_TRAINER_IDS).
         return gameService.getTrainerOptions().stream()
-                .filter(trainer -> gated || GUEST_TRAINER_IDS.contains(normalizeTrainerId(trainer.getId())))
                 .map(trainer -> serializeTrainerOption(trainer, ownedLevels, gated))
                 .toList();
     }
@@ -1341,7 +1343,7 @@ public class GameController {
         appendCardArt(m, trainer);
         String key = trainer.getId() == null ? "" : trainer.getId().toLowerCase(java.util.Locale.ROOT);
         int level = ownedLevels.getOrDefault(key, 0);
-        boolean owned = !gated || level > 0;
+        boolean owned = gated && level > 0;
         m.put("owned", owned);
         m.put("level", Math.max(1, level));
         m.put("abilityBonus", PlayerProgressionService.trainerAbilityBonus(Math.max(1, level)));

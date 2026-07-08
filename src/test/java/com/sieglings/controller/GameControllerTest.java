@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GameControllerTest {
 
     @Test
-    void guestTrainerOptionsExposeBobPylaAndAirek() throws Exception {
+    void guestTrainerOptionsExposeFullCatalogForBinderBrowsing() throws Exception {
         GameController controller = createController(new MultiplayerService(), accountServiceReturning(null));
         setField(controller, "gameService", guestTrainerGameService());
         setField(controller, "playerProgressionService", new PlayerProgressionService());
@@ -38,8 +38,8 @@ class GameControllerTest {
                 new Object[] { null }
         );
 
-        assertEquals(List.of("squire-bob", "pyla", "ser-airek"), trainers.stream().map(row -> row.get("id")).toList());
-        assertTrue(trainers.stream().allMatch(row -> Boolean.TRUE.equals(row.get("owned"))));
+        assertEquals(List.of("squire-bob", "pyla", "ser-airek", "trainer02"), trainers.stream().map(row -> row.get("id")).toList());
+        assertTrue(trainers.stream().allMatch(row -> Boolean.FALSE.equals(row.get("owned"))));
     }
 
     @Test

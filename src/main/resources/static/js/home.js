@@ -74,6 +74,9 @@
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
     const PACK_CARD_BACK_VERSION = 2;
+    // Starter SiegeKnights guests can command in Play. Keep in sync with
+    // GameController.GUEST_TRAINER_IDS and game.js.
+    const GUEST_TRAINER_IDS = new Set(['squire-bob', 'pyla', 'ser-airek']);
 
     function versionedPackAsset(path) {
         if (!path) return '';
@@ -3256,8 +3259,14 @@
     window.addEventListener('orientationchange', handleBuilderViewportChange);
 
     function isTrainerOwned(trainerId) {
-        const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
-        return trainerOwnedLevel(trainerId) > 0 || (!!trainer && trainer.owned !== false);
+        if (trainerOwnedLevel(trainerId) > 0) {
+            return true;
+        }
+        if (!state.profile?.authenticated) {
+            return GUEST_TRAINER_IDS.has(String(trainerId || '').toLowerCase());
+        }
+        const trainer = (state.options?.trainers || []).find(item => String(item?.id || '').toLowerCase() === String(trainerId || '').toLowerCase());
+        return !!trainer && trainer.owned === true;
     }
 
     function firstOwnedTrainerId() {
