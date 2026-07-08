@@ -139,6 +139,18 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void dailyOfferCardUsesOfferArtWhenKnightMissingFromOptions() throws IOException {
+        String homeScript = readHomeScript();
+
+        assertTrue(
+                extractFunction(homeScript, "function dailyOfferCard(offer)").contains("offer.cardArtUrl || knight?.cardArtUrl")
+                        && extractFunction(homeScript, "function dailyOfferCard(offer)").contains("type: 'SIEGEKNIGHT'")
+                        && extractFunction(homeScript, "function isDailyTrainerOffer(offer)").contains("TRAINER"),
+                "Daily shop SiegeKnights must render from offer art when /api/game/options omits that knight."
+        );
+    }
+
+    @Test
     void dashboardArtUploadsApplyToCapturedCatalogEntry() throws IOException {
         String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
 

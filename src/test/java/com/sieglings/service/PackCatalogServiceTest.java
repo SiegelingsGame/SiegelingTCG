@@ -96,6 +96,22 @@ class PackCatalogServiceTest {
         assertTrue(candidateIds.contains("trainer-neutral"));
     }
 
+    @Test
+    void dailyOfferSerializationIncludesSiegeKnightArt() throws Exception {
+        PackCatalogService service = createService(new FullArtKnightCardDefinitions());
+        PackCatalogService.DailyCardOffer offer = service.listDailyOffers().stream()
+                .filter(entry -> entry.card().getCardType() == CardType.TRAINER)
+                .findFirst()
+                .orElseThrow();
+
+        Map<String, Object> serialized = service.serializeDailyOffer(offer);
+
+        assertEquals("new-siegeknight-2", serialized.get("cardId"));
+        assertEquals("/img/knights/ser-bob-full-card.png", serialized.get("cardArtUrl"));
+        assertEquals("FULL_CARD", serialized.get("cardArtMode"));
+        assertEquals("SiegeKnight", serialized.get("tier"));
+    }
+
     private PackCatalogService createService() throws Exception {
         return createService(new NeutralDropCardDefinitions());
     }
@@ -188,6 +204,24 @@ class PackCatalogServiceTest {
                     Ability.damage("Strike", "Deal 2 damage", TargetType.SINGLE_ENEMY, null, 1, 2),
                     false
             ));
+        }
+    }
+
+    private static class FullArtKnightCardDefinitions extends NeutralDropCardDefinitions {
+        @Override
+        public List<TrainerCard> getTrainerOptions() {
+            TrainerCard serBob = new TrainerCard(
+                    "new-siegeknight-2",
+                    "Ser Bob",
+                    Element.NEUTRAL,
+                    Rarity.RARE,
+                    Ability.passive("Track Em Down", "Reveal a hidden card", "reveal", 1),
+                    Ability.damage("I'll Never Quit!", "Deal 2 damage", TargetType.SINGLE_ENEMY, null, 1, 2),
+                    false
+            );
+            serBob.setCardArtUrl("/img/knights/ser-bob-full-card.png");
+            serBob.setCardArtMode("FULL_CARD");
+            return List.of(serBob);
         }
     }
 }
