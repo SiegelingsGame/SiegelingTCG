@@ -853,6 +853,28 @@ body[data-screen="mapScreen"] #mapScreen{
 .endless-slots{margin:14px 0 4px; text-align:center;}
 .endless-title{font-size:13px; color:var(--accent-2); margin-bottom:8px; font-weight:650;}
 .endless-btn{margin:4px; border-color:var(--accent-2);}
+
+/* Battlegrounds (secondary mode) entry on the warband setup screen. */
+.bg-entry{display:flex; align-items:center; gap:12px; margin:14px 0 4px; padding:12px 14px;
+  border:1px solid var(--border); border-radius:12px; background:linear-gradient(135deg, var(--panel-2), var(--panel));
+  cursor:pointer; transition:border-color .15s, transform .15s; text-align:left;}
+.bg-entry:hover, .bg-entry:focus-visible{border-color:var(--accent); transform:translateY(-1px); outline:none;}
+.bg-entry-icon{font-size:26px; line-height:1; flex:0 0 auto;}
+.bg-entry-body{flex:1 1 auto; min-width:0;}
+.bg-entry-title{font-weight:800; font-size:15px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.bg-entry-lock{font-size:11px; font-weight:700; color:var(--faint); border:1px solid var(--border);
+  border-radius:999px; padding:1px 8px;}
+.bg-entry-lock.ready{color:var(--good); border-color:var(--good);}
+.bg-entry-sub{font-size:12.5px; color:var(--dim); line-height:1.4; margin-top:3px;}
+.bg-entry-chevron{font-size:22px; color:var(--faint); flex:0 0 auto;}
+.bg-modal-card{max-width:440px;}
+.bg-req-list{display:flex; flex-direction:column; gap:8px; margin:4px 0 14px;}
+.bg-req{display:flex; gap:9px; align-items:flex-start; font-size:13px; line-height:1.4;}
+.bg-req-mark{flex:0 0 auto; font-weight:800; width:16px; text-align:center;}
+.bg-req.met .bg-req-mark{color:var(--good);}
+.bg-req.todo .bg-req-mark{color:var(--faint);}
+.bg-req.todo .bg-req-text{color:var(--dim);}
+.bg-modal-foot{font-size:12px; color:var(--faint); font-style:italic; margin:0 0 16px; line-height:1.45;}
 .camp-card.clickable{cursor:pointer;}
 .camp-card.clickable:hover{border-color:var(--accent);}
 .camp-card.unaffordable{opacity:.5;}

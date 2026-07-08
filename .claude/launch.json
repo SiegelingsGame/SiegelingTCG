@@ -4,7 +4,7 @@
     {
       "name": "sieglings",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "mvnw.cmd", "spring-boot:run"],
+      "runtimeArgs": ["/c", ".\\mvnw.cmd", "spring-boot:run"],
       "port": 8080,
       "autoPort": false
     }

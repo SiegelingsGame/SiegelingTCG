@@ -72,6 +72,15 @@
         <button class="siege-btn" id="warbandRetryBtn" type="button">Retry</button>
       </div>
       <div class="siegeling-grid" id="sieglingGrid"></div>
+      <!-- Secondary mode: always visible, opens a requirements modal on tap. -->
+      <div class="bg-entry" id="battlegroundsEntry" role="button" tabindex="0" aria-haspopup="dialog">
+        <div class="bg-entry-icon">⚔️</div>
+        <div class="bg-entry-body">
+          <div class="bg-entry-title">Battlegrounds <span class="bg-entry-lock" id="bgEntryLock">🔒 Locked</span></div>
+          <div class="bg-entry-sub">Take a leveled team you extracted from a Siege run into a higher-stakes mode for boons and greater rewards. Tap for requirements.</div>
+        </div>
+        <div class="bg-entry-chevron" aria-hidden="true">›</div>
+      </div>
       <div class="setup-footer">
         <button class="siege-btn" id="partyBackBtn" type="button">◂ Knight</button>
         <div class="setup-summary" id="setupSummary">Pick your starting Siegeling.</div>
@@ -289,6 +298,21 @@
       <div class="knight-lock-actions">
         <button class="siege-btn" id="knightLockDismiss" type="button">Got it</button>
         <button class="siege-btn primary kunlock-btn kunlock-btn-modal" id="knightLockUnlockBtn" type="button" hidden>Unlock</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Battlegrounds (secondary mode) requirements notice. -->
+  <div class="unit-modal hidden" id="bgModal" role="dialog" aria-modal="true" aria-labelledby="bgModalTitle">
+    <div class="unit-modal-card knight-lock-modal-card bg-modal-card">
+      <button class="unit-modal-close" id="bgModalClose" type="button" aria-label="Close">✕</button>
+      <div class="knight-lock-kicker">Secondary mode</div>
+      <h2 class="knight-lock-title" id="bgModalTitle">⚔️ Battlegrounds</h2>
+      <p class="knight-lock-msg" id="bgModalMsg"></p>
+      <div class="bg-req-list" id="bgReqList"></div>
+      <p class="bg-modal-foot" id="bgModalFoot"></p>
+      <div class="knight-lock-actions">
+        <button class="siege-btn" id="bgModalDismiss" type="button">Got it</button>
       </div>
     </div>
   </div>

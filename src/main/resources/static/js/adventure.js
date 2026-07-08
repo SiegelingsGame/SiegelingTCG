@@ -411,6 +411,21 @@
         closeKnightLockModal();
       });
     }
+    var bgEntry = $('battlegroundsEntry');
+    if (bgEntry) {
+      bgEntry.addEventListener('click', openBattlegroundsModal);
+      bgEntry.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBattlegroundsModal(); }
+      });
+    }
+    var bgModal = $('bgModal');
+    var bgModalClose = $('bgModalClose');
+    var bgModalDismiss = $('bgModalDismiss');
+    if (bgModalClose) bgModalClose.addEventListener('click', closeBattlegroundsModal);
+    if (bgModalDismiss) bgModalDismiss.addEventListener('click', closeBattlegroundsModal);
+    if (bgModal) {
+      bgModal.addEventListener('click', function (e) { if (e.target === bgModal) closeBattlegroundsModal(); });
+    }
     $('abandonBtn').addEventListener('click', function () {
       if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
     });
@@ -525,6 +540,73 @@
     if (!modal) return;
     modal.classList.add('hidden');
     state.pendingKnightUnlock = null;
+  }
+
+  // ---- Battlegrounds (secondary mode) preview --------------------------
+  // Battlegrounds itself is not implemented yet — the leveling + extraction
+  // pipeline it depends on ships first (see docs/SIEGE_LEVELING_AND_BATTLEGROUNDS_PLAN.md).
+  // This entry keeps the mode visible and explains how it unlocks. Extracted
+  // veteran teams will live on state.roster.veterans once that lands; until
+  // then the requirement is simply never met.
+  var BG_VETERANS_REQUIRED = 3;
+
+  function battlegroundsVeterans() {
+    var v = state.roster && state.roster.veterans;
+    return Array.isArray(v) ? v : [];
+  }
+
+  function battlegroundsReady() {
+    return battlegroundsVeterans().length >= BG_VETERANS_REQUIRED;
+  }
+
+  function refreshBattlegroundsEntry() {
+    var lock = $('bgEntryLock');
+    if (!lock) return;
+    if (battlegroundsReady()) {
+      lock.textContent = '✓ Ready';
+      lock.classList.add('ready');
+    } else {
+      lock.textContent = '🔒 Locked';
+      lock.classList.remove('ready');
+    }
+  }
+
+  function openBattlegroundsModal() {
+    var modal = $('bgModal');
+    if (!modal) return;
+    var have = battlegroundsVeterans().length;
+    var ready = battlegroundsReady();
+    var msg = $('bgModalMsg');
+    if (msg) {
+      msg.textContent = ready
+        ? 'Your veterans are ready. Pick a squad of extracted Siegelings and march in for boons and greater rewards.'
+        : 'A higher-stakes second mode: bring a team you leveled up and extracted from a Siege run to earn boons, amps, and greater rewards.';
+    }
+    var reqs = [
+      { done: have >= 1, label: 'Complete a Siege expedition and extract a team (your Siegelings keep the level they reached).' },
+      { done: have >= BG_VETERANS_REQUIRED, label: 'Bank at least ' + BG_VETERANS_REQUIRED + ' veteran Siegelings — you have ' + have + '.' },
+      { done: ready, label: 'Enter with 3 veterans + a veteran SiegeKnight at their extracted levels.' }
+    ];
+    var list = $('bgReqList');
+    if (list) {
+      list.innerHTML = reqs.map(function (r) {
+        return '<div class="bg-req ' + (r.done ? 'met' : 'todo') + '">' +
+          '<span class="bg-req-mark">' + (r.done ? '✓' : '○') + '</span>' +
+          '<span class="bg-req-text">' + esc(r.label) + '</span></div>';
+      }).join('');
+    }
+    var foot = $('bgModalFoot');
+    if (foot) {
+      foot.textContent = ready
+        ? 'Battlegrounds is coming in an upcoming update — your extracted team will be waiting.'
+        : 'Leveling and team extraction are rolling out first; Battlegrounds unlocks once you can bank a veteran team.';
+    }
+    modal.classList.remove('hidden');
+  }
+
+  function closeBattlegroundsModal() {
+    var modal = $('bgModal');
+    if (modal) modal.classList.add('hidden');
   }
 
   function showKnightLockModal(k) {
@@ -661,6 +743,7 @@
     });
     renderSieglingGrid();
     refreshSetupFooter();
+    refreshBattlegroundsEntry();
     updateWarbandMeta();
   }
 
