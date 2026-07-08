@@ -1728,6 +1728,8 @@
                 cardArtMode: trainer.cardArtMode || '',
                 cardArtOffsetX: trainer.cardArtOffsetX,
                 cardArtOffsetY: trainer.cardArtOffsetY,
+                cardArtOffsetXPct: trainer.cardArtOffsetXPct,
+                cardArtOffsetYPct: trainer.cardArtOffsetYPct,
                 cardArtScale: trainer.cardArtScale,
                 cardArtRotation: trainer.cardArtRotation,
                 holographic: trainer.holographic === true,
@@ -3369,14 +3371,66 @@
         renderProfile();
     }
 
+    function isDailyTrainerOffer(offer) {
+        const type = String(offer?.type || '').toUpperCase();
+        return type === 'TRAINER' || type === 'SIEGEKNIGHT';
+    }
+
+    function findSiegeknightCatalogEntry(cardId) {
+        const key = String(cardId || '').toLowerCase();
+        return siegeknightBinderCards().find(entry => String(entry.id || '').toLowerCase() === key) || null;
+    }
+
+    function abilitiesFromDailyOffer(offer, knight) {
+        if (Array.isArray(offer?.abilities) && offer.abilities.length) {
+            return offer.abilities;
+        }
+        if (Array.isArray(knight?.abilities) && knight.abilities.length) {
+            return knight.abilities;
+        }
+        const abilities = [];
+        if (offer?.passive) {
+            abilities.push(typeof offer.passive === 'string'
+                ? { name: 'Passive', description: offer.passive }
+                : offer.passive);
+        }
+        if (offer?.active) {
+            abilities.push(typeof offer.active === 'string'
+                ? { name: offer.oncePerGame ? 'Ultimate' : 'Active', description: offer.active }
+                : offer.active);
+        }
+        return abilities;
+    }
+
     function dailyOfferCard(offer) {
-        // SiegeKnight offers resolve from the trainer catalog (knights aren't in
-        // the binder card catalog) and render through the knight preview path.
-        if (offer.type === 'TRAINER' || offer.type === 'SIEGEKNIGHT') {
-            const knight = siegeknightBinderCards().find(entry => entry.id === offer.cardId);
-            if (knight) {
-                return { ...knight, type: 'SIEGEKNIGHT', rarity: offer.rarity || knight.rarity || 'RARE' };
-            }
+        // SiegeKnight offers render through the knight preview path. Guest
+        // /api/game/options only exposes starter knights, but daily rotation
+        // can spotlight any live knight — carry art + abilities on the offer
+        // payload so the shop still renders correctly.
+        if (isDailyTrainerOffer(offer)) {
+            const knight = findSiegeknightCatalogEntry(offer.cardId);
+            const abilities = abilitiesFromDailyOffer(offer, knight);
+            return {
+                ...(knight || {}),
+                id: offer.cardId,
+                name: offer.cardName || knight?.name || 'SiegeKnight',
+                type: 'SIEGEKNIGHT',
+                element: offer.element || knight?.element || 'NEUTRAL',
+                rarity: offer.rarity || knight?.rarity || 'RARE',
+                tier: offer.tier || knight?.tier || 'SiegeKnight',
+                oncePerGame: offer.oncePerGame ?? knight?.oncePerGame,
+                cardArtUrl: offer.cardArtUrl || knight?.cardArtUrl || '',
+                cardArtMode: offer.cardArtMode || knight?.cardArtMode || '',
+                cardArtOffsetX: offer.cardArtOffsetX ?? knight?.cardArtOffsetX,
+                cardArtOffsetY: offer.cardArtOffsetY ?? knight?.cardArtOffsetY,
+                cardArtOffsetXPct: offer.cardArtOffsetXPct ?? knight?.cardArtOffsetXPct,
+                cardArtOffsetYPct: offer.cardArtOffsetYPct ?? knight?.cardArtOffsetYPct,
+                cardArtScale: offer.cardArtScale ?? knight?.cardArtScale,
+                cardArtRotation: offer.cardArtRotation ?? knight?.cardArtRotation,
+                holographic: offer.holographic === true || knight?.holographic === true,
+                abilities,
+                description: String(offer.description || knight?.description || abilities.map(ability => ability.description).filter(Boolean).join(' ')).trim()
+            };
         }
         const catalogCard = findCard(offer.cardId) || {};
         return {
@@ -3387,7 +3441,9 @@
             element: offer.element || catalogCard.element || 'FIRE',
             rarity: offer.rarity || catalogCard.rarity || 'COMMON',
             notches: catalogCard.notches || [],
-            abilities: catalogCard.abilities || (catalogCard.ability ? [catalogCard.ability] : [])
+            abilities: catalogCard.abilities || (catalogCard.ability ? [catalogCard.ability] : []),
+            cardArtUrl: offer.cardArtUrl || catalogCard.cardArtUrl || '',
+            cardArtMode: offer.cardArtMode || catalogCard.cardArtMode || ''
         };
     }
 

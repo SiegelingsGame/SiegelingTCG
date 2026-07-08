@@ -316,12 +316,58 @@ public class PackCatalogService {
         out.put("availableOn", offer.availableOn());
         out.put("slot", offer.slot());
         out.put("price", offer.price());
-        out.put("cardId", offer.card().getId());
-        out.put("cardName", offer.card().getName());
-        out.put("type", offer.card().getCardType().name());
-        out.put("element", offer.card().getElement().name());
-        out.put("rarity", offer.card().getRarity().name());
+        Card card = offer.card();
+        out.put("cardId", card.getId());
+        out.put("cardName", card.getName());
+        out.put("type", card.getCardType().name());
+        out.put("element", card.getElement().name());
+        out.put("rarity", card.getRarity().name());
+        appendCardArt(out, card);
+        if (card instanceof TrainerCard trainer) {
+            out.put("tier", trainer.getTier());
+            out.put("oncePerGame", trainer.isOncePerGame());
+            if (trainer.getAbility() != null) {
+                out.put("passive", trainer.getAbility().getDescription());
+            }
+            if (trainer.getActiveAbility() != null) {
+                out.put("active", trainer.getActiveAbility().getDescription());
+            }
+        }
+        if (card.getDescription() != null && !card.getDescription().isBlank()) {
+            out.put("description", card.getDescription());
+        }
         return out;
+    }
+
+    private void appendCardArt(Map<String, Object> target, Card card) {
+        if (card.getCardArtUrl() == null || card.getCardArtUrl().isBlank()) {
+            return;
+        }
+        target.put("cardArtUrl", card.getCardArtUrl());
+        if (card.getCardArtMode() != null && !card.getCardArtMode().isBlank()) {
+            target.put("cardArtMode", card.getCardArtMode());
+        }
+        if (card.getCardArtOffsetX() != null) {
+            target.put("cardArtOffsetX", card.getCardArtOffsetX());
+        }
+        if (card.getCardArtOffsetY() != null) {
+            target.put("cardArtOffsetY", card.getCardArtOffsetY());
+        }
+        if (card.getCardArtOffsetXPct() != null) {
+            target.put("cardArtOffsetXPct", card.getCardArtOffsetXPct());
+        }
+        if (card.getCardArtOffsetYPct() != null) {
+            target.put("cardArtOffsetYPct", card.getCardArtOffsetYPct());
+        }
+        if (card.getCardArtScale() != null) {
+            target.put("cardArtScale", card.getCardArtScale());
+        }
+        if (card.getCardArtRotation() != null) {
+            target.put("cardArtRotation", card.getCardArtRotation());
+        }
+        if (card.isHolographic()) {
+            target.put("holographic", true);
+        }
     }
 
     private List<Card> selectRandom(List<Card> pool, CardType type, int limit) {
