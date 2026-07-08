@@ -6,6 +6,13 @@
   --playcard-w:128px;
 }
 *{box-sizing:border-box;}
+html{
+  /* Stray pinch/double-tap zoom (easy to trigger while dragging cards)
+     leaves mobile Safari's visual viewport scaled up with no in-app way to
+     reset it, clipping the top/bottom of the single-screen battle layout
+     until the user manually pinches back out. Panning stays enabled. */
+  touch-action:pan-x pan-y;
+}
 body{
   margin:0; background:
     radial-gradient(1100px 520px at 82% -12%, rgba(255,154,60,.10), transparent 60%),
@@ -13,6 +20,7 @@ body{
     var(--bg);
   color:var(--text); font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
   -webkit-font-smoothing:antialiased; min-height:100vh;
+  touch-action:pan-x pan-y;
 }
 .hidden{display:none !important;}
 button{font-family:inherit;}

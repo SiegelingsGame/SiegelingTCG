@@ -61,6 +61,11 @@
 html, body {
     height: 100%;
     overflow: hidden;
+    /* Stray pinch/double-tap zoom during drag interactions leaves mobile
+       Safari's visual viewport scaled up with no in-app way to reset it,
+       clipping the top/bottom of the single-screen layout until the user
+       manually pinches back out. Panning stays enabled; only zoom is blocked. */
+    touch-action: pan-x pan-y;
 }
 
 body {
