@@ -792,12 +792,14 @@
   function applyRun(run) {
     var events = run && run.battle && run.battle.events ? run.battle.events : [];
     var hadBattleDom = state.run && state.run.battle && !$('battleScreen').classList.contains('hidden');
+    var enteringBattle = run && run.battle && !(state.run && state.run.battle);
     state.run = run;
-    if (events.length && hadBattleDom) {
-      playEvents(events, function () { renderRun(); });
-    } else {
+    if (events.length && (hadBattleDom || enteringBattle)) {
       renderRun();
+      playEvents(events, function () { renderRun(); });
+      return;
     }
+    renderRun();
   }
 
   // ---- branching map (SVG DAG, boss at the top) ------------------------
@@ -921,7 +923,7 @@
   function travelTo(nodeId) {
     if (state.busy) return; state.busy = true;
     api('/api/siege/node/enter', { method: 'POST', body: { token: token(), nodeId: nodeId } })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) { applyRun(run); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -1307,7 +1309,11 @@
       if (selItem && knightTargetValid(selItem, pm, false)) {
         row.addEventListener('click', function () { useKnightItemFromMap(selItem.id, pm.id); });
       } else if (invSelectedItem) {
-        row.addEventListener('click', function () { simplePostKeepInv('/api/siege/item/equip', { itemId: invSelectedItem, memberId: pm.id }); invSelectedItem = null; });
+        var equipItem = findInventoryItem(run, invSelectedItem);
+        if (equipItemValid(equipItem, pm)) {
+          row.classList.add('inv-targetable');
+          row.addEventListener('click', function () { simplePostKeepInv('/api/siege/item/equip', { itemId: invSelectedItem, memberId: pm.id }); invSelectedItem = null; });
+        }
       }
       party.appendChild(row);
     });
@@ -1321,9 +1327,24 @@
     });
     var hint = selItem
       ? (selItem.kind === 'REVIVE' ? 'Tap a fallen Siegeling to revive.' : 'Tap an ally to heal.')
-      : (invSelectedItem ? 'Tap a Siegeling to equip.' : 'Tap a knight item, then a target — or tap a backpack item to equip.');
+      : (invSelectedItem ? equipHint(findInventoryItem(run, invSelectedItem)) : 'Tap a knight item, then a target — or tap a backpack item to equip.');
     var sub = $('invBag').previousElementSibling; if (sub) sub.textContent = 'Backpack — ' + hint;
     var ksub = $('invKnightBag').previousElementSibling; if (ksub) ksub.textContent = selItem ? 'Knight\'s Bag — ' + hint : 'Knight\'s Bag';
+  }
+  function findInventoryItem(run, itemId) {
+    return (run.inventory || []).find(function (it) { return it && it.id === itemId; }) || null;
+  }
+  function equipItemValid(item, member) {
+    if (!item || !member || !member.alive) return false;
+    if (item.kind === 'EVOLUTION') return !!member.hasEvolution;
+    if (item.kind === 'EVOLUTION2') return !!member.hasStage3Evolution;
+    return true;
+  }
+  function equipHint(item) {
+    if (!item) return 'Tap a Siegeling to equip.';
+    if (item.kind === 'EVOLUTION') return 'Tap a Siegeling with an evolution path.';
+    if (item.kind === 'EVOLUTION2') return 'Tap a Siegeling with a stage-3 evolution line.';
+    return 'Tap a Siegeling to equip.';
   }
   function knightTargetValid(item, unit, isKnight) {
     if (!item || !unit) return false;
@@ -1665,8 +1686,10 @@
         showBanner('🌟 ' + ev.from + ' evolves into ' + ev.to + '!', 'you', ev.element);
         flashSprite(ev.targetId, 'evolving');
         floatText(ev.targetId, '🌟 EVOLVED!', 'status');
-        transformHandCards(ev.targetId);
         return 1000;
+      case 'cardUpdate':
+        refreshHandCards(ev.targetId);
+        return 850;
       case 'gaugeReady':
         flashSprite(ev.targetId, 'evolving');
         floatText(ev.targetId, '🌟 Gauge full!', 'status');
@@ -1769,6 +1792,15 @@
       setTimeout(function () { node.classList.add('card-transform'); }, i * 90);
       setTimeout(function () { node.classList.remove('card-transform'); }, 900 + i * 90);
     });
+  }
+
+  /** Re-render the hand after sigil evolution, then play the card-upgrade flip. */
+  function refreshHandCards(ownerId) {
+    var b = state.run && state.run.battle;
+    if (!b) return;
+    var over = b.phase === 'WON' || b.phase === 'LOST';
+    renderHand(b, over);
+    transformHandCards(ownerId);
   }
 
   /** The hand flies off to the discard pile at end of turn. */

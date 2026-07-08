@@ -49,6 +49,10 @@ public class SiegeContentService {
         putItem(new SiegeItem("gale-plume", "Gale Plume", "\uD83C\uDF2C\uFE0F", "SPEED", 5, "Rides the wind."));
         putItem(new SiegeItem("aegis-crest", "Aegis Crest", "\uD83D\uDEE1\uFE0F", "SHIELD", 8, "Wards the first blow."));
         putItem(new SiegeItem("bulwark-totem", "Bulwark Totem", "\uD83E\uDDF1", "SHIELD", 14, "An immovable ward."));
+        putItem(new SiegeItem("evolution-sigil", "Evolution Sigil", "\uD83C\uDF1F", "EVOLUTION", 1,
+                "Evolves to the next stage when battle begins."));
+        putItem(new SiegeItem("evolution-2-sigil", "Evolution 2 Sigil", "\u2728", "EVOLUTION2", 1,
+                "Begins battle at stage 3 — only for Siegelings with a 3-stage evolution line."));
         putItem(new SiegeItem("revive-card", "Revive Card", "\uD83D\uDCDC", "REVIVE", 50,
                 "Raises a knocked Siegeling to half strength."));
         putItem(new SiegeItem("healing-potion", "Healing Potion", "\uD83E\uDDEA", "HEAL", 50,
@@ -72,11 +76,13 @@ public class SiegeContentService {
         return out;
     }
 
-    /** Dashboard item creation: kind must be VITALITY|ATTACK|SPEED|SHIELD|REVIVE|HEAL. */
+    /** Dashboard item creation: kind must be a supported carryable or consumable kind. */
     SiegeItem createItem(String name, String icon, String kind, int value) {
         String k = kind == null ? "" : kind.trim().toUpperCase(java.util.Locale.ROOT);
-        if (!java.util.Set.of("VITALITY", "ATTACK", "SPEED", "SHIELD", "REVIVE", "HEAL").contains(k)) {
-            throw new IllegalArgumentException("Item kind must be VITALITY, ATTACK, SPEED, SHIELD, REVIVE or HEAL.");
+        if (!java.util.Set.of("VITALITY", "ATTACK", "SPEED", "SHIELD", "EVOLUTION", "EVOLUTION2",
+                "REVIVE", "HEAL").contains(k)) {
+            throw new IllegalArgumentException(
+                    "Item kind must be VITALITY, ATTACK, SPEED, SHIELD, EVOLUTION, EVOLUTION2, REVIVE or HEAL.");
         }
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Item name is required.");
         String id = name.trim().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
@@ -160,6 +166,25 @@ public class SiegeContentService {
             }
         }
         return Optional.empty();
+    }
+
+    /** The furthest evolution reachable from a catalog card (walking the chain). */
+    Optional<SieglingCard> finalEvolutionOf(String cardId) {
+        Optional<SieglingCard> current = findAnySiegling(cardId);
+        Optional<SieglingCard> last = Optional.empty();
+        int guard = 0;
+        while (current.isPresent() && guard++ < 6) {
+            last = current;
+            Optional<SieglingCard> next = evolutionOf(current.get().getId());
+            if (next.isEmpty()) break;
+            current = next;
+        }
+        return last;
+    }
+
+    /** True when the catalog card can evolve along a chain that reaches stage 3. */
+    boolean hasStage3EvolutionChain(String cardId) {
+        return finalEvolutionOf(cardId).map(s -> stageOf(s) >= 3).orElse(false);
     }
 
     /** Full-catalog lookup that, unlike {@link #findSiegling}, includes evolution stages. */

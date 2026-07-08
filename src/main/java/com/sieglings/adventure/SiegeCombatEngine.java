@@ -80,6 +80,7 @@ public class SiegeCombatEngine {
                     case "ATTACK" -> ally.addAttackBuff(item.value());
                     case "SPEED" -> ally.setSpeed(ally.getSpeed() + item.value());
                     case "SHIELD" -> ally.setShield(ally.getShield() + item.value());
+                    case "EVOLUTION", "EVOLUTION2" -> { } // applied after the deck is built
                     default -> { }
                 }
             }
@@ -115,12 +116,15 @@ public class SiegeCombatEngine {
                 battle.getDeck().add(new SiegeCard("c" + (n++), boon.getOwnerId(), boon.getSpec()));
             }
         }
+        // Evolution sigils transform the holder before EVOLVE cards are injected.
+        applySigilEvolutions(run, battle, rng);
         // Each member with a next stage gets its Evolution card in the deck —
         // evolution happens in battle by drawing and playing it (2 AP).
         for (Combatant ally : battle.living(Side.PLAYER)) {
+            if (ally.isKnight()) continue;
             content.evolutionOf(ally.getSourceCardId()).ifPresent(evo ->
                     battle.getDeck().add(new SiegeCard("evo-" + ally.getId(), ally.getId(),
-                            content.evolveCardSpec(ally.getName(), evo, 2))));
+                            content.evolveCardSpec(ally.getName(), evo, content.stageOf(evo)))));
         }
         Collections.shuffle(battle.getDeck(), rng);
 
@@ -132,8 +136,74 @@ public class SiegeCombatEngine {
         run.setBattle(battle);
 
         drawOpeningHand(run, battle, rng);
+        // Sigil-evolved allies refresh their hand cards after the opening draw.
+        for (Combatant ally : battle.living(Side.PLAYER)) {
+            if (!ally.isKnight() && ally.getEvolvedFrom() != null) {
+                battle.event("cardUpdate", "targetId", ally.getId());
+            }
+        }
         rollEnemyIntents(battle, rng);
         beginRound(run, rng);
+    }
+
+    /**
+     * Applies equipped Evolution / Evolution 2 sigils at battle start. Each step
+     * emits an {@code evolve} presentation event for the client.
+     */
+    private void applySigilEvolutions(SiegeRun run, SiegeBattle battle, Random rng) {
+        for (Combatant ally : new ArrayList<>(battle.living(Side.PLAYER))) {
+            if (ally.isKnight()) continue;
+            SiegeItem item = content.findItem(ally.getItemId());
+            if (item == null || !item.evolutionSigil()) continue;
+            if ("EVOLUTION2".equals(item.kind())) {
+                content.finalEvolutionOf(ally.getSourceCardId()).ifPresent(target ->
+                        forceEvolveTo(run, battle, ally.getId(), target, rng));
+            } else {
+                content.evolutionOf(ally.getSourceCardId()).ifPresent(evo ->
+                        forceEvolve(run, battle, ally.getId(), evo, rng, true));
+            }
+        }
+    }
+
+    /** Evolves {@code memberId} along the chain until it reaches {@code target}. */
+    private void forceEvolveTo(SiegeRun run, SiegeBattle battle, String memberId,
+                               SieglingCard target, Random rng) {
+        int guard = 0;
+        while (guard++ < 6) {
+            Combatant current = battle.findCombatant(memberId);
+            if (current == null || current.getSourceCardId().equals(target.getId())) break;
+            Optional<SieglingCard> next = content.evolutionOf(current.getSourceCardId());
+            if (next.isEmpty()) break;
+            forceEvolve(run, battle, memberId, next.get(), rng, false);
+        }
+        Collections.shuffle(battle.getDeck(), rng);
+    }
+
+    /** Instantly evolves a Siegeling (sigil at battle start or internal helper). */
+    private Combatant forceEvolve(SiegeRun run, SiegeBattle battle, String memberId,
+                                  SieglingCard evo, Random rng, boolean shuffleDeck) {
+        Combatant member = battle.findCombatant(memberId);
+        if (member == null || member.getSide() != Side.PLAYER || member.isKnight()) return member;
+
+        Combatant evolved = content.evolve(member, evo);
+        evolved.setEvolvedFrom(member);
+        evolved.setShield(member.getShield());
+        evolved.addAttackBuff(member.getAttackBuff());
+        evolved.setItemId(member.getItemId());
+
+        int bi = battle.getCombatants().indexOf(member);
+        if (bi >= 0) battle.getCombatants().set(bi, evolved);
+        int pi = run.getParty().indexOf(member);
+        if (pi >= 0) run.getParty().set(pi, evolved);
+
+        battle.event("evolve", "targetId", evolved.getId(), "from", member.getName(),
+                "to", evolved.getName(), "element",
+                evolved.getElement() == null ? null : evolved.getElement().name());
+        battle.log("🌟 " + member.getName() + " evolves into " + evolved.getName() + "!");
+
+        content.addNewStageCards(evo, evolved.getId(), battle.getDeck());
+        if (shuffleDeck) Collections.shuffle(battle.getDeck(), rng);
+        return evolved;
     }
 
     /**
@@ -368,6 +438,7 @@ public class SiegeCombatEngine {
         evolved.setEvolvedFrom(member);
         evolved.setShield(member.getShield());
         evolved.addAttackBuff(member.getAttackBuff());
+        evolved.setItemId(member.getItemId());
 
         // Same combatant id, so deck ownership and the sprite carry straight over.
         int bi = battle.getCombatants().indexOf(member);
@@ -393,6 +464,7 @@ public class SiegeCombatEngine {
                     content.evolveCardSpec(evolved.getName(), next, 3)));
             battle.log("The path to " + next.getName() + " opens — its Evolution card joins the deck.");
         });
+        battle.event("cardUpdate", "targetId", evolved.getId());
         Collections.shuffle(battle.getDeck(), rng);
         return PlayResult.okay();
     }
