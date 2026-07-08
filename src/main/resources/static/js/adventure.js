@@ -378,6 +378,8 @@
     $('gachaClaimBtn').addEventListener('click', claimRecruit);
     $('interactionResultBtn').addEventListener('click', ackInteractionResult);
     $('inventoryBtn').addEventListener('click', function () { openInventory(); });
+    var extractBtn = $('extractBtn');
+    if (extractBtn) extractBtn.addEventListener('click', extractTeam);
     $('invClose').addEventListener('click', function () { $('invOverlay').classList.add('hidden'); });
     $('invOverlay').addEventListener('click', function (e) { if (e.target === $('invOverlay')) $('invOverlay').classList.add('hidden'); });
     $('smithLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/smith/leave'); });
@@ -982,6 +984,12 @@
     $('mapReward').classList.add('hidden');
     $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');
     $('mapHint').textContent = run.currentNodeId < 0 ? 'Choose where to begin' : 'Choose your path';
+    // Endless: once a boss has fallen, the team can be extracted (banked for Battlegrounds).
+    var extractBtn = $('extractBtn');
+    if (extractBtn) {
+      var canExtract = run.mode === 'ENDLESS' && run.stats && (run.stats.bossKills || 0) > 0;
+      extractBtn.classList.toggle('hidden', !canExtract);
+    }
 
     var nodes = run.map || [];
     var rows = 1 + Math.max.apply(null, nodes.map(function (n) { return n.row; }));
@@ -3083,6 +3091,16 @@
       .then(function () { state.busy = false; });
   }
 
+  function extractTeam() {
+    if (state.busy) return;
+    if (!confirm('Extract your team now? This ends the Endless run and banks your leveled Siegelings for Battlegrounds.')) return;
+    state.busy = true;
+    api('/api/siege/extract', { method: 'POST', body: { token: token() } })
+      .then(function (run) { applyRun(run); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
   function renderResult() {
     showScreen('resultScreen');
     var run = state.run;
@@ -3114,6 +3132,26 @@
         cardLine +
         '<div class="result-claim' + (er.claimed ? ' ok' : '') + '">' + note + '</div>');
       extras.appendChild(box);
+    }
+
+    // Team extraction: the leveled team was banked for Battlegrounds.
+    var extraction = run.extraction;
+    if (extraction) {
+      var members = extraction.members || [];
+      var kn = extraction.knight || {};
+      var chips = members.map(function (mv) {
+        return '<span class="extract-chip">' + esc(mv.name || 'Siegeling') +
+          ' <strong>Lv ' + (mv.level || 1) + '</strong></span>';
+      }).join('');
+      var knightLine = kn.knightName
+        ? '<div class="extract-knight">👑 ' + esc(kn.knightName) + ' — Lv ' + (kn.level || 1) + '</div>'
+        : '';
+      var xbox = el('div', 'result-extract',
+        '<h3>⤴ Team extracted — banked for Battlegrounds</h3>' +
+        knightLine +
+        '<div class="extract-chips">' + chips + '</div>' +
+        '<div class="extract-note">Your veterans keep the level they reached. Bring 3 into Battlegrounds.</div>');
+      extras.appendChild(xbox);
     }
 
     // Winning a standard run unlocks saving the team for Endless mode.

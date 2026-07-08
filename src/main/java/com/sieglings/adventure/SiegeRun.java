@@ -108,6 +108,11 @@ class SiegeRun {
     /** Whether the run's last idle checkpoint reached persistent storage. */
     private boolean checkpointSaved;
 
+    /** Whether this run's leveled team has already been banked as a veteran team (idempotency guard). */
+    private boolean veteranExtracted;
+    /** The just-extracted team snapshot (drives the "banked for Battlegrounds" confirmation UI); null until extracted. */
+    private java.util.Map<String, Object> veteranTeam;
+
     SiegeRun(String token) {
         this.token = token;
     }
@@ -233,6 +238,11 @@ class SiegeRun {
 
     boolean isCheckpointSaved() { return checkpointSaved; }
     void setCheckpointSaved(boolean checkpointSaved) { this.checkpointSaved = checkpointSaved; }
+
+    boolean isVeteranExtracted() { return veteranExtracted; }
+    void setVeteranExtracted(boolean veteranExtracted) { this.veteranExtracted = veteranExtracted; }
+    java.util.Map<String, Object> getVeteranTeam() { return veteranTeam; }
+    void setVeteranTeam(java.util.Map<String, Object> veteranTeam) { this.veteranTeam = veteranTeam; }
 
 
     SiegeNode currentNode() {

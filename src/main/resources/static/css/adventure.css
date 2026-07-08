@@ -862,6 +862,13 @@ body[data-screen="mapScreen"] #mapScreen{
 .result-save{margin:14px auto; max-width:420px;}
 .result-save h3{font-size:14px; margin:0 0 8px;}
 .result-save-row{display:flex; gap:8px; flex-wrap:wrap; justify-content:center;}
+.result-extract{background:var(--panel); border:1px solid var(--accent); border-radius:12px; padding:14px 18px; margin:14px auto; max-width:360px;}
+.result-extract h3{margin:0 0 8px; font-size:15px; color:var(--accent);}
+.result-extract .extract-knight{font-size:13px; margin:0 0 8px;}
+.result-extract .extract-chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
+.result-extract .extract-chip{background:var(--chip,#1c2433); border:1px solid var(--border); border-radius:999px; padding:3px 10px; font-size:12px;}
+.result-extract .extract-note{margin-top:10px; font-size:12px; color:var(--dim);}
+.map-extract-btn{padding:5px 12px; font-size:13px;}
 .endless-slots{margin:14px 0 4px; text-align:center;}
 .endless-title{font-size:13px; color:var(--accent-2); margin-bottom:8px; font-weight:650;}
 .endless-btn{margin:4px; border-color:var(--accent-2);}

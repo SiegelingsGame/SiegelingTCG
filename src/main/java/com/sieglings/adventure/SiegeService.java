@@ -46,6 +46,9 @@ public class SiegeService {
     @Autowired
     private SiegeCheckpointStore checkpoints;
 
+    @Autowired
+    private SiegeVeteranStore veterans;
+
     @Autowired(required = false)
     private AccountService accountService;
 
@@ -136,6 +139,31 @@ public class SiegeService {
         resp.put("partyMax", content.partyMax());
         resp.put("loggedIn", user != null);
         resp.put("gold", progression == null ? 0 : progression.getGold());
+        // Battlegrounds gate: `veterans` is a FLAT list of banked veteran Siegelings
+        // (the ">=3 veteran Siegelings" gate the client counts), `veteranTeams` the
+        // full team snapshots Phase 3 rebuilds a playable squad from.
+        List<Map<String, Object>> veteranTeams = listVeteranTeams(user);
+        resp.put("veterans", SiegeVeteranStore.flattenVeterans(veteranTeams));
+        resp.put("veteranTeams", veteranTeams);
+        return resp;
+    }
+
+    /** The authenticated user's banked veteran teams (newest first); empty for guests. */
+    private List<Map<String, Object>> listVeteranTeams(AccountUser user) {
+        if (user == null || user.getId() == null) return new ArrayList<>();
+        try {
+            return veterans.listTeams(user.getId());
+        } catch (Exception ignored) {
+            return new ArrayList<>();
+        }
+    }
+
+    /** Roster of banked veteran teams for the authenticated user (empty for guests). */
+    Map<String, Object> veterans(String authorizationHeader) {
+        List<Map<String, Object>> teams = listVeteranTeams(resolveUser(authorizationHeader));
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("veterans", SiegeVeteranStore.flattenVeterans(teams));
+        resp.put("veteranTeams", teams);
         return resp;
     }
 
@@ -1514,6 +1542,8 @@ public class SiegeService {
                     run.setStatus(RunStatus.WON);
                     run.setLastReward("The Siegelord is defeated — the expedition is won!" + mercNote);
                     grantEndRewards(run, authorizationHeader);
+                    // Beating the final boss extracts the leveled team automatically.
+                    extractTeam(run, authorizationHeader);
                 } else if (finalRow) {
                     // Endless: the road never ends — bolt on another region.
                     run.setLoop(run.getLoop() + 1);
@@ -1578,16 +1608,27 @@ public class SiegeService {
      * and (on a win) a random collection card. Guests see a preview only.
      */
     private void grantEndRewards(SiegeRun run, String authorizationHeader) {
+        grantEndRewards(run, authorizationHeader, 1.0);
+    }
+
+    /**
+     * As {@link #grantEndRewards(SiegeRun, String)} but scales the Siegecoin and
+     * Remnant payout by {@code rewardMultiplier} — Endless loop-boundary extraction
+     * banks the team with a ×loop multiplier (see {@link #extract}).
+     */
+    private void grantEndRewards(SiegeRun run, String authorizationHeader, double rewardMultiplier) {
         if (run.isEndRewardsGranted()) return;
+        double mult = Math.max(1.0, rewardMultiplier);
         boolean won = run.getStatus() == RunStatus.WON;
-        int coins = 15 + run.getNodesCleared() * 3 + run.getBossKills() * 20
-                + (won ? 60 : 0) + (int) Math.min(200, run.getScore() / 40);
-        int remnants = 10 + run.getNodesCleared() * 2 + run.getBossKills() * 10 + (won ? 40 : 0);
+        int coins = (int) Math.round((15 + run.getNodesCleared() * 3 + run.getBossKills() * 20
+                + (won ? 60 : 0) + (int) Math.min(200, run.getScore() / 40)) * mult);
+        int remnants = (int) Math.round((10 + run.getNodesCleared() * 2 + run.getBossKills() * 10 + (won ? 40 : 0)) * mult);
         Card cardPrize = (won || run.getLoop() >= 1) ? content.randomCollectionCard(rng).orElse(null) : null;
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("gold", coins);
         out.put("remnants", remnants);
+        out.put("multiplier", mult);
         out.put("card", cardPrize == null ? null : Map.of(
                 "id", cardPrize.getId(), "name", cardPrize.getName(),
                 "element", cardPrize.getElement().name(), "rarity", cardPrize.getRarity().name()));
@@ -1619,6 +1660,87 @@ public class SiegeService {
         out.put("guestPreview", !claimed);
         run.setEndRewards(out);
         run.setEndRewardsGranted(true);
+    }
+
+    // ---- Extraction (bank a leveled team as a veteran team) ---------------
+
+    /**
+     * Endless loop-boundary extraction: banks the current team as a veteran team,
+     * grants end-rewards with a ×loop multiplier, and ends the run. Push On is the
+     * existing continue behaviour; a later loss extracts nothing.
+     */
+    Map<String, Object> extract(String token, String authorizationHeader) {
+        SiegeRun run = require(token);
+        if (run.getMode() != RunMode.ENDLESS) {
+            throw new IllegalArgumentException("Only Endless expeditions bank a team mid-run.");
+        }
+        if (run.getStatus() != RunStatus.ACTIVE) {
+            throw new IllegalArgumentException("This expedition has already ended.");
+        }
+        if (run.getBattle() != null) {
+            throw new IllegalArgumentException("Finish the battle before extracting your team.");
+        }
+        if (run.getBossKills() < 1) {
+            throw new IllegalArgumentException("Defeat at least one boss before extracting your team.");
+        }
+        double multiplier = Math.max(1, run.getLoop() + 1);
+        run.setStatus(RunStatus.WON);
+        run.setMercenary(null);
+        run.getMercCards().clear();
+        run.setLastReward("Team extracted after " + run.getBossKills() + " boss(es) — banked for Battlegrounds. End rewards ×"
+                + (long) multiplier + ".");
+        grantEndRewards(run, authorizationHeader, multiplier);
+        extractTeam(run, authorizationHeader);
+        checkpoint(run); // status != ACTIVE, so this clears the saved checkpoint
+        return serialize(run);
+    }
+
+    /**
+     * Snapshots the run's leveled team (knight + party + modified deck) and banks
+     * it as a veteran team. Idempotent — guarded by {@link SiegeRun#isVeteranExtracted()}.
+     * Guests build the snapshot for the confirmation UI but nothing persists.
+     */
+    private void extractTeam(SiegeRun run, String authorizationHeader) {
+        if (run.isVeteranExtracted()) return;
+        Map<String, Object> snapshot = buildVeteranSnapshot(run);
+        run.setVeteranTeam(snapshot);
+        run.setVeteranExtracted(true);
+        AccountUser user = resolveUser(authorizationHeader);
+        if (user != null && user.getId() != null) {
+            try {
+                veterans.saveTeam(user.getId(), snapshot);
+            } catch (Exception ignored) {
+                // best-effort; the run outcome + local confirmation stand either way
+            }
+        }
+    }
+
+    /** Builds a portable snapshot of the run's leveled team at its extracted level. */
+    private Map<String, Object> buildVeteranSnapshot(SiegeRun run) {
+        Map<String, Object> t = new LinkedHashMap<>();
+        t.put("teamId", java.util.UUID.randomUUID().toString());
+        t.put("extractedAt", System.currentTimeMillis());
+        t.put("mode", run.getMode().name());
+        t.put("loop", run.getLoop());
+        t.put("score", run.getScore());
+        t.put("bossKills", run.getBossKills());
+
+        Map<String, Object> knight = new LinkedHashMap<>();
+        knight.put("knightId", run.getKnightId());
+        knight.put("knightName", run.getKnightName());
+        knight.put("element", run.getKnightElement() == null ? null : run.getKnightElement().name());
+        knight.put("passive", run.getKnightPassive() == null ? null : run.getKnightPassive().name());
+        knight.put("passiveName", run.getKnightPassive() == null ? null : content.knightPassiveName(run.getKnightPassive()));
+        knight.put("passiveValue", run.getKnightPassiveValue());
+        Combatant ku = run.getKnightUnit();
+        knight.put("level", ku == null ? 1 : ku.getLevel());
+        knight.put("xp", ku == null ? 0 : ku.getXp());
+        knight.put("maxHp", ku == null ? 0 : ku.getMaxHp());
+        knight.put("baseMaxHp", ku == null ? 0 : ku.getBaseMaxHp());
+        t.put("knight", knight);
+        t.put("members", SiegeVeteranStore.membersOf(run.getParty()));
+        t.put("deck", SiegeVeteranStore.deckOf(run.getDeckTemplates()));
+        return t;
     }
 
     // ---- Smith (upgrade or scrap deck cards) ------------------------------
@@ -2312,6 +2434,7 @@ public class SiegeService {
         stats.put("goldEarned", run.getGoldEarnedTotal());
         m.put("stats", stats);
         m.put("endRewards", run.getEndRewards());
+        m.put("extraction", run.getVeteranTeam());
         m.put("recruit", run.getPendingRecruit());
         if (run.getMercenary() != null) {
             Combatant merc = run.getMercenary();

@@ -32,6 +32,21 @@ public class SiegeController {
         return siege.roster(authorizationHeader);
     }
 
+    /** Banked veteran teams for the signed-in player (flat veteran list + full teams). */
+    @GetMapping("/api/siege/veterans")
+    public Map<String, Object> veterans(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.veterans(authorizationHeader);
+    }
+
+    /** Endless loop-boundary extraction: bank the current team and end the run: body { token }. */
+    @PostMapping("/api/siege/extract")
+    public Map<String, Object> extract(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return siege.extract(str(body.get("token")), authorizationHeader);
+    }
+
     /** Unlock a owned SiegeKnight for expedition warband selection. */
     @PostMapping("/api/siege/knight/unlock")
     public Map<String, Object> unlockKnight(
