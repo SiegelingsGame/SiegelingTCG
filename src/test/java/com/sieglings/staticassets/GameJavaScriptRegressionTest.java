@@ -114,6 +114,20 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void signedInGameOptionsBypassSharedGuestCache() throws IOException {
+        String homeScript = readHomeScript();
+
+        assertTrue(
+                homeScript.contains("function gameOptionsCacheKey()")
+                        && homeScript.contains("'gameOptions:signed-in'")
+                        && homeScript.contains("'gameOptions:guest'")
+                        && extractFunction(homeScript, "async function fetchGameOptions()").contains("if (!state.token)")
+                        && extractFunction(homeScript, "async function submitAuth(mode)").contains("await refreshLiveCatalog()"),
+                "Signed-in binder loads must not reuse the guest gameOptions cache."
+        );
+    }
+
+    @Test
     void guestBinderUsesFullTrainerCatalogFromOptions() throws IOException {
         String homeScript = readHomeScript();
 

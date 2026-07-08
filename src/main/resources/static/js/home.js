@@ -1248,7 +1248,7 @@
 
     async function loadAll() {
         const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
-            fetchCachedJson('gameOptions', '/api/game/options', STATIC_CACHE_TTL_MS),
+            fetchGameOptions(),
             fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
@@ -1422,6 +1422,9 @@
         }
         state.token = stored;
         await syncProfile();
+        if (tokenChanged || profileStale || loggedOutElsewhere) {
+            await refreshLiveCatalog();
+        }
         render();
         syncAuthRouteIntent();
         return state.profile;
@@ -6603,6 +6606,32 @@
         return data;
     }
 
+    function gameOptionsCacheKey() {
+        return state.token ? 'gameOptions:signed-in' : 'gameOptions:guest';
+    }
+
+    function clearGameOptionsCaches() {
+        ['gameOptions', 'gameOptions:guest', 'gameOptions:signed-in'].forEach((cacheKey) => {
+            delete memoryCache[cacheKey];
+            try {
+                hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + cacheKey);
+            } catch (error) {
+                // Cache cleanup is best-effort.
+            }
+        });
+    }
+
+    async function fetchGameOptions() {
+        const cacheKey = gameOptionsCacheKey();
+        if (!state.token) {
+            const cached = readCache(cacheKey, STATIC_CACHE_TTL_MS);
+            if (cached) return cached;
+        }
+        const data = await fetchJson('/api/game/options');
+        if (data) writeCache(cacheKey, data);
+        return data;
+    }
+
     function applyGameOptions(options) {
         const next = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
         state.options = next;
@@ -6613,7 +6642,7 @@
     // call, so the first paint of a fresh page load is instant when we've loaded
     // before. loadAll() then revalidates everything in the background.
     function hydrateStaticCachesFromStorage() {
-        const options = readCache('gameOptions', STATIC_CACHE_TTL_MS);
+        const options = readCache(gameOptionsCacheKey(), STATIC_CACHE_TTL_MS);
         if (options) {
             applyGameOptions(options);
         }
@@ -6667,7 +6696,7 @@
             const data = await fetchJson('/api/game/options');
             if (!data) return;
             applyGameOptions(data);
-            writeCache('gameOptions', data);
+            writeCache(gameOptionsCacheKey(), data);
             render();
         })().finally(() => {
             liveCatalogRefreshPromise = null;
@@ -6889,6 +6918,7 @@
         const loadingShownAt = showLoadingArtScreen('Loading your Siegelings…');
         startPresenceHeartbeat();
         try {
+            await refreshLiveCatalog();
             await ensurePacksLoaded();
             render();
         } finally {
@@ -6906,11 +6936,13 @@
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         clearCachedAuthProfile();
+        clearGameOptionsCaches();
         state.token = '';
         state.profile = null;
         state.progression = null;
         state.profilePrefs = null;
         state.profileEditOpen = false;
+        await refreshLiveCatalog();
         render();
     }
 
@@ -6931,6 +6963,7 @@
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         clearCachedAuthProfile();
+        clearGameOptionsCaches();
         state.token = '';
         state.profile = null;
         state.progression = null;
