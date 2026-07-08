@@ -894,6 +894,19 @@ body[data-screen="mapScreen"] #mapScreen{
 .bg-req.todo .bg-req-mark{color:var(--faint);}
 .bg-req.todo .bg-req-text{color:var(--dim);}
 .bg-modal-foot{font-size:12px; color:var(--faint); font-style:italic; margin:0 0 16px; line-height:1.45;}
+/* Battlegrounds squad-pick lobby (shown once >=3 veterans are banked). */
+.bg-lobby{display:flex; flex-direction:column; gap:8px; margin:4px 0 14px;}
+.bg-lobby-label{font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--dim); margin-top:4px;}
+.bg-veteran-grid, .bg-knight-grid{display:flex; flex-wrap:wrap; gap:8px;}
+.bg-vet, .bg-knight{display:flex; align-items:center; gap:6px; padding:7px 10px; border-radius:10px;
+  border:1px solid var(--border); background:var(--panel); color:var(--fg); cursor:pointer; font-size:13px;
+  transition:border-color .12s ease, transform .12s ease;}
+.bg-vet:hover, .bg-knight:hover{border-color:var(--accent); transform:translateY(-1px);}
+.bg-vet.picked, .bg-knight.picked{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; background:var(--panel-2, var(--panel));}
+.bg-vet-el{font-size:15px; line-height:1;}
+.bg-vet-name{font-weight:700;}
+.bg-vet-lv{font-size:11px; font-weight:700; color:var(--faint);}
+.bg-enter-btn.hidden{display:none;}
 .camp-card.clickable{cursor:pointer;}
 .camp-card.clickable:hover{border-color:var(--accent);}
 .camp-card.unaffordable{opacity:.5;}

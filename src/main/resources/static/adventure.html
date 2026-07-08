@@ -311,8 +311,15 @@
       <h2 class="knight-lock-title" id="bgModalTitle">⚔️ Battlegrounds</h2>
       <p class="knight-lock-msg" id="bgModalMsg"></p>
       <div class="bg-req-list" id="bgReqList"></div>
+      <div class="bg-lobby hidden" id="bgLobby">
+        <div class="bg-lobby-label">Pick 3 veteran Siegelings</div>
+        <div class="bg-veteran-grid" id="bgVeteranGrid"></div>
+        <div class="bg-lobby-label">Pick a veteran SiegeKnight</div>
+        <div class="bg-knight-grid" id="bgKnightGrid"></div>
+      </div>
       <p class="bg-modal-foot" id="bgModalFoot"></p>
       <div class="knight-lock-actions">
+        <button class="siege-btn primary bg-enter-btn hidden" id="bgEnterBtn" type="button" disabled>Enter Battlegrounds</button>
         <button class="siege-btn" id="bgModalDismiss" type="button">Got it</button>
       </div>
     </div>
@@ -320,6 +327,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=29"></script>
+<script src="/js/adventure.js?v=30"></script>
 </body>
 </html>

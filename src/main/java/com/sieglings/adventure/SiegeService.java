@@ -321,11 +321,15 @@ public class SiegeService {
         run.getKnightBag().add("healing-potion");
     }
 
-    /** Credits gold, applying the knight's LOOT passive; returns the amount added. */
+    /** Credits gold, applying the knight's LOOT passive and the Battlegrounds ×2.5 bonus; returns the amount added. */
     private int earnGold(SiegeRun run, int base) {
         int amount = base;
         if (run.getKnightPassive() == KnightPassive.LOOT) {
             amount = base + Math.round(base * run.getKnightPassiveValue() / 100f);
+        }
+        // Battlegrounds pays out far more gold than a standard expedition.
+        if (run.isBattlegrounds()) {
+            amount = SiegeTuning.bgGold(amount);
         }
         run.addGold(amount);
         run.setGoldEarnedTotal(run.getGoldEarnedTotal() + amount);
@@ -343,6 +347,15 @@ public class SiegeService {
      *                    blocks joins until the warband has won at least one fight.
      */
     private void joinStagedRecruit(SiegeRun run, String flavorSuffix, boolean afterCombat) {
+        // Battlegrounds: your extracted squad IS the team — free recruit drops are
+        // disabled and replaced with a gold windfall of comparable value.
+        if (recruitsSuppressed(run)) {
+            int g = earnGold(run, SiegeTuning.BG_RECRUIT_GOLD);
+            String prior = run.getLastReward();
+            run.setLastReward((prior == null || prior.isBlank() ? "" : prior + " ")
+                    + "A wandering Siegeling can't join a veteran squad — they leave +" + g + " gold instead.");
+            return;
+        }
         if (!afterCombat && run.getEnemiesDefeated() <= 0) {
             return;
         }
@@ -818,8 +831,14 @@ public class SiegeService {
                 + segment * 4 + run.getLoop() * 4;
         int partySize = (int) run.getParty().stream().filter(Combatant::isAlive).count()
                 + (run.getMercenary() != null ? 1 : 0);
+        // Battlegrounds scales enemies off the squad's average veteran level (+8% HP,
+        // +5% damage per level), on top of the tier scalar seam. 1.0/1.0 elsewhere.
+        double bgHp = run.isBattlegrounds()
+                ? SiegeTuning.bgEnemyHpScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
+        double bgDmg = run.isBattlegrounds()
+                ? SiegeTuning.bgEnemyDamageScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
         List<Combatant> enemies = content.generateEnemies(battleType, effFloor,
-                Math.max(1, partySize), segment + run.getLoop(), rng, palette);
+                Math.max(1, partySize), segment + run.getLoop(), rng, palette, bgHp, bgDmg);
         if (ambush) {
             // Ambush: enemies get the drop on you — extra shield, bite, and haste.
             for (Combatant foe : enemies) {
@@ -1538,11 +1557,17 @@ public class SiegeService {
                 run.addScore(100L + 50L * run.getBossKills());
                 int gold = earnGold(run, base + 30);
                 boolean finalRow = node.getRow() >= run.getMap().get(run.getMap().size() - 1).getRow();
-                if (finalRow && run.getMode() == RunMode.STANDARD) {
+                // STANDARD and BATTLEGROUNDS are both fixed 3-boss expeditions: beating
+                // the final boss wins the run and auto-extracts the (now higher-level)
+                // team. Only ENDLESS loops onward.
+                boolean fixedExpedition = run.getMode() == RunMode.STANDARD || run.isBattlegrounds();
+                if (finalRow && fixedExpedition) {
                     run.setStatus(RunStatus.WON);
-                    run.setLastReward("The Siegelord is defeated — the expedition is won!" + mercNote);
+                    run.setLastReward((run.isBattlegrounds()
+                            ? "The Siegelord is defeated — Battlegrounds cleared!"
+                            : "The Siegelord is defeated — the expedition is won!") + mercNote);
                     grantEndRewards(run, authorizationHeader);
-                    // Beating the final boss extracts the leveled team automatically.
+                    // Beating the final boss re-extracts the leveled team automatically.
                     extractTeam(run, authorizationHeader);
                 } else if (finalRow) {
                     // Endless: the road never ends — bolt on another region.
@@ -1632,7 +1657,8 @@ public class SiegeService {
         out.put("card", cardPrize == null ? null : Map.of(
                 "id", cardPrize.getId(), "name", cardPrize.getName(),
                 "element", cardPrize.getElement().name(), "rarity", cardPrize.getRarity().name()));
-        out.put("score", run.getScore());
+        // Battlegrounds triples the end-of-run score payout.
+        out.put("score", run.isBattlegrounds() ? SiegeTuning.bgScore(run.getScore()) : run.getScore());
 
         AccountUser user = null;
         try {
@@ -1741,6 +1767,283 @@ public class SiegeService {
         t.put("members", SiegeVeteranStore.membersOf(run.getParty()));
         t.put("deck", SiegeVeteranStore.deckOf(run.getDeckTemplates()));
         return t;
+    }
+
+    // ---- Battlegrounds (march a squad of banked veterans) -----------------
+
+    /** Whether free recruit drops are disabled for this run (Battlegrounds only). */
+    static boolean recruitsSuppressed(SiegeRun run) {
+        return run != null && run.isBattlegrounds();
+    }
+
+    /**
+     * Launches a Battlegrounds run. The client picks exactly {@link SiegeTuning#BG_SQUAD_SIZE}
+     * veterans (each identified by {@code teamId}+{@code sourceCardId}) plus a veteran
+     * knight (identified by its {@code knightTeamId}). Every pick is validated against
+     * the signed-in user's banked veteran teams — stats, levels and decks are read
+     * from the STORED snapshot, never trusted from the request.
+     *
+     * @param membersRaw   a list of {@code {teamId, sourceCardId}} maps (exactly 3)
+     * @param knightTeamId the banked team whose veteran knight leads the squad
+     */
+    Map<String, Object> newBattlegrounds(String authorizationHeader, Object membersRaw, String knightTeamId) {
+        AccountUser user = resolveUser(authorizationHeader);
+        if (user == null || user.getId() == null) {
+            throw new IllegalArgumentException("Sign in and bank some veteran teams to march into Battlegrounds.");
+        }
+        List<Map<String, Object>> teams = listVeteranTeams(user);
+        if (SiegeVeteranStore.flattenVeterans(teams).size() < SiegeTuning.BG_MIN_VETERANS) {
+            throw new IllegalArgumentException("Battlegrounds needs at least " + SiegeTuning.BG_MIN_VETERANS
+                    + " banked veterans — extract more teams from Siege first.");
+        }
+        List<String[]> picks = parseMemberPicks(membersRaw);
+
+        purgeStale();
+        String token = generateToken();
+        SiegeRun run = buildBattlegroundsRun(token, teams, picks, knightTeamId);
+        seedStartingKnightBag(run);
+        run.getMap().addAll(content.generateMap(rng, true));
+        runs.put(token, new Session(run));
+        checkpoint(run);
+        return serialize(run);
+    }
+
+    /** Parses the request's member picks into {@code [teamId, sourceCardId]} pairs (exactly the squad size). */
+    private static List<String[]> parseMemberPicks(Object membersRaw) {
+        List<String[]> picks = new ArrayList<>();
+        if (membersRaw instanceof List<?> list) {
+            for (Object o : list) {
+                if (!(o instanceof Map<?, ?> m)) continue;
+                String teamId = str(m.get("teamId"));
+                String sourceCardId = str(m.get("sourceCardId"));
+                if (teamId == null || sourceCardId == null) continue;
+                picks.add(new String[] { teamId, sourceCardId });
+            }
+        }
+        if (picks.size() != SiegeTuning.BG_SQUAD_SIZE) {
+            throw new IllegalArgumentException("Pick exactly " + SiegeTuning.BG_SQUAD_SIZE + " veteran Siegelings.");
+        }
+        // No fielding the same banked veteran twice.
+        for (int i = 0; i < picks.size(); i++) {
+            for (int j = i + 1; j < picks.size(); j++) {
+                if (picks.get(i)[0].equals(picks.get(j)[0]) && picks.get(i)[1].equals(picks.get(j)[1])) {
+                    throw new IllegalArgumentException("You can't field the same veteran twice.");
+                }
+            }
+        }
+        return picks;
+    }
+
+    /**
+     * Rebuilds a full Battlegrounds run from validated veteran picks: the party
+     * Combatants at their extracted level/xp/stats/item, the merged modified deck,
+     * the veteran knight, and BG-only run fields. Map generation is done by the caller.
+     */
+    private SiegeRun buildBattlegroundsRun(String token, List<Map<String, Object>> teams,
+                                           List<String[]> picks, String knightTeamId) {
+        BgBuild build = buildBattlegroundsParty(teams, picks, knightTeamId);
+        SiegeRun run = new SiegeRun(token);
+        run.setMode(RunMode.BATTLEGROUNDS);
+        run.setBgTierScalar(SiegeTuning.BG_BASE_TIER_SCALAR);
+        run.setAverageVeteranLevel(build.averageLevel);
+
+        Map<String, Object> ks = build.knightSnap;
+        String knightId = str(ks.get("knightId"));
+        run.setKnightId(knightId);
+        run.setKnightName(str(ks.get("knightName")));
+        run.setKnightElement(parseElement(ks.get("element")));
+        run.setKnightPassive(parsePassive(ks.get("passive")));
+        run.setKnightPassiveValue(intOf(ks.get("passiveValue"), 0));
+        Optional<TrainerCard> knightCard = content.findKnight(knightId);
+        run.setKnightActive(knightCard.map(content::knightActiveSpec).orElse(null));
+        run.setKnightPassiveDesc(knightCard.map(content::knightPassiveDescription).orElse(str(ks.get("passiveName"))));
+        run.setKnightUnit(build.knightUnit);
+
+        run.getParty().addAll(build.party);
+        run.getDeckTemplates().addAll(build.deck);
+        // If the stored deck predates the knight card, fall back to a fresh one.
+        if (run.getKnightActive() != null
+                && run.getDeckTemplates().stream().noneMatch(c -> c.getOwnerId().startsWith("knight-"))) {
+            run.getDeckTemplates().add(new SiegeCard("knightcard", "knight-" + knightId, run.getKnightActive()));
+        }
+        return run;
+    }
+
+    /**
+     * Pure reconstruction of a Battlegrounds squad from banked snapshots — no Spring
+     * beans, so it is unit-testable. Validates every pick against the supplied teams
+     * (throwing {@link IllegalArgumentException} if a pick or the knight team is not
+     * present) and rebuilds Combatants + the merged deck from the stored snapshot.
+     */
+    BgBuild buildBattlegroundsParty(List<Map<String, Object>> teams,
+                                    List<String[]> picks, String knightTeamId) {
+        BgBuild build = new BgBuild();
+
+        Map<String, Object> knightTeam = findTeam(teams, knightTeamId);
+        if (knightTeam == null) {
+            throw new IllegalArgumentException("That veteran knight is not in your banked teams.");
+        }
+        Map<String, Object> knightSnap = asMap(knightTeam.get("knight"));
+        if (knightSnap == null) {
+            throw new IllegalArgumentException("That banked team has no veteran knight to lead.");
+        }
+        build.knightSnap = knightSnap;
+        String knightId = str(knightSnap.get("knightId"));
+        build.knightUnit = rebuildKnightCombatant(knightSnap);
+        // Merge the chosen knight's card(s) from its team's modified deck.
+        String knightOwner = "knight-" + knightId;
+        build.deck.addAll(rebuildDeck(deckOfTeam(knightTeam), knightOwner, knightOwner));
+
+        int levelSum = 0;
+        int slot = 0;
+        for (String[] pick : picks) {
+            String teamId = pick[0];
+            String sourceCardId = pick[1];
+            Map<String, Object> team = findTeam(teams, teamId);
+            if (team == null) {
+                throw new IllegalArgumentException("A chosen veteran is not in your banked teams.");
+            }
+            List<Map<String, Object>> members = membersOfTeam(team);
+            int idx = indexOfMember(members, sourceCardId);
+            if (idx < 0) {
+                throw new IllegalArgumentException("A chosen veteran is not in your banked teams.");
+            }
+            Combatant member = rebuildMemberCombatant(members.get(idx), slot);
+            build.party.add(member);
+            levelSum += member.getLevel();
+            // Deck cards for the member: matched by their original combatant id, rebound to the new one.
+            String oldOwner = "ally-" + idx + "-" + sourceCardId;
+            build.deck.addAll(rebuildDeck(deckOfTeam(team), oldOwner, member.getId()));
+            slot++;
+        }
+        build.averageLevel = picks.isEmpty() ? 0 : Math.round(levelSum / (float) picks.size());
+        return build;
+    }
+
+    /** Reconstructed Battlegrounds squad (party + merged deck + knight + average level). */
+    static final class BgBuild {
+        final List<Combatant> party = new ArrayList<>();
+        final List<SiegeCard> deck = new ArrayList<>();
+        Combatant knightUnit;
+        Map<String, Object> knightSnap;
+        int averageLevel;
+    }
+
+    /** Rebuilds one party Combatant from its veteran snapshot at its extracted level/xp/stats/item. */
+    private static Combatant rebuildMemberCombatant(Map<String, Object> snap, int slot) {
+        String sourceCardId = str(snap.get("sourceCardId"));
+        String name = str(snap.get("name"));
+        Element element = parseElement(snap.get("element"));
+        int maxHp = intOf(snap.get("maxHp"), 1);
+        int baseMaxHp = intOf(snap.get("baseMaxHp"), maxHp);
+        int baseSpeed = intOf(snap.get("baseSpeed"), intOf(snap.get("speed"), 5));
+        int xp = intOf(snap.get("xp"), 0);
+        String id = "ally-" + slot + "-" + sourceCardId;
+        Combatant c = new Combatant(id, name, element, Side.PLAYER, Math.max(1, baseMaxHp), Math.max(1, baseSpeed), null);
+        c.setSourceCardId(sourceCardId);
+        c.setPosition(slot);
+        c.setItemId(str(snap.get("itemId")));
+        c.loadLeveling(xp); // re-derives level + scales maxHp/speed exactly as at extraction
+        return c;
+    }
+
+    /** Rebuilds the veteran knight Combatant from its snapshot (persistent HP unit, no notch). */
+    private static Combatant rebuildKnightCombatant(Map<String, Object> snap) {
+        String name = str(snap.get("knightName"));
+        Element element = parseElement(snap.get("element"));
+        int maxHp = intOf(snap.get("maxHp"), 1);
+        int baseMaxHp = intOf(snap.get("baseMaxHp"), maxHp);
+        int xp = intOf(snap.get("xp"), 0);
+        Combatant knight = new Combatant("knight-unit", name, element, Side.PLAYER,
+                Math.max(1, baseMaxHp), 5, null, true);
+        knight.loadLeveling(xp);
+        return knight;
+    }
+
+    /**
+     * Rebuilds deck cards owned by {@code oldOwner} from a stored deck, rebinding
+     * them to {@code newOwner} and preserving the modified spec (smith upgrades etc.).
+     * Reuses {@link #specFromMap} — the same reader that restores checkpoint decks.
+     */
+    private List<SiegeCard> rebuildDeck(List<Map<String, Object>> deck, String oldOwner, String newOwner) {
+        List<SiegeCard> out = new ArrayList<>();
+        int n = 0;
+        for (Map<String, Object> card : deck) {
+            if (!oldOwner.equals(str(card.get("owner")))) continue;
+            Map<String, Object> specMap = asMap(card.get("spec"));
+            if (specMap == null) continue;
+            out.add(new SiegeCard(newOwner + "-m" + (n++), newOwner, specFromMap(specMap)));
+        }
+        return out;
+    }
+
+    // ---- Battlegrounds snapshot helpers (null-safe map/enum readers) -------
+
+    private static Map<String, Object> findTeam(List<Map<String, Object>> teams, String teamId) {
+        if (teams == null || teamId == null) return null;
+        for (Map<String, Object> team : teams) {
+            if (teamId.equals(str(team.get("teamId")))) return team;
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> membersOfTeam(Map<String, Object> team) {
+        Object members = team == null ? null : team.get("members");
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (members instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> m) out.add((Map<String, Object>) m);
+            }
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> deckOfTeam(Map<String, Object> team) {
+        Object deck = team == null ? null : team.get("deck");
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (deck instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> m) out.add((Map<String, Object>) m);
+            }
+        }
+        return out;
+    }
+
+    private static int indexOfMember(List<Map<String, Object>> members, String sourceCardId) {
+        for (int i = 0; i < members.size(); i++) {
+            if (sourceCardId != null && sourceCardId.equals(str(members.get(i).get("sourceCardId")))) return i;
+        }
+        return -1;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> asMap(Object o) {
+        return o instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
+    }
+
+    private static String str(Object o) {
+        return o == null ? null : String.valueOf(o);
+    }
+
+    private static int intOf(Object o, int fallback) {
+        if (o instanceof Number n) return n.intValue();
+        if (o == null) return fallback;
+        try { return Integer.parseInt(String.valueOf(o)); } catch (NumberFormatException e) { return fallback; }
+    }
+
+    private static Element parseElement(Object o) {
+        return enumOf(Element.class, o, null);
+    }
+
+    private static KnightPassive parsePassive(Object o) {
+        return enumOf(KnightPassive.class, o, KnightPassive.SHIELD);
+    }
+
+    private static <E extends Enum<E>> E enumOf(Class<E> type, Object o, E fallback) {
+        if (o == null) return fallback;
+        try { return Enum.valueOf(type, String.valueOf(o)); } catch (IllegalArgumentException e) { return fallback; }
     }
 
     // ---- Smith (upgrade or scrap deck cards) ------------------------------
@@ -2427,6 +2730,14 @@ public class SiegeService {
         m.put("score", run.getScore());
         m.put("loop", run.getLoop());
         m.put("partyMax", content.partyMax());
+        if (run.isBattlegrounds()) {
+            // HUD badge + reward hints for the Battlegrounds run.
+            m.put("battlegrounds", true);
+            m.put("avgVeteranLevel", run.getAverageVeteranLevel());
+            m.put("bgTierScalar", run.getBgTierScalar());
+            m.put("goldMult", SiegeTuning.BG_GOLD_MULT);
+            m.put("scoreMult", SiegeTuning.BG_SCORE_MULT);
+        }
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("nodesCleared", run.getNodesCleared());
         stats.put("bossKills", run.getBossKills());

@@ -51,8 +51,12 @@ enum NodeType { BATTLE, ELITE, REST, TREASURE, BROKER, SMITH, CARAVAN, EVENT, BO
  */
 enum KnightPassive { SHIELD, ATTACK, SPEED, HEALTH, LOOT, MARSHAL }
 
-/** How a run plays out: a fixed 3-boss expedition, or score-chasing endless loops. */
-enum RunMode { STANDARD, ENDLESS }
+/**
+ * How a run plays out: a fixed 3-boss expedition, score-chasing endless loops, or
+ * BATTLEGROUNDS — the secondary "extraction" mode fought with a squad of banked
+ * veterans for greater rewards (higher difficulty, gold/score multipliers).
+ */
+enum RunMode { STANDARD, ENDLESS, BATTLEGROUNDS }
 
 /** Battle turn phase driving what the client may submit. */
 enum BattlePhase { PLAYER_INPUT, ENEMY_RESOLVING, WON, LOST }

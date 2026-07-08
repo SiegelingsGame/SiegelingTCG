@@ -130,6 +130,68 @@ final class SiegeTuning {
         return (clampLevel(level) - 1) / 2;
     }
 
+    // ---- Battlegrounds (secondary "extraction" mode) ----------------------
+    // Phase 3 core. Phase 4 will parameterize the tier scalar (I–V) so the same
+    // formulas below drive every tier — the {@code tierScalar} argument is the
+    // seam left for that. STANDARD/ENDLESS never read any of these constants.
+
+    /** Minimum banked veteran Siegelings required to open the Battlegrounds lobby. */
+    static final int BG_MIN_VETERANS = 3;
+    /** How many veterans (and one veteran knight) a Battlegrounds squad fields. */
+    static final int BG_SQUAD_SIZE = 3;
+
+    /** Enemy max-HP growth per point of average veteran level (+8% each). */
+    static final int BG_ENEMY_HP_PCT_PER_LEVEL = 8;
+    /** Enemy damage growth per point of average veteran level (+5% each). */
+    static final int BG_ENEMY_DMG_PCT_PER_LEVEL = 5;
+    /** Elite-node density multiplier for Battlegrounds maps (+50% elites). */
+    static final double BG_ELITE_DENSITY_MULT = 1.5;
+
+    /** Gold earned in Battlegrounds is multiplied by this. */
+    static final double BG_GOLD_MULT = 2.5;
+    /** End-of-run score in Battlegrounds is multiplied by this. */
+    static final double BG_SCORE_MULT = 3.0;
+
+    /**
+     * Difficulty/reward tier scalar. Phase 3 pins every Battlegrounds run to the
+     * base tier ({@code 1.0}); Phase 4 raises it per tier (I–V) to scale both the
+     * enemy strength ({@link #bgEnemyHpScalar}/{@link #bgEnemyDamageScalar}) and,
+     * later, the reward multipliers off a single knob.
+     */
+    static final double BG_BASE_TIER_SCALAR = 1.0;
+
+    /** Base gold granted in place of a disabled free recruit drop (before the BG ×2.5). */
+    static final int BG_RECRUIT_GOLD = 40;
+
+    /**
+     * Enemy max-HP scalar for a Battlegrounds fight: {@code +8%} per average
+     * veteran level, then multiplied by the tier scalar seam. {@code 1.0} at
+     * average level 0 / base tier.
+     */
+    static double bgEnemyHpScalar(int averageVeteranLevel, double tierScalar) {
+        double base = 1.0 + BG_ENEMY_HP_PCT_PER_LEVEL / 100.0 * Math.max(0, averageVeteranLevel);
+        return base * Math.max(1.0, tierScalar);
+    }
+
+    /**
+     * Enemy damage scalar for a Battlegrounds fight: {@code +5%} per average
+     * veteran level, then multiplied by the tier scalar seam.
+     */
+    static double bgEnemyDamageScalar(int averageVeteranLevel, double tierScalar) {
+        double base = 1.0 + BG_ENEMY_DMG_PCT_PER_LEVEL / 100.0 * Math.max(0, averageVeteranLevel);
+        return base * Math.max(1.0, tierScalar);
+    }
+
+    /** A gold award scaled by the Battlegrounds ×2.5 bonus (rounded). */
+    static int bgGold(int base) {
+        return (int) Math.round(Math.max(0, base) * BG_GOLD_MULT);
+    }
+
+    /** An end-of-run score scaled by the Battlegrounds ×3 bonus (rounded). */
+    static long bgScore(long score) {
+        return Math.round(Math.max(0L, score) * BG_SCORE_MULT);
+    }
+
     /** Percentage-of-base a stat sits at for the given level (100 at level 1). */
     private static int percentAtLevel(int pctPerLevel, int level) {
         return 100 + pctPerLevel * (clampLevel(level) - 1);

@@ -428,6 +428,12 @@
     if (bgModal) {
       bgModal.addEventListener('click', function (e) { if (e.target === bgModal) closeBattlegroundsModal(); });
     }
+    var bgVetGrid = $('bgVeteranGrid');
+    if (bgVetGrid) bgVetGrid.addEventListener('click', function (e) { onBgVeteranPick(e); });
+    var bgKnGrid = $('bgKnightGrid');
+    if (bgKnGrid) bgKnGrid.addEventListener('click', function (e) { onBgKnightPick(e); });
+    var bgEnterBtn = $('bgEnterBtn');
+    if (bgEnterBtn) bgEnterBtn.addEventListener('click', enterBattlegrounds);
     $('abandonBtn').addEventListener('click', function () {
       if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
     });
@@ -544,12 +550,11 @@
     state.pendingKnightUnlock = null;
   }
 
-  // ---- Battlegrounds (secondary mode) preview --------------------------
-  // Battlegrounds itself is not implemented yet — the leveling + extraction
-  // pipeline it depends on ships first (see docs/SIEGE_LEVELING_AND_BATTLEGROUNDS_PLAN.md).
-  // This entry keeps the mode visible and explains how it unlocks. Extracted
-  // veteran teams will live on state.roster.veterans once that lands; until
-  // then the requirement is simply never met.
+  // ---- Battlegrounds (secondary mode) ----------------------------------
+  // Phase 3 core: with >=3 banked veterans the entry opens a squad-pick lobby
+  // (3 veteran Siegelings + a veteran knight) that launches a real BATTLEGROUNDS
+  // run; otherwise it shows the requirements checklist. Extracted veterans live on
+  // state.roster.veterans (flat) and state.roster.veteranTeams (full snapshots).
   var BG_VETERANS_REQUIRED = 3;
 
   function battlegroundsVeterans() {
@@ -573,21 +578,34 @@
     }
   }
 
+  function veteranTeams() {
+    var t = state.roster && state.roster.veteranTeams;
+    return Array.isArray(t) ? t : [];
+  }
+
+  function vetKey(v) { return String(v.teamId) + '|' + String(v.sourceCardId); }
+
   function openBattlegroundsModal() {
     var modal = $('bgModal');
     if (!modal) return;
-    var have = battlegroundsVeterans().length;
     var ready = battlegroundsReady();
+    if (ready) renderBattlegroundsLobby();
+    else renderBattlegroundsRequirements();
+    modal.classList.remove('hidden');
+  }
+
+  // When the player can't field a squad yet: the original requirements checklist.
+  function renderBattlegroundsRequirements() {
+    var have = battlegroundsVeterans().length;
+    setHidden('bgLobby', true);
+    setHidden('bgReqList', false);
+    setHidden('bgEnterBtn', true);
     var msg = $('bgModalMsg');
-    if (msg) {
-      msg.textContent = ready
-        ? 'Your veterans are ready. Pick a squad of extracted Siegelings and march in for boons and greater rewards.'
-        : 'A higher-stakes second mode: bring a team you leveled up and extracted from a Siege run to earn boons, amps, and greater rewards.';
-    }
+    if (msg) msg.textContent = 'A higher-stakes second mode: bring a team you leveled up and extracted from a Siege run to earn greater rewards.';
     var reqs = [
       { done: have >= 1, label: 'Complete a Siege expedition and extract a team (your Siegelings keep the level they reached).' },
       { done: have >= BG_VETERANS_REQUIRED, label: 'Bank at least ' + BG_VETERANS_REQUIRED + ' veteran Siegelings — you have ' + have + '.' },
-      { done: ready, label: 'Enter with 3 veterans + a veteran SiegeKnight at their extracted levels.' }
+      { done: false, label: 'Enter with 3 veterans + a veteran SiegeKnight at their extracted levels.' }
     ];
     var list = $('bgReqList');
     if (list) {
@@ -598,12 +616,96 @@
       }).join('');
     }
     var foot = $('bgModalFoot');
-    if (foot) {
-      foot.textContent = ready
-        ? 'Battlegrounds is coming in an upcoming update — your extracted team will be waiting.'
-        : 'Leveling and team extraction are rolling out first; Battlegrounds unlocks once you can bank a veteran team.';
+    if (foot) foot.textContent = 'Battlegrounds unlocks once you can bank at least 3 veteran Siegelings.';
+  }
+
+  // Ready: a squad-pick lobby (choose 3 veterans + a veteran knight, then launch).
+  function renderBattlegroundsLobby() {
+    if (!state.bgPicks) state.bgPicks = [];
+    setHidden('bgReqList', true);
+    setHidden('bgLobby', false);
+    setHidden('bgEnterBtn', false);
+    var msg = $('bgModalMsg');
+    if (msg) msg.textContent = 'Field a squad of 3 extracted Siegelings and a veteran knight. Rewards: gold ×2.5, score ×3 — enemies scale to your veterans.';
+    var foot = $('bgModalFoot');
+    if (foot) foot.textContent = 'Your veterans keep leveling — a win re-banks them at their new levels.';
+
+    var vets = battlegroundsVeterans();
+    var vg = $('bgVeteranGrid');
+    if (vg) {
+      vg.innerHTML = vets.map(function (v) {
+        var key = vetKey(v);
+        var sel = state.bgPicks.indexOf(key) >= 0;
+        return '<button type="button" class="bg-vet ' + elClass(v.element) + (sel ? ' picked' : '') +
+          '" data-key="' + esc(key) + '">' +
+          '<span class="bg-vet-el">' + icon(v.element) + '</span>' +
+          '<span class="bg-vet-name">' + esc(v.name) + '</span>' +
+          '<span class="bg-vet-lv">Lv ' + (v.level || 1) + '</span></button>';
+      }).join('');
     }
-    modal.classList.remove('hidden');
+    var kg = $('bgKnightGrid');
+    if (kg) {
+      kg.innerHTML = veteranTeams().map(function (t) {
+        var k = t.knight || {};
+        var sel = state.bgKnightTeamId === t.teamId;
+        return '<button type="button" class="bg-knight ' + elClass(k.element) + (sel ? ' picked' : '') +
+          '" data-team="' + esc(t.teamId) + '">' +
+          '<span class="bg-vet-el">' + icon(k.element) + '</span>' +
+          '<span class="bg-vet-name">' + esc(k.knightName || 'Knight') + '</span>' +
+          '<span class="bg-vet-lv">Lv ' + (k.level || 1) + '</span></button>';
+      }).join('');
+    }
+    updateBgEnter();
+  }
+
+  function onBgVeteranPick(e) {
+    var btn = e.target.closest ? e.target.closest('.bg-vet') : null;
+    if (!btn) return;
+    if (!state.bgPicks) state.bgPicks = [];
+    var key = btn.getAttribute('data-key');
+    var at = state.bgPicks.indexOf(key);
+    if (at >= 0) state.bgPicks.splice(at, 1);
+    else if (state.bgPicks.length < BG_VETERANS_REQUIRED) state.bgPicks.push(key);
+    else { toast('Pick exactly ' + BG_VETERANS_REQUIRED + ' veterans.'); return; }
+    renderBattlegroundsLobby();
+  }
+
+  function onBgKnightPick(e) {
+    var btn = e.target.closest ? e.target.closest('.bg-knight') : null;
+    if (!btn) return;
+    state.bgKnightTeamId = btn.getAttribute('data-team');
+    renderBattlegroundsLobby();
+  }
+
+  function updateBgEnter() {
+    var btn = $('bgEnterBtn');
+    if (!btn) return;
+    var picks = state.bgPicks || [];
+    btn.disabled = !(picks.length === BG_VETERANS_REQUIRED && state.bgKnightTeamId);
+  }
+
+  function enterBattlegrounds() {
+    if (state.busy) return;
+    var picks = state.bgPicks || [];
+    if (picks.length !== BG_VETERANS_REQUIRED || !state.bgKnightTeamId) return;
+    var members = picks.map(function (k) {
+      var parts = k.split('|');
+      return { teamId: parts[0], sourceCardId: parts.slice(1).join('|') };
+    });
+    state.busy = true;
+    api('/api/siege/battlegrounds/new', { method: 'POST', body: { members: members, knightTeamId: state.bgKnightTeamId } })
+      .then(function (run) {
+        closeBattlegroundsModal();
+        state.bgPicks = []; state.bgKnightTeamId = null;
+        setToken(run.token); applyRun(run);
+      })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  function setHidden(id, hidden) {
+    var el = $(id);
+    if (el) el.classList.toggle('hidden', !!hidden);
   }
 
   function closeBattlegroundsModal() {
@@ -979,7 +1081,8 @@
     var run = state.run;
     renderPartyStrip($('partyStrip'), run.party, run.knight);
     $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
-      (run.mode === 'ENDLESS' ? '  ·  ★ ' + (run.score || 0) + '  ·  🔁 ' + ((run.loop || 0) + 1) : '');
+      (run.mode === 'ENDLESS' ? '  ·  ★ ' + (run.score || 0) + '  ·  🔁 ' + ((run.loop || 0) + 1) : '') +
+      (run.battlegrounds ? '  ·  ⚔️ Battlegrounds  ·  ×' + (run.goldMult || 2.5) + ' gold' : '');
     $('mapReward').textContent = '';
     $('mapReward').classList.add('hidden');
     $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');

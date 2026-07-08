@@ -65,6 +65,19 @@ public class SiegeController {
         return siege.newRun(authorizationHeader, knightId, sieglingIds, str(body.get("mode")));
     }
 
+    /**
+     * Start a Battlegrounds run from banked veterans:
+     * body {@code { members:[{teamId, sourceCardId}, …3], knightTeamId }}. The 3
+     * veteran Siegelings and the veteran knight are validated against the signed-in
+     * player's banked teams; stats/decks come from the stored snapshot, never the body.
+     */
+    @PostMapping("/api/siege/battlegrounds/new")
+    public Map<String, Object> newBattlegrounds(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return siege.newBattlegrounds(authorizationHeader, body.get("members"), str(body.get("knightTeamId")));
+    }
+
     @GetMapping("/api/siege/state")
     public Map<String, Object> state(@RequestParam("token") String token) {
         return siege.state(token);

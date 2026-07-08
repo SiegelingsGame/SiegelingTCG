@@ -530,6 +530,17 @@ public class SiegeContentService {
      * @param segment   which boss region (0 Squire, 1 SiegeKnight, 2+ Siegelord)
      */
     List<Combatant> generateEnemies(NodeType type, int floor, int partySize, int segment, Random rng, List<Element> palette) {
+        return generateEnemies(type, floor, partySize, segment, rng, palette, 1.0, 1.0);
+    }
+
+    /**
+     * As {@link #generateEnemies(NodeType, int, int, int, Random, List)} but scales
+     * enemy max HP and damage by extra multipliers on top of the usual tuning —
+     * the Battlegrounds difficulty seam ({@code bgHpScalar}/{@code bgDmgScalar}).
+     * Both are {@code 1.0} for STANDARD/ENDLESS, so those modes are unaffected.
+     */
+    List<Combatant> generateEnemies(NodeType type, int floor, int partySize, int segment, Random rng,
+                                    List<Element> palette, double bgHpScalar, double bgDmgScalar) {
         List<Combatant> enemies = new ArrayList<>();
         int count = switch (type) {
             case ELITE -> partySize <= 1 ? 1 : 2;
@@ -541,8 +552,10 @@ public class SiegeContentService {
         double bossDmg = switch (tier) { case 0 -> 1.15; case 1 -> 1.25; default -> 1.35; };
         // Difficulty tracks warband size: a lone Siegeling faces ~2/3-strength foes.
         double partyMul = 0.48 + 0.175 * Math.max(1, partySize);
-        double hpMul = (switch (type) { case ELITE -> 1.5; case BOSS -> bossHp; default -> 1.0; }) * partyMul;
-        double dmgMul = (switch (type) { case ELITE -> 1.2; case BOSS -> bossDmg; default -> 1.0; }) * Math.min(1.0, 0.62 + 0.13 * partySize);
+        double hpMul = (switch (type) { case ELITE -> 1.5; case BOSS -> bossHp; default -> 1.0; })
+                * partyMul * Math.max(1.0, bgHpScalar);
+        double dmgMul = (switch (type) { case ELITE -> 1.2; case BOSS -> bossDmg; default -> 1.0; })
+                * Math.min(1.0, 0.62 + 0.13 * partySize) * Math.max(1.0, bgDmgScalar);
         int abilityCount = switch (type) {
             case BOSS -> 3;
             case ELITE -> 2 + (floor >= 5 ? 1 : 0);
@@ -619,12 +632,21 @@ public class SiegeContentService {
      * the boss.
      */
     List<SiegeNode> generateMap(Random rng) {
-        return generateSegments(0, 0, SEGMENTS, rng);
+        return generateMap(rng, false);
+    }
+
+    /**
+     * As {@link #generateMap(Random)} but, for {@code battlegrounds}, biases node
+     * generation toward ELITE nodes (+50% density) — the Battlegrounds difficulty
+     * knob. STANDARD/ENDLESS pass {@code false} and are unaffected.
+     */
+    List<SiegeNode> generateMap(Random rng, boolean battlegrounds) {
+        return generateSegments(0, 0, SEGMENTS, rng, battlegrounds);
     }
 
     /** One more segment for Endless mode, appended after the current last row. */
     List<SiegeNode> generateEndlessSegment(int startRow, int startId, int loop, Random rng) {
-        return generateSegments(startRow, startId, 1, rng);
+        return generateSegments(startRow, startId, 1, rng, false);
     }
 
     /**
@@ -633,7 +655,7 @@ public class SiegeContentService {
      * single unskippable boss row (rest row just before it); every path funnels
      * through each boss, and a boss links onward to the next segment's openers.
      */
-    private List<SiegeNode> generateSegments(int rowOffset, int idOffset, int segmentCount, Random rng) {
+    private List<SiegeNode> generateSegments(int rowOffset, int idOffset, int segmentCount, Random rng, boolean battlegrounds) {
         int totalRows = SEGMENT_ROWS * segmentCount;
         int[] counts = new int[totalRows];
         for (int r = 0; r < totalRows; r++) {
@@ -658,7 +680,7 @@ public class SiegeContentService {
             int globalRow = rowOffset + r;
             rowIds[r] = new int[counts[r]];
             for (int c = 0; c < counts[r]; c++) {
-                NodeType type = nodeTypeFor(r % SEGMENT_ROWS, c, counts[r], rng);
+                NodeType type = nodeTypeFor(r % SEGMENT_ROWS, c, counts[r], rng, battlegrounds);
                 String label = type == NodeType.BOSS
                         ? SEGMENT_BOSS_LABELS[Math.min(segmentOf(globalRow), SEGMENT_BOSS_LABELS.length - 1)]
                         : labelFor(type);
@@ -703,7 +725,7 @@ public class SiegeContentService {
     }
 
     /** {@code row} here is the row within its segment (0..SEGMENT_ROWS-1). */
-    private NodeType nodeTypeFor(int row, int col, int rowCount, Random rng) {
+    private NodeType nodeTypeFor(int row, int col, int rowCount, Random rng, boolean battlegrounds) {
         if (row == 0) return NodeType.BATTLE;
         if (row == SEGMENT_ROWS - 1) return NodeType.BOSS;
         if (row == SEGMENT_ROWS - 2) return NodeType.REST;
@@ -715,7 +737,9 @@ public class SiegeContentService {
         if (row == 3 && col == rowCount - 1) return NodeType.SMITH;
         if (row == 4 && col == rowCount - 1) return NodeType.EVENT;
         int roll = rng.nextInt(100);
-        if (row >= 3 && roll < 14) return NodeType.ELITE;
+        // Battlegrounds packs in more elites (+50% density).
+        int eliteThreshold = battlegrounds ? (int) Math.round(14 * SiegeTuning.BG_ELITE_DENSITY_MULT) : 14;
+        if (row >= 3 && roll < eliteThreshold) return NodeType.ELITE;
         if (roll < 24) return NodeType.EVENT;
         if (roll < 36) return NodeType.TREASURE;
         if (roll < 46) return NodeType.REST;

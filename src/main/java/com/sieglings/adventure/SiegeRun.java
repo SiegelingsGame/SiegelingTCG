@@ -67,6 +67,13 @@ class SiegeRun {
 
     // Run mode, scoring and lifetime stats (endless loops + end-of-run rewards).
     private RunMode mode = RunMode.STANDARD;
+    /**
+     * Battlegrounds-only difficulty/reward tier scalar. Defaults to the base tier
+     * (1.0) for Phase 3; Phase 4 sets it per tier (I–V). Ignored outside BATTLEGROUNDS.
+     */
+    private double bgTierScalar = SiegeTuning.BG_BASE_TIER_SCALAR;
+    /** Battlegrounds-only: average level of the picked veteran squad; drives enemy scaling. */
+    private int averageVeteranLevel;
     private long score;
     private int loop;
     private int nodesCleared;
@@ -182,6 +189,11 @@ class SiegeRun {
 
     RunMode getMode() { return mode; }
     void setMode(RunMode mode) { this.mode = mode == null ? RunMode.STANDARD : mode; }
+    boolean isBattlegrounds() { return mode == RunMode.BATTLEGROUNDS; }
+    double getBgTierScalar() { return bgTierScalar; }
+    void setBgTierScalar(double bgTierScalar) { this.bgTierScalar = bgTierScalar <= 0 ? SiegeTuning.BG_BASE_TIER_SCALAR : bgTierScalar; }
+    int getAverageVeteranLevel() { return averageVeteranLevel; }
+    void setAverageVeteranLevel(int averageVeteranLevel) { this.averageVeteranLevel = Math.max(0, averageVeteranLevel); }
     long getScore() { return score; }
     void addScore(long points) { this.score = Math.max(0, this.score + points); }
     void setScore(long score) { this.score = Math.max(0, score); }
