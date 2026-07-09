@@ -1,7 +1,9 @@
 # Siege Leveling + Battlegrounds (Extraction Mode) — Design Plan
 
-Status: PLANNED (not yet implemented). Companion work landing now: cache/event
-puzzle minigames, stage-2/3 drop sprite sizing fix, dashboard Shop pricing.
+Status: IMPLEMENTED (all four phases, 2026-07-08). Companion work also landed:
+cache/event puzzle minigames, stage-2/3 drop sprite sizing fix, dashboard Shop
+pricing. Remaining seam: the Battlegrounds leaderboard is personal-best only —
+a global cross-user ranking still needs a dedicated aggregate store.
 
 The loop mirrors CZN's Chaos → Zero Point: level a team in **Siege**, extract
 it, then take the leveled team into **Battlegrounds** for greater rewards.
