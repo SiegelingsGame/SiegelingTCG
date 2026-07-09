@@ -12886,6 +12886,16 @@ function syncDesktopHandSelectorCardScale() {
     }
 
     const handStyles = window.getComputedStyle(handCards);
+
+    // Phone landscape lays the hand out as a CSS grid of aspect-ratio cards;
+    // sizing is fully CSS-owned there. The old JS fit (tray height / card
+    // count) fed its own output back into the next measurement, stretching a
+    // lone card to the full sidebar height.
+    if (handStyles.display === 'grid') {
+        document.documentElement.style.removeProperty('--hand-card-height');
+        return;
+    }
+
     const paddingTop = parseFloat(handStyles.paddingTop) || 0;
     const paddingBottom = parseFloat(handStyles.paddingBottom) || 0;
     const paddingLeft = parseFloat(handStyles.paddingLeft) || 0;
@@ -12924,10 +12934,13 @@ function syncDesktopHandSelectorCardScale() {
     const root = document.documentElement;
 
     if (isVerticalHand) {
-        const perCardHeight = Math.max(
+        // Cap at the card's natural aspect for the column width so a short
+        // hand can never stretch a card taller than its 5:7 proportion.
+        const maxAspectHeight = Math.round(Math.max(96, contentWidth) * (7 / 5));
+        const perCardHeight = Math.min(maxAspectHeight, Math.max(
             48,
             Math.floor((contentHeight - (rowGap * (visibleCards - 1))) / visibleCards)
-        );
+        ));
         const nextWidth = Math.round(clampNumber(perCardHeight * (5 / 7), 56, 220));
         const nextPadding = Math.round(clampNumber(nextWidth * 0.035, 3, 8));
         root.style.setProperty('--hand-card-height', `${perCardHeight}px`);
