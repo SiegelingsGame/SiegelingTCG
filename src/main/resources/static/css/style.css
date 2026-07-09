@@ -14090,8 +14090,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         flex-direction: row;
         align-items: center;
         justify-content: center;
-        padding: 4px 8px;
-        gap: 10px;
+        padding: 4px 6px;
+        gap: 6px;
         overflow: hidden;
         border-radius: 0;
     }
@@ -14108,10 +14108,12 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     /* Height-bound width for one full-height 3x3 grid of 5/5.4 cells:
        gridH ≈ 1.08 x gridW + chrome, so W = (100cqh - label/socket chrome)
-       / 1.08 ≈ 92cqh - 32px. The .battlefield prefix outranks the portrait
-       container-query rule that was shrinking landscape boards to ~125px. */
+       / 1.08 ≈ 92cqh - 32px. The 36px width reserve leaves ≥18px inside the
+       overflow-hidden half on each side for the exterior socket dots, which
+       render ~14px past the grid edge. The .battlefield prefix outranks the
+       portrait container-query rule that shrank landscape boards to ~125px. */
     .battlefield .board-grid {
-        width: min(96%, calc(92cqh - 32px), 420px);
+        width: min(calc(100% - 36px), calc(92cqh - 32px), 420px);
         max-width: 420px;
         gap: 4px;
         padding: 2px 6px;
