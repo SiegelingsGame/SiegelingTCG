@@ -432,8 +432,26 @@
     if (bgVetGrid) bgVetGrid.addEventListener('click', function (e) { onBgVeteranPick(e); });
     var bgKnGrid = $('bgKnightGrid');
     if (bgKnGrid) bgKnGrid.addEventListener('click', function (e) { onBgKnightPick(e); });
+    var bgTierRow = $('bgTierRow');
+    if (bgTierRow) bgTierRow.addEventListener('click', function (e) { onBgTierPick(e); });
     var bgEnterBtn = $('bgEnterBtn');
     if (bgEnterBtn) bgEnterBtn.addEventListener('click', enterBattlegrounds);
+    var boonChoices = $('boonChoices');
+    if (boonChoices) boonChoices.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('.boon-choice') : null;
+      if (b) pickBoon(b.getAttribute('data-boon'));
+    });
+    var bgShopOpen = $('bgShopOpen');
+    if (bgShopOpen) bgShopOpen.addEventListener('click', openBgShop);
+    var bgShopClose = $('bgShopClose');
+    if (bgShopClose) bgShopClose.addEventListener('click', function () { $('bgShopModal').classList.add('hidden'); });
+    var bgShopDismiss = $('bgShopDismiss');
+    if (bgShopDismiss) bgShopDismiss.addEventListener('click', function () { $('bgShopModal').classList.add('hidden'); });
+    var bgShopList = $('bgShopList');
+    if (bgShopList) bgShopList.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('.bg-shop-buy') : null;
+      if (b && !b.disabled) buyBgItem(b.getAttribute('data-item'));
+    });
     $('abandonBtn').addEventListener('click', function () {
       if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
     });
@@ -630,17 +648,39 @@
     var foot = $('bgModalFoot');
     if (foot) foot.textContent = 'Your veterans keep leveling — a win re-banks them at their new levels.';
 
+    // Warmarks balance + tier picker (tiers unlock as you clear them).
+    var wm = $('bgWarmarks');
+    if (wm) wm.textContent = '🎖️ ' + ((state.roster && state.roster.warmarks) || 0) + ' Warmarks';
+    var unlocked = Math.max(1, (state.roster && state.roster.battlegroundsUnlockedTier) || 1);
+    var maxTier = (state.roster && state.roster.battlegroundsMaxTier) || 5;
+    if (!state.bgTier || state.bgTier > unlocked) state.bgTier = unlocked;
+    var tr = $('bgTierRow');
+    if (tr) {
+      var roman = ['I', 'II', 'III', 'IV', 'V'];
+      var html = '';
+      for (var t = 1; t <= maxTier; t++) {
+        var locked = t > unlocked;
+        html += '<button type="button" class="bg-tier' + (state.bgTier === t ? ' picked' : '') +
+          (locked ? ' locked' : '') + '" data-tier="' + t + '"' + (locked ? ' disabled' : '') + '>' +
+          (locked ? '🔒 ' : '') + (roman[t - 1] || t) + '</button>';
+      }
+      tr.innerHTML = html;
+    }
+
+    var now = Date.now();
     var vets = battlegroundsVeterans();
     var vg = $('bgVeteranGrid');
     if (vg) {
       vg.innerHTML = vets.map(function (v) {
         var key = vetKey(v);
         var sel = state.bgPicks.indexOf(key) >= 0;
+        var locked = (v.lockedUntil || 0) > now;
+        var lockNote = locked ? '<span class="bg-vet-lock">😴 ' + bgLockText(v.lockedUntil, now) + '</span>' : '';
         return '<button type="button" class="bg-vet ' + elClass(v.element) + (sel ? ' picked' : '') +
-          '" data-key="' + esc(key) + '">' +
+          (locked ? ' locked' : '') + '" data-key="' + esc(key) + '"' + (locked ? ' disabled' : '') + '>' +
           '<span class="bg-vet-el">' + icon(v.element) + '</span>' +
           '<span class="bg-vet-name">' + esc(v.name) + '</span>' +
-          '<span class="bg-vet-lv">Lv ' + (v.level || 1) + '</span></button>';
+          '<span class="bg-vet-lv">Lv ' + (v.level || 1) + '</span>' + lockNote + '</button>';
       }).join('');
     }
     var kg = $('bgKnightGrid');
@@ -658,9 +698,23 @@
     updateBgEnter();
   }
 
+  function bgLockText(until, now) {
+    var ms = Math.max(0, (until || 0) - now);
+    var h = Math.floor(ms / 3600000);
+    var m = Math.floor((ms % 3600000) / 60000);
+    return h > 0 ? (h + 'h ' + m + 'm') : (m + 'm');
+  }
+
+  function onBgTierPick(e) {
+    var btn = e.target.closest ? e.target.closest('.bg-tier') : null;
+    if (!btn || btn.disabled) return;
+    state.bgTier = parseInt(btn.getAttribute('data-tier'), 10) || 1;
+    renderBattlegroundsLobby();
+  }
+
   function onBgVeteranPick(e) {
     var btn = e.target.closest ? e.target.closest('.bg-vet') : null;
-    if (!btn) return;
+    if (!btn || btn.disabled) return;
     if (!state.bgPicks) state.bgPicks = [];
     var key = btn.getAttribute('data-key');
     var at = state.bgPicks.indexOf(key);
@@ -693,11 +747,83 @@
       return { teamId: parts[0], sourceCardId: parts.slice(1).join('|') };
     });
     state.busy = true;
-    api('/api/siege/battlegrounds/new', { method: 'POST', body: { members: members, knightTeamId: state.bgKnightTeamId } })
+    api('/api/siege/battlegrounds/new', { method: 'POST', body: { members: members, knightTeamId: state.bgKnightTeamId, tier: state.bgTier || 1 } })
       .then(function (run) {
         closeBattlegroundsModal();
         state.bgPicks = []; state.bgKnightTeamId = null;
         setToken(run.token); applyRun(run);
+      })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  // ---- Boon pick overlay (gates travel until chosen) -------------------
+  function maybeShowBoonOffer(run) {
+    var modal = $('boonModal');
+    if (!modal) return false;
+    var offer = run && run.boonOffer;
+    if (!offer || !offer.length) { modal.classList.add('hidden'); return false; }
+    var host = $('boonChoices');
+    if (host) {
+      host.innerHTML = offer.map(function (b) {
+        return '<button type="button" class="boon-choice" data-boon="' + esc(b.id) + '">' +
+          '<span class="boon-icon">' + esc(b.icon || '✨') + '</span>' +
+          '<span class="boon-name">' + esc(b.name) + '</span>' +
+          '<span class="boon-desc">' + esc(b.desc || '') + '</span></button>';
+      }).join('');
+    }
+    modal.classList.remove('hidden');
+    return true;
+  }
+
+  function pickBoon(boonId) {
+    if (state.busy || !boonId) return;
+    state.busy = true;
+    api('/api/siege/battlegrounds/boon', { method: 'POST', body: { token: token(), boonId: boonId } })
+      .then(function (run) { var m = $('boonModal'); if (m) m.classList.add('hidden'); applyRun(run); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  // ---- Warmarks shop --------------------------------------------------
+  function openBgShop() {
+    var modal = $('bgShopModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    renderBgShop();
+  }
+
+  function renderBgShop() {
+    api('/api/siege/battlegrounds/shop', { method: 'GET' })
+      .then(function (data) {
+        var bal = $('bgShopBalance');
+        if (bal) bal.textContent = '🎖️ ' + (data.warmarks || 0) + ' Warmarks';
+        var list = $('bgShopList');
+        if (!list) return;
+        list.innerHTML = (data.items || []).map(function (it) {
+          var afford = (data.warmarks || 0) >= it.cost && !it.owned;
+          return '<div class="bg-shop-item">' +
+            '<span class="bg-shop-icon">' + esc(it.icon || '🎁') + '</span>' +
+            '<span class="bg-shop-body"><span class="bg-shop-name">' + esc(it.name) + '</span>' +
+            '<span class="bg-shop-desc">' + esc(it.desc || '') + '</span></span>' +
+            (it.owned
+              ? '<span class="bg-shop-owned">Owned</span>'
+              : '<button type="button" class="siege-btn bg-shop-buy" data-item="' + esc(it.id) + '"' +
+                (afford ? '' : ' disabled') + '>🎖️ ' + it.cost + '</button>') +
+            '</div>';
+        }).join('');
+      })
+      .catch(function (e) { toast(e.message); });
+  }
+
+  function buyBgItem(itemId) {
+    if (state.busy || !itemId) return;
+    state.busy = true;
+    api('/api/siege/battlegrounds/shop/buy', { method: 'POST', body: { itemId: itemId } })
+      .then(function (data) {
+        toast('Purchased!');
+        if (state.roster) state.roster.warmarks = data.warmarks;
+        renderBgShop();
       })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
@@ -1067,10 +1193,22 @@
     state.run = run;
     if (events.length && (hadBattleDom || enteringBattle)) {
       renderRun();
-      playEvents(events, function () { renderRun(); });
+      playEvents(events, function () { renderRun(); afterRunApplied(run); });
       return;
     }
     renderRun();
+    afterRunApplied(run);
+  }
+
+  // Battlegrounds run-state prompts: a pending boon pick (gates travel) and the
+  // one-shot stage-2+ boss reveal reward.
+  function afterRunApplied(run) {
+    if (!run) return;
+    if (maybeShowBoonOffer(run)) return;
+    if (run.bossReveal && run.bossReveal.name) {
+      var r = run.bossReveal;
+      toast('⭐ Boss reveal: a stage-' + (r.stage || 2) + ' ' + r.name + ' salutes your victory!');
+    }
   }
 
   // ---- branching map (SVG DAG, boss at the top) ------------------------
@@ -1082,7 +1220,7 @@
     renderPartyStrip($('partyStrip'), run.party, run.knight);
     $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
       (run.mode === 'ENDLESS' ? '  ·  ★ ' + (run.score || 0) + '  ·  🔁 ' + ((run.loop || 0) + 1) : '') +
-      (run.battlegrounds ? '  ·  ⚔️ Battlegrounds  ·  ×' + (run.goldMult || 2.5) + ' gold' : '');
+      (run.battlegrounds ? '  ·  ⚔️ BG Tier ' + (['I','II','III','IV','V'][(run.bgTier || 1) - 1] || run.bgTier) + '  ·  🎁 ' + (run.boons || []).length + ' boon' : '');
     $('mapReward').textContent = '';
     $('mapReward').classList.add('hidden');
     $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');

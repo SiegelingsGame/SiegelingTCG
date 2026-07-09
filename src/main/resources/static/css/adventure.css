@@ -907,6 +907,35 @@ body[data-screen="mapScreen"] #mapScreen{
 .bg-vet-name{font-weight:700;}
 .bg-vet-lv{font-size:11px; font-weight:700; color:var(--faint);}
 .bg-enter-btn.hidden{display:none;}
+/* Phase 4: tier picker, warmarks, fatigue, boons, shop */
+.bg-lobby-bar{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;}
+.bg-warmarks{font-weight:800; font-size:13px; color:var(--accent);}
+.bg-shop-open{padding:5px 10px; font-size:12px;}
+.bg-tier-row{display:flex; flex-wrap:wrap; gap:6px;}
+.bg-tier{min-width:44px; padding:6px 10px; border-radius:9px; border:1px solid var(--border);
+  background:var(--panel); color:var(--fg); cursor:pointer; font-weight:800; font-size:13px;}
+.bg-tier:hover:not(.locked){border-color:var(--accent);}
+.bg-tier.picked{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; color:var(--accent);}
+.bg-tier.locked{opacity:.45; cursor:not-allowed;}
+.bg-vet.locked{opacity:.5; cursor:not-allowed; filter:grayscale(.6);}
+.bg-vet-lock{font-size:10px; font-weight:700; color:var(--bad);}
+.boon-choices{display:flex; flex-direction:column; gap:10px; margin:6px 0 4px;}
+.boon-choice{display:flex; flex-direction:column; gap:2px; text-align:left; padding:11px 13px; border-radius:12px;
+  border:1px solid var(--border); background:var(--panel); color:var(--fg); cursor:pointer; transition:border-color .12s, transform .12s;}
+.boon-choice:hover{border-color:var(--accent); transform:translateY(-1px);}
+.boon-icon{font-size:20px;}
+.boon-name{font-weight:800; font-size:14px;}
+.boon-desc{font-size:12px; color:var(--dim); line-height:1.35;}
+.bg-shop-list{display:flex; flex-direction:column; gap:9px; margin:6px 0 14px;}
+.bg-shop-item{display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:11px;
+  border:1px solid var(--border); background:var(--panel);}
+.bg-shop-icon{font-size:20px; flex:0 0 auto;}
+.bg-shop-body{flex:1 1 auto; min-width:0; display:flex; flex-direction:column;}
+.bg-shop-name{font-weight:700; font-size:13px;}
+.bg-shop-desc{font-size:11.5px; color:var(--dim); line-height:1.35;}
+.bg-shop-buy{flex:0 0 auto; padding:5px 10px; font-size:12px; font-weight:700;}
+.bg-shop-buy:disabled{opacity:.45; cursor:not-allowed;}
+.bg-shop-owned{flex:0 0 auto; font-size:11px; font-weight:800; color:var(--good); text-transform:uppercase;}
 .camp-card.clickable{cursor:pointer;}
 .camp-card.clickable:hover{border-color:var(--accent);}
 .camp-card.unaffordable{opacity:.5;}

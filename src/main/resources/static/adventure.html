@@ -312,6 +312,12 @@
       <p class="knight-lock-msg" id="bgModalMsg"></p>
       <div class="bg-req-list" id="bgReqList"></div>
       <div class="bg-lobby hidden" id="bgLobby">
+        <div class="bg-lobby-bar">
+          <span class="bg-warmarks" id="bgWarmarks">🎖️ 0 Warmarks</span>
+          <button class="siege-btn bg-shop-open" id="bgShopOpen" type="button">🛒 Warmarks Shop</button>
+        </div>
+        <div class="bg-lobby-label">Choose a tier</div>
+        <div class="bg-tier-row" id="bgTierRow"></div>
         <div class="bg-lobby-label">Pick 3 veteran Siegelings</div>
         <div class="bg-veteran-grid" id="bgVeteranGrid"></div>
         <div class="bg-lobby-label">Pick a veteran SiegeKnight</div>
@@ -325,8 +331,32 @@
     </div>
   </div>
 
+  <!-- Battlegrounds boon pick (run start + post-boss on tiers III+). -->
+  <div class="unit-modal hidden" id="boonModal" role="dialog" aria-modal="true" aria-labelledby="boonModalTitle">
+    <div class="unit-modal-card knight-lock-modal-card bg-modal-card">
+      <div class="knight-lock-kicker">Battlegrounds boon</div>
+      <h2 class="knight-lock-title" id="boonModalTitle">Choose a boon</h2>
+      <p class="knight-lock-msg">A run-wide amp for your whole squad. Pick one.</p>
+      <div class="boon-choices" id="boonChoices"></div>
+    </div>
+  </div>
+
+  <!-- Warmarks shop (Battlegrounds-only currency store). -->
+  <div class="unit-modal hidden" id="bgShopModal" role="dialog" aria-modal="true" aria-labelledby="bgShopTitle">
+    <div class="unit-modal-card knight-lock-modal-card bg-modal-card">
+      <button class="unit-modal-close" id="bgShopClose" type="button" aria-label="Close">✕</button>
+      <div class="knight-lock-kicker">Warmarks shop</div>
+      <h2 class="knight-lock-title" id="bgShopTitle">🛒 Warmarks Shop</h2>
+      <p class="knight-lock-msg"><span id="bgShopBalance">🎖️ 0 Warmarks</span> — exclusive rewards earned in the Battlegrounds.</p>
+      <div class="bg-shop-list" id="bgShopList"></div>
+      <div class="knight-lock-actions">
+        <button class="siege-btn" id="bgShopDismiss" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=30"></script>
+<script src="/js/adventure.js?v=31"></script>
 </body>
 </html>
