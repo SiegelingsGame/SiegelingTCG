@@ -14044,17 +14044,25 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .bf-half {
         flex: 1;
         width: 100%;
-        max-width: 380px;
+        max-width: min(100%, 560px);
         min-width: 0;
         overflow: hidden;
     }
 
-    .board-grid {
-        width: min(100%, 288px);
-        max-width: 288px;
-        gap: 3px;
-        padding: 3px 6px;
+    /* Landscape boards are height-bound, so cells go wide (like the old
+       ≤430px-height tweak, now for every landscape phone). Width derives
+       from the arena container height: two grids + labels + socket reserve
+       must fit 100cqh, hence W = (100cqh - 56px)/2 grid height mapped back
+       through the 1.92 cell ratio and grid chrome ≈ calc(96cqh - 84px).
+       Selector matches .battlefield .board-grid so it outranks the portrait
+       container-query rule that was shrinking landscape boards to ~125px. */
+    .battlefield .board-grid {
+        width: min(98%, calc(96cqh - 84px), 520px);
+        max-width: 520px;
+        gap: 4px;
+        padding: 2px 6px;
         align-self: center;
+        margin: 0 auto;
     }
 
     #playerGrid.board-grid {
@@ -14064,7 +14072,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .board-cell {
         padding: 2px;
         border-radius: 5px;
-        aspect-ratio: 5 / 5.4;
+        aspect-ratio: 1.92;
     }
 
     .board-label {
@@ -14093,6 +14101,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         min-width: 208px;
         max-width: 208px;
         height: 100%;
+        min-height: 0;
         overflow: hidden;
         gap: 0;
         border-left: 1px solid rgba(255, 255, 255, 0.09);
@@ -14103,19 +14112,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         padding-right: env(safe-area-inset-right, 0px);
     }
 
+    /* The decorative header steals vertical space the 440px-tall viewport
+       doesn't have, and its chips render as clipped pills above the hand. */
+    .desktop-menu-header {
+        display: none;
+    }
+
+    /* Dock must be allowed to shrink: if it stays content-sized a big hand
+       pushes the Knight/Draw action bar below the viewport. */
     .desktop-menu-bottom-dock {
         margin-top: auto;
-        flex-shrink: 0;
+        flex: 0 1 auto;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         gap: 0;
         width: 100%;
-    }
-
-    .desktop-menu-inspect {
-        flex: 1 1 auto;
-        min-height: 0;
-        max-height: none;
+        overflow: hidden;
     }
 
     /* Action bar: pinned under battle queue at the bottom of the sidebar */
@@ -14175,16 +14188,20 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-size: 0.78em;
     }
 
-    /* Card inspector panel: grows above the bottom dock */
+    /* Card inspector panel: fills whatever the bottom dock leaves over.
+       flex-basis 0 (not auto) so the inspector's content never competes with
+       the dock in the shrink math — otherwise a tall preview squeezes the
+       dock below its floor and clips the action bar off-screen. min-height
+       keeps the Card/Deck/Log tabs reachable when the hand dock is full. */
     .desktop-menu-inspect {
         display: flex;
         flex-direction: column;
-        flex: 1 1 auto;
+        flex: 1 1 0%;
         overflow: hidden;
         padding: 6px 8px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         max-height: none;
-        min-height: 0;
+        min-height: 96px;
     }
 
     .desktop-inspect-toolbar {
@@ -14242,26 +14259,28 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         flex-shrink: 0;
     }
 
-    /* Hand / battle queue: content-sized above the action bar */
+    /* Hand / battle queue: shares dock height with the action bar. It may
+       shrink (the tray scrolls) but always keeps roughly one card row
+       visible, and the action bar below it never leaves the viewport. */
     .desktop-menu-bottom-dock .desktop-menu-hand {
         display: flex;
         flex-direction: column;
-        flex: 0 0 auto;
-        min-height: 0;
+        flex: 0 1 auto;
+        min-height: 112px;
         overflow: hidden;
         order: 0;
     }
 
-    /* Hand tray: full-width vertical card stack */
+    /* Hand tray: scroll viewport for the card grid */
     .hand-tray {
-        --hand-card-width: 192px;
-        --hand-card-overlap: 0px;
-        --hand-card-padding: 4px;
         --hand-card-hover-lift: 0px;
         --hand-card-selected-lift: 0px;
+        display: flex;
         flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
         width: 100%;
-        height: 100%;
+        height: auto;
         overflow-y: auto;
         overflow-x: hidden;
         padding: 5px 6px;
@@ -14269,36 +14288,74 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         border-left: none;
     }
 
+    /* Two-up grid of aspect-true cards (same footprint as the portrait hand)
+       instead of JS-height-fitted rows: a lone card no longer stretches to
+       the full column, and a big hand scrolls instead of exploding the dock. */
     .hand-tray .hand-cards {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 5px;
-        overflow-y: visible;
-        overflow-x: hidden;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        justify-content: stretch;
+        gap: 6px;
+        overflow: visible;
         padding: 0 0 6px;
     }
 
     .hand-tray .hand-card {
-        min-width: 100%;
+        min-width: 0;
         max-width: 100%;
         width: 100%;
-        height: var(--hand-card-height, auto);
-        min-height: var(--hand-card-height, 0);
-        max-height: var(--hand-card-height, none);
-        margin-left: 0;
-        margin-top: 0;
+        height: auto;
+        min-height: 0;
+        max-height: none;
+        aspect-ratio: var(--card-aspect-ratio);
+        margin: 0;
         border-radius: 10px;
-        flex: 0 0 auto;
     }
 
     .hand-tray .hand-card:hover {
-        transform: scale(1.02) translateX(-4px);
+        transform: scale(1.03);
         z-index: 20;
     }
 
     .hand-tray .hand-card.selected {
-        transform: scale(1.03) translateX(-6px);
+        transform: scale(1.05);
         z-index: 25;
+    }
+
+    /* Battle phase (inline queue dock): the portrait-oriented
+       body.battle-inline-dock rules make the sidebar and tray content-sized
+       with visible overflow, which breaks the fixed-height landscape rail.
+       Re-pin the rail and let the queue panel scroll inside the tray. */
+    body.battle-inline-dock .desktop-menu {
+        flex: 0 0 auto;
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body.battle-inline-dock .desktop-menu-bottom-dock {
+        margin-top: auto;
+        flex: 0 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    body.battle-inline-dock .desktop-menu-hand {
+        flex: 1 1 auto;
+        min-height: 112px;
+        overflow: hidden;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 5px 6px;
     }
 
     /* Float preview replaced by sidebar inspector */
@@ -14704,11 +14761,9 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 /* ── Extra compact: classic phone heights (iPhone 12/13 ≈ 390px,
       iPhone 14 Pro Max landscape ≈ 430px) ──
-   The board is two 3×3 halves stacked vertically, so its size is
-   bound by height. To stop the arena from sitting tiny in the centre
-   with huge empty side margins, the cells go landscape (wider than
-   tall) so the grid spreads across the open horizontal space while
-   still fitting — and no longer clipping — inside each half. */
+   Board geometry (wide cells sized from arena height) now lives in the
+   main landscape block above; this block only slims the chrome further
+   so the shorter viewport keeps a usable arena. */
 @media (orientation: landscape) and (max-width: 979px) and (max-height: 430px) {
     .top-bar {
         padding: 1px 10px;
@@ -14728,19 +14783,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .battlefield { padding: 4px 6px; gap: 4px; }
     .bf-half { max-width: 100%; }
 
-    /* Height-bound width: (viewport - chrome) / 2 halves * cell aspect.
-       Keeps the grid fully visible inside the half while scaling it up
-       to ~1.9× its old footprint and filling the horizontal space. */
-    .board-grid {
-        width: min(98%, calc((100dvh - 40px) / 2 * 1.92), 500px);
-        max-width: 500px;
-        gap: 4px;
-        padding: 2px 6px;
-        align-self: center;
-    }
-
     .board-cell {
-        aspect-ratio: 1.92;
         padding: 1px;
     }
 
@@ -14773,13 +14816,9 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         min-height: 88px;
     }
 
-    /* Smaller hand cards so the hand tray stops being oversized */
-    .hand-tray {
-        --hand-card-width: 78px;
-        --hand-card-overlap: -12px;
-        padding: 3px 4px;
-    }
-    .hand-tray .hand-cards { gap: 3px; }
+    /* Tighter grid gutters so two card columns still fit the slim rail */
+    .hand-tray { padding: 3px 4px; }
+    .hand-tray .hand-cards { gap: 4px; }
 }
 
 /* ============================================================
