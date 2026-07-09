@@ -5331,6 +5331,34 @@ function renderDesktopCardPreviewPanel() {
     const detailEntries = getCardPreviewEntries(focusedCard);
     const summaryText = abilities[0] || getBuilderCardSummaryText(focusedCard) || 'No special text.';
 
+    // Phone landscape rail: reuse the portrait drawer's showcase-card +
+    // formatted detail entries (colored ability lines) instead of the
+    // desktop copy panel, which reads as a plain spec list at 200px wide.
+    if (isPhoneLandscapeLayout()) {
+        let compact = '<div class="landscape-preview">';
+        compact += renderShowcaseCard(focusedCard, {
+            cardClass: 'selected-preview-card landscape-preview-card',
+            artVariant: 'selected',
+            bodyMode: 'summary'
+        });
+        compact += '<div class="landscape-preview-copy">';
+        if (lockReason) {
+            compact += `<div class="selected-copy-detail landscape-preview-lock">${escapeHtml(lockReason)}</div>`;
+        }
+        const statLine = getCardSummaryStatLine(focusedCard);
+        if (statLine) {
+            compact += `<div class="selected-copy-stats">${escapeHtml(statLine)}</div>`;
+        }
+        detailEntries.forEach((entry) => {
+            compact += `<div class="selected-copy-detail">${entry.html || escapeHtml(entry.text)}</div>`;
+        });
+        compact += renderPreviewClaimControl(focusedCard);
+        compact += '</div></div>';
+        panel.innerHTML = compact;
+        scheduleFramedSummaryFit();
+        return;
+    }
+
     let html = '<div class="desktop-preview-layout">';
     html += '<div class="desktop-preview-card-slot">';
     html += renderShowcaseCard(focusedCard, {
@@ -5810,7 +5838,9 @@ function renderEnergyTopBar(containerId, playerData) {
     if (!el) return;
     const tokens = buildEnergyTokens(playerData);
     if (tokens.length === 0) {
-        el.innerHTML = '';
+        // Keep an explicit zero so compact top bars (phone landscape, tablet)
+        // still show the energy stat instead of silently omitting it.
+        el.innerHTML = '<span class="tb-etotal">E:0</span>';
         return;
     }
     // Group solid tokens by element; combo tokens stay individual
@@ -5820,7 +5850,7 @@ function renderEnergyTopBar(containerId, playerData) {
         if (t.type === 'combo') { combos.push(t); continue; }
         counts[t.key] = (counts[t.key] || 0) + 1;
     }
-    let html = '';
+    let html = `<span class="tb-etotal">E:${tokens.length}</span>`;
     for (const [key, count] of Object.entries(counts)) {
         if (count >= 5) {
             html += `<span class="tb-energy-compact"><span class="energy-token solid-token token-${key}"></span><span class="tb-ecount">${count}</span></span>`;
@@ -10984,7 +11014,9 @@ function closeMobileHudSheet(event) {
 
 function syncMobileHudSheetSide() {
     const enemyActive = mobileHudSheetSide !== 'player';
-    const sheetOpen = mobileHudSheetOpen && isPortraitMobileHudLayout();
+    // Phone landscape opens the same sheet from the top-bar player labels
+    // (the portrait mobile HUD buttons are hidden there).
+    const sheetOpen = mobileHudSheetOpen && (isPortraitMobileHudLayout() || isPhoneLandscapeLayout());
     const sheet = document.getElementById('mobileStatSheet');
     const enemyTab = document.getElementById('mobileStatEnemyTab');
     const playerTab = document.getElementById('mobileStatPlayerTab');
