@@ -419,6 +419,16 @@ body {
     text-align: center;
 }
 
+/* Total energy stat that leads the token strip (E:0 when empty) */
+.tb-etotal {
+    font-size: 0.6em;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+
 .tb-energy-focus-affordable {
     padding: 2px 6px;
     background: rgba(46, 204, 113, 0.12);
@@ -3616,7 +3626,11 @@ body.battle-phase-active .battlefield::after {
         font-weight: 800;
         letter-spacing: 0.08em;
     }
+}
 
+/* Player detail stat sheet — shared by portrait phones (opened from the
+   mobile HUD bars) and phone landscape (opened from the top-bar labels). */
+@media (max-width: 767px), (orientation: landscape) and (max-width: 979px) and (max-height: 600px) {
     .mobile-stat-sheet {
         display: none;
         position: fixed;
@@ -3938,7 +3952,9 @@ body.battle-phase-active .battlefield::after {
         color: var(--text-dim);
         font-size: 0.62em;
     }
+}
 
+@media (max-width: 767px) {
     .action-bar {
         flex-direction: column;
         align-items: stretch;
@@ -13982,9 +13998,34 @@ body:has(.welcome-overlay.visible) .mobile-hud {
    ============================================================ */
 
 @media (orientation: landscape) and (max-width: 979px) {
-    .mobile-hud,
-    .mobile-stat-sheet {
+    .mobile-hud {
         display: none !important;
+    }
+
+    /* Player/Knight detail sheet: floats centered over the arena instead of
+       the portrait full-width bottom sheet. Opened by tapping either side
+       of the top bar. */
+    .mobile-stat-sheet {
+        left: 50%;
+        right: auto;
+        bottom: 12px;
+        width: min(560px, 92vw);
+        max-height: calc(100dvh - 52px);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 14px;
+        transform: translate(-50%, 12px);
+    }
+
+    .mobile-stat-sheet.is-open {
+        transform: translate(-50%, 0);
+    }
+
+    .mobile-stat-sheet .stat-sheet-content {
+        max-height: calc(100dvh - 110px);
+    }
+
+    .top-bar .top-bar-side {
+        cursor: pointer;
     }
 
     .top-bar {
@@ -13998,6 +14039,18 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     .top-bar .energy-detail-details {
         display: block;
+    }
+
+    /* Energy detail stays reachable: comfortable tap target, dropdown
+       bounded to the short viewport. */
+    .energy-detail-summary {
+        padding: 3px 10px;
+        font-size: 0.56rem;
+        white-space: nowrap;
+    }
+
+    .energy-detail-dropdown {
+        max-height: calc(100dvh - 52px);
     }
 
     /* ── Top bar: very slim to maximise arena height ── */
@@ -14028,37 +14081,38 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         padding: 0;
     }
 
-    /* ── Battlefield: left column, fills remaining width ── */
+    /* ── Battlefield: center column, halves side by side ──
+       Stacked halves forced wide (squished) cells; side by side each half
+       gets the full arena height, so cells keep the portrait card shape. */
     .battlefield {
         flex: 1;
         min-width: 0;
-        flex-direction: column;
+        flex-direction: row;
         align-items: center;
         justify-content: center;
         padding: 4px 8px;
-        gap: 4px;
+        gap: 10px;
         overflow: hidden;
         border-radius: 0;
     }
 
     .bf-half {
-        flex: 1;
-        width: 100%;
-        max-width: min(100%, 560px);
+        flex: 1 1 0;
+        height: 100%;
+        width: auto;
+        max-width: none;
         min-width: 0;
         overflow: hidden;
+        justify-content: center;
     }
 
-    /* Landscape boards are height-bound, so cells go wide (like the old
-       ≤430px-height tweak, now for every landscape phone). Width derives
-       from the arena container height: two grids + labels + socket reserve
-       must fit 100cqh, hence W = (100cqh - 56px)/2 grid height mapped back
-       through the 1.92 cell ratio and grid chrome ≈ calc(96cqh - 84px).
-       Selector matches .battlefield .board-grid so it outranks the portrait
+    /* Height-bound width for one full-height 3x3 grid of 5/5.4 cells:
+       gridH ≈ 1.08 x gridW + chrome, so W = (100cqh - label/socket chrome)
+       / 1.08 ≈ 92cqh - 32px. The .battlefield prefix outranks the portrait
        container-query rule that was shrinking landscape boards to ~125px. */
     .battlefield .board-grid {
-        width: min(98%, calc(96cqh - 84px), 520px);
-        max-width: 520px;
+        width: min(96%, calc(92cqh - 32px), 420px);
+        max-width: 420px;
         gap: 4px;
         padding: 2px 6px;
         align-self: center;
@@ -14072,7 +14126,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .board-cell {
         padding: 2px;
         border-radius: 5px;
-        aspect-ratio: 1.92;
+        aspect-ratio: 5 / 5.4;
     }
 
     .board-label {
@@ -14246,6 +14300,230 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-size: 0.65em;
         border-radius: 8px;
         line-height: 1.3;
+    }
+
+    /* ── Card pane: showcase card + drawer-style formatted details ── */
+    .landscape-preview {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .landscape-preview .selected-preview-card,
+    .landscape-preview .landscape-preview-card {
+        width: min(148px, 86%);
+        margin: 0 auto;
+        aspect-ratio: var(--card-aspect-ratio);
+        flex: 0 0 auto;
+    }
+
+    .landscape-preview-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 0 2px 6px;
+    }
+
+    .landscape-preview .selected-copy-stats {
+        font-size: 0.68em;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        color: var(--text);
+        padding: 3px 7px;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        text-align: center;
+    }
+
+    .landscape-preview .selected-copy-detail {
+        font-size: 0.66em;
+        line-height: 1.35;
+        color: var(--text);
+        padding: 3px 7px;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.035);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .landscape-preview .landscape-preview-lock {
+        color: var(--accent);
+        border-color: rgba(226, 183, 20, 0.35);
+        background: rgba(226, 183, 20, 0.08);
+    }
+
+    /* ── Deck pane: compact tier cards for the narrow rail ── */
+    .desktop-deck-meta {
+        font-size: 0.66em;
+        font-weight: 700;
+        color: rgba(220, 228, 255, 0.78);
+        padding: 1px 2px 5px;
+    }
+
+    .desktop-deck-list {
+        display: grid;
+        gap: 6px;
+    }
+
+    .desktop-deck-tier {
+        display: grid;
+        gap: 4px;
+        padding: 6px 7px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(7, 14, 28, 0.4);
+    }
+
+    .desktop-deck-tier.rarity-legendary { box-shadow: inset 3px 0 0 rgba(255, 206, 94, 0.86); }
+    .desktop-deck-tier.rarity-epic { box-shadow: inset 3px 0 0 rgba(192, 129, 255, 0.82); }
+    .desktop-deck-tier.rarity-rare { box-shadow: inset 3px 0 0 rgba(97, 163, 255, 0.82); }
+    .desktop-deck-tier.rarity-uncommon { box-shadow: inset 3px 0 0 rgba(104, 225, 159, 0.78); }
+    .desktop-deck-tier.rarity-common { box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.18); }
+
+    .desktop-deck-tier-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 6px;
+    }
+
+    .desktop-deck-tier-name {
+        font-size: 0.56em;
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(238, 243, 255, 0.94);
+    }
+
+    .desktop-deck-tier-count {
+        font-size: 0.52em;
+        font-weight: 700;
+        color: rgba(215, 224, 251, 0.72);
+        white-space: nowrap;
+    }
+
+    .desktop-deck-type-group {
+        display: grid;
+        gap: 3px;
+    }
+
+    .desktop-deck-type-label {
+        font-size: 0.5em;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(161, 178, 225, 0.8);
+    }
+
+    .desktop-deck-icon-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .desktop-deck-icon-card {
+        position: relative;
+        width: 38px;
+        min-height: 48px;
+        padding: 4px 2px 3px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: linear-gradient(180deg, rgba(39, 58, 99, 0.92), rgba(20, 31, 58, 0.96));
+        display: grid;
+        justify-items: center;
+        align-content: start;
+        gap: 2px;
+        overflow: hidden;
+    }
+
+    .desktop-deck-icon-card::before {
+        content: '';
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 3px;
+        background: var(--neutral);
+        opacity: 0.9;
+    }
+
+    .desktop-deck-icon-card.fire::before { background: var(--fire); }
+    .desktop-deck-icon-card.earth::before { background: var(--earth); }
+    .desktop-deck-icon-card.wind::before { background: var(--wind); }
+    .desktop-deck-icon-card.water::before { background: var(--water); }
+    .desktop-deck-icon-card.ice::before { background: var(--ice); }
+    .desktop-deck-icon-card.shadow::before { background: var(--shadow); }
+    .desktop-deck-icon-card.electric::before { background: var(--electric); }
+    .desktop-deck-icon-card.metal::before { background: var(--metal); }
+    .desktop-deck-icon-card.undead::before { background: var(--undead); }
+    .desktop-deck-icon-card.psychic::before { background: var(--psychic); }
+    .desktop-deck-icon-card.poison::before { background: var(--poison); }
+    .desktop-deck-icon-card.light::before { background: var(--light); }
+
+    .desktop-deck-icon-badge {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        font-size: 0.42em;
+        font-weight: 900;
+        padding: 0 3px;
+        border-radius: 999px;
+        color: #0b1226;
+        background: rgba(255, 255, 255, 0.82);
+    }
+
+    .desktop-deck-icon-face {
+        font-size: 0.62em;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        margin-top: 8px;
+        color: rgba(238, 243, 255, 0.96);
+    }
+
+    .desktop-deck-icon-type {
+        font-size: 0.4em;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(180, 194, 232, 0.75);
+    }
+
+    /* ── Log pane: compact battle history rows ── */
+    .desktop-action-history {
+        display: grid;
+        gap: 4px;
+    }
+
+    .desktop-history-empty {
+        font-size: 0.62em;
+        color: var(--text-dim);
+        line-height: 1.4;
+        padding: 4px 2px;
+    }
+
+    .desktop-history-entry {
+        display: flex;
+        align-items: flex-start;
+        gap: 5px;
+        font-size: 0.6em;
+        line-height: 1.35;
+        color: rgba(224, 231, 255, 0.88);
+        padding: 4px 6px;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.035);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .desktop-history-entry.current {
+        border-color: rgba(226, 183, 20, 0.35);
+        background: rgba(226, 183, 20, 0.07);
+    }
+
+    .desktop-history-dot {
+        flex-shrink: 0;
+        width: 5px;
+        height: 5px;
+        margin-top: 4px;
+        border-radius: 50%;
+        background: var(--accent);
     }
 
     /* Section title label (e.g. "Hand Selector") */
