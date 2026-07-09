@@ -14083,7 +14083,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     /* ── Battlefield: center column, halves side by side ──
        Stacked halves forced wide (squished) cells; side by side each half
-       gets the full arena height, so cells keep the portrait card shape. */
+       gets the full arena height, so cells keep the portrait card shape.
+       The bottom padding reserves a strip for the fixed action HUD. */
     .battlefield {
         flex: 1;
         min-width: 0;
@@ -14091,6 +14092,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         align-items: center;
         justify-content: center;
         padding: 4px 6px;
+        padding-bottom: 44px;
         gap: 6px;
         overflow: hidden;
         border-radius: 0;
@@ -14161,13 +14163,15 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         display: none;
     }
 
-    /* Left rail: card / deck / log inspector */
+    /* Left rail: card / deck / log inspector. Width grows by the notch
+       safe-area so the inset padding never eats the 200px content box
+       (border-box sizing was clipping the preview card on notched phones). */
     .desktop-menu-inspect {
         order: -1;
         flex: 0 0 auto;
-        width: 200px;
-        min-width: 200px;
-        max-width: 200px;
+        width: calc(200px + env(safe-area-inset-left, 0px));
+        min-width: calc(200px + env(safe-area-inset-left, 0px));
+        max-width: calc(200px + env(safe-area-inset-left, 0px));
         height: 100%;
         min-height: 0;
         max-height: none;
@@ -14188,9 +14192,9 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .desktop-menu-bottom-dock {
         margin: 0;
         flex: 0 0 auto;
-        width: 208px;
-        min-width: 208px;
-        max-width: 208px;
+        width: calc(208px + env(safe-area-inset-right, 0px));
+        min-width: calc(208px + env(safe-area-inset-right, 0px));
+        max-width: calc(208px + env(safe-area-inset-right, 0px));
         height: 100%;
         min-height: 0;
         display: flex;
@@ -14205,7 +14209,9 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         padding-right: env(safe-area-inset-right, 0px);
     }
 
-    /* Action bar: pinned under the hand at the bottom of the right rail */
+    /* Action bar: pinned under the hand at the bottom of the right rail.
+       backdrop-filter must go — it makes this the containing block for the
+       position:fixed aux HUD, trapping the strip inside the rail. */
     .desktop-menu-bottom-dock .action-bar {
         order: 0;
         flex-direction: column;
@@ -14219,6 +14225,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         justify-content: center;
         align-items: stretch;
         background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
     .action-bar-btns {
@@ -14234,17 +14242,39 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         text-align: center;
     }
 
+    /* Utility icons + ACT counter live in a HUD strip across the open
+       bottom-center of the arena; the primary Knight / Draw / End Turn
+       buttons stay in the right rail above it. */
     .action-bar-aux {
+        position: fixed;
+        left: 50%;
+        bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+        transform: translateX(-50%);
+        z-index: 140;
         flex-direction: row;
-        gap: 4px;
-        justify-content: center;
         flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 6px;
+        max-width: calc(100vw - 436px);
+        padding: 5px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background:
+            linear-gradient(180deg, rgba(20, 32, 60, 0.94), rgba(10, 16, 34, 0.96));
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
     }
 
     .ab-icon {
-        width: 24px;
-        height: 24px;
-        font-size: 0.62em;
+        width: 26px;
+        height: 26px;
+        font-size: 0.66em;
+    }
+
+    /* The site-menu flyout now sits at the screen bottom — open upward. */
+    .action-bar-aux .play-hub-menu-panel {
+        top: auto;
+        bottom: calc(100% + 8px);
     }
 
     .ab-action-counter {
@@ -14313,10 +14343,13 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     .landscape-preview .selected-preview-card,
     .landscape-preview .landscape-preview-card {
-        width: min(148px, 86%);
+        width: min(148px, 92%);
+        max-width: 100%;
+        min-width: 0;
         margin: 0 auto;
         aspect-ratio: var(--card-aspect-ratio);
         flex: 0 0 auto;
+        align-self: center;
     }
 
     .landscape-preview-copy {
@@ -14592,6 +14625,11 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         aspect-ratio: var(--card-aspect-ratio);
         margin: 0;
         border-radius: 10px;
+        /* Vertical pans scroll the tray natively; horizontal-leaning touches
+           stay with the pointer handlers so dragging a card LEFT onto the
+           board works — without this the browser claims the whole gesture
+           for scrolling and cancels the drag before it activates. */
+        touch-action: pan-y;
     }
 
     .hand-tray .hand-card:hover {
@@ -14683,11 +14721,119 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         overflow-y: auto;
     }
 
+    /* ── Loadout: two-pane landscape layout ──
+       Step chips become a left-bound vertical sub-menu; the step's options
+       scroll on the right with the summary + accept buttons pinned below
+       them. The single-viewport grid replaces the portrait scroll column
+       (whose sticky nav floated mid-screen in short landscape). */
     .loadout-box {
+        --loadout-padding: 10px;
+        display: grid;
+        grid-template-columns: clamp(148px, 20vw, 190px) minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        column-gap: 12px;
+        height: 100dvh;
+        min-height: 0;
         max-height: none;
-        height: 100%;
-        min-height: 100dvh;
+        overflow: hidden;
+        padding: 8px calc(10px + env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) calc(10px + env(safe-area-inset-left, 0px));
+        scroll-padding-bottom: 0;
+    }
+
+    .loadout-hero {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        margin: 0 0 6px;
+    }
+
+    .loadout-box h2 {
+        font-size: 1.15em;
+        margin-bottom: 2px;
+    }
+
+    .loadout-kicker {
+        font-size: 0.6em;
+    }
+
+    .loadout-hero .loadout-copy {
+        display: none;
+    }
+
+    .loadout-steps {
+        grid-column: 1;
+        grid-row: 2 / 4;
+        display: flex;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        align-content: flex-start;
+        gap: 6px;
+        margin: 0;
+        min-height: 0;
         overflow-y: auto;
+        padding-right: 2px;
+    }
+
+    .loadout-step-chip {
+        flex: 0 0 auto;
+        width: 100%;
+        min-width: 0;
+        justify-content: flex-start;
+        text-align: left;
+        padding: 8px 10px;
+        font-size: 0.66em;
+    }
+
+    .loadout-core {
+        grid-column: 2;
+        grid-row: 2;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-right: 2px;
+    }
+
+    .loadout-nav {
+        grid-column: 2;
+        grid-row: 3;
+        position: static;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 6px;
+        padding: 6px 0 0;
+        background: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .loadout-nav .loadout-summary {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        font-size: 0.62em;
+        line-height: 1.3;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .loadout-nav .loadout-back-btn {
+        flex: 0 0 auto;
+        padding: 8px 12px;
+        font-size: 0.62em;
+    }
+
+    .loadout-nav .loadout-start-btn {
+        flex: 0 0 auto;
+        min-width: 140px;
+        max-width: 46vw;
+        padding: 9px 16px;
+        font-size: 0.7em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .mulligan-box { padding: 10px 14px 12px; }
