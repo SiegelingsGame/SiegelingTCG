@@ -3519,6 +3519,17 @@ function isMobileLayout() {
     return window.matchMedia('(max-width: 900px)').matches || isCompactLandscapeLayout();
 }
 
+/**
+ * Phone landscape already reserves a persistent Card inspector beside the
+ * arena. Use that space for a spell's explicit Cast/Cancel step rather than
+ * opening the mobile preview drawer over the board.
+ */
+function usesLandscapeSpellPreviewDock() {
+    return window.matchMedia(
+        '(orientation: landscape) and (max-width: 979px) and (max-height: 600px)'
+    ).matches;
+}
+
 function isTabletPortraitDockLayout() {
     return window.matchMedia('(min-width: 980px) and (max-width: 1366px) and (orientation: portrait)').matches;
 }
@@ -5347,6 +5358,10 @@ function renderDesktopCardPreviewPanel() {
     }
 
     const lockReason = isPlayerHandCard(focusedCard) ? getHandCardLockReason(focusedCard) : '';
+    if (usesLandscapeSpellPreviewDock() && mobileSpellPreviewPending && isActionCard(focusedCard) && !lockReason) {
+        panel.innerHTML = renderLandscapeSpellUsePopup(focusedCard);
+        return;
+    }
     const abilities = getCardAbilities(focusedCard)
         .map(ability => ability?.description || ability?.name || '')
         .filter(Boolean);
@@ -5417,6 +5432,39 @@ function renderDesktopCardPreviewPanel() {
 
     panel.innerHTML = html;
     scheduleDesktopPreviewCardScale();
+}
+
+function renderLandscapeSpellUsePopup(card) {
+    const targetSide = getAbilityTargetSide(card.ability);
+    const playVerb = card.type === 'TRAP' ? 'Set' : 'Cast';
+    const summary = getCardPreviewEntries(card)
+        .map((entry) => entry.text || '')
+        .filter(Boolean)
+        .join(' ')
+        || getBuilderCardSummaryText(card)
+        || 'Use this card now.';
+
+    return `
+        <section class="landscape-spell-use-popup" aria-label="Use ${escapeHtmlAttribute(card.name)}">
+            <div class="landscape-spell-use-kicker">${escapeHtml(playVerb)} ${escapeHtml(card.type || 'Spell')}</div>
+            <div class="landscape-spell-use-title">${escapeHtml(card.name)}</div>
+            <div class="landscape-spell-use-copy">${escapeHtml(summary)}</div>
+            ${renderSpellPreviewConfirmation(card, 'landscape-spell-confirm')}
+        </section>`;
+}
+
+function renderSpellPreviewConfirmation(card, extraClass = '') {
+    const targetSide = getAbilityTargetSide(card.ability);
+    const playVerb = card.type === 'TRAP' ? 'Set' : 'Cast';
+    const confirmLabel = targetSide ? 'Choose Target' : playVerb;
+    const className = extraClass ? ` ${extraClass}` : '';
+    return `<div class="selected-spell-confirm${className}">
+        <div class="selected-spell-target-hint">${escapeHtml(describeSpellTargetSide(targetSide))}</div>
+        <div class="selected-spell-confirm-actions">
+            <button type="button" class="spell-confirm-btn" onclick="confirmMobileSpellPreview()">${escapeHtml(confirmLabel)}</button>
+            <button type="button" class="spell-cancel-btn" onclick="cancelMobileSpellPreview()">Cancel</button>
+        </div>
+    </div>`;
 }
 
 function scheduleDesktopPreviewCardScale() {
@@ -13331,6 +13379,12 @@ function openHandCardPreview(handIndex) {
         mobileSpellPreviewPending = true;
     }
     updateSelectedInfo(card, getHandCardLockReason(card) || null);
+    if (mobileSpellPreviewPending && usesLandscapeSpellPreviewDock()) {
+        setDesktopInspectTab('card');
+        syncFocusedCardUi();
+        render();
+        return;
+    }
     openDrawer('selected');
     render();
 }
@@ -14285,6 +14339,12 @@ function selectCard(handIndexOrCardId) {
         if (isMobileLayout()) {
             mobileSpellPreviewPending = true;
             updateSelectedInfo(card);
+            if (usesLandscapeSpellPreviewDock()) {
+                setDesktopInspectTab('card');
+                syncFocusedCardUi();
+                render();
+                return;
+            }
             openDrawer('selected');
             render();
             return;
