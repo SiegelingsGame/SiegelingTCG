@@ -163,6 +163,57 @@ final class SiegeTuning {
     /** Base gold granted in place of a disabled free recruit drop (before the BG ×2.5). */
     static final int BG_RECRUIT_GOLD = 40;
 
+    // ---- Phase 4: tiers I–V, Warmarks, fatigue ----------------------------
+    // Tier N (1-based) raises both the difficulty scalar (fed into
+    // bgEnemyHpScalar/bgEnemyDamageScalar) and the reward multipliers. Clearing a
+    // tier for the first time unlocks the next and awards bonus Warmarks. Tiers at
+    // or above BG_SECOND_BOON_MIN_TIER grant a second boon pick after the first boss.
+
+    /** Highest Battlegrounds tier (tiers are 1..{@code BG_MAX_TIER}, shown as I–V). */
+    static final int BG_MAX_TIER = 5;
+    /** Lowest tier that grants a second boon pick after the first boss. */
+    static final int BG_SECOND_BOON_MIN_TIER = 3;
+
+    /** Difficulty/reward tier scalar per tier (index {@code tier-1}); tier I is the base 1.0. */
+    static final double[] BG_TIER_SCALARS = {1.0, 1.25, 1.55, 1.9, 2.3};
+    /** Reward (gold/warmarks/score) multiplier per tier (index {@code tier-1}). */
+    static final double[] BG_TIER_REWARD_MULT = {1.0, 1.3, 1.7, 2.2, 2.8};
+
+    /** Warmarks awarded per boss killed in Battlegrounds (before the tier reward multiplier). */
+    static final int BG_WARMARKS_PER_BOSS = 15;
+    /** Warmarks awarded on a Battlegrounds win (before the tier reward multiplier). */
+    static final int BG_WARMARKS_WIN = 25;
+    /** Bonus Warmarks the first time a tier is cleared (before the tier reward multiplier). */
+    static final int BG_WARMARKS_FIRST_CLEAR = 40;
+
+    /** Fatigue lockout applied to a squad's veteran teams when a Battlegrounds run is LOST (24h). */
+    static final long BG_FATIGUE_LOCKOUT_MS = 24L * 60 * 60 * 1000;
+
+    /** Clamps a tier to 1..{@link #BG_MAX_TIER}. */
+    static int clampTier(int tier) {
+        return Math.max(1, Math.min(BG_MAX_TIER, tier));
+    }
+
+    /** The difficulty/reward scalar for a tier (fed into {@link #bgEnemyHpScalar}). */
+    static double bgTierScalar(int tier) {
+        return BG_TIER_SCALARS[clampTier(tier) - 1];
+    }
+
+    /** The gold/warmarks/score reward multiplier for a tier. */
+    static double bgTierRewardMult(int tier) {
+        return BG_TIER_REWARD_MULT[clampTier(tier) - 1];
+    }
+
+    /** Whether a tier grants the second boon pick (tiers III+). */
+    static boolean enablesSecondBoon(int tier) {
+        return clampTier(tier) >= BG_SECOND_BOON_MIN_TIER;
+    }
+
+    /** A base Warmark award scaled by the tier reward multiplier (rounded, min 0). */
+    static int bgWarmarks(int base, int tier) {
+        return (int) Math.round(Math.max(0, base) * bgTierRewardMult(tier));
+    }
+
     /**
      * Enemy max-HP scalar for a Battlegrounds fight: {@code +8%} per average
      * veteran level, then multiplied by the tier scalar seam. {@code 1.0} at
@@ -187,9 +238,19 @@ final class SiegeTuning {
         return (int) Math.round(Math.max(0, base) * BG_GOLD_MULT);
     }
 
+    /** A gold award scaled by the Battlegrounds ×2.5 bonus and the tier reward multiplier. */
+    static int bgGold(int base, int tier) {
+        return (int) Math.round(Math.max(0, base) * BG_GOLD_MULT * bgTierRewardMult(tier));
+    }
+
     /** An end-of-run score scaled by the Battlegrounds ×3 bonus (rounded). */
     static long bgScore(long score) {
         return Math.round(Math.max(0L, score) * BG_SCORE_MULT);
+    }
+
+    /** An end-of-run score scaled by the Battlegrounds ×3 bonus and the tier reward multiplier. */
+    static long bgScore(long score, int tier) {
+        return Math.round(Math.max(0L, score) * BG_SCORE_MULT * bgTierRewardMult(tier));
     }
 
     /** Percentage-of-base a stat sits at for the given level (100 at level 1). */

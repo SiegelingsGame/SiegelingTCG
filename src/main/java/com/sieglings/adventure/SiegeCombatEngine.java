@@ -52,6 +52,9 @@ public class SiegeCombatEngine {
 
     void startBattle(SiegeRun run, NodeType type, List<Combatant> enemies, Random rng) {
         SiegeBattle battle = new SiegeBattle(type);
+        // Run-wide Battlegrounds boons ride along on the battle so the AP/turn/fall
+        // code can read them without threading the run through. Empty elsewhere.
+        if (run.isBattlegrounds()) battle.setBoons(run.getBoons());
 
         // Reset persistent party members for a fresh battle (HP carries over),
         // then apply the knight's leadership passive (varies per knight).
@@ -285,6 +288,11 @@ public class SiegeCombatEngine {
 
         // Shock: each shocked Siegeling drains 1 AP from the shared pool.
         int ap = SiegeBattle.ACTIONS_PER_TURN;
+        // Boon (Vanguard Rush): +2 AP on the first round of each battle.
+        if (battle.getRoundNumber() <= 1 && battle.hasBoon(SiegeBoon.FIRST_ROUND_AP)) {
+            ap += SiegeBoon.FIRST_ROUND_AP_BONUS;
+            battle.log("⚡ Vanguard Rush — +" + SiegeBoon.FIRST_ROUND_AP_BONUS + " AP this opening round.");
+        }
         for (Combatant ally : battle.living(Side.PLAYER)) {
             if (ally.has(StatusKind.SHOCK)) {
                 ap = Math.max(0, ap - 1);
@@ -363,7 +371,8 @@ public class SiegeCombatEngine {
         }
 
         AbilitySpec spec = card.getSpec();
-        if (battle.getActionPoints() < spec.actionCost()) {
+        int cost = effectiveCost(battle, spec);
+        if (battle.getActionPoints() < cost) {
             return PlayResult.fail("Not enough action points.");
         }
 
@@ -378,7 +387,7 @@ public class SiegeCombatEngine {
             if (!evolved.ok) return evolved;
             battle.getHand().remove(card);
             // Evolution cards are consumed for the battle — they do not reshuffle.
-            battle.setActionPoints(battle.getActionPoints() - spec.actionCost());
+            battle.setActionPoints(battle.getActionPoints() - cost);
             if (checkEnd(run)) return PlayResult.okay();
             if (battle.getActionPoints() <= 0 && !hasPlayableFreeCard(battle)) {
                 endPlayerTurn(run, rng);
@@ -394,11 +403,11 @@ public class SiegeCombatEngine {
         applyEffect(battle, attacker, spec, targets, rng);
         battle.getHand().remove(card);
         battle.getDiscard().add(card);
-        battle.setActionPoints(battle.getActionPoints() - spec.actionCost());
+        battle.setActionPoints(battle.getActionPoints() - cost);
 
         String targetNames = targets.stream().map(Combatant::getName).distinct()
                 .reduce((a, b2) -> a + ", " + b2).orElse("");
-        battle.turnEntry("you", attacker.getName(), spec.name(), spec.actionCost(),
+        battle.turnEntry("you", attacker.getName(), spec.name(), cost,
                 spec.name() + " → " + targetNames);
 
         // Playing a Siegeling's own move fills its evolution gauge.
@@ -586,7 +595,7 @@ public class SiegeCombatEngine {
                 battle.log(c.getName() + " burns for 1.");
                 if (!c.isAlive()) {
                     battle.log(c.getName() + " succumbs to the flames!");
-                    if (c.getSide() == Side.PLAYER && !c.isKnight()) {
+                    if (c.getSide() == Side.PLAYER && !c.isKnight() && !maybeReviveOnFall(battle, c)) {
                         hitKnightForKo(battle, c);
                     }
                 }
@@ -816,6 +825,35 @@ public class SiegeCombatEngine {
         }
     }
 
+    /**
+     * AP cost of a move after run-wide Battlegrounds boons. Siegebreaker
+     * (BOSS_AP_DISCOUNT) shaves 1 AP off every move during boss battles (min 0);
+     * outside Battlegrounds no boons are active so the base cost is returned.
+     */
+    private int effectiveCost(SiegeBattle battle, AbilitySpec spec) {
+        int cost = spec.actionCost();
+        if (battle.getNodeType() == NodeType.BOSS && battle.hasBoon(SiegeBoon.BOSS_AP_DISCOUNT)) {
+            cost = Math.max(0, cost - SiegeBoon.BOSS_AP_DISCOUNT_AMOUNT);
+        }
+        return cost;
+    }
+
+    /**
+     * Second Wind boon (BATTLE_REVIVE): the first player Siegeling to fall in a
+     * Battlegrounds battle is revived once, at {@link SiegeBoon#REVIVE_HP_PERCENT}%
+     * of max HP, instead of exposing the Knight. Returns true when it fired.
+     */
+    private boolean maybeReviveOnFall(SiegeBattle battle, Combatant ally) {
+        if (ally == null || ally.isKnight() || ally.getSide() != Side.PLAYER) return false;
+        if (!battle.hasBoon(SiegeBoon.BATTLE_REVIVE) || battle.isBoonReviveUsed()) return false;
+        battle.setBoonReviveUsed(true);
+        int reviveHp = Math.max(1, ally.getMaxHp() * SiegeBoon.REVIVE_HP_PERCENT / 100);
+        ally.setHp(reviveHp);
+        battle.event("revive", "targetId", ally.getId(), "amount", reviveHp);
+        battle.log("❤️ Second Wind — " + ally.getName() + " rallies at " + reviveHp + " HP!");
+        return true;
+    }
+
     private void strikeAlly(SiegeBattle battle, Combatant foe, AbilitySpec choice, Combatant ally, int dmg, Random rng) {
         boolean wasAlive = ally.isAlive();
         int dealt = ally.takeDamage(dmg);
@@ -825,7 +863,7 @@ public class SiegeCombatEngine {
         battle.log(foe.getName() + " uses " + choice.name() + " → " + ally.getName()
                 + " takes " + dealt + (ally.isAlive() ? "" : " and falls!"));
         if (!ally.isAlive()) {
-            hitKnightForKo(battle, ally);
+            if (!maybeReviveOnFall(battle, ally)) hitKnightForKo(battle, ally);
         } else {
             StatusKind status = SiegeContentService.statusFor(foe.getElement());
             if (status != null && rng.nextInt(100) < ENEMY_STATUS_CHANCE) {

@@ -75,7 +75,36 @@ public class SiegeController {
     public Map<String, Object> newBattlegrounds(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestBody Map<String, Object> body) {
-        return siege.newBattlegrounds(authorizationHeader, body.get("members"), str(body.get("knightTeamId")));
+        return siege.newBattlegrounds(authorizationHeader, body.get("members"),
+                str(body.get("knightTeamId")), intOf(body.get("tier"), 1));
+    }
+
+    /** Pick the pending run-start (or post-boss) Battlegrounds boon: body { token, boonId }. */
+    @PostMapping("/api/siege/battlegrounds/boon")
+    public Map<String, Object> pickBoon(@RequestBody Map<String, Object> body) {
+        return siege.pickBoon(str(body.get("token")), str(body.get("boonId")));
+    }
+
+    /** The Warmarks shop catalog + the signed-in player's balance and owned unlocks. */
+    @GetMapping("/api/siege/battlegrounds/shop")
+    public Map<String, Object> battlegroundsShop(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.battlegroundsShop(authorizationHeader);
+    }
+
+    /** Spend Warmarks on a shop item: body { itemId }. Balance is validated server-side. */
+    @PostMapping("/api/siege/battlegrounds/shop/buy")
+    public Map<String, Object> buyBattlegroundsItem(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return siege.buyBattlegroundsItem(authorizationHeader, str(body.get("itemId")));
+    }
+
+    /** Battlegrounds leaderboard (top cleared tiers / best scores). */
+    @GetMapping("/api/siege/battlegrounds/leaderboard")
+    public Map<String, Object> battlegroundsLeaderboard(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.battlegroundsLeaderboard(authorizationHeader);
     }
 
     @GetMapping("/api/siege/state")
@@ -321,6 +350,17 @@ public class SiegeController {
             return Integer.parseInt(String.valueOf(value));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Expected a tile number.");
+        }
+    }
+
+    /** Lenient int parse with a fallback for optional numeric body fields. */
+    private static int intOf(Object value, int fallback) {
+        if (value instanceof Number n) return n.intValue();
+        if (value == null) return fallback;
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            return fallback;
         }
     }
 

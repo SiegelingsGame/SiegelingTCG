@@ -10,6 +10,12 @@ public class PlayerProgressionEntity {
     private String userId;
     private int gold;
     private int remnants;
+    /** Battlegrounds-only currency, earned in Battlegrounds runs and spent in its shop. */
+    private int warmarks;
+    /** Highest Battlegrounds tier the player has cleared (0 = none; tier N unlocks tier N+1). */
+    private int battlegroundsTier;
+    /** Cosmetic / shop unlocks bought with Warmarks (owned-flag ids). */
+    private List<String> battlegroundsUnlocks = new ArrayList<>();
     private Map<String, Integer> ownedCards = new LinkedHashMap<>();
     private Map<String, Integer> trainerLevels = new LinkedHashMap<>();
     private Map<String, Integer> trainerPoints = new LinkedHashMap<>();
@@ -36,6 +42,14 @@ public class PlayerProgressionEntity {
     public void setGold(int gold) { this.gold = gold; }
     public int getRemnants() { return remnants; }
     public void setRemnants(int remnants) { this.remnants = Math.max(0, remnants); }
+    public int getWarmarks() { return warmarks; }
+    public void setWarmarks(int warmarks) { this.warmarks = Math.max(0, warmarks); }
+    public int getBattlegroundsTier() { return battlegroundsTier; }
+    public void setBattlegroundsTier(int battlegroundsTier) { this.battlegroundsTier = Math.max(0, battlegroundsTier); }
+    public List<String> getBattlegroundsUnlocks() { return battlegroundsUnlocks; }
+    public void setBattlegroundsUnlocks(List<String> battlegroundsUnlocks) {
+        this.battlegroundsUnlocks = battlegroundsUnlocks == null ? new ArrayList<>() : new ArrayList<>(battlegroundsUnlocks);
+    }
     public Map<String, Integer> getOwnedCards() { return ownedCards; }
     public void setOwnedCards(Map<String, Integer> ownedCards) {
         this.ownedCards = ownedCards == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ownedCards);

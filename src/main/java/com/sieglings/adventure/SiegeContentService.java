@@ -823,6 +823,38 @@ public class SiegeContentService {
         return Optional.empty();
     }
 
+    /**
+     * A guaranteed reveal at or above {@code minStage} (Battlegrounds boss reward):
+     * prefers a stage-3 half the time when available, else the highest stage on hand,
+     * falling back down a stage when a tier has no entries. Excludes names already in play.
+     */
+    Optional<SieglingCard> randomRevealAtLeastStage(int minStage, List<String> excludedNames, Random rng) {
+        int floor = Math.max(1, minStage);
+        // Bias toward the top stage: a coin-flip try at stage 3 first when asking for >=2.
+        if (floor <= 2 && rng.nextBoolean()) {
+            Optional<SieglingCard> three = pickAtStage(3, excludedNames, rng);
+            if (three.isPresent()) return three;
+        }
+        for (int s = 3; s >= floor; s--) {
+            Optional<SieglingCard> pick = pickAtStage(s, excludedNames, rng);
+            if (pick.isPresent()) return pick;
+        }
+        // Nothing at/above the floor: settle for the best available below it.
+        for (int s = floor - 1; s >= 1; s--) {
+            Optional<SieglingCard> pick = pickAtStage(s, excludedNames, rng);
+            if (pick.isPresent()) return pick;
+        }
+        return Optional.empty();
+    }
+
+    private Optional<SieglingCard> pickAtStage(int stage, List<String> excludedNames, Random rng) {
+        List<SieglingCard> pool = new ArrayList<>();
+        for (SieglingCard cand : sieglingsAtStage(stage)) {
+            if (excludedNames == null || !excludedNames.contains(cand.getName())) pool.add(cand);
+        }
+        return pool.isEmpty() ? Optional.empty() : Optional.of(pool.get(rng.nextInt(pool.size())));
+    }
+
     // ---- Mercenaries (broker rentals) --------------------------------------
 
     /** Broker stall stock: prefer evolved forms — mercenaries are elite muscle. */

@@ -44,6 +44,9 @@ public class PlayerProgressionStore {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("gold", progression.getGold());
         payload.put("remnants", progression.getRemnants());
+        payload.put("warmarks", progression.getWarmarks());
+        payload.put("battlegroundsTier", progression.getBattlegroundsTier());
+        payload.put("battlegroundsUnlocks", progression.getBattlegroundsUnlocks());
         payload.put("ownedCards", progression.getOwnedCards());
         payload.put("trainerLevels", progression.getTrainerLevels());
         payload.put("trainerPoints", progression.getTrainerPoints());
@@ -92,6 +95,11 @@ public class PlayerProgressionStore {
         progression.setGold(gold == null ? 0 : gold.intValue());
         Long remnants = snapshot.getLong("remnants");
         progression.setRemnants(remnants == null ? 0 : remnants.intValue());
+        Long warmarks = snapshot.getLong("warmarks");
+        progression.setWarmarks(warmarks == null ? 0 : warmarks.intValue());
+        Long battlegroundsTier = snapshot.getLong("battlegroundsTier");
+        progression.setBattlegroundsTier(battlegroundsTier == null ? 0 : battlegroundsTier.intValue());
+        progression.setBattlegroundsUnlocks(readStringList(snapshot.get("battlegroundsUnlocks")));
         progression.setOwnedCards(readIntMap(snapshot.get("ownedCards")));
         progression.setTrainerLevels(readIntMap(snapshot.get("trainerLevels")));
         progression.setTrainerPoints(readIntMap(snapshot.get("trainerPoints")));

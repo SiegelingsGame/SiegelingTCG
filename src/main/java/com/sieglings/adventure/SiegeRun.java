@@ -74,6 +74,18 @@ class SiegeRun {
     private double bgTierScalar = SiegeTuning.BG_BASE_TIER_SCALAR;
     /** Battlegrounds-only: average level of the picked veteran squad; drives enemy scaling. */
     private int averageVeteranLevel;
+    /** Battlegrounds tier (1..5, shown as I–V); sets the difficulty scalar and reward multipliers. */
+    private int bgTier = 1;
+    /** Chosen run-wide boon ids (Battlegrounds only); one at run start, a second after boss 1 on tiers III+. */
+    private final List<String> boons = new ArrayList<>();
+    /** Boon ids currently offered for the player to pick from (empty when no pick is pending). */
+    private final List<String> boonOffer = new ArrayList<>();
+    /** Whether the run is waiting for the player to pick a boon (gates map travel, like a pending recruit). */
+    private boolean awaitingBoonPick;
+    /** Banked team ids this squad drew members/knight from — locked on a Battlegrounds loss (fatigue). */
+    private final List<String> sourceTeamIds = new ArrayList<>();
+    /** A guaranteed stage-2+ reveal earned at a Battlegrounds boss (reward, not a party member); null when none. */
+    private java.util.Map<String, Object> bossReveal;
     private long score;
     private int loop;
     private int nodesCleared;
@@ -194,6 +206,16 @@ class SiegeRun {
     void setBgTierScalar(double bgTierScalar) { this.bgTierScalar = bgTierScalar <= 0 ? SiegeTuning.BG_BASE_TIER_SCALAR : bgTierScalar; }
     int getAverageVeteranLevel() { return averageVeteranLevel; }
     void setAverageVeteranLevel(int averageVeteranLevel) { this.averageVeteranLevel = Math.max(0, averageVeteranLevel); }
+    int getBgTier() { return bgTier; }
+    void setBgTier(int bgTier) { this.bgTier = SiegeTuning.clampTier(bgTier); }
+    List<String> getBoons() { return boons; }
+    boolean hasBoon(SiegeBoon boon) { return boon != null && boons.contains(boon.id()); }
+    List<String> getBoonOffer() { return boonOffer; }
+    boolean isAwaitingBoonPick() { return awaitingBoonPick; }
+    void setAwaitingBoonPick(boolean awaitingBoonPick) { this.awaitingBoonPick = awaitingBoonPick; }
+    List<String> getSourceTeamIds() { return sourceTeamIds; }
+    java.util.Map<String, Object> getBossReveal() { return bossReveal; }
+    void setBossReveal(java.util.Map<String, Object> bossReveal) { this.bossReveal = bossReveal; }
     long getScore() { return score; }
     void addScore(long points) { this.score = Math.max(0, this.score + points); }
     void setScore(long score) { this.score = Math.max(0, score); }
@@ -273,7 +295,7 @@ class SiegeRun {
         List<Integer> out = new ArrayList<>();
         if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()
                 || inCamp || inCache || inBroker || inSmith || inCaravan || inEvent || inMinigame
-                || pendingRecruit != null) return out;
+                || pendingRecruit != null || awaitingBoonPick) return out;
         SiegeNode current = currentNode();
         if (current == null) {
             for (SiegeNode n : map) {

@@ -53,6 +53,10 @@ class SiegeBattle {
     private int knightCharge;
     /** Combatant id of the fastest ready Siegeling (cosmetic "lead" for the UI). */
     private String leadId;
+    /** Active run-wide Battlegrounds boon ids for this battle (empty outside Battlegrounds). */
+    private java.util.Set<String> boons = java.util.Set.of();
+    /** Whether the BATTLE_REVIVE boon has already fired this battle (once per battle). */
+    private boolean boonReviveUsed;
 
     SiegeBattle(NodeType nodeType) {
         this.nodeType = nodeType;
@@ -83,6 +87,12 @@ class SiegeBattle {
     void addKnightCharge(int amount) { setKnightCharge(knightCharge + amount); }
     String getLeadId() { return leadId; }
     void setLeadId(String leadId) { this.leadId = leadId; }
+    void setBoons(java.util.Collection<String> boonIds) {
+        this.boons = boonIds == null ? java.util.Set.of() : new java.util.HashSet<>(boonIds);
+    }
+    boolean hasBoon(SiegeBoon boon) { return boon != null && boons.contains(boon.id()); }
+    boolean isBoonReviveUsed() { return boonReviveUsed; }
+    void setBoonReviveUsed(boolean boonReviveUsed) { this.boonReviveUsed = boonReviveUsed; }
 
     void log(String message) {
         log.add(message);

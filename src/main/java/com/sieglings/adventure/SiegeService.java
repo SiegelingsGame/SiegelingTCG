@@ -145,6 +145,13 @@ public class SiegeService {
         List<Map<String, Object>> veteranTeams = listVeteranTeams(user);
         resp.put("veterans", SiegeVeteranStore.flattenVeterans(veteranTeams));
         resp.put("veteranTeams", veteranTeams);
+        // Battlegrounds economy + progression for the lobby.
+        int clearedTier = progression == null ? 0 : progression.getBattlegroundsTier();
+        resp.put("warmarks", progression == null ? 0 : progression.getWarmarks());
+        resp.put("battlegroundsTier", clearedTier);
+        resp.put("battlegroundsMaxTier", SiegeTuning.BG_MAX_TIER);
+        resp.put("battlegroundsUnlockedTier", Math.min(SiegeTuning.BG_MAX_TIER, clearedTier + 1));
+        resp.put("battlegroundsUnlocks", progression == null ? new ArrayList<>() : progression.getBattlegroundsUnlocks());
         return resp;
     }
 
@@ -164,6 +171,108 @@ public class SiegeService {
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("veterans", SiegeVeteranStore.flattenVeterans(teams));
         resp.put("veteranTeams", teams);
+        return resp;
+    }
+
+    // ---- Warmarks shop (Battlegrounds-only currency store) ----------------
+
+    /** One purchasable Warmarks-shop entry (a cosmetic/utility unlock recorded as an owned flag). */
+    record ShopItem(String id, String name, String icon, String desc, int cost) {}
+
+    /** The Battlegrounds Warmarks shop catalog (owned as flags on the player's progression). */
+    static final List<ShopItem> BG_SHOP = List.of(
+            new ShopItem("frame_warlord", "Warlord Card Frame", "🖼️", "A battle-scarred frame for your cards.", 120),
+            new ShopItem("frame_ember", "Ember Card Frame", "🔥", "A molten frame won only in the Battlegrounds.", 120),
+            new ShopItem("loading_siegefront", "Siegefront Loading Art", "🌄", "An exclusive loading screen backdrop.", 150),
+            new ShopItem("sigil_veteran", "Veteran's Sigil", "🎖️", "A unique carry sigil: +HP to its bearer next run.", 200),
+            new ShopItem("title_warbringer", "Title: Warbringer", "🏷️", "A profile title earned in the Battlegrounds.", 90));
+
+    private static ShopItem shopItem(String id) {
+        for (ShopItem it : BG_SHOP) if (it.id().equals(id)) return it;
+        return null;
+    }
+
+    /** The Warmarks shop catalog with the signed-in player's balance and owned unlocks. */
+    Map<String, Object> battlegroundsShop(String authorizationHeader) {
+        AccountUser user = resolveUser(authorizationHeader);
+        int warmarks = 0;
+        List<String> owned = new ArrayList<>();
+        if (user != null && progressionService != null) {
+            try {
+                PlayerProgressionEntity p = progressionService.getOrCreate(user);
+                warmarks = p.getWarmarks();
+                owned = p.getBattlegroundsUnlocks();
+            } catch (Exception ignored) { /* guest view */ }
+        }
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (ShopItem it : BG_SHOP) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", it.id());
+            m.put("name", it.name());
+            m.put("icon", it.icon());
+            m.put("desc", it.desc());
+            m.put("cost", it.cost());
+            m.put("owned", owned.contains(it.id()));
+            items.add(m);
+        }
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("warmarks", warmarks);
+        resp.put("items", items);
+        resp.put("loggedIn", user != null);
+        return resp;
+    }
+
+    /** Spends Warmarks on a shop item after server-side balance + ownership checks. */
+    Map<String, Object> buyBattlegroundsItem(String authorizationHeader, String itemId) {
+        AccountUser user = resolveUser(authorizationHeader);
+        if (user == null || user.getId() == null) {
+            throw new IllegalArgumentException("Sign in to spend Warmarks.");
+        }
+        ShopItem item = shopItem(itemId);
+        if (item == null) throw new IllegalArgumentException("That item is not in the Warmarks shop.");
+        if (progressionService == null || progressionStore == null) {
+            throw new IllegalArgumentException("The shop is unavailable right now.");
+        }
+        PlayerProgressionEntity p = progressionService.getOrCreate(user);
+        if (p.getBattlegroundsUnlocks().contains(item.id())) {
+            throw new IllegalArgumentException("You already own " + item.name() + ".");
+        }
+        if (p.getWarmarks() < item.cost()) {
+            throw new IllegalArgumentException("Not enough Warmarks — " + item.name() + " costs " + item.cost() + ".");
+        }
+        p.setWarmarks(p.getWarmarks() - item.cost());
+        List<String> owned = new ArrayList<>(p.getBattlegroundsUnlocks());
+        owned.add(item.id());
+        p.setBattlegroundsUnlocks(owned);
+        p.setUpdatedAt(Instant.now());
+        progressionStore.save(p);
+        return battlegroundsShop(authorizationHeader);
+    }
+
+    /**
+     * Battlegrounds standings. A global cross-user ranking needs a dedicated
+     * aggregate store (seam left for later); for now this returns the signed-in
+     * player's own best tier + Warmarks and the tier ladder so the UI can show
+     * personal progress against the five tiers.
+     */
+    Map<String, Object> battlegroundsLeaderboard(String authorizationHeader) {
+        AccountUser user = resolveUser(authorizationHeader);
+        Map<String, Object> resp = new LinkedHashMap<>();
+        int clearedTier = 0;
+        int warmarks = 0;
+        if (user != null && progressionService != null) {
+            try {
+                PlayerProgressionEntity p = progressionService.getOrCreate(user);
+                clearedTier = p.getBattlegroundsTier();
+                warmarks = p.getWarmarks();
+            } catch (Exception ignored) { /* guest */ }
+        }
+        Map<String, Object> you = new LinkedHashMap<>();
+        you.put("clearedTier", clearedTier);
+        you.put("warmarks", warmarks);
+        resp.put("you", you);
+        resp.put("maxTier", SiegeTuning.BG_MAX_TIER);
+        resp.put("loggedIn", user != null);
         return resp;
     }
 
@@ -457,6 +566,15 @@ public class SiegeService {
         s.put("knightId", run.getKnightId());
         s.put("gold", run.getGold());
         s.put("mode", run.getMode().name());
+        if (run.isBattlegrounds()) {
+            s.put("bgTier", run.getBgTier());
+            s.put("averageVeteranLevel", run.getAverageVeteranLevel());
+            s.put("bgTierScalar", run.getBgTierScalar());
+            s.put("boons", new ArrayList<>(run.getBoons()));
+            s.put("boonOffer", new ArrayList<>(run.getBoonOffer()));
+            s.put("awaitingBoonPick", run.isAwaitingBoonPick());
+            s.put("sourceTeamIds", new ArrayList<>(run.getSourceTeamIds()));
+        }
         s.put("score", run.getScore());
         s.put("loop", run.getLoop());
         s.put("nodesCleared", run.getNodesCleared());
@@ -692,7 +810,26 @@ public class SiegeService {
             knightUnit.setHp(intVal(s.get("knightHp"), knightUnit.getMaxHp()));
             run.setKnightUnit(knightUnit);
             run.setGold(intVal(s.get("gold"), 0));
-            run.setMode("ENDLESS".equals(String.valueOf(s.get("mode"))) ? RunMode.ENDLESS : RunMode.STANDARD);
+            String modeName = String.valueOf(s.get("mode"));
+            RunMode mode = "ENDLESS".equals(modeName) ? RunMode.ENDLESS
+                    : "BATTLEGROUNDS".equals(modeName) ? RunMode.BATTLEGROUNDS : RunMode.STANDARD;
+            run.setMode(mode);
+            if (mode == RunMode.BATTLEGROUNDS) {
+                run.setBgTier(intVal(s.get("bgTier"), 1));
+                run.setAverageVeteranLevel(intVal(s.get("averageVeteranLevel"), 0));
+                run.setBgTierScalar(s.get("bgTierScalar") instanceof Number sc
+                        ? sc.doubleValue() : SiegeTuning.bgTierScalar(run.getBgTier()));
+                if (s.get("boons") instanceof List<?> bl) {
+                    for (Object b : bl) run.getBoons().add(String.valueOf(b));
+                }
+                if (s.get("boonOffer") instanceof List<?> bo) {
+                    for (Object b : bo) run.getBoonOffer().add(String.valueOf(b));
+                }
+                run.setAwaitingBoonPick(Boolean.TRUE.equals(s.get("awaitingBoonPick")));
+                if (s.get("sourceTeamIds") instanceof List<?> tl) {
+                    for (Object t : tl) run.getSourceTeamIds().add(String.valueOf(t));
+                }
+            }
             run.setScore(intVal(s.get("score"), 0));
             run.setLoop(intVal(s.get("loop"), 0));
             run.setNodesCleared(intVal(s.get("nodesCleared"), 0));
@@ -801,6 +938,7 @@ public class SiegeService {
         SiegeNode node = run.nodeById(nodeId);
         run.setCurrentNodeId(nodeId);
         run.setLastReward("");
+        run.setBossReveal(null); // the boss reveal is a one-shot; travelling dismisses it
 
         if (node.isBattle()) {
             startNodeBattle(run, node, node.getType(), false);
@@ -1555,6 +1693,15 @@ public class SiegeService {
             if (wasBoss) {
                 run.setBossKills(run.getBossKills() + 1);
                 run.addScore(100L + 50L * run.getBossKills());
+                if (run.isBattlegrounds()) {
+                    // Every Battlegrounds boss guarantees a stage-2+ reveal reward.
+                    grantBossReveal(run);
+                    // Tiers III+ grant a second run-wide boon pick after the first boss.
+                    if (SiegeTuning.enablesSecondBoon(run.getBgTier())
+                            && run.getBossKills() == 1 && run.getBoons().size() < 2) {
+                        offerBoon(run);
+                    }
+                }
                 int gold = earnGold(run, base + 30);
                 boolean finalRow = node.getRow() >= run.getMap().get(run.getMap().size() - 1).getRow();
                 // STANDARD and BATTLEGROUNDS are both fixed 3-boss expeditions: beating
@@ -1610,8 +1757,22 @@ public class SiegeService {
             run.getMercCards().clear();
             run.setLastReward(run.getMode() == RunMode.ENDLESS
                     ? "The warband falls after " + run.getBossKills() + " boss(es). Final score: " + run.getScore() + "."
-                    : "The warband has fallen. The expedition ends here.");
+                    : run.isBattlegrounds()
+                        ? "The squad is routed. Its veteran teams are fatigued for 24h — but survive to fight again."
+                        : "The warband has fallen. The expedition ends here.");
             grantEndRewards(run, authorizationHeader);
+            // Battlegrounds fatigue: lock (don't consume) the squad's source teams for 24h.
+            if (run.isBattlegrounds() && !run.getSourceTeamIds().isEmpty()) {
+                AccountUser bgUser = resolveUser(authorizationHeader);
+                if (bgUser != null && bgUser.getId() != null) {
+                    try {
+                        veterans.lockTeams(bgUser.getId(), run.getSourceTeamIds(),
+                                System.currentTimeMillis() + SiegeTuning.BG_FATIGUE_LOCKOUT_MS);
+                    } catch (Exception ignored) {
+                        // best-effort; the loss stands regardless
+                    }
+                }
+            }
         }
         checkpoint(run);
         return serialize(run);
@@ -1644,6 +1805,8 @@ public class SiegeService {
     private void grantEndRewards(SiegeRun run, String authorizationHeader, double rewardMultiplier) {
         if (run.isEndRewardsGranted()) return;
         double mult = Math.max(1.0, rewardMultiplier);
+        // Battlegrounds tiers scale the end payout on top of any loop multiplier.
+        if (run.isBattlegrounds()) mult *= SiegeTuning.bgTierRewardMult(run.getBgTier());
         boolean won = run.getStatus() == RunStatus.WON;
         int coins = (int) Math.round((15 + run.getNodesCleared() * 3 + run.getBossKills() * 20
                 + (won ? 60 : 0) + (int) Math.min(200, run.getScore() / 40)) * mult);
@@ -1657,8 +1820,8 @@ public class SiegeService {
         out.put("card", cardPrize == null ? null : Map.of(
                 "id", cardPrize.getId(), "name", cardPrize.getName(),
                 "element", cardPrize.getElement().name(), "rarity", cardPrize.getRarity().name()));
-        // Battlegrounds triples the end-of-run score payout.
-        out.put("score", run.isBattlegrounds() ? SiegeTuning.bgScore(run.getScore()) : run.getScore());
+        // Battlegrounds triples the end-of-run score payout, further scaled by tier.
+        out.put("score", run.isBattlegrounds() ? SiegeTuning.bgScore(run.getScore(), run.getBgTier()) : run.getScore());
 
         AccountUser user = null;
         try {
@@ -1674,6 +1837,21 @@ public class SiegeService {
                 progression.setRemnants(progression.getRemnants() + remnants);
                 if (cardPrize != null) {
                     progressionService.grantCardsWithCap(progression, List.of(cardPrize));
+                }
+                // Battlegrounds: award Warmarks (per boss + win bonus) and unlock the next tier on a first clear.
+                if (run.isBattlegrounds()) {
+                    int tier = run.getBgTier();
+                    int base = run.getBossKills() * SiegeTuning.BG_WARMARKS_PER_BOSS + (won ? SiegeTuning.BG_WARMARKS_WIN : 0);
+                    int warmarks = SiegeTuning.bgWarmarks(base, tier);
+                    boolean firstClear = won && tier > progression.getBattlegroundsTier();
+                    if (firstClear) {
+                        progression.setBattlegroundsTier(tier);
+                        warmarks += SiegeTuning.bgWarmarks(SiegeTuning.BG_WARMARKS_FIRST_CLEAR, tier);
+                    }
+                    progression.setWarmarks(progression.getWarmarks() + warmarks);
+                    out.put("warmarks", warmarks);
+                    out.put("tier", tier);
+                    out.put("tierUnlocked", firstClear && tier < SiegeTuning.BG_MAX_TIER ? tier + 1 : 0);
                 }
                 progression.setUpdatedAt(Instant.now());
                 progressionStore.save(progression);
@@ -1777,6 +1955,24 @@ public class SiegeService {
     }
 
     /**
+     * Battlegrounds boss reward: a guaranteed stage-2-or-higher Siegeling reveal.
+     * Recruits are suppressed in Battlegrounds (your squad is fixed), so this is a
+     * one-shot reveal shown to the player rather than a new party member. Cleared
+     * when the player next travels ({@link #enterNode}).
+     */
+    private void grantBossReveal(SiegeRun run) {
+        List<String> inPlay = run.getParty().stream().map(Combatant::getName).toList();
+        content.randomRevealAtLeastStage(2, inPlay, rng).ifPresent(s -> {
+            Map<String, Object> reveal = new LinkedHashMap<>();
+            reveal.put("name", s.getName());
+            reveal.put("element", s.getElement() == null ? null : s.getElement().name());
+            reveal.put("stage", content.stageOf(s));
+            reveal.put("artUrl", s.getCardArtUrl());
+            run.setBossReveal(reveal);
+        });
+    }
+
+    /**
      * Launches a Battlegrounds run. The client picks exactly {@link SiegeTuning#BG_SQUAD_SIZE}
      * veterans (each identified by {@code teamId}+{@code sourceCardId}) plus a veteran
      * knight (identified by its {@code knightTeamId}). Every pick is validated against
@@ -1786,7 +1982,7 @@ public class SiegeService {
      * @param membersRaw   a list of {@code {teamId, sourceCardId}} maps (exactly 3)
      * @param knightTeamId the banked team whose veteran knight leads the squad
      */
-    Map<String, Object> newBattlegrounds(String authorizationHeader, Object membersRaw, String knightTeamId) {
+    Map<String, Object> newBattlegrounds(String authorizationHeader, Object membersRaw, String knightTeamId, int tier) {
         AccountUser user = resolveUser(authorizationHeader);
         if (user == null || user.getId() == null) {
             throw new IllegalArgumentException("Sign in and bank some veteran teams to march into Battlegrounds.");
@@ -1798,14 +1994,63 @@ public class SiegeService {
         }
         List<String[]> picks = parseMemberPicks(membersRaw);
 
+        // Tier gate: only tiers up to (highest cleared + 1) are selectable.
+        int clearedTier = 0;
+        if (progressionService != null) {
+            try { clearedTier = progressionService.getOrCreate(user).getBattlegroundsTier(); }
+            catch (Exception ignored) { /* treat as none cleared */ }
+        }
+        int chosenTier = SiegeTuning.clampTier(tier);
+        if (chosenTier > clearedTier + 1) {
+            throw new IllegalArgumentException("Clear tier " + (clearedTier + 1) + " before entering a higher tier.");
+        }
+
+        // Fatigue: a team locked after a loss can't be re-fielded until its timer expires.
+        long now = System.currentTimeMillis();
+        java.util.Set<String> involvedTeamIds = new java.util.LinkedHashSet<>();
+        if (knightTeamId != null) involvedTeamIds.add(knightTeamId);
+        for (String[] pick : picks) involvedTeamIds.add(pick[0]);
+        for (String teamId : involvedTeamIds) {
+            Map<String, Object> team = findTeam(teams, teamId);
+            if (team != null && SiegeVeteranStore.isLocked(team, now)) {
+                throw new IllegalArgumentException("A chosen team is fatigued from a recent defeat — pick a rested squad.");
+            }
+        }
+
         purgeStale();
         String token = generateToken();
-        SiegeRun run = buildBattlegroundsRun(token, teams, picks, knightTeamId);
+        SiegeRun run = buildBattlegroundsRun(token, teams, picks, knightTeamId, chosenTier, involvedTeamIds);
         seedStartingKnightBag(run);
         run.getMap().addAll(content.generateMap(rng, true));
         runs.put(token, new Session(run));
         checkpoint(run);
         return serialize(run);
+    }
+
+    /** Picks the pending run-start (or post-boss) Battlegrounds boon by id. */
+    Map<String, Object> pickBoon(String token, String boonId) {
+        SiegeRun run = require(token);
+        if (!run.isBattlegrounds() || !run.isAwaitingBoonPick()) {
+            throw new IllegalArgumentException("There is no boon to choose right now.");
+        }
+        if (!run.getBoonOffer().contains(boonId) || SiegeBoon.byId(boonId) == null) {
+            throw new IllegalArgumentException("That boon is not on offer.");
+        }
+        run.getBoons().add(boonId);
+        run.getBoonOffer().clear();
+        run.setAwaitingBoonPick(false);
+        SiegeBoon chosen = SiegeBoon.byId(boonId);
+        run.setLastReward(chosen.icon() + " " + chosen.displayName() + " boon active — " + chosen.description());
+        checkpoint(run);
+        return serialize(run);
+    }
+
+    /** Sets a fresh boon offer for the run (excluding already-taken boons) and gates travel until picked. */
+    private void offerBoon(SiegeRun run) {
+        List<SiegeBoon> offer = SiegeBoon.offer(run.getBoons(), rng);
+        run.getBoonOffer().clear();
+        for (SiegeBoon b : offer) run.getBoonOffer().add(b.id());
+        run.setAwaitingBoonPick(!run.getBoonOffer().isEmpty());
     }
 
     /** Parses the request's member picks into {@code [teamId, sourceCardId]} pairs (exactly the squad size). */
@@ -1840,12 +2085,17 @@ public class SiegeService {
      * the veteran knight, and BG-only run fields. Map generation is done by the caller.
      */
     private SiegeRun buildBattlegroundsRun(String token, List<Map<String, Object>> teams,
-                                           List<String[]> picks, String knightTeamId) {
+                                           List<String[]> picks, String knightTeamId,
+                                           int tier, java.util.Collection<String> involvedTeamIds) {
         BgBuild build = buildBattlegroundsParty(teams, picks, knightTeamId);
         SiegeRun run = new SiegeRun(token);
         run.setMode(RunMode.BATTLEGROUNDS);
-        run.setBgTierScalar(SiegeTuning.BG_BASE_TIER_SCALAR);
+        run.setBgTier(tier);
+        run.setBgTierScalar(SiegeTuning.bgTierScalar(tier));
         run.setAverageVeteranLevel(build.averageLevel);
+        run.getSourceTeamIds().addAll(involvedTeamIds);
+        // Offer the run-start boon; the player must pick before travelling.
+        offerBoon(run);
 
         Map<String, Object> ks = build.knightSnap;
         String knightId = str(ks.get("knightId"));
@@ -2735,8 +2985,27 @@ public class SiegeService {
             m.put("battlegrounds", true);
             m.put("avgVeteranLevel", run.getAverageVeteranLevel());
             m.put("bgTierScalar", run.getBgTierScalar());
-            m.put("goldMult", SiegeTuning.BG_GOLD_MULT);
-            m.put("scoreMult", SiegeTuning.BG_SCORE_MULT);
+            m.put("bgTier", run.getBgTier());
+            m.put("goldMult", SiegeTuning.BG_GOLD_MULT * SiegeTuning.bgTierRewardMult(run.getBgTier()));
+            m.put("scoreMult", SiegeTuning.BG_SCORE_MULT * SiegeTuning.bgTierRewardMult(run.getBgTier()));
+            // Active boons (chosen) + a pending offer the player must pick from.
+            List<Map<String, Object>> chosen = new ArrayList<>();
+            for (String id : run.getBoons()) {
+                SiegeBoon b = SiegeBoon.byId(id);
+                if (b != null) chosen.add(b.toMap());
+            }
+            m.put("boons", chosen);
+            if (run.isAwaitingBoonPick()) {
+                List<Map<String, Object>> offer = new ArrayList<>();
+                for (String id : run.getBoonOffer()) {
+                    SiegeBoon b = SiegeBoon.byId(id);
+                    if (b != null) offer.add(b.toMap());
+                }
+                m.put("boonOffer", offer);
+            } else {
+                m.put("boonOffer", null);
+            }
+            m.put("bossReveal", run.getBossReveal());
         }
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("nodesCleared", run.getNodesCleared());

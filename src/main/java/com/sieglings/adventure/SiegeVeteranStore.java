@@ -68,6 +68,43 @@ class SiegeVeteranStore {
         return Optional.empty();
     }
 
+    /**
+     * Fatigue lockout: stamps {@code lockedUntil} (epoch-ms) on each of the user's banked
+     * teams whose teamId is in {@code teamIds}, then persists. Called when a Battlegrounds
+     * run is LOST so the squad's teams survive but can't be re-fielded until the timer
+     * expires. Guests (null/blank userId) are a no-op. Returns the updated team list.
+     */
+    List<Map<String, Object>> lockTeams(String userId, java.util.Collection<String> teamIds, long lockedUntil) {
+        if (userId == null || userId.isBlank() || teamIds == null || teamIds.isEmpty()) return listTeams(userId);
+        List<Map<String, Object>> teams = loadRaw(userId);
+        boolean changed = false;
+        for (Map<String, Object> team : teams) {
+            if (teamIds.contains(String.valueOf(team.get("teamId")))) {
+                team.put("lockedUntil", lockedUntil);
+                changed = true;
+            }
+        }
+        if (changed) persistRaw(userId, teams);
+        return teams;
+    }
+
+    /** Whether a team snapshot is fatigue-locked at {@code now} (epoch-ms). */
+    static boolean isLocked(Map<String, Object> team, long now) {
+        return lockedUntil(team) > now;
+    }
+
+    /** The team's fatigue lock expiry (epoch-ms), or 0 when never locked / expired field absent. */
+    static long lockedUntil(Map<String, Object> team) {
+        if (team == null) return 0L;
+        Object v = team.get("lockedUntil");
+        if (v instanceof Number n) return n.longValue();
+        try {
+            return v == null ? 0L : Long.parseLong(String.valueOf(v));
+        } catch (NumberFormatException ex) {
+            return 0L;
+        }
+    }
+
     // ---- Snapshot helpers (pure; shared by SiegeService + tests) -----------
 
     /** Serializes a party into veteran member entries (level/xp/final stats/item). */
@@ -124,6 +161,7 @@ class SiegeVeteranStore {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> team : teams) {
             Object teamId = team.get("teamId");
+            long lockedUntil = lockedUntil(team);
             Object membersObj = team.get("members");
             if (!(membersObj instanceof List<?> members)) continue;
             for (Object mo : members) {
@@ -135,6 +173,8 @@ class SiegeVeteranStore {
                 v.put("element", member.get("element"));
                 v.put("level", member.get("level"));
                 v.put("itemId", member.get("itemId"));
+                // Fatigue lockout: the lobby grays a member out until this epoch-ms passes.
+                v.put("lockedUntil", lockedUntil);
                 out.add(v);
             }
         }
