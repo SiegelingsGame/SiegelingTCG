@@ -1196,6 +1196,81 @@ if (typeof window !== 'undefined' && !window.sgWebpFallback) {
     };
 }
 
+// Retry a failed card-art load with backoff. Dashboard creature overlays are
+// remote (Firebase Storage) images; a dropped fetch on flaky cellular used to
+// leave the card frame permanently empty until the next full re-render.
+window.sgArtRetry = function (img) {
+    if (!img) {
+        return;
+    }
+    const tries = Number(img.dataset.artRetry || 0);
+    if (tries >= 3) {
+        img.onerror = null;
+        return;
+    }
+    img.dataset.artRetry = String(tries + 1);
+    const src = img.getAttribute('src');
+    window.setTimeout(() => {
+        if (!img.isConnected || !src) {
+            return;
+        }
+        // Re-assigning the same src after an error re-kicks the load; the
+        // immutable HTTP cache serves it instantly if it landed meanwhile.
+        img.removeAttribute('src');
+        img.setAttribute('src', src);
+    }, 500 * Math.pow(2, tries));
+};
+
+// Battle re-renders rebuild the board/hand DOM via innerHTML, which destroys
+// and recreates every art <img> and aborts any in-flight fetch. Keeping a
+// strong reference to a preloaded Image per art URL pins the decoded bitmap
+// in the browser's memory cache, so the recreated <img> paints instantly
+// instead of blinking out while it refetches/re-decodes multi-MB PNGs.
+const battleArtImageCache = new Map();
+
+function preloadArtUrl(url) {
+    if (!url || battleArtImageCache.has(url)) {
+        return;
+    }
+    // Soft cap so a long session can't pin unbounded image memory; Map
+    // iteration order is insertion order, so this evicts the oldest art
+    // (from earlier matches) first.
+    while (battleArtImageCache.size >= 64) {
+        battleArtImageCache.delete(battleArtImageCache.keys().next().value);
+    }
+    const img = new Image();
+    img.decoding = 'async';
+    img.onerror = () => {
+        // Drop the failed entry so the next render() pass re-attempts it.
+        if (battleArtImageCache.get(url) === img) {
+            battleArtImageCache.delete(url);
+        }
+    };
+    img.src = sgPreferWebp(url);
+    battleArtImageCache.set(url, img);
+}
+
+function preloadCardArtFor(card) {
+    preloadArtUrl(getCardArtMeta(card)?.url);
+}
+
+function preloadBattleArt() {
+    if (!gameState) {
+        return;
+    }
+    (gameState.player?.hand || []).forEach(preloadCardArtFor);
+    [gameState.playerBoard, gameState.enemyBoard].forEach((board) => {
+        (board || []).forEach((row) => (row || []).forEach((cell) => {
+            if (cell) {
+                preloadCardArtFor(cell);
+            }
+        }));
+    });
+    [gameState.player?.trainer, gameState.enemy?.trainer].forEach((trainer) => {
+        preloadArtUrl(String(trainer?.cardArtUrl || '').trim());
+    });
+}
+
 // CSS transform for a SiegeKnight full-card image, from the dashboard crop/scale
 // controls (translate px + scale + rotate). Default (0,0,1,0) → no transform, so
 // existing 5:7 cards are unchanged.
@@ -1219,11 +1294,13 @@ function knightArtStyleAttr(trainer) {
 }
 
 // Builds `src` (+ WebP fallback) attributes for a local raster art URL.
+// URLs without a .webp twin (remote dashboard art) get a retrying onerror so
+// one dropped fetch doesn't leave the card art blank.
 function webpImgAttrs(url) {
     const original = String(url || '');
     const preferred = sgPreferWebp(original);
     if (preferred === original) {
-        return `src="${escapeHtmlAttribute(original)}"`;
+        return `src="${escapeHtmlAttribute(original)}" onerror="sgArtRetry(this)"`;
     }
     return `src="${escapeHtmlAttribute(preferred)}" data-img-fallback="${escapeHtmlAttribute(original)}" onerror="sgWebpFallback(this)"`;
 }
@@ -1309,14 +1386,13 @@ function renderCardArt(card, variant, fallbackLabel = '') {
             ? ` card-art-crop-${artMeta.crop}`
             : '';
         const styleAttr = artMeta.transformStyle ? ` style="${escapeHtmlAttribute(artMeta.transformStyle)}"` : '';
-        // Prominent single-card previews (the deck-builder Card View, the binder
-        // detail card) must show their character overlay right away. Lazy-loading
-        // left the art blank when the panel started below the fold — on mobile the
-        // deck-builder Card View stacks under the binder list — so the frame's
-        // element background showed alone. Load those eagerly; keep grid/hand/board
-        // art lazy since many render at once.
-        const loading = (variant === 'preview' || variant === 'selected') ? 'eager' : 'lazy';
-        return `<div class="card-art card-art-${variant}${cropClass}"><img ${webpImgAttrs(artMeta.url)} alt="${escapeHtmlAttribute(card?.name || 'Card')} art" loading="${loading}"${styleAttr}></div>`;
+        // Always load card art eagerly. Lazy-loading blanked the character
+        // overlays in two ways: single-card previews starting below the fold
+        // never loaded (deck-builder Card View on mobile), and battle
+        // re-renders recreate every hand/board <img> via innerHTML, which
+        // restarted the lazy deferral each interaction and made the art
+        // blink out. All these images are on-screen cards, so eager is right.
+        return `<div class="card-art card-art-${variant}${cropClass}"><img ${webpImgAttrs(artMeta.url)} alt="${escapeHtmlAttribute(card?.name || 'Card')} art" decoding="async"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
@@ -10645,6 +10721,9 @@ function getBoardCellMarkers(board, markers) {
 function render() {
     if (gameState) {
         pruneInvalidArenaSelection();
+        // Warm the art cache before the innerHTML rebuild below tears down
+        // the current <img> elements, so the recreated ones paint instantly.
+        preloadBattleArt();
     }
     renderDomLegacy();
 }
@@ -11048,7 +11127,7 @@ function knightHudCardInnerHtml(trainer) {
         // dashboard crop/scale transform — tuned for the framed loadout/binder — is
         // intentionally not applied here.
         const url = String(trainer.cardArtUrl).trim();
-        return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight')}" loading="lazy">`;
+        return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight')}" decoding="async">`;
     }
     return `<img class="hud-knight-art-img hud-knight-art-template" ${webpImgAttrs(SIEGEKNIGHT_CARD_TEMPLATE)} alt="" aria-hidden="true"><span class="hud-knight-art-sigil">${elementEmoji(trainer?.element)}</span>`;
 }
