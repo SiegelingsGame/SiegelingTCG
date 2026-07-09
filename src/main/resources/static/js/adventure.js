@@ -26,7 +26,8 @@
     warbandLoading: false,
     warbandLoadToken: 0,
     interactionResult: null,
-    pendingKnightUnlock: null
+    pendingKnightUnlock: null,
+    deferBattleHandRender: false
   };
 
   var EL_ICON = {
@@ -132,6 +133,18 @@
     // Battle and map are static, full-viewport screens (no page scroll —
     // only their own internal regions, like the map canvas, scroll).
     document.body.dataset.screen = id;
+    if (id === 'battleScreen' || id === 'mapScreen') resetViewportScroll();
+  }
+
+  function resetViewportScroll() {
+    if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    window.requestAnimationFrame(function () {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    });
   }
   function toast(msg) {
     var t = $('siegeToast'); if (!t) return;
@@ -1246,7 +1259,12 @@
     var enteringBattle = run && run.battle && !(state.run && state.run.battle);
     state.run = run;
     if (events.length && (hadBattleDom || enteringBattle)) {
+      state.busy = true;
+      state.deferBattleHandRender = events.some(function (ev) {
+        return ev && (ev.type === 'discardHand' || ev.type === 'draw');
+      });
       renderRun();
+      state.deferBattleHandRender = false;
       playEvents(events, function () { renderRun(); afterRunApplied(run); });
       return;
     }
@@ -2186,7 +2204,7 @@
     var over = b.phase === 'WON' || b.phase === 'LOST';
     syncBattleActionButtons();
 
-    renderHand(b, over);
+    if (!state.deferBattleHandRender) renderHand(b, over);
     updateHint(b, over);
   }
 
@@ -3301,9 +3319,64 @@
   // ---- rewards ----------------------------------------------------------
   var REWARD_ICON = { CARD: '🃏', UPGRADE: '⬆️', RECRUIT: '🐾' };
 
+  function renderXpRecap() {
+    var host = $('xpRecap');
+    if (!host) return;
+    var recap = state.run && state.run.xpRecap;
+    var units = recap && Array.isArray(recap.units) ? recap.units : [];
+    if (!units.length) {
+      host.classList.add('hidden');
+      host.innerHTML = '';
+      return;
+    }
+    var levelUps = Array.isArray(recap.levelUps)
+      ? recap.levelUps
+      : units.filter(function (u) { return u.leveledUp || (u.levelAfter || 1) > (u.levelBefore || 1); });
+    var totalAwarded = recap.totalAwarded || units.reduce(function (sum, u) { return sum + (u.xpGained || 0); }, 0);
+    host.classList.remove('hidden');
+    host.innerHTML =
+      '<div class="xp-recap-head">' +
+        '<div><span class="xp-recap-kicker">Battle XP</span><h2>Leveling recap</h2></div>' +
+        '<div class="xp-recap-total">+' + totalAwarded + ' team XP</div>' +
+      '</div>' +
+      (levelUps.length
+        ? '<div class="xp-levelups">' + levelUps.map(function (u) {
+            return '<span class="xp-levelup-chip">⭐ ' + esc(u.name) + ' Lv ' +
+              esc(u.levelBefore || '?') + ' → ' + esc(u.levelAfter || '?') + '</span>';
+          }).join('') + '</div>'
+        : '<div class="xp-levelups muted">No level-ups this fight.</div>') +
+      '<div class="xp-recap-list">' + units.map(renderXpRecapRow).join('') + '</div>';
+  }
+
+  function renderXpRecapRow(u) {
+    var level = u.levelAfter || u.level || 1;
+    var before = u.levelBefore || level;
+    var leveled = u.leveledUp || level > before;
+    var span = u.xpSpan || 0;
+    var inLevel = Math.max(0, u.xpInLevel || 0);
+    var pct = span > 0 ? Math.max(0, Math.min(100, Math.round(100 * inLevel / span))) : 100;
+    var type = u.kind === 'KNIGHT' ? 'SiegeKnight' : 'Siegeling';
+    var bonus = u.killBonus > 0
+      ? '<span class="xp-kill-bonus">+' + u.killBonus + ' killing blow</span>'
+      : '';
+    var progressText = span > 0 ? (inLevel + '/' + span + ' XP') : 'Max level';
+    return '<div class="xp-recap-row ' + elClass(u.element) + (leveled ? ' leveled' : '') + '">' +
+      '<div class="xp-unit-main">' +
+        '<div class="xp-unit-name">' + icon(u.element) + ' ' + esc(u.name) + '</div>' +
+        '<div class="xp-unit-meta">' + type + ' · +' + (u.xpGained || 0) + ' XP ' + bonus + '</div>' +
+      '</div>' +
+      '<div class="xp-unit-level">' +
+        '<span class="xp-level-badge">' + (leveled ? ('Lv ' + before + ' → ' + level) : ('Lv ' + level)) + '</span>' +
+        '<div class="xp-bar" title="' + esc(progressText) + '"><div class="xp-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="xp-progress-text">' + progressText + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   function renderRewards() {
     showScreen('rewardScreen');
     $('rewardSub').textContent = state.run.lastReward || 'Choose one reward to strengthen the run.';
+    renderXpRecap();
     var grid = $('rewardGrid'); grid.innerHTML = '';
     (state.run.pendingRewards || []).forEach(function (opt) {
       var c = el('div', 'reward-card ' + elClass(opt.element) + ' kind-' + opt.kind);

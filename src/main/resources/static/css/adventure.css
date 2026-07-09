@@ -782,6 +782,43 @@ body[data-screen="mapScreen"] #mapScreen{
 
 /* ---------- Rewards ---------- */
 .reward-heading{color:var(--good);}
+.xp-recap{
+  max-width:760px; margin:14px 0 16px; padding:13px 14px;
+  border:1px solid rgba(126,231,135,.28); border-radius:14px;
+  background:linear-gradient(180deg,rgba(30,39,54,.88),rgba(18,24,35,.9));
+  box-shadow:0 10px 28px rgba(0,0,0,.24);
+}
+.xp-recap-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px;}
+.xp-recap-head h2{margin:1px 0 0; font-size:18px; line-height:1.1;}
+.xp-recap-kicker{display:block; color:var(--good); font-size:10px; letter-spacing:1.4px; text-transform:uppercase; font-weight:800;}
+.xp-recap-total{
+  flex:0 0 auto; color:var(--accent); font-size:12px; font-weight:850;
+  border:1px solid rgba(255,154,60,.35); border-radius:999px; padding:5px 10px;
+  background:rgba(255,154,60,.08);
+}
+.xp-levelups{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
+.xp-levelups.muted{display:block; color:var(--faint); font-size:12px;}
+.xp-levelup-chip{
+  display:inline-flex; align-items:center; gap:4px; padding:4px 9px; border-radius:999px;
+  color:var(--good); border:1px solid rgba(126,231,135,.32); background:rgba(126,231,135,.09);
+  font-size:12px; font-weight:800;
+}
+.xp-recap-list{display:flex; flex-direction:column; gap:7px;}
+.xp-recap-row{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 10px; border:1px solid var(--border); border-left:4px solid var(--el);
+  border-radius:11px; background:rgba(255,255,255,.035);
+}
+.xp-recap-row.leveled{border-color:rgba(126,231,135,.38); border-left-color:var(--good); background:rgba(126,231,135,.07);}
+.xp-unit-main{min-width:0;}
+.xp-unit-name{font-size:13px; font-weight:850; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.xp-unit-meta{font-size:11px; color:var(--dim); margin-top:2px;}
+.xp-kill-bonus{color:var(--accent); font-weight:800;}
+.xp-unit-level{display:grid; grid-template-columns:auto 92px; align-items:center; gap:4px 8px; flex:0 0 auto;}
+.xp-level-badge{font-size:11px; font-weight:850; color:var(--text); text-align:right; white-space:nowrap;}
+.xp-bar{width:92px; height:8px; border-radius:999px; border:1px solid rgba(255,255,255,.12); overflow:hidden; background:rgba(0,0,0,.35);}
+.xp-fill{height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--el),var(--good));}
+.xp-progress-text{grid-column:1 / -1; color:var(--faint); font-size:10.5px; text-align:right;}
 .reward-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; max-width:760px;}
 .reward-card{
   background:linear-gradient(180deg,#1a2130,#141a26);
@@ -812,6 +849,9 @@ body[data-screen="mapScreen"] #mapScreen{
 /* ---------- Responsive ---------- */
 @media (max-width:640px){
   /* Everything on one phone screen: tighter chrome, smaller stage + hand. */
+  :root{
+    --battle-mobile-hud-h:58px;
+  }
   .siege-app{
     padding:
       env(safe-area-inset-top, 0px)
@@ -830,6 +870,9 @@ body[data-screen="mapScreen"] #mapScreen{
   body[data-screen="battleScreen"] .siege-title{display:none;}
   body[data-screen="battleScreen"] .siege-back{font-size:12px;}
   body[data-screen="battleScreen"] .siege-abandon{padding:4px 10px; font-size:11px;}
+  body[data-screen="battleScreen"] #battleScreen{
+    padding-bottom:calc(var(--battle-mobile-hud-h) + env(safe-area-inset-bottom, 0px));
+  }
 
   .battle-top{flex-wrap:wrap; margin-bottom:4px; gap:6px;}
   .knight-plate{flex:1; min-width:0; max-width:none; padding:4px 8px 5px;}
@@ -850,11 +893,13 @@ body[data-screen="mapScreen"] #mapScreen{
 
   .battle-log{max-height:38px; min-height:24px; font-size:11px; padding:4px 10px; margin-top:6px;}
 
-  /* HUD pushed down a bit further from the hand so the wheel-scrolled hand
-     (raised center card, dipped side cards) has clearance above it. */
+  /* Keep the action controls glued to the visible phone bottom. They are fixed
+     instead of flow/sticky so an oversized mobile viewport cannot leave a dead
+     black tail below End Turn or push the top knight plate out of view. */
   .battle-hud{
-    position:sticky; bottom:0; z-index:20;
-    gap:8px; margin:12px -10px 0; padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+    position:fixed; left:0; right:0; bottom:0; z-index:30;
+    min-height:var(--battle-mobile-hud-h);
+    gap:8px; margin:0; padding:8px max(10px, env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
     flex-wrap:nowrap;
     background:linear-gradient(transparent, rgba(12,15,22,.94) 30%);
   }
@@ -879,6 +924,12 @@ body[data-screen="mapScreen"] #mapScreen{
   .mode-card-title{font-size:22px;}
   .mode-card-desc{font-size:13px;}
   .setup-footer{flex-wrap:wrap;}
+  .xp-recap{margin:12px 0 14px; padding:12px;}
+  .xp-recap-head{align-items:flex-start;}
+  .xp-recap-total{font-size:11px; padding:4px 8px;}
+  .xp-recap-row{align-items:flex-start; flex-direction:column; gap:8px;}
+  .xp-unit-level{width:100%; grid-template-columns:auto 1fr;}
+  .xp-bar{width:100%;}
 
   /* Map + HUD on one screen: slim chips, map fills the rest. */
   .party-strip{flex-wrap:nowrap; overflow-x:auto; gap:6px; margin-bottom:6px; padding-bottom:2px;}

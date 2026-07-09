@@ -94,6 +94,8 @@ class SiegeRun {
     private int goldEarnedTotal;
     private boolean endRewardsGranted;
     private java.util.Map<String, Object> endRewards;
+    /** The most recent battle's XP awards, shown on the post-victory reward screen. */
+    private java.util.Map<String, Object> lastXpRecap;
     /** A just-joined Siegeling awaiting its gacha-style reveal (null when none). */
     private java.util.Map<String, Object> pendingRecruit;
 
@@ -233,6 +235,8 @@ class SiegeRun {
     void setEndRewardsGranted(boolean endRewardsGranted) { this.endRewardsGranted = endRewardsGranted; }
     java.util.Map<String, Object> getEndRewards() { return endRewards; }
     void setEndRewards(java.util.Map<String, Object> endRewards) { this.endRewards = endRewards; }
+    java.util.Map<String, Object> getLastXpRecap() { return lastXpRecap; }
+    void setLastXpRecap(java.util.Map<String, Object> lastXpRecap) { this.lastXpRecap = lastXpRecap; }
     java.util.Map<String, Object> getPendingRecruit() { return pendingRecruit; }
     void setPendingRecruit(java.util.Map<String, Object> pendingRecruit) { this.pendingRecruit = pendingRecruit; }
 

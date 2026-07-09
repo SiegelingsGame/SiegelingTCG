@@ -424,6 +424,67 @@ public class SiegeService {
         if (knight != null && knight.isAlive()) knight.addXp(amount);
     }
 
+    /** Grants battle XP and stores a client-friendly recap for the reward screen. */
+    private void awardBattleXpWithRecap(SiegeRun run, SiegeBattle battle, int baseXp) {
+        if (run == null || battle == null || baseXp <= 0) return;
+        Map<String, Integer> kills = battle.getKillCredit();
+        List<Map<String, Object>> units = new ArrayList<>();
+        List<Map<String, Object>> levelUps = new ArrayList<>();
+        int totalAwarded = 0;
+
+        for (Combatant ally : run.getParty()) {
+            if (!ally.isAlive()) continue;
+            Map<String, Object> entry = awardBattleXpEntry(ally, "SIEGLING", baseXp, kills);
+            totalAwarded += intOf(entry.get("xpGained"), 0);
+            units.add(entry);
+            if (Boolean.TRUE.equals(entry.get("leveledUp"))) levelUps.add(entry);
+        }
+        Combatant knight = run.getKnightUnit();
+        if (knight != null && knight.isAlive()) {
+            Map<String, Object> entry = awardBattleXpEntry(knight, "KNIGHT", baseXp, kills);
+            totalAwarded += intOf(entry.get("xpGained"), 0);
+            units.add(entry);
+            if (Boolean.TRUE.equals(entry.get("leveledUp"))) levelUps.add(entry);
+        }
+
+        Map<String, Object> recap = new LinkedHashMap<>();
+        recap.put("baseXp", baseXp);
+        recap.put("killBonusPerDefeat", SiegeTuning.XP_KILLING_BLOW);
+        recap.put("totalAwarded", totalAwarded);
+        recap.put("units", units);
+        recap.put("levelUps", levelUps);
+        run.setLastXpRecap(recap);
+    }
+
+    private Map<String, Object> awardBattleXpEntry(Combatant unit, String kind, int baseXp, Map<String, Integer> kills) {
+        int beforeLevel = unit.getLevel();
+        int beforeXp = unit.getXp();
+        int killCount = kills.getOrDefault(unit.getId(), 0);
+        int killBonus = killCount * SiegeTuning.XP_KILLING_BLOW;
+        int gained = baseXp + killBonus;
+        unit.addXp(gained);
+
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("id", unit.getId());
+        entry.put("kind", kind);
+        entry.put("name", unit.getName());
+        entry.put("element", unit.getElement() == null ? null : unit.getElement().name());
+        entry.put("xpBefore", beforeXp);
+        entry.put("xpAfter", unit.getXp());
+        entry.put("xpGained", gained);
+        entry.put("baseXp", baseXp);
+        entry.put("killCount", killCount);
+        entry.put("killBonus", killBonus);
+        entry.put("levelBefore", beforeLevel);
+        entry.put("levelAfter", unit.getLevel());
+        entry.put("leveledUp", unit.getLevel() > beforeLevel);
+        entry.put("xpInLevel", unit.getXp() - SiegeTuning.xpForLevel(unit.getLevel()));
+        entry.put("xpSpan", unit.getLevel() >= SiegeTuning.MAX_LEVEL ? 0
+                : SiegeTuning.xpForLevel(unit.getLevel() + 1) - SiegeTuning.xpForLevel(unit.getLevel()));
+        entry.put("xpToNext", SiegeTuning.xpToNext(unit.getXp()));
+        return entry;
+    }
+
     /** Every SiegeKnight begins with a revive card and a healing potion in their bag. */
     private void seedStartingKnightBag(SiegeRun run) {
         run.getKnightBag().add("revive-card");
@@ -1666,15 +1727,7 @@ public class SiegeService {
             // plus a killing-blow bonus for units that landed a kill this fight.
             int battleXp = wasBoss ? SiegeTuning.XP_BOSS_WON
                     : wasElite ? SiegeTuning.XP_ELITE_WON : SiegeTuning.XP_BATTLE_WON;
-            Map<String, Integer> kills = battle.getKillCredit();
-            for (Combatant ally : run.getParty()) {
-                if (!ally.isAlive()) continue;
-                ally.addXp(battleXp + kills.getOrDefault(ally.getId(), 0) * SiegeTuning.XP_KILLING_BLOW);
-            }
-            Combatant xpKnight = run.getKnightUnit();
-            if (xpKnight != null && xpKnight.isAlive()) {
-                xpKnight.addXp(battleXp + kills.getOrDefault(xpKnight.getId(), 0) * SiegeTuning.XP_KILLING_BLOW);
-            }
+            awardBattleXpWithRecap(run, battle, battleXp);
 
             run.setBattle(null);
 
@@ -2765,6 +2818,7 @@ public class SiegeService {
             run.setLastReward("The party pressed on without spoils.");
         }
         run.getPendingRewards().clear();
+        run.setLastXpRecap(null);
         checkpoint(run);
         return serialize(run);
     }
@@ -3014,6 +3068,7 @@ public class SiegeService {
         stats.put("goldEarned", run.getGoldEarnedTotal());
         m.put("stats", stats);
         m.put("endRewards", run.getEndRewards());
+        m.put("xpRecap", run.getLastXpRecap());
         m.put("extraction", run.getVeteranTeam());
         m.put("recruit", run.getPendingRecruit());
         if (run.getMercenary() != null) {
