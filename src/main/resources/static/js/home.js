@@ -293,6 +293,9 @@
     // Seed from the cached snapshot so the signed-in hub renders instantly; the
     // background syncProfile() on init revalidates and refreshes it.
     const cachedAuthProfile = initialAuthToken ? loadCachedAuthProfile() : null;
+    const initialCollectionAuthMode = cachedAuthProfile?.authenticated
+        ? 'signed-in'
+        : (initialAuthToken ? 'pending' : 'guest');
     const state = {
         route: 'home',
         token: initialAuthToken,
@@ -315,7 +318,9 @@
         rarityFilter: 'ALL',
         finishFilter: 'ALL',
         energyCostFilter: 'ALL',
-        showUnowned: false,
+        showUnowned: initialCollectionAuthMode === 'guest',
+        collectionAuthMode: initialCollectionAuthMode,
+        collectionFilterTouched: false,
         sortField: 'owned',
         sortDir: 'desc',
         roomSearch: '',
@@ -1092,6 +1097,7 @@
         });
         updateSortDirToggle();
         document.getElementById('showUnownedToggle')?.addEventListener('click', () => {
+            state.collectionFilterTouched = true;
             state.showUnowned = !state.showUnowned;
             renderFilters();
             renderCards();
@@ -1280,6 +1286,7 @@
             state.profilePrefs = null;
             state.profileEditOpen = false;
             state.profileSynced = true;
+            syncCollectionVisibilityDefault();
             clearCachedAuthProfile();
             stopPresenceHeartbeat();
             notifSnapshot = null;
@@ -1310,6 +1317,7 @@
             state.progression = null;
             state.profilePrefs = null;
             state.profileEditOpen = false;
+            syncCollectionVisibilityDefault();
             clearCachedAuthProfile();
             stopPresenceHeartbeat();
             notifSnapshot = null;
@@ -1326,6 +1334,7 @@
         state.profile = data;
         state.progression = data.progression || null;
         state.profileSynced = true;
+        syncCollectionVisibilityDefault();
         saveCachedAuthProfile(data);
         await loadDailyMissions();
         startPresenceHeartbeat();
@@ -1597,6 +1606,17 @@
             return `<button class="chip${isActive ? ' active' : ''}" type="button" data-value="${escapeAttr(value)}" aria-pressed="${isActive}">${formatter(value)}</button>`;
         }).join('');
         el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => onPick(btn.dataset.value)));
+    }
+
+    function syncCollectionVisibilityDefault() {
+        const authMode = state.profile?.authenticated ? 'signed-in' : 'guest';
+        if (state.collectionAuthMode !== authMode) {
+            state.collectionAuthMode = authMode;
+            state.collectionFilterTouched = false;
+        }
+        if (!state.collectionFilterTouched) {
+            state.showUnowned = authMode === 'guest';
+        }
     }
 
     function cardsRenderSignature(cards) {
@@ -6979,6 +6999,7 @@
         state.profile = data;
         saveCachedAuthProfile(data);
         state.progression = data.progression;
+        syncCollectionVisibilityDefault();
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
         applyProfileArtFromPrefs(state.profilePrefs);
@@ -7016,6 +7037,7 @@
         state.progression = null;
         state.profilePrefs = null;
         state.profileEditOpen = false;
+        syncCollectionVisibilityDefault();
         await refreshLiveCatalog();
         render();
     }
@@ -7043,6 +7065,7 @@
         state.progression = null;
         state.profilePrefs = null;
         state.profileEditOpen = false;
+        syncCollectionVisibilityDefault();
         closeOptions();
         render();
         alert('Your account and all associated data have been permanently deleted.');
@@ -8599,7 +8622,7 @@
             html: `<ul class="guide-list">
                     <li><strong>Home</strong> — your command hub with collection stats, daily leaderboards, and quick play.</li>
                     <li><strong>Play</strong> — solo PVE and live 1v1 battles after a Social lobby fills.</li>
-                    <li><strong>Cards</strong> — your owned binder by default. Use the <em>Show unowned</em> toggle in Filters to browse the full catalog, then filter by element, type, rarity, and energy cost.</li>
+                    <li><strong>Cards</strong> — guests browse the full catalog by default; signed-in players start on owned cards. Use the collection toggle in Filters to switch between owned-only and full-catalog views, then filter by element, type, rarity, and energy cost.</li>
                     <li><strong>Decks</strong> — run premade decks right away; custom deckbuilding unlocks once your binder holds 30 owned copies. Save custom lists to your deck binder.</li>
                     <li><strong>Social</strong> — create and join 1v1 lobbies, friends, messaging, and player profiles.</li>
                     <li><strong>Shop</strong> — spend Siegecoins on packs. Opening a pack starts the gacha reveal; tap each card to flip it.</li>

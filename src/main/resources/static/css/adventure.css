@@ -122,8 +122,37 @@ body[data-screen="mapScreen"] #mapScreen{
 .setup-step{font-size:11px; font-weight:700; letter-spacing:.8px; padding:4px 12px; border-radius:14px; border:1px solid var(--border); color:var(--faint);}
 .setup-step.active{color:var(--accent); border-color:var(--accent); background:rgba(255,154,60,.08);}
 .setup-step.done{color:var(--good); border-color:rgba(126,231,135,.5);}
-#setupStepKnight, #setupStepParty{animation:pagein .28s ease;}
+#setupStepMode, #setupStepKnight, #setupStepParty{animation:pagein .28s ease;}
 @keyframes pagein{from{opacity:0; transform:translateX(18px);}to{opacity:1; transform:none;}}
+.mode-select-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:18px;}
+.mode-card{
+  --mode:var(--accent);
+  min-height:218px; display:flex; flex-direction:column; align-items:flex-start; gap:10px;
+  position:relative; overflow:hidden; text-align:left; border:1px solid var(--border);
+  border-top:3px solid var(--mode); border-radius:12px; padding:18px;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--mode) 16%, #1a2130), #121824);
+  color:var(--text); cursor:pointer; transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.mode-card:hover, .mode-card:focus-visible{
+  transform:translateY(-2px); border-color:var(--mode); outline:none;
+  box-shadow:0 14px 28px rgba(0,0,0,.34), 0 0 0 1px color-mix(in srgb, var(--mode) 28%, transparent) inset;
+}
+.mode-card::after{
+  content:''; position:absolute; inset:auto -28px -42px auto; width:140px; height:140px; border-radius:50%;
+  background:radial-gradient(circle, color-mix(in srgb, var(--mode) 24%, transparent), transparent 68%);
+  pointer-events:none;
+}
+.mode-card-siege{--mode:var(--accent);}
+.mode-card-bg{--mode:var(--accent-2);}
+.mode-card-kicker{font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--dim);}
+.mode-card-title{font-size:26px; line-height:1.05; font-weight:850; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.mode-card-desc{font-size:14px; line-height:1.45; color:var(--dim); max-width:44ch;}
+.mode-card-meta{margin-top:auto; font-size:12px; font-weight:750; color:var(--mode);}
+.mode-card-status{
+  display:inline-flex; align-items:center; border:1px solid var(--border); border-radius:999px;
+  padding:2px 8px; font-size:11px; line-height:1.2; font-weight:800; color:var(--faint);
+}
+.mode-card-status.ready{color:var(--good); border-color:var(--good);}
 .knight-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px;}
 .knight-card .kability{font-size:12px; margin-top:5px;}
 .knight-card .kability-name{color:var(--accent); font-weight:750;}
@@ -236,7 +265,7 @@ body[data-screen="mapScreen"] #mapScreen{
 .um-card-desc{font-size:11px; color:var(--faint); margin-top:3px; line-height:1.35;}
 
 .setup-footer{position:sticky; bottom:0; display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 0; background:linear-gradient(transparent, var(--bg) 40%);}
-.setup-summary{color:var(--dim); font-size:14px;}
+.setup-summary{color:var(--dim); font-size:14px; flex:1 1 auto; min-width:0;}
 
 /* ---------- Party strip ---------- */
 .party-strip{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
@@ -843,6 +872,13 @@ body[data-screen="mapScreen"] #mapScreen{
   .playcard{margin:0 -20px; padding:7px 8px;}
   .playcard .pc-desc{display:none;}
   .battle-hint{font-size:11.5px; min-height:16px; margin-top:2px;}
+
+  .setup-steps{overflow-x:auto; padding-bottom:2px;}
+  .mode-select-grid{grid-template-columns:1fr; gap:10px; margin-top:12px;}
+  .mode-card{min-height:164px; padding:15px;}
+  .mode-card-title{font-size:22px;}
+  .mode-card-desc{font-size:13px;}
+  .setup-footer{flex-wrap:wrap;}
 
   /* Map + HUD on one screen: slim chips, map fills the rest. */
   .party-strip{flex-wrap:nowrap; overflow-x:auto; gap:6px; margin-bottom:6px; padding-bottom:2px;}

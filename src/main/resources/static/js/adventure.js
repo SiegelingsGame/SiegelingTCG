@@ -2,7 +2,7 @@
  * Talks to /api/siege/**. All rules run server-side; this file renders state
  * and submits actions. Run is addressed by an opaque token in localStorage.
  *
- * Screens: setup (paged: knight → warband) → branching map (SVG DAG) →
+ * Screens: setup (paged: mode -> knight -> warband) -> branching map (SVG DAG) ->
  * battle stage / interactive rest camp / cache dig minigame → rewards → result.
  *
  * Battles are round-based (team Speed decides who acts first — shown as a
@@ -19,7 +19,7 @@
     knightId: null,
     party: [],          // selected siegeling ids (max 3)
     elementFilter: 'ALL',
-    setupStep: 'knight',
+    setupStep: 'mode',
     selectedCardId: null,
     knightSelectedItem: null,
     busy: false,
@@ -343,7 +343,7 @@
           ? ('Loaded ' + count + ' Siegelings for the warband')
           : 'Expedition roster is empty — retrying on the warband step.';
       }
-      state.setupStep = 'knight';
+      state.setupStep = 'mode';
       try {
         renderSetup();
       } catch (e) {
@@ -358,6 +358,27 @@
   }
 
   function wireStaticButtons() {
+    var chooseSiegeMode = $('chooseSiegeMode');
+    if (chooseSiegeMode) {
+      chooseSiegeMode.addEventListener('click', function () {
+        state.setupStep = 'knight';
+        renderSetup();
+      });
+    }
+    var chooseBattlegroundsMode = $('chooseBattlegroundsMode');
+    if (chooseBattlegroundsMode) {
+      chooseBattlegroundsMode.addEventListener('click', function () {
+        refreshBattlegroundsEntry();
+        openBattlegroundsModal();
+      });
+    }
+    var modeBackBtn = $('modeBackBtn');
+    if (modeBackBtn) {
+      modeBackBtn.addEventListener('click', function () {
+        state.setupStep = 'mode';
+        renderSetup();
+      });
+    }
     $('knightNextBtn').addEventListener('click', function () {
       state.setupStep = 'party';
       renderSetup();
@@ -464,16 +485,37 @@
     });
   }
 
-  // ---- team select (paged: knight → warband) ---------------------------
+  // ---- team select (paged: mode -> knight -> warband) -------------------
   function renderSetup() {
     showScreen('setupScreen');
     $('abandonBtn').classList.add('hidden');
+    var order = { mode: 0, knight: 1, party: 2 };
+    if (order[state.setupStep] == null) state.setupStep = 'mode';
+    var onMode = state.setupStep === 'mode';
     var onKnight = state.setupStep === 'knight';
+    var onParty = state.setupStep === 'party';
+    $('setupStepMode').classList.toggle('hidden', !onMode);
     $('setupStepKnight').classList.toggle('hidden', !onKnight);
-    $('setupStepParty').classList.toggle('hidden', onKnight);
-    $('stepDotKnight').className = 'setup-step' + (onKnight ? ' active' : ' done');
-    $('stepDotParty').className = 'setup-step' + (onKnight ? '' : ' active');
-    if (onKnight) renderKnightStep(); else renderPartyStep();
+    $('setupStepParty').classList.toggle('hidden', !onParty);
+    setSetupStepState('stepDotMode', 'mode', order);
+    setSetupStepState('stepDotKnight', 'knight', order);
+    setSetupStepState('stepDotParty', 'party', order);
+    if (onMode) renderModeStep();
+    else if (onKnight) renderKnightStep();
+    else renderPartyStep();
+  }
+
+  function setSetupStepState(id, step, order) {
+    var node = $(id);
+    if (!node) return;
+    var cls = 'setup-step';
+    if (state.setupStep === step) cls += ' active';
+    else if (order[step] < order[state.setupStep]) cls += ' done';
+    node.className = cls;
+  }
+
+  function renderModeStep() {
+    refreshBattlegroundsEntry();
   }
 
   function specSummary(spec) {
@@ -586,13 +628,25 @@
 
   function refreshBattlegroundsEntry() {
     var lock = $('bgEntryLock');
-    if (!lock) return;
-    if (battlegroundsReady()) {
+    var ready = battlegroundsReady();
+    var have = battlegroundsVeterans().length;
+    if (lock && ready) {
       lock.textContent = '✓ Ready';
       lock.classList.add('ready');
-    } else {
+    } else if (lock) {
       lock.textContent = '🔒 Locked';
       lock.classList.remove('ready');
+    }
+    var modeStatus = $('modeBgStatus');
+    if (modeStatus) {
+      modeStatus.textContent = ready ? 'Ready' : ('Locked ' + have + '/' + BG_VETERANS_REQUIRED);
+      modeStatus.classList.toggle('ready', ready);
+    }
+    var modeMeta = $('modeBgMeta');
+    if (modeMeta) {
+      modeMeta.textContent = ready
+        ? 'Veteran squad available'
+        : 'Requires ' + BG_VETERANS_REQUIRED + ' banked veterans';
     }
   }
 

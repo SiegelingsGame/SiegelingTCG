@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=27">
+<link rel="stylesheet" href="/css/adventure.css?v=28">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -43,18 +43,39 @@
     </div>
   </section>
 
-  <!-- Team select: page 1 (knight) → page 2 (warband) -->
+  <!-- Team select: page 1 (mode) -> page 2 (knight) -> page 3 (warband) -->
   <section class="siege-screen hidden" id="setupScreen">
     <div class="setup-steps">
-      <span class="setup-step" id="stepDotKnight">1 · SiegeKnight</span>
-      <span class="setup-step" id="stepDotParty">2 · Warband</span>
+      <span class="setup-step" id="stepDotMode">1 - Mode</span>
+      <span class="setup-step" id="stepDotKnight">2 - SiegeKnight</span>
+      <span class="setup-step" id="stepDotParty">3 - Warband</span>
     </div>
 
-    <div id="setupStepKnight">
+    <div id="setupStepMode">
+      <h1>Choose your mode</h1>
+      <p class="siege-sub">Start a fresh Siege expedition, or take extracted veterans into Battlegrounds.</p>
+      <div class="mode-select-grid">
+        <button class="mode-card mode-card-siege" id="chooseSiegeMode" type="button">
+          <span class="mode-card-kicker">Classic run</span>
+          <span class="mode-card-title">Siege</span>
+          <span class="mode-card-desc">Pick a SiegeKnight, assemble a Warband, and push through the expedition to bank veterans.</span>
+          <span class="mode-card-meta">Best starting point</span>
+        </button>
+        <button class="mode-card mode-card-bg" id="chooseBattlegroundsMode" type="button" aria-haspopup="dialog">
+          <span class="mode-card-kicker">Veteran mode</span>
+          <span class="mode-card-title">Battlegrounds <span class="mode-card-status" id="modeBgStatus">Locked</span></span>
+          <span class="mode-card-desc">Bring a leveled team extracted from Siege into a higher-stakes run for boons, Warmarks, and bigger rewards.</span>
+          <span class="mode-card-meta" id="modeBgMeta">Requires 3 banked veterans</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="setupStepKnight" class="hidden">
       <h1>Choose your SiegeKnight</h1>
       <p class="siege-sub">Each knight brings a <strong>unique ability</strong> from its dashboard card into the deck — and its Ultimate to the field.</p>
       <div class="knight-grid" id="knightGrid"></div>
       <div class="setup-footer">
+        <button class="siege-btn" id="modeBackBtn" type="button">Mode</button>
         <div class="setup-summary" id="knightSummary">Select a SiegeKnight.</div>
         <button class="siege-btn primary" id="knightNextBtn" type="button" disabled>Approve Knight ▸</button>
       </div>
@@ -357,6 +378,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=31"></script>
+<script src="/js/adventure.js?v=32"></script>
 </body>
 </html>
