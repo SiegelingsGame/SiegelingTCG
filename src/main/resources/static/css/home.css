@@ -8836,25 +8836,41 @@ body.gacha-active {
 }
 
 /* ============================================================
-   WIDE-SHORT LANDSCAPE PHONES (901-979px) — these sit above the
-   900px mobile dock breakpoint, so the full desktop HUD row renders
-   but overflows the viewport width, pushing the tool buttons
-   (Filters / Card View) off the right edge. Let the rows wrap so
-   every control stays on-screen, and keep the trays inside the
-   short viewport.
+   WIDE-SHORT LANDSCAPE PHONES (901-979px) — above the 900px mobile
+   dock breakpoint, so the full desktop HUD row renders but overflows
+   the viewport width. Rather than a ragged wrap (tabs floating right,
+   actions packed left), lay the header out as two clean, aligned rows:
+     Row 1  brand + bell (left)  ................  nav tabs (right)
+     Row 2  ...........................  action buttons (right)
+   Both rows right-align their primary content so the header reads as a
+   deliberate two-tier bar, and the action row spans full width on its
+   own line. Compact sizing keeps the whole thing shallow.
    ============================================================ */
 @media (orientation: landscape) and (min-width: 901px) and (max-width: 979px) {
     .home-nav {
         flex-wrap: wrap;
-        row-gap: 6px;
-        padding: 8px 14px;
+        align-items: center;
+        justify-content: flex-start;
+        row-gap: 7px;
+        column-gap: 10px;
+        padding: 7px 14px;
         min-height: 0;
     }
 
+    /* Brand + bell stay clustered at the left; the auto margin after the
+       bell shoves the nav tabs to the right edge of row 1. */
+    .home-nav .brand small {
+        display: none;
+    }
+
+    .hud-notif-btn {
+        margin-right: auto;
+    }
+
     .nav-tabs {
-        order: 0;
-        flex-wrap: wrap;
-        row-gap: 4px;
+        flex-wrap: nowrap;
+        gap: 3px;
+        padding: 4px;
     }
 
     .nav-tabs a {
@@ -8862,17 +8878,26 @@ body.gacha-active {
         font-size: 12px;
     }
 
+    /* Force the actions onto their own full-width second row, aligned to
+       the right so they sit under the tabs as a tidy cluster. */
     .nav-actions {
+        flex: 1 0 100%;
         flex-wrap: wrap;
         justify-content: flex-end;
+        align-items: center;
+        gap: 7px;
         row-gap: 6px;
     }
 
     .primary-btn,
     .ghost-btn {
         min-height: 32px;
-        padding: 6px 10px;
+        padding: 6px 11px;
         font-size: 12px;
+    }
+
+    .gold-pill {
+        margin-right: auto;
     }
 
     .filter-panel,
