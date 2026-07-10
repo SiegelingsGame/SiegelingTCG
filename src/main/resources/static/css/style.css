@@ -14721,6 +14721,35 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         overflow-y: auto;
     }
 
+    /* ── Play entry (welcome) screen ──
+       The default two-column hero (copy | actions) squeezes the copy into a
+       ~100px sliver on wide-short landscape phones (901–979px, above the
+       900px reflow breakpoint). Force a single readable hero column with the
+       mode buttons laid out in a row beneath the copy, and let the shell
+       scroll so no button is ever clipped below the fold. */
+    .welcome-shell.play-entry-shell {
+        display: grid;
+        align-content: start;
+    }
+    .welcome-shell .play-entry-hero {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 16px 20px;
+        align-items: start;
+    }
+    .welcome-shell .play-entry-hero h2 {
+        font-size: 1.3em;
+    }
+    .welcome-shell .play-entry-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: stretch;
+    }
+    .welcome-shell .play-entry-actions .play-mode-btn,
+    .welcome-shell .play-entry-actions .welcome-dashboard-btn {
+        flex: 1 1 200px;
+    }
+
     /* ── Loadout: two-pane landscape layout ──
        Step chips become a left-bound vertical sub-menu; the step's options
        scroll on the right with the summary + accept buttons pinned below
