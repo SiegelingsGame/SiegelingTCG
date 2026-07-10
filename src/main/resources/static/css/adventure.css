@@ -1202,3 +1202,136 @@ body[data-screen="mapScreen"] #mapScreen{
 }
 .interaction-result-meta{display:flex; justify-content:center; margin-top:14px;}
 .interaction-result-btn{display:block; margin:0 auto; padding:13px 42px; font-size:16px;}
+
+/* ---------- Phone landscape (round 7) ----------
+   Landscape phones (~640-956 wide, <=600 tall) are WIDER than the 640px
+   portrait breakpoint, so without this block they fall through to the base +
+   min-width:900 desktop rules: the battle renders as a tall portrait column
+   with the drop-target battlefield and the hand fan below the fold — you
+   cannot actually play — and the map clips its party strip. This block
+   restructures battle and map into a left-rail + main layout that fits one
+   short-height screen. It is placed after the min-width:900 block so its
+   sprite/stage overrides win the source-order tie at 900-956px wide. Desktop
+   landscape (height > 600) and portrait phones never match, so they are
+   untouched. The phone-portrait max-width:640 block also never matches these
+   wide viewports, so nothing here fights it. */
+@media (orientation: landscape) and (max-width: 979px) and (max-height: 600px){
+  /* Reclaim vertical space: slim the app padding + the sticky top bar. */
+  .siege-app{
+    padding:
+      env(safe-area-inset-top, 0px)
+      max(8px, env(safe-area-inset-right, 0px))
+      6px
+      max(8px, env(safe-area-inset-left, 0px));
+  }
+  body[data-screen="battleScreen"] .siege-topbar,
+  body[data-screen="mapScreen"] .siege-topbar{ padding:3px 0; }
+  body[data-screen="battleScreen"] .siege-title,
+  body[data-screen="mapScreen"] .siege-title{ display:none; }
+  body[data-screen="battleScreen"] .siege-back{ font-size:12px; }
+  body[data-screen="battleScreen"] .siege-abandon{ padding:3px 9px; font-size:11px; }
+
+  /* ---- Battle: two-column grid ----
+     Left rail (186px): knight plate + speed strip stacked (battle-top) with
+     the ledger-toggle log beneath. Right/main column: the battlefield stage
+     grows to fill height (spans the three top rows), with hint + hand strip +
+     HUD pinned below it and spanning full width so the hand cards get the most
+     room. The ledger-panel stays position:fixed, so it is out of grid flow. */
+  body[data-screen="battleScreen"] #battleScreen{
+    display:grid;
+    grid-template-columns:186px minmax(0,1fr);
+    grid-template-rows:auto auto minmax(0,1fr) auto auto auto;
+    grid-template-areas:
+      "top   stage"
+      "log   stage"
+      ".     stage"
+      ".     hint"
+      "hand  hand"
+      "hud   hud";
+    column-gap:8px; row-gap:4px;
+    padding-bottom:0;
+  }
+  /* Knight plate above the speed track, filling the rail width. */
+  .battle-top{
+    grid-area:top; flex-direction:column; align-items:stretch; gap:5px;
+    margin-bottom:0; background:none;
+  }
+  .knight-plate{ min-width:0; max-width:none; width:100%; }
+  .speed-track{ width:100%; flex:none; }
+  .track-first{ display:none; }
+  .battle-log{
+    grid-area:log; margin-top:0; max-height:64px; align-self:start;
+  }
+  .battle-hint{ grid-area:hint; margin-top:0; font-size:11px; min-height:14px; }
+
+  /* Battlefield fills its column; smaller sprites so both lines fit the short
+     height. min-height:0 releases the base 380px / min-width:900 400px floors
+     so the grid 1fr row governs the height instead. */
+  .battle-stage{ min-height:0; padding:8px 8px 4px; }
+  .foe-line,.ally-line{ min-height:82px; }
+  .foe-line{ margin-bottom:2px; } .ally-line{ margin-top:2px; }
+  .sprite{ width:calc(80px * var(--evo-scale,1)); max-width:calc(20vw * var(--evo-scale,1)); }
+  .sprite .sp-art{ height:calc(52px * var(--evo-scale,1)); }
+  .sprite .sp-art img{ max-height:calc(52px * var(--evo-scale,1)); }
+  .sprite .sp-art-fallback span{ font-size:calc(34px * var(--evo-scale,1)); }
+  .sprite .sp-plate{ padding:2px 5px 3px; margin-bottom:2px; }
+  .sprite .sp-name{ font-size:10px; }
+
+  /* Hand strip: compact cards, full width, horizontal scroll as designed
+     (touch-action:pan-x on .playcard is inherited from the base rule, so
+     vertical/diagonal drags still reach setupCardDrag's pointer handlers). */
+  body[data-screen="battleScreen"]{ --playcard-w:96px; }
+  .hand-fan{
+    grid-area:hand; min-height:0; margin-top:0;
+    padding:12px calc(50% - (var(--playcard-w) / 2)) 2px;
+  }
+  .playcard{ margin:0 -18px; padding:7px 9px; }
+  .playcard .pc-desc{ display:none; }
+
+  /* HUD back in normal grid flow (not the portrait fixed strip) at the bottom,
+     full width, always on-screen. */
+  .battle-hud{
+    grid-area:hud; position:static; flex-wrap:nowrap;
+    margin:0; gap:12px; min-height:0;
+    padding:4px 0 calc(2px + env(safe-area-inset-bottom, 0px));
+  }
+  .ap-pip{ width:16px; height:16px; }
+  .deck-counts{ font-size:11px; white-space:nowrap; }
+
+  /* ---- Map: keep the flex column, but everything fits one short screen ----
+     The SVG map canvas stays the single flex:1 scroll region; the party strip
+     becomes a slim horizontal scroller so no warband member is clipped by the
+     viewport, and the resource row compacts. min-height:0 on .map-scroll drops
+     the base 280px floor so it cannot overflow a 390-440px-tall viewport. */
+  .map-scroll{ min-height:0; }
+  .map-bottom{ padding:4px 0 6px; }
+  .map-reward{ margin-bottom:2px; font-size:11px; }
+  .map-meta{ gap:8px; font-size:11px; margin-bottom:0; flex-wrap:wrap; }
+  .map-inv-btn, .map-extract-btn{ padding:4px 10px; font-size:12px; }
+  .map-bottom .party-strip{
+    flex-wrap:nowrap; overflow-x:auto; gap:6px; margin:4px 0 0; padding-bottom:2px;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  .map-bottom .party-strip::-webkit-scrollbar{ display:none; height:0; }
+  .map-bottom .party-chip{
+    min-width:118px; flex:0 0 auto; padding:5px 8px;
+  }
+  .map-bottom .party-chip .pthumb{ width:30px; height:30px; flex-basis:30px; }
+  .map-bottom .party-chip .pname{ font-size:11px; }
+  .map-bottom .party-chip .phptext{ font-size:10px; }
+
+  /* ---- Other (page-scrolling) screens: keep primary actions reachable ----
+     These screens are not the 100dvh fixed shells (only battle/map are), so
+     the page scrolls normally; just tighten the tallest scene art + grids so
+     the first action buttons sit within reach without excessive scrolling. */
+  .camp-scene{ height:104px; }
+  .cache-scene{ height:84px; }
+  .event-scene{ padding:12px 0 2px; }
+  .event-icon{ font-size:52px; }
+  .siege-screen h1, .camp-title{ font-size:20px; }
+  .camp-grid, .siegeling-grid, .knight-grid{
+    grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  }
+  .gacha-stage{ min-height:calc(100dvh - 56px); }
+  .gacha-art{ height:min(38vh,300px); }
+}
