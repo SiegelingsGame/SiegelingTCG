@@ -461,7 +461,53 @@
         }
     };
 
+    // Fit every card description fully inside its painted info window: long
+    // flavor text used to clip mid-sentence past the panel. Steps the font
+    // down (tightening line-height) until the whole text fits; only if even
+    // the floor size overflows does the ellipsis line-clamp come back.
+    var descriptionFitFrame = null;
+    function fitBinderCardDescriptions() {
+        var nodes = document.querySelectorAll('.binder-card-description');
+        for (var i = 0; i < nodes.length; i++) {
+            var el = nodes[i];
+            if (!el.offsetParent && el.getClientRects().length === 0) continue;
+            el.style.display = 'block';
+            el.style.webkitLineClamp = 'unset';
+            el.style.fontSize = '';
+            el.style.lineHeight = '';
+            if (el.scrollHeight <= el.clientHeight + 1) continue;
+            var size = parseFloat(window.getComputedStyle(el).fontSize) || 7.6;
+            var guard = 22;
+            el.style.lineHeight = '1.12';
+            while (el.scrollHeight > el.clientHeight + 1 && size > 4.8 && guard-- > 0) {
+                size = Math.max(4.8, size * 0.93);
+                el.style.fontSize = size.toFixed(2) + 'px';
+            }
+            if (el.scrollHeight > el.clientHeight + 1) {
+                el.style.display = '';
+                el.style.webkitLineClamp = '';
+            }
+        }
+    }
+
+    function scheduleDescriptionFit() {
+        if (descriptionFitFrame != null) {
+            window.cancelAnimationFrame(descriptionFitFrame);
+        }
+        descriptionFitFrame = window.requestAnimationFrame(function () {
+            descriptionFitFrame = null;
+            fitBinderCardDescriptions();
+        });
+    }
+
+    var descriptionFitResizeTimer = null;
+    window.addEventListener('resize', function () {
+        clearTimeout(descriptionFitResizeTimer);
+        descriptionFitResizeTimer = setTimeout(scheduleDescriptionFit, 160);
+    });
+
     window.SieglingsCardBinderVisual = {
+        scheduleDescriptionFit,
         renderBinderCardPreview,
         renderBinderCardTile,
         renderBinderCardShell,

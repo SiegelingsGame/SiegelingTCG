@@ -8834,3 +8834,50 @@ body.gacha-active {
 @media (prefers-reduced-motion: reduce) {
     .gacha-spear { animation-duration: 0.01s; opacity: 0; }
 }
+
+/* ============================================================
+   WIDE-SHORT LANDSCAPE PHONES (901-979px) — these sit above the
+   900px mobile dock breakpoint, so the full desktop HUD row renders
+   but overflows the viewport width, pushing the tool buttons
+   (Filters / Card View) off the right edge. Let the rows wrap so
+   every control stays on-screen, and keep the trays inside the
+   short viewport.
+   ============================================================ */
+@media (orientation: landscape) and (min-width: 901px) and (max-width: 979px) {
+    .home-nav {
+        flex-wrap: wrap;
+        row-gap: 6px;
+        padding: 8px 14px;
+        min-height: 0;
+    }
+
+    .nav-tabs {
+        order: 0;
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+
+    .nav-tabs a {
+        padding: 6px 9px;
+        font-size: 12px;
+    }
+
+    .nav-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        row-gap: 6px;
+    }
+
+    .primary-btn,
+    .ghost-btn {
+        min-height: 32px;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    .filter-panel,
+    .detail-panel {
+        top: calc(env(safe-area-inset-top, 0px) + 8px);
+        max-height: calc(100dvh - 16px);
+    }
+}

@@ -1602,7 +1602,13 @@ public class GameController {
                 && !GUEST_TRAINER_IDS.contains(normalizeTrainerId(options.playerTrainerId()))) {
             throw new IllegalArgumentException("Guest players can use Squire Bob, Lady Pyla, and Ser Airek. Sign in to unlock more.");
         }
+        // The starter trio is free for every player. Without this exemption a
+        // lingering auth token (guest UI, resolved account server-side) or a
+        // fresh account with no starter pack blocks match start on knights the
+        // UI legitimately offered — and Battle runs knights at base power, so
+        // there is no progression to protect here.
         if (user != null && options.playerTrainerId() != null && !options.playerTrainerId().isBlank()
+                && !GUEST_TRAINER_IDS.contains(normalizeTrainerId(options.playerTrainerId()))
                 && !playerProgressionService.ownsTrainer(user, options.playerTrainerId())) {
             throw new IllegalArgumentException("You haven't unlocked that SiegeKnight yet. Pull it from a pack first.");
         }
