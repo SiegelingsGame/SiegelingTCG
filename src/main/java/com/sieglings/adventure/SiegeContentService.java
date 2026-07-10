@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1008,19 +1009,112 @@ public class SiegeContentService {
 
     // ---- Rewards ---------------------------------------------------------
 
-    /** Random playable move specs drawn from the full moves pool for card rewards. */
-    List<AbilitySpec> randomCardRewards(int count, Random rng) {
+    private static final String[] NEUTRAL_MOVE_NAMES = {
+            "Steady Strike", "Guard Pulse", "Rally Breath", "Focus Tap", "Broad Sweep",
+            "Measured Blow", "Keen Guard", "Second Wind", "Tactical Push", "Calm Center"
+    };
+
+    /**
+     * One reward move for a Siegeling: same-element pool moves, or a procedural
+     * neutral technique any Siegeling can equip (~30% neutral).
+     */
+    AbilitySpec randomCardRewardFor(Element element, Random rng) {
+        Element el = element == null ? Element.NEUTRAL : element;
+        if (el != Element.NEUTRAL && rng.nextInt(100) < 30) {
+            return toSpec(generateNeutralMove(rng));
+        }
+        List<Move> pool = elementMovePool(el);
+        if (pool.isEmpty()) {
+            return toSpec(generateNeutralMove(rng));
+        }
+        return toSpec(pool.get(rng.nextInt(pool.size())));
+    }
+
+    /** Up to {@code count} distinct reward specs for the given element. */
+    List<AbilitySpec> randomCardRewardsFor(Element element, int count, Random rng) {
+        List<AbilitySpec> out = new ArrayList<>();
+        while (out.size() < count) {
+            AbilitySpec spec = randomCardRewardFor(element, rng);
+            boolean dup = out.stream().anyMatch(s -> s.id().equals(spec.id()) && s.name().equals(spec.name()));
+            if (!dup) out.add(spec);
+        }
+        return out;
+    }
+
+    /** Random move previews from an evolved form — powers the client card-morph FX. */
+    List<Map<String, Object>> previewMovesFor(SieglingCard evo, int count, Random rng) {
+        List<Move> moves = playableMoves(evo);
+        if (moves.isEmpty() || count <= 0) return List.of();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            out.add(specToPreviewMap(toSpec(moves.get(rng.nextInt(moves.size())))));
+        }
+        return out;
+    }
+
+    private List<Move> elementMovePool(Element element) {
         List<Move> pool = new ArrayList<>();
         for (Move move : movesPool.allMovesSorted()) {
             if (move == null || move.isPassive() || move.targetType() == TargetType.PASSIVE) continue;
-            pool.add(move);
+            if (move.element() == element) pool.add(move);
         }
-        List<AbilitySpec> out = new ArrayList<>();
-        while (out.size() < count && !pool.isEmpty()) {
-            Move pick = pool.remove(rng.nextInt(pool.size()));
-            out.add(toSpec(pick));
+        return pool;
+    }
+
+    /** Procedural neutral move — equippable by any Siegeling element. */
+    Move generateNeutralMove(Random rng) {
+        int roll = rng.nextInt(100);
+        String effectType;
+        TargetType target;
+        int value;
+        int energy;
+        if (roll < 40) {
+            effectType = "damage";
+            target = rng.nextBoolean() ? TargetType.SINGLE_ENEMY : TargetType.ALL_ENEMIES;
+            value = 3 + rng.nextInt(4);
+            energy = target == TargetType.ALL_ENEMIES ? 3 : (1 + rng.nextInt(2));
+        } else if (roll < 65) {
+            effectType = "heal";
+            target = rng.nextBoolean() ? TargetType.SELF : TargetType.SINGLE_ALLY;
+            value = 4 + rng.nextInt(4);
+            energy = 1 + rng.nextInt(2);
+        } else if (roll < 80) {
+            effectType = "shield";
+            target = rng.nextBoolean() ? TargetType.SELF : TargetType.ALL_ALLIES;
+            value = 4 + rng.nextInt(3);
+            energy = 2;
+        } else if (roll < 92) {
+            effectType = "damage_boost";
+            target = TargetType.ALL_ALLIES;
+            value = 1 + rng.nextInt(2);
+            energy = 2;
+        } else {
+            effectType = "speed_boost";
+            target = TargetType.ALL_ALLIES;
+            value = 1 + rng.nextInt(2);
+            energy = 2;
         }
-        return out;
+        String name = NEUTRAL_MOVE_NAMES[rng.nextInt(NEUTRAL_MOVE_NAMES.length)];
+        String id = "neutral-gen-" + Integer.toHexString(rng.nextInt(0xFFFFFF));
+        return new Move(id, name, Element.NEUTRAL, com.sieglings.model.MoveCategory.UTILITY, target,
+                null, null, 0, effectType, value, energy,
+                "A universal technique any Siegeling can learn.", false, null, null);
+    }
+
+    private Map<String, Object> specToPreviewMap(AbilitySpec spec) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", spec.name());
+        m.put("element", spec.element() == null ? "NEUTRAL" : spec.element().name());
+        m.put("effect", spec.effect().name());
+        m.put("value", spec.value());
+        m.put("actionCost", spec.actionCost());
+        m.put("target", spec.target().name());
+        m.put("description", spec.description());
+        if (spec.status() != null && spec.statusChance() > 0) {
+            m.put("status", spec.status().name());
+            m.put("statusChance", spec.statusChance());
+        }
+        return m;
     }
 
     /** A strengthened copy of a card spec: +2 power, or cheaper for utility cards. */
