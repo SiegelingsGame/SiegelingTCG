@@ -8837,67 +8837,90 @@ body.gacha-active {
 
 /* ============================================================
    WIDE-SHORT LANDSCAPE PHONES (901-979px) — above the 900px mobile
-   dock breakpoint, so the full desktop HUD row renders but overflows
-   the viewport width. Rather than a ragged wrap (tabs floating right,
-   actions packed left), lay the header out as two clean, aligned rows:
-     Row 1  brand + bell (left)  ................  nav tabs (right)
-     Row 2  ...........................  action buttons (right)
-   Both rows right-align their primary content so the header reads as a
-   deliberate two-tier bar, and the action row spans full width on its
-   own line. Compact sizing keeps the whole thing shallow.
+   dock breakpoint, so the full desktop HUD renders but overflows the
+   viewport width. One shallow row instead of a stacked header:
+     logo | bell | tabs (centered) | coins + actions
+   Every control keeps its function — the space comes from logo-only
+   branding, icon-only Settings/Friends (title/aria labels remain),
+   and hiding the coin unit label. A 440px-tall viewport gets ~57px
+   of arena back versus the two-row version.
    ============================================================ */
 @media (orientation: landscape) and (min-width: 901px) and (max-width: 979px) {
     .home-nav {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         align-items: center;
-        justify-content: flex-start;
-        row-gap: 7px;
-        column-gap: 10px;
-        padding: 7px 14px;
+        gap: 8px;
+        padding: 6px 12px;
         min-height: 0;
     }
 
-    /* Brand + bell stay clustered at the left; the auto margin after the
-       bell shoves the nav tabs to the right edge of row 1. */
-    .home-nav .brand small {
+    .home-nav .brand {
+        gap: 0;
+        flex: 0 0 auto;
+        /* Base rule floors the brand at 230px for the desktop wordmark;
+           logo-only mode must release it or the tabs get squeezed into
+           an internal scroll. */
+        min-width: 0;
+    }
+
+    .home-nav .brand > span {
         display: none;
     }
 
-    .hud-notif-btn {
-        margin-right: auto;
+    .home-nav .brand-mark {
+        width: 34px;
+        height: 34px;
     }
 
+    /* Tabs shrink and scroll internally as the safety valve on the
+       narrowest widths rather than pushing the actions off-screen. */
     .nav-tabs {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
         flex-wrap: nowrap;
-        gap: 3px;
+        gap: 2px;
         padding: 4px;
+        margin: 0 auto;
+    }
+
+    .nav-tabs::-webkit-scrollbar {
+        display: none;
     }
 
     .nav-tabs a {
-        padding: 6px 9px;
-        font-size: 12px;
+        flex: 0 0 auto;
+        padding: 5px 8px;
+        font-size: 11px;
     }
 
-    /* Force the actions onto their own full-width second row, aligned to
-       the right so they sit under the tabs as a tidy cluster. */
     .nav-actions {
-        flex: 1 0 100%;
-        flex-wrap: wrap;
-        justify-content: flex-end;
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
         align-items: center;
-        gap: 7px;
-        row-gap: 6px;
+        gap: 6px;
+    }
+
+    .nav-actions .gold-pill small {
+        display: none;
     }
 
     .primary-btn,
     .ghost-btn {
-        min-height: 32px;
-        padding: 6px 11px;
-        font-size: 12px;
+        min-height: 30px;
+        padding: 5px 9px;
+        font-size: 11px;
+        white-space: nowrap;
     }
 
-    .gold-pill {
-        margin-right: auto;
+    /* Settings / Friends collapse to their icons; the svg keeps its
+       attribute size while font-size 0 removes the raw text label. */
+    #optionsBtn,
+    #friendsBtn {
+        font-size: 0;
+        gap: 0;
+        padding: 6px 8px;
     }
 
     .filter-panel,
