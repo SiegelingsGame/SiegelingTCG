@@ -2474,8 +2474,8 @@
         floatText(ev.targetId, '🌟 EVOLVED!', 'status');
         return 1000;
       case 'cardUpdate':
-        refreshHandCards(ev.targetId);
-        return 850;
+        refreshHandCards(ev.targetId, ev.previewMoves);
+        return 950;
       case 'gaugeReady':
         flashSprite(ev.targetId, 'evolving');
         floatText(ev.targetId, '🌟 Gauge full!', 'status');
@@ -2572,21 +2572,64 @@
     }
   }
 
-  /** The evolved Siegeling's cards flip and upgrade in the hand. */
-  function transformHandCards(ownerId) {
-    Array.prototype.forEach.call(document.querySelectorAll('.playcard[data-owner="' + ownerId + '"]'), function (node, i) {
-      setTimeout(function () { node.classList.add('card-transform'); }, i * 90);
+  /** The evolved Siegeling's cards flip and morph into random moves of the new form. */
+  function transformHandCards(ownerId, previewMoves) {
+    var nodes = document.querySelectorAll('.playcard[data-owner="' + ownerId + '"]');
+    var ownerName = ownerNameOf(ownerId);
+    Array.prototype.forEach.call(nodes, function (node, i) {
+      var preview = previewMoves && previewMoves.length
+        ? previewMoves[i % previewMoves.length] : null;
+      setTimeout(function () {
+        node.classList.add('card-transform');
+        if (preview) {
+          setTimeout(function () { applyPreviewToCardNode(node, preview, ownerId, ownerName); }, 380);
+        }
+      }, i * 90);
       setTimeout(function () { node.classList.remove('card-transform'); }, 900 + i * 90);
     });
+    return nodes.length ? 900 + nodes.length * 90 : 0;
   }
 
-  /** Re-render the hand after sigil evolution, then play the card-upgrade flip. */
-  function refreshHandCards(ownerId) {
+  function ownerNameOf(ownerId) {
+    var b = state.run && state.run.battle;
+    if (!b) return '';
+    if (b.knight && b.knight.id === ownerId) return b.knight.name || '';
+    var all = (b.allies || []).concat(b.enemies || []);
+    for (var i = 0; i < all.length; i++) { if (all[i].id === ownerId) return all[i].name; }
+    return '';
+  }
+
+  /** Mid-flip card face swap during evolution — shows a random evolved move. */
+  function applyPreviewToCardNode(node, preview, ownerId, ownerName) {
+    if (!preview) return;
+    var effCls = effectClass(preview.effect);
+    node.className = 'playcard ' + elClass(preview.element) + ' card-transform';
+    node.dataset.owner = ownerId;
+    var statusLine = '';
+    if (preview.status && preview.statusChance) {
+      var meta = STATUS_META[preview.status] || { icon: '', label: preview.status };
+      statusLine = '<div class="pc-status">' + meta.icon + ' ' + preview.statusChance + '% ' + meta.label + '</div>';
+    }
+    node.innerHTML = '<div class="pc-cost' + (preview.actionCost === 0 ? ' free' : '') + '">' + preview.actionCost + '</div>' +
+      '<div class="pc-name">' + esc(preview.name) + '</div>' +
+      '<div class="pc-owner">' + icon(preview.element) + ' ' + esc(ownerName) + '</div>' +
+      '<div class="pc-eff ' + effCls + '">' + effectLabel(preview) + '</div>' +
+      statusLine +
+      '<div class="pc-desc">' + esc(preview.description || '') + '</div>';
+  }
+
+  /** Re-render the hand after evolution, morphing cards into evolved-move previews first. */
+  function refreshHandCards(ownerId, previewMoves) {
     var b = state.run && state.run.battle;
     if (!b) return;
     var over = b.phase === 'WON' || b.phase === 'LOST';
-    renderHand(b, over);
-    transformHandCards(ownerId);
+    if (previewMoves && previewMoves.length) {
+      var wait = transformHandCards(ownerId, previewMoves);
+      setTimeout(function () { renderHand(b, over); }, Math.max(wait, 850));
+    } else {
+      renderHand(b, over);
+      transformHandCards(ownerId);
+    }
   }
 
   /** The hand flies off to the discard pile at end of turn. */

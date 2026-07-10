@@ -1185,8 +1185,9 @@ public class SiegeService {
         if (trader) {
             List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
             if (!living.isEmpty()) {
-                for (AbilitySpec spec : content.randomCardRewards(2, rng)) {
+                for (int i = 0; i < 2; i++) {
                     Combatant owner = living.get(rng.nextInt(living.size()));
+                    AbilitySpec spec = content.randomCardRewardFor(owner.getElement(), rng);
                     run.getCampOptions().add(CampOption.shopCard("c" + (oid++), spec, owner.getId(), owner.getName(), 25));
                 }
             }
@@ -1442,13 +1443,13 @@ public class SiegeService {
                 run.setLastReward("An ancient tonic! " + lucky.getName() + " gains +3 max HP (kept even on a bust).");
             }
         } else {
-            List<AbilitySpec> finds = content.randomCardRewards(1, rng);
             List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
-            if (!finds.isEmpty() && !living.isEmpty()) {
+            if (!living.isEmpty()) {
                 Combatant owner = living.get(rng.nextInt(living.size()));
+                AbilitySpec find = content.randomCardRewardFor(owner.getElement(), rng);
                 run.getDeckTemplates().add(new SiegeCard(
-                        "cache-" + run.getDeckTemplates().size(), owner.getId(), finds.get(0)));
-                run.setLastReward("A buried technique! " + owner.getName() + " learns " + finds.get(0).name() + " (kept even on a bust).");
+                        "cache-" + run.getDeckTemplates().size(), owner.getId(), find));
+                run.setLastReward("A buried technique! " + owner.getName() + " learns " + find.name() + " (kept even on a bust).");
             }
         }
         // The floor gives way after enough digging: bank automatically.
@@ -2423,8 +2424,8 @@ public class SiegeService {
         // A card and a heal round out the wares.
         List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
         if (!living.isEmpty()) {
-            AbilitySpec spec = content.randomCardRewards(1, rng).get(0);
             Combatant owner = living.get(rng.nextInt(living.size()));
+            AbilitySpec spec = content.randomCardRewardFor(owner.getElement(), rng);
             run.getCaravanOptions().add(CampOption.shopCard("v" + (oid++), spec, owner.getId(), owner.getName(), 30));
         }
         run.getCaravanOptions().add(CampOption.shopHeal("v" + (oid++), 20));
@@ -2759,8 +2760,9 @@ public class SiegeService {
         // Two new-card offers, each bound to a random living Siegeling.
         List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
         if (living.isEmpty()) return;
-        for (AbilitySpec spec : content.randomCardRewards(2, rng)) {
+        for (int i = 0; i < 2; i++) {
             Combatant owner = living.get(rng.nextInt(living.size()));
+            AbilitySpec spec = content.randomCardRewardFor(owner.getElement(), rng);
             run.getPendingRewards().add(RewardOption.card(
                     "r" + (optId++),
                     spec.name(),

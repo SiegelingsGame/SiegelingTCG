@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 
@@ -147,7 +148,7 @@ public class SiegeCombatEngine {
         // Sigil-evolved allies refresh their hand cards after the opening draw.
         for (Combatant ally : battle.living(Side.PLAYER)) {
             if (!ally.isKnight() && ally.getEvolvedFrom() != null) {
-                battle.event("cardUpdate", "targetId", ally.getId());
+                emitCardUpdate(battle, ally.getId(), rng);
             }
         }
         rollEnemyIntents(battle, rng);
@@ -478,9 +479,28 @@ public class SiegeCombatEngine {
                     content.evolveCardSpec(evolved.getName(), next, 3)));
             battle.log("The path to " + next.getName() + " opens — its Evolution card joins the deck.");
         });
-        battle.event("cardUpdate", "targetId", evolved.getId());
+        battle.event("cardUpdate", "targetId", evolved.getId(), "previewMoves",
+                previewMovesFor(battle, evolved, rng));
         Collections.shuffle(battle.getDeck(), rng);
         return PlayResult.okay();
+    }
+
+    /** Emits a card-update presentation event with random evolved-move previews. */
+    private void emitCardUpdate(SiegeBattle battle, String ownerId, Random rng) {
+        Combatant owner = battle.findCombatant(ownerId);
+        if (owner == null) {
+            battle.event("cardUpdate", "targetId", ownerId);
+            return;
+        }
+        battle.event("cardUpdate", "targetId", ownerId, "previewMoves",
+                previewMovesFor(battle, owner, rng));
+    }
+
+    private List<Map<String, Object>> previewMovesFor(SiegeBattle battle, Combatant owner, Random rng) {
+        int owned = (int) battle.getHand().stream().filter(c -> c.getOwnerId().equals(owner.getId())).count();
+        return content.findAnySiegling(owner.getSourceCardId())
+                .map(evo -> content.previewMovesFor(evo, Math.max(1, owned), rng))
+                .orElse(List.of());
     }
 
     /** 0-AP cards keep the turn open even at 0 AP. */
