@@ -1673,6 +1673,7 @@
             }));
             state._cardsRenderSig = signature;
             window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
         window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
         }
         const allCount = document.getElementById('allCardCount');
@@ -2003,6 +2004,7 @@
         overlay.classList.remove('hidden');
         document.body.classList.add('card-fullscreen-open');
         window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
         window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 
@@ -2133,6 +2135,7 @@
             adjustBuilder(card.id, 1);
         });
         window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
         window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 
@@ -4165,6 +4168,7 @@
         bindProfileDashboard();
         bindPlayerProfileLinks(body);
         window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
         window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 
@@ -5654,6 +5658,7 @@
 
     function scheduleGachaCardFit() {
         window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
         window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 

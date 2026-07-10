@@ -3554,12 +3554,34 @@ function getViewportModeLabel() {
     return 'Portrait';
 }
 
+// Phone landscape docks the utility icon strip as a fixed HUD across the
+// arena bottom. iOS WebKit gives position:fixed a containing block from more
+// ancestor effects than Chromium (the rail's backdrop-filter chain), which
+// trapped the strip inside the overflow-hidden rail on real devices while
+// desktop emulation looked fine. Reparenting to <body> guarantees the
+// viewport is the containing block everywhere.
+function syncLandscapeAuxHud() {
+    const aux = document.querySelector('.action-bar-aux');
+    const bar = document.getElementById('actionBar');
+    if (!aux || !bar) {
+        return;
+    }
+    if (isPhoneLandscapeLayout()) {
+        if (aux.parentElement !== document.body) {
+            document.body.appendChild(aux);
+        }
+    } else if (aux.parentElement !== bar) {
+        bar.appendChild(aux);
+    }
+}
+
 function updateResponsiveLayoutVars(force = false) {
     const signature = `${window.innerWidth}x${window.innerHeight}:${getViewportModeLabel()}`;
     if (!force && signature === lastViewportSignature) {
         return;
     }
     lastViewportSignature = signature;
+    syncLandscapeAuxHud();
 
     const root = document.documentElement;
     const viewportWidth = window.innerWidth;
