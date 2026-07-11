@@ -14244,7 +14244,14 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     /* Utility icons + ACT counter live in a HUD strip across the open
        bottom-center of the arena; the primary Knight / Draw / End Turn
-       buttons stay in the right rail above it. */
+       buttons stay in the right rail above it. Because this strip is
+       reparented to <body> (fixed) in landscape, it must be gated on an
+       active match — otherwise it floats over the welcome/loadout entry
+       screens (gameState is null there) instead of only appearing once a
+       battle has started. */
+    body:not(.gameplay-active) .action-bar-aux {
+        display: none;
+    }
     .action-bar-aux {
         position: fixed;
         left: 50%;
