@@ -722,6 +722,26 @@ body[data-screen="mapScreen"] #mapScreen{
   opacity:0; transition:opacity 120ms ease;
 }
 .siege-target-arrow-layer.is-active{opacity:1;}
+
+/* Drag focus: while a targeted card is being dragged, a scrim dims the arena
+   so the lock-on ring + trajectory arc (drawn on the top SVG layer) stand out.
+   The scrim lives inside .battle-stage (above the sprite lines at z-index:1,
+   below the floating chrome overlays which sit outside the stage), and is
+   pointer-events:none so elementFromPoint drops still land on the sprites. */
+.battle-stage::after{
+  content:''; position:absolute; inset:0; z-index:2; pointer-events:none;
+  background:radial-gradient(130% 100% at 50% 46%, rgba(5,8,13,.34), rgba(5,8,13,.74));
+  opacity:0; transition:opacity .16s ease;
+}
+body.siege-drag-active .battle-stage::after{ opacity:1; }
+/* Dragging a card must not rubber-band-select the card/hint/ledger text under
+   the pointer (looks broken and steals the drag on touch). */
+body[data-screen="battleScreen"]{ -webkit-user-select:none; user-select:none; }
+/* Hovered legal target: lock-on lift + brighter ring/glow (rides above the
+   scrim as much as the sprite-line stacking allows; the SVG ring seals it). */
+body.siege-drag-active .sprite.drop-hover{ transform:scale(1.08); z-index:3; }
+body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px rgba(255,190,90,.95)); }
+
 .playcard .pc-cost{position:absolute; top:-9px; left:-9px; width:26px;height:26px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ffc37a, var(--accent)); color:#1a1206; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.5); z-index:2;}
 .playcard .pc-cost.free{background:radial-gradient(circle at 35% 30%, #b7f0c0, var(--good)); color:#0c2412;}
 .playcard .pc-status{font-size:10px; color:#c896ff; margin-top:3px; font-weight:650;}
@@ -850,7 +870,10 @@ body[data-screen="mapScreen"] #mapScreen{
 @media (max-width:640px){
   /* Everything on one phone screen: tighter chrome, smaller stage + hand. */
   :root{
-    --battle-mobile-hud-h:58px;
+    /* Must match the fixed .battle-hud's real rendered height (End Turn button
+       + safe area), not just its min-height — under-reserving let the hud
+       overlap the bottom of the hand fan and hide the lowest cards (r9 bugfix). */
+    --battle-mobile-hud-h:72px;
   }
   .siege-app{
     padding:
@@ -913,7 +936,10 @@ body[data-screen="mapScreen"] #mapScreen{
   .siege-btn{padding:10px 14px; font-size:13px;}
 
   :root{--playcard-w:104px;}
-  .hand-fan{min-height:140px; padding:18px calc(50% - (var(--playcard-w) / 2)) 4px; margin-top:0;}
+  /* Tall enough to contain a card plus the upward fan arc (HAND_FAN_MAX_LIFT):
+     with the arc lifting edge cards UP, the lowest card hugs the small bottom
+     padding just above the hud and nothing is clipped top or bottom. */
+  .hand-fan{min-height:158px; padding:16px calc(50% - (var(--playcard-w) / 2)) 6px; margin-top:0;}
   .playcard{margin:0 -20px; padding:7px 8px;}
   .playcard .pc-desc{display:none;}
   .battle-hint{font-size:11.5px; min-height:16px; margin-top:2px;}
@@ -1224,94 +1250,127 @@ body[data-screen="mapScreen"] #mapScreen{
       6px
       max(8px, env(safe-area-inset-left, 0px));
   }
-  body[data-screen="battleScreen"] .siege-topbar,
   body[data-screen="mapScreen"] .siege-topbar{ padding:3px 0; }
   body[data-screen="battleScreen"] .siege-title,
   body[data-screen="mapScreen"] .siege-title{ display:none; }
   body[data-screen="battleScreen"] .siege-back{ font-size:12px; }
   body[data-screen="battleScreen"] .siege-abandon{ padding:3px 9px; font-size:11px; }
 
-  /* ---- Battle: two-column grid ----
-     Left rail (186px): knight plate + speed strip stacked (battle-top) with
-     the ledger-toggle log beneath. Right/main column: the battlefield stage
-     grows to fill height (spans the three top rows), with hint + hand strip +
-     HUD pinned below it and spanning full width so the hand cards get the most
-     room. The ledger-panel stays position:fixed, so it is out of grid flow. */
-  body[data-screen="battleScreen"] #battleScreen{
-    display:grid;
-    grid-template-columns:186px minmax(0,1fr);
-    grid-template-rows:auto auto minmax(0,1fr) auto auto auto;
-    grid-template-areas:
-      "top   stage"
-      "log   stage"
-      ".     stage"
-      ".     hint"
-      "hand  hand"
-      "hud   hud";
-    column-gap:8px; row-gap:4px;
-    padding-bottom:0;
+  /* ---- Battle: full-bleed arena with floating overlay chrome ----
+     The battlefield stage becomes the whole screen (edge to edge) and every
+     piece of UI floats on top as an absolutely-positioned overlay. The top bar
+     drops out of the flex flow so #battleScreen (the flex:1 child) spans the
+     full viewport height and the stage can cover it corner to corner. Overlays
+     anchor to #battleScreen (position:relative) rather than position:fixed to
+     dodge the iOS fixed-inside-filtered-ancestor repaint trap (r6 lesson). */
+  body[data-screen="battleScreen"] .siege-topbar{
+    position:absolute; top:0; left:0; right:0; z-index:20;
+    padding:3px max(8px,env(safe-area-inset-right,0px)) 2px max(8px,env(safe-area-inset-left,0px));
+    background:linear-gradient(180deg, rgba(8,11,17,.74), transparent);
+    pointer-events:none;
   }
-  /* Knight plate above the speed track, filling the rail width. */
+  body[data-screen="battleScreen"] .siege-topbar > *{ pointer-events:auto; }
+
+  body[data-screen="battleScreen"] #battleScreen{
+    display:block; position:relative; padding:0; overflow:hidden;
+  }
+
+  /* Full-bleed arena: strip the boxed border/radius; fill the screen behind the
+     overlays. Allies pack the FAR LEFT, enemies the FAR RIGHT, with a wide
+     empty center gap (the clash/impact-FX lane). row-reverse puts .ally-line
+     (DOM-second) on the left and .foe-line (DOM-first) on the right. */
+  body[data-screen="battleScreen"] .battle-stage{
+    position:absolute; inset:0; z-index:0;
+    min-height:0; border:none; border-radius:0;
+    padding:0 max(10px,env(safe-area-inset-right,0px));
+    flex-direction:row-reverse; align-items:stretch; justify-content:space-between;
+    gap:0;
+    background:
+      radial-gradient(1000px 360px at 50% -60px, rgba(255,154,60,.10), transparent 70%),
+      linear-gradient(180deg, #0d1119 0%, #121826 46%, #18202f 62%, #202838 100%);
+  }
+  /* Each side is a vertical formation that wraps in ranks toward its own OUTER
+     edge, so a bigger warband stacks a second rank flush with the screen edge
+     instead of creeping into the center gap. align-items/align-content place
+     the front rank hard against the far edge (left for allies, right for foes). */
+  .foe-line,.ally-line{
+    min-height:0; height:100%; flex:0 1 auto; margin:0;
+    flex-direction:column; flex-wrap:wrap; gap:3%;
+    justify-content:center;
+  }
+  .ally-line{ align-items:flex-start; align-content:flex-start; }  /* hug the far LEFT */
+  .foe-line{ align-items:flex-end; align-content:flex-end; }       /* hug the far RIGHT */
+  .sprite{ width:calc(92px * var(--evo-scale,1)); max-width:calc(22vw * var(--evo-scale,1)); }
+  .sprite .sp-art{ height:calc(64px * var(--evo-scale,1)); }
+  .sprite .sp-art img{ max-height:calc(64px * var(--evo-scale,1)); }
+  .sprite .sp-art-fallback span{ font-size:calc(40px * var(--evo-scale,1)); }
+  .sprite .sp-plate{ padding:2px 6px 3px; margin-bottom:2px; }
+  .sprite .sp-name{ font-size:10px; }
+
+  /* Knight/life HUD floats top-left; the round/speed strip condenses under it. */
   .battle-top{
-    grid-area:top; flex-direction:column; align-items:stretch; gap:5px;
-    margin-bottom:0; background:none;
+    position:absolute; top:23px; left:max(6px,env(safe-area-inset-left,0px)); z-index:14;
+    width:174px; max-width:46vw;
+    flex-direction:column; align-items:stretch; gap:4px; margin:0; background:none;
   }
   .knight-plate{ min-width:0; max-width:none; width:100%; }
   .speed-track{ width:100%; flex:none; }
   .track-first{ display:none; }
+
+  /* Ledger toggle floats top-right, clear below the Abandon Run button. */
   .battle-log{
-    grid-area:log; margin-top:0; max-height:64px; align-self:start;
+    position:absolute; top:30px; right:max(6px,env(safe-area-inset-right,0px)); z-index:14;
+    width:154px; max-width:40vw; max-height:48px; margin:0; padding-top:16px;
   }
-  .battle-hint{ grid-area:hint; margin-top:0; font-size:11px; min-height:14px; }
 
-  /* Battlefield faces the player's team on the LEFT against the enemies on the
-     RIGHT. The stage becomes a horizontal row; row-reverse puts .ally-line
-     (DOM-second) on the left and .foe-line (DOM-first) on the right, with a
-     center gap that doubles as the clash/impact-FX lane. min-height:0 releases
-     the base 380px / min-width:900 400px floors so the grid 1fr row governs. */
-  .battle-stage{
-    min-height:0; padding:8px 10px 4px;
-    flex-direction:row-reverse; align-items:stretch; justify-content:space-between;
-    gap:6%;
+  /* Hint / turn banner floats top-center over the arena (no boxed row). */
+  .battle-hint{
+    position:absolute; top:2px; left:50%; transform:translateX(-50%); z-index:16;
+    margin:0; min-height:0; font-size:12px; max-width:56vw;
+    text-shadow:0 1px 5px rgba(0,0,0,.95);
   }
-  /* Each side is a vertical formation that wraps inward in ranks: a 5-6 unit
-     warband forms a second rank instead of shrinking to unreadability. ~3
-     sprites fit per rank at these heights. align-content controls which edge
-     the front rank hugs so both sides face the middle. */
-  .foe-line,.ally-line{
-    min-height:0; height:100%; flex:1 1 0; margin:0;
-    flex-direction:column; flex-wrap:wrap; gap:2%;
-    justify-content:center;
-  }
-  .ally-line{ align-items:flex-end; align-content:flex-end; }   /* front rank hugs the center gap (right edge) */
-  .foe-line{ align-items:flex-start; align-content:flex-start; } /* front rank hugs the center gap (left edge) */
-  .sprite{ width:calc(80px * var(--evo-scale,1)); max-width:calc(20vw * var(--evo-scale,1)); }
-  .sprite .sp-art{ height:calc(52px * var(--evo-scale,1)); }
-  .sprite .sp-art img{ max-height:calc(52px * var(--evo-scale,1)); }
-  .sprite .sp-art-fallback span{ font-size:calc(34px * var(--evo-scale,1)); }
-  .sprite .sp-plate{ padding:2px 5px 3px; margin-bottom:2px; }
-  .sprite .sp-name{ font-size:10px; }
 
-  /* Hand strip: compact cards, full width, horizontal scroll as designed
-     (touch-action:pan-x on .playcard is inherited from the base rule, so
-     vertical/diagonal drags still reach setupCardDrag's pointer handlers). */
-  body[data-screen="battleScreen"]{ --playcard-w:96px; }
+  /* Hand fans up from the bottom-center as an overlay strip. Tall enough to hold
+     a card plus the upward arc so nothing clips; horizontal scroll as designed
+     (touch-action:pan-x on .playcard keeps vertical drags reaching the pointer
+     handlers). Sits below the corner HUD (End Turn/AP) in z-order so those stay
+     tappable over the fan's empty side padding. */
+  body[data-screen="battleScreen"]{ --playcard-w:94px; }
   .hand-fan{
-    grid-area:hand; min-height:0; margin-top:0;
-    padding:12px calc(50% - (var(--playcard-w) / 2)) 2px;
+    position:absolute; left:0; right:0; bottom:2px; z-index:16;
+    min-height:150px; margin:0; background:none;
+    padding:16px calc(50% - (var(--playcard-w) / 2)) 4px;
   }
   .playcard{ margin:0 -18px; padding:7px 9px; }
   .playcard .pc-desc{ display:none; }
 
-  /* HUD back in normal grid flow (not the portrait fixed strip) at the bottom,
-     full width, always on-screen. */
+  /* HUD splits into corner chips: AP pips + deck/discard counts bottom-LEFT,
+     the big End Turn (and ultimate) confirm bottom-RIGHT. The bar itself is
+     pointer-events:none so its empty center passes drags through to the fan. */
   .battle-hud{
-    grid-area:hud; position:static; flex-wrap:nowrap;
-    margin:0; gap:12px; min-height:0;
-    padding:4px 0 calc(2px + env(safe-area-inset-bottom, 0px));
+    position:absolute; left:0; right:0; bottom:0; z-index:18;
+    display:flex; align-items:flex-end; justify-content:flex-start;
+    flex-wrap:nowrap; gap:8px; min-height:0; margin:0; background:none;
+    padding:0 max(8px,env(safe-area-inset-right,0px)) calc(4px+env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));
+    pointer-events:none;
   }
-  .ap-pip{ width:16px; height:16px; }
-  .deck-counts{ font-size:11px; white-space:nowrap; }
+  .battle-hud > *{ pointer-events:auto; }
+  .ap-display{
+    order:1; flex-wrap:wrap; gap:5px 5px;
+    background:rgba(10,14,21,.72); border:1px solid var(--border);
+    border-radius:12px; padding:5px 8px;
+  }
+  .deck-counts{
+    order:2; margin-right:auto; font-size:11px; white-space:nowrap;
+    background:rgba(10,14,21,.72); border:1px solid var(--border);
+    border-radius:12px; padding:5px 9px;
+  }
+  #knightUltBtn{ order:3; }
+  #endTurnBtn{
+    order:4; min-height:44px; padding:11px 22px; font-size:14px; font-weight:800;
+    border-radius:26px; box-shadow:0 6px 18px rgba(0,0,0,.5);
+  }
+  .ap-pip{ width:15px; height:15px; }
 
   /* ---- Map: keep the flex column, but everything fits one short screen ----
      The SVG map canvas stays the single flex:1 scroll region; the party strip

@@ -2860,7 +2860,11 @@
   }
 
   var HAND_FAN_MAX_ANGLE = 16;   // deg a card rotates away from center at the edge
-  var HAND_FAN_MAX_LIFT = 30;    // px a card dips below the centered card at the edge
+  // px a card RISES above the centered card at the edge. Cards arc UPWARD/outward
+  // from the low centered card (like a hand held near the thumbs) rather than
+  // dipping below it — a downward dip pushed edge cards past the fan's
+  // overflow-y:hidden clip line and cut off their bottoms on phones (r9 bugfix).
+  var HAND_FAN_MAX_LIFT = 26;
   var HAND_FAN_MAX_SHRINK = 0.08; // fraction a card shrinks away from center
 
   /** Re-arcs every card in the hand based on its current scroll position —
@@ -2876,7 +2880,9 @@
       var cardCenter = card.offsetLeft + (card.offsetWidth / 2);
       var offset = Math.max(-1.4, Math.min(1.4, (cardCenter - centerX) / half));
       card.style.setProperty('--fan-rot', (offset * HAND_FAN_MAX_ANGLE).toFixed(2) + 'deg');
-      card.style.setProperty('--fan-y', (Math.abs(offset) * HAND_FAN_MAX_LIFT).toFixed(1) + 'px');
+      // Negative = up: keep the lowest card at the flex-end baseline so nothing
+      // dips past the fan's bottom clip line (see HAND_FAN_MAX_LIFT note).
+      card.style.setProperty('--fan-y', (-Math.abs(offset) * HAND_FAN_MAX_LIFT).toFixed(1) + 'px');
       card.style.setProperty('--fan-scale', (1 - (Math.abs(offset) * HAND_FAN_MAX_SHRINK)).toFixed(3));
       card.classList.toggle('is-centered', Math.abs(offset) < 0.12);
     });
@@ -3101,7 +3107,12 @@
       ghost.style.setProperty('--fan-scale', '1');
       document.body.appendChild(ghost);
       cardEl.classList.add('playcard-dragsource');
-      if (cardNeedsSpriteTarget(card, state.run.battle)) startDragArrow(card, ghost);
+      // Targeted drag: dim the arena behind the overlays so the lock-on ring +
+      // trajectory arc read as the focus (CSS scrim keyed off this body class).
+      if (cardNeedsSpriteTarget(card, state.run.battle)) {
+        startDragArrow(card, ghost);
+        document.body.classList.add('siege-drag-active');
+      }
     }
 
     function moveGhost(clientX, clientY) {
@@ -3136,6 +3147,7 @@
       if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
       ghost = null;
       clearDragArrow();
+      document.body.classList.remove('siege-drag-active');
       cardEl.classList.remove('playcard-dragsource');
       var stage = $('battleStage');
       stage.classList.remove('drop-hover');
