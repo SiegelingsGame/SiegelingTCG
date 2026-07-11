@@ -305,7 +305,22 @@
   }
 
   // ---- boot ----------------------------------------------------------
+  // A rotation while on the map strands the old axis's baked SVG geometry, so
+  // re-render when the landscape/portrait mode actually flips (debounced —
+  // resize fires in bursts during an orientation change).
+  var mapOrientTimer = null;
+  function onMapOrientationFlip() {
+    if (mapOrientTimer) clearTimeout(mapOrientTimer);
+    mapOrientTimer = setTimeout(function () {
+      if (document.body.dataset.screen !== 'mapScreen') return;
+      if (isPhoneLandscape() === mapLayoutLand) return; // axis unchanged — nothing to redo
+      renderMap();
+    }, 150);
+  }
+
   function boot() {
+    window.addEventListener('resize', onMapOrientationFlip);
+    window.addEventListener('orientationchange', onMapOrientationFlip);
     wireStaticButtons();
     var t = token();
     if (t) {
@@ -1284,7 +1299,21 @@
   }
 
   // ---- branching map (SVG DAG, boss at the top) ------------------------
-  var MAP = { colGap: 96, rowGap: 104, pad: 56, r: 24 };
+  // landPad / landLaneGap tighten the lane (cross) axis in phone landscape so a
+  // 3-4 lane map fits the short scroll height without vertical scrolling; the
+  // depth axis keeps rowGap and scrolls horizontally as intended.
+  var MAP = { colGap: 96, rowGap: 104, pad: 56, r: 24, landPad: 40, landLaneGap: 60 };
+
+  // Phone landscape is too short to stack the depth axis vertically, so there
+  // the map is transposed to flow left→right (start left, boss right). This
+  // guard mirrors the round-7 battle/map landscape breakpoint so map + battle
+  // agree on when "landscape mode" is active.
+  function isPhoneLandscape() {
+    return matchMedia('(orientation: landscape) and (max-width: 979px) and (max-height: 600px)').matches;
+  }
+  // Remembers the axis the last renderMap() drew, so a rotation can detect the
+  // flip and re-render (SVG geometry is baked at render time, not responsive).
+  var mapLayoutLand = null;
 
   function renderMap() {
     showScreen('mapScreen');
@@ -1313,14 +1342,25 @@
     var rowCounts = {};
     nodes.forEach(function (n) { rowCounts[n.row] = (rowCounts[n.row] || 0) + 1; });
     var maxCount = Math.max.apply(null, Object.keys(rowCounts).map(function (k) { return rowCounts[k]; }));
-    var width = MAP.pad * 2 + (maxCount - 1) * MAP.colGap;
-    var height = MAP.pad * 2 + (rows - 1) * MAP.rowGap;
+    var land = isPhoneLandscape();
+    mapLayoutLand = land;
+    // Portrait: depth is the vertical span, lanes the horizontal. Landscape
+    // transposes them so depth runs across X and lanes stack down Y (with a
+    // tighter lane gap + pad so the lanes fit the short viewport height).
+    var pad = land ? MAP.landPad : MAP.pad;
+    var laneGap = land ? MAP.landLaneGap : MAP.colGap;
+    var width = pad * 2 + (land ? (rows - 1) * MAP.rowGap : (maxCount - 1) * laneGap);
+    var height = pad * 2 + (land ? (maxCount - 1) * laneGap : (rows - 1) * MAP.rowGap);
 
     function pos(n) {
       var count = rowCounts[n.row];
-      var x = MAP.pad + ((maxCount - count) / 2 + n.col) * MAP.colGap;
-      var y = height - MAP.pad - n.row * MAP.rowGap; // row 0 at the bottom, boss on top
-      return { x: x, y: y };
+      var lane = (maxCount - count) / 2 + n.col; // centered lane index within the widest row
+      if (land) {
+        // depth → X (row 0 at the LEFT, boss at the far RIGHT); lanes spread down Y, centered.
+        return { x: pad + n.row * MAP.rowGap, y: pad + lane * laneGap };
+      }
+      // depth → Y (row 0 at the bottom, boss on top); lanes centered across X.
+      return { x: pad + lane * laneGap, y: height - pad - n.row * MAP.rowGap };
     }
 
     var svg = $('mapSvg');
@@ -1336,8 +1376,14 @@
       (n.next || []).forEach(function (toId) {
         var to = pos(byId[toId]);
         var path = document.createElementNS(NS, 'path');
-        var midY = (from.y + to.y) / 2;
-        path.setAttribute('d', 'M' + from.x + ' ' + from.y + ' C ' + from.x + ' ' + midY + ', ' + to.x + ' ' + midY + ', ' + to.x + ' ' + to.y);
+        if (land) {
+          // Landscape edges bend through the horizontal midpoint (depth axis).
+          var midX = (from.x + to.x) / 2;
+          path.setAttribute('d', 'M' + from.x + ' ' + from.y + ' C ' + midX + ' ' + from.y + ', ' + midX + ' ' + to.y + ', ' + to.x + ' ' + to.y);
+        } else {
+          var midY = (from.y + to.y) / 2;
+          path.setAttribute('d', 'M' + from.x + ' ' + from.y + ' C ' + from.x + ' ' + midY + ', ' + to.x + ' ' + midY + ', ' + to.x + ' ' + to.y);
+        }
         var walked = n.cleared && (byId[toId].current || byId[toId].cleared);
         var open = n.current && byId[toId].reachable;
         path.setAttribute('class', 'map-edge' + (walked ? ' walked' : '') + (open ? ' open' : ''));
@@ -1402,9 +1448,15 @@
     // Keep the action in view: scroll to the current position (or the start).
     var scroll = $('mapScroll');
     var focus = nodes.find(function (n) { return n.current; });
-    var focusY = focus ? pos(focus).y : height;
     setTimeout(function () {
-      scroll.scrollTop = Math.max(0, focusY - scroll.clientHeight * 0.6);
+      if (land) {
+        // Horizontal scroll: lead ~60% into the viewport; no current node → far left (start).
+        var focusX = focus ? pos(focus).x : 0;
+        scroll.scrollLeft = Math.max(0, focusX - scroll.clientWidth * 0.6);
+      } else {
+        var focusY = focus ? pos(focus).y : height;
+        scroll.scrollTop = Math.max(0, focusY - scroll.clientHeight * 0.6);
+      }
     }, 30);
   }
 

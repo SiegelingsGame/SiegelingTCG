@@ -1264,12 +1264,27 @@ body[data-screen="mapScreen"] #mapScreen{
   }
   .battle-hint{ grid-area:hint; margin-top:0; font-size:11px; min-height:14px; }
 
-  /* Battlefield fills its column; smaller sprites so both lines fit the short
-     height. min-height:0 releases the base 380px / min-width:900 400px floors
-     so the grid 1fr row governs the height instead. */
-  .battle-stage{ min-height:0; padding:8px 8px 4px; }
-  .foe-line,.ally-line{ min-height:82px; }
-  .foe-line{ margin-bottom:2px; } .ally-line{ margin-top:2px; }
+  /* Battlefield faces the player's team on the LEFT against the enemies on the
+     RIGHT. The stage becomes a horizontal row; row-reverse puts .ally-line
+     (DOM-second) on the left and .foe-line (DOM-first) on the right, with a
+     center gap that doubles as the clash/impact-FX lane. min-height:0 releases
+     the base 380px / min-width:900 400px floors so the grid 1fr row governs. */
+  .battle-stage{
+    min-height:0; padding:8px 10px 4px;
+    flex-direction:row-reverse; align-items:stretch; justify-content:space-between;
+    gap:6%;
+  }
+  /* Each side is a vertical formation that wraps inward in ranks: a 5-6 unit
+     warband forms a second rank instead of shrinking to unreadability. ~3
+     sprites fit per rank at these heights. align-content controls which edge
+     the front rank hugs so both sides face the middle. */
+  .foe-line,.ally-line{
+    min-height:0; height:100%; flex:1 1 0; margin:0;
+    flex-direction:column; flex-wrap:wrap; gap:2%;
+    justify-content:center;
+  }
+  .ally-line{ align-items:flex-end; align-content:flex-end; }   /* front rank hugs the center gap (right edge) */
+  .foe-line{ align-items:flex-start; align-content:flex-start; } /* front rank hugs the center gap (left edge) */
   .sprite{ width:calc(80px * var(--evo-scale,1)); max-width:calc(20vw * var(--evo-scale,1)); }
   .sprite .sp-art{ height:calc(52px * var(--evo-scale,1)); }
   .sprite .sp-art img{ max-height:calc(52px * var(--evo-scale,1)); }
@@ -1303,7 +1318,13 @@ body[data-screen="mapScreen"] #mapScreen{
      becomes a slim horizontal scroller so no warband member is clipped by the
      viewport, and the resource row compacts. min-height:0 on .map-scroll drops
      the base 280px floor so it cannot overflow a 390-440px-tall viewport. */
-  .map-scroll{ min-height:0; }
+  /* Map flows left→right here (adventure.js transposes the SVG): scroll the
+     depth axis horizontally. overflow-y stays auto rather than hidden as a
+     safety net — the widest maps (up to 5 lanes) can exceed the short height,
+     and clipping a lane node would make it unreachable; tuned lane spacing
+     keeps the common 3-4 lane maps scroll-free. */
+  .map-scroll{ min-height:0; overflow-x:auto; overflow-y:auto; }
+  #mapSvg{ margin:auto 0; }
   .map-bottom{ padding:4px 0 6px; }
   .map-reward{ margin-bottom:2px; font-size:11px; }
   .map-meta{ gap:8px; font-size:11px; margin-bottom:0; flex-wrap:wrap; }
