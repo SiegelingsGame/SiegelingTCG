@@ -1307,70 +1307,93 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .sprite .sp-plate{ padding:2px 6px 3px; margin-bottom:2px; }
   .sprite .sp-name{ font-size:10px; }
 
-  /* Knight/life HUD floats top-left; the round/speed strip condenses under it. */
+  /* ---- Health + speed stretch across the top as one slim band ----
+     Old layout stacked the knight/life plate ABOVE the speed strip in a
+     narrow left column, so the speed strip dropped down into the ally
+     sprites (which hug the far LEFT). Lay them out horizontally instead:
+     the life plate on the left, the speed race track stretched across the
+     rest of the top. The top-right corner is reserved for the ledger pill,
+     the top-center for the hint. */
   .battle-top{
-    position:absolute; top:23px; left:max(6px,env(safe-area-inset-left,0px)); z-index:14;
-    width:174px; max-width:46vw;
-    flex-direction:column; align-items:stretch; gap:4px; margin:0; background:none;
+    position:absolute; top:31px; z-index:14;
+    left:max(6px,env(safe-area-inset-left,0px)); right:160px;
+    flex-direction:row; align-items:flex-start; gap:10px; margin:0; background:none;
   }
-  .knight-plate{ min-width:0; max-width:none; width:100%; }
-  .speed-track{ width:100%; flex:none; }
+  .knight-plate{ flex:0 0 auto; width:min(244px,46vw); min-width:0; max-width:none; }
+  .knight-plate .kp-head{ font-size:11px; }
+  .knight-bag-row{ gap:5px; margin-top:5px; }
+  .knight-bag-btn{ font-size:10px; padding:3px 7px; }
+  .speed-track{ flex:1 1 auto; align-self:flex-start; min-width:0; padding:5px 9px; }
   .track-first{ display:none; }
 
-  /* Ledger toggle floats top-right, clear below the Abandon Run button. */
+  /* ---- Ledger: a clean compact pill, top-right ----
+     The old collapsed box crammed two truncated turn/round lines and read
+     as messy. Show one tidy line — the newest combat event — with a clear
+     "Ledger" affordance beneath it; the full history still opens on tap. */
   .battle-log{
-    position:absolute; top:30px; right:max(6px,env(safe-area-inset-right,0px)); z-index:14;
-    width:154px; max-width:40vw; max-height:48px; margin:0; padding-top:16px;
+    position:absolute; top:31px; right:max(6px,env(safe-area-inset-right,0px)); z-index:15;
+    width:148px; max-width:40vw; min-height:0; max-height:none; margin:0;
+    padding:7px 10px 6px; line-height:1.25;
+    background:rgba(10,14,21,.82); border:1px solid var(--border); border-radius:12px;
+  }
+  .battle-log .lg{ font-size:10.5px; }
+  .battle-log .lg:not(:first-child){ display:none; }   /* one clean line, not a stack */
+  .battle-log .lg-more{
+    position:static; display:block; margin-top:4px; text-align:right;
+    font-size:11px; font-weight:800; color:var(--accent-2);
   }
 
   /* Hint / turn banner floats top-center over the arena (no boxed row). */
   .battle-hint{
-    position:absolute; top:2px; left:50%; transform:translateX(-50%); z-index:16;
-    margin:0; min-height:0; font-size:12px; max-width:56vw;
+    position:absolute; top:3px; left:50%; transform:translateX(-50%); z-index:16;
+    margin:0; min-height:0; font-size:12px; max-width:52vw;
     text-shadow:0 1px 5px rgba(0,0,0,.95);
   }
 
-  /* Hand fans up from the bottom-center as an overlay strip. Tall enough to hold
-     a card plus the upward arc so nothing clips; horizontal scroll as designed
-     (touch-action:pan-x on .playcard keeps vertical drags reaching the pointer
-     handlers). Sits below the corner HUD (End Turn/AP) in z-order so those stay
-     tappable over the fan's empty side padding. */
+  /* Hand fans up from the bottom, CENTERED on the screen — the whole fan of
+     overlapped cards sits in the middle rather than starting at center and
+     spilling right. Still scrolls if a large hand overflows. Tall enough to
+     hold a card plus the upward arc so nothing clips; touch-action:pan-x on
+     .playcard keeps vertical drags reaching the pointer handlers. */
   body[data-screen="battleScreen"]{ --playcard-w:94px; }
   .hand-fan{
     position:absolute; left:0; right:0; bottom:2px; z-index:16;
     min-height:150px; margin:0; background:none;
-    padding:16px calc(50% - (var(--playcard-w) / 2)) 4px;
+    justify-content:center; padding:16px 12px 4px;
   }
   .playcard{ margin:0 -18px; padding:7px 9px; }
   .playcard .pc-desc{ display:none; }
 
-  /* HUD splits into corner chips: AP pips + deck/discard counts bottom-LEFT,
-     the big End Turn (and ultimate) confirm bottom-RIGHT. The bar itself is
-     pointer-events:none so its empty center passes drags through to the fan. */
+  /* HUD overlays: AP as a VERTICAL pip meter bottom-LEFT (fills upward),
+     deck/discard chip beside it, the big End Turn (and ultimate) confirm
+     bottom-RIGHT. The bar is pointer-events:none so its empty middle passes
+     drags through to the centered fan; the chips/buttons re-enable. */
   .battle-hud{
     position:absolute; left:0; right:0; bottom:0; z-index:18;
     display:flex; align-items:flex-end; justify-content:flex-start;
     flex-wrap:nowrap; gap:8px; min-height:0; margin:0; background:none;
-    padding:0 max(8px,env(safe-area-inset-right,0px)) calc(4px+env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));
+    padding:0 max(8px,env(safe-area-inset-right,0px)) calc(6px+env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));
     pointer-events:none;
   }
   .battle-hud > *{ pointer-events:auto; }
   .ap-display{
-    order:1; flex-wrap:wrap; gap:5px 5px;
+    order:1; align-self:flex-end;
+    flex-direction:column-reverse; flex-wrap:nowrap; gap:5px; align-items:center;
     background:rgba(10,14,21,.72); border:1px solid var(--border);
-    border-radius:12px; padding:5px 8px;
+    border-radius:14px; padding:7px 6px 6px;
   }
+  .ap-label{ margin:3px 0 0; font-size:10px; }
+  .ap-pip{ width:15px; height:15px; }
   .deck-counts{
-    order:2; margin-right:auto; font-size:11px; white-space:nowrap;
+    order:2; margin-right:auto; align-self:flex-end; font-size:11px; white-space:nowrap;
     background:rgba(10,14,21,.72); border:1px solid var(--border);
     border-radius:12px; padding:5px 9px;
   }
-  #knightUltBtn{ order:3; }
+  #knightUltBtn{ order:3; align-self:flex-end; }
   #endTurnBtn{
-    order:4; min-height:44px; padding:11px 22px; font-size:14px; font-weight:800;
+    order:4; align-self:flex-end; min-height:44px; padding:11px 22px; font-size:14px; font-weight:800;
     border-radius:26px; box-shadow:0 6px 18px rgba(0,0,0,.5);
   }
-  .ap-pip{ width:15px; height:15px; }
 
   /* ---- Map: keep the flex column, but everything fits one short screen ----
      The SVG map canvas stays the single flex:1 scroll region; the party strip
