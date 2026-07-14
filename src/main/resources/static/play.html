@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=195">
+    <link rel="stylesheet" href="/css/style.css?v=196">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -241,6 +241,10 @@
                     <button type="button" class="desktop-inspect-tab is-active" role="tab" id="tabDesktopInspectCard" aria-selected="true" aria-controls="desktopInspectPaneCard" onclick="setDesktopInspectTab('card')">Card</button>
                     <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectDeck" aria-selected="false" aria-controls="desktopInspectPaneDeck" onclick="setDesktopInspectTab('deck')">Deck</button>
                     <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectLog" aria-selected="false" aria-controls="desktopInspectPaneLog" onclick="setDesktopInspectTab('log')">Log</button>
+                    <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectHint" aria-selected="false" aria-controls="desktopInspectPaneHint" onclick="setDesktopInspectTab('hint')" hidden>Hint</button>
+                    <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectEnergy" aria-selected="false" aria-controls="desktopInspectPaneEnergy" onclick="setDesktopInspectTab('energy')" hidden>Energy</button>
+                    <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectBattle" aria-selected="false" aria-controls="desktopInspectPaneBattle" onclick="setDesktopInspectTab('battle')" hidden>Battle</button>
+                    <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectKey" aria-selected="false" aria-controls="desktopInspectPaneKey" onclick="setDesktopInspectTab('key')" hidden>Key</button>
                 </div>
             </div>
             <div class="desktop-inspect-viewport">
@@ -257,6 +261,30 @@
                 <div class="desktop-inspect-pane desktop-inspect-pane-log" id="desktopInspectPaneLog" role="tabpanel" aria-labelledby="tabDesktopInspectLog" hidden>
                     <div class="desktop-action-history" id="desktopActionHistory" aria-live="polite">
                         <div class="desktop-history-empty">The five most recent battle-phase events will show here once combat begins.</div>
+                    </div>
+                    <div class="desktop-inspect-full-log hidden" id="desktopInspectFullLog">
+                        <div class="game-log-toolbar" id="desktopInspectLogToolbar" aria-label="Log filters"></div>
+                        <div class="game-log desktop-inspect-game-log" id="desktopInspectGameLog"></div>
+                    </div>
+                </div>
+                <div class="desktop-inspect-pane desktop-inspect-pane-hint" id="desktopInspectPaneHint" role="tabpanel" aria-labelledby="tabDesktopInspectHint" hidden>
+                    <div class="desktop-inspect-menu-panel" id="desktopInspectHintPanel">
+                        <div class="desktop-empty-state">Select or hover a card to see contextual help.</div>
+                    </div>
+                </div>
+                <div class="desktop-inspect-pane desktop-inspect-pane-energy" id="desktopInspectPaneEnergy" role="tabpanel" aria-labelledby="tabDesktopInspectEnergy" hidden>
+                    <div class="desktop-inspect-menu-panel energy-detail-panel" id="desktopInspectEnergyPanel">
+                        <div class="desktop-empty-state">Energy breakdown appears here once the match starts.</div>
+                    </div>
+                </div>
+                <div class="desktop-inspect-pane desktop-inspect-pane-battle" id="desktopInspectPaneBattle" role="tabpanel" aria-labelledby="tabDesktopInspectBattle" hidden>
+                    <div class="desktop-inspect-menu-panel desktop-inspect-battle-panel" id="desktopInspectBattlePanel">
+                        <div class="desktop-empty-state">Battle View appears here before combat begins.</div>
+                    </div>
+                </div>
+                <div class="desktop-inspect-pane desktop-inspect-pane-key" id="desktopInspectPaneKey" role="tabpanel" aria-labelledby="tabDesktopInspectKey" hidden>
+                    <div class="desktop-inspect-menu-panel" id="desktopInspectKeyPanel">
+                        <div class="desktop-empty-state">Element key appears here.</div>
                     </div>
                 </div>
             </div>
@@ -304,10 +332,11 @@
                         <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
                     </button>
                     <button class="ab-icon ab-targeting-keep" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
-                    <button class="ab-icon ab-targeting-keep" id="btnHint" onclick="openDrawer('hint')" title="Hints" aria-label="Hints">?</button>
+                    <button class="ab-icon ab-targeting-keep" id="btnHint" onclick="openMenuPanel('hint')" title="Hints" aria-label="Hints">?</button>
                     <button class="ab-icon ab-targeting-keep" id="btnBattlePanel" onclick="openBattlePanel()" title="Queue Action" aria-label="Queue Action">&#9876;</button>
-                    <button class="ab-icon" onclick="openDrawer('log')" title="Game Log">&#9776;</button>
-                    <button class="ab-icon" onclick="openDrawer('key')" title="Element Key">&#9672;</button>
+                    <button class="ab-icon" id="btnGameLog" onclick="openMenuPanel('log')" title="Game Log" aria-label="Game Log">&#9776;</button>
+                    <button class="ab-icon" id="btnElementKey" onclick="openMenuPanel('key')" title="Element Key" aria-label="Element Key">&#9672;</button>
+                    <button class="ab-icon" id="btnEnergyDetail" onclick="openMenuPanel('energy')" title="Energy Detail" aria-label="Energy Detail">E</button>
                     <button class="ab-icon ab-targeting-keep ab-speed-toggle" id="sglSpeedToggle" type="button" title="Playback speed: Normal - click to toggle" aria-label="Animation speed: Normal">&#9654;</button>
                     <button class="ab-icon" id="btnMuteSound" onclick="toggleSieglingsMute()" title="Toggle Sound" aria-label="Toggle Sound">&#128266;</button>
                     <button class="ab-icon" id="btnQuitOrNewGame" onclick="handleQuitOrNewGame()" title="New Game" type="button">&#9654;</button>
@@ -760,7 +789,7 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=195"></script>
+    <script src="/js/game.js?v=196"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
          getDashboardCardArtMeta() can't build the cardArtScale/offset transform, so
          overlay art renders unscaled on the battle hand, board, and mulligan. -->

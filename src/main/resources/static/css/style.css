@@ -1501,6 +1501,16 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     align-items: center;
 }
 
+/* Energy detail button is landscape-only — portrait has no left inspector
+   rail, and the top-bar energy dropdown is hidden under 768px. */
+#btnEnergyDetail {
+    display: none;
+}
+
+.desktop-inspect-tab.desktop-inspect-tab-menu {
+    display: none;
+}
+
 .ab-action-counter {
     display: inline-flex;
     align-items: baseline;
@@ -14361,6 +14371,10 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-size: 0.66em;
     }
 
+    #btnEnergyDetail {
+        display: inline-flex;
+    }
+
     /* The site-menu flyout now sits at the screen bottom — open upward. */
     .action-bar-aux .play-hub-menu-panel {
         top: auto;
@@ -14389,18 +14403,35 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     .desktop-inspect-toggle {
         display: flex;
+        flex-wrap: nowrap;
         gap: 3px;
         padding: 2px;
         border-radius: 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .desktop-inspect-toggle::-webkit-scrollbar {
+        display: none;
     }
 
     .desktop-inspect-tab {
-        flex: 1;
+        flex: 1 0 auto;
         min-height: 22px;
         padding: 2px 6px;
         font-size: 0.56em;
         border-radius: 6px;
         min-width: 0;
+    }
+
+    .desktop-inspect-tab.desktop-inspect-tab-menu {
+        display: inline-flex;
+    }
+
+    .desktop-inspect-tab.desktop-inspect-tab-menu[hidden] {
+        display: none !important;
     }
 
     .desktop-inspect-viewport {
@@ -14415,6 +14446,72 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         min-height: 0;
         overflow-y: auto;
         overflow-x: hidden;
+    }
+
+    .desktop-inspect-menu-panel,
+    .desktop-inspect-full-log {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-height: 0;
+        height: 100%;
+    }
+
+    .desktop-inspect-full-log .game-log-toolbar,
+    .desktop-inspect-full-log #desktopInspectLogToolbar {
+        flex-wrap: wrap;
+        gap: 4px;
+        font-size: 0.58em;
+    }
+
+    .desktop-inspect-game-log {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        font-size: 0.62em;
+        line-height: 1.35;
+        padding: 4px 2px 8px;
+    }
+
+    .desktop-inspect-pane-energy .energy-detail-columns {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .desktop-inspect-pane-energy .energy-detail-section {
+        padding: 6px 8px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .desktop-inspect-pane-hint .hint-item,
+    .desktop-inspect-pane-key .element-key-row,
+    .desktop-inspect-pane-key .matchup-row {
+        font-size: 0.62em;
+        line-height: 1.35;
+    }
+
+    .desktop-inspect-battle-panel .battle-queue-shell,
+    .desktop-inspect-battle-panel .battle-standby-preview {
+        font-size: 0.72em;
+    }
+
+    .desktop-inspect-battle-panel .battle-ability-btn {
+        pointer-events: none;
+    }
+
+    /* Utility menu content lives in the left inspector — suppress the
+       redundant slide-up drawers (especially the second card preview tray). */
+    body.gameplay-active .drawer,
+    body.gameplay-active .drawer-backdrop {
+        display: none !important;
+    }
+
+    /* Energy detail opens in the left inspector instead of a top-bar dropdown. */
+    .top-bar .energy-detail-details {
+        display: none;
     }
 
     .desktop-empty-state {

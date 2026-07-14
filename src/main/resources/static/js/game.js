@@ -933,30 +933,61 @@ function getFilteredGameLog(entries) {
 }
 
 function renderGameLogToolbar() {
-    const bar = document.getElementById('gameLogToolbar');
-    if (!bar) {
+    const bars = [
+        document.getElementById('gameLogToolbar'),
+        document.getElementById('desktopInspectLogToolbar')
+    ].filter(Boolean);
+    if (bars.length === 0) {
         return;
     }
     const f = loadLogFilters();
-    bar.innerHTML = `
+    const html = `
         <span class="game-log-toolbar-label">Show</span>
         <label class="game-log-filter"><input type="checkbox" data-log-filter="turns" ${f.turns ? 'checked' : ''}/> Turns</label>
         <label class="game-log-filter"><input type="checkbox" data-log-filter="rounds" ${f.rounds ? 'checked' : ''}/> Rounds</label>
         <label class="game-log-filter"><input type="checkbox" data-log-filter="actions" ${f.actions ? 'checked' : ''}/> Actions</label>
     `;
-    if (bar.dataset.wired !== '1') {
-        bar.dataset.wired = '1';
-        bar.addEventListener('change', (ev) => {
-            const t = ev.target;
-            if (!t || t.tagName !== 'INPUT' || !t.dataset.logFilter) {
-                return;
-            }
-            const key = t.dataset.logFilter;
-            const next = { ...loadLogFilters(), [key]: t.checked };
-            saveLogFilters(next);
-            renderLog();
+    bars.forEach((bar) => {
+        bar.innerHTML = html;
+        if (bar.dataset.wired !== '1') {
+            bar.dataset.wired = '1';
+            bar.addEventListener('change', (ev) => {
+                const t = ev.target;
+                if (!t || t.tagName !== 'INPUT' || !t.dataset.logFilter) {
+                    return;
+                }
+                const key = t.dataset.logFilter;
+                const next = { ...loadLogFilters(), [key]: t.checked };
+                saveLogFilters(next);
+                renderLog();
+            });
+        }
+    });
+}
+
+function renderLog() {
+    const logs = [
+        document.getElementById('gameLog'),
+        document.getElementById('desktopInspectGameLog')
+    ].filter(Boolean);
+    renderGameLogToolbar();
+    if (!gameState?.gameLog) {
+        logs.forEach((log) => {
+            log.innerHTML = '';
         });
+        renderDesktopActionHistory();
+        return;
     }
+
+    let html = '';
+    for (const entry of getFilteredGameLog(gameState.gameLog)) {
+        html += `<div class="log-entry">${escapeHtml(entry)}</div>`;
+    }
+    logs.forEach((log) => {
+        log.innerHTML = html;
+        log.scrollTop = 0;
+    });
+    renderDesktopActionHistory();
 }
 
 function sieglingPlacementLockMessage() {
@@ -1550,9 +1581,15 @@ function handleBoardCellInspectTouch(event, isPlayer, row, col) {
     onArenaCardClick(isPlayer, row, col);
     // Mobile: surface the Card Preview tray for the tapped Siegeling (or close it on deselect).
     if (arenaSelection) {
-        openDrawer('selected');
+        if (usesLandscapeInspectorMenuDock()) {
+            openLandscapeInspectorMenu('card');
+        } else {
+            openDrawer('selected');
+        }
     } else if (activeDrawer === 'selected') {
         closeDrawer();
+    } else if (usesLandscapeInspectorMenuDock() && desktopInspectTab !== 'card') {
+        setDesktopInspectTab('card');
     }
 }
 
@@ -1594,6 +1631,10 @@ function cancelBoardCardLongPress() {
 function openSelectedCardDrawer() {
     const card = getFocusedPreviewCard();
     updateSelectedInfo(card, card ? null : 'Hover, select a hand card, or click a Siegeling on the board.');
+    if (usesLandscapeInspectorMenuDock()) {
+        openLandscapeInspectorMenu('card');
+        return;
+    }
     openDrawer('selected');
 }
 
@@ -3576,6 +3617,29 @@ function usesLandscapeSpellPreviewDock() {
     ).matches;
 }
 
+/**
+ * Phone-landscape left inspector rail is the display surface for utility menu
+ * panels (card preview, energy, log, hints, battle action preview, element key).
+ * Live battle move buttons stay in the right hand dock.
+ */
+function usesLandscapeInspectorMenuDock() {
+    return usesLandscapeSpellPreviewDock();
+}
+
+const DESKTOP_INSPECT_TABS = Object.freeze(['card', 'deck', 'log', 'hint', 'energy', 'battle', 'key']);
+const DESKTOP_INSPECT_MENU_TABS = Object.freeze(['hint', 'energy', 'battle', 'key']);
+const DRAWER_TO_INSPECT_TAB = Object.freeze({
+    selected: 'card',
+    hint: 'hint',
+    log: 'log',
+    key: 'key',
+    battle: 'battle'
+});
+
+function normalizeDesktopInspectTab(tab) {
+    return DESKTOP_INSPECT_TABS.includes(tab) ? tab : 'card';
+}
+
 function isTabletPortraitDockLayout() {
     return window.matchMedia('(min-width: 980px) and (max-width: 1366px) and (orientation: portrait)').matches;
 }
@@ -3639,6 +3703,10 @@ function updateResponsiveLayoutVars(force = false) {
     }
     lastViewportSignature = signature;
     syncLandscapeAuxHud();
+    if (usesLandscapeInspectorMenuDock() && activeDrawer) {
+        closeDrawer(true);
+    }
+    syncDesktopInspectTabUi();
 
     const root = document.documentElement;
     const viewportWidth = window.innerWidth;
@@ -4020,6 +4088,19 @@ function setDesktopBattleDrawerOpen(open) {
 }
 
 function openDrawer(name) {
+    // Phone landscape: route utility drawers into the persistent left inspector
+    // so a second card-preview / info tray does not cover the arena.
+    if (usesLandscapeInspectorMenuDock() && DRAWER_TO_INSPECT_TAB[name]) {
+        // Live battle moves stay in the right hand dock — never mirror them left.
+        if (name === 'battle' && gameState?.currentPhase === 'BATTLE' && gameState?.pendingBattle) {
+            if (activeDrawer === 'battle') {
+                closeDrawer(true);
+            }
+            return;
+        }
+        openLandscapeInspectorMenu(DRAWER_TO_INSPECT_TAB[name]);
+        return;
+    }
     if (activeDrawer === name) return;
     closeMobileHudSheet();
     // Cancel any pending close timers so they don't hide the new drawer
@@ -4049,6 +4130,85 @@ function openDrawer(name) {
         drawer.classList.add('visible');
     });
     activeDrawer = name;
+}
+
+/** Open a utility menu panel — left inspector on landscape, drawer elsewhere. */
+function openMenuPanel(name) {
+    if (usesLandscapeInspectorMenuDock() && DRAWER_TO_INSPECT_TAB[name]) {
+        openLandscapeInspectorMenu(DRAWER_TO_INSPECT_TAB[name]);
+        return;
+    }
+    if (name === 'energy') {
+        const details = document.getElementById('energyDetailDetails');
+        if (details) {
+            details.open = !details.open;
+            if (details.open) {
+                renderEnergyDetailPanel();
+            }
+        }
+        return;
+    }
+    openDrawer(name);
+}
+
+function openLandscapeInspectorMenu(tab) {
+    if (!usesLandscapeInspectorMenuDock()) {
+        return false;
+    }
+    if (activeDrawer) {
+        closeDrawer(true);
+    }
+    closeMobileHudSheet();
+    const details = document.getElementById('energyDetailDetails');
+    if (details?.open) {
+        details.open = false;
+    }
+    setDesktopInspectTab(tab);
+    refreshLandscapeInspectMenuContent(tab);
+    syncActionBarMenuAttention(tab);
+    return true;
+}
+
+function refreshLandscapeInspectMenuContent(tab = desktopInspectTab) {
+    switch (normalizeDesktopInspectTab(tab)) {
+        case 'card':
+            syncFocusedCardUi();
+            break;
+        case 'hint':
+            renderHintPanel();
+            break;
+        case 'energy':
+            renderEnergyDetailPanel();
+            break;
+        case 'battle':
+            renderBattlePanel();
+            break;
+        case 'key':
+            renderElementKey();
+            break;
+        case 'log':
+            renderLog();
+            break;
+        case 'deck':
+            renderDesktopDeckPreview();
+            break;
+        default:
+            break;
+    }
+}
+
+function syncActionBarMenuAttention(activeTab = desktopInspectTab) {
+    const map = {
+        card: 'btnSelectedPreview',
+        hint: 'btnHint',
+        battle: 'btnBattlePanel',
+        log: 'btnGameLog',
+        key: 'btnElementKey',
+        energy: 'btnEnergyDetail'
+    };
+    Object.entries(map).forEach(([tab, id]) => {
+        document.getElementById(id)?.classList.toggle('ab-icon-active', usesLandscapeInspectorMenuDock() && activeTab === tab);
+    });
 }
 
 function closeDrawer(immediate = false) {
@@ -4965,31 +5125,36 @@ function getInteractionHintState() {
 }
 
 function renderHintPanel() {
-    const panel = document.getElementById('interactionHintPanel');
-    if (!panel) {
+    const panels = [
+        document.getElementById('interactionHintPanel'),
+        document.getElementById('desktopInspectHintPanel')
+    ].filter(Boolean);
+    if (panels.length === 0) {
         return;
     }
 
     const hintState = getInteractionHintState();
+    let html;
     if (!hintState.available) {
-        panel.innerHTML = `
+        html = `
             <div class="hint-drawer-copy">Select or hover a hand card, or tap a Siegeling on either board, to see contextual help.</div>
             <div class="hint-list">
                 <div class="hint-item">Double-tap a hand card (or tap the eye button) to open its full preview.</div>
                 <div class="hint-item">Open the Battle View (⚔) to simulate your board's attacks before battle begins.</div>
             </div>
         `;
-        return;
+    } else {
+        html = `<div class="hint-drawer-copy">Context-sensitive help for your current board state.</div>`;
+        html += `<div class="hint-chip ${escapeHtml(hintState.kind)}">${escapeHtml(hintState.label)}</div>`;
+        html += `<div class="hint-list">`;
+        hintState.hints.forEach(hint => {
+            html += `<div class="hint-item">${escapeHtml(hint)}</div>`;
+        });
+        html += `</div>`;
     }
-
-    let html = `<div class="hint-drawer-copy">Context-sensitive help for your current board state.</div>`;
-    html += `<div class="hint-chip ${escapeHtml(hintState.kind)}">${escapeHtml(hintState.label)}</div>`;
-    html += `<div class="hint-list">`;
-    hintState.hints.forEach(hint => {
-        html += `<div class="hint-item">${escapeHtml(hint)}</div>`;
+    panels.forEach((panel) => {
+        panel.innerHTML = html;
     });
-    html += `</div>`;
-    panel.innerHTML = html;
 }
 
 function syncActionBarAttention() {
@@ -5205,54 +5370,52 @@ function handleActionCounterClick(event) {
 let desktopInspectTab = 'card';
 
 function setDesktopInspectTab(tab) {
-    const next = tab === 'deck' ? 'deck' : tab === 'log' ? 'log' : 'card';
-    desktopInspectTab = next;
+    desktopInspectTab = normalizeDesktopInspectTab(tab);
     syncDesktopInspectTabUi();
+    if (usesLandscapeInspectorMenuDock()) {
+        refreshLandscapeInspectMenuContent(desktopInspectTab);
+    }
 }
 
 function syncDesktopInspectTabUi() {
-    const cardTab = document.getElementById('tabDesktopInspectCard');
-    const deckTab = document.getElementById('tabDesktopInspectDeck');
-    const logTab = document.getElementById('tabDesktopInspectLog');
-    const cardPane = document.getElementById('desktopInspectPaneCard');
-    const deckPane = document.getElementById('desktopInspectPaneDeck');
-    const logPane = document.getElementById('desktopInspectPaneLog');
-    const isCard = desktopInspectTab === 'card';
-    const isDeck = desktopInspectTab === 'deck';
-    const isLog = desktopInspectTab === 'log';
-    cardTab?.classList.toggle('is-active', isCard);
-    deckTab?.classList.toggle('is-active', isDeck);
-    logTab?.classList.toggle('is-active', isLog);
-    cardTab?.setAttribute('aria-selected', isCard ? 'true' : 'false');
-    deckTab?.setAttribute('aria-selected', isDeck ? 'true' : 'false');
-    logTab?.setAttribute('aria-selected', isLog ? 'true' : 'false');
-    cardPane?.classList.toggle('is-active', isCard);
-    deckPane?.classList.toggle('is-active', isDeck);
-    logPane?.classList.toggle('is-active', isLog);
-    if (cardPane) {
-        if (isCard) {
-            cardPane.removeAttribute('hidden');
-        } else {
-            cardPane.setAttribute('hidden', '');
-        }
+    const showMenuTabs = usesLandscapeInspectorMenuDock();
+    const fullLog = document.getElementById('desktopInspectFullLog');
+    const history = document.getElementById('desktopActionHistory');
+    if (fullLog) {
+        fullLog.classList.toggle('hidden', !showMenuTabs);
     }
-    if (deckPane) {
-        if (isDeck) {
-            deckPane.removeAttribute('hidden');
-        } else {
-            deckPane.setAttribute('hidden', '');
-        }
+    if (history) {
+        history.classList.toggle('hidden', showMenuTabs);
     }
-    if (logPane) {
-        if (isLog) {
-            logPane.removeAttribute('hidden');
-        } else {
-            logPane.setAttribute('hidden', '');
+
+    DESKTOP_INSPECT_TABS.forEach((tab) => {
+        const tabId = `tabDesktopInspect${tab.charAt(0).toUpperCase()}${tab.slice(1)}`;
+        const paneId = `desktopInspectPane${tab.charAt(0).toUpperCase()}${tab.slice(1)}`;
+        const tabEl = document.getElementById(tabId);
+        const paneEl = document.getElementById(paneId);
+        const isActive = desktopInspectTab === tab;
+        const isMenuTab = DESKTOP_INSPECT_MENU_TABS.includes(tab);
+        if (tabEl) {
+            if (isMenuTab) {
+                tabEl.hidden = !showMenuTabs;
+                tabEl.classList.toggle('desktop-inspect-tab-menu-visible', showMenuTabs);
+            }
+            tabEl.classList.toggle('is-active', isActive);
+            tabEl.setAttribute('aria-selected', isActive ? 'true' : 'false');
         }
-    }
-    if (isCard) {
+        if (paneEl) {
+            paneEl.classList.toggle('is-active', isActive);
+            if (isActive) {
+                paneEl.removeAttribute('hidden');
+            } else {
+                paneEl.setAttribute('hidden', '');
+            }
+        }
+    });
+    if (desktopInspectTab === 'card') {
         scheduleDesktopPreviewCardScale();
     }
+    syncActionBarMenuAttention(desktopInspectTab);
 }
 
 function syncFocusedCardUi() {
@@ -10612,10 +10775,20 @@ function openBattlePanel(forceOpen = false) {
             if (activeDrawer === 'battle') {
                 closeDrawer(true);
             }
+            syncActionBarMenuAttention(desktopInspectTab);
             return;
         }
-        // Outside battle there is no docked queue, so surface the Battle View
-        // preview in the slide-up drawer where moves can be inspected.
+        // Outside battle, phone landscape shows Battle View in the left inspector.
+        if (usesLandscapeInspectorMenuDock()) {
+            if (desktopInspectTab === 'battle' && !forceOpen) {
+                setDesktopInspectTab('card');
+                syncActionBarMenuAttention('card');
+                return;
+            }
+            openLandscapeInspectorMenu('battle');
+            return;
+        }
+        // Elsewhere, surface the Battle View preview in the slide-up drawer.
         if (activeDrawer === 'battle') {
             if (!forceOpen) {
                 closeDrawer();
@@ -11024,8 +11197,11 @@ function getDisplayedSideHealth(isPlayer, value) {
 }
 
 function renderEnergyDetailPanel() {
-    const panel = document.getElementById('energyDetailPanel');
-    if (!panel || !gameState) return;
+    const panels = [
+        document.getElementById('energyDetailPanel'),
+        document.getElementById('desktopInspectEnergyPanel')
+    ].filter(Boolean);
+    if (panels.length === 0 || !gameState) return;
 
     const p = gameState.player;
     const e = gameState.enemy;
@@ -11061,7 +11237,9 @@ function renderEnergyDetailPanel() {
     html += '</div>';
     html += '</div>';
 
-    panel.innerHTML = html;
+    panels.forEach((panel) => {
+        panel.innerHTML = html;
+    });
 }
 
 const SAFE_AREA_HP_MAX = 50;
@@ -11957,8 +12135,11 @@ function elementKeyIconHtml(key) {
 }
 
 function renderElementKey() {
-    const el = document.getElementById('elementKeyPanel');
-    if (!el) return;
+    const panels = [
+        document.getElementById('elementKeyPanel'),
+        document.getElementById('desktopInspectKeyPanel')
+    ].filter(Boolean);
+    if (panels.length === 0) return;
 
     let html = '';
 
@@ -11992,7 +12173,9 @@ function renderElementKey() {
     html += `<div class="element-key-note">Strong attacker = weak defender. Other elements deal normal damage (no bonus yet).</div>`;
     html += `</section>`;
 
-    el.innerHTML = html;
+    panels.forEach((el) => {
+        el.innerHTML = html;
+    });
 }
 
 function renderTrainer(containerId, trainer, isPlayer) {
@@ -13548,9 +13731,8 @@ function openHandCardPreview(handIndex) {
         mobileSpellPreviewPending = true;
     }
     updateSelectedInfo(card, getHandCardLockReason(card) || null);
-    if (mobileSpellPreviewPending && usesLandscapeSpellPreviewDock()) {
-        setDesktopInspectTab('card');
-        syncFocusedCardUi();
+    if (usesLandscapeInspectorMenuDock()) {
+        openLandscapeInspectorMenu('card');
         render();
         return;
     }
@@ -13795,23 +13977,6 @@ function fitMulliganCardText() {
             }
         }
     });
-}
-
-function renderLog() {
-    const log = document.getElementById('gameLog');
-    renderGameLogToolbar();
-    if (!log || !gameState?.gameLog) {
-        renderDesktopActionHistory();
-        return;
-    }
-
-    let html = '';
-    for (const entry of getFilteredGameLog(gameState.gameLog)) {
-        html += `<div class="log-entry">${escapeHtml(entry)}</div>`;
-    }
-    log.innerHTML = html;
-    log.scrollTop = 0;
-    renderDesktopActionHistory();
 }
 
 function getStandbyBattlePreviewCards() {
@@ -14078,16 +14243,19 @@ function renderRowSelectBattleOverlay() {
 }
 
 function renderBattlePanel() {
-    const panels = [
+    const drawerPanels = [
         document.getElementById('battleActionPanel'),
-        document.getElementById('desktopBattleActionPanel'),
-        document.getElementById('desktopHandBattlePanel')
+        document.getElementById('desktopBattleActionPanel')
     ].filter(Boolean);
-    if (panels.length === 0 || !gameState) {
+    const handPanel = document.getElementById('desktopHandBattlePanel');
+    const inspectPanel = document.getElementById('desktopInspectBattlePanel');
+    const panels = [...drawerPanels, handPanel].filter(Boolean);
+    if ((panels.length === 0 && !inspectPanel) || !gameState) {
         return;
     }
-    const setPanelHtml = (html) => {
-        panels.forEach(panel => {
+    const setPanelHtml = (targets, html) => {
+        targets.forEach(panel => {
+            if (!panel) return;
             panel.innerHTML = html;
             bindBattleAbilityHovers(panel);
         });
@@ -14117,27 +14285,39 @@ function renderBattlePanel() {
     };
 
     if (!pending) {
+        let standbyHtml;
         if (gameState.currentPhase === 'BATTLE' && gameState.battleWaitingOn === 'ENEMY') {
-            setPanelHtml(buildQueueShell(
+            standbyHtml = buildQueueShell(
                 'Await Opponent',
                 'waiting',
                 '<div class="battle-attacker"><strong>Queue locked.</strong> The opponent is resolving the current speed action.</div><div class="battle-hint">The hand HUD will reopen your queue prompt as soon as the next acting Siegeling is ready.</div>'
-            ));
-            return;
-        }
-        if (gameState.currentPhase === 'BATTLE') {
-            setPanelHtml(buildQueueShell(
+            );
+        } else if (gameState.currentPhase === 'BATTLE') {
+            standbyHtml = buildQueueShell(
                 'Resolving',
                 'waiting',
                 '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
-            ));
-            return;
+            );
+        } else {
+            standbyHtml = buildQueueShell(
+                'Battle View',
+                'waiting',
+                renderStandbyBattleAbilityPreview()
+            );
         }
-        setPanelHtml(buildQueueShell(
-            'Battle View',
-            'waiting',
-            renderStandbyBattleAbilityPreview()
-        ));
+        // Standby / waiting preview: drawer + left inspector. Hand dock only
+        // needs content during BATTLE while the queue is idle between actors.
+        setPanelHtml(drawerPanels, standbyHtml);
+        if (inspectPanel) {
+            setPanelHtml([inspectPanel], standbyHtml);
+        }
+        if (handPanel && gameState.currentPhase === 'BATTLE') {
+            setPanelHtml([handPanel], standbyHtml);
+        } else if (handPanel && gameState.currentPhase !== 'BATTLE') {
+            // Keep a lightweight copy for any non-landscape consumers that peek
+            // at the hand battle panel outside combat.
+            setPanelHtml([handPanel], standbyHtml);
+        }
         return;
     }
 
@@ -14175,12 +14355,22 @@ function renderBattlePanel() {
         : 'Acting Now';
 
     const actingCell = findBoardCellByInstanceId(pending.instanceId);
-    setPanelHtml(buildQueueShell(
+    const liveHtml = buildQueueShell(
         targetingShellLabel,
         battleTargeting ? 'targeting' : 'live',
         bodyHtml,
         { expanded: true, cardTitle: pending.name, statsCell: actingCell }
-    ));
+    );
+    // Live battle moves stay on the right hand dock (and portrait drawers).
+    // Never mirror actionable move buttons into the left inspector rail.
+    setPanelHtml([...drawerPanels, handPanel].filter(Boolean), liveHtml);
+    if (inspectPanel && usesLandscapeInspectorMenuDock()) {
+        inspectPanel.innerHTML = buildQueueShell(
+            'Live Queue',
+            'live',
+            '<div class="battle-attacker"><strong>Battle moves are on the right.</strong> Use the hand tray to pick the current Siegeling\'s action.</div><div class="battle-hint">This left screen stays for previews, log, energy, and hints.</div>'
+        );
+    }
 }
 
 function chooseBattleAbility(index) {
@@ -14492,9 +14682,13 @@ function selectCard(handIndexOrCardId) {
     if (lockReason) {
         updateSelectedInfo(card, lockReason);
         // Mobile has no hover tooltip, so surface the card (and the reason it
-        // can't be played) in the preview drawer instead of failing silently.
+        // can't be played) in the preview surface instead of failing silently.
         if (isMobileLayout() && isActionCard(card)) {
-            openDrawer('selected');
+            if (usesLandscapeInspectorMenuDock()) {
+                openLandscapeInspectorMenu('card');
+            } else {
+                openDrawer('selected');
+            }
         }
         render();
         return;
@@ -14503,14 +14697,13 @@ function selectCard(handIndexOrCardId) {
     if (isActionCard(card)) {
         // On mobile there is no hover preview, so a single tap used to fire the
         // spell (or jump straight into targeting) before the player could read
-        // what it does. Show the card preview in the drawer with an explicit
-        // confirm step; the spell only activates once the player confirms.
+        // what it does. Show the card preview with an explicit confirm step;
+        // the spell only activates once the player confirms.
         if (isMobileLayout()) {
             mobileSpellPreviewPending = true;
             updateSelectedInfo(card);
-            if (usesLandscapeSpellPreviewDock()) {
-                setDesktopInspectTab('card');
-                syncFocusedCardUi();
+            if (usesLandscapeInspectorMenuDock()) {
+                openLandscapeInspectorMenu('card');
                 render();
                 return;
             }
@@ -15438,6 +15631,20 @@ window.addEventListener('orientationchange', () => {
 syncLandscapeSafeAreaSide();
 updateResponsiveLayoutVars(true);
 syncDesktopInspectTabUi();
+
+(function setupLandscapeEnergyDetailRedirect() {
+    const details = document.getElementById('energyDetailDetails');
+    if (!details) {
+        return;
+    }
+    details.addEventListener('toggle', () => {
+        if (!details.open || !usesLandscapeInspectorMenuDock()) {
+            return;
+        }
+        details.open = false;
+        openLandscapeInspectorMenu('energy');
+    });
+})();
 
 (function setupBoardGridLayoutObservers() {
     const onLayoutModeBoundsChange = () => {
