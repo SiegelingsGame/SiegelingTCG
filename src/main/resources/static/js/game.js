@@ -9281,22 +9281,26 @@ function getDeckOpeningHandHints() {
         if (!card || seen.has(card.id)) return;
         const type = String(card.type || '').toUpperCase();
         const directCost = Number(card.costAmount || 0);
-        const trapCost = Number(card.trapBucketAmount || 0);
         const comboCost = Number(card.requiredComboSize || 0);
-        const isBaseStarter = type === 'SIEGLING' && !card.evolvesFromId && !card.evolvesFromName;
-        const isFreeAction = type !== 'TRAP' && type !== 'SIEGLING'
-            && directCost <= 0 && trapCost <= 0 && comboCost <= 0 && !card.requiredReaction;
-        if (!isBaseStarter && !isFreeAction) return;
+        // Opening keeps are strictly 0-cost base-starter Siegelings. On turn one
+        // there is no energy yet (energy comes from placed/linked Siegelings), so
+        // only a free Siegling can actually be placed to open the game. Paid
+        // starters and evolutions (which need their live precursor) can't open,
+        // and free utility spells/traps are not something you keep on their own.
+        const isZeroCostStarter = type === 'SIEGLING'
+            && !card.evolvesFromId && !card.evolvesFromName
+            && directCost <= 0 && comboCost <= 0;
+        if (!isZeroCostStarter) return;
         seen.add(card.id);
         hints.push({
             name: card.name,
             element: card.element,
             type,
-            reason: formatOpeningHandHintReason(card, isBaseStarter)
+            reason: formatOpeningHandHintReason(card, true)
         });
     });
     return hints
-        .sort((a, b) => (a.type === 'SIEGLING' ? 0 : 1) - (b.type === 'SIEGLING' ? 0 : 1) || a.name.localeCompare(b.name))
+        .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 8);
 }
 
@@ -9663,7 +9667,7 @@ function renderSelectedLoadoutPreview() {
     const openingBlock = openingHints.length
         ? `<div class="selected-loadout-opening-block">
                 <div class="selected-loadout-subtle-label">Opening Hand Keeps</div>
-                <p class="selected-loadout-opening-copy">Keep these opening starters and free utility cards, or mulligan toward one if your hand opens slow.</p>
+                <p class="selected-loadout-opening-copy">Keep a 0-cost starter Siegling so you can place one on turn one, or mulligan toward one if your hand opens slow.</p>
                 <div class="selected-loadout-opening-cards">
                     ${openingHints.map(card => `<span class="loadout-opening-card" style="--opening-el:${getElementHex(card.element)}"><strong>${escapeHtml(card.name)}</strong><em>${escapeHtml(card.reason)}</em></span>`).join('')}
                 </div>

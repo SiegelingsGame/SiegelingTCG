@@ -41,23 +41,19 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
-    void loadoutOpeningHintsShowActualCostForPaidStarters() throws IOException {
+    void loadoutOpeningHintsKeepZeroCostStartersOnly() throws IOException {
         String gameScript = readGameScript();
         String openingHints = extractFunction(gameScript, "function getDeckOpeningHandHints()");
-        String hintReason = extractFunction(gameScript, "function formatOpeningHandHintReason(card, isBaseStarter = false)");
 
         assertTrue(
-                openingHints.contains("formatOpeningHandHintReason(card, isBaseStarter)"),
-                "Opening hand hints must format the reason from the card's actual cost fields."
-        );
-        assertTrue(
-                hintReason.contains("const costAmount = Number(card?.costAmount || 0);")
-                        && hintReason.contains("`${costAmount} ${formatElementLabel(costElement)} cost`"),
-                "Paid starter Siegelings such as Aerovane should render their Wind cost instead of 0-cost starter."
+                openingHints.contains("type === 'SIEGLING'")
+                        && openingHints.contains("!card.evolvesFromId && !card.evolvesFromName")
+                        && openingHints.contains("directCost <= 0"),
+                "Opening hand keeps must be limited to 0-cost base-starter Siegelings, since only a free Siegling can be placed on turn one."
         );
         assertFalse(
-                gameScript.contains("Keep these 0-cost starter cards"),
-                "The loadout copy must not claim every opening keep is 0-cost."
+                openingHints.contains("isFreeAction"),
+                "Free non-Siegling utility cards (spells/traps) must no longer be listed as opening hand keeps."
         );
     }
 
