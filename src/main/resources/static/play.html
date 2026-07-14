@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=194">
+    <link rel="stylesheet" href="/css/style.css?v=195">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -299,8 +299,8 @@
                         </div>
                     </details>
                     <a class="ab-icon" href="/home" title="Back to Home" aria-label="Back to Home">&#8592;</a>
-                    <button type="button" id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" aria-haspopup="dialog" title="Setup actions remaining this turn - tap for details" onclick="toggleSetupActionsBreakdown(event)">
-                        <span class="ab-action-counter-label">Act</span>
+                    <button type="button" id="setupActionsCounter" class="ab-action-counter" hidden aria-live="polite" title="Setup actions remaining this turn - tap for details" onclick="handleActionCounterClick(event)">
+                        <span class="ab-action-counter-label" id="setupActionsCounterLabel">Act</span>
                         <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
                     </button>
                     <button class="ab-icon ab-targeting-keep" id="btnSelectedPreview" onclick="openSelectedCardDrawer()" title="Card Preview" aria-label="Card Preview">&#128065;</button>
@@ -760,14 +760,14 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=194"></script>
+    <script src="/js/game.js?v=195"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
          getDashboardCardArtMeta() can't build the cardArtScale/offset transform, so
          overlay art renders unscaled on the battle hand, board, and mulligan. -->
     <script src="/js/card-binder-visual.js?v=7"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
-    <script src="/js/action-queue.js?v=35"></script>
+    <script src="/js/action-queue.js?v=36"></script>
     <script src="/js/loading-gate.js?v=2"></script>
     <script src="/js/sw-register.js?v=1"></script>
 </body>

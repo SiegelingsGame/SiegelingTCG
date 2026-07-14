@@ -191,7 +191,7 @@
                     + `fill="currentColor" stroke="#ffffff" stroke-width="1" stroke-linejoin="round"/>`
                     + `</svg>-${shieldBroken}</span>`
                 : '';
-            const damagePart = (visibleDamage > 0)
+            const damagePart = (!toast.hideAmount && visibleDamage > 0)
                 ? `<span class="sgl-toast-damage" style="color:${elHex}">${escapeHtml(amountSign)}${visibleDamage}</span>`
                 : '';
 
@@ -2358,18 +2358,24 @@
                     });
                     return;
                 }
-                // Multi-target: simultaneous barrage. Aggregate shield/HP
-                // damage across the targets so the toast can show the total.
+                // Multi-target: simultaneous barrage. Keep the aggregate for
+                // camera-shake strength, but describe every hit in the toast
+                // instead of hiding unequal/per-card results behind one total.
                 const totalDmg = targets.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
                 const totalShieldBroken = targets.reduce((sum, tt) => sum + (Number(tt.shieldBroken) || 0), 0);
                 const totalHpLoss = targets.reduce((sum, tt) => sum + (Number(tt.hpLoss) || 0), 0);
                 const groupLabel = describeTargets(targets, defenderLabel);
+                const damageDetails = targets
+                    .filter((tt) => Number(tt.amount) > 0)
+                    .map((tt) => `${Number(tt.amount)} damage to ${tt.name || defenderLabel}`)
+                    .join(' and ');
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side,
                     actorName: realAttacker || groupLabel,
-                    targetName: realAttacker ? groupLabel : '',
-                    label: realAttacker ? undefined : 'takes',
+                    targetName: damageDetails || groupLabel,
+                    label: realAttacker ? 'deals' : 'takes',
+                    hideAmount: true,
                     amount: totalDmg,
                     shieldBroken: totalShieldBroken,
                     hpLoss: totalHpLoss,
@@ -2379,6 +2385,7 @@
                     targets: targets.map((tt) => ({
                         isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
                         element: tt.element || srcElement,
+                        name: tt.name,
                         amount: tt.amount,
                         shieldBroken: tt.shieldBroken,
                         hpLoss: tt.hpLoss,
