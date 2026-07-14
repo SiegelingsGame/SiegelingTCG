@@ -52,7 +52,7 @@
 <nav class="top-bar">
     <div class="top-bar-side top-bar-enemy" role="button" tabindex="0" title="Show opponent details" onclick="toggleMobileHudSheet('enemy')">
         <span class="tb-label" id="enemyHeading">AI</span>
-        <span class="tb-hp tb-hp-enemy"><span id="enemyHealth">50</span> HP</span>
+        <span class="tb-hp tb-hp-enemy"><i class="tb-hpfill" id="tbEnemyHpFill" aria-hidden="true"></i><span id="enemyHealth">50</span> HP</span>
         <span class="tb-meta">H:<span id="enemyHandSize">0</span> D:<span id="enemyDeckSize">0</span></span>
         <div class="tb-energy" id="enemyEnergy"></div>
     </div>
@@ -70,7 +70,7 @@
     <div class="top-bar-side top-bar-player" role="button" tabindex="0" title="Show your details" onclick="toggleMobileHudSheet('player')">
         <div class="tb-energy" id="playerEnergy"></div>
         <span class="tb-meta">D:<span id="playerDeckSize">0</span></span>
-        <span class="tb-hp tb-hp-player"><span id="playerHealth">50</span> HP</span>
+        <span class="tb-hp tb-hp-player"><i class="tb-hpfill" id="tbPlayerHpFill" aria-hidden="true"></i><span id="playerHealth">50</span> HP</span>
         <span class="tb-label" id="playerHeading">Player</span>
     </div>
 </nav>
