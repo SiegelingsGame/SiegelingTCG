@@ -1520,12 +1520,6 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     align-items: center;
 }
 
-/* Energy detail button is landscape-only — portrait has no left inspector
-   rail, and the top-bar energy dropdown is hidden under 768px. */
-#btnEnergyDetail {
-    display: none;
-}
-
 .desktop-inspect-tab.desktop-inspect-tab-menu {
     display: none;
 }
@@ -14421,10 +14415,6 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         width: 26px;
         height: 26px;
         font-size: 0.66em;
-    }
-
-    #btnEnergyDetail {
-        display: inline-flex;
     }
 
     /* The site-menu flyout now sits at the screen bottom — open upward. */

@@ -3633,6 +3633,7 @@ const DRAWER_TO_INSPECT_TAB = Object.freeze({
     hint: 'hint',
     log: 'log',
     key: 'key',
+    energy: 'energy',
     battle: 'battle'
 });
 
@@ -4139,13 +4140,8 @@ function openMenuPanel(name) {
         return;
     }
     if (name === 'energy') {
-        const details = document.getElementById('energyDetailDetails');
-        if (details) {
-            details.open = !details.open;
-            if (details.open) {
-                renderEnergyDetailPanel();
-            }
-        }
+        renderEnergyDetailPanel();
+        openDrawer('energy');
         return;
     }
     openDrawer(name);
@@ -4203,7 +4199,6 @@ function syncActionBarMenuAttention(activeTab = desktopInspectTab) {
         hint: 'btnHint',
         battle: 'btnBattlePanel',
         log: 'btnGameLog',
-        key: 'btnElementKey',
         energy: 'btnEnergyDetail'
     };
     Object.entries(map).forEach(([tab, id]) => {
@@ -11204,7 +11199,8 @@ function getDisplayedSideHealth(isPlayer, value) {
 function renderEnergyDetailPanel() {
     const panels = [
         document.getElementById('energyDetailPanel'),
-        document.getElementById('desktopInspectEnergyPanel')
+        document.getElementById('desktopInspectEnergyPanel'),
+        document.getElementById('drawerEnergyPanel')
     ].filter(Boolean);
     if (panels.length === 0 || !gameState) return;
 
