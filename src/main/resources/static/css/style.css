@@ -14210,18 +14210,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
         border-radius: 9px;
-        padding: 2px 6px;
+        /* The whole side (name, HP bar, counts, energy) opens the SiegeKnight /
+           player detail sheet — not just the ⓘ. A faint pill + taller padding
+           makes the full-width strip an obvious, easy tap target on phones. */
+        padding: 5px 8px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.09);
         transition: background 0.14s ease, transform 0.1s ease;
     }
     .top-bar .top-bar-side:active {
-        background: rgba(255, 255, 255, 0.10);
+        background: rgba(255, 255, 255, 0.16);
         transform: scale(0.97);
     }
     .top-bar .top-bar-side::after {
         content: "\24D8";              /* ⓘ */
-        font-size: 0.62em;
-        color: var(--text-dim);
-        opacity: 0.85;
+        font-size: 1em;
+        color: var(--accent);
+        opacity: 0.95;
         flex: 0 0 auto;
     }
     .top-bar .top-bar-enemy::after { order: 9; }   /* trails the enemy row */
@@ -14283,11 +14288,12 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         max-height: calc(100dvh - 52px);
     }
 
-    /* ── Top bar: very slim to maximise arena height ── */
+    /* ── Top bar: slim, but tall enough that the tappable player/opponent
+       strips are an easy target (they open the detail sheet). ── */
     .top-bar {
-        padding: 2px 12px;
-        min-height: 26px;
-        padding-top: calc(2px + env(safe-area-inset-top, 0px));
+        padding: 3px 12px;
+        min-height: 38px;
+        padding-top: calc(3px + env(safe-area-inset-top, 0px));
     }
     .tb-label { font-size: 0.58em; }
     .tb-hp { font-size: 0.60em; }

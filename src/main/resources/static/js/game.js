@@ -3542,6 +3542,15 @@ function isPhoneLandscapeLayout() {
     return window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches;
 }
 
+// The phone-landscape layout where the slim top bar (not the hud rails) is the
+// HUD and its player/opponent strips are the tap targets that open the detail
+// sheet. Mirrors the `(orientation: landscape) and (max-width: 979px)` CSS block
+// so the header tap opens the sheet on any landscape phone, not only very short
+// ones (isPhoneLandscapeLayout caps at 600px tall).
+function isLandscapeTopBarHudLayout() {
+    return window.matchMedia('(orientation: landscape) and (max-width: 979px)').matches;
+}
+
 function measureDeviceSafeAreaInsets() {
     const probe = document.createElement('div');
     probe.style.cssText = [
@@ -11407,7 +11416,7 @@ function syncMobileHudSheetSide() {
     const enemyActive = mobileHudSheetSide !== 'player';
     // Phone landscape opens the same sheet from the top-bar player labels
     // (the portrait mobile HUD buttons are hidden there).
-    const sheetOpen = mobileHudSheetOpen && (isPortraitMobileHudLayout() || isPhoneLandscapeLayout());
+    const sheetOpen = mobileHudSheetOpen && (isPortraitMobileHudLayout() || isLandscapeTopBarHudLayout());
     const sheet = document.getElementById('mobileStatSheet');
     const enemyTab = document.getElementById('mobileStatEnemyTab');
     const playerTab = document.getElementById('mobileStatPlayerTab');
