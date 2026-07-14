@@ -2013,6 +2013,31 @@
         document.body.classList.remove('card-fullscreen-open');
     }
 
+    function evolutionTargets(card) {
+        const sourceId = String(card?.id || '').toLowerCase();
+        if (!sourceId) return [];
+        return binderCatalog().filter(candidate => candidate.type === 'SIEGLING'
+            && String(candidate.evolvesFromId || '').toLowerCase() === sourceId);
+    }
+
+    function renderEvolutionLink(card, fallbackName = '') {
+        if (!card) return `<strong>${escapeHtml(fallbackName || 'Base')}</strong>`;
+        return `<button class="detail-evolution-link" type="button" data-evolution-card-id="${escapeAttr(card.id)}" aria-label="View ${escapeAttr(card.name || 'evolution card')} in the card binder">
+            <span>${escapeHtml(card.name || fallbackName || card.id)}</span><span class="detail-evolution-arrow" aria-hidden="true">&rsaquo;</span>
+        </button>`;
+    }
+
+    function selectEvolutionCard(cardId) {
+        const card = findCard(cardId);
+        if (!card) return;
+        state.selectedCardId = card.id;
+        markCardViewed(card.id);
+        renderCards();
+        requestAnimationFrame(() => {
+            document.getElementById('detailPanel')?.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+
     function renderDetail() {
         const panel = document.getElementById('detailPanel');
         let card = selectedCard();
@@ -2059,6 +2084,10 @@
             && state.profile?.authenticated
             && state.progression?.starterChosen
             && (state.progression?.gold || 0) >= nextXpCost;
+        const evolvesFromCard = card.type === 'SIEGLING' && card.evolvesFromId
+            ? findCard(card.evolvesFromId)
+            : null;
+        const evolvesToCards = card.type === 'SIEGLING' ? evolutionTargets(card) : [];
         const cardPreview = renderDetailCardPreviewMarkup(card);
         panel.innerHTML = `
             <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
@@ -2078,7 +2107,8 @@
                 ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
                 <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
                 <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
-                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                <div><span>Evolves from</span>${renderEvolutionLink(evolvesFromCard, card.evolvesFromName || card.evolvesFromId || 'Base')}</div>
+                ${evolvesToCards.length ? `<div><span>Evolves to</span><strong class="detail-evolution-links">${evolvesToCards.map(target => renderEvolutionLink(target)).join('')}</strong></div>` : ''}` : ''}
                 ${!isSiegeknight && card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
                 ${!isSiegeknight ? `<div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>` : ''}
             </div>
@@ -2128,6 +2158,9 @@
         document.getElementById('craftSelectedCard')?.addEventListener('click', () => craftSelectedCard(card.id));
         document.getElementById('buyHolographicFinishBtn')?.addEventListener('click', () => purchaseHolographicFinish(card.id));
         document.getElementById('buyKnightXpBtn')?.addEventListener('click', () => buyKnightXp(card.id));
+        panel.querySelectorAll('[data-evolution-card-id]').forEach(link => link.addEventListener('click', () => {
+            selectEvolutionCard(link.dataset.evolutionCardId);
+        }));
         document.getElementById('addSelectedToBuilder')?.addEventListener('click', () => {
             if (state.route !== 'deck-builder') {
                 openDeckBuilder();
