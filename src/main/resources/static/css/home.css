@@ -2950,6 +2950,58 @@ select.search-input { color-scheme: dark; }
     text-transform: uppercase;
 }
 
+.detail-evolution-links {
+    display: grid;
+    gap: 4px;
+}
+
+.detail-evolution-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+    width: 100%;
+    min-height: 28px;
+    margin: 2px 0 -2px;
+    padding: 2px 5px 2px 0;
+    border: 0;
+    color: #fff7d9;
+    background: transparent;
+    font: inherit;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+}
+
+.detail-evolution-link > span:first-child {
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    text-transform: none;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--accent) 65%, transparent);
+    text-underline-offset: 3px;
+}
+
+.detail-evolution-link:hover,
+.detail-evolution-link:focus-visible {
+    color: var(--accent);
+}
+
+.detail-evolution-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 5px;
+}
+
+.detail-evolution-link .detail-evolution-arrow {
+    flex: 0 0 auto;
+    color: var(--accent);
+    font-size: 21px;
+    line-height: 1;
+    text-decoration: none;
+}
+
 .detail-flavor {
     position: relative;
     margin: 2px 0 12px;
