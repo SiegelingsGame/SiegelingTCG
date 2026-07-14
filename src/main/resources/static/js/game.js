@@ -6016,7 +6016,10 @@ function summarizeDeckCards(cards) {
             type: card.type || '',
             element: card.element || 'NEUTRAL',
             rarity: card.rarity || '',
-            count: 1
+            count: 1,
+            // Keep the full card so the deck preview can render a real
+            // miniature card (template + art) instead of a text monogram.
+            card
         });
     }
     return [...grouped.values()].sort((left, right) => {
@@ -6145,16 +6148,30 @@ function renderDesktopDeckPreview() {
                     <div class="desktop-deck-type-label">${escapeHtml(formatDeckSectionLabel(group.type))}</div>
                     <div class="desktop-deck-icon-row">
             `;
-            group.cards.forEach(card => {
-                const elementClass = String(card.element || 'neutral').toLowerCase();
-                const monogram = getDeckCardMonogram(card.name);
-                html += `
-                    <div class="desktop-deck-icon-card ${escapeHtml(elementClass)}" title="${escapeHtml(card.name)} (${escapeHtml(card.type)} / ${escapeHtml(formatElementLabel(card.element))}) x${escapeHtml(String(card.count))}">
-                        <span class="desktop-deck-icon-badge">x${escapeHtml(String(card.count))}</span>
-                        <div class="desktop-deck-icon-face">${escapeHtml(monogram)}</div>
-                        <div class="desktop-deck-icon-type">${escapeHtml(group.type)}</div>
-                    </div>
-                `;
+            group.cards.forEach(row => {
+                // Render a real miniature card (painted template + art) rather
+                // than a 2-letter monogram. Fall back to the monogram tile only
+                // if the full card object wasn't carried through the summary.
+                const title = `${row.name} (${row.type} / ${formatElementLabel(row.element)}) x${row.count}`;
+                const countBadge = `<span class="desktop-deck-mini-badge">x${escapeHtml(String(row.count))}</span>`;
+                if (row.card) {
+                    const mini = renderShowcaseCard(row.card, {
+                        bodyMode: 'hidden',
+                        artVariant: 'preview',
+                        cardClass: 'deck-mini-card'
+                    });
+                    html += `<div class="desktop-deck-mini" title="${escapeHtml(title)}">${countBadge}${mini}</div>`;
+                } else {
+                    const elementClass = String(row.element || 'neutral').toLowerCase();
+                    const monogram = getDeckCardMonogram(row.name);
+                    html += `
+                        <div class="desktop-deck-icon-card ${escapeHtml(elementClass)}" title="${escapeHtml(title)}">
+                            <span class="desktop-deck-icon-badge">x${escapeHtml(String(row.count))}</span>
+                            <div class="desktop-deck-icon-face">${escapeHtml(monogram)}</div>
+                            <div class="desktop-deck-icon-type">${escapeHtml(group.type)}</div>
+                        </div>
+                    `;
+                }
             });
             html += `
                     </div>

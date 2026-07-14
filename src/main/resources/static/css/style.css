@@ -7250,6 +7250,56 @@ body.placement-active .board-cell.legal {
     line-height: 1.45;
 }
 
+/* Deck-preview miniature cards: a real painted card (element template + art)
+   shrunk to a thumbnail with a copy-count badge, replacing the old 2-letter
+   monogram tiles. Base sizing here; breakpoint blocks tune the width. */
+.desktop-deck-mini {
+    position: relative;
+    flex: 0 0 auto;
+    width: 74px;
+    line-height: 0;
+}
+.desktop-deck-mini .hand-card.deck-mini-card {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    min-height: 0;
+    margin: 0;
+    padding: 3px;
+    border-radius: 7px;
+    cursor: default;
+    transition: none;
+}
+.desktop-deck-mini .hand-card.deck-mini-card::before {
+    inset: 2px;
+    border-radius: 5px;
+}
+/* The frame's painted title/label shrink with the card; keep them from
+   overflowing the tiny header. */
+.desktop-deck-mini .hand-card.deck-mini-card .card-title {
+    font-size: 8px;
+    line-height: 1.05;
+}
+.desktop-deck-mini .hand-card.deck-mini-card .card-label {
+    font-size: 6px;
+    line-height: 1;
+}
+.desktop-deck-mini-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    z-index: 6;
+    background: rgba(8, 14, 30, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    padding: 2px 5px;
+    border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
 .hand-card {
     --el: var(--neutral);
     --notch-edge-offset: 6px;
@@ -14163,9 +14213,30 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         overflow: visible;
     }
 
-    /* Real visual HP bars in the landscape top bar (not just the number). */
-    .top-bar .tb-hpfill { display: block; }
-    .top-bar .tb-hp { padding-bottom: 3px; }
+    /* Real visual HP bars in the landscape top bar. Each HP chip grows to fill
+       its side so the bar stretches from the SiegeKnight name toward the centre
+       phase badge/turn text; the fill spans the chip's full height behind the
+       centred "N HP" number. The meta (H/D) + energy trail toward the middle. */
+    .top-bar .top-bar-side > .tb-hp {
+        flex: 1 1 auto;
+        min-width: 52px;
+        text-align: center;
+    }
+    .top-bar .tb-hpfill {
+        display: block;
+        top: 0;
+        bottom: 0;
+        height: auto;
+        border-radius: 5px;
+        opacity: 0.42;
+    }
+    .top-bar .tb-hp {
+        padding: 2px 8px;
+        border-radius: 5px;
+    }
+    /* Keep the number crisp over the full-height fill. */
+    .top-bar .tb-hp-enemy { color: #ffd3cc; }
+    .top-bar .tb-hp-player { color: #d3ffe4; }
 
     .top-bar {
         display: flex;
@@ -14533,6 +14604,30 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .desktop-inspect-pane-key .matchup-row {
         font-size: 0.62em;
         line-height: 1.35;
+    }
+
+    /* The left inspector is only ~200px wide, so the two-column element grid
+       clipped longer labels (Electric/Shadow/Psychic). Drop to a single column
+       here — each element row gets the full rail width and its name fits. */
+    .desktop-inspect-pane-key .element-key-grid {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+    .desktop-inspect-pane-key .element-key-icon,
+    .desktop-inspect-pane-key .key-token {
+        width: 15px;
+        height: 15px;
+    }
+    /* Matchups: shrink the attacker column and let the strong-vs targets wrap
+       cleanly inside the narrow rail instead of overflowing its right edge. */
+    .desktop-inspect-pane-key .matchup-attacker {
+        min-width: 58px;
+    }
+    .desktop-inspect-pane-key .matchup-targets {
+        gap: 4px 8px;
+    }
+    .desktop-inspect-pane-key .element-key-section {
+        padding: 8px 9px;
     }
 
     .desktop-inspect-battle-panel .battle-queue-shell,
