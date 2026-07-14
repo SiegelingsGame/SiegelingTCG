@@ -3501,6 +3501,52 @@ function isPhoneLandscapeLayout() {
     return window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches;
 }
 
+function measureDeviceSafeAreaInsets() {
+    const probe = document.createElement('div');
+    probe.style.cssText = [
+        'position:fixed',
+        'visibility:hidden',
+        'pointer-events:none',
+        'padding-left:env(safe-area-inset-left, 0px)',
+        'padding-right:env(safe-area-inset-right, 0px)'
+    ].join(';');
+    document.body.appendChild(probe);
+    const computed = getComputedStyle(probe);
+    const left = Number.parseFloat(computed.paddingLeft) || 0;
+    const right = Number.parseFloat(computed.paddingRight) || 0;
+    probe.remove();
+    return { left, right };
+}
+
+function syncLandscapeSafeAreaSide() {
+    const root = document.documentElement;
+    const body = document.body;
+    if (!root || !body || !isPhoneLandscapeLayout()) {
+        root?.style.removeProperty('--landscape-safe-left');
+        root?.style.removeProperty('--landscape-safe-right');
+        if (body) delete body.dataset.landscapeNotch;
+        return;
+    }
+
+    const safe = measureDeviceSafeAreaInsets();
+    const tolerance = 2;
+    let notchSide = 'none';
+    if (safe.left > safe.right + tolerance) {
+        notchSide = 'left';
+    } else if (safe.right > safe.left + tolerance) {
+        notchSide = 'right';
+    } else if (Math.max(safe.left, safe.right) > tolerance) {
+        const orientationType = String(window.screen?.orientation?.type || '');
+        const rawAngle = window.screen?.orientation?.angle ?? window.orientation;
+        const angle = ((Number(rawAngle) || 0) % 360 + 360) % 360;
+        notchSide = orientationType.includes('secondary') || angle === 270 ? 'right' : 'left';
+    }
+
+    body.dataset.landscapeNotch = notchSide;
+    root.style.setProperty('--landscape-safe-left', `${notchSide === 'left' ? safe.left : 0}px`);
+    root.style.setProperty('--landscape-safe-right', `${notchSide === 'right' ? safe.right : 0}px`);
+}
+
 function isTabletLandscapeLayout() {
     return window.matchMedia(
         '(orientation: landscape) and (min-width: 980px) and (max-width: 1366px) and (max-height: 1100px)'
@@ -3517,6 +3563,17 @@ function isDesktopSidebarLayout() {
 
 function isMobileLayout() {
     return window.matchMedia('(max-width: 900px)').matches || isCompactLandscapeLayout();
+}
+
+/**
+ * Phone landscape already reserves a persistent Card inspector beside the
+ * arena. Use that space for a spell's explicit Cast/Cancel step rather than
+ * opening the mobile preview drawer over the board.
+ */
+function usesLandscapeSpellPreviewDock() {
+    return window.matchMedia(
+        '(orientation: landscape) and (max-width: 979px) and (max-height: 600px)'
+    ).matches;
 }
 
 function isTabletPortraitDockLayout() {
@@ -3797,6 +3854,21 @@ function updateResponsiveLayoutVars(force = false) {
             previewCardMaxHeight = maxPreviewHeight;
             previewCardWidth = Math.round(previewCardMaxHeight * (5 / 7));
         }
+    } else if (compactLandscape) {
+        const compactSidebarWidth = isTabletLandscapeLayout()
+            ? clampNumber(viewportWidth * 0.3, 268, 340)
+            : viewportHeight <= 430
+            ? clampNumber(viewportWidth * 0.2, 168, 184)
+            : 208;
+        const compactPreviewWidth = Math.max(120, compactSidebarWidth - 28);
+        const compactPreviewMax = isTabletLandscapeLayout() ? 220 : 164;
+        const compactPreviewMin = isTabletLandscapeLayout() ? 150 : 120;
+        previewCardWidth = Math.round(clampNumber(
+            compactPreviewWidth * 0.92,
+            compactPreviewMin,
+            Math.max(compactPreviewMin, compactPreviewMax)
+        ));
+        previewCardMaxHeight = Math.round(previewCardWidth * cardAspectHeight);
     }
     const overlayWidth = Math.round(clampNumber(viewportWidth * 0.92, 320, 1180));
     const overlayPadding = Math.round(clampNumber(Math.min(viewportWidth, viewportHeight) * 0.026, 14, 28));
@@ -4963,16 +5035,38 @@ function syncSetupActionsCounter() {
         return;
     }
     const valueEl = document.getElementById('setupActionsCounterValue');
+    const labelEl = document.getElementById('setupActionsCounterLabel');
     const gs = gameState;
-    if (!gs || gs.gameOver || gs.currentPhase !== 'SETUP' || gs.mulligan?.active) {
+    if (!gs || gs.gameOver || gs.mulligan?.active || (gs.currentPhase !== 'DRAW' && gs.currentPhase !== 'SETUP')) {
         el.hidden = true;
+        el.disabled = false;
         if (valueEl) valueEl.textContent = '';
+        if (labelEl) labelEl.textContent = 'Act';
         el.removeAttribute('title');
+        el.removeAttribute('aria-haspopup');
         el.classList.remove('is-zero', 'is-decrement', 'is-increment');
         lastSetupActionsRemaining = null;
         closeSetupActionsBreakdown();
         return;
     }
+    if (gs.currentPhase === 'DRAW') {
+        const playerActive = gs.activeSide === 'PLAYER';
+        el.hidden = false;
+        el.disabled = !playerActive;
+        el.classList.remove('is-zero', 'is-decrement', 'is-increment');
+        el.removeAttribute('aria-haspopup');
+        el.title = playerActive ? 'Draw a card' : 'Waiting for the opponent to draw';
+        el.setAttribute('aria-label', el.title);
+        if (labelEl) labelEl.textContent = 'Draw';
+        if (valueEl) valueEl.textContent = '';
+        lastSetupActionsRemaining = null;
+        closeSetupActionsBreakdown();
+        return;
+    }
+    el.disabled = false;
+    el.setAttribute('aria-haspopup', 'dialog');
+    el.removeAttribute('aria-label');
+    if (labelEl) labelEl.textContent = 'Act';
     const budget = gs.setupSieglingActionBudget;
     const used = gs.setupSieglingActionsUsed;
     if (budget == null || used == null) {
@@ -5095,6 +5189,17 @@ function toggleSetupActionsBreakdown(event) {
     document.addEventListener('pointerdown', handleSetupActionsBreakdownOutside, true);
     window.addEventListener('resize', closeSetupActionsBreakdown);
     window.addEventListener('scroll', closeSetupActionsBreakdown, true);
+}
+
+function handleActionCounterClick(event) {
+    if (gameState?.currentPhase === 'DRAW') {
+        event?.stopPropagation();
+        if (gameState.activeSide === 'PLAYER' && !gameState.gameOver) {
+            void playerDraw();
+        }
+        return;
+    }
+    toggleSetupActionsBreakdown(event);
 }
 
 let desktopInspectTab = 'card';
@@ -5347,6 +5452,10 @@ function renderDesktopCardPreviewPanel() {
     }
 
     const lockReason = isPlayerHandCard(focusedCard) ? getHandCardLockReason(focusedCard) : '';
+    if (usesLandscapeSpellPreviewDock() && mobileSpellPreviewPending && isActionCard(focusedCard) && !lockReason) {
+        panel.innerHTML = renderLandscapeSpellUsePopup(focusedCard);
+        return;
+    }
     const abilities = getCardAbilities(focusedCard)
         .map(ability => ability?.description || ability?.name || '')
         .filter(Boolean);
@@ -5419,6 +5528,39 @@ function renderDesktopCardPreviewPanel() {
     scheduleDesktopPreviewCardScale();
 }
 
+function renderLandscapeSpellUsePopup(card) {
+    const targetSide = getAbilityTargetSide(card.ability);
+    const playVerb = card.type === 'TRAP' ? 'Set' : 'Cast';
+    const summary = getCardPreviewEntries(card)
+        .map((entry) => entry.text || '')
+        .filter(Boolean)
+        .join(' ')
+        || getBuilderCardSummaryText(card)
+        || 'Use this card now.';
+
+    return `
+        <section class="landscape-spell-use-popup" aria-label="Use ${escapeHtmlAttribute(card.name)}">
+            <div class="landscape-spell-use-kicker">${escapeHtml(playVerb)} ${escapeHtml(card.type || 'Spell')}</div>
+            <div class="landscape-spell-use-title">${escapeHtml(card.name)}</div>
+            <div class="landscape-spell-use-copy">${escapeHtml(summary)}</div>
+            ${renderSpellPreviewConfirmation(card, 'landscape-spell-confirm')}
+        </section>`;
+}
+
+function renderSpellPreviewConfirmation(card, extraClass = '') {
+    const targetSide = getAbilityTargetSide(card.ability);
+    const playVerb = card.type === 'TRAP' ? 'Set' : 'Cast';
+    const confirmLabel = targetSide ? 'Choose Target' : playVerb;
+    const className = extraClass ? ` ${extraClass}` : '';
+    return `<div class="selected-spell-confirm${className}">
+        <div class="selected-spell-target-hint">${escapeHtml(describeSpellTargetSide(targetSide))}</div>
+        <div class="selected-spell-confirm-actions">
+            <button type="button" class="spell-confirm-btn" onclick="confirmMobileSpellPreview()">${escapeHtml(confirmLabel)}</button>
+            <button type="button" class="spell-cancel-btn" onclick="cancelMobileSpellPreview()">Cancel</button>
+        </div>
+    </div>`;
+}
+
 function scheduleDesktopPreviewCardScale() {
     if (previewCardScaleFrame != null) {
         window.cancelAnimationFrame(previewCardScaleFrame);
@@ -5474,6 +5616,21 @@ function syncDesktopPreviewCardScale() {
         const maxWidth = Math.round(contentWidth * 0.98);
         let nextWidth = Math.round(Math.min(maxWidth, cardAreaHeight * (5 / 7)));
         nextWidth = Math.round(clampNumber(nextWidth, 180, maxWidth));
+        const nextHeight = Math.round(nextWidth * (7 / 5));
+        root.style.setProperty('--desktop-preview-card-width', `${nextWidth}px`);
+        root.style.setProperty('--desktop-preview-card-max-height', `${nextHeight}px`);
+        return;
+    }
+
+    if (isCompactLandscapeLayout()) {
+        const maxWidth = Math.round(Math.max(120, contentWidth * 0.98));
+        const panelContentHeight = Math.max(96, panel.clientHeight - paddingTop - paddingBottom);
+        const heightBasedWidth = panelContentHeight * 0.96 * (5 / 7);
+        const nextWidth = Math.round(clampNumber(
+            Math.min(maxWidth, heightBasedWidth),
+            Math.min(96, maxWidth),
+            maxWidth
+        ));
         const nextHeight = Math.round(nextWidth * (7 / 5));
         root.style.setProperty('--desktop-preview-card-width', `${nextWidth}px`);
         root.style.setProperty('--desktop-preview-card-max-height', `${nextHeight}px`);
@@ -11159,9 +11316,10 @@ function updateMobileHudSide(label, playerData, ids) {
         if (trainer) {
             icon.classList.add('has-knight-card');
             icon.classList.toggle('has-knight-fullart', knightHasFullCardArt(trainer));
+            icon.classList.toggle('has-knight-overlay-art', knightHasOverlayCardArt(trainer));
             icon.innerHTML = knightHudCardInnerHtml(trainer);
         } else {
-            icon.classList.remove('has-knight-card', 'has-knight-fullart');
+            icon.classList.remove('has-knight-card', 'has-knight-fullart', 'has-knight-overlay-art');
             icon.innerHTML = elementEmoji(trainer?.element);
         }
     }
@@ -11170,24 +11328,53 @@ function updateMobileHudSide(label, playerData, ids) {
     renderMobileStatElements(ids.statElementsId, playerData);
 }
 
-// True when this SiegeKnight has uploaded full-card art (Pyla / Squire Bob style).
-function knightHasFullCardArt(trainer) {
-    return Boolean(String(trainer?.cardArtUrl || '').trim()
-        && String(trainer?.cardArtMode || '').trim().toUpperCase() === 'FULL_CARD');
+function knightUploadedCardArtUrl(trainer) {
+    return String(trainer?.cardArtUrl || '').trim();
 }
 
-// Inner markup for a SiegeKnight card shown in the battle HUD: the hand-drawn
-// full-card art when available, otherwise the default card-front template with
-// the element sigil overlaid so every knight still reads as a card.
+function knightCardArtMode(trainer) {
+    return String(trainer?.cardArtMode || '').trim().toUpperCase();
+}
+
+function knightHasOverlayCardArt(trainer) {
+    return Boolean(knightUploadedCardArtUrl(trainer) && knightCardArtMode(trainer) === 'OVERLAY');
+}
+
+// True when this SiegeKnight has uploaded full-card art (Pyla / Squire Bob style).
+function knightHasFullCardArt(trainer) {
+    return Boolean(knightUploadedCardArtUrl(trainer) && knightCardArtMode(trainer) === 'FULL_CARD');
+}
+
+// Inner markup for a SiegeKnight card shown in the battle HUD: uploaded art
+// when available, otherwise the default card-front template with an element sigil.
 function knightHudCardInnerHtml(trainer) {
-    if (knightHasFullCardArt(trainer)) {
+    const url = knightUploadedCardArtUrl(trainer);
+    if (url) {
+        if (knightHasOverlayCardArt(trainer)) {
+            return knightHudOverlayCardInnerHtml(trainer, url);
+        }
         // The HUD shows the full card at natural aspect (no fixed 5:7 frame), so the
         // dashboard crop/scale transform — tuned for the framed loadout/binder — is
         // intentionally not applied here.
-        const url = String(trainer.cardArtUrl).trim();
-        return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight')}" decoding="async">`;
+        return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" decoding="async">`;
     }
     return `<img class="hud-knight-art-img hud-knight-art-template" ${webpImgAttrs(SIEGEKNIGHT_CARD_TEMPLATE)} alt="" aria-hidden="true"><span class="hud-knight-art-sigil">${elementEmoji(trainer?.element)}</span>`;
+}
+
+function knightHudOverlayCardInnerHtml(trainer, url) {
+    const element = String(trainer?.element || 'NEUTRAL').toUpperCase();
+    const elementHex = getElementHex(element);
+    const elementLabel = formatElementLabel(element);
+    const elementIconPath = ELEMENT_KEY_ICON_PATHS[element] || '';
+    const cardStyle = `--knight-color:${elementHex};--knight-glow:${hexToRgba(elementHex, 0.36)};${siegeknightCardBackStyle()}`;
+    const shieldStyle = elementIconPath
+        ? ` style="--knight-element-icon:url('${escapeHtmlAttribute(elementIconPath)}')"`
+        : '';
+    return `<span class="hud-knight-art-card hud-knight-art-overlay" role="img" aria-label="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" style="${escapeHtmlAttribute(cardStyle)}">
+        <span class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(url)} alt="" loading="lazy"${knightArtStyleAttr(trainer)}></span>
+        <span class="knight-card-template" aria-hidden="true"></span>
+        <span class="knight-shield-element" aria-label="${escapeHtmlAttribute(elementLabel)}"${shieldStyle}>${getElementSigil(element)}</span>
+    </span>`;
 }
 
 function updateHudRailKnight(prefix, trainer) {
@@ -11201,7 +11388,7 @@ function updateHudRailKnight(prefix, trainer) {
         return;
     }
     if (!trainer) {
-        card.classList.remove('has-knight-art');
+        card.classList.remove('has-knight-art', 'has-knight-fullart', 'has-knight-overlay-art');
         card.querySelector('.hud-knight-art')?.remove();
         if (portrait) {
             portrait.style.display = '';
@@ -11211,6 +11398,7 @@ function updateHudRailKnight(prefix, trainer) {
     }
     card.classList.add('has-knight-art');
     card.classList.toggle('has-knight-fullart', knightHasFullCardArt(trainer));
+    card.classList.toggle('has-knight-overlay-art', knightHasOverlayCardArt(trainer));
     let art = card.querySelector('.hud-knight-art');
     if (!art) {
         art = document.createElement('div');
@@ -12813,16 +13001,18 @@ function renderHand() {
         const lockReason = getHandCardLockReason(card);
         const openingLocked = isOpeningPlacementOnlyTurn() && card.type !== 'SIEGLING';
         const placementLocked = isPlacementBudgetLockedForCard(card) && card.type === 'SIEGLING';
+        const dragPlaceable = canHandCardDragPlace(handIndex);
         const interactionClass = [
             isSelected ? ' selected' : '',
             opponentTurn ? ' opponent-turn' : '',
             lockReason ? ' interaction-locked' : '',
             openingLocked ? ' opening-locked' : '',
             placementLocked ? ' placement-locked' : '',
-            targetMode ? ' target-lock' : ''
+            targetMode ? ' target-lock' : '',
+            dragPlaceable ? ' drag-placeable' : ''
         ].join('');
         const onclick = `onclick="handleHandCardClick(event, ${handIndex})"`;
-        const pointerEvents = canHandCardDragPlace(handIndex)
+        const pointerEvents = dragPlaceable
             ? `onpointerdown="handleHandCardPointerDown(event, ${handIndex})"`
             : '';
         const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, ${handIndex})" onmouseleave="handleHandCardPointerLeave(${handIndex})"`;
@@ -13104,6 +13294,30 @@ function findLegalPlacementCellAt(clientX, clientY) {
             return cell;
         }
     }
+    const slop = isCompactLandscapeLayout() ? 28 : 14;
+    let nearest = null;
+    let nearestDistance = Infinity;
+    document.querySelectorAll('#playerGrid .board-cell.legal').forEach((cell) => {
+        const rect = cell.getBoundingClientRect();
+        if (
+            clientX < rect.left - slop
+            || clientX > rect.right + slop
+            || clientY < rect.top - slop
+            || clientY > rect.bottom + slop
+        ) {
+            return;
+        }
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const distance = ((clientX - centerX) ** 2) + ((clientY - centerY) ** 2);
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = cell;
+        }
+    });
+    if (nearest) {
+        return nearest;
+    }
     return null;
 }
 
@@ -13211,6 +13425,9 @@ function handleHandCardPointerDown(event, handIndex) {
     }
     if (event.pointerType === 'mouse' && event.button !== 0) {
         return;
+    }
+    if (event.pointerType !== 'mouse') {
+        event.preventDefault();
     }
     cleanupCardDragSession();
     cardDragSession = {
@@ -13331,6 +13548,12 @@ function openHandCardPreview(handIndex) {
         mobileSpellPreviewPending = true;
     }
     updateSelectedInfo(card, getHandCardLockReason(card) || null);
+    if (mobileSpellPreviewPending && usesLandscapeSpellPreviewDock()) {
+        setDesktopInspectTab('card');
+        syncFocusedCardUi();
+        render();
+        return;
+    }
     openDrawer('selected');
     render();
 }
@@ -14285,6 +14508,12 @@ function selectCard(handIndexOrCardId) {
         if (isMobileLayout()) {
             mobileSpellPreviewPending = true;
             updateSelectedInfo(card);
+            if (usesLandscapeSpellPreviewDock()) {
+                setDesktopInspectTab('card');
+                syncFocusedCardUi();
+                render();
+                return;
+            }
             openDrawer('selected');
             render();
             return;
@@ -14639,16 +14868,7 @@ function updateSelectedInfo(card, msg) {
             }
         });
         if (mobileSpellPreviewPending && isActionCard(card) && !lockReason) {
-            const targetSide = getAbilityTargetSide(card.ability);
-            const playVerb = card.type === 'TRAP' ? 'Set' : 'Cast';
-            const confirmLabel = targetSide ? 'Choose Target' : playVerb;
-            html += `<div class="selected-spell-confirm">`;
-            html += `<div class="selected-spell-target-hint">${escapeHtml(describeSpellTargetSide(targetSide))}</div>`;
-            html += `<div class="selected-spell-confirm-actions">`;
-            html += `<button type="button" class="spell-confirm-btn" onclick="confirmMobileSpellPreview()">${escapeHtml(confirmLabel)}</button>`;
-            html += `<button type="button" class="spell-cancel-btn" onclick="cancelMobileSpellPreview()">Cancel</button>`;
-            html += `</div>`;
-            html += `</div>`;
+            html += renderSpellPreviewConfirmation(card);
         }
         html += `</div>`;
         html += `</div>`;
@@ -15169,6 +15389,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('resize', () => {
+    syncLandscapeSafeAreaSide();
     updateResponsiveLayoutVars(true);
     scheduleDesktopHandSelectorCardScale();
     scheduleDesktopPreviewCardScale();
@@ -15202,6 +15423,7 @@ window.addEventListener('resize', () => {
 });
 
 window.addEventListener('orientationchange', () => {
+    setTimeout(syncLandscapeSafeAreaSide, 0);
     updateResponsiveLayoutVars(true);
     scheduleDesktopHandSelectorCardScale();
     scheduleDesktopPreviewCardScale();
@@ -15213,6 +15435,7 @@ window.addEventListener('orientationchange', () => {
     scheduleBoardLinkConnectorRefresh();
 });
 
+syncLandscapeSafeAreaSide();
 updateResponsiveLayoutVars(true);
 syncDesktopInspectTabUi();
 
