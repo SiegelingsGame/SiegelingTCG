@@ -6155,9 +6155,12 @@ function renderDesktopDeckPreview() {
                 const title = `${row.name} (${row.type} / ${formatElementLabel(row.element)}) x${row.count}`;
                 const countBadge = `<span class="desktop-deck-mini-badge">x${escapeHtml(String(row.count))}</span>`;
                 if (row.card) {
+                    // Use the same 'hand' art treatment the hand selector and
+                    // binder use so the mini is a true shrunk hand card, not a
+                    // full-size preview (whose art box is 150px tall).
                     const mini = renderShowcaseCard(row.card, {
                         bodyMode: 'hidden',
-                        artVariant: 'preview',
+                        artVariant: 'hand',
                         cardClass: 'deck-mini-card'
                     });
                     html += `<div class="desktop-deck-mini" title="${escapeHtml(title)}">${countBadge}${mini}</div>`;

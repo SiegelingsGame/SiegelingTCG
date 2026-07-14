@@ -7274,6 +7274,9 @@ body.placement-active .board-cell.legal {
     inset: 2px;
     border-radius: 5px;
 }
+.desktop-deck-mini .hand-card.deck-mini-card .hand-card-shell {
+    gap: 2px;
+}
 /* The frame's painted title/label shrink with the card; keep them from
    overflowing the tiny header. */
 .desktop-deck-mini .hand-card.deck-mini-card .card-title {
@@ -7283,6 +7286,23 @@ body.placement-active .board-cell.legal {
 .desktop-deck-mini .hand-card.deck-mini-card .card-label {
     font-size: 6px;
     line-height: 1;
+}
+/* Let the (hand-style) art fill the miniature instead of forcing the
+   hand variant's fixed min-height, which would blow out the tiny card. */
+.desktop-deck-mini .hand-card.deck-mini-card .card-art {
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 2px;
+    border-radius: 5px;
+    width: 100%;
+}
+.desktop-deck-mini .hand-card.deck-mini-card .card-art img {
+    max-height: 100%;
+    max-width: 100%;
+}
+.desktop-deck-mini .hand-card.deck-mini-card .card-art-fallback {
+    font-size: 7px;
+    letter-spacing: 0.4px;
 }
 .desktop-deck-mini-badge {
     position: absolute;
