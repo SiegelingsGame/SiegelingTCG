@@ -361,6 +361,8 @@ body {
 }
 
 .tb-hp {
+    position: relative;
+    overflow: hidden;
     font-size: 0.75em;
     font-weight: 800;
     padding: 1px 6px;
@@ -369,6 +371,23 @@ body {
 }
 .tb-hp-enemy { background: rgba(231, 76, 60, 0.25); color: #e74c3c; }
 .tb-hp-player { background: rgba(46, 204, 113, 0.25); color: #2ecc71; }
+
+/* Thin health bar along the bottom edge of the HP chip (width = HP%). Hidden
+   by default (desktop uses the hud-rail bars, portrait the mobile HUD); the
+   landscape block turns it on so landscape gets a real visual HP bar too.
+   The number/label paint above it. */
+.tb-hp > span { position: relative; z-index: 1; }
+.tb-hpfill {
+    display: none;
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 100%;
+    border-radius: 2px;
+    z-index: 0;
+    transition: width 0.35s ease, background 0.25s ease;
+}
 
 .tb-meta {
     font-size: 0.65em;
@@ -14107,9 +14126,42 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         max-height: calc(100dvh - 110px);
     }
 
+    /* The player/opponent panels are tap targets that open the detail sheet.
+       Make them feel like buttons: rounded hit area, instant taps
+       (touch-action:manipulation drops the tap delay the body's pan-x/pan-y
+       otherwise imposes), and a clear press-down state. A small ⓘ affordance
+       signals they're interactive. */
     .top-bar .top-bar-side {
         cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        border-radius: 9px;
+        padding: 2px 6px;
+        transition: background 0.14s ease, transform 0.1s ease;
     }
+    .top-bar .top-bar-side:active {
+        background: rgba(255, 255, 255, 0.10);
+        transform: scale(0.97);
+    }
+    .top-bar .top-bar-side::after {
+        content: "\24D8";              /* ⓘ */
+        font-size: 0.62em;
+        color: var(--text-dim);
+        opacity: 0.85;
+        flex: 0 0 auto;
+    }
+    .top-bar .top-bar-enemy::after { order: 9; }   /* trails the enemy row */
+
+    /* Both SiegeKnight/player names show in full (base caps them at 70px with
+       an ellipsis); the landscape top bar has room on each half. */
+    .top-bar .tb-label {
+        max-width: none;
+        overflow: visible;
+    }
+
+    /* Real visual HP bars in the landscape top bar (not just the number). */
+    .top-bar .tb-hpfill { display: block; }
+    .top-bar .tb-hp { padding-bottom: 3px; }
 
     .top-bar {
         display: flex;

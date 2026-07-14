@@ -10855,8 +10855,13 @@ function renderDomLegacy() {
     btnBattle.classList.toggle('ab-active', phase === 'BATTLE' && !over);
     btnEndTurn.classList.toggle('ab-active', phase === 'SETUP' && playerActive && !over);
 
-    document.getElementById('playerHealth').textContent = getDisplayedSideHealth(true, gameState.player.health);
-    document.getElementById('enemyHealth').textContent = getDisplayedSideHealth(false, gameState.enemy.health);
+    const pTopHp = getDisplayedSideHealth(true, gameState.player.health);
+    const eTopHp = getDisplayedSideHealth(false, gameState.enemy.health);
+    document.getElementById('playerHealth').textContent = pTopHp;
+    document.getElementById('enemyHealth').textContent = eTopHp;
+    // Drive the top-bar HP chips' bottom fill bar (visible in landscape).
+    syncTopBarHpFill('tbPlayerHpFill', pTopHp, gameState.player.trainer);
+    syncTopBarHpFill('tbEnemyHpFill', eTopHp, gameState.enemy.trainer);
 
     renderEnergyTopBar('playerEnergy', gameState.player);
     renderEnergyTopBar('enemyEnergy', gameState.enemy);
@@ -11087,6 +11092,15 @@ function hudHpBarGradient(pct, element) {
     }
     const tier = getHudHpTierColor(pct);
     return `linear-gradient(90deg, ${hexToRgba(tier, 0.55)}, ${tier})`;
+}
+
+// Width + element/tier tint for the top-bar HP chip's bottom fill bar.
+function syncTopBarHpFill(id, hp, trainer) {
+    const fill = document.getElementById(id);
+    if (!fill) return;
+    const pct = Math.max(0, Math.min(100, Math.round((hp / SAFE_AREA_HP_MAX) * 100)));
+    fill.style.width = `${pct}%`;
+    fill.style.background = hudHpBarGradient(pct, trainer?.element || null);
 }
 
 function applySafeAreaHpSide(side, data) {
