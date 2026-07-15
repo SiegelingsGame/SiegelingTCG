@@ -7259,6 +7259,26 @@ body.placement-active .board-cell.legal {
     width: 74px;
     line-height: 0;
 }
+.desktop-deck-mini > .mulligan-card-slot,
+.desktop-deck-mini > .binder-full-card-art {
+    width: 100%;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+.desktop-deck-mini > .binder-full-card-art {
+    aspect-ratio: var(--card-aspect-ratio);
+    overflow: hidden;
+}
+.desktop-deck-mini > .binder-full-card-art img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
 .desktop-deck-mini .hand-card.deck-mini-card {
     width: 100%;
     min-width: 0;
