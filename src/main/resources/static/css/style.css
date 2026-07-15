@@ -14353,9 +14353,11 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         flex-direction: row;
         align-items: center;
         justify-content: center;
-        padding: 4px 6px;
+        padding: 4px 4px;
         padding-bottom: 44px;
-        gap: 6px;
+        /* Tight centre gap: the two boards' inner socket dots end up only a few
+           px apart (dot edge gap ≈ this gap + a hair). */
+        gap: 2px;
         overflow: hidden;
         border-radius: 0;
     }
@@ -14370,23 +14372,30 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         justify-content: center;
     }
 
-    /* Height-bound width for one full-height 3x3 grid of 5/5.4 cells:
-       gridH ≈ 1.08 x gridW + chrome, so W = (100cqh - label/socket chrome)
-       / 1.08 ≈ 92cqh - 32px. The 36px width reserve leaves ≥18px inside the
-       overflow-hidden half on each side for the exterior socket dots, which
-       render ~14px past the grid edge. The .battlefield prefix outranks the
-       portrait container-query rule that shrank landscape boards to ~125px. */
+    /* Board width is the min of a height bound (a full-height 3x3 of 5/5.4
+       cells ≈ 92cqh - 32px) and a width bound. Here the arena width is the real
+       limit, so the width reserve is trimmed to 26px (≈13px each side) — just
+       enough that the compact-landscape socket dots (which now render ~11px past
+       the grid edge) stay inside the overflow-hidden half without clipping,
+       while the board scales up as far as the arena allows. Symmetric
+       `margin: 0 auto` keeps both boards identical so their exterior dots stay
+       parallel. The .battlefield prefix outranks the portrait container-query
+       rule that shrank landscape boards to ~125px. */
     .battlefield .board-grid {
-        width: min(calc(100% - 36px), calc(92cqh - 32px), 420px);
-        max-width: 420px;
+        width: min(calc(100% - 10px), calc(92cqh - 32px), 460px);
+        max-width: 460px;
         gap: 4px;
         padding: 2px 6px;
         align-self: center;
         margin: 0 auto;
     }
 
+    /* Both grids share identical padding so, centered in the same arena, their
+       rows line up — keeping the enemy's and your exterior socket dots parallel
+       across the centre. (The player board previously carried extra bottom
+       padding that shifted its rows ~7px, breaking that alignment.) */
     #playerGrid.board-grid {
-        padding-bottom: clamp(14px, 2.4vh, 22px);
+        padding-bottom: 2px;
     }
 
     .board-cell {

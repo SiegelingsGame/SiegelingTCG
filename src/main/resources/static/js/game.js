@@ -12953,7 +12953,15 @@ function getCellEdgeAnchor(local, direction) {
 function getExternalSocketPoint(local, side) {
     const centerX = local.left + local.width / 2;
     const centerY = local.top + local.height / 2;
-    const offset = Math.max(12, Math.round(Math.min(local.width, local.height) * 0.12));
+    // In the compact phone-landscape arena, dots hug the cells (smaller offset)
+    // so the board can be scaled up and the two boards' central sockets sit only
+    // a few px apart. Desktop keeps the wider 12% offset (its larger cells make
+    // the 12% term win regardless, so this branch only tightens small-cell
+    // landscape layouts).
+    const compact = isLandscapeTopBarHudLayout();
+    const offset = compact
+        ? Math.max(4, Math.round(Math.min(local.width, local.height) * 0.05))
+        : Math.max(12, Math.round(Math.min(local.width, local.height) * 0.12));
 
     switch (side) {
         case 'left':
