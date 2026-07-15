@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=202">
+    <link rel="stylesheet" href="/css/style.css?v=204">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -238,13 +238,17 @@
         <section class="desktop-menu-section desktop-menu-inspect" id="desktopInspectSection" aria-label="Card, deck, and battle log inspector">
             <div class="desktop-inspect-toolbar">
                 <div class="desktop-inspect-toggle" role="tablist" aria-label="Inspector view">
-                    <button type="button" class="desktop-inspect-tab is-active" role="tab" id="tabDesktopInspectCard" aria-selected="true" aria-controls="desktopInspectPaneCard" onclick="setDesktopInspectTab('card')">Card</button>
-                    <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectDeck" aria-selected="false" aria-controls="desktopInspectPaneDeck" onclick="setDesktopInspectTab('deck')">Deck</button>
-                    <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectLog" aria-selected="false" aria-controls="desktopInspectPaneLog" onclick="setDesktopInspectTab('log')">Log</button>
-                    <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectHint" aria-selected="false" aria-controls="desktopInspectPaneHint" onclick="setDesktopInspectTab('hint')" hidden>Hint</button>
-                    <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectEnergy" aria-selected="false" aria-controls="desktopInspectPaneEnergy" onclick="setDesktopInspectTab('energy')" hidden>Energy</button>
-                    <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectBattle" aria-selected="false" aria-controls="desktopInspectPaneBattle" onclick="setDesktopInspectTab('battle')" hidden>Battle</button>
-                    <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectKey" aria-selected="false" aria-controls="desktopInspectPaneKey" onclick="setDesktopInspectTab('key')" hidden>Key</button>
+                    <div class="desktop-inspect-tab-row desktop-inspect-tab-row-primary" role="presentation">
+                        <button type="button" class="desktop-inspect-tab is-active" role="tab" id="tabDesktopInspectCard" aria-selected="true" aria-controls="desktopInspectPaneCard" onclick="setDesktopInspectTab('card')">Card</button>
+                        <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectDeck" aria-selected="false" aria-controls="desktopInspectPaneDeck" onclick="setDesktopInspectTab('deck')">Deck</button>
+                        <button type="button" class="desktop-inspect-tab" role="tab" id="tabDesktopInspectLog" aria-selected="false" aria-controls="desktopInspectPaneLog" onclick="setDesktopInspectTab('log')">Log</button>
+                    </div>
+                    <div class="desktop-inspect-tab-row desktop-inspect-tab-row-tools" role="presentation">
+                        <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectHint" aria-selected="false" aria-controls="desktopInspectPaneHint" onclick="setDesktopInspectTab('hint')" hidden>Hint</button>
+                        <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectEnergy" aria-selected="false" aria-controls="desktopInspectPaneEnergy" onclick="setDesktopInspectTab('energy')" hidden>Energy</button>
+                        <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectBattle" aria-selected="false" aria-controls="desktopInspectPaneBattle" onclick="setDesktopInspectTab('battle')" hidden>Battle</button>
+                        <button type="button" class="desktop-inspect-tab desktop-inspect-tab-menu" role="tab" id="tabDesktopInspectKey" aria-selected="false" aria-controls="desktopInspectPaneKey" onclick="setDesktopInspectTab('key')" hidden>Key</button>
+                    </div>
                 </div>
             </div>
             <div class="desktop-inspect-viewport">
