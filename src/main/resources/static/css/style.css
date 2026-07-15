@@ -17967,6 +17967,136 @@ body.sgl-opponent-turn .battle-cta-row {
     }
 }
 
+/* Portrait mulligan is a single-screen decision, not a document. Keep the
+   instructions, all five opening cards, and both actions inside the live
+   viewport so iOS never restores this overlay at a confusing scroll offset. */
+@media (max-width: 767px) and (orientation: portrait) {
+    body.gameplay-active .mulligan-overlay {
+        inset: 0;
+        padding:
+            calc(var(--device-safe-top) + 56px)
+            8px
+            calc(var(--device-safe-bottom) + 8px);
+        align-items: stretch;
+        justify-content: center;
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
+
+    body.gameplay-active .mulligan-box {
+        --mulligan-portrait-card-width: min(
+            112px,
+            calc((100% - 12px) / 3),
+            calc((100dvh - var(--device-safe-top) - var(--device-safe-bottom) - 220px) * 5 / 14)
+        );
+        display: flex;
+        flex-direction: column;
+        width: min(100%, 520px);
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+        margin: 0 auto;
+        padding: 10px;
+        overflow: hidden;
+        border-radius: 16px;
+    }
+
+    .mulligan-box .loadout-kicker {
+        flex: 0 0 auto;
+        margin-bottom: 3px;
+        font-size: 0.62rem;
+        line-height: 1.1;
+    }
+
+    .mulligan-box h2 {
+        flex: 0 0 auto;
+        margin-bottom: 4px;
+        font-size: clamp(1rem, 4.6vw, 1.18rem);
+        line-height: 1.12;
+    }
+
+    .mulligan-box .loadout-copy {
+        flex: 0 0 auto;
+        font-size: clamp(0.66rem, 2.8vw, 0.76rem);
+        line-height: 1.24;
+    }
+
+    .mulligan-hand-preview {
+        display: flex;
+        flex: 1 1 auto;
+        flex-wrap: wrap;
+        align-content: center;
+        align-items: flex-start;
+        justify-content: center;
+        min-height: 0;
+        margin: 6px 0;
+        gap: 6px;
+        overflow: hidden;
+    }
+
+    .mulligan-card-slot {
+        flex: 0 0 var(--mulligan-portrait-card-width);
+        width: var(--mulligan-portrait-card-width);
+        max-width: none;
+        padding: 2px;
+        border-radius: 9px;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase {
+        padding: 2px;
+        border-radius: 7px;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .hand-card-shell {
+        gap: 2px;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-title {
+        font-size: 0.72em;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .hand-card-body {
+        padding: 1px 1px 2px;
+        gap: 1px;
+        font-size: 0.56em;
+        line-height: 1.08;
+    }
+
+    .mulligan-card-slot .hand-card.mulligan-showcase .card-stat-pill,
+    .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-stat-pill,
+    .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-summary-list {
+        font-size: 7px;
+    }
+
+    .mulligan-redraw-badge {
+        top: 3px;
+        right: 3px;
+        padding: 2px 4px;
+        font-size: 0.46em;
+    }
+
+    .mulligan-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        flex: 0 0 auto;
+        width: 100%;
+        gap: 6px;
+    }
+
+    .mulligan-actions .btn {
+        width: 100%;
+        min-width: 0;
+        min-height: 32px;
+        padding: 6px 5px;
+        font-size: 0.7rem;
+        white-space: nowrap;
+    }
+
+    .mulligan-actions.hidden {
+        display: none;
+    }
+}
+
 /* Siege bounty damage: fractured health-bar impact when a destroyed card
    breaks through to its owner's life total. */
 .tb-hp,
