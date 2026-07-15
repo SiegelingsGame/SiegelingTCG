@@ -14405,15 +14405,17 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         display: none;
     }
 
-    /* Left rail: card / deck / log inspector. Width grows by the notch
-       safe-area so the inset padding never eats the 200px content box
-       (border-box sizing was clipping the preview card on notched phones). */
+    /* Left rail: card / deck / log inspector. Its left edge hugs the notch
+       (padding-left = the safe-area inset, no extra gap), and the content box
+       is trimmed to 178px so the dead space beside the preview card is handed
+       to the battlefield — the board is width-bound here, so a narrower rail
+       makes the arena cells and board cards scale up. */
     .desktop-menu-inspect {
         order: -1;
         flex: 0 0 auto;
-        width: calc(200px + var(--landscape-safe-left));
-        min-width: calc(200px + var(--landscape-safe-left));
-        max-width: calc(200px + var(--landscape-safe-left));
+        width: calc(178px + var(--landscape-safe-left));
+        min-width: calc(178px + var(--landscape-safe-left));
+        max-width: calc(178px + var(--landscape-safe-left));
         height: 100%;
         min-height: 0;
         max-height: none;
@@ -14421,7 +14423,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         flex-direction: column;
         overflow: hidden;
         padding: 6px 8px;
-        padding-left: calc(8px + var(--landscape-safe-left));
+        padding-left: calc(4px + var(--landscape-safe-left));
         padding-bottom: 6px;
         border-bottom: none;
         border-right: 1px solid rgba(255, 255, 255, 0.09);
@@ -14549,7 +14551,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .desktop-inspect-toggle {
         display: flex;
         flex-wrap: nowrap;
-        gap: 3px;
+        gap: 2px;
         padding: 2px;
         border-radius: 8px;
         overflow-x: auto;
@@ -14562,13 +14564,16 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         display: none;
     }
 
+    /* Tighter tabs so all five (Card/Deck/Log/Hint/Energy) still fit the
+       trimmed 178px rail without clipping the last label. */
     .desktop-inspect-tab {
-        flex: 1 0 auto;
+        flex: 1 1 auto;
         min-height: 22px;
-        padding: 2px 6px;
-        font-size: 0.56em;
+        padding: 2px 4px;
+        font-size: 0.54em;
         border-radius: 6px;
         min-width: 0;
+        white-space: nowrap;
     }
 
     .desktop-inspect-tab.desktop-inspect-tab-menu {
@@ -14699,13 +14704,15 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     .landscape-preview .selected-preview-card,
     .landscape-preview .landscape-preview-card {
-        width: min(148px, 92%);
+        width: min(148px, 100%);
         max-width: 100%;
         min-width: 0;
-        margin: 0 auto;
+        /* Hug the notch side instead of centering, so no dead gap sits between
+           the screen edge and the card. */
+        margin: 0;
         aspect-ratio: var(--card-aspect-ratio);
         flex: 0 0 auto;
-        align-self: center;
+        align-self: flex-start;
     }
 
     .landscape-preview-copy {
