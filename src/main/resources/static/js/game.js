@@ -6083,20 +6083,6 @@ function formatBuilderTypeFilterLabel(type) {
     }
 }
 
-function getDeckCardMonogram(name) {
-    const words = String(name || '')
-        .split(/[^A-Za-z0-9]+/)
-        .map(word => word.trim())
-        .filter(Boolean);
-    if (words.length === 0) {
-        return '??';
-    }
-    if (words.length === 1) {
-        return words[0].slice(0, 2).toUpperCase();
-    }
-    return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
-}
-
 function groupDeckRowsByTier(rows) {
     const rarityMap = new Map();
     rows.forEach(row => {
@@ -6123,6 +6109,25 @@ function groupDeckRowsByTier(rows) {
                     cards: cards.sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
                 }))
         }));
+}
+
+function renderDesktopDeckTemplateCard(card) {
+    const binderVisual = window.SieglingsCardBinderVisual;
+    const canUseBinderCard = binderVisual?.renderBinderCardTile
+        && (binderVisual.usesFullCardArt?.(card) || binderVisual.usesFramedCardTemplate?.(card));
+    if (canUseBinderCard) {
+        return binderVisual.renderBinderCardTile(card, {
+            cardClass: 'mulligan-showcase desktop-deck-showcase',
+            compactAbilityLimit: 2,
+            summaryMode: 'description',
+            descriptionText: card.description || card.ability?.description || ''
+        });
+    }
+    return renderShowcaseCard(card, {
+        bodyMode: 'hidden',
+        artVariant: 'hand',
+        cardClass: 'deck-mini-card'
+    });
 }
 
 function renderDesktopDeckPreview() {
@@ -6158,32 +6163,10 @@ function renderDesktopDeckPreview() {
                     <div class="desktop-deck-icon-row">
             `;
             group.cards.forEach(row => {
-                // Render a real miniature card (painted template + art) rather
-                // than a 2-letter monogram. Fall back to the monogram tile only
-                // if the full card object wasn't carried through the summary.
                 const title = `${row.name} (${row.type} / ${formatElementLabel(row.element)}) x${row.count}`;
                 const countBadge = `<span class="desktop-deck-mini-badge">x${escapeHtml(String(row.count))}</span>`;
-                if (row.card) {
-                    // Use the same 'hand' art treatment the hand selector and
-                    // binder use so the mini is a true shrunk hand card, not a
-                    // full-size preview (whose art box is 150px tall).
-                    const mini = renderShowcaseCard(row.card, {
-                        bodyMode: 'hidden',
-                        artVariant: 'hand',
-                        cardClass: 'deck-mini-card'
-                    });
-                    html += `<div class="desktop-deck-mini" title="${escapeHtml(title)}">${countBadge}${mini}</div>`;
-                } else {
-                    const elementClass = String(row.element || 'neutral').toLowerCase();
-                    const monogram = getDeckCardMonogram(row.name);
-                    html += `
-                        <div class="desktop-deck-icon-card ${escapeHtml(elementClass)}" title="${escapeHtml(title)}">
-                            <span class="desktop-deck-icon-badge">x${escapeHtml(String(row.count))}</span>
-                            <div class="desktop-deck-icon-face">${escapeHtml(monogram)}</div>
-                            <div class="desktop-deck-icon-type">${escapeHtml(group.type)}</div>
-                        </div>
-                    `;
-                }
+                const mini = renderDesktopDeckTemplateCard(row.card);
+                html += `<div class="desktop-deck-mini" title="${escapeHtml(title)}">${countBadge}${mini}</div>`;
             });
             html += `
                     </div>
@@ -6194,6 +6177,8 @@ function renderDesktopDeckPreview() {
     });
     html += '</div>';
     panel.innerHTML = html;
+    scheduleFramedSummaryFit();
+    window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
 }
 
 /* ============================================================

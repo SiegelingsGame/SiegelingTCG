@@ -58,6 +58,23 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void battleDeckPreviewUsesBinderCardTemplates() throws IOException {
+        String gameScript = readGameScript();
+        String deckPreview = extractFunction(gameScript, "function renderDesktopDeckPreview()");
+        String deckCard = extractFunction(gameScript, "function renderDesktopDeckTemplateCard(card)");
+
+        assertTrue(
+                deckPreview.contains("renderDesktopDeckTemplateCard(row.card)")
+                        && deckCard.contains("binderVisual.renderBinderCardTile(card"),
+                "The Battle Table Deck tab must reuse the binder's painted card-template renderer."
+        );
+        assertFalse(
+                deckPreview.contains("desktop-deck-icon-face") || deckPreview.contains("getDeckCardMonogram"),
+                "The Deck tab must not fall back to the old monogram card design."
+        );
+    }
+
+    @Test
     void homePlayLoadoutUsesSelectedAndSavedDecks() throws IOException {
         String homeScript = readHomeScript();
         String selectedDeckId = extractFunction(homeScript, "function selectedDeckId()");
