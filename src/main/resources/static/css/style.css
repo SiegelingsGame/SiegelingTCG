@@ -14178,26 +14178,32 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         display: none !important;
     }
 
-    /* Player/Knight detail sheet: floats centered over the arena instead of
-       the portrait full-width bottom sheet. Opened by tapping either side
-       of the top bar. */
+    /* Player/Knight detail sheet: drops straight down from under the top bar
+       and stays inside the live arena column — bounded left by the inspector
+       rail (200px) and right by the hand dock (208px), and stopping above the
+       floating action HUD — so it never covers the side panels or the board
+       controls. Opened by tapping either side of the top bar. */
     .mobile-stat-sheet {
-        left: 50%;
-        right: auto;
-        bottom: 12px;
-        width: min(560px, 92vw);
-        max-height: calc(100dvh - 52px);
+        left: calc(200px + var(--landscape-safe-left) + 6px);
+        right: calc(208px + var(--landscape-safe-right) + 6px);
+        top: calc(env(safe-area-inset-top, 0px) + 44px);
+        bottom: auto;
+        width: auto;
+        max-width: none;
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 44px - 52px);
         border: 1px solid rgba(255, 255, 255, 0.14);
-        border-radius: 14px;
-        transform: translate(-50%, 12px);
+        border-top: none;
+        border-radius: 0 0 14px 14px;
+        box-shadow: 0 16px 30px rgba(0, 0, 0, 0.4);
+        transform: translateY(-12px);
     }
 
     .mobile-stat-sheet.is-open {
-        transform: translate(-50%, 0);
+        transform: translateY(0);
     }
 
     .mobile-stat-sheet .stat-sheet-content {
-        max-height: calc(100dvh - 110px);
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 44px - 52px - 42px);
     }
 
     /* The player/opponent panels are tap targets that open the detail sheet.
