@@ -1284,6 +1284,9 @@ public class GameController {
         }
         if (card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank()) {
             m.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
+            if (card.getHolographicCardArtScale() != null && card.getHolographicCardArtScale() != 1.0) {
+                m.put("holographicCardArtScale", card.getHolographicCardArtScale());
+            }
         }
         if (card.isHolographic()) {
             m.put("holographic", true);
@@ -1386,6 +1389,9 @@ public class GameController {
         }
         if (card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank()) {
             m.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
+            if (card.getHolographicCardArtScale() != null) {
+                m.put("holographicCardArtScale", card.getHolographicCardArtScale());
+            }
         }
         if (card.isHolographic()) {
             m.put("holographic", true);

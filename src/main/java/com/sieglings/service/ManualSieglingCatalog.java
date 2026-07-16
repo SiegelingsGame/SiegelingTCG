@@ -284,6 +284,9 @@ final class ManualSieglingCatalog {
         if (definition.holographicCardArtUrl() != null) {
             card.setHolographicCardArtUrl(normalizeBlank(definition.holographicCardArtUrl()));
         }
+        if (definition.holographicCardArtScale() != null) {
+            card.setHolographicCardArtScale(definition.holographicCardArtScale());
+        }
         if (definition.cardArtMode() != null) {
             card.setCardArtMode(normalizeBlank(definition.cardArtMode()));
         }
@@ -597,6 +600,11 @@ final class ManualSieglingCatalog {
     static void validateCardArtForStorage(ManualSieglingDefinition definition) {
         validateCardArtUrlForStorage(definition.id(), "cardArtUrl", definition.cardArtUrl());
         validateCardArtUrlForStorage(definition.id(), "holographicCardArtUrl", definition.holographicCardArtUrl());
+        Double holographicScale = definition.holographicCardArtScale();
+        if (holographicScale != null && (!Double.isFinite(holographicScale) || holographicScale < 0.25 || holographicScale > 3.0)) {
+            throw new IllegalArgumentException("Card '" + normalizeId(definition.id())
+                    + "' holographicCardArtScale must be between 0.25 and 3.");
+        }
     }
 
     private static void validateCardArtUrlForStorage(String definitionId, String fieldName, String cardArtUrl) {
@@ -698,7 +706,8 @@ final class ManualSieglingCatalog {
                     card.isHolographic(),
                     siegling.getExpeditionStarter(),
                     card.getDescription(),
-                    card.getHolographicCardArtUrl()
+                    card.getHolographicCardArtUrl(),
+                    card.getHolographicCardArtScale()
             );
         }
         if (card instanceof SpellCard spell) {
@@ -735,7 +744,8 @@ final class ManualSieglingCatalog {
                     spell.isHolographic(),
                     null,
                     spell.getDescription(),
-                    spell.getHolographicCardArtUrl()
+                    spell.getHolographicCardArtUrl(),
+                    spell.getHolographicCardArtScale()
             );
         }
         if (card instanceof TrapCard trap) {
@@ -772,7 +782,8 @@ final class ManualSieglingCatalog {
                     trap.isHolographic(),
                     null,
                     trap.getDescription(),
-                    trap.getHolographicCardArtUrl()
+                    trap.getHolographicCardArtUrl(),
+                    trap.getHolographicCardArtScale()
             );
         }
         throw new IllegalStateException("Unsupported card type for override export: " + card.getClass().getSimpleName());
@@ -861,7 +872,8 @@ final class ManualSieglingCatalog {
             Boolean holographic,
             Boolean expeditionStarter,
             String description,
-            String holographicCardArtUrl
+            String holographicCardArtUrl,
+            Double holographicCardArtScale
     ) {
         ManualSieglingDefinition(
                 CardType type, String id, String name, Element element, Rarity rarity,
@@ -878,7 +890,7 @@ final class ManualSieglingCatalog {
                     trapBucketElement, trapBucketAmount, requiredReaction, requiredComboSize,
                     requiredComboSignature, moveIds, abilities, cardArtUrl, cardArtMode,
                     cardArtOffsetX, cardArtOffsetY, cardArtOffsetXPct, cardArtOffsetYPct,
-                    cardArtScale, cardArtRotation, holographic, expeditionStarter, description, null);
+                    cardArtScale, cardArtRotation, holographic, expeditionStarter, description, null, null);
         }
     }
 

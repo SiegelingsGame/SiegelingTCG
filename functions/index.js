@@ -421,6 +421,12 @@ function validateCards(cards, moves) {
 function validateCardArtFields(cardId, card) {
   validateCardArtUrl(cardId, 'cardArtUrl', card?.cardArtUrl);
   validateCardArtUrl(cardId, 'holographicCardArtUrl', card?.holographicCardArtUrl);
+  if (card?.holographicCardArtScale != null && card?.holographicCardArtScale !== '') {
+    const scale = Number(card.holographicCardArtScale);
+    if (!Number.isFinite(scale) || scale < 0.25 || scale > 3) {
+      throw badRequest(`Card '${cardId}' holographicCardArtScale must be between 0.25 and 3.`);
+    }
+  }
   const mode = normalizeUpper(card?.cardArtMode);
   if (mode && mode !== 'REPLACE' && mode !== 'OVERLAY') {
     throw badRequest(`Card '${cardId}' has an invalid cardArtMode '${card?.cardArtMode}'.`);
