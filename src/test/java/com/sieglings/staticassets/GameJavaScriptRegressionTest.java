@@ -235,7 +235,10 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 binderScript.contains("options.useHolographicFullCardArt")
-                        && binderScript.contains("card?.holographicCardArtUrl"),
+                        && binderScript.contains("card?.holographicCardArtUrl")
+                        && binderScript.contains("holographic-card-name")
+                        && binderScript.contains("holographic-card-stats")
+                        && binderScript.contains("holographicCardArtScale"),
                 "The full-card holographic asset must require an explicit binder-view option."
         );
         assertTrue(
@@ -246,6 +249,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 dashboardScript.contains("selected.holographicCardArtUrl = hostedUrl")
+                        && dashboardScript.contains("holographicCardArtScale")
                         && dashboardScript.contains("formData.append(\"artVariant\", artVariant)"),
                 "Dashboard holographic uploads must save to their own catalog field and upload variant."
         );

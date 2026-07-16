@@ -158,11 +158,17 @@ test('validates holographic full-card art independently from standard Siege art'
   valid.cards[0].cardArtUrl = 'https://cdn.example/seedling-overlay.png';
   valid.cards[0].cardArtMode = 'OVERLAY';
   valid.cards[0].holographicCardArtUrl = 'https://cdn.example/seedling-holographic.png';
+  valid.cards[0].holographicCardArtScale = 1.18;
   assert.doesNotThrow(() => _private.validateEditorBundle(valid));
 
   const invalid = validBundle();
   invalid.cards[0].holographicCardArtUrl = 'data:image/png;base64,abc';
   assert.throws(() => _private.validateEditorBundle(invalid), /holographicCardArtUrl uses an embedded image upload/);
+
+  const invalidScale = validBundle();
+  invalidScale.cards[0].holographicCardArtUrl = 'https://cdn.example/seedling-holographic.png';
+  invalidScale.cards[0].holographicCardArtScale = 4;
+  assert.throws(() => _private.validateEditorBundle(invalidScale), /holographicCardArtScale must be between 0.25 and 3/);
 });
 
 test('validates live publish bundle before writing Firestore', () => {

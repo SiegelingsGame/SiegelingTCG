@@ -354,6 +354,10 @@
             "cardArtUrlInput",
             "holographicCardArtFileInput",
             "holographicCardArtUrlInput",
+            "holographicArtTransformControls",
+            "holographicCardArtScaleInput",
+            "holographicCardArtScaleNumber",
+            "resetHolographicCardArtScaleBtn",
             "clearHolographicCardArtBtn",
             "clearCardArtBtn",
             "cardArtTransformControls",
@@ -710,8 +714,27 @@
             state.cardArtPreviewVariant = "STANDARD";
             mutateSelectedCard((card) => {
                 card.holographicCardArtUrl = "";
+                card.holographicCardArtScale = 1;
             });
             if (refs.holographicCardArtFileInput) refs.holographicCardArtFileInput.value = "";
+        });
+
+        const updateHolographicScale = (value) => {
+            mutateSelectedCard((card) => {
+                card.holographicCardArtScale = clampCardArtScale(value);
+            });
+        };
+        refs.holographicCardArtScaleInput?.addEventListener("input", (event) => {
+            updateHolographicScale(event.target.value);
+        });
+        refs.holographicCardArtScaleNumber?.addEventListener("input", (event) => {
+            updateHolographicScale(event.target.value);
+        });
+        refs.holographicCardArtScaleNumber?.addEventListener("change", (event) => {
+            event.target.value = formatCardArtScaleValue(event.target.value);
+        });
+        refs.resetHolographicCardArtScaleBtn?.addEventListener("click", () => {
+            updateHolographicScale(1);
         });
 
         refs.cardArtScaleInput?.addEventListener("input", (event) => {
@@ -2076,6 +2099,24 @@
         }
     }
 
+    function syncHolographicCardArtScaleControls(card) {
+        const hasHolographicArt = Boolean(
+            String(card?.holographicCardArtUrl || "").trim()
+            || getEphemeralHolographicCardArtPreviewUrl(card?.id)
+        );
+        refs.holographicArtTransformControls?.classList.toggle("hidden", !hasHolographicArt);
+        if (!hasHolographicArt) {
+            return;
+        }
+        const scale = clampCardArtScale(card?.holographicCardArtScale ?? 1);
+        if (refs.holographicCardArtScaleInput && document.activeElement !== refs.holographicCardArtScaleInput) {
+            refs.holographicCardArtScaleInput.value = String(scale);
+        }
+        if (refs.holographicCardArtScaleNumber && document.activeElement !== refs.holographicCardArtScaleNumber) {
+            refs.holographicCardArtScaleNumber.value = formatCardArtScaleValue(scale);
+        }
+    }
+
     function normalizeCardArtFields(card) {
         const cardArtUrl = String(card?.cardArtUrl || "").trim();
         let cardArtMode = normalizeCardArtMode(card?.cardArtMode);
@@ -2085,6 +2126,7 @@
         return {
             cardArtUrl,
             holographicCardArtUrl: String(card?.holographicCardArtUrl || "").trim(),
+            holographicCardArtScale: clampCardArtScale(card?.holographicCardArtScale ?? 1),
             cardArtMode,
             holographic: card?.holographic === true,
             ...normalizeCardArtTransformFields(card)
@@ -2124,6 +2166,10 @@
         const holographicCardArtUrl = String(card?.holographicCardArtUrl || "").trim();
         if (holographicCardArtUrl) {
             exported.holographicCardArtUrl = holographicCardArtUrl;
+            const holographicScale = clampCardArtScale(card?.holographicCardArtScale ?? 1);
+            if (holographicScale !== 1) {
+                exported.holographicCardArtScale = holographicScale;
+            }
         }
         if (card?.holographic === true) {
             exported.holographic = true;
@@ -3098,8 +3144,7 @@
         if (state.cardArtPreviewVariant === "HOLOGRAPHIC") {
             const holographicUrl = ephemeralHolographicArtUrl || String(card.holographicCardArtUrl || "").trim();
             if (holographicUrl) {
-                preview.cardArtUrl = holographicUrl;
-                preview.cardArtMode = "FULL_CARD";
+                preview.holographicCardArtUrl = holographicUrl;
                 preview.holographic = true;
             }
         }
@@ -3146,7 +3191,9 @@
 
         refs.cardVisualStage.innerHTML = binder.renderBinderCardPreview(previewCard, {
             ownedLabel: "Preview",
-            descriptionText
+            descriptionText,
+            holographicDescriptionText: flavorDescription,
+            useHolographicFullCardArt: state.cardArtPreviewVariant === "HOLOGRAPHIC"
         });
         refs.cardArtControls?.classList.remove("hidden");
 
@@ -3172,6 +3219,7 @@
             setInputValue(refs.holographicCardArtUrlInput, card.holographicCardArtUrl || "");
             refs.holographicCardArtUrlInput.placeholder = `/assets/cards/${String(card.id || "example").trim().toLowerCase()}-holographic.png`;
         }
+        syncHolographicCardArtScaleControls(card);
         syncCardArtTransformControls(card);
         setupCardArtDragInteraction(card);
         attachCardArtPreviewErrorHandler(card);

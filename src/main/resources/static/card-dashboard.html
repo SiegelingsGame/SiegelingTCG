@@ -15,13 +15,13 @@
          rules stay authoritative. Loading it last leaked home's
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
-    <link rel="stylesheet" href="/css/home.css?v=97">
+    <link rel="stylesheet" href="/css/home.css?v=98">
     <!-- style.css supplies the .hand-card / .element-frame showcase styles the
          card preview needs (the painted element frames). Loaded after home.css
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=205">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=35">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=36">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -438,6 +438,14 @@
                             <span>Holographic full-card URL or path</span>
                             <input id="holographicCardArtUrlInput" type="text" autocomplete="off" placeholder="/assets/cards/example-holographic.png">
                         </label>
+                        <div class="holographic-art-transform-controls hidden" id="holographicArtTransformControls">
+                            <p class="card-art-transform-help">Scale only the uploaded holo artwork inside the shared card footprint. Standard and Siege art are unchanged.</p>
+                            <label class="card-art-slider-field">
+                                <span>Holo art scale <input id="holographicCardArtScaleNumber" class="card-art-number-input" type="number" min="0.25" max="3" step="0.01" value="1.00" inputmode="decimal" aria-label="Holographic card art scale"></span>
+                                <input id="holographicCardArtScaleInput" type="range" min="0.25" max="3" step="0.01" value="1">
+                            </label>
+                            <button class="btn btn-secondary" id="resetHolographicCardArtScaleBtn" type="button">Reset Holo Scale</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1142,9 +1150,9 @@
      Loaded at body-end (document.body exists) so its layout init can't throw, and
      before card-binder-visual.js so the showcase is registered first. -->
 <script src="/js/game.js?v=202"></script>
-<script src="/js/card-binder-visual.js?v=5"></script>
+<script src="/js/card-binder-visual.js?v=9"></script>
 <script src="/js/dashboard-info.js?v=2"></script>
-<script src="/js/card-dashboard.js?v=48"></script>
+<script src="/js/card-dashboard.js?v=49"></script>
 <script src="/js/loading-art-admin.js?v=1"></script>
 <script src="/js/siege-class-admin.js?v=2"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>

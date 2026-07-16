@@ -36,7 +36,8 @@ class ManualSieglingCatalogTest {
                   "element":"FIRE",
                   "cardArtUrl":"/assets/cards/%s-overlay.png",
                   "cardArtMode":"OVERLAY",
-                  "holographicCardArtUrl":"/assets/cards/%s-holographic.png"
+                  "holographicCardArtUrl":"/assets/cards/%s-holographic.png",
+                  "holographicCardArtScale":1.18
                 }
                 """.formatted(generated.getId(), generated.getId(), generated.getId());
         ManualSieglingCatalog.ManualSieglingDefinition definition = new ObjectMapper().readValue(
@@ -53,9 +54,13 @@ class ManualSieglingCatalogTest {
         assertEquals("/assets/cards/" + generated.getId() + "-overlay.png", merged.getCardArtUrl());
         assertEquals("OVERLAY", merged.getCardArtMode());
         assertEquals("/assets/cards/" + generated.getId() + "-holographic.png", merged.getHolographicCardArtUrl());
+        assertEquals(1.18, merged.getHolographicCardArtScale());
         assertEquals(merged.getHolographicCardArtUrl(), merged.copy().getHolographicCardArtUrl());
+        assertEquals(merged.getHolographicCardArtScale(), merged.copy().getHolographicCardArtScale());
         assertEquals(merged.getHolographicCardArtUrl(), ManualSieglingCatalog.buildOverrideFile(List.of(merged))
                 .cards().get(0).holographicCardArtUrl());
+        assertEquals(1.18, ManualSieglingCatalog.buildOverrideFile(List.of(merged))
+                .cards().get(0).holographicCardArtScale());
     }
 
     @Test

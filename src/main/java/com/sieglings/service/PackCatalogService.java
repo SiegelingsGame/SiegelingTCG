@@ -369,6 +369,9 @@ public class PackCatalogService {
         }
         if (card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank()) {
             target.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
+            if (card.getHolographicCardArtScale() != null) {
+                target.put("holographicCardArtScale", card.getHolographicCardArtScale());
+            }
         }
         if (card.isHolographic()) {
             target.put("holographic", true);

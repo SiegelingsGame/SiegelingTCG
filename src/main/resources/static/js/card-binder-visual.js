@@ -209,12 +209,62 @@
         return '<div class="card-holographic-overlay" aria-hidden="true"></div>';
     }
 
+    function holographicCardArtScale(card) {
+        const scale = Number(card?.holographicCardArtScale);
+        return Number.isFinite(scale) ? clampNumber(scale, 0.25, 3) : 1;
+    }
+
+    function holographicCardCopy(card, options = {}) {
+        const hasDedicatedDescription = Object.prototype.hasOwnProperty.call(options, 'holographicDescriptionText');
+        const description = String(
+            hasDedicatedDescription
+                ? options.holographicDescriptionText
+                : (options.descriptionText || card?.description || '')
+        ).trim();
+        if (description) {
+            return `<div class="holographic-card-description">${escapeHtml(description)}</div>`;
+        }
+        const abilities = Array.isArray(card?.abilities) ? card.abilities : [];
+        const candidates = abilities.length ? abilities : (card?.ability ? [card.ability] : []);
+        if (!candidates.length) {
+            return '<div class="holographic-card-description is-placeholder">Description coming soon.</div>';
+        }
+        return `<div class="holographic-card-abilities">${candidates.slice(0, 3).map((ability) => {
+            const name = String(ability?.name || '').trim();
+            const copy = String(ability?.description || '').trim();
+            const prefix = name ? `<strong>${escapeHtml(name)}${copy ? ':' : ''}</strong>` : '';
+            return `<div class="holographic-card-ability">${prefix}${copy ? ` ${escapeHtml(copy)}` : ''}</div>`;
+        }).join('')}</div>`;
+    }
+
+    function renderHolographicCardData(card, options = {}) {
+        const type = normalizeCardType(card);
+        const health = card?.health ?? card?.hp;
+        const speed = card?.speed;
+        const stats = type === 'SIEGLING'
+            ? `<div class="holographic-card-stats"><span>HP: ${escapeHtml(health ?? '—')}</span><span>SPD: ${escapeHtml(speed ?? '—')}</span></div>`
+            : `<div class="holographic-card-stats holographic-card-type"><span>${escapeHtml(format(type || 'Card'))}</span><span>${escapeHtml(format(card?.element || 'Neutral'))}</span></div>`;
+        return `<div class="holographic-card-data">
+            <div class="holographic-card-name">${escapeHtml(card?.name || 'Unnamed Card')}</div>
+            ${stats}
+            <div class="holographic-card-copy">${holographicCardCopy(card, options)}</div>
+        </div>`;
+    }
+
     function renderFullCardArt(card, options = {}) {
         const artUrl = fullCardArtUrl(card, options);
         if (!artUrl) return '';
         const extraClass = options.previewClass ? ` ${options.previewClass}` : '';
-        return `<div class="binder-full-card-art${extraClass}${holographicClass(card, options)}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
-            <img src="${escapeAttr(artUrl)}" alt="${escapeAttr(card?.name || 'Full art card')}" loading="lazy">
+        const usesHolographicArtwork = Boolean(holographicFullCardArtUrl(card, options));
+        const holographicClassName = usesHolographicArtwork ? ' is-holographic-full-art' : '';
+        const content = usesHolographicArtwork
+            ? `<div class="holographic-card-art-canvas" style="--holographic-card-art-scale:${holographicCardArtScale(card)}">
+                <img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="lazy">
+                ${renderHolographicCardData(card, options)}
+            </div>`
+            : `<img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="lazy">`;
+        return `<div class="binder-full-card-art${extraClass}${holographicClassName}${holographicClass(card, options)}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
+            ${content}
             ${isHolographic(card, options) ? renderHolographicOverlay() : ''}
         </div>`;
     }
