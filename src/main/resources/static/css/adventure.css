@@ -264,7 +264,20 @@ body[data-screen="mapScreen"] #mapScreen{
 .um-status{color:#c896ff; margin-left:6px;}
 .um-card-desc{font-size:11px; color:var(--faint); margin-top:3px; line-height:1.35;}
 
-.setup-footer{position:sticky; bottom:0; display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 0; background:linear-gradient(transparent, var(--bg) 40%);}
+/* Sticky action bar: must sit ABOVE the scrolling card grid so a Siegeling
+   sprite can never cover (or steal taps from) the Begin/Approve button. */
+.setup-footer{
+  position:sticky; bottom:0; z-index:40;
+  display:flex; align-items:center; justify-content:space-between; gap:14px;
+  padding:14px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  margin:0 -12px;                 /* bleed the opaque bar to the screen edges */
+  background:var(--bg);           /* fully opaque — no grid showing through */
+  border-top:1px solid var(--border);
+  box-shadow:0 -14px 22px 10px var(--bg);
+}
+.setup-footer .siege-btn{flex:0 0 auto;}
+/* Leave room so the last grid row can scroll clear of the sticky bar. */
+#setupStepKnight, #setupStepParty{padding-bottom:96px;}
 .setup-summary{color:var(--dim); font-size:14px; flex:1 1 auto; min-width:0;}
 
 /* ---------- Party strip ---------- */
