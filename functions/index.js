@@ -242,7 +242,8 @@ app.post('/api/cards/editor/art', async (req, res) => {
       throw badRequest('Choose an image file to upload.');
     }
     const extension = resolveCardArtExtension(file);
-    const objectPath = `cards/${cardId}.${extension}`;
+    const artVariant = normalizeCardArtVariant(fields.artVariant);
+    const objectPath = buildCardArtObjectPath(cardId, extension, artVariant);
     const bucket = admin.storage().bucket();
     const objectRef = bucket.file(objectPath);
     const downloadToken = crypto.randomUUID();
@@ -258,7 +259,7 @@ app.post('/api/cards/editor/art', async (req, res) => {
     });
     await objectRef.makePublic().catch(() => {});
     const publicUrl = buildCardArtPublicUrl(bucket.name, objectPath, downloadToken);
-    res.json({ ok: true, url: publicUrl });
+    res.json({ ok: true, url: publicUrl, artVariant });
   } catch (error) {
     const status = error.statusCode || (String(error.message || '').includes('Sign in') ? 400 : 500);
     res.status(status).json({ error: error.message || 'Unable to upload card art.' });
@@ -418,23 +419,35 @@ function validateCards(cards, moves) {
 }
 
 function validateCardArtFields(cardId, card) {
-  const cardArtUrl = normalizeText(card?.cardArtUrl);
-  if (!cardArtUrl) {
-    return;
-  }
-  if (cardArtUrl.toLowerCase().startsWith('data:')) {
-    throw badRequest(`Card '${cardId}' uses an embedded image upload (data URL). Upload the image again or use a hosted path like /assets/cards/${cardId}.png.`);
-  }
-  if (cardArtUrl.length > 2048) {
-    throw badRequest(`Card '${cardId}' cardArtUrl is too long for Firestore (${cardArtUrl.length} characters).`);
-  }
-  if (cardArtUrl.startsWith('/assets/cards/')) {
-    throw badRequest(`Card '${cardId}' uses ${cardArtUrl}, which is not hosted for the live game. Use Upload Image in the dashboard so art is stored in cloud storage.`);
-  }
+  validateCardArtUrl(cardId, 'cardArtUrl', card?.cardArtUrl);
+  validateCardArtUrl(cardId, 'holographicCardArtUrl', card?.holographicCardArtUrl);
   const mode = normalizeUpper(card?.cardArtMode);
   if (mode && mode !== 'REPLACE' && mode !== 'OVERLAY') {
     throw badRequest(`Card '${cardId}' has an invalid cardArtMode '${card?.cardArtMode}'.`);
   }
+}
+
+function validateCardArtUrl(cardId, fieldName, rawUrl) {
+  const cardArtUrl = normalizeText(rawUrl);
+  if (!cardArtUrl) return;
+  if (cardArtUrl.toLowerCase().startsWith('data:')) {
+    throw badRequest(`Card '${cardId}' ${fieldName} uses an embedded image upload (data URL). Upload the image again.`);
+  }
+  if (cardArtUrl.length > 2048) {
+    throw badRequest(`Card '${cardId}' ${fieldName} is too long for Firestore (${cardArtUrl.length} characters).`);
+  }
+  if (cardArtUrl.startsWith('/assets/cards/')) {
+    throw badRequest(`Card '${cardId}' uses ${cardArtUrl}, which is not hosted for the live game. Use Upload Image in the dashboard so art is stored in cloud storage.`);
+  }
+}
+
+function normalizeCardArtVariant(value) {
+  return normalizeUpper(value) === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD';
+}
+
+function buildCardArtObjectPath(cardId, extension, artVariant) {
+  const suffix = normalizeCardArtVariant(artVariant) === 'HOLOGRAPHIC' ? '-holographic' : '';
+  return `cards/${cardId}${suffix}.${extension}`;
 }
 
 function validateTrainers(trainers) {
@@ -1002,6 +1015,8 @@ exports._private = {
   validateEditorBundle,
   validateCardArtFields,
   normalizeCardArtId,
+  normalizeCardArtVariant,
+  buildCardArtObjectPath,
   resolveCardArtExtension,
   parseCardArtUpload,
   buildCardArtPublicUrl,

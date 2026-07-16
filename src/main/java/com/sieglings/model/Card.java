@@ -24,6 +24,8 @@ public abstract class Card {
 
     /** Optional custom art for the cards menu binder preview (URL or data URI). */
     private String cardArtUrl;
+    /** Optional complete-card artwork shown in binder views when this card is holographic. */
+    private String holographicCardArtUrl;
     /** REPLACE replaces the element icon; OVERLAY draws art on top of the default frame; FULL_CARD renders the image as the complete card. */
     private String cardArtMode;
     /** Custom art transform within the binder art frame (pixels / scale / degrees). */
@@ -68,6 +70,8 @@ public abstract class Card {
     public void setDescription(String description) { this.description = description; }
     public String getCardArtUrl() { return cardArtUrl; }
     public void setCardArtUrl(String cardArtUrl) { this.cardArtUrl = cardArtUrl; }
+    public String getHolographicCardArtUrl() { return holographicCardArtUrl; }
+    public void setHolographicCardArtUrl(String holographicCardArtUrl) { this.holographicCardArtUrl = holographicCardArtUrl; }
     public String getCardArtMode() { return cardArtMode; }
     public void setCardArtMode(String cardArtMode) { this.cardArtMode = cardArtMode; }
     public Double getCardArtOffsetX() { return cardArtOffsetX; }

@@ -343,30 +343,32 @@ public class PackCatalogService {
     }
 
     private void appendCardArt(Map<String, Object> target, Card card) {
-        if (card.getCardArtUrl() == null || card.getCardArtUrl().isBlank()) {
-            return;
+        if (card.getCardArtUrl() != null && !card.getCardArtUrl().isBlank()) {
+            target.put("cardArtUrl", card.getCardArtUrl());
+            if (card.getCardArtMode() != null && !card.getCardArtMode().isBlank()) {
+                target.put("cardArtMode", card.getCardArtMode());
+            }
+            if (card.getCardArtOffsetX() != null) {
+                target.put("cardArtOffsetX", card.getCardArtOffsetX());
+            }
+            if (card.getCardArtOffsetY() != null) {
+                target.put("cardArtOffsetY", card.getCardArtOffsetY());
+            }
+            if (card.getCardArtOffsetXPct() != null) {
+                target.put("cardArtOffsetXPct", card.getCardArtOffsetXPct());
+            }
+            if (card.getCardArtOffsetYPct() != null) {
+                target.put("cardArtOffsetYPct", card.getCardArtOffsetYPct());
+            }
+            if (card.getCardArtScale() != null) {
+                target.put("cardArtScale", card.getCardArtScale());
+            }
+            if (card.getCardArtRotation() != null) {
+                target.put("cardArtRotation", card.getCardArtRotation());
+            }
         }
-        target.put("cardArtUrl", card.getCardArtUrl());
-        if (card.getCardArtMode() != null && !card.getCardArtMode().isBlank()) {
-            target.put("cardArtMode", card.getCardArtMode());
-        }
-        if (card.getCardArtOffsetX() != null) {
-            target.put("cardArtOffsetX", card.getCardArtOffsetX());
-        }
-        if (card.getCardArtOffsetY() != null) {
-            target.put("cardArtOffsetY", card.getCardArtOffsetY());
-        }
-        if (card.getCardArtOffsetXPct() != null) {
-            target.put("cardArtOffsetXPct", card.getCardArtOffsetXPct());
-        }
-        if (card.getCardArtOffsetYPct() != null) {
-            target.put("cardArtOffsetYPct", card.getCardArtOffsetYPct());
-        }
-        if (card.getCardArtScale() != null) {
-            target.put("cardArtScale", card.getCardArtScale());
-        }
-        if (card.getCardArtRotation() != null) {
-            target.put("cardArtRotation", card.getCardArtRotation());
+        if (card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank()) {
+            target.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
         }
         if (card.isHolographic()) {
             target.put("holographic", true);

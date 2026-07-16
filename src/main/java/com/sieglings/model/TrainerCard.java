@@ -48,6 +48,7 @@ public class TrainerCard extends Card {
                 oncePerGame
         );
         copy.setCardArtUrl(getCardArtUrl());
+        copy.setHolographicCardArtUrl(getHolographicCardArtUrl());
         copy.setCardArtMode(getCardArtMode());
         copy.setCardArtOffsetX(getCardArtOffsetX());
         copy.setCardArtOffsetY(getCardArtOffsetY());

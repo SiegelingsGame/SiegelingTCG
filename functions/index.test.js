@@ -68,6 +68,10 @@ test('normalizes card art ids and extensions for uploads', () => {
     _private.buildCardArtPublicUrl('example.appspot.com', 'cards/hurricrane.png', 'token-123'),
     'https://firebasestorage.googleapis.com/v0/b/example.appspot.com/o/cards%2Fhurricrane.png?alt=media&token=token-123'
   );
+  assert.equal(_private.normalizeCardArtVariant('holographic'), 'HOLOGRAPHIC');
+  assert.equal(_private.normalizeCardArtVariant('anything-else'), 'STANDARD');
+  assert.equal(_private.buildCardArtObjectPath('bearby', 'png', 'STANDARD'), 'cards/bearby.png');
+  assert.equal(_private.buildCardArtObjectPath('bearby', 'png', 'HOLOGRAPHIC'), 'cards/bearby-holographic.png');
 });
 
 test('parses multipart card-art uploads from a buffered Cloud Functions body', async () => {
@@ -147,6 +151,18 @@ test('rejects project-relative card art paths during live publish validation', (
     () => _private.validateEditorBundle(bundle),
     /not hosted for the live game/
   );
+});
+
+test('validates holographic full-card art independently from standard Siege art', () => {
+  const valid = validBundle();
+  valid.cards[0].cardArtUrl = 'https://cdn.example/seedling-overlay.png';
+  valid.cards[0].cardArtMode = 'OVERLAY';
+  valid.cards[0].holographicCardArtUrl = 'https://cdn.example/seedling-holographic.png';
+  assert.doesNotThrow(() => _private.validateEditorBundle(valid));
+
+  const invalid = validBundle();
+  invalid.cards[0].holographicCardArtUrl = 'data:image/png;base64,abc';
+  assert.throws(() => _private.validateEditorBundle(invalid), /holographicCardArtUrl uses an embedded image upload/);
 });
 
 test('validates live publish bundle before writing Firestore', () => {

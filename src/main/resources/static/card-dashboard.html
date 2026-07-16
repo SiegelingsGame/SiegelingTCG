@@ -15,13 +15,13 @@
          rules stay authoritative. Loading it last leaked home's
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
-    <link rel="stylesheet" href="/css/home.css?v=96">
+    <link rel="stylesheet" href="/css/home.css?v=97">
     <!-- style.css supplies the .hand-card / .element-frame showcase styles the
          card preview needs (the painted element frames). Loaded after home.css
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=205">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=34">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=35">
     <link rel="stylesheet" href="/css/holographic.css?v=1">
 </head>
 <body>
@@ -375,6 +375,13 @@
                     <div class="validation-empty">Select a card to preview.</div>
                 </div>
                 <div class="card-art-controls hidden" id="cardArtControls">
+                    <div class="card-art-section-heading">
+                        <div><strong>Standard / Siege art</strong><span>Used on the battlefield and everywhere the regular card is shown.</span></div>
+                        <div class="art-preview-toggle" role="radiogroup" aria-label="Preview art version">
+                            <label><input type="radio" name="cardArtPreviewVariant" value="STANDARD" checked><span>Standard</span></label>
+                            <label><input type="radio" name="cardArtPreviewVariant" value="HOLOGRAPHIC"><span>Holographic</span></label>
+                        </div>
+                    </div>
                     <div class="art-mode-toggle" role="radiogroup" aria-label="Card art mode">
                         <label class="art-mode-option">
                             <input type="radio" name="cardArtMode" value="">
@@ -417,6 +424,20 @@
                             <input id="cardArtRotationInput" type="range" min="-180" max="180" step="1" value="0">
                         </label>
                         <button class="btn btn-secondary" id="resetCardArtTransformBtn" type="button">Reset Transform</button>
+                    </div>
+                    <div class="holographic-card-art-controls">
+                        <div class="card-art-section-heading">
+                            <div><strong>Holographic full-card art</strong><span>Shown in the binder only after this card receives its holographic upgrade.</span></div>
+                        </div>
+                        <div class="inline-actions card-art-actions">
+                            <label class="btn btn-secondary file-btn" for="holographicCardArtFileInput">Upload Holo Card</label>
+                            <input id="holographicCardArtFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif">
+                            <button class="btn btn-secondary" id="clearHolographicCardArtBtn" type="button">Clear Holo Art</button>
+                        </div>
+                        <label class="card-art-url-field">
+                            <span>Holographic full-card URL or path</span>
+                            <input id="holographicCardArtUrlInput" type="text" autocomplete="off" placeholder="/assets/cards/example-holographic.png">
+                        </label>
                     </div>
                 </div>
             </div>
@@ -1121,9 +1142,9 @@
      Loaded at body-end (document.body exists) so its layout init can't throw, and
      before card-binder-visual.js so the showcase is registered first. -->
 <script src="/js/game.js?v=202"></script>
-<script src="/js/card-binder-visual.js?v=4"></script>
+<script src="/js/card-binder-visual.js?v=5"></script>
 <script src="/js/dashboard-info.js?v=2"></script>
-<script src="/js/card-dashboard.js?v=47"></script>
+<script src="/js/card-dashboard.js?v=48"></script>
 <script src="/js/loading-art-admin.js?v=1"></script>
 <script src="/js/siege-class-admin.js?v=2"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>

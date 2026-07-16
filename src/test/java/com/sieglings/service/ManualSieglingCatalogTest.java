@@ -27,6 +27,38 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ManualSieglingCatalogTest {
 
     @Test
+    void holographicFullCardArtRoundTripsWithoutReplacingSiegeArt() throws Exception {
+        SieglingCard generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE).get(0);
+        String json = """
+                {
+                  "type":"SIEGLING",
+                  "id":"%s",
+                  "element":"FIRE",
+                  "cardArtUrl":"/assets/cards/%s-overlay.png",
+                  "cardArtMode":"OVERLAY",
+                  "holographicCardArtUrl":"/assets/cards/%s-holographic.png"
+                }
+                """.formatted(generated.getId(), generated.getId(), generated.getId());
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ObjectMapper().readValue(
+                json,
+                ManualSieglingCatalog.ManualSieglingDefinition.class
+        );
+
+        SieglingCard merged = ManualSieglingCatalog.applyOverrides(
+                Element.FIRE,
+                List.of(generated),
+                List.of(definition)
+        ).get(0);
+
+        assertEquals("/assets/cards/" + generated.getId() + "-overlay.png", merged.getCardArtUrl());
+        assertEquals("OVERLAY", merged.getCardArtMode());
+        assertEquals("/assets/cards/" + generated.getId() + "-holographic.png", merged.getHolographicCardArtUrl());
+        assertEquals(merged.getHolographicCardArtUrl(), merged.copy().getHolographicCardArtUrl());
+        assertEquals(merged.getHolographicCardArtUrl(), ManualSieglingCatalog.buildOverrideFile(List.of(merged))
+                .cards().get(0).holographicCardArtUrl());
+    }
+
+    @Test
     void deletingASieglingFromOverridesKeepsItOutOfTheRoster() {
         List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
         MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);

@@ -33,6 +33,7 @@ public class SpellCard extends Card {
         c.setRequiredComboSize(requiredComboSize);
         c.setRequiredComboSignature(requiredComboSignature);
         c.setCardArtUrl(getCardArtUrl());
+        c.setHolographicCardArtUrl(getHolographicCardArtUrl());
         c.setCardArtMode(getCardArtMode());
         c.setCardArtOffsetX(getCardArtOffsetX());
         c.setCardArtOffsetY(getCardArtOffsetY());

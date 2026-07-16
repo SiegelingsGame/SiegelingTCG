@@ -116,13 +116,18 @@ public class CardOverrideEditorService {
     }
 
     public Map<String, Object> uploadCardArt(String cardId, MultipartFile file, String editorToken) throws IOException {
+        return uploadCardArt(cardId, file, null, editorToken);
+    }
+
+    public Map<String, Object> uploadCardArt(String cardId, MultipartFile file, String artVariant, String editorToken) throws IOException {
         if (storageService.isFirestoreReady()) {
             authService.requireEditor(editorToken);
         }
-        String url = cardArtStorageService.saveCardArt(cardId, file);
+        String url = cardArtStorageService.saveCardArt(cardId, file, artVariant);
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("ok", true);
         response.put("url", url);
+        response.put("artVariant", "HOLOGRAPHIC".equalsIgnoreCase(String.valueOf(artVariant).trim()) ? "HOLOGRAPHIC" : "STANDARD");
         return response;
     }
 

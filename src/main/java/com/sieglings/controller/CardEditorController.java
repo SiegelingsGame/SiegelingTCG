@@ -49,9 +49,10 @@ public class CardEditorController {
     public ResponseEntity<Map<String, Object>> uploadCardArt(
             @RequestHeader(value = EDITOR_TOKEN_HEADER, required = false) String editorToken,
             @RequestParam("cardId") String cardId,
+            @RequestParam(value = "artVariant", required = false) String artVariant,
             @RequestParam("file") MultipartFile file) {
         try {
-            return ResponseEntity.ok(cardOverrideEditorService.uploadCardArt(cardId, file, editorToken));
+            return ResponseEntity.ok(cardOverrideEditorService.uploadCardArt(cardId, file, artVariant, editorToken));
         } catch (IllegalArgumentException ex) {
             return error(HttpStatus.BAD_REQUEST, ex.getMessage());
         } catch (IllegalStateException ex) {
